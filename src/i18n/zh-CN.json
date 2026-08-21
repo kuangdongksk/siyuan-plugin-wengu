@@ -1,17 +1,16 @@
 {
   "pluginName": "温故",
   "welcome": "温故而知新 —— 刷题面板建设中",
-  "modeMaterial": "素材",
-  "modeQuiz": "刷题",
-  "quizReady": "已转换题目，可开始刷题",
-  "quizNone": "当前暂无已转换题目",
   "quizRefresh": "刷新",
-  "switchToQuiz": "进入刷题模式",
-  "currentDoc": "当前文档",
-  "converted": "已转换 {n} 题",
-  "notOpen": "未打开文档",
-  "convertHint": "把笔记块转换为题目块（打 custom-plugin-wengu-q=1 等属性）后，可在这里切换刷题模式。",
+  "quizNone": "当前暂无可刷的题目",
+  "questionBody": "题干",
   "difficulty": "难度",
   "attempts": "刷题 {n} 次",
-  "noAnswer": "未作答"
+  "noAnswer": "未作答",
+  "back": "返回",
+  "submit": "提交",
+  "inputPlaceholder": "输入你的答案…",
+  "correct": "✓ 回答正确",
+  "wrong": "✗ 回答错误，",
+  "answerLabel": "正确答案："
 }

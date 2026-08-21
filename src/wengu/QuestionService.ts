@@ -99,6 +99,12 @@ export async function getBlockAttrs(id: string): Promise<AttrsObject> {
     return (data ?? {}) as AttrsObject;
 }
 
+/** 取容器块的 kramdown 源码（含子块，用于题干/选项/解析展示）。 */
+export async function getBlockKramdown(id: string): Promise<string> {
+    const {data} = await fetchSyncPost("/api/block/getBlockKramdown", {id});
+    return (data ?? "") as string;
+}
+
 /** 写入单块的若干属性（合并到现有属性上）。 */
 export async function setBlockAttrs(id: string, attrs: AttrsObject): Promise<void> {
     await fetchSyncPost("/api/attr/setBlockAttrs", {id, attrs});
