@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.0 2026-08-22
+
+First usable cut of Wengu (温故), the drill plugin:
+
+* Quiz tab from the top bar: collapsible sidebar of generated exercise
+  documents (question count / drilled / correct / total time per doc),
+  question-number rail with a "show numbers" setting toggle
+* "AI: make questions" turns any note into a sibling `Title·习题`
+  exercise document via SiYuan's built-in AI (suitability verdict first,
+  then kramdown question blocks per the block contract)
+* Per-type answering widgets; auto-grading for single/multiple/judge/fill
+  tolerant of real AI output (content answers, merged option blocks,
+  `$…$` delimiters); self-assessment for brief questions
+* Timing modes (count-up / countdown / none) with per-round session
+  history and a persisted per-document `total-time` attribute
+* Wrong answers sync into the "温故错题" flashcard deck (added on wrong,
+  removed on correct)
+
 ## v0.5.1 2026
 
 * [Add an editor breadcrumb button demo](https://github.com/siyuan-note/siyuan/issues/18856)
