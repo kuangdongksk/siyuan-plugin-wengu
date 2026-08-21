@@ -31,6 +31,8 @@ export interface WenguSettingsShape {
     convertModelId?: string;
     /** 默认「填空转选择」（转换时把填空题改写为单选）。 */
     fillToChoice?: boolean;
+    /** 默认「大题拆多步」（转换时把可分解的工科大题改写为多步引导题）。 */
+    bigToSteps?: boolean;
     save?: () => void;
 }
 
@@ -189,6 +191,15 @@ export function openWenguSetting(opts: {
                 }>`,
             )
         }
+          ${
+            item(
+                t("bigToSteps"),
+                t("bigToStepsDesc"),
+                `<input class="b3-switch fn__flex-center" type="checkbox" data-set="bigsteps"${
+                    opts.settings.bigToSteps ? " checked" : ""
+                }>`,
+            )
+        }
         </div>
       </div>
     </div>
@@ -215,7 +226,7 @@ export function openWenguSetting(opts: {
         });
     }
     const bindSwitch = (
-        key: "shownums" | "showattempts" | "showwrong" | "fillchoice",
+        key: "shownums" | "showattempts" | "showwrong" | "fillchoice" | "bigsteps",
         apply: (v: boolean) => void,
     ) => {
         root.querySelector<HTMLInputElement>(`[data-set='${key}']`)?.addEventListener("change", (ev) => {
@@ -228,6 +239,7 @@ export function openWenguSetting(opts: {
     bindSwitch("showattempts", (v) => opts.settings.showAttempts = v);
     bindSwitch("showwrong", (v) => opts.settings.showWrong = v);
     bindSwitch("fillchoice", (v) => opts.settings.fillToChoice = v);
+    bindSwitch("bigsteps", (v) => opts.settings.bigToSteps = v);
     root.querySelector<HTMLSelectElement>("[data-set='deftiming']")?.addEventListener("change", (ev) => {
         const v = (ev.target as HTMLSelectElement).value;
         opts.settings.defaultTiming = v === "countdown" || v === "perQuestion" || v === "none" ? v : "countUp";

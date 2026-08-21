@@ -2,6 +2,7 @@ import {agentChat} from "./AgentClient";
 import type {WenguSession} from "./HistoryStore";
 import type {TimerController} from "./TimerController";
 import type {WenguQuestion} from "./types";
+import {baseQid} from "./types";
 import {
     esc,
     fmt,
@@ -33,8 +34,8 @@ export interface RoundReportModel {
 
 export function renderRoundReport(m: RoundReportModel): string {
     const {t, session: s, list, rounds} = m;
-    const byQid = new Map(s.results.map((r) => [r.qid, r] as const));
-    // 每题用时条形图：高度 ∝ 秒数，对错描色，未答灰色
+    const byQid = byBaseQid(s);
+    // 每题用时条形图：高度 ∝ 秒数，对错描色，未答灰色（多步题按整题聚合）
     const maxSec = Math.max(1, ...list.map((q) => byQid.get(q.id)?.sec ?? 0));
     const timeBars = list
         .map((q, i) => {
@@ -91,6 +92,18 @@ export function renderRoundReport(m: RoundReportModel): string {
 </div>`;
 }
 
+/** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
+ *  ok=全步对、sec=各步求和）。 */
+function byBaseQid(s: WenguSession): Map<string, {ok: boolean; sec: number;}> {
+    const out = new Map<string, {ok: boolean; sec: number;}>();
+    for (const r of s.results) {
+        const b = baseQid(r.qid);
+        const cur = out.get(b);
+        out.set(b, {ok: cur ? cur.ok && r.ok : r.ok, sec: (cur?.sec ?? 0) + (r.sec ?? 0)});
+    }
+    return out;
+}
+
 /** 绑定 AI 报告按钮（点击 → 加载态 → 展示分析文本）。 */
 export function bindRoundReport(root: HTMLElement, m: RoundReportModel, modelId: string): void {
     const btn = root.querySelector<HTMLButtonElement>("[data-act='ai-report']");
@@ -121,7 +134,7 @@ async function run(
 /** 把一轮数据交给 AI 出简短分析（总体/薄弱点/用时异常/建议）。 */
 function buildAnalysisPrompt(m: RoundReportModel): string {
     const {session: s, list, rounds} = m;
-    const byQid = new Map(s.results.map((r) => [r.qid, r] as const));
+    const byQid = byBaseQid(s);
     const perQ = list
         .map((q, i) => {
             const r = byQid.get(q.id);

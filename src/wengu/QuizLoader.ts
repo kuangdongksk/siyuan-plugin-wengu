@@ -19,7 +19,13 @@ import {clampMinutes} from "./ui";
 
 /** 装载入参（QuizView 的当前状态快照 + 依赖）。 */
 export interface QuizLoadDeps {
-    prefs: {docId?: string; sideCollapsed?: boolean; lastConvertModelId?: string; lastConvertFill?: boolean;};
+    prefs: {
+        docId?: string;
+        sideCollapsed?: boolean;
+        lastConvertModelId?: string;
+        lastConvertFill?: boolean;
+        lastConvertSteps?: boolean;
+    };
     settings?: SettingsDialogShape;
     timer: TimerController;
     history?: HistoryStore;
@@ -42,6 +48,7 @@ export interface QuizLoadResult {
     sideCollapsed: boolean;
     lastConvertModelId: string;
     lastConvertFill: boolean;
+    lastConvertSteps: boolean;
     revealMode: WenguRevealMode;
     docTotalSec: number;
     loadError: string;
@@ -57,6 +64,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         sideCollapsed: !!deps.prefs.sideCollapsed,
         lastConvertModelId: deps.prefs.lastConvertModelId ?? "",
         lastConvertFill: deps.prefs.lastConvertFill ?? (deps.settings?.fillToChoice === true),
+        lastConvertSteps: deps.prefs.lastConvertSteps ?? (deps.settings?.bigToSteps === true),
         revealMode: deps.settings?.defaultReveal === "after" ? "after" : "instant",
         docTotalSec: 0,
         loadError: "",
@@ -109,6 +117,7 @@ export interface WenguPrefsIo {
     sideCollapsed?: boolean;
     lastConvertModelId?: string;
     lastConvertFill?: boolean;
+    lastConvertSteps?: boolean;
 }
 
 export async function loadPrefs(

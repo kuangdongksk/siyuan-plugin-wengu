@@ -15,8 +15,10 @@ export const ATTR_PREFIX = PREFIX;
 export const Attr = {
     /** 转换完成标记，值恒为 "1"；存在则该题进入刷题模式可抽取。 */
     q: `${PREFIX}q`,
-    /** 题型：single | multiple | judge | fill | brief。 */
+    /** 题型：single | multiple | judge | fill | brief | steps。 */
     type: `${PREFIX}type`,
+    /** steps 题：步骤类型声明，按序竖线分隔，如 "method|result|result"。 */
+    steps: `${PREFIX}steps`,
     /** 正确答案字符串（客观题自动判分依据；brief 留空走自评）。 */
     answer: `${PREFIX}answer`,
     /** 知识点/考点名，用于分组抽题与错题归类。 */
@@ -35,6 +37,10 @@ export const Attr = {
     lastAnswer: `${PREFIX}last-answer`,
     /** 运行时：最近一次正误，0/1/空。 */
     right: `${PREFIX}right`,
+    /** 运行时（steps 题）：逐步最近正误（"1010"，与 steps 属性对齐）。 */
+    stepRight: `${PREFIX}step-right`,
+    /** 运行时（steps 题）：逐步最近作答（字母按步竖线分隔，如 "A|B"）。 */
+    stepLast: `${PREFIX}step-last`,
     /** 运行时（文档级）：累计刷题用时（秒），打在习题文档块上。 */
     totalTime: `${PREFIX}total-time`,
     /** 子块定位：值为 "answer" 表示该子块是解析侧（闪卡卡背）。 */

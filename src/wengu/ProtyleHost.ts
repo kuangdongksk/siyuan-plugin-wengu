@@ -146,6 +146,11 @@ function safeLute(md: string): string {
     }
 }
 
+/** 把一段 markdown（步骤引导语/选项）渲染为 HTML（畸形时退回纯文本）。 */
+export function mdFragmentHtml(md: string): string {
+    return safeLute(md);
+}
+
 /** 公式/代码高亮（降级渲染路径需要）。 */
 function renderMath(el: HTMLElement): void {
     if ("mathRender" in ProtyleMethod) {
@@ -154,4 +159,9 @@ function renderMath(el: HTMLElement): void {
     if ("highlightRender" in ProtyleMethod) {
         ProtyleMethod.highlightRender(el);
     }
+}
+
+/** 对任意容器渲染公式/代码高亮（StepsFlow 填充步骤内容后调用）。 */
+export function renderMathIn(el: HTMLElement): void {
+    renderMath(el);
 }
