@@ -1,15 +1,15 @@
 import {fetchSyncPost} from "siyuan";
+import {agentChat} from "./AgentClient";
 
 /**
- * AI 转换服务：把一篇笔记文档交给思源自带 AI（/api/ai/chatGPT，
- * 用户在 设置→AI 里配置的模型），按 docs/question-block-contract.md
+ * AI 转换服务：把一篇笔记文档交给思源内置智能体（AgentClient，
+ * 可指定用户在 设置→AI 配置的任一模型），按 docs/question-block-contract.md
  * 的契约生成题目块，落成独立的《原标题·习题》文档。
  *
  * 全部机制已在真机（思源 3.8.0）验证：
- * - /api/ai/chatGPT 收 {msg} 返回 {code, data: 完整回复文本}；
  * - /api/filetree/createDocWithMd 会用内核 Lute 解析 kramdown，
- *   超级块 IAL 必须另起一行紧跟 }}} 之后才能落属性；
- * - 块级公式须用 $$...$$（\[...\] 里的 ^ 会被解析成 <sup> 丢失）。
+ *   超级块 IAL 必须另起一行紧跟在 }}} 之后才能落属性；
+ * - 块级公式须用 $$...$/$...$ 记法，[ ] 里的 ^ 会丢。
  */
 
 /** 文档定位信息。 */
@@ -71,8 +71,15 @@ export function extractBlockId(input: string): string {
 /**
  * 把文档转换成习题文档。AI 先判定能不能转（不能则带原因返回），
  * 能则解析其题目块并生成《原标题·习题》同级文档。
+ * modelId 指定用哪个模型（空串=智能体默认模型）；fillToChoice=true 时
+ * prompt 要求把原文的填空题改写成单选题（原空答案作正确项 + 干扰项）。
  */
-export async function convertDocToQuestions(docIdRaw: string, t: (key: string) => string): Promise<ConvertResult> {
+export async function convertDocToQuestions(
+    docIdRaw: string,
+    t: (key: string) => string,
+    modelId = "",
+    fillToChoice = false,
+): Promise<ConvertResult> {
     const docId = extractBlockId(docIdRaw);
     const info = await getDocInfo(docId);
     if (!info?.notebook) {
@@ -87,17 +94,15 @@ export async function convertDocToQuestions(docIdRaw: string, t: (key: string) =
         `${kramdown.slice(0, MAX_SOURCE_CHARS)}\n<!-- 内容过长已截断 -->` :
         kramdown;
 
-    const ai = await Promise.race([
-        fetchSyncPost("/api/ai/chatGPT", {msg: buildPrompt(source)}),
-        new Promise((resolve) => setTimeout(() => resolve({code: -1, msg: "timeout"}), AI_TIMEOUT_MS)),
-    ]) as {code: number; msg: string; data: unknown;};
-    if (ai.code !== 0) {
-        const reason = ai.msg === "timeout" ? t("convertTimeout") : ai.msg;
+    let reply: string;
+    try {
+        reply = await agentChat(buildPrompt(source, fillToChoice), modelId, AI_TIMEOUT_MS);
+    } catch (e) {
+        const err = e as Error;
+        const reason = err?.name === "AbortError" ? t("convertTimeout") : String(err?.message ?? e);
         return {canConvert: false, message: `${t("convertAiFailed")}${reason}`, count: 0};
     }
-    const reply = String(ai.data ?? "");
     if (!reply.trim()) {
-        // 内核代理 30 秒硬超时会这样返回：code 0 但内容为空
         return {canConvert: false, message: t("convertEmptyReply"), count: 0};
     }
     const verdict = parseVerdict(reply);
@@ -121,7 +126,12 @@ export async function convertDocToQuestions(docIdRaw: string, t: (key: string) =
 }
 
 /** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。 */
-function buildPrompt(source: string): string {
+function buildPrompt(source: string, fillToChoice = false): string {
+    // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
+    const fillRule = fillToChoice ?
+        `
+8. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。` :
+        "";
     return `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目块。
 
 判断该文档是否适合出题（有可考查的知识点、内容足够具体）。
@@ -147,15 +157,16 @@ QUESTIONS:
 > 解析文字
 {: custom-plugin-wengu-part="solution"}
 }}}
-{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节" custom-plugin-wengu-difficulty="3"}
+{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节"}
 
 硬性规则：
 1. 容器超级块以 {{{row 开始、}}} 结束；容器属性 {: ...} 必须另起一行紧跟在 }}} 之后，该行只包含 {: ...}。
 2. type 取 single/multiple/judge/fill/brief；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
 3. 子块 part 取 stem/option-0/answer/solution（不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
-4. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
-5. 保留原文的公式与代码；一个选项块里可以写多个选项。
-6. 题量与文档内容相称：内容少时至少 1 道，内容丰富时 5~10 道，覆盖主要知识点。
+4. difficulty 为可选项：原文档/题目有明确难度线索才写（1~5），没有就整个省略，不要编造。
+5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
+6. 保留原文的公式与代码；一个选项块里可以写多个选项。
+7. 题量与文档内容相称：内容少时至少 1 道，内容丰富时 5~10 道，覆盖主要知识点。${fillRule}
 
 文档内容：
 ${source}`;
