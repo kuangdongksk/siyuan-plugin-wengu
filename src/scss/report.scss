@@ -1,0 +1,95 @@
+/* ── 倒计时归零选择条 ── */
+.wengu-timeup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--b3-theme-error);
+  border-radius: var(--b3-border-radius);
+  background: color-mix(in srgb, var(--b3-theme-error) 8%, transparent);
+}
+
+/* ── 一轮总结报告 ── */
+.wengu-report {
+  max-width: 620px;
+  margin: 12px auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+}
+
+.wengu-report-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wengu-report-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wengu-report-label {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 88px;
+  padding: 4px 4px 0;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.wengu-bar-col {
+  flex: 1;
+  min-width: 14px;
+  max-width: 42px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+}
+
+.wengu-bar {
+  width: 70%;
+  border-radius: 3px 3px 0 0;
+  background: var(--b3-theme-primary-light);
+}
+
+.wengu-bar-right {
+  background: var(--b3-theme-success);
+}
+.wengu-bar-wrong {
+  background: var(--b3-theme-error);
+}
+.wengu-bar-muted {
+  background: var(--b3-theme-surface);
+}
+.wengu-bar-score {
+  background: var(--b3-theme-primary);
+}
+
+.wengu-bar-label {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-report-ai {
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  border-left: 3px solid var(--b3-theme-primary-light);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background-light);
+}
