@@ -1,6 +1,5 @@
 import {
     Plugin,
-    Setting,
     openTab,
     getActiveEditor,
     type Custom,
@@ -9,6 +8,11 @@ import {
 import "./index.scss";
 import {HistoryStore} from "./wengu/HistoryStore";
 import {QuizView} from "./wengu/QuizView";
+import {openWenguSetting} from "./wengu/SettingsDialog";
+import type {
+    WenguRevealMode,
+    WenguTimingMode,
+} from "./wengu/types";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -16,10 +20,24 @@ const TAB_RESULT = "wengu-tab";
 /** 打开页签时记录的目标文档 id（addTab 回调读不到 Tab.data，用模块级传递）。 */
 let targetDocId = "";
 
-/** 插件设置（loadData/saveData("settings") 持久）。 */
+/** 插件设置（loadData/saveData("settings") 持久）。
+ *  语义见 SettingsDialog.WenguSettingsShape：设置页=默认值。 */
 interface WenguSettings {
     /** 题目区左侧是否显示题号导航。 */
     showNums: boolean;
+    /** 题卡头部是否显示「刷过 N 次」。 */
+    showAttempts?: boolean;
+    /** 是否显示上次错题信息（错题徽标、题号历史描色）。 */
+    showWrong?: boolean;
+    /** 默认计时/展示/分钟与模型（开刷面板、转换弹窗的初始选择）。 */
+    defaultTiming?: WenguTimingMode;
+    defaultReveal?: WenguRevealMode;
+    defaultCountdownMin?: number;
+    convertModelId?: string;
+    /** 默认「填空转选择」。 */
+    fillToChoice?: boolean;
+    /** 由插件注入的落盘回调。 */
+    save?: () => void;
 }
 
 /**
@@ -33,7 +51,7 @@ export default class WenguPlugin extends Plugin {
     /** 单例缓存，供 addTab 回调在拿不到插件实例时取 i18n。 */
     static instance: WenguPlugin | undefined;
     /** 插件设置（对象引用共享给 QuizView，开关即时生效）。 */
-    settings: WenguSettings = {showNums: true};
+    settings: WenguSettings = {showNums: true, showAttempts: true, showWrong: true};
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
     activeView: QuizView | undefined;
 
@@ -45,6 +63,12 @@ export default class WenguPlugin extends Plugin {
         } catch (_) {
             // 读不到就按默认
         }
+        // 持久化回调注入共享对象（落盘时剥掉函数字段）
+        this.settings.save = () => {
+            const rest = {...this.settings} as Partial<WenguSettings>;
+            delete rest.save;
+            void this.saveData("settings", rest);
+        };
         this.addIcons(`<symbol id="iconWengu" viewBox="0 0 32 32">
   <path d="M4 6h10a4 4 0 0 1 4 4v16a3 3 0 0 0-3-3H4z" fill="currentColor"/>
   <path d="M28 6H18a4 4 0 0 0-4 4v16a3 3 0 0 1 3-3h11z" fill="currentColor" opacity="0.55"/>
@@ -98,6 +122,8 @@ export default class WenguPlugin extends Plugin {
                             (h) => plugin.saveData("history", h),
                         ) :
                         undefined,
+                    // 目录底部 ⚙ 设置按钮 → 插件设置弹窗
+                    plugin ? () => plugin.openSetting() : undefined,
                 );
                 (this as any).wenguView = view;
                 if (plugin) plugin.activeView = view;
@@ -115,26 +141,14 @@ export default class WenguPlugin extends Plugin {
         });
     }
 
-    /** 设置 → 插件 → 温故：显示题号开关（保存后立即作用于已打开的页签）。 */
+    /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */
     openSetting() {
-        const setting = new Setting({width: "520px", height: "auto"});
-        setting.addItem({
-            title: this.i18n.settingShowNums,
-            description: this.i18n.settingShowNumsDesc,
-            createActionElement: () => {
-                const input = document.createElement("input");
-                input.className = "b3-switch fn__flex-center";
-                input.type = "checkbox";
-                input.checked = this.settings.showNums;
-                input.addEventListener("change", () => {
-                    this.settings.showNums = input.checked;
-                    void this.saveData("settings", {...this.settings});
-                    this.activeView?.applySettings();
-                });
-                return input;
-            },
+        openWenguSetting({
+            i18n: this.i18n,
+            pluginName: this.i18n.pluginName || this.name,
+            version: (this as unknown as {manifest?: {version?: string;};}).manifest?.version ?? "0.1.0",
+            settings: this.settings,
+            onSettingsChange: () => this.activeView?.applySettings(),
         });
-        this.setting = setting;
-        setting.open(this.i18n.pluginName);
     }
 }
