@@ -29,10 +29,14 @@ export const Attr = {
     source: `${PREFIX}source`,
     /** 运行时：刷题次数（整数）。 */
     attempts: `${PREFIX}attempts`,
+    /** 运行时：累计答错次数（整数，答错 +1、答对不清零）。 */
+    wrongCount: `${PREFIX}wrong-count`,
     /** 运行时：最近一次我的答案。 */
     lastAnswer: `${PREFIX}last-answer`,
     /** 运行时：最近一次正误，0/1/空。 */
     right: `${PREFIX}right`,
+    /** 运行时（文档级）：累计刷题用时（秒），打在习题文档块上。 */
+    totalTime: `${PREFIX}total-time`,
     /** 子块定位：值为 "answer" 表示该子块是解析侧（闪卡卡背）。 */
     part: `${PREFIX}part`,
 } as const;
