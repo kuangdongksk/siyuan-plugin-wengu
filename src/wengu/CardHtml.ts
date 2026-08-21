@@ -1,3 +1,4 @@
+import {svgIcon} from "./FormHtml";
 import type {WenguQuestion} from "./types";
 import {
     AUTO_GRADE_TYPES,
@@ -136,7 +137,7 @@ export function renderSideHtml(m: SideHtmlModel): string {
                     const meta = [
                         fmt(t("exerciseCount"), {n: String(d.total)}),
                         d.attempted > 0 ? fmt(t("drilledCount"), {a: String(d.attempted)}) : "",
-                        d.totalTime > 0 ? `⏱${mmss(d.totalTime)}` : "",
+                        d.totalTime > 0 ? mmss(d.totalTime) : "",
                     ].filter(Boolean).join(" · ");
                     return `<div class="wengu-side-item${active}" data-docid="${esc(d.id)}" title="${
                         esc(d.hPath || d.title)
@@ -155,16 +156,16 @@ export function renderSideHtml(m: SideHtmlModel): string {
       </div>
       <div class="wengu-side-body">${items || `<div class="wengu-muted">${esc(t("noExerciseDocs"))}</div>`}</div>
       <div class="wengu-side-foot">
-        <button class="wengu-btn wengu-side-action" data-act="refresh" title="${esc(t("quizRefresh"))}">⟳ ${
-        esc(t("quizRefresh"))
-    }</button>
-        <button class="wengu-btn wengu-side-action" data-act="convert" title="${esc(t("convertBtn"))}">✨ ${
-        esc(t("convertBtn"))
-    }</button>
+        <button class="wengu-btn wengu-side-action" data-act="refresh" title="${esc(t("quizRefresh"))}">${
+        svgIcon("iconRefresh")
+    } ${esc(t("quizRefresh"))}</button>
+        <button class="wengu-btn wengu-side-action" data-act="convert" title="${esc(t("convertBtn"))}">${
+        svgIcon("iconSparkles")
+    } ${esc(t("convertBtn"))}</button>
         ${
         m.hasSettingsButton ?
-            `<button class="wengu-btn wengu-side-action" data-act="settings" title="${esc(t("settingsBtn"))}">⚙ ${
-                esc(t("settingsBtn"))
+            `<button class="wengu-btn wengu-side-action" data-act="settings" title="${esc(t("settingsBtn"))}">${
+                svgIcon("iconSettings")
             }</button>` :
             ""
     }
@@ -178,7 +179,9 @@ export function renderHeadHtml(t: (k: string) => string, sideCollapsed: boolean)
         `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">»</button>` :
         "";
     return `${toggle}
-      <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">⏱ 0:00</span>`;
+      <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${
+        svgIcon("iconClock", "wengu-timer-icon")
+    }<span data-timer-text>0:00</span></span>`;
 }
 
 /** 次头部信息行入参。 */

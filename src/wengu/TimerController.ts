@@ -116,15 +116,13 @@ export class TimerController {
     takeQuestionSec(qid: string): number {
         return this.questionSec(qid);
     }
-    /** 头部标签文案（正计时带文档累计；逐题带当前题；超时 +m:ss）。 */
+    /** 头部标签文案（图标由视图侧 svgIcon 渲染，这里只给文本）。 */
     labelText(t: (k: string) => string, docTotalPending: number, currentQSec: number): string {
-        if (this.inOvertime) return `⏱ +${mmss(this.overtimeSec)}`;
-        if (this.mode === "perQuestion") return `⏱ ${mmss(currentQSec)}`;
+        if (this.inOvertime) return `+${mmss(this.overtimeSec)}`;
+        if (this.mode === "perQuestion") return mmss(currentQSec);
         if (this.mode === "countdown") {
-            return this.countdownLeft === 0 && this.timeUp ?
-                `⏱ ${t("timeUpShort")}` :
-                `⏱ ${mmss(this.countdownLeft)}`;
+            return this.countdownLeft === 0 && this.timeUp ? t("timeUpShort") : mmss(this.countdownLeft);
         }
-        return `⏱ ${mmss(docTotalPending)}`;
+        return mmss(docTotalPending);
     }
 }

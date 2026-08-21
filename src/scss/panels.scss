@@ -1,4 +1,4 @@
-/* ── 开刷面板：与插件设置同款（config-group/config-item 行样式） ── */
+/* ── 开刷面板 / 转换弹窗：与插件设置同款（FormHtml 行样式） ── */
 .wengu-start {
   max-width: 620px;
   margin: 24px auto 0;
@@ -22,18 +22,24 @@
   margin-bottom: 8px;
 }
 
-/* AI 转习题对话框 */
-.wengu-convert-dialog .b3-text-field {
-  margin: 8px 0;
-}
-
-.wengu-convert-dialog .b3-select {
-  margin: 4px 0 8px;
-}
-
-.wengu-dialog-label {
-  display: block;
-  margin-top: 8px;
-  font-size: 12px;
+/* 计时标签：SVG 图标 + 文本 */
+.wengu-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
   color: var(--b3-theme-on-surface-light);
+}
+
+/* 全局图标尺寸（svgIcon 输出的内置 SVG symbol） */
+.wengu-btn svg,
+.wengu-side-action svg,
+.wengu-timer svg,
+.wengu-timeup svg,
+.wengu-report-summary svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
 }

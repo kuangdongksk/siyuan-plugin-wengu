@@ -1,3 +1,9 @@
+import {
+    formGroup,
+    formOption,
+    formRow,
+    formSelect,
+} from "./FormHtml";
 import type {WenguSession} from "./HistoryStore";
 import {newSessionId} from "./HistoryStore";
 import type {TimerController} from "./TimerController";
@@ -52,85 +58,64 @@ export interface StartPanelModel {
     resume?: {timing: WenguTimingMode; reveal: WenguRevealMode; countdownMin: number;};
 }
 
-const option = (value: string, label: string, selected: boolean) =>
-    `<option value="${esc(value)}"${selected ? " selected" : ""}>${esc(label)}</option>`;
-
-const select = (field: string, options: string) =>
-    `<select class="b3-select fn__flex-center fn__size200" data-field="${field}">${options}</select>`;
-
-const group = (title: string, rows: string) =>
-    `<div class="config-group">
-  <div class="config-title">${esc(title)}</div>
-  <div class="config-items">${rows}</div>
-</div>`;
-
-const row = (title: string, desc: string, control: string) =>
-    `<div class="fn__flex b3-label config__item">
-  <div class="fn__flex-1 fn__flex-center">${esc(title)}
-    <div class="b3-label__text">${esc(desc)}</div>
-  </div>
-  <div class="fn__space"></div>
-  ${control}
-</div>`;
-
 export function renderStartPanel(m: StartPanelModel): string {
     const {t, defaults, resume} = m;
     // 继续上次默认选中：初始展示的就是要恢复的原配置
     const cont = m.unfinishedAnswered !== undefined && !!resume;
     const cur = cont ? resume : defaults;
     const progress = m.unfinishedAnswered !== undefined ?
-        group(
+        formGroup(
             t("progressTitle"),
-            row(
+            formRow(
                 t("progressTitle"),
                 fmt(t("continueHint"), {n: String(m.unfinishedAnswered ?? 0)}),
-                select(
+                formSelect(
                     "progress",
-                    option("continue", fmt(t("continueLast"), {n: String(m.unfinishedAnswered ?? 0)}), true) +
-                        option("fresh", t("startFresh"), false),
+                    formOption("continue", fmt(t("continueLast"), {n: String(m.unfinishedAnswered ?? 0)}), true) +
+                        formOption("fresh", t("startFresh"), false),
                 ),
             ),
         ) :
         "";
     const scope = m.lastWrong > 0 ?
-        group(
+        formGroup(
             t("scopeTitle"),
-            row(
+            formRow(
                 t("scopeTitle"),
                 t("scopeHint"),
-                select(
+                formSelect(
                     "scope",
-                    option("all", t("scopeAll"), !cont) +
-                        option("wrong", fmt(t("scopeWrongOnly"), {n: String(m.lastWrong)}), false),
+                    formOption("all", t("scopeAll"), !cont) +
+                        formOption("wrong", fmt(t("scopeWrongOnly"), {n: String(m.lastWrong)}), false),
                 ),
             ),
         ) :
         "";
-    const reveal = group(
+    const reveal = formGroup(
         t("revealTitle"),
-        row(
+        formRow(
             t("revealTitle"),
             t("revealHint"),
-            select(
+            formSelect(
                 "reveal",
-                option("instant", t("revealInstant"), cur.reveal === "instant") +
-                    option("after", t("revealAfter"), cur.reveal === "after"),
+                formOption("instant", t("revealInstant"), cur.reveal === "instant") +
+                    formOption("after", t("revealAfter"), cur.reveal === "after"),
             ),
         ),
     );
-    const timing = group(
+    const timing = formGroup(
         t("timingTitle"),
-        row(
+        formRow(
             t("timingTitle"),
             t("timingHint"),
-            select(
+            formSelect(
                 "timing",
-                option("countUp", t("timingCountUp"), cur.timing === "countUp") +
-                    option("countdown", t("timingCountdown"), cur.timing === "countdown") +
-                    option("perQuestion", t("timingPerQuestion"), cur.timing === "perQuestion") +
-                    option("none", t("timingNone"), cur.timing === "none"),
+                formOption("countUp", t("timingCountUp"), cur.timing === "countUp") +
+                    formOption("countdown", t("timingCountdown"), cur.timing === "countdown") +
+                    formOption("perQuestion", t("timingPerQuestion"), cur.timing === "perQuestion") +
+                    formOption("none", t("timingNone"), cur.timing === "none"),
             ),
-        ) + row(
+        ) + formRow(
             t("timingMinutes"),
             t("timingMinutesHint"),
             `<input class="b3-text-field fn__flex-center fn__size200" type="number" min="1" max="600" data-field="minutes" value="${cur.countdownMin}">`,
