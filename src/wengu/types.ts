@@ -175,5 +175,8 @@ function stripOptionLabel(md: string): string {
 /** 选项字母表，按 option 顺序对应 A、B、C…。 */
 export const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/** 一轮刷题的计时方式。 */
-export type WenguTimingMode = "countUp" | "countdown" | "none";
+/** 一轮刷题的计时方式：正计时 / 倒计时 / 逐题计时 / 不计时。 */
+export type WenguTimingMode = "countUp" | "countdown" | "perQuestion" | "none";
+
+/** 答案展示方式：即时（提交一题看一题）/ 全部做完再统一展示。 */
+export type WenguRevealMode = "instant" | "after";

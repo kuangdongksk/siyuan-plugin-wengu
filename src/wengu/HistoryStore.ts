@@ -1,10 +1,15 @@
-import type {WenguTimingMode} from "./types";
+import type {
+    WenguRevealMode,
+    WenguTimingMode,
+} from "./types";
 
 /** 一题在一轮里的作答记录。 */
 export interface WenguSessionResult {
     qid: string;
     submitted: string;
     ok: boolean;
+    /** 该题用时（秒，逐题计时模式记录）。 */
+    sec?: number;
 }
 
 /** 一轮刷题（N 刷里的一刷）：开刷时创建，逐题作答时更新，结束时封卷。 */
@@ -16,6 +21,8 @@ export interface WenguSession {
     mode: WenguTimingMode;
     /** 倒计时的计划时长（秒）。 */
     plannedSec?: number;
+    /** 答案展示方式（旧记录缺省视为即时）。 */
+    revealMode?: WenguRevealMode;
     /** 实际用时（秒，到最近一次作答/收卷为止）。 */
     elapsedSec: number;
     answered: number;
