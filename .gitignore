@@ -1,4 +1,5 @@
 .idea
+.dsh
 node_modules
 .DS_Store
 .eslintcache

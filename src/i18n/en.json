@@ -1,4 +1,17 @@
 {
   "pluginName": "Wengu",
-  "welcome": "Review the old, learn the new — drill panel under construction"
+  "welcome": "Review the old, learn the new — drill panel under construction",
+  "modeMaterial": "Material",
+  "modeQuiz": "Quiz",
+  "quizReady": "Questions converted — ready to drill",
+  "quizNone": "No converted questions yet",
+  "quizRefresh": "Refresh",
+  "switchToQuiz": "Enter quiz mode",
+  "currentDoc": "Current doc",
+  "converted": "{n} converted",
+  "notOpen": "No doc open",
+  "convertHint": "Convert note blocks into question blocks (set custom-plugin-wengu-q=1 etc.), then switch to quiz mode here.",
+  "difficulty": "Difficulty",
+  "attempts": "Attempted {n}",
+  "noAnswer": "Unanswered"
 }
