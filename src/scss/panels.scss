@@ -1,0 +1,39 @@
+/* ── 开刷面板：与插件设置同款（config-group/config-item 行样式） ── */
+.wengu-start {
+  max-width: 620px;
+  margin: 24px auto 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+}
+
+.wengu-start .config-group {
+  margin-bottom: 4px;
+}
+
+.wengu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* AI 转习题对话框 */
+.wengu-convert-dialog .b3-text-field {
+  margin: 8px 0;
+}
+
+.wengu-convert-dialog .b3-select {
+  margin: 4px 0 8px;
+}
+
+.wengu-dialog-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}

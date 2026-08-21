@@ -1,0 +1,285 @@
+import type {WenguSession} from "./HistoryStore";
+import {newSessionId} from "./HistoryStore";
+import type {TimerController} from "./TimerController";
+import type {
+    WenguQuestion,
+    WenguRevealMode,
+    WenguTimingMode,
+} from "./types";
+import {
+    clampMinutes,
+    esc,
+    fmt,
+} from "./ui";
+
+/**
+ * 开刷面板（design-review P1-1）：四组选择收敛为一张表单——
+ * ① 上次进度（继续上次/重新开始，有未完成轮才出现）
+ * ② 刷题范围（全部/只刷上次错题，上轮有错题才出现）
+ * ③ 答案展示 ④ 计时方式（含倒计时分钟）
+ *
+ * 行样式与插件设置页同款（config-group / config-title / config-item，
+ * 标题说明在左、下拉在右）。**继续上次 = 原样恢复**：选中后其余选项
+ * 锁定并回显该轮原配置（要换配置就选重新开始），不再出现「选了却被
+ * 静默忽略」或「继续却换了玩法」的歧义。
+ */
+
+/** 开刷面板读出的完整轮次配置。 */
+export interface RoundConfig {
+    progress: "continue" | "fresh";
+    scope: "all" | "wrong";
+    reveal: WenguRevealMode;
+    timing: WenguTimingMode;
+    countdownMin: number;
+}
+
+/** 面板初始默认值（来自插件设置，见 design-review P1-3）。 */
+export interface RoundDefaults {
+    reveal: WenguRevealMode;
+    timing: WenguTimingMode;
+    countdownMin: number;
+}
+
+/** render/bind 入参：默认值 + 条件组的现状 + 继续时锁定的原配置。 */
+export interface StartPanelModel {
+    t: (key: string) => string;
+    defaults: RoundDefaults;
+    /** 未完成轮的已答题数（不传则不出现「上次进度」组）。 */
+    unfinishedAnswered?: number;
+    /** 上轮错题数（0 则不出现「刷题范围」组）。 */
+    lastWrong: number;
+    /** 未完成轮的原配置（继续时锁定回显这些值）。 */
+    resume?: {timing: WenguTimingMode; reveal: WenguRevealMode; countdownMin: number;};
+}
+
+const option = (value: string, label: string, selected: boolean) =>
+    `<option value="${esc(value)}"${selected ? " selected" : ""}>${esc(label)}</option>`;
+
+const select = (field: string, options: string) =>
+    `<select class="b3-select fn__flex-center fn__size200" data-field="${field}">${options}</select>`;
+
+const group = (title: string, rows: string) =>
+    `<div class="config-group">
+  <div class="config-title">${esc(title)}</div>
+  <div class="config-items">${rows}</div>
+</div>`;
+
+const row = (title: string, desc: string, control: string) =>
+    `<div class="fn__flex b3-label config__item">
+  <div class="fn__flex-1 fn__flex-center">${esc(title)}
+    <div class="b3-label__text">${esc(desc)}</div>
+  </div>
+  <div class="fn__space"></div>
+  ${control}
+</div>`;
+
+export function renderStartPanel(m: StartPanelModel): string {
+    const {t, defaults, resume} = m;
+    // 继续上次默认选中：初始展示的就是要恢复的原配置
+    const cont = m.unfinishedAnswered !== undefined && !!resume;
+    const cur = cont ? resume : defaults;
+    const progress = m.unfinishedAnswered !== undefined ?
+        group(
+            t("progressTitle"),
+            row(
+                t("progressTitle"),
+                fmt(t("continueHint"), {n: String(m.unfinishedAnswered ?? 0)}),
+                select(
+                    "progress",
+                    option("continue", fmt(t("continueLast"), {n: String(m.unfinishedAnswered ?? 0)}), true) +
+                        option("fresh", t("startFresh"), false),
+                ),
+            ),
+        ) :
+        "";
+    const scope = m.lastWrong > 0 ?
+        group(
+            t("scopeTitle"),
+            row(
+                t("scopeTitle"),
+                t("scopeHint"),
+                select(
+                    "scope",
+                    option("all", t("scopeAll"), !cont) +
+                        option("wrong", fmt(t("scopeWrongOnly"), {n: String(m.lastWrong)}), false),
+                ),
+            ),
+        ) :
+        "";
+    const reveal = group(
+        t("revealTitle"),
+        row(
+            t("revealTitle"),
+            t("revealHint"),
+            select(
+                "reveal",
+                option("instant", t("revealInstant"), cur.reveal === "instant") +
+                    option("after", t("revealAfter"), cur.reveal === "after"),
+            ),
+        ),
+    );
+    const timing = group(
+        t("timingTitle"),
+        row(
+            t("timingTitle"),
+            t("timingHint"),
+            select(
+                "timing",
+                option("countUp", t("timingCountUp"), cur.timing === "countUp") +
+                    option("countdown", t("timingCountdown"), cur.timing === "countdown") +
+                    option("perQuestion", t("timingPerQuestion"), cur.timing === "perQuestion") +
+                    option("none", t("timingNone"), cur.timing === "none"),
+            ),
+        ) + row(
+            t("timingMinutes"),
+            t("timingMinutesHint"),
+            `<input class="b3-text-field fn__flex-center fn__size200" type="number" min="1" max="600" data-field="minutes" value="${cur.countdownMin}">`,
+        ),
+    );
+    return `<div class="wengu-start">
+  ${progress}
+  ${scope}
+  ${reveal}
+  ${timing}
+  <div><button class="b3-button b3-button--text" data-act="start">${esc(t("startDrill"))}</button></div>
+</div>`;
+}
+
+/** 由轮次与题目列表推导面板模型（继续的 resume 原样恢复）。 */
+export function buildStartPanelModel(args: {
+    t: (key: string) => string;
+    defaults: RoundDefaults;
+    rounds: WenguSession[];
+    list: WenguQuestion[];
+}): StartPanelModel {
+    const last = args.rounds[args.rounds.length - 1];
+    const unfinished = last && last.results.length > 0 && last.results.length < args.list.length ? last : undefined;
+    const resumeReveal: WenguRevealMode = unfinished?.revealMode === "after" ? "after" : "instant";
+    return {
+        t: args.t,
+        defaults: args.defaults,
+        unfinishedAnswered: unfinished?.results.length,
+        lastWrong: new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => r.qid)).size,
+        resume: unfinished ?
+            {
+                timing: unfinished.mode,
+                reveal: resumeReveal,
+                countdownMin: unfinished.plannedSec ?
+                    clampMinutes(Math.ceil(unfinished.plannedSec / 60)) :
+                    args.defaults.countdownMin,
+            } :
+            undefined,
+    };
+}
+
+/** 从面板 DOM 读出完整轮次配置（读不到的按默认/安全值回退）。 */
+export function readRoundConfig(root: ParentNode, defaults: RoundDefaults): RoundConfig {
+    const val = (f: string) => (root.querySelector(`[data-field='${f}']`) as HTMLSelectElement | null)?.value;
+    const minutes = root.querySelector<HTMLInputElement>("[data-field='minutes']");
+    return {
+        progress: val("progress") === "continue" ? "continue" : "fresh",
+        scope: val("scope") === "wrong" ? "wrong" : "all",
+        reveal: val("reveal") === "after" ? "after" : "instant",
+        timing: (() => {
+            const v = val("timing");
+            return v === "countdown" || v === "none" || v === "perQuestion" ? v : "countUp";
+        })(),
+        countdownMin: clampMinutes(Number(minutes?.value ?? defaults.countdownMin)),
+    };
+}
+
+/**
+ * 绑定：开始按钮 + 「继续上次 = 原样恢复」。选中继续时锁定
+ * 范围/展示/计时/分钟并回显该轮原配置；切回重新开始则解锁并恢复
+ * 设置页默认值。任何选项都不会出现「能选但不生效」。
+ */
+export function bindStartPanel(root: ParentNode, m: StartPanelModel, onStart: () => void): void {
+    root.querySelector("[data-act='start']")?.addEventListener("click", () => onStart());
+    const progressSel = root.querySelector<HTMLSelectElement>("[data-field='progress']");
+    if (!progressSel) return;
+    const fields = ["scope", "reveal", "timing", "minutes"]
+        .map((f) => root.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field='${f}']`))
+        .filter((el): el is HTMLInputElement | HTMLSelectElement => !!el);
+    const setVal = (f: string, v: string) => {
+        const el = root.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field='${f}']`);
+        if (el) el.value = v;
+    };
+    const sync = () => {
+        const cont = progressSel.value === "continue";
+        fields.forEach((el) => el.disabled = cont);
+        const cur = cont && m.resume ? m.resume : m.defaults;
+        setVal("scope", "all"); // 继续=原范围；重新开始默认全部
+        setVal("reveal", cur.reveal);
+        setVal("timing", cur.timing);
+        setVal("minutes", String(cur.countdownMin));
+    };
+    progressSel.addEventListener("change", sync);
+    sync(); // 默认选中「继续上次」时先锁定
+}
+
+/** 开轮执行入参（视图提供状态与收尾回调）。 */
+export interface StartRoundCtx {
+    root: ParentNode;
+    defaults: RoundDefaults;
+    rounds: WenguSession[];
+    fullList: WenguQuestion[];
+    docId: string;
+    timer: TimerController;
+    history?: {upsert(s: WenguSession): Promise<void>;};
+    /** 视图侧状态写入。 */
+    setList(list: WenguQuestion[]): void;
+    setRevealMode(m: "instant" | "after"): void;
+    setActiveIdx(i: number): void;
+    setStarted(v: boolean): void;
+    setFinished(s: WenguSession | undefined): void;
+    setSession(s: WenguSession | undefined): void;
+    /** 开轮后的收尾（重渲染、恢复已答、刷新标签）。 */
+    afterStart(): void;
+}
+
+/** 「开始刷题」：读 RoundConfig 开轮——继续上次原样恢复，否则新会话。 */
+export function startRound(ctx: StartRoundCtx): void {
+    const cfg = readRoundConfig(ctx.root, ctx.defaults);
+    ctx.setRevealMode(cfg.reveal);
+    ctx.setActiveIdx(0);
+    const last = ctx.rounds[ctx.rounds.length - 1];
+    const wrong = new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => r.qid));
+    const useWrong = cfg.scope === "wrong" && wrong.size > 0;
+    ctx.setList(useWrong ? ctx.fullList.filter((q) => wrong.has(q.id)) : ctx.fullList);
+    const unfinished = !useWrong && cfg.progress === "continue" && last &&
+            last.results.length > 0 && last.results.length < ctx.fullList.length ?
+        last :
+        undefined;
+    let session: WenguSession;
+    if (unfinished) {
+        // 继续上次 = 原样恢复该轮配置（面板上已锁定回显）
+        ctx.setRevealMode(unfinished.revealMode === "after" ? "after" : "instant");
+        const resumeMin = unfinished.plannedSec ?
+            clampMinutes(Math.ceil(unfinished.plannedSec / 60)) :
+            cfg.countdownMin;
+        ctx.timer.start(unfinished.mode, resumeMin, unfinished.elapsedSec);
+        for (const r of unfinished.results) {
+            if (r.sec) ctx.timer.restoreQuestionSec(r.qid, r.sec);
+        }
+        session = unfinished;
+    } else {
+        ctx.timer.start(cfg.timing, cfg.countdownMin, 0);
+        session = {
+            id: newSessionId(),
+            docId: ctx.docId,
+            startedAt: Date.now(),
+            mode: cfg.timing,
+            plannedSec: cfg.timing === "countdown" ? cfg.countdownMin * 60 : undefined,
+            revealMode: cfg.reveal,
+            elapsedSec: 0,
+            answered: 0,
+            correct: 0,
+            results: [],
+        };
+    }
+    ctx.setStarted(true);
+    ctx.setFinished(undefined);
+    ctx.setSession(session);
+    void ctx.history?.upsert(session);
+    ctx.afterStart();
+}

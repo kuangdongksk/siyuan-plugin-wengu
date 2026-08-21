@@ -1,0 +1,315 @@
+/* ── 题号导航 + 卡片列表 ── */
+.wengu-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.wengu-card-list {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 题号竖列：跟随滚动吸顶，题多时自身可滚 */
+.wengu-nums {
+  flex: none;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  max-height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.wengu-num {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.wengu-num:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-num-active,
+.wengu-num.wengu-num-active:hover {
+  border-color: var(--b3-theme-primary);
+  color: var(--b3-theme-primary);
+  font-weight: 600;
+}
+
+.wengu-num-right,
+.wengu-num.wengu-num-right:hover {
+  background: color-mix(in srgb, var(--b3-theme-success) 14%, transparent);
+  color: var(--b3-theme-success);
+}
+
+.wengu-num-wrong,
+.wengu-num.wengu-num-wrong:hover {
+  background: color-mix(in srgb, var(--b3-theme-error) 14%, transparent);
+  color: var(--b3-theme-error);
+}
+
+/* after 模式：已作答未揭示（中性，不透对错） */
+.wengu-num-answered,
+.wengu-num.wengu-num-answered:hover {
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-card {
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+  /* 点击题号 scrollIntoView 后别贴顶 */
+  scroll-margin: 8px;
+}
+
+.wengu-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.wengu-card-title {
+  margin-right: auto;
+  font-weight: 600;
+}
+
+.wengu-stem {
+  margin-bottom: 8px;
+}
+
+.wengu-btn {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--b3-theme-primary-light);
+  color: var(--b3-theme-on-primary-light);
+  cursor: pointer;
+}
+
+.wengu-muted {
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-q {
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  background: var(--b3-theme-background);
+  cursor: pointer;
+}
+
+.wengu-q-title {
+  font-weight: 600;
+}
+
+.wengu-q-meta {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-q-body {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 4px;
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-q-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: var(--b3-font-family-code);
+  font-size: 13px;
+}
+
+.wengu-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--b3-theme-border);
+  border-radius: 4px;
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+  font-family: inherit;
+}
+
+.wengu-result {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.wengu-right {
+  color: var(--b3-theme-success);
+}
+
+.wengu-wrong {
+  color: var(--b3-theme-error);
+}
+
+.wengu-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-badge {
+  padding: 1px 6px;
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+  font-size: 12px;
+}
+
+.wengu-card-head .wengu-meta {
+  margin-left: 4px;
+}
+
+.wengu-wrong-count {
+  color: var(--b3-theme-error);
+}
+
+/* ── 卡片内嵌 Protyle：题目内容渲染 ── */
+.wengu-qprotyle {
+  margin-bottom: 8px;
+  border-radius: var(--b3-border-radius);
+}
+
+.wengu-qprotyle .protyle {
+  background: transparent;
+}
+
+/* 答坑隐藏：作答前藏 answer/solution（块 DOM 带 part 属性）；
+   mine（我的答案块）已废弃，永远不显示。 */
+.wengu-card [custom-plugin-wengu-part="mine"] {
+  display: none !important;
+}
+
+.wengu-card [custom-plugin-wengu-part="answer"],
+.wengu-card [custom-plugin-wengu-part="solution"] {
+  display: none;
+}
+
+.wengu-card.wengu-graded [custom-plugin-wengu-part="answer"],
+.wengu-card.wengu-graded [custom-plugin-wengu-part="solution"] {
+  display: block;
+}
+
+.wengu-card.wengu-graded [custom-plugin-wengu-part="answer"] {
+  border-left: 3px solid var(--b3-theme-success);
+  padding-left: 6px;
+}
+
+/* ── 选择题字母 chip ── */
+.wengu-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wengu-chip {
+  min-width: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: 16px;
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wengu-chip:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-chip-selected,
+.wengu-chip.wengu-chip-selected:hover {
+  border-color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-chip-right,
+.wengu-chip.wengu-chip-right:hover {
+  border-color: var(--b3-theme-success);
+  background: color-mix(in srgb, var(--b3-theme-success) 12%, transparent);
+  color: var(--b3-theme-success);
+}
+
+.wengu-chip-wrong,
+.wengu-chip.wengu-chip-wrong:hover {
+  border-color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 12%, transparent);
+  color: var(--b3-theme-error);
+}
+
+.wengu-chip:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+/* Protyle 加载失败的降级渲染 */
+.wengu-option-fallback {
+  padding: 2px 8px;
+}
+
+/* ── 判断题按钮 ── */
+.wengu-judge {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wengu-judge .wengu-selected {
+  border: 1px solid var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+}
+
+/* ── 自评与按钮变体 ── */
+.wengu-self {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wengu-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wengu-btn-success {
+  background: var(--b3-theme-success);
+  color: var(--b3-theme-on-primary);
+}
+
+.wengu-btn-error {
+  background: var(--b3-theme-error);
+  color: var(--b3-theme-on-primary);
+}
