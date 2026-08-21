@@ -3,6 +3,8 @@
   "welcome": "温故而知新 —— 刷题面板建设中",
   "quizRefresh": "刷新",
   "quizNone": "当前暂无可刷的题目",
+  "loading": "加载中…",
+  "solution": "解析",
   "questionBody": "题干",
   "difficulty": "难度",
   "attempts": "刷题 {n} 次",

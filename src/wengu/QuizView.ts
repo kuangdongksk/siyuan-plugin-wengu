@@ -1,30 +1,33 @@
-import {
-    listQuestions,
-    getBlockKramdown,
-    recordAttempt,
-} from "./QuestionService";
+import {Lute, ProtyleMethod} from "siyuan";
+import {listQuestions, recordAttempt} from "./QuestionService";
 import {QuestionType} from "./types";
 import type {WenguQuestion} from "./types";
 
 /**
  * 温故刷题页签视图。
  *
- * 在 addTab 打开的自定义页签内渲染：题目列表 ↔ 单题答题两态。
- * 页签不依赖编辑器光标；点题进入答题，用容器块 kramdown 展示题干，
- * 客观题输入并自动判分、写回属性。
+ * 一个页签渲染一个文档「一整篇」的题目：每次加载把该文档所有已转换
+ * 题目容器（超级块）渲染成卡片（题干/选项用 Lute 引擎渲染为思源外观），
+ * 每卡片一个输入框，客观题提交自动判分、写回属性。
+ *
+ * 渲染原料：WenguQuestion.stemMd / optionMd（子块 kramdown），
+ * 由全局 Lute.Md2BlockDOM 转成思源块 DOM；答案/解析子块默认不渲染，
+ * 判分后才展示答案文本。
  */
 export class QuizView {
     private readonly t: (key: string) => string;
     private readonly el: HTMLElement;
+    private readonly docId: string;
     private list: WenguQuestion[] = [];
     private loading = false;
 
-    constructor(element: HTMLElement, i18n: Record<string, string>) {
+    constructor(element: HTMLElement, i18n: Record<string, string>, docId = "") {
         this.el = element;
         this.t = (key: string) => i18n[key] || key;
+        this.docId = docId;
     }
 
-    /** 首次渲染：刷新题目列表。 */
+    /** 首次渲染：加载文档题目并画卡片。 */
     render(): void {
         void this.load();
     }
@@ -34,7 +37,7 @@ export class QuizView {
         this.loading = true;
         this.renderList();
         try {
-            this.list = await listQuestions();
+            this.list = await listQuestions(this.docId || void 0);
         } finally {
             this.loading = false;
             this.renderList();
@@ -44,113 +47,100 @@ export class QuizView {
     private renderList(): void {
         this.el.classList.add("wengu-panel");
         if (this.loading) {
-            this.el.innerHTML = this.head() + block("<span class=\"wengu-muted\">loading…</span>");
-            return;
-        }
-        if (this.list.length === 0) {
-            this.el.innerHTML = this.head() + block(`<div class="wengu-muted">${this.t("quizNone")}</div>`);
+            this.el.innerHTML = `<div class="wengu-muted">${this.t("loading")}</div>`;
             this.bindRefresh();
             return;
         }
-        const items = this.list
-            .map((q) => `<div class="wengu-q" data-qid="${esc(q.id)}">
-            <div class="wengu-q-title">${esc(titleOf(q))}</div>
-            <div class="wengu-q-meta">${this.meta(q)}</div>
-          </div>`)
+        if (this.list.length === 0) {
+            this.el.innerHTML = `<div class="wengu-head">${refreshBtn(this.t)}</div>
+        <div class="wengu-muted">${this.t("quizNone")}</div>`;
+            this.bindRefresh();
+            return;
+        }
+        const cards = this.list
+            .map((q, i) => this.renderCard(q, i))
             .join("");
-        this.el.innerHTML = this.head() + block(items);
-        this.bindListActions();
+        this.el.innerHTML = `<div class="wengu-head">${refreshBtn(this.t)}</div>
+      <div class="wengu-card-list">${cards}</div>`;
+        this.bindRefresh();
+        this.bindCards();
+        // Lute 渲染公式/代码高亮
+        if ("mathRender" in ProtyleMethod) {
+            ProtyleMethod.mathRender(this.el);
+        }
+        if ("highlightRender" in ProtyleMethod) {
+            ProtyleMethod.highlightRender(this.el);
+        }
     }
 
-    private head(extra = ""): string {
-        return `<div class="wengu-head">
-          <button class="wengu-btn" data-act="refresh">${this.t("quizRefresh")}</button>
-          ${extra}
-        </div>`;
+    private renderCard(q: WenguQuestion, idx: number): string {
+        const stem = q.stemMd ? luteToHtml(q.stemMd) : "";
+        const options = (q.optionMd ?? [])
+            .map((md) => `<div class="b3-typography--content wengu-option">${luteToHtml(md)}</div>`)
+            .join("");
+        const isAuto = q.type !== undefined && q.type !== QuestionType.Brief && q.answer !== undefined;
+        const input = isAuto
+            ? `<input class="wengu-input" data-field="mine" placeholder="${esc(this.t("inputPlaceholder"))}" />`
+            : `<textarea class="wengu-input" data-field="mine" placeholder="${esc(this.t("inputPlaceholder"))}"></textarea>`;
+        const solution = q.solutionMd
+            ? `<details class="wengu-solution"><summary>${esc(this.t("solution"))}</summary>${luteToHtml(q.solutionMd)}</details>`
+            : "";
+        return `<div class="wengu-card" data-qid="${esc(q.id)}">
+      <div class="wengu-card-head">
+        <span class="wengu-card-title">${esc(q.knowledge || q.chapter || String(idx + 1))}</span>
+        ${q.difficulty ? `<span class="wengu-meta">${"★".repeat(q.difficulty)}</span>` : ""}
+      </div>
+      <div class="b3-typography--content wengu-stem">${stem}</div>
+      ${options}
+      ${input}
+      <button class="wengu-btn" data-act="submit">${esc(this.t("submit"))}</button>
+      <div class="wengu-result" data-result></div>
+      ${solution}
+    </div>`;
     }
 
-    private meta(q: WenguQuestion): string {
-        const parts: string[] = [];
-        if (q.difficulty) {
-            parts.push(`${this.t("difficulty")} ${"★".repeat(q.difficulty)}`);
+    private bindCards(): void {
+        for (const node of this.el.querySelectorAll(".wengu-card")) {
+            const card = node as HTMLElement;
+            const qid = card.dataset.qid;
+            const q = this.list.find((x) => x.id === qid);
+            if (!q) continue;
+            const submit = card.querySelector<HTMLButtonElement>("[data-act='submit']");
+            submit?.addEventListener("click", async () => {
+                const field = card.querySelector<HTMLInputElement>("[data-field='mine']");
+                if (!field) return;
+                const mine = field.value.trim();
+                if (!mine || !q.answer || !q.type) return;
+                const ok = await recordAttempt(q.id, q.type, q.answer, mine);
+                const result = card.querySelector<HTMLElement>("[data-result]");
+                if (result) {
+                    result.textContent = ok
+                        ? this.t("correct")
+                        : `${this.t("wrong")}${this.t("answerLabel")}${q.answer}`;
+                    result.classList.add(ok ? "wengu-right" : "wengu-wrong");
+                }
+            });
         }
-        if (q.attempts > 0) {
-            parts.push(this.t("attempts").replace("{n}", String(q.attempts)));
-        } else {
-            parts.push(this.t("noAnswer"));
-        }
-        return parts.join(" · ");
     }
 
     private bindRefresh(): void {
         const btn = this.el.querySelector("[data-act='refresh']");
         btn?.addEventListener("click", () => void this.load());
     }
-
-    private bindListActions(): void {
-        this.bindRefresh();
-        for (const node of this.el.querySelectorAll(".wengu-q")) {
-            const item = node as HTMLElement;
-            item.addEventListener("click", () => {
-                const qid = item.dataset.qid;
-                if (qid) void this.openQuiz(qid);
-            });
-        }
-    }
-
-    /** 进入单题答题。 */
-    private async openQuiz(qid: string): Promise<void> {
-        const q = this.list.find((x) => x.id === qid);
-        if (!q) return;
-        const kd = await getBlockKramdown(qid);
-        this.renderQuiz(q, kd);
-    }
-
-    private renderQuiz(q: WenguQuestion, kd: string): void {
-        const isAuto = q.type !== undefined && q.type !== QuestionType.Brief && q.answer !== undefined;
-        const field = isAuto
-            ? `<input class="wengu-input" data-field="mine" placeholder="${esc(this.t("inputPlaceholder"))}" />`
-            : `<textarea class="wengu-input" data-field="mine" placeholder="${esc(this.t("inputPlaceholder"))}"></textarea>`;
-        this.el.innerHTML = `
-          <div class="wengu-head">
-            <button class="wengu-btn" data-act="back">← ${this.t("back")}</button>
-            <span class="wengu-title">${esc(titleOf(q))}</span>
-          </div>
-          <div class="wengu-q-body"><pre>${esc(kd)}</pre></div>
-          ${field}
-          <button class="wengu-btn" data-act="submit">${this.t("submit")}</button>
-          <div class="wengu-result"></div>
-        `;
-        this.bindQuizActions(q);
-    }
-
-    private bindQuizActions(q: WenguQuestion): void {
-        this.el.querySelector("[data-act='back']")?.addEventListener("click", () => this.renderList());
-        const submit = this.el.querySelector("[data-act='submit']") as HTMLElement;
-        submit?.addEventListener("click", async () => {
-            if (q.type === undefined || q.answer === undefined) return;
-            const field = this.el.querySelector("[data-field='mine']") as HTMLInputElement;
-            if (!field) return;
-            const mine = field.value.trim();
-            if (!mine) return;
-            const ok = await recordAttempt(q.id, q.type, q.answer, mine);
-            const result = this.el.querySelector(".wengu-result") as HTMLElement;
-            result.textContent = ok ? this.t("correct") : `${this.t("wrong")} ${this.t("answerLabel")} ${q.answer}`;
-            result.classList.add(ok ? "wengu-right" : "wengu-wrong");
-            const hit = this.list.find((x) => x.id === q.id);
-            if (hit) hit.attempts = (hit.attempts ?? 0) + 1;
-        });
-    }
 }
 
-/** 题干标题：优先知识点/章节，其次 id。 */
-function titleOf(q: WenguQuestion): string {
-    return q.knowledge || q.chapter || q.id.slice(0, 8);
+/** 把 kramdown 交给思源 Lute 渲染为块 DOM HTML。 */
+function luteToHtml(md: string): string {
+    const lute = Lute.New();
+    lute.SetKramdownIAL(true);
+    lute.SetSanitize(true);
+    lute.SetInlineMathAllowDigitAfterOpenMarker(true);
+    return lute.Md2BlockDOM(md);
 }
 
-/** 块容器。 */
-function block(inner: string): string {
-    return `<div class="wengu-section">${inner}</div>`;
+/** 顶部刷新按钮。 */
+function refreshBtn(t: (k: string) => string): string {
+    return `<button class="wengu-btn" data-act="refresh">${esc(t("quizRefresh"))}</button>`;
 }
 
 /** HTML 转义。 */

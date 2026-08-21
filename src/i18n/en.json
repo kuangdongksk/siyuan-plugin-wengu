@@ -3,6 +3,8 @@
   "welcome": "Review the old, learn the new — drill panel under construction",
   "quizRefresh": "Refresh",
   "quizNone": "No questions to drill yet",
+  "loading": "Loading…",
+  "solution": "Solution",
   "questionBody": "Question",
   "difficulty": "Difficulty",
   "attempts": "Attempted {n}",

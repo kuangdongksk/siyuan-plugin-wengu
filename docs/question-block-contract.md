@@ -1,72 +1,90 @@
 # 温故题目块契约（Question Block Contract）
 
-温故插件不建独立题库。题目以思源**块 + 自定义属性**存储，插件只做：
-读块、判分、写状态、进闪卡、出统计。本文件是「AI 把笔记块转换成题目块」
-时必须遵守的参数契约，也是插件代码里常量 `attrs.ts` 的权威来源。
+温故插件不建独立题库。题目以思源**原生块**存储，插件只：
+从一块文档树读题、页签内渲染/判分、写回状态、进闪卡、出统计。
+本文件是「AI 把笔记块转换成题目块」时必须遵守的参数契约，
+也是插件代码常量（`attrs.ts` / `types.ts`）的权威来源。
 
-## 一、核心约定
+## 一、题目块结构（块优先，而非属性）
 
-- **一道题 = 一个容器块**（建议用「引述块」或「超级块」，便于子块做闪卡正反面，
-  也便于块引用与讲义联动）。
-- **转换完成的标志**：容器块带 `custom-plugin-wengu-q = 1`。
-  插件检测到存在该属性的块，就认为转换完成，可以在面板切到「刷题模式」。
-- 题干、选项、解析都以**子块**形式存在于容器内；只有答案字符串、类型等
-  «短文本» 才作为自定义属性挂到容器块上（属性页可索引、属性视图可直接出统计）。
-- 解析子块需带 `custom-plugin-wengu-part = "answer"`，插件据此定位解析，
-  思源 riff 闪卡也能以「题干侧 ↔ 解析侧」翻转。
+**一道题 = 一个超级块（Super Block）容器** + 若干带 `part` 标记的子块。
 
-## 二、转换时 AI 要打的属性（自定义属性，前缀 `custom-plugin-wengu-`）
+实际结构（已在真实思源验证）：
 
-| 属性 | 必填 | 值 | 说明 |
-| --- | --- | --- | --- |
-| `q` | ✅ | `1` | 转换完成标记，插件据此切模式 |
-| `type` | ✅ | 见下表 `question-type` | 题型，决定判分方式 |
-| `answer` | 客观题✅ | 正确答法的字符串 | 客观题自动判分依据；大题留空 |
-| `knowledge` | 推荐 | 知识点/考点名 | 分组抽题、错题归类 |
-| `chapter` | 推荐 | 章节名 | 分组抽题 |
-| `difficulty` | 推荐 | `1`~`5` | 难度星数 |
-| `source` | 否 | 如 `2025年东华大学` | 真题来源 |
+```
+{{{col                                        ← 容器超级块，块上打属性
+**题干……** 设 $...$ = ____                ← 子块 p   part="stem"
+- A. $e$                                  ← 子块 l   part="option-0"
+- B. $e^2$                                ← 子块 l   part="option-1"
+> 我的答案：___                          ← 子块 b   part="mine"
+> 正确答案：$e^2$                          ← 子块 b   part="answer"
+> 解析文字……                               ← 子块 b   part="solution"
+}}}
+```
 
-`question-type` 取值：
+**转换完成标志**：容器块带 `custom-plugin-wengu-q = 1`。插件查询到
+`attributes` 表 `name='custom-plugin-wengu-q' AND value='1'` 命中容器块 id
+即认为转换完成，可以刷题。
 
-| 值 | 含义 | `answer` 写法 | 判分 |
-| --- | --- | --- | --- |
-| `single` | 单选 | 字母 `B` | 自动 |
-| `multiple` | 多选 | 字母串 `AD` | 自动（子集不算对） |
-| `judge` | 判断 | `√` 或 `×`（接受 `对`/`错`） | 自动 |
-| `fill` | 填空 | 用 `|` 分隔可接受答案，如 `非线性|非线性系统` | 自动 |
-| `brief` | 简答/计算 | （空） | 自评：作答→看解析→自己标对错 |
+## 二、容器块上要打的属性（前缀 `custom-plugin-wengu-`）
 
-> 客观题四类（single/multiple/judge/fill）判分依据只有 `answer`；
-> `brief` 走「作答 → 展示解析 → 自评」流程，插件不做自动验算（产品决策 2）。
+| 属性 | 必填 | 值 |
+| --- | --- | --- |
+| `q` | ✅ | `1`，转换完成标记 |
+| `type` | ✅ | `single` / `multiple` / `judge` / `fill` / `brief` |
+| `knowledge` | 推荐 | 知识点/考点名 |
+| `chapter` | 推荐 | 章节名 |
+| `difficulty` | 推荐 | `1`~`5` 星 |
+
+> `answer` 不再做属性存放——**答案就是容器内 `part="answer"` 的子块**。
+> 判分原料是「我的答案子块」与「答案子块」的文本，不是属性字符串。
+
+`type` 判分规则：
+
+| type | answer 子块写法 | 判分 |
+| --- | --- | --- |
+| single 单选 | 字母 `B` | 自动：比对象 |
+| multiple 多选 | 字母串 `AD` | 自动：子集不算对 |
+| judge 判断 | `√`/`×`（或 `对`/`错`） | 自动 |
+| fill 填空 | 用 `\|` 分隔可接受答案 | 自动：命中一个即对 |
+| brief 大题 | 解析文字 | 自评：作答→看解析→自己标对错 |
+
+## 子块 `part` 标记（打在容器下的各子块）
+
+| part | 含义 |
+| --- | --- |
+| `question-list` | 题干段（可多段，`list-*` 递增） |
+| `option-*` | 选项子块（单选/多选用） |
+| `mine` | 用户作答位（文档内引述块，也可由页签输入代替） |
+| `answer` | 正确答案块 |
+| `solution` | 解析/详解（闪卡卡背），可多个子块 |
 
 ## 三、运行时状态属性（插件写入，属性视图读）
 
-插件作答后写以下属性到同一容器块；思源「属性视图」把这些列出来即可出
-「各考点正确率 / 难度」等统计（产品决策 1、M4），无需外部存储。
+插队作答后写下列属性到**容器块**：
 
-| 属性 | 类型 | 含义 |
+| 属性 | 值 | 含义 |
 | --- | --- | --- |
 | `attempts` | 整数 | 刷题次数 |
-| `last-answer` | 字符串 | 最近一次我的答案 |
+| `last-answer` | 文本 | 最近一次我的答案 |
 | `right` | `0`/`1`/空 | 最近一次正误 |
 
-## 四、错题 → 闪卡（产品决策 3）
+## 四、渲染与答题
 
-答错时：写 `right=0`，并用思源 riff 把该题加为闪卡（以容器块内题干侧为卡面、
-`custom-plugin-wengu-part="answer"` 解析块为卡背），间隔由 riff 内置调度。
-插件在此基础上按 `knowledge/chapter` 汇总错题。
+- 页签打开时，取当前文档 id，递归取容器超级块 → 每题一张卡片。
+- 卡片内把 `stem` + `option-*` 子块的 kramdown 交给思源 Lute
+  （`window.Lute.Md2BlockDOM`）渲染成与文档一致的外观，CSS 全部用思源
+  内置类名/主题变量，不用自定义样式。
+- `answer` / `solution` 子块**不渲染**（答坑隐藏），判分后展开。
+- 作答：页签输入框；客观题自动判分，写 `attempts/last-answer/right`；
+  `brief` 走展示解析→自评（产品决策 2）。错题由 riff 把容器块加成闪卡
+  （产品决策 3）。
 
-## 五、题目 ↔ 讲义联动（M4，先用块引用）
+## 五、与平台机制对应（全部真实验证）
 
-习题容器块内引用讲义知识点块（思源块引用）。产品决策 4 用块引用，不在本契约
-额外引入字段；后续统一读取块引用连线。
-
----
-
-### 与平台机制的对应（均已核实）
-- 自定义属性存 kernel 内 `attributes` 表（`a.name LIKE 'custom-plugin-wengu-%'`），
-  思源属性视图可直接读此类属性列 → 统计免费。
-- 检测/查询用 `/api/query/sql`（参考插件 sy-lively 同款写法），单块读写用
-  `/api/attr/getBlockAttrs` / `/api/attr/setBlockAttrs`。
-- 闪卡用 riff：`/api/block/` 系列 + toast 操作 `addFlashcards`（deckID + blockIDs）。
+- 自定义属性存 `attributes` 表 `name`/`value`，SQL 可查；单块属性
+  `/api/attr/getBlockAttrs` `/api/attr/setBlockAttrs`。
+- 容器块问：`/api/block/getChildBlocks`（`data[].id/type/markdown/content`）。
+- 容器整块 kramdown：`/api/block/getBlockKramdown`（含全部子块源码+IAL）。
+- 渲染：`window.Lute.Md2BlockDOM`。
+- 闪卡：riff `addFlashcards`（deckID + blockIDs）。

@@ -1,9 +1,12 @@
-import {Plugin, openTab, type Custom, type MobileCustom} from "siyuan";
+import {Plugin, openTab, getActiveEditor, type Custom, type MobileCustom} from "siyuan";
 import "./index.scss";
 import {QuizView} from "./wengu/QuizView";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
+
+/** 打开页签时记录的目标文档 id（addTab 回调读不到 Tab.data，用模块级传递）。 */
+let targetDocId = "";
 
 /**
  * 温故 —— 刷题 · 错题复习 · 题目与笔记联动
@@ -28,6 +31,9 @@ export default class WenguPlugin extends Plugin {
             title: this.i18n.pluginName,
             position: "right",
             callback: () => {
+                // 记录当前活动文档，页签据此渲染该文档的题目
+                const editor = getActiveEditor();
+                targetDocId = editor?.protyle.block.rootID ?? "";
                 openTab({
                     app: this.app,
                     custom: {
@@ -43,7 +49,7 @@ export default class WenguPlugin extends Plugin {
             type: TAB_RESULT,
             init(this: Custom | MobileCustom) {
                 const i18n = WenguPlugin.instance?.i18n ?? {};
-                const view = new QuizView(this.element as HTMLElement, i18n);
+                const view = new QuizView(this.element as HTMLElement, i18n, targetDocId);
                 (this as any).wenguView = view;
                 view.render();
             },

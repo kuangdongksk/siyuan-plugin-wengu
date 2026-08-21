@@ -21,10 +21,9 @@ interface AttrsRow {
 /** 属性对象（自定义属性以完整 `custom-plugin-wengu-*` 为键）。 */
 type AttrsObject = Record<string, string>;
 
-/** 完整属性名（含前缀）到 WenguQuestion 字段的映射。 */
+/** 完整属性名（含前缀）到 WenguQuestion 字段的映射。注意 answer 改为子块文本，不从属性读。 */
 const FIELD_BY_ATTR: Record<string, keyof WenguQuestion> = {
     [Attr.type]: "type",
-    [Attr.answer]: "answer",
     [Attr.knowledge]: "knowledge",
     [Attr.chapter]: "chapter",
     [Attr.difficulty]: "difficulty",
@@ -90,7 +89,52 @@ export async function listQuestions(docId?: string): Promise<WenguQuestion[]> {
         LIMIT 1024 OFFSET 0;`;
     const {data} = await fetchSyncPost("/api/query/sql", {stmt});
     const rows = (data as AttrsRow[]) ?? [];
-    return rows.filter((r) => typeof r.attrs === "string").map(rowToQuestion);
+    const questions = rows.filter((r) => typeof r.attrs === "string").map(rowToQuestion);
+    // 块优先：取每题的子块(题干/选项/答案/解析)，填充渲染与判分原料
+    for (const q of questions) {
+        await hydrate(q);
+    }
+    return questions;
+}
+
+/** 取某容器块的所有子块，按 part 属性归类到题目字段。 */
+async function hydrate(q: WenguQuestion): Promise<void> {
+    const {data: children} = await fetchSyncPost("/api/block/getChildBlocks", {id: q.id, length: 128});
+    const blocks = (children as ChildBlock[]) ?? [];
+    if (blocks.length === 0) return;
+
+    // 取这些子块的 part 属性
+    const ids = blocks.map((b) => b.id).join("','");
+    const {data: partRows} = await fetchSyncPost("/api/query/sql", {
+        stmt: `SELECT block_id, value FROM attributes WHERE name = '${Attr.part}' AND block_id IN ('${ids}')`,
+    });
+    const partById = new Map<string, string>();
+    for (const r of partRows as {block_id: string; value: string}[]) {
+        partById.set(r.block_id, r.value);
+    }
+
+    const partMd = new Map<string, string[]>();
+    for (const b of blocks) {
+        const part = partById.get(b.id);
+        if (!part) continue;
+        const md = (b.markdown ?? "").trim();
+        if (!md) continue;
+        const arr = partMd.get(part) ?? [];
+        arr.push(md);
+        partMd.set(part, arr);
+    }
+
+    q.stemMd = (partMd.get("stem") ?? []).join("\n\n");
+    q.optionMd = partMd.get("option") ?? [];
+    q.answer = (partMd.get("answer") ?? []).join("\n").trim();
+    q.solutionMd = (partMd.get("solution") ?? []).join("\n\n");
+}
+
+interface ChildBlock {
+    id: string;
+    type: string;
+    content?: string;
+    markdown?: string;
 }
 
 /** 读取单块的原始属性对象。 */
