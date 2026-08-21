@@ -126,7 +126,7 @@ export function renderStartPanel(m: StartPanelModel): string {
   ${scope}
   ${reveal}
   ${timing}
-  <div><button class="b3-button b3-button--text" data-act="start">${esc(t("startDrill"))}</button></div>
+  <div><button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button></div>
 </div>`;
 }
 
