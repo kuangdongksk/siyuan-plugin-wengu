@@ -47,8 +47,13 @@ export interface AnswerHost {
     currentSession(): WenguSession | undefined;
     /** AI 判分/实时引导使用的模型 id（空=智能体默认）。 */
     aiModelId(): string;
-    /** 记入会话（含逐题秒数）并落库。 */
-    recordAnswer(qid: string, submitted: string, ok: boolean): void;
+    /** 记入会话（含逐题秒数）并落库；extra 携带 brief 的 AI 三态与评语。 */
+    recordAnswer(
+        qid: string,
+        submitted: string,
+        ok: boolean,
+        extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+    ): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
     flushTime(): void;
@@ -116,7 +121,7 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
     const objective = isObjective(q);
     const submitted = readSubmitted(q, card);
     if (objective && !submitted) {
-        showResult(card, esc(host.t("noAnswer")), false, true);
+        showResult(card, esc(host.t("noAnswer")), "warn");
         return;
     }
     const batch = host.currentRevealMode() === "after";
@@ -145,7 +150,7 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
     host.recordAnswer(q.id, submitted, ok);
     if (batch) {
         // 统一展示：先只记「已作答」，不揭对错（避免剧透）
-        showResult(card, esc(host.t("answeredPending")), false, true);
+        showResult(card, esc(host.t("answeredPending")), "warn");
         markNumAnswered(host, q);
         checkAllDone(host);
         return;
@@ -167,7 +172,7 @@ export async function selfGrade(
     markNum(host, q, correct);
     host.recordAnswer(q.id, mine, correct);
     card.querySelector("[data-self]")?.setAttribute("hidden", "");
-    showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct);
+    showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct ? "right" : "wrong");
     showQTime(host, card, q.id);
     checkAllDone(host);
 }
@@ -184,12 +189,15 @@ async function judgeBriefAnswer(
     card.dataset.graded = "1";
     lockInputs(card);
     host.flushTime();
-    if (!batch) showResult(card, esc(host.t("aiJudging")), false, true);
+    if (!batch) showResult(card, esc(host.t("aiJudging")), "warn");
     try {
-        const v = await judgeBrief(q, submitted, host.aiModelId());
+        // 「思路」折叠区若填了内容，一并交给 AI（判 partial 的重要素材）
+        const thought = card.querySelector<HTMLTextAreaElement>("[data-field='thought']")?.value.trim() ?? "";
+        const v = await judgeBrief(q, submitted, host.aiModelId(), thought);
         card.dataset.aiJudged = "1";
+        card.dataset.aiVerdict = v.verdict;
         await recordAttemptResult(q.id, submitted, v.ok);
-        host.recordAnswer(q.id, submitted, v.ok);
+        host.recordAnswer(q.id, submitted, v.ok, {verdict: v.verdict, comment: v.comment});
         const commentEl = card.querySelector<HTMLElement>("[data-ai-comment]");
         if (commentEl && v.comment) commentEl.textContent = v.comment;
         if (batch) {
@@ -199,7 +207,7 @@ async function judgeBriefAnswer(
         }
         card.classList.add("wengu-graded");
         markNum(host, q, v.ok);
-        showResult(card, v.ok ? esc(host.t("correct")) : esc(host.t("wrong")), v.ok);
+        showResult(card, briefResultHtml(host, v.verdict), verdictStatus(v.verdict));
         revealBriefExtras(host, card);
         showQTime(host, card, q.id);
         checkAllDone(host);
@@ -227,6 +235,19 @@ function revealBriefExtras(host: AnswerHost, card: HTMLElement): void {
     }
 }
 
+/** 会话结果原位改判（brief 改判 / steps 方法步申诉共用）：
+ *  只翻该条 ok 并调整 correct 计数，不动 answered/attempts；
+ *  brief 的三态标记随改判同步。 */
+export function appealSessionResult(host: AnswerHost, qid: string, correct: boolean): void {
+    const s = host.currentSession();
+    const r = s?.results.find((x) => x.qid === qid);
+    if (s && r && r.ok !== correct) {
+        r.ok = correct;
+        s.correct = Math.max(0, s.correct + (correct ? 1 : -1));
+    }
+    if (r?.verdict) r.verdict = correct ? "right" : "wrong";
+}
+
 /** brief 改判（AI 误判纠错）：翻块属性 right、微调 wrong-count，
  *  会话结果原位改写（不动 attempts/answered）。 */
 async function appealGrade(
@@ -236,15 +257,10 @@ async function appealGrade(
     correct: boolean,
 ): Promise<void> {
     await overrideAttemptResult(q.id, correct);
-    const s = host.currentSession();
-    const r = s?.results.find((x) => x.qid === q.id);
-    if (s && r && r.ok !== correct) {
-        r.ok = correct;
-        s.correct = Math.max(0, s.correct + (correct ? 1 : -1));
-    }
+    appealSessionResult(host, q.id, correct);
     markNum(host, q, correct);
     card.querySelector("[data-self]")?.setAttribute("hidden", "");
-    showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct);
+    showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct ? "right" : "wrong");
 }
 
 /** 判分后提示本题用时（秒数在所有模式都记录，统一展示）。 */
@@ -281,7 +297,7 @@ export function restoreAnsweredCards(host: AnswerHost): void {
         if (revealNow) {
             revealCard(host, node, q, r);
         } else {
-            showResult(node, esc(host.t("answeredPending")), false, true);
+            showResult(node, esc(host.t("answeredPending")), "warn");
             markNumAnswered(host, q);
         }
     }
@@ -334,12 +350,14 @@ export async function revealAll(host: AnswerHost): Promise<void> {
     host.roundComplete();
 }
 
-/** 单卡揭示：答案/解析展开 + 结果与 chip 描色 + 题号上色。 */
+/** 单卡揭示：答案/解析展开 + 结果与 chip 描色 + 题号上色。
+ *  brief 按 AI 三态展示（partial 单列），恢复/统一揭示时从会话结果
+ *  取 verdict 与评语。 */
 function revealCard(
     host: AnswerHost,
     card: HTMLElement,
     q: WenguQuestion,
-    r: {submitted: string; ok: boolean;},
+    r: {submitted: string; ok: boolean; verdict?: string; comment?: string;},
 ): void {
     card.classList.add("wengu-graded");
     markNum(host, q, r.ok);
@@ -350,10 +368,16 @@ function revealCard(
             r.ok ?
                 esc(host.t("correct")) :
                 `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}`,
-            r.ok,
+            r.ok ? "right" : "wrong",
         );
     } else {
-        // brief：AI 评语（若有）+ 自评/改判按钮
+        // brief：结果行按三态（恢复时 dataset 丢失则用会话 verdict 兜底）
+        const verdict = card.dataset.aiVerdict ?? r.verdict ?? (r.ok ? "right" : "wrong");
+        if (r.comment) {
+            const commentEl = card.querySelector<HTMLElement>("[data-ai-comment]");
+            if (commentEl && !commentEl.textContent) commentEl.textContent = r.comment;
+        }
+        showResult(card, briefResultHtml(host, verdict), verdictStatus(verdict));
         revealBriefExtras(host, card);
     }
 }
@@ -400,13 +424,27 @@ function markChips(q: WenguQuestion, card: HTMLElement, submitted: string): void
     }
 }
 
-function showResult(card: HTMLElement, html: string, ok: boolean, warn = false): void {
+/** 结果行状态：partial=brief 方向对但有缺口（统计记错，展示单列）。 */
+type ResultStatus = "right" | "wrong" | "partial" | "warn";
+
+/** brief 三态的结果行文案。 */
+function briefResultHtml(host: AnswerHost, verdict: string): string {
+    if (verdict === "right") return esc(host.t("correct"));
+    if (verdict === "partial") return esc(host.t("verdictPartial"));
+    return esc(host.t("wrong"));
+}
+
+function verdictStatus(verdict: string): ResultStatus {
+    return verdict === "right" ? "right" : verdict === "partial" ? "partial" : "wrong";
+}
+
+function showResult(card: HTMLElement, html: string, status: ResultStatus): void {
     const result = card.querySelector<HTMLElement>("[data-result]");
     if (!result) return;
     result.innerHTML = html;
     result.removeAttribute("hidden");
-    result.classList.remove("wengu-right", "wengu-wrong", "wengu-muted");
-    result.classList.add(warn ? "wengu-muted" : ok ? "wengu-right" : "wengu-wrong");
+    result.classList.remove("wengu-right", "wengu-wrong", "wengu-muted", "wengu-partial");
+    result.classList.add(status === "warn" ? "wengu-muted" : `wengu-${status}`);
 }
 
 function showNote(card: HTMLElement, text: string): void {

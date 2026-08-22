@@ -1,7 +1,10 @@
 import {agentChat} from "./AgentClient";
 import type {WenguQuestion} from "./types";
 import type {WenguStep} from "./types";
-import {optionDisplayMd} from "./types";
+import {
+    LETTERS,
+    optionDisplayMd,
+} from "./types";
 
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
@@ -24,24 +27,35 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
 
 /* ── brief 思路验证 ── */
 
-/** AI 判分结论：ok 已按 right|partial|wrong 折算（partial 记错）。 */
+/** brief 判分三态：partial=方向对但有缺口（统计记错，展示单列）。 */
+export type BriefVerdictState = "right" | "partial" | "wrong";
+
+/** AI 判分结论：ok 为统计口径（partial 记错），verdict 保留三态展示。 */
 export interface BriefVerdict {
+    verdict: BriefVerdictState;
     ok: boolean;
     /** 一句话点评（判分后展示，提示用户可改判）。 */
     comment: string;
 }
 
-/** 把用户的解题思路交给 AI 对照参考答案判定（串行）。 */
-export function judgeBrief(q: WenguQuestion, mine: string, modelId: string): Promise<BriefVerdict> {
+/** 把用户的解题思路交给 AI 对照参考答案判定（串行）。
+ *  thought 为「思路」折叠区里的推导备注（可选，判 partial 的素材）。 */
+export function judgeBrief(
+    q: WenguQuestion,
+    mine: string,
+    modelId: string,
+    thought = "",
+): Promise<BriefVerdict> {
     return enqueue(async () => {
-        const reply = await agentChat(buildBriefPrompt(q, mine), modelId, JUDGE_TIMEOUT_MS);
+        const reply = await agentChat(buildBriefPrompt(q, mine, thought), modelId, JUDGE_TIMEOUT_MS);
         return parseBriefVerdict(reply);
     });
 }
 
-function buildBriefPrompt(q: WenguQuestion, mine: string): string {
+function buildBriefPrompt(q: WenguQuestion, mine: string, thought: string): string {
     const answer = [q.answer, q.solutionMd].filter(Boolean).join("\n\n") || "（无参考答案）";
-    return `你是刷题判分助手。对照参考答案判断学生的解题思路。
+    const thoughtBlock = thought ? `\n【学生思路备注】\n${thought}` : "";
+    return `你是刷题判分助手。对照参考答案判断学生的作答与思路。
 只看学科上的正确性：思路可行即 right；方向对但有明显缺口算 partial；方向错误算 wrong。
 输出严格两行，格式之外不要输出任何文字：
 VERDICT: right 或 partial 或 wrong
@@ -50,17 +64,69 @@ COMMENT: 一句话点评（对在哪/偏在哪，不超过 60 字）
 ${q.stemMd ?? ""}
 【参考答案】
 ${answer}
-【学生思路】
-${mine}`;
+【学生作答】
+${mine}${thoughtBlock}`;
 }
 
 function parseBriefVerdict(reply: string): BriefVerdict {
     const m = /VERDICT\s*[:：]\s*(right|partial|wrong|对|半对|部分对|错|错误)/i.exec(reply);
     if (!m) throw new Error("AI 未按格式返回判定");
-    const v = m[1].toLowerCase();
-    const ok = v === "right" || v === "对";
+    const raw = m[1].toLowerCase();
+    const verdict: BriefVerdictState = raw === "right" || raw === "对" ?
+        "right" :
+        raw === "partial" || raw === "半对" || raw === "部分对" ?
+        "partial" :
+        "wrong";
     const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
-    return {ok, comment: (cm?.[1] ?? "").trim()};
+    return {verdict, ok: verdict === "right", comment: (cm?.[1] ?? "").trim()};
+}
+
+/* ── steps 方法步申诉 ── */
+
+/** 方法步申诉结论：出题时标注的可行集合可能标漏，AI 独立复核。 */
+export interface MethodAppealVerdict {
+    feasible: boolean;
+    comment: string;
+}
+
+/** 方法步答错后的 AI 复核：学生所选方法对该题是否实际可行（串行）。 */
+export function appealMethodStep(
+    q: WenguQuestion,
+    step: WenguStep,
+    chosen: string,
+    modelId: string,
+): Promise<MethodAppealVerdict> {
+    return enqueue(async () => {
+        const reply = await agentChat(buildAppealPrompt(q, step, chosen), modelId, JUDGE_TIMEOUT_MS);
+        const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
+        if (!m) throw new Error("AI 未按格式返回复核");
+        const v = m[1].toLowerCase();
+        const feasible = v === "yes" || v === "true" || v === "是" || v === "可行";
+        const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
+        return {feasible, comment: (cm?.[1] ?? "").trim()};
+    });
+}
+
+function buildAppealPrompt(q: WenguQuestion, step: WenguStep, chosen: string): string {
+    const options = step.optionMd
+        .map((md, i) => `${LETTERS[i]}. ${optionDisplayMd(md)}`)
+        .join("\n");
+    const answer = [q.answer, q.solutionMd].filter(Boolean).join("\n\n") || "（无参考解答）";
+    return `你是解题方法复核助手。一道多步引导题的「选方法」步骤，出题时标注的可行方法集合可能标漏；学生认为自己所选的方法其实可行，请你独立判断。
+只依据学科正确性：该方法能走通本题（即使比参考路径更绕）即可行。
+输出严格两行，格式之外不要输出任何文字：
+FEASIBLE: yes 或 no
+COMMENT: 一句话理由（可行时说明如何走通；不可行时指出问题所在）
+【题目】
+${q.stemMd ?? ""}
+【参考解答】
+${answer}
+【该步候选方法】
+${options}
+【出题时标注的可行集合】
+${step.answer}
+【学生所选方法】
+${chosen}`;
 }
 
 /* ── steps 实时引导 ── */

@@ -202,6 +202,11 @@
   color: var(--b3-theme-error);
 }
 
+/* brief 的 AI 判分三态：partial 单列（统计记错，展示区别于全错） */
+.wengu-partial {
+  color: var(--b3-theme-warning);
+}
+
 .wengu-note {
   margin-top: 4px;
   font-size: 12px;

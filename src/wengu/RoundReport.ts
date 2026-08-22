@@ -43,9 +43,22 @@ export function renderRoundReport(m: RoundReportModel): string {
             const r = byQid.get(q.id);
             const sec = r?.sec ?? 0;
             const h = Math.max(4, Math.round((sec / maxSec) * 100));
-            const cls = !r ? "wengu-bar-muted" : r.ok ? "wengu-bar-right" : "wengu-bar-wrong";
-            const title = fmt(t("reportQTime"), {n: String(i + 1), t: mmss(sec)}) +
-                (r ? (r.ok ? ` · ${t("correct")}` : ` · ${t("wrong")}`) : ` · ${t("reportUnanswered")}`);
+            // partial（brief 方向对但有缺口）单独描黄，区别于全错
+            const cls = !r ?
+                "wengu-bar-muted" :
+                r.verdict === "partial" ?
+                "wengu-bar-partial" :
+                r.ok ?
+                "wengu-bar-right" :
+                "wengu-bar-wrong";
+            const state = !r ?
+                t("reportUnanswered") :
+                r.verdict === "partial" ?
+                t("verdictPartial") :
+                r.ok ?
+                t("correct") :
+                t("wrong");
+            const title = fmt(t("reportQTime"), {n: String(i + 1), t: mmss(sec)}) + ` · ${state}`;
             return `<div class="wengu-bar-col" title="${esc(title)}">
   <div class="wengu-bar ${cls}" style="height:${h}%"></div>
   <span class="wengu-bar-label">${i + 1}</span>
@@ -94,13 +107,17 @@ export function renderRoundReport(m: RoundReportModel): string {
 }
 
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
- *  ok=全步对、sec=各步求和）。 */
-function byBaseQid(s: WenguSession): Map<string, {ok: boolean; sec: number;}> {
-    const out = new Map<string, {ok: boolean; sec: number;}>();
+ *  ok=全步对、sec=各步求和；verdict 保留 brief 的 partial 标记）。 */
+function byBaseQid(s: WenguSession): Map<string, {ok: boolean; sec: number; verdict?: string;}> {
+    const out = new Map<string, {ok: boolean; sec: number; verdict?: string;}>();
     for (const r of s.results) {
         const b = baseQid(r.qid);
         const cur = out.get(b);
-        out.set(b, {ok: cur ? cur.ok && r.ok : r.ok, sec: (cur?.sec ?? 0) + (r.sec ?? 0)});
+        out.set(b, {
+            ok: cur ? cur.ok && r.ok : r.ok,
+            sec: (cur?.sec ?? 0) + (r.sec ?? 0),
+            verdict: cur?.verdict ?? r.verdict,
+        });
     }
     return out;
 }
@@ -188,7 +205,9 @@ function buildAnalysisPrompt(m: RoundReportModel): string {
         .map((q, i) => {
             const r = byQid.get(q.id);
             const label = q.knowledge || q.chapter || String(i + 1);
-            const base = r ? `${i + 1}. ${label} ${r.ok ? "对" : "错"} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
+            // partial=方向对但有缺口（统计记错），AI 分析要单独点名
+            const state = !r ? "未答" : r.verdict === "partial" ? "部分正确" : r.ok ? "对" : "错";
+            const base = r ? `${i + 1}. ${label} ${state} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
             return thoughts[q.id] ? `${base}｜思路：${thoughts[q.id]}` : base;
         })
         .join("；\n");

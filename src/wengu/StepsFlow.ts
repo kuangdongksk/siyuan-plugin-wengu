@@ -1,7 +1,11 @@
-import {nextRealtimeStep} from "./AiJudge";
+import {
+    appealMethodStep,
+    nextRealtimeStep,
+} from "./AiJudge";
 import type {RealtimeHistoryItem} from "./AiJudge";
 import type {AnswerHost} from "./AnswerFlow";
 import {
+    appealSessionResult,
     checkAllDone,
     markNum,
 } from "./AnswerFlow";
@@ -12,6 +16,7 @@ import {
 } from "./CardHtml";
 import {
     gradeStep,
+    overrideStepsResult,
     recordStepsResult,
     stepOptionIsRight,
 } from "./QuestionService";
@@ -41,6 +46,18 @@ import {
  *
  * 与 AnswerFlow 循环引用是安全的：双方只在事件回调里调用对方导出。
  */
+
+/** 申诉复核通过的步序（按卡记忆）：收口统计按「复核通过即对」计。 */
+const appealedSteps = new WeakMap<HTMLElement, Set<number>>();
+
+function appealedSet(card: HTMLElement): Set<number> {
+    let s = appealedSteps.get(card);
+    if (!s) {
+        s = new Set<number>();
+        appealedSteps.set(card, s);
+    }
+    return s;
+}
 
 /** 绑定一张多步卡：填充步骤内容并按本轮模式走离线/实时。 */
 export function bindStepsCard(host: AnswerHost, card: HTMLElement, q: WenguQuestion): void {
@@ -95,7 +112,7 @@ async function submitOfflineStep(
         showStepResult(stepEl, esc(host.t("noAnswer")), false, true);
         return;
     }
-    gradeAndShowStep(host, q, stepEl, step, k, selected.dataset.letter ?? "");
+    gradeAndShowStep(host, card, q, stepEl, step, k, selected.dataset.letter ?? "");
     const next = card.querySelector<HTMLElement>(`[data-step='${k + 1}']`);
     if (next) {
         next.removeAttribute("hidden");
@@ -106,9 +123,11 @@ async function submitOfflineStep(
     }
 }
 
-/** 单步判分与反馈（离线/实时共用）：记会话 + 选项描色 + 步结果行。 */
+/** 单步判分与反馈（离线/实时共用）：记会话 + 选项描色 + 步结果行；
+ *  method 步答错附「AI 复核」申诉按钮（可行集合可能标漏）。 */
 function gradeAndShowStep(
     host: AnswerHost,
+    card: HTMLElement,
     q: WenguQuestion,
     stepEl: HTMLElement,
     step: WenguStep,
@@ -128,10 +147,84 @@ function gradeAndShowStep(
             `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(host, step))}`,
         ok,
     );
+    if (!ok && step.kind === "method") {
+        const btn = document.createElement("button");
+        btn.className = "wengu-btn wengu-step-appeal";
+        btn.dataset.act = "step-appeal";
+        btn.textContent = host.t("stepAppeal");
+        stepEl.appendChild(btn);
+        btn.addEventListener("click", () => void runMethodAppeal(host, card, q, stepEl, step, k, letter, btn));
+    }
     return ok;
 }
 
-/** 整题收口（离线）：从卡片 DOM 收集各步作答后统一记账。 */
+/** 方法步申诉：AI 独立复核所选方法可行性；通过则该步翻对并同步
+ *  会话/块属性（已收口的卡就地重算整题结果）。 */
+async function runMethodAppeal(
+    host: AnswerHost,
+    card: HTMLElement,
+    q: WenguQuestion,
+    stepEl: HTMLElement,
+    step: WenguStep,
+    k: number,
+    letter: string,
+    btn: HTMLButtonElement,
+): Promise<void> {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = host.t("stepAppealing");
+    const idx = LETTERS.indexOf(letter);
+    const chosen = idx >= 0 && idx < step.optionMd.length ? optionDisplayMd(step.optionMd[idx]) : letter;
+    try {
+        const v = await appealMethodStep(q, step, chosen, host.aiModelId());
+        const opt = stepEl.querySelector<HTMLElement>(`.wengu-step-opt[data-letter='${letter}']`);
+        if (!v.feasible) {
+            showStepResult(stepEl, `${esc(host.t("stepAppealRejected"))}${esc(v.comment)}`, false);
+            opt?.classList.add("wengu-step-wrong");
+            btn.remove();
+            return;
+        }
+        appealedSet(card).add(k);
+        appealSessionResult(host, `${q.id}#${k}`, true);
+        opt?.classList.add("wengu-step-right");
+        opt?.classList.remove("wengu-step-wrong");
+        showStepResult(stepEl, `${esc(host.t("stepAppealOk"))}${esc(v.comment)}`, true);
+        btn.remove();
+        if (card.dataset.graded === "1") await refreshFinishedAppeal(host, card, q);
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = host.t("stepAppeal");
+        showStepResult(
+            stepEl,
+            esc(`${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`),
+            false,
+            true,
+        );
+    }
+}
+
+/** 已收口卡的申诉翻对：按收口快照 + 申诉集合重算整题并改判落盘。 */
+async function refreshFinishedAppeal(host: AnswerHost, card: HTMLElement, q: WenguQuestion): Promise<void> {
+    const baseline = (card.dataset.stepOks ?? "").split("").map((c) => c === "1");
+    const appealed = appealedSet(card);
+    const oks = baseline.map((ok, i) => ok || appealed.has(i));
+    const letters: string[] = [];
+    for (const stepEl of card.querySelectorAll<HTMLElement>("[data-step]")) {
+        const sel = stepEl.querySelector<HTMLElement>(".wengu-step-opt.wengu-step-selected");
+        letters.push(sel?.dataset.letter ?? "");
+    }
+    const allOk = oks.length > 0 && oks.every(Boolean);
+    if (card.dataset.stepPersist !== "0") await overrideStepsResult(q, letters, oks);
+    markNum(host, q, allOk);
+    const firstWrong = oks.findIndex((ok) => !ok);
+    showCardResult(
+        card,
+        allOk ? esc(host.t("stepAllCorrect")) : esc(fmt(host.t("stepWrongAt"), {n: String(firstWrong + 1)})),
+        allOk,
+    );
+}
+
+/** 整题收口（离线）：从卡片 DOM 收集各步作答后统一记账（申诉步按对计）。 */
 async function finishFromDom(
     host: AnswerHost,
     card: HTMLElement,
@@ -140,6 +233,7 @@ async function finishFromDom(
 ): Promise<void> {
     if (card.dataset.graded === "1") return;
     const steps = q.steps ?? [];
+    const appealed = appealedSet(card);
     const letters: string[] = [];
     const oks: boolean[] = [];
     for (const stepEl of card.querySelectorAll<HTMLElement>("[data-step]")) {
@@ -148,12 +242,13 @@ async function finishFromDom(
         const letter = sel?.dataset.letter ?? "";
         letters.push(letter);
         const step = steps[k];
-        oks.push(letter && step ? gradeStep(step, letter) : false);
+        oks.push(letter && step ? (appealed.has(k) || gradeStep(step, letter)) : false);
     }
     await finishCard(host, card, q, letters, oks, persistStepState);
 }
 
-/** 整题收口（共用）：写块属性 + 整题结果行 + 题号描色 + 收口检查。 */
+/** 整题收口（共用）：写块属性 + 整题结果行 + 题号描色 + 收口检查。
+ *  收口快照（stepOks/stepPersist）留在卡片上，供申诉翻对后重算。 */
 async function finishCard(
     host: AnswerHost,
     card: HTMLElement,
@@ -163,8 +258,11 @@ async function finishCard(
     persistStepState: boolean,
 ): Promise<void> {
     card.dataset.graded = "1";
+    card.dataset.stepOks = oks.map((ok) => ok ? "1" : "0").join("");
+    card.dataset.stepPersist = persistStepState ? "1" : "0";
     card.classList.add("wengu-graded");
-    card.querySelectorAll("button").forEach((b) => (b as HTMLButtonElement).disabled = true);
+    // 申诉按钮不锁：收口后仍可对答错的 method 步发起 AI 复核
+    card.querySelectorAll("button:not(.wengu-step-appeal)").forEach((b) => (b as HTMLButtonElement).disabled = true);
     const allOk = oks.length > 0 && oks.every(Boolean);
     await recordStepsResult(q, letters, oks, persistStepState);
     markNum(host, q, allOk);
@@ -291,7 +389,7 @@ async function submitRealtimeStep(
     const letter = selected.dataset.letter ?? "";
     const idx = LETTERS.indexOf(letter);
     const chosen = idx >= 0 && idx < step.optionMd.length ? optionDisplayMd(step.optionMd[idx]) : "";
-    const ok = gradeAndShowStep(host, q, node, step, k, letter);
+    const ok = gradeAndShowStep(host, card, q, node, step, k, letter);
     history.push({stem: step.stemMd, letter, chosen, ok});
     await requestRealtimeStep(host, card, q, box, history, k + 1);
 }
