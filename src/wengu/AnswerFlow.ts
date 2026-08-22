@@ -1,3 +1,4 @@
+import {judgeBrief} from "./AiJudge";
 import {
     isChoice,
     isObjective,
@@ -5,15 +6,21 @@ import {
 import type {WenguSession} from "./HistoryStore";
 import {
     optionIsRight,
+    overrideAttemptResult,
     recordAttempt,
     recordAttemptResult,
 } from "./QuestionService";
+import {
+    bindStepsCard,
+    restoreStepsCard,
+} from "./StepsFlow";
 import type {TimerController} from "./TimerController";
 import type {
     WenguQuestion,
     WenguRevealMode,
 } from "./types";
 import {
+    hasSteps,
     LETTERS,
     QuestionType,
 } from "./types";
@@ -27,6 +34,7 @@ import {
  * 作答流程（从 QuizView 拆出）：卡片事件绑定、提交判分、自评、
  * 恢复继续、即时/统一揭示、题号标记。DOM 只做展示，判定数据源是
  * 块属性（recordAttempt）+ 当前会话（host.recordAnswer）。
+ * 多步引导题（steps）与 brief 的 AI 判分分别委派给 StepsFlow/AiJudge。
  */
 
 /** AnswerFlow 需要的宿主能力（QuizView 实现这组薄接口）。 */
@@ -37,6 +45,8 @@ export interface AnswerHost {
     currentRevealMode(): WenguRevealMode;
     timerController(): TimerController;
     currentSession(): WenguSession | undefined;
+    /** AI 判分/实时引导使用的模型 id（空=智能体默认）。 */
+    aiModelId(): string;
     /** 记入会话（含逐题秒数）并落库。 */
     recordAnswer(qid: string, submitted: string, ok: boolean): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
@@ -45,6 +55,10 @@ export interface AnswerHost {
 }
 
 export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQuestion): void {
+    if (hasSteps(q)) {
+        bindStepsCard(host, card, q);
+        return;
+    }
     if (isChoice(q)) {
         for (const chip of card.querySelectorAll<HTMLElement>(".wengu-chip")) {
             chip.addEventListener("click", () => toggleChip(q, card, chip));
@@ -58,14 +72,14 @@ export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQues
         });
     }
     card.querySelector("[data-act='submit']")?.addEventListener("click", () => void submitQuestion(host, q, card));
-    card.querySelector("[data-act='self-right']")?.addEventListener(
-        "click",
-        () => void selfGrade(host, q, card, true),
-    );
-    card.querySelector("[data-act='self-wrong']")?.addEventListener(
-        "click",
-        () => void selfGrade(host, q, card, false),
-    );
+    // 自评按钮：brief 经 AI 判分后语义变为「改判」（appealGrade）
+    const selfHandler = (correct: boolean): () => void => () => {
+        void (card.dataset.aiJudged === "1" ?
+            appealGrade(host, q, card, correct) :
+            selfGrade(host, q, card, correct));
+    };
+    card.querySelector("[data-act='self-right']")?.addEventListener("click", selfHandler(true));
+    card.querySelector("[data-act='self-wrong']")?.addEventListener("click", selfHandler(false));
 }
 
 /** 字母 chip 点选：单选互斥，多选可增删。 */
@@ -106,7 +120,13 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
     lockInputs(card);
     host.flushTime();
     if (!objective) {
-        // brief（或缺题型/答案属性的题）：不自动判分，揭示后自评；
+        // brief：AI 判分并计入（AI 不可用回落自评）；多步题在 StepsFlow，
+        // 缺题型/答案属性的题维持自评。after 模式判分照跑，揭示时只展示评语。
+        if (q.type === QuestionType.Brief && submitted) {
+            await judgeBriefAnswer(host, q, card, submitted, batch);
+            return;
+        }
+        // 缺题型/答案属性的题：不自动判分，揭示后自评；
         // after 模式下自评也等统一揭示
         if (batch) {
             markNumAnswered(host, q);
@@ -148,6 +168,81 @@ export async function selfGrade(
     checkAllDone(host);
 }
 
+/** brief 提交：AI 判分并计入（串行队列），结果行显示评语，保留改判；
+ *  AI 失败/超时回落纯自评。 */
+async function judgeBriefAnswer(
+    host: AnswerHost,
+    q: WenguQuestion,
+    card: HTMLElement,
+    submitted: string,
+    batch: boolean,
+): Promise<void> {
+    card.dataset.graded = "1";
+    lockInputs(card);
+    host.flushTime();
+    if (!batch) showResult(card, esc(host.t("aiJudging")), false, true);
+    try {
+        const v = await judgeBrief(q, submitted, host.aiModelId());
+        card.dataset.aiJudged = "1";
+        await recordAttemptResult(q.id, submitted, v.ok);
+        host.recordAnswer(q.id, submitted, v.ok);
+        const commentEl = card.querySelector<HTMLElement>("[data-ai-comment]");
+        if (commentEl && v.comment) commentEl.textContent = v.comment;
+        if (batch) {
+            markNumAnswered(host, q);
+            checkAllDone(host);
+            return;
+        }
+        card.classList.add("wengu-graded");
+        markNum(host, q, v.ok);
+        showResult(card, v.ok ? esc(host.t("correct")) : esc(host.t("wrong")), v.ok);
+        revealBriefExtras(host, card);
+        showQTime(host, card, q.id);
+        checkAllDone(host);
+    } catch (e) {
+        if (batch) {
+            markNumAnswered(host, q);
+            checkAllDone(host);
+            return;
+        }
+        card.classList.add("wengu-graded");
+        showNote(card, `${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`);
+        card.querySelector("[data-self]")?.removeAttribute("hidden");
+    }
+}
+
+/** 揭示 brief 的评语与改判按钮（即时判分与统一揭示共用）。 */
+function revealBriefExtras(host: AnswerHost, card: HTMLElement): void {
+    const comment = card.querySelector<HTMLElement>("[data-ai-comment]");
+    if (comment?.textContent) comment.removeAttribute("hidden");
+    const self = card.querySelector<HTMLElement>("[data-self]");
+    if (self) {
+        self.removeAttribute("hidden");
+        const label = self.querySelector("span");
+        if (label) label.textContent = host.t("rejudgeHint");
+    }
+}
+
+/** brief 改判（AI 误判纠错）：翻块属性 right、微调 wrong-count，
+ *  会话结果原位改写（不动 attempts/answered）。 */
+async function appealGrade(
+    host: AnswerHost,
+    q: WenguQuestion,
+    card: HTMLElement,
+    correct: boolean,
+): Promise<void> {
+    await overrideAttemptResult(q.id, correct);
+    const s = host.currentSession();
+    const r = s?.results.find((x) => x.qid === q.id);
+    if (s && r && r.ok !== correct) {
+        r.ok = correct;
+        s.correct = Math.max(0, s.correct + (correct ? 1 : -1));
+    }
+    markNum(host, q, correct);
+    card.querySelector("[data-self]")?.setAttribute("hidden", "");
+    showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct);
+}
+
 /** 判分后提示本题用时（秒数在所有模式都记录，统一展示）。 */
 function showQTime(host: AnswerHost, card: HTMLElement, qid: string): void {
     const sec = host.timerController().questionSec(qid);
@@ -160,12 +255,22 @@ export function restoreAnsweredCards(host: AnswerHost): void {
     const list = host.questions();
     if (!s || s.results.length === 0) return;
     const byQid = new Map(s.results.map((r) => [r.qid, r] as const));
-    const allDone = list.length > 0 && list.every((q) => byQid.has(q.id));
+    const allDone = list.length > 0 && list.every((q) =>
+        hasSteps(q) ?
+            stepResultsOf(s.results, q.id).length >= (q.steps?.length ?? Number.POSITIVE_INFINITY) :
+            byQid.has(q.id)
+    );
     const revealNow = host.currentRevealMode() === "instant" || allDone;
     for (const node of host.container().querySelectorAll<HTMLElement>(".wengu-card")) {
         const q = list.find((x) => x.id === node.dataset.qid);
-        const r = q ? byQid.get(q.id) : undefined;
-        if (!q || !r) continue;
+        if (!q) continue;
+        if (hasSteps(q)) {
+            // 多步卡按 qid#k 逐步还原（完整则锁定收口，部分则待续）
+            restoreStepsCard(host, node, q, stepResultsOf(s.results, q.id));
+            continue;
+        }
+        const r = byQid.get(q.id);
+        if (!r) continue;
         node.dataset.graded = "1";
         lockInputs(node);
         restoreSubmitted(q, node, r.submitted);
@@ -177,6 +282,18 @@ export function restoreAnsweredCards(host: AnswerHost): void {
         }
     }
     if (allDone) void revealAll(host);
+}
+
+/** 某多步题在会话里的逐步结果（按步序排列）。 */
+function stepResultsOf(
+    results: {qid: string; submitted: string; ok: boolean;}[],
+    qid: string,
+): {k: number; submitted: string; ok: boolean;}[] {
+    const prefix = `${qid}#`;
+    return results
+        .filter((r) => r.qid.startsWith(prefix) && /^\d+$/.test(r.qid.slice(prefix.length)))
+        .map((r) => ({k: Number(r.qid.slice(prefix.length)), submitted: r.submitted, ok: r.ok}))
+        .sort((a, b) => a.k - b.k);
 }
 
 /** 把某题的作答状态写回卡片 DOM（chip 选中/判断按钮/输入值）。 */
@@ -232,13 +349,14 @@ function revealCard(
             r.ok,
         );
     } else {
-        card.querySelector("[data-self]")?.removeAttribute("hidden");
+        // brief：AI 评语（若有）+ 自评/改判按钮
+        revealBriefExtras(host, card);
     }
 }
 
 /** 全部作答后收口：after 模式先统一揭示（revealAll 会再触发总结），
- *  instant 模式直接给总结报告。 */
-function checkAllDone(host: AnswerHost): void {
+ *  instant 模式直接给总结报告。StepsFlow 完成多步卡后也走这里。 */
+export function checkAllDone(host: AnswerHost): void {
     const cards = [...host.container().querySelectorAll<HTMLElement>(".wengu-card")];
     if (cards.length === 0 || cards.some((c) => c.dataset.graded !== "1")) return;
     if (host.currentRevealMode() === "after") void revealAll(host);
@@ -246,7 +364,7 @@ function checkAllDone(host: AnswerHost): void {
 }
 
 /** 判分/自评后同步题号导航的对错标记。 */
-function markNum(host: AnswerHost, q: WenguQuestion, ok: boolean): void {
+export function markNum(host: AnswerHost, q: WenguQuestion, ok: boolean): void {
     const n = host.questions().indexOf(q) + 1;
     const btn = host.container().querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
     if (!btn) return;

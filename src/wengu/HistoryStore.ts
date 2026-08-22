@@ -1,5 +1,6 @@
 import type {
     WenguRevealMode,
+    WenguStepsMode,
     WenguTimingMode,
 } from "./types";
 
@@ -23,6 +24,8 @@ export interface WenguSession {
     plannedSec?: number;
     /** 答案展示方式（旧记录缺省视为即时）。 */
     revealMode?: WenguRevealMode;
+    /** 多步题作答模式（旧记录缺省视为离线）。 */
+    stepsMode?: WenguStepsMode;
     /** 实际用时（秒，到最近一次作答/收卷为止）。 */
     elapsedSec: number;
     answered: number;

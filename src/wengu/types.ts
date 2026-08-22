@@ -5,7 +5,7 @@
  * 通过 attrs.ts -> kebab 转换与自定义属性互转。
  */
 
-/** 题型：前四类自动判分，brief（大题）走自评。 */
+/** 题型：前四类自动判分，brief（大题）AI 判分+自评改判，steps 走多步引导。 */
 export enum QuestionType {
     /** 单选 */
     Single = "single",
@@ -15,8 +15,10 @@ export enum QuestionType {
     Judge = "judge",
     /** 填空 */
     Fill = "fill",
-    /** 简答/计算（大题，自评） */
+    /** 简答/计算（大题，AI 判分并计入，可自评改判） */
     Brief = "brief",
+    /** 多步引导（工科大题拆解：方法步 + 结果步，逐步解锁作答） */
+    Steps = "steps",
 }
 
 /** 客观题类型 = 可自动判分；brief 除外。 */
@@ -42,11 +44,36 @@ const TYPE_ALIASES: Record<string, QuestionType> = {
     [QuestionType.Brief]: QuestionType.Brief,
     "简答": QuestionType.Brief,
     "问答": QuestionType.Brief,
+    [QuestionType.Steps]: QuestionType.Steps,
+    "多步": QuestionType.Steps,
+    "多步引导": QuestionType.Steps,
+    "引导": QuestionType.Steps,
 };
 
 /** 规整 type 属性为合法题型；无法识别返回 undefined（走自评流程）。 */
 export function normalizeType(raw?: string): QuestionType | undefined {
     return TYPE_ALIASES[(raw ?? "").trim().toLowerCase()];
+}
+
+/** steps 题且聚合出了至少一步（否则按普通自评流程降级）。 */
+export function hasSteps(q: WenguQuestion): boolean {
+    return q.type === QuestionType.Steps && (q.steps?.length ?? 0) > 0;
+}
+
+/** 多步引导题的一步类型：method=选方法（可行集合任一即对），result=中间结果。 */
+export type WenguStepKind = "method" | "result";
+
+/** 多步引导题（type="steps"）的一步。 */
+export interface WenguStep {
+    /** method：考察「什么场合用什么工具」，任一可行方法即对；
+     *  result：考参考路径下的中间结果，唯一解。 */
+    kind: WenguStepKind;
+    /** 本步引导语 markdown（如「第 2 步 · 等价无穷小代换：本步化简得（ ）」）。 */
+    stemMd: string;
+    /** 本步选项 markdown，按序对应 A、B、C…。 */
+    optionMd: string[];
+    /** method 步=全部可行字母集合（如 "AC"）；result 步=正确字母（或内容答案）。 */
+    answer: string;
 }
 
 /** 一道题在插件侧的结构化视图（由容器超级块属性 + 子块文本拼装）。 */
@@ -81,6 +108,12 @@ export interface WenguQuestion {
     optionMd?: string[];
     /** 解析子块 markdown（part="solution"，判分后展示）。 */
     solutionMd?: string;
+    /** 多步步骤（type="steps"，由 part="step-{k}-*" 子块与 steps 属性聚合）。 */
+    steps?: WenguStep[];
+    /** 运行时：逐步最近正误（"1010"，与 steps 对齐）。 */
+    stepRight?: string;
+    /** 运行时：逐步最近作答（字母按步竖线分隔，如 "A|B"）。 */
+    stepLast?: string;
 }
 
 /** 一个习题文档的聚合视图（已生成列表用，随文档持久存在）。 */
@@ -105,6 +138,24 @@ export interface WenguDoc {
 export function parseDifficulty(raw?: string): number | undefined {
     const n = Number(raw);
     return Number.isInteger(n) && n >= 1 && n <= 5 ? n : undefined;
+}
+
+/**
+ * 解析 steps 容器属性（"method|result|result"，AI 偶发中文/逗号变体）。
+ * 非法或缺失返回 undefined（步骤 kind 全部按 result 容错）。
+ */
+export function parseStepKinds(raw?: string): WenguStepKind[] | undefined {
+    if (!raw?.trim()) return undefined;
+    const kinds = raw.split(/[|,，;；\s]+/).filter(Boolean);
+    if (kinds.length === 0) return undefined;
+    const out: WenguStepKind[] = [];
+    for (const k of kinds) {
+        const lower = k.toLowerCase();
+        if (lower === "method" || k === "方法") out.push("method");
+        else if (lower === "result" || k === "结果") out.push("result");
+        else return undefined;
+    }
+    return out;
 }
 
 /**
@@ -180,3 +231,17 @@ export type WenguTimingMode = "countUp" | "countdown" | "perQuestion" | "none";
 
 /** 答案展示方式：即时（提交一题看一题）/ 全部做完再统一展示。 */
 export type WenguRevealMode = "instant" | "after";
+
+/** 多步引导题的作答模式：离线（转换时生成的静态参考路径）/
+ *  AI 实时（作答时跟随用户选的方法逐步生成，较慢且可能出错）。 */
+export type WenguStepsMode = "offline" | "ai";
+
+/** 多步题第 k 步在会话里的记录 qid（块 id + "#" + 步序）。 */
+export function stepsQid(qid: string, k: number): string {
+    return `${qid}#${k}`;
+}
+
+/** 会话结果 qid → 所属题目块 id（普通题即自身，多步步条目去掉 #k 后缀）。 */
+export function baseQid(qid: string): string {
+    return qid.split("#")[0];
+}

@@ -274,6 +274,125 @@
   cursor: default;
 }
 
+/* ── 多步引导题（type="steps"）── */
+/* 步骤子块在 Protyle 文档渲染里永远隐藏——引导语/选项由 StepsFlow
+   逐步呈现（解锁前不出现，防剧透）；answer/solution 仍是判分后揭示。 */
+.wengu-card [custom-plugin-wengu-part^="step-"] {
+  display: none !important;
+}
+
+.wengu-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wengu-step {
+  padding: 8px 10px;
+  border: 1px dashed var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wengu-step-stem {
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-step-stem p,
+.wengu-step-text p {
+  margin: 0;
+}
+
+.wengu-step-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.wengu-step-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wengu-step-opt:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-step-letter {
+  flex: none;
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+}
+
+.wengu-step-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-step-selected,
+.wengu-step-opt.wengu-step-selected:hover {
+  border-color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+}
+
+.wengu-step-right,
+.wengu-step-opt.wengu-step-right:hover {
+  border-color: var(--b3-theme-success);
+  background: color-mix(in srgb, var(--b3-theme-success) 10%, transparent);
+}
+
+.wengu-step-wrong,
+.wengu-step-opt.wengu-step-wrong:hover {
+  border-color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 10%, transparent);
+}
+
+.wengu-step-opt:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.wengu-step-result {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.wengu-step-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+/* brief 的 AI 判分评语 */
+.wengu-ai-comment {
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 3px solid var(--b3-theme-primary-light);
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+}
+
 /* Protyle 加载失败的降级渲染 */
 .wengu-option-fallback {
   padding: 2px 8px;

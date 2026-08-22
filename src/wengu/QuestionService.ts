@@ -12,12 +12,14 @@ import {
     normalizeType,
     optionComparable,
     parseDifficulty,
+    parseStepKinds,
     QuestionType,
     splitOptionMd,
 } from "./types";
 import type {
     WenguDoc,
     WenguQuestion,
+    WenguStep,
 } from "./types";
 
 /**
@@ -41,6 +43,7 @@ type AttrsObject = Record<string, string>;
 /** 完整属性名（含前缀）到 WenguQuestion 字段的映射。注意 answer 改为子块文本，不从属性读。 */
 const FIELD_BY_ATTR: Record<string, keyof WenguQuestion> = {
     [Attr.type]: "type",
+    [Attr.steps]: "steps",
     [Attr.knowledge]: "knowledge",
     [Attr.chapter]: "chapter",
     [Attr.difficulty]: "difficulty",
@@ -49,6 +52,8 @@ const FIELD_BY_ATTR: Record<string, keyof WenguQuestion> = {
     [Attr.wrongCount]: "wrongCount",
     [Attr.lastAnswer]: "lastAnswer",
     [Attr.right]: "right",
+    [Attr.stepRight]: "stepRight",
+    [Attr.stepLast]: "stepLast",
 };
 
 /** 取出的裸属性转成结构化题目视图。 */
@@ -70,6 +75,12 @@ function rowToQuestion(row: AttrsRow): WenguQuestion {
             q.type = normalizeType(value);
         } else if (field === "difficulty") {
             q.difficulty = parseDifficulty(value);
+        } else if (field === "steps") {
+            // 步骤类型声明：先建骨架（kind），子块文本由 hydrate 填充
+            const kinds = parseStepKinds(value);
+            if (kinds) {
+                q.steps = kinds.map((kind) => ({kind, stemMd: "", optionMd: [] as string[], answer: ""}));
+            }
         } else if (field === "attempts") {
             q.attempts = Number(value) || 0;
         } else if (field === "wrongCount") {
@@ -189,6 +200,16 @@ async function hydrate(q: WenguQuestion): Promise<void> {
     const partMd = new Map<string, string[]>();
     // 契约规定选项 part 为 option-0 / option-1 …（也容忍不带序号的 option）
     const options: {index: number; md: string;}[] = [];
+    // steps 题：step-{k}-stem / step-{k}-option-{j} / step-{k}-answer 按步聚合
+    const stepAcc = new Map<number, {stems: string[]; options: {index: number; md: string;}[]; answers: string[];}>();
+    const stepOf = (k: number) => {
+        let acc = stepAcc.get(k);
+        if (!acc) {
+            acc = {stems: [], options: [], answers: []};
+            stepAcc.set(k, acc);
+        }
+        return acc;
+    };
     for (const b of blocks) {
         const part = partById.get(b.id);
         if (!part) continue;
@@ -201,6 +222,18 @@ async function hydrate(q: WenguQuestion): Promise<void> {
             const cleaned = cleanStemMd(md);
             if (cleaned && cleaned !== md) await rewriteStemBlock(b.id, cleaned);
             md = cleaned;
+        }
+        const stepMatch = /^step-(\d+)-(stem|option(?:-(\d+))?|answer)$/.exec(part);
+        if (stepMatch) {
+            const acc = stepOf(Number(stepMatch[1]));
+            if (stepMatch[2] === "stem") {
+                acc.stems.push(md);
+            } else if (stepMatch[2] === "answer") {
+                acc.answers.push(md);
+            } else {
+                acc.options.push({index: stepMatch[3] !== undefined ? Number(stepMatch[3]) : acc.options.length, md});
+            }
+            continue;
         }
         const optionMatch = /^option(?:-(\d+))?$/.exec(part);
         if (optionMatch) {
@@ -219,6 +252,22 @@ async function hydrate(q: WenguQuestion): Promise<void> {
     q.optionMd = options.flatMap((o) => splitOptionMd(o.md));
     q.answer = normalizeAnswerMd((partMd.get("answer") ?? []).join("\n"));
     q.solutionMd = (partMd.get("solution") ?? []).join("\n\n");
+
+    // 步骤组装：steps 属性声明的 kind 优先，缺失/越界的步按 result 容错
+    const kinds = q.steps?.map((s) => s.kind);
+    const steps = [...stepAcc.entries()]
+        .sort((x, y) => x[0] - y[0])
+        .map(([, acc], i) =>
+            ({
+                kind: kinds?.[i] ?? "result",
+                stemMd: acc.stems.join("\n\n"),
+                optionMd: acc.options
+                    .sort((x, y) => x.index - y.index)
+                    .flatMap((o) => splitOptionMd(o.md)),
+                answer: normalizeAnswerMd(acc.answers.join("\n")),
+            }) satisfies WenguStep
+        );
+    if (steps.length > 0) q.steps = steps;
 }
 
 interface ChildBlock {
@@ -377,6 +426,79 @@ export async function recordAttempt(q: WenguQuestion, submitted: string): Promis
     const correct = gradeQuestion(q, submitted);
     await recordAttemptResult(q.id, submitted, correct);
     return correct;
+}
+
+/**
+ * 多步题单步判分：method 步任一可行方法即对（answer 为可行字母集合）；
+ * result 步比字母（或把所选项内容与答案内容比对，同 single 容错）。
+ */
+export function gradeStep(step: WenguStep, submitted: string): boolean {
+    const ansNorm = normAnswerText(step.answer);
+    const subNorm = normAnswerText(submitted);
+    if (/^[A-Z]+$/.test(ansNorm)) {
+        return step.kind === "method" ? ansNorm.includes(subNorm) : subNorm === ansNorm;
+    }
+    const letters = submitted.toUpperCase().replace(/[^A-Z]/g, "");
+    if (letters.length === 1) {
+        const idx = LETTERS.indexOf(letters);
+        if (idx >= 0 && idx < step.optionMd.length) {
+            return optionComparable(step.optionMd[idx]) === ansNorm;
+        }
+    }
+    return subNorm === ansNorm;
+}
+
+/** 多步题某选项是否属于正确项（method 步=可行集合；判分后描色用）。 */
+export function stepOptionIsRight(step: WenguStep, idx: number): boolean {
+    const ansNorm = normAnswerText(step.answer);
+    const letter = LETTERS[idx] ?? "";
+    if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
+    return step.optionMd[idx] !== undefined && optionComparable(step.optionMd[idx]) === ansNorm;
+}
+
+/**
+ * 多步题整题记账：整题 right=全步对，同时写逐步运行态。
+ * AI 实时模式的步骤序列不落盘（persistStepState=false，只记整题）。
+ */
+export async function recordStepsResult(
+    q: WenguQuestion,
+    letters: string[],
+    oks: boolean[],
+    persistStepState: boolean,
+): Promise<boolean> {
+    const allOk = oks.length > 0 && oks.every(Boolean);
+    const attrs = await getBlockAttrs(q.id);
+    const attempts = (Number(attrs[Attr.attempts]) || 0) + 1;
+    const wrongCount = (Number(attrs[Attr.wrongCount]) || 0) + (allOk ? 0 : 1);
+    const payload: AttrsObject = {
+        [Attr.attempts]: String(attempts),
+        [Attr.wrongCount]: String(wrongCount),
+        [Attr.lastAnswer]: letters.join("|"),
+        [Attr.right]: allOk ? "1" : "0",
+    };
+    if (persistStepState) {
+        payload[Attr.stepRight] = oks.map((ok) => ok ? "1" : "0").join("");
+        payload[Attr.stepLast] = letters.join("|");
+    }
+    await setBlockAttrs(q.id, payload);
+    return allOk;
+}
+
+/**
+ * 改判（brief 的 AI 判分纠错 / 自评更正）：只翻 right，不动 attempts；
+ * 错改对时回退一次 wrong-count，对改错时补记一次。
+ */
+export async function overrideAttemptResult(id: string, correct: boolean): Promise<void> {
+    const attrs = await getBlockAttrs(id);
+    const cur = Number(attrs[Attr.wrongCount]) || 0;
+    if (correct) {
+        await setBlockAttrs(id, {
+            [Attr.right]: "1",
+            ...(cur > 0 ? {[Attr.wrongCount]: String(cur - 1)} : {}),
+        });
+    } else {
+        await setBlockAttrs(id, {[Attr.right]: "0", [Attr.wrongCount]: String(cur + 1)});
+    }
 }
 
 /** 错题闪卡卡组名（首次加错题时懒创建）。 */

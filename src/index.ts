@@ -36,6 +36,8 @@ interface WenguSettings {
     convertModelId?: string;
     /** 默认「填空转选择」。 */
     fillToChoice?: boolean;
+    /** 默认「大题拆多步」（可分解的工科大题 → 多步引导题）。 */
+    bigToSteps?: boolean;
     /** 由插件注入的落盘回调。 */
     save?: () => void;
 }

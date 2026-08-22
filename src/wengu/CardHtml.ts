@@ -1,8 +1,15 @@
 import {svgIcon} from "./FormHtml";
+import {
+    mdFragmentHtml,
+    renderMathIn,
+} from "./ProtyleHost";
 import type {WenguQuestion} from "./types";
+import type {WenguStep} from "./types";
 import {
     AUTO_GRADE_TYPES,
+    hasSteps,
     LETTERS,
+    optionDisplayMd,
     QuestionType,
 } from "./types";
 import type {WenguDoc} from "./types";
@@ -51,10 +58,29 @@ export interface CardHtmlModel {
 
 /** 一张题卡：头部元信息 + Protyle 占位（题目内容）+ 作答位。 */
 export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
+    if (hasSteps(q)) return renderStepsCardHtml(q, idx, m);
     const objective = isObjective(q);
     const {t} = m;
     return `<div class="wengu-card" data-qid="${esc(q.id)}" data-idx="${idx}">
-      <div class="wengu-card-head">
+      ${renderCardHead(q, idx, m, objective)}
+      <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
+      ${renderAnswerArea(q, m.t)}
+      <button class="wengu-btn" data-act="submit">${esc(t("submit"))}</button>
+      <div class="wengu-result" data-result hidden></div>
+      <div class="wengu-note" data-note hidden></div>
+      <div class="wengu-ai-comment" data-ai-comment hidden></div>
+      <div class="wengu-self" data-self hidden>
+        <span>${esc(t("selfAssess"))}</span>
+        <button class="wengu-btn wengu-btn-success" data-act="self-right">${esc(t("selfRight"))}</button>
+        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${esc(t("selfWrong"))}</button>
+      </div>
+    </div>`;
+}
+
+/** 卡片头部：标题 + 题型/自评徽标 + 难度/来源/次数（两种题卡共用）。 */
+function renderCardHead(q: WenguQuestion, idx: number, m: CardHtmlModel, objective: boolean): string {
+    const {t} = m;
+    return `<div class="wengu-card-head">
         <span class="wengu-card-title">${esc(q.knowledge || q.chapter || String(idx + 1))}</span>
         ${q.type ? `<span class="wengu-badge">${esc(t(typeKey(q.type)))}</span>` : ""}
         ${!objective ? `<span class="wengu-badge">${esc(t("selfBadge"))}</span>` : ""}
@@ -72,18 +98,63 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
             }</span>` :
             ""
     }
-      </div>
+      </div>`;
+}
+
+/** 一张多步引导卡：头部 + Protyle 题干 + 逐步解锁作答区。
+ *  步骤引导语/选项内容由 StepsFlow 用 Lute 填充——step-* 子块在
+ *  Protyle 渲染里被 CSS 隐藏（防剧透），选项只在解锁后出现。 */
+export function renderStepsCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
+    return `<div class="wengu-card" data-qid="${esc(q.id)}" data-idx="${idx}">
+      ${renderCardHead(q, idx, m, false)}
       <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
-      ${renderAnswerArea(q, m.t)}
-      <button class="wengu-btn" data-act="submit">${esc(t("submit"))}</button>
+      <div class="wengu-steps" data-steps>${renderStepsInnerHtml(q, m.t)}</div>
       <div class="wengu-result" data-result hidden></div>
       <div class="wengu-note" data-note hidden></div>
-      <div class="wengu-self" data-self hidden>
-        <span>${esc(t("selfAssess"))}</span>
-        <button class="wengu-btn wengu-btn-success" data-act="self-right">${esc(t("selfRight"))}</button>
-        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${esc(t("selfWrong"))}</button>
-      </div>
     </div>`;
+}
+
+/** 步骤作答区 HTML（实时模式回落离线时 StepsFlow 重建用）。
+ *  引导语/选项文本留空占位（data-step-stem / data-opt-text），由
+ *  fillOneStep 填 Lute HTML 以渲染公式。 */
+export function renderStepsInnerHtml(q: WenguQuestion, t: (k: string) => string): string {
+    return (q.steps ?? []).map((s, k) => renderOneStepHtml(s, k, t)).join("");
+}
+
+/** 单步作答区 HTML（离线静态渲染与 AI 实时逐步追加共用）。 */
+export function renderOneStepHtml(step: WenguStep, k: number, t: (k2: string) => string): string {
+    return `<div class="wengu-step" data-step="${k}"${k > 0 ? " hidden" : ""}>
+        <div class="wengu-step-head">
+          <span class="wengu-badge wengu-step-kind">${
+        esc(step.kind === "method" ? t("stepMethodBadge") : t("stepResultBadge"))
+    }</span>
+          <span class="wengu-step-stem" data-step-stem></span>
+        </div>
+        <div class="wengu-step-opts">${
+        step.optionMd
+            .map((_, i) =>
+                `<button class="wengu-step-opt" data-letter="${LETTERS[i] ?? ""}">
+              <span class="wengu-step-letter">${LETTERS[i] ?? ""}</span>
+              <span class="wengu-step-text" data-opt-text></span>
+            </button>`
+            )
+            .join("")
+    }</div>
+        <button class="wengu-btn wengu-step-next" data-act="step-next">${esc(t("stepNext"))}</button>
+        <div class="wengu-step-result" data-step-result hidden></div>
+      </div>`;
+}
+
+/** 往一步的占位里填内容：引导语 + 各选项文本（Lute 渲染公式后高亮）。 */
+export function fillOneStep(stepEl: HTMLElement, step: WenguStep): void {
+    const stem = stepEl.querySelector<HTMLElement>("[data-step-stem]");
+    if (stem && step.stemMd) stem.innerHTML = mdFragmentHtml(step.stemMd);
+    for (const opt of stepEl.querySelectorAll<HTMLElement>(".wengu-step-opt")) {
+        const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
+        const text = opt.querySelector<HTMLElement>("[data-opt-text]");
+        if (text && step.optionMd[idx]) text.innerHTML = mdFragmentHtml(optionDisplayMd(step.optionMd[idx]));
+    }
+    renderMathIn(stepEl);
 }
 
 /** 作答位：选择题字母 chip / 判断按钮 / 填空输入 / 简答多行。 */

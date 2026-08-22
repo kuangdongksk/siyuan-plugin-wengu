@@ -86,6 +86,7 @@ export class QuizView implements AnswerHost {
     private started = false;
     private lastConvertModelId = "";
     private lastConvertFill = false;
+    private lastConvertSteps = false;
     private session?: WenguSession;
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
     private finished?: WenguSession;
@@ -162,6 +163,7 @@ export class QuizView implements AnswerHost {
             sideCollapsed: this.sideCollapsed,
             lastConvertModelId: this.lastConvertModelId,
             lastConvertFill: this.lastConvertFill,
+            lastConvertSteps: this.lastConvertSteps,
         });
     }
 
@@ -203,6 +205,7 @@ export class QuizView implements AnswerHost {
         this.sideCollapsed = r.sideCollapsed;
         this.lastConvertModelId = r.lastConvertModelId;
         this.lastConvertFill = r.lastConvertFill;
+        this.lastConvertSteps = r.lastConvertSteps;
         this.revealMode = r.revealMode;
         this.started = false;
         this.activeQIdx = 0;
@@ -308,6 +311,7 @@ export class QuizView implements AnswerHost {
     private defaults(): RoundDefaults {
         return {
             reveal: this.revealMode,
+            stepsMode: "offline",
             timing: this.timer.mode,
             countdownMin: this.timer.countdownMin,
         };
@@ -456,9 +460,11 @@ export class QuizView implements AnswerHost {
             activeDocId: this.activeDocId,
             initialModelId: this.lastConvertModelId || this.settings?.convertModelId || "",
             initialFillToChoice: this.lastConvertFill || this.settings?.fillToChoice === true,
-            saveChoice: (modelId, fill) => {
+            initialBigToSteps: this.lastConvertSteps || this.settings?.bigToSteps === true,
+            saveChoice: (modelId, fill, steps) => {
                 this.lastConvertModelId = modelId;
                 this.lastConvertFill = fill;
+                this.lastConvertSteps = steps;
                 this.persistPrefs();
             },
             setConverting: (v) => {

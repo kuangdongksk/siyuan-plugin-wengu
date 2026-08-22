@@ -25,8 +25,10 @@ export interface ConvertDialogDeps {
     initialModelId: string;
     /** 填空转选择预选值（prefs 上次 > 设置默认）。 */
     initialFillToChoice: boolean;
+    /** 大题拆多步预选值（prefs 上次 > 设置默认）。 */
+    initialBigToSteps: boolean;
     /** 用户本次的选择（记入 prefs）。 */
-    saveChoice(modelId: string, fillToChoice: boolean): void;
+    saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean): void;
     /** 转换状态变化（禁用/恢复目录底部的转换按钮）。 */
     setConverting(v: boolean): void;
     /** 成功：docId/title/count + 摘要 message。 */
@@ -54,6 +56,13 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         formSwitch("dlg-fill", deps.initialFillToChoice, "data-act"),
                     ) +
                     formRow(
+                        t("bigToSteps"),
+                        t("bigToStepsHint"),
+                        `<input class="b3-switch fn__flex-center" type="checkbox" data-act="dlg-steps"${
+                            deps.initialBigToSteps ? " checked" : ""
+                        }>`,
+                    ) +
+                    formRow(
                         t("docIdLabel"),
                         t("docIdPlaceholder"),
                         formInput(
@@ -76,6 +85,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const input = root.querySelector<HTMLInputElement>("[data-act='dlg-docid']");
     const modelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-model']");
     const fillInput = root.querySelector<HTMLInputElement>("[data-act='dlg-fill']");
+    const stepsInput = root.querySelector<HTMLInputElement>("[data-act='dlg-steps']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
     const status = root.querySelector<HTMLElement>("[data-act='dlg-status']");
     const showDlgStatus = (text: string, kind: "ok" | "err" | "muted") => {
@@ -91,12 +101,13 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (!target || !okBtn) return;
         const modelId = modelSel?.value ?? "";
         const fill = fillInput?.checked ?? false;
-        deps.saveChoice(modelId, fill);
+        const bigSteps = stepsInput?.checked ?? false;
+        deps.saveChoice(modelId, fill, bigSteps);
         deps.setConverting(true);
         okBtn.disabled = true;
         showDlgStatus(t("converting"), "muted");
         try {
-            const r = await convertDocToQuestions(target, t, modelId, fill);
+            const r = await convertDocToQuestions(target, t, modelId, fill, bigSteps);
             if (r.canConvert && r.docId) {
                 // 内核 attributes 索引有数秒延迟：轮询等新文档进列表
                 showDlgStatus(t("settling"), "muted");

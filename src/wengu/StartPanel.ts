@@ -11,8 +11,10 @@ import type {TimerController} from "./TimerController";
 import type {
     WenguQuestion,
     WenguRevealMode,
+    WenguStepsMode,
     WenguTimingMode,
 } from "./types";
+import {baseQid} from "./types";
 import {
     clampMinutes,
     esc,
@@ -23,7 +25,8 @@ import {
  * 开刷面板（design-review P1-1）：四组选择收敛为一张表单——
  * ① 上次进度（继续上次/重新开始，有未完成轮才出现）
  * ② 刷题范围（全部/只刷上次错题，上轮有错题才出现）
- * ③ 答案展示 ④ 计时方式（含倒计时分钟）
+ * ③ 答案展示 ④ 多步题模式（离线参考路径 / AI 实时跟随）
+ * ⑤ 计时方式（含倒计时分钟）
  *
  * 行样式与插件设置页同款（config-group / config-title / config-item，
  * 标题说明在左、下拉在右）。**继续上次 = 原样恢复**：选中后其余选项
@@ -36,6 +39,7 @@ export interface RoundConfig {
     progress: "continue" | "fresh";
     scope: "all" | "wrong";
     reveal: WenguRevealMode;
+    stepsMode: WenguStepsMode;
     timing: WenguTimingMode;
     countdownMin: number;
 }
@@ -43,6 +47,7 @@ export interface RoundConfig {
 /** 面板初始默认值（来自插件设置，见 design-review P1-3）。 */
 export interface RoundDefaults {
     reveal: WenguRevealMode;
+    stepsMode: WenguStepsMode;
     timing: WenguTimingMode;
     countdownMin: number;
 }
@@ -56,7 +61,7 @@ export interface StartPanelModel {
     /** 上轮错题数（0 则不出现「刷题范围」组）。 */
     lastWrong: number;
     /** 未完成轮的原配置（继续时锁定回显这些值）。 */
-    resume?: {timing: WenguTimingMode; reveal: WenguRevealMode; countdownMin: number;};
+    resume?: {timing: WenguTimingMode; reveal: WenguRevealMode; stepsMode: WenguStepsMode; countdownMin: number;};
 }
 
 export function renderStartPanel(m: StartPanelModel): string {
@@ -104,6 +109,18 @@ export function renderStartPanel(m: StartPanelModel): string {
             ),
         ),
     );
+    const stepsMode = formGroup(
+        t("stepsModeTitle"),
+        formRow(
+            t("stepsModeTitle"),
+            t("stepsModeHint"),
+            formSelect(
+                "steps",
+                formOption("offline", t("stepsModeOffline"), cur.stepsMode !== "ai") +
+                    formOption("ai", t("stepsModeAi"), cur.stepsMode === "ai"),
+            ),
+        ),
+    );
     const timing = formGroup(
         t("timingTitle"),
         formRow(
@@ -126,6 +143,7 @@ export function renderStartPanel(m: StartPanelModel): string {
   ${progress}
   ${scope}
   ${reveal}
+  ${stepsMode}
   ${timing}
   <div><button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button></div>
 </div>`;
@@ -139,23 +157,33 @@ export function buildStartPanelModel(args: {
     list: WenguQuestion[];
 }): StartPanelModel {
     const last = args.rounds[args.rounds.length - 1];
-    const unfinished = last && last.results.length > 0 && last.results.length < args.list.length ? last : undefined;
+    const answered = answeredQuestionCount(last);
+    const unfinished = last && answered > 0 && answered < args.list.length ? last : undefined;
     const resumeReveal: WenguRevealMode = unfinished?.revealMode === "after" ? "after" : "instant";
     return {
         t: args.t,
         defaults: args.defaults,
-        unfinishedAnswered: unfinished?.results.length,
-        lastWrong: new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => r.qid)).size,
+        unfinishedAnswered: unfinished ? answered : undefined,
+        // 多步题的会话记录是 qid#k 条目，按块 id 归并后才等于「题数」
+        lastWrong: new Set(
+            (last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid)),
+        ).size,
         resume: unfinished ?
             {
                 timing: unfinished.mode,
                 reveal: resumeReveal,
+                stepsMode: unfinished.stepsMode === "ai" ? "ai" : "offline",
                 countdownMin: unfinished.plannedSec ?
                     clampMinutes(Math.ceil(unfinished.plannedSec / 60)) :
                     args.defaults.countdownMin,
             } :
             undefined,
     };
+}
+
+/** 一轮里已作答的题目数（多步题的 qid#k 条目按块 id 去重）。 */
+function answeredQuestionCount(s: WenguSession | undefined): number {
+    return new Set((s?.results ?? []).map((r) => baseQid(r.qid))).size;
 }
 
 /** 从面板 DOM 读出完整轮次配置（读不到的按默认/安全值回退）。 */
@@ -166,6 +194,7 @@ export function readRoundConfig(root: ParentNode, defaults: RoundDefaults): Roun
         progress: val("progress") === "continue" ? "continue" : "fresh",
         scope: val("scope") === "wrong" ? "wrong" : "all",
         reveal: val("reveal") === "after" ? "after" : "instant",
+        stepsMode: val("steps") === "ai" ? "ai" : "offline",
         timing: (() => {
             const v = val("timing");
             return v === "countdown" || v === "none" || v === "perQuestion" ? v : "countUp";
@@ -183,7 +212,7 @@ export function bindStartPanel(root: ParentNode, m: StartPanelModel, onStart: ()
     root.querySelector("[data-act='start']")?.addEventListener("click", () => onStart());
     const progressSel = root.querySelector<HTMLSelectElement>("[data-field='progress']");
     if (!progressSel) return;
-    const fields = ["scope", "reveal", "timing", "minutes"]
+    const fields = ["scope", "reveal", "steps", "timing", "minutes"]
         .map((f) => root.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-field='${f}']`))
         .filter((el): el is HTMLInputElement | HTMLSelectElement => !!el);
     const setVal = (f: string, v: string) => {
@@ -196,6 +225,7 @@ export function bindStartPanel(root: ParentNode, m: StartPanelModel, onStart: ()
         const cur = cont && m.resume ? m.resume : m.defaults;
         setVal("scope", "all"); // 继续=原范围；重新开始默认全部
         setVal("reveal", cur.reveal);
+        setVal("steps", cur.stepsMode);
         setVal("timing", cur.timing);
         setVal("minutes", String(cur.countdownMin));
     };
@@ -229,11 +259,12 @@ export function startRound(ctx: StartRoundCtx): void {
     ctx.setRevealMode(cfg.reveal);
     ctx.setActiveIdx(0);
     const last = ctx.rounds[ctx.rounds.length - 1];
-    const wrong = new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => r.qid));
+    const wrong = new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid)));
     const useWrong = cfg.scope === "wrong" && wrong.size > 0;
     ctx.setList(useWrong ? ctx.fullList.filter((q) => wrong.has(q.id)) : ctx.fullList);
-    const unfinished = !useWrong && cfg.progress === "continue" && last &&
-            last.results.length > 0 && last.results.length < ctx.fullList.length ?
+    const lastAnswered = new Set((last?.results ?? []).map((r) => baseQid(r.qid))).size;
+    const unfinished = !useWrong && cfg.progress === "continue" && last && lastAnswered > 0 &&
+            lastAnswered < ctx.fullList.length ?
         last :
         undefined;
     let session: WenguSession;
@@ -257,6 +288,7 @@ export function startRound(ctx: StartRoundCtx): void {
             mode: cfg.timing,
             plannedSec: cfg.timing === "countdown" ? cfg.countdownMin * 60 : undefined,
             revealMode: cfg.reveal,
+            stepsMode: cfg.stepsMode,
             elapsedSec: 0,
             answered: 0,
             correct: 0,
