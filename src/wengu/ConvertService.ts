@@ -1,5 +1,6 @@
 import {fetchSyncPost} from "siyuan";
 import {agentChat} from "./AgentClient";
+import {Attr} from "./attrs";
 
 /**
  * AI 转换服务：把一篇笔记文档交给思源内置智能体（AgentClient，
@@ -17,8 +18,10 @@ export interface DocInfo {
     id: string;
     /** 笔记本 id。 */
     notebook?: string;
-    /** 文档 .sy 路径。 */
-    path?: string;
+    /** 标题路径（如 /MinerU/书名/章节）。定位父级必须用它：内核按
+     *  **标题**匹配 createDocWithMd 的路径段，用 .sy 文件路径拼段会让
+     *  导入文档（文件名≠标题）被重建一串空父文档（真机踩坑）。 */
+    hPath?: string;
     /** 文档标题。 */
     title: string;
 }
@@ -46,7 +49,7 @@ const MAX_SOURCE_CHARS = 6000;
 /** AI 调用超时（毫秒）：模型卡住时状态条报错，而不是永远「转换中」。 */
 const AI_TIMEOUT_MS = 300_000;
 
-/** 取文档定位信息（标题/笔记本/路径）。 */
+/** 取文档定位信息（标题/笔记本/标题路径）。 */
 export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
     const {data} = await fetchSyncPost("/api/query/sql", {
         stmt: `SELECT id, box, content FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`,
@@ -54,8 +57,9 @@ export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
     const row = (data as {id: string; box: string; content: string;}[] | null)?.[0];
     if (!row) return undefined;
     const info: DocInfo = {id: row.id, notebook: row.box, title: row.content || "未命名"};
-    const loc = await fetchSyncPost("/api/filetree/getPathByID", {id: docId});
-    info.path = (loc.data as {path?: string;} | null)?.path;
+    const loc = await fetchSyncPost("/api/filetree/getHPathByID", {id: docId});
+    const hp = loc.data;
+    info.hPath = typeof hp === "string" && hp.trim() ? hp : undefined;
     return info;
 }
 
@@ -70,9 +74,9 @@ export function extractBlockId(input: string): string {
 
 /**
  * 把文档转换成习题文档。AI 先判定能不能转（不能则带原因返回），
- * 能则解析其题目块并生成《原标题·习题》同级文档。
- * modelId 指定用哪个模型（空串=智能体默认模型）；fillToChoice=true 时
- * prompt 要求把原文的填空题改写成单选题（原空答案作正确项 + 干扰项）。
+ * 能则解析其题目块并生成习题文档。生成位置（targetRaw 空=原文档同目录，
+ * 否则生成到指定父文档下面）；modelId 指定用哪个模型（空串=智能体默认
+ * 模型）；fillToChoice=true 时 prompt 要求把原文的填空题改写成单选题。
  */
 export async function convertDocToQuestions(
     docIdRaw: string,
@@ -80,6 +84,7 @@ export async function convertDocToQuestions(
     modelId = "",
     fillToChoice = false,
     bigToSteps = false,
+    targetRaw = "",
 ): Promise<ConvertResult> {
     const docId = extractBlockId(docIdRaw);
     const info = await getDocInfo(docId);
@@ -115,8 +120,21 @@ export async function convertDocToQuestions(
         return {canConvert: false, message: t("convertNoQuestions"), count: 0};
     }
 
-    const parentPath = parentOf(info.path ?? "/");
-    const created = await createExerciseDoc(info.notebook, parentPath, info.title, questions.join("\n\n"));
+    // 生成位置：默认原文档同目录（父级用 hPath 标题路径定位）；指定
+    // 父文档时生成到它下面（子文档，笔记本也跟随目标）。
+    let notebook = info.notebook;
+    let parentPath = parentOf(info.hPath ?? "/");
+    if (targetRaw) {
+        const target = await getDocInfo(extractBlockId(targetRaw));
+        if (!target?.notebook || !target.hPath) {
+            return {canConvert: false, message: t("convertTargetMissing"), count: 0};
+        }
+        notebook = target.notebook;
+        parentPath = target.hPath;
+    }
+    const created = await createExerciseDoc(notebook, parentPath, info.title, questions.join("\n\n"));
+    // 配对属性：源讲义删除时习题文档随之清理（见 OrphanCleaner）
+    await fetchSyncPost("/api/attr/setBlockAttrs", {id: created.id, attrs: {[Attr.sourceDoc]: docId}});
     return {
         canConvert: true,
         message: `${verdict.reason}`,

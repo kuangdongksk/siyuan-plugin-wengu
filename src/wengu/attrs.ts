@@ -43,6 +43,8 @@ export const Attr = {
     stepLast: `${PREFIX}step-last`,
     /** 运行时（文档级）：累计刷题用时（秒），打在习题文档块上。 */
     totalTime: `${PREFIX}total-time`,
+    /** 转换配对（文档级）：习题文档根块记源讲义文档 id；源删则习题随删（OrphanCleaner）。 */
+    sourceDoc: `${PREFIX}source-doc`,
     /** 子块定位：值为 "answer" 表示该子块是解析侧（闪卡卡背）。 */
     part: `${PREFIX}part`,
 } as const;

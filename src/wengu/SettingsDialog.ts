@@ -32,12 +32,16 @@ export interface WenguSettingsShape {
     defaultReveal?: WenguRevealMode;
     /** 默认倒计时分钟数。 */
     defaultCountdownMin?: number;
-    /** 默认 AI 模型（空=跟随智能体设置）。 */
+    /** 默认 AI 模型（空=弹窗预选智能体设置的默认模型）。 */
     convertModelId?: string;
     /** 默认「填空转选择」（转换时把填空题改写为单选）。 */
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（转换时把可分解的工科大题改写为多步引导题）。 */
     bigToSteps?: boolean;
+    /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
+    convertTargetMode?: "same" | "custom";
+    /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
+    convertTargetId?: string;
     save?: () => void;
 }
 
@@ -163,7 +167,7 @@ export function openWenguSetting(opts: {
             formRow(
                 t("setModelLabel"),
                 t("setModelHint"),
-                formSelect("model", modelOptionsHtml(saved, t("modelDefault")), "data-set"),
+                formSelect("model", modelOptionsHtml(saved), "data-set"),
             )
         }
           ${
@@ -177,9 +181,31 @@ export function openWenguSetting(opts: {
             formRow(
                 t("bigToSteps"),
                 t("bigToStepsDesc"),
-                `<input class="b3-switch fn__flex-center" type="checkbox" data-set="bigsteps"${
-                    opts.settings.bigToSteps ? " checked" : ""
-                }>`,
+                formSwitch("bigsteps", opts.settings.bigToSteps === true, "data-set"),
+            )
+        }
+          ${
+            formRow(
+                t("convertTarget"),
+                t("convertTargetHint"),
+                formSelect(
+                    "targetmode",
+                    formOption("same", t("convertTargetSame"), opts.settings.convertTargetMode !== "custom") +
+                        formOption("custom", t("convertTargetCustom"), opts.settings.convertTargetMode === "custom"),
+                    "data-set",
+                ),
+            )
+        }
+          ${
+            formRow(
+                t("convertTargetDoc"),
+                t("convertTargetDocHint"),
+                formInput(
+                    "targetid",
+                    opts.settings.convertTargetId ?? "",
+                    `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
+                    "data-set",
+                ),
             )
         }
         </div>
@@ -237,6 +263,14 @@ export function openWenguSetting(opts: {
     });
     root.querySelector<HTMLSelectElement>("[data-set='model']")?.addEventListener("change", (ev) => {
         opts.settings.convertModelId = (ev.target as HTMLSelectElement).value;
+        opts.settings.save?.();
+    });
+    root.querySelector<HTMLSelectElement>("[data-set='targetmode']")?.addEventListener("change", (ev) => {
+        opts.settings.convertTargetMode = (ev.target as HTMLSelectElement).value === "custom" ? "custom" : "same";
+        opts.settings.save?.();
+    });
+    root.querySelector<HTMLInputElement>("[data-set='targetid']")?.addEventListener("change", (ev) => {
+        opts.settings.convertTargetId = (ev.target as HTMLInputElement).value;
         opts.settings.save?.();
     });
 }

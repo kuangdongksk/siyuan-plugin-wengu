@@ -38,6 +38,10 @@ interface WenguSettings {
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（可分解的工科大题 → 多步引导题）。 */
     bigToSteps?: boolean;
+    /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
+    convertTargetMode?: "same" | "custom";
+    /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
+    convertTargetId?: string;
     /** 由插件注入的落盘回调。 */
     save?: () => void;
 }

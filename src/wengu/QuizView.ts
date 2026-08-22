@@ -12,7 +12,12 @@ import {
     renderSideBodyHtml,
     renderSubheadHtml,
 } from "./CardHtml";
-import {openConvertDialog} from "./ConvertDialog";
+import {
+    convertDoneText,
+    openWenguConvert,
+    showStatus,
+    updateConvertBtn,
+} from "./ConvertHost";
 import type {HistoryStore} from "./HistoryStore";
 import type {WenguSession} from "./HistoryStore";
 import {bindNumRail} from "./NumRail";
@@ -47,10 +52,7 @@ import type {
     WenguQuestion,
     WenguRevealMode,
 } from "./types";
-import {
-    esc,
-    fmt,
-} from "./ui";
+import {esc} from "./ui";
 
 /**
  * 温故刷题页签视图（编排层）。各模块见 docs/design-review.md：
@@ -416,7 +418,7 @@ export class QuizView implements AnswerHost {
                 this.persistPrefs();
                 this.renderList();
             },
-            updateConvertBtn: () => this.updateConvertBtn(),
+            updateConvertBtn: () => this.syncConvertBtn(),
             switchDoc: (id) => {
                 if (!id || id === this.docId) return;
                 void this.flushTimeAsync();
@@ -455,12 +457,14 @@ export class QuizView implements AnswerHost {
     }
 
     private openConvert(): void {
-        openConvertDialog({
+        openWenguConvert({
             t: this.t,
+            el: this.el,
             activeDocId: this.activeDocId,
-            initialModelId: this.lastConvertModelId || this.settings?.convertModelId || "",
-            initialFillToChoice: this.lastConvertFill || this.settings?.fillToChoice === true,
-            initialBigToSteps: this.lastConvertSteps || this.settings?.bigToSteps === true,
+            settings: this.settings,
+            lastConvertModelId: this.lastConvertModelId,
+            lastConvertFill: this.lastConvertFill,
+            lastConvertSteps: this.lastConvertSteps,
             saveChoice: (modelId, fill, steps) => {
                 this.lastConvertModelId = modelId;
                 this.lastConvertFill = fill;
@@ -469,38 +473,18 @@ export class QuizView implements AnswerHost {
             },
             setConverting: (v) => {
                 this.converting = v;
-                this.updateConvertBtn();
+                this.syncConvertBtn();
             },
             onDone: (r) => {
                 this.pendingDoc = {id: r.docId, title: r.title};
                 this.docId = r.docId;
                 this.persistPrefs();
-                void this.load().then(() =>
-                    this.showStatus(
-                        fmt(this.t("convertDone"), {
-                            title: r.title,
-                            n: String(r.count),
-                        }),
-                        "ok",
-                    )
-                );
+                void this.load().then(() => showStatus(this.el, convertDoneText(this.t, r.title, r.count), "ok"));
             },
         });
     }
 
-    private updateConvertBtn(): void {
-        const btn = this.el.querySelector<HTMLButtonElement>("[data-act='convert']");
-        if (!btn) return;
-        btn.disabled = this.converting;
-        const label = btn.querySelector<HTMLElement>("[data-convert-label]");
-        if (label) label.textContent = this.converting ? this.t("converting") : this.t("convertBtn");
-    }
-
-    private showStatus(text: string, kind: "ok" | "err" | "muted"): void {
-        const status = this.el.querySelector<HTMLElement>("[data-status]");
-        if (!status) return;
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
+    private syncConvertBtn(): void {
+        updateConvertBtn(this.el, this.converting, this.t);
     }
 }

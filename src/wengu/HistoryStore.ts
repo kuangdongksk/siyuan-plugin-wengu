@@ -91,6 +91,19 @@ export class HistoryStore {
             .filter((s) => s.docId === docId)
             .sort((a, b) => a.startedAt - b.startedAt);
     }
+
+    /** 删除一组文档的全部轮次（孤儿习题文档清理时联动调用）。 */
+    async removeDocs(docIds: string[]): Promise<void> {
+        if (docIds.length === 0) return;
+        const h = await this.all();
+        const dead = new Set(docIds);
+        h.sessions = h.sessions.filter((s) => !dead.has(s.docId));
+        try {
+            await this.saveRaw(h);
+        } catch (_) {
+            // 尽力而为：写失败不影响清理流程
+        }
+    }
 }
 
 /** 会话 id：时间戳 + 随机串，够用且可读。 */

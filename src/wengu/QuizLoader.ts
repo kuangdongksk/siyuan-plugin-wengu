@@ -1,4 +1,5 @@
 import type {HistoryStore} from "./HistoryStore";
+import {cleanOrphanExerciseDocs} from "./OrphanCleaner";
 import {
     listQuestionDocs,
     listQuestions,
@@ -77,6 +78,13 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
             timing :
             "countUp";
         deps.timer.countdownMin = clampMinutes(s?.defaultCountdownMin ?? 20);
+        // 源讲义已删的孤儿习题文档先清理（含其会话历史），再拉列表
+        try {
+            const removed = await cleanOrphanExerciseDocs();
+            if (removed.length > 0 && deps.history) await deps.history.removeDocs(removed);
+        } catch (_) {
+            // 清理失败不阻断装载，下次装载再试
+        }
         r.docs = await listQuestionDocs();
         if (r.pendingDoc && r.docs.some((d) => d.id === r.pendingDoc.id)) {
             r.pendingDoc = undefined;

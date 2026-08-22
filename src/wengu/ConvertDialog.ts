@@ -4,6 +4,7 @@ import {convertDocToQuestions} from "./ConvertService";
 import {
     formGroup,
     formInput,
+    formOption,
     formRow,
     formSelect,
     formSwitch,
@@ -27,6 +28,10 @@ export interface ConvertDialogDeps {
     initialFillToChoice: boolean;
     /** 大题拆多步预选值（prefs 上次 > 设置默认）。 */
     initialBigToSteps: boolean;
+    /** 生成位置预选：same=原文档同目录；custom=指定父文档下面。 */
+    initialTargetMode: "same" | "custom";
+    /** 指定父文档 id 预选（生成位置=custom 时用）。 */
+    initialTargetId: string;
     /** 用户本次的选择（记入 prefs）。 */
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean): void;
     /** 转换状态变化（禁用/恢复目录底部的转换按钮）。 */
@@ -58,9 +63,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                     formRow(
                         t("bigToSteps"),
                         t("bigToStepsHint"),
-                        `<input class="b3-switch fn__flex-center" type="checkbox" data-act="dlg-steps"${
-                            deps.initialBigToSteps ? " checked" : ""
-                        }>`,
+                        formSwitch("dlg-steps", deps.initialBigToSteps, "data-act"),
                     ) +
                     formRow(
                         t("docIdLabel"),
@@ -68,6 +71,26 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         formInput(
                             "dlg-docid",
                             deps.activeDocId,
+                            `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
+                            "data-act",
+                        ),
+                    ) +
+                    formRow(
+                        t("convertTarget"),
+                        t("convertTargetHint"),
+                        formSelect(
+                            "dlg-target",
+                            formOption("same", t("convertTargetSame"), deps.initialTargetMode !== "custom") +
+                                formOption("custom", t("convertTargetCustom"), deps.initialTargetMode === "custom"),
+                            "data-act",
+                        ),
+                    ) +
+                    formRow(
+                        t("convertTargetDoc"),
+                        t("convertTargetDocHint"),
+                        formInput(
+                            "dlg-targetid",
+                            deps.initialTargetId,
                             `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
                             "data-act",
                         ),
@@ -86,6 +109,8 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const modelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-model']");
     const fillInput = root.querySelector<HTMLInputElement>("[data-act='dlg-fill']");
     const stepsInput = root.querySelector<HTMLInputElement>("[data-act='dlg-steps']");
+    const targetSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-target']");
+    const targetInput = root.querySelector<HTMLInputElement>("[data-act='dlg-targetid']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
     const status = root.querySelector<HTMLElement>("[data-act='dlg-status']");
     const showDlgStatus = (text: string, kind: "ok" | "err" | "muted") => {
@@ -102,12 +127,17 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         const modelId = modelSel?.value ?? "";
         const fill = fillInput?.checked ?? false;
         const bigSteps = stepsInput?.checked ?? false;
+        const genTarget = targetSel?.value === "custom" ? (targetInput?.value ?? "").trim() : "";
+        if (targetSel?.value === "custom" && !genTarget) {
+            showDlgStatus(t("convertTargetMissing"), "err");
+            return;
+        }
         deps.saveChoice(modelId, fill, bigSteps);
         deps.setConverting(true);
         okBtn.disabled = true;
         showDlgStatus(t("converting"), "muted");
         try {
-            const r = await convertDocToQuestions(target, t, modelId, fill, bigSteps);
+            const r = await convertDocToQuestions(target, t, modelId, fill, bigSteps, genTarget);
             if (r.canConvert && r.docId) {
                 // 内核 attributes 索引有数秒延迟：轮询等新文档进列表
                 showDlgStatus(t("settling"), "muted");
