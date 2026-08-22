@@ -210,5 +210,15 @@
   "wordSpellPlaceholder": "输入这个英文单词,回车提交",
   "wordSpellOk": "✓ 拼对了",
   "wordSpellWrong": "✗ 正确拼写:{w}",
-  "wordSubmit": "提交"
+  "wordSubmit": "提交",
+  "wordHomeReviewTitle": "复习",
+  "wordHomeReviewCount": "今天到期 {n} 个",
+  "wordHomeFreshTitle": "新学",
+  "wordHomeFreshCount": "还剩 {n} 个未学",
+  "wordAskReview": "今天还有 {n} 个到期复习,建议先复习再学新词",
+  "wordGoReview": "去复习",
+  "wordStillFresh": "仍学新词",
+  "wordReviewDone": "今日复习完成",
+  "wordBackHome": "回到首页",
+  "wordBookDone": "全书已学完,只剩到期复习"
 }

@@ -258,3 +258,48 @@
   text-align: center;
   font-size: 16px;
 }
+
+/* 每日首页入口卡 */
+.wengu-word-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: auto 0;
+  max-width: 420px;
+  width: 100%;
+}
+
+.wengu-word-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+  cursor: pointer;
+  height: auto;
+  width: 100%;
+  text-align: left;
+}
+
+.wengu-word-entry:hover {
+  border-color: var(--b3-theme-primary);
+}
+
+.wengu-word-entry-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+}
+
+.wengu-word-entry-count {
+  font-size: 13px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-word-entry-muted {
+  cursor: default;
+  align-items: center;
+}

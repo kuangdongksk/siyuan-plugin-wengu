@@ -1,14 +1,16 @@
-import {defaultAgentModelId} from "./AgentClient";
-import {svgIcon} from "./FormHtml";
 import {
     esc,
     fmt,
 } from "./ui";
-import {
-    analyzeMistakes,
-    type WordAiInput,
-} from "./WordAi";
+import {WordAiRunner} from "./WordAi";
 import WORD_BOOK from "./WordBook";
+import {
+    renderAskReview,
+    renderCardHead,
+    renderWordDone,
+    renderWordHead,
+    renderWordHome,
+} from "./WordHome";
 import {
     buildMeaningOptions,
     meaningLine,
@@ -23,7 +25,6 @@ import {
     renderWordStart,
 } from "./WordStart";
 import {
-    applyAiPlan,
     applyGrade,
     buildQueue,
     dueTomorrowCount,
@@ -66,11 +67,12 @@ export class WordView {
     private sessionNew = new Set<number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     private hardList: number[] = [];
-    private mode: "card" | "setstart" | "done" = "card";
+    private mode: "home" | "askreview" | "card" | "setstart" | "done" = "home";
+    /** 当前会话队列种类(入口决定)。 */
+    private queueKind: "review" | "fresh" = "fresh";
     private busy = false;
-    /** 误认词 AI 分析进行中/结果消息（重渲染时展示）。 */
-    private aiRunning = false;
-    private aiMsg = "";
+    /** 误认词 AI 视图胶水。 */
+    private readonly ai: WordAiRunner;
 
     constructor(
         element: HTMLElement,
@@ -80,13 +82,13 @@ export class WordView {
         this.el = element;
         this.t = (k) => i18n[k] ?? k;
         this.store = store;
+        this.ai = new WordAiRunner(this.t);
     }
 
     async render(): Promise<void> {
         this.progress = await this.store.get();
         const started = this.progress.cursor > 0 || Object.keys(this.progress.words).length > 0;
-        this.mode = started ? "card" : "setstart";
-        if (this.mode === "card") this.rebuildQueue();
+        this.mode = started ? "home" : "setstart";
         this.paint();
     }
 
@@ -94,12 +96,24 @@ export class WordView {
         this.el.innerHTML = "";
     }
 
-    private rebuildQueue(): void {
+    /** 当前首页视角的队列构成（进入入口前统算一次）。 */
+    private queueParts(): {review: number[]; fresh: number[];} {
+        return buildQueue(this.progress!);
+    }
+
+    /** 按入口建队列：review=到期复习 / fresh=新学。 */
+    private rebuildQueue(kind: "review" | "fresh"): void {
         const p = this.progress;
         if (!p) return;
         const {review, fresh} = buildQueue(p);
-        this.queue = [...review, ...fresh];
-        this.sessionNew = new Set(fresh);
+        if (kind === "review") {
+            this.queue = [...review];
+            this.sessionNew = new Set<number>();
+        } else {
+            this.queue = [...fresh];
+            this.sessionNew = new Set(fresh);
+        }
+        this.queueKind = kind;
         this.pos = 0;
         this.hardList = [];
         this.enterPrompt();
@@ -136,12 +150,33 @@ export class WordView {
             this.paintStartPanel();
             return;
         }
+        if (this.mode === "home" || this.mode === "askreview") {
+            this.paintHome();
+            return;
+        }
         if (this.pos >= this.queue.length) {
             this.mode = "done";
             this.paintDone();
             return;
         }
         this.paintCard();
+    }
+
+    // ---------- 首页/先复习确认 ----------
+
+    private paintHome(): void {
+        const {review, fresh} = this.queueParts();
+        if (this.mode === "askreview") {
+            this.el.innerHTML = renderAskReview(this.t, review.length, renderWordHead(this.t, this.aiButtonHtml()));
+            return;
+        }
+        this.el.innerHTML = renderWordHome(
+            this.t,
+            review.length,
+            fresh.length,
+            renderWordHead(this.t, this.aiButtonHtml()),
+            this.aiMsgHtml(),
+        );
     }
 
     // ---------- 卡片 ----------
@@ -163,22 +198,19 @@ export class WordView {
             note: mistake?.note,
         });
         this.el.innerHTML = `<div class="wengu-word">
-  <div class="wengu-word-head">
-    <span class="wengu-word-title">${esc(WORD_BOOK.title)}</span>
-    <span class="wengu-word-stats">${
-            esc(fmt(this.t("wordTodayStats"), {
-                a: String(p.today.newCount),
-                b: String(p.today.revCount),
-                c: String(total - this.pos),
-                d: String(dueTomorrowCount(p)),
-            }))
-        }</span>${badge}
-    <span class="fn__flex-1"></span>
-    ${this.aiButtonHtml()}
-    <button class="b3-button b3-button--icon" data-act="setstart" title="${esc(this.t("wordSetStart"))}">${
-            svgIcon("iconSettings")
-        }</button>
-  </div>
+  ${
+            renderCardHead(
+                this.t,
+                fmt(this.t("wordTodayStats"), {
+                    a: String(p.today.newCount),
+                    b: String(p.today.revCount),
+                    c: String(total - this.pos),
+                    d: String(dueTomorrowCount(p)),
+                }),
+                badge,
+                this.aiButtonHtml(),
+            )
+        }
   ${this.aiMsgHtml()}
   ${card}
   <div class="b3-progress__bar"><span style="width:${pct}%"></span></div>
@@ -189,6 +221,18 @@ export class WordView {
         } else {
             this.el.querySelector<HTMLElement>(".wengu-word-card")?.focus();
         }
+    }
+
+    /** 选择题作答(点击/数字键共用):按题面选项判定对错。 */
+    private answerByOption(no: number): void {
+        const texts = this.cardMode === "choiceEn" ?
+            buildMeaningOptions(this.currentIdx) :
+            buildWordOptions(this.currentIdx);
+        if (texts[no] === undefined) return;
+        const correct = this.cardMode === "choiceEn" ?
+            meaningLine(this.currentIdx) :
+            WORD_BOOK.words[this.currentIdx].w;
+        this.answerObjective(texts[no] === correct, no);
     }
 
     /** 客观题作答：题面内标色 + 详情 + 继续按钮（评分延迟到收尾）。 */
@@ -228,99 +272,29 @@ export class WordView {
         this.paint();
     }
 
-    // ---------- 误认词 AI ----------
-
-    private pendingMistakes(): WordAiInput[] {
-        const p = this.progress!;
-        const out: WordAiInput[] = [];
-        for (const key of Object.keys(p.mistakes)) {
-            const m = p.mistakes[key];
-            if (m.note) continue;
-            const entry = WORD_BOOK.words[Number(key)];
-            if (entry) out.push({index: Number(key), w: entry.w, m: entry.m, count: m.count});
-        }
-        return out;
-    }
+    // ---------- 误认词 AI（逻辑在 WordAi.runner，这里只做视图接线） ----------
 
     private aiButtonHtml(): string {
-        const n = this.pendingMistakes().length;
-        const title = this.aiRunning ?
-            this.t("wordAiRunning") :
-            n > 0 ?
-            fmt(this.t("wordAiPending"), {n: String(n)}) :
-            this.t("wordAiNone");
-        return `<button class="b3-button b3-button--icon${
-            n === 0 && !this.aiRunning ? " fn__none" : ""
-        }" data-act="aianalyze" title="${esc(title)}"${this.aiRunning ? " disabled" : ""}>${
-            svgIcon("iconSparkles")
-        }</button>`;
+        return this.ai.buttonHtml(this.progress!);
     }
 
     private aiMsgHtml(): string {
-        if (!this.aiRunning && !this.aiMsg) return "";
-        const text = this.aiRunning ? this.t("wordAiRunning") : this.aiMsg;
-        const err = this.aiMsg && !this.aiRunning && this.aiMsg.startsWith("!") ?
-            " wengu-word-ai-err" :
-            "";
-        return `<div class="wengu-word-aimsg${err}">${esc(text.replace(/^!/, ""))}</div>`;
-    }
-
-    private async runAiAnalyze(): Promise<void> {
-        if (this.aiRunning || !this.progress) return;
-        const pending = this.pendingMistakes();
-        if (pending.length === 0) {
-            this.aiMsg = this.t("wordAiNone");
-            this.paint();
-            return;
-        }
-        this.aiRunning = true;
-        this.aiMsg = "";
-        this.paint();
-        try {
-            const items = await analyzeMistakes(pending, defaultAgentModelId());
-            applyAiPlan(this.progress, items);
-            await this.store.save(this.progress);
-            this.aiMsg = items.length > 0 ?
-                fmt(this.t("wordAiDone"), {n: String(items.length)}) :
-                this.t("wordAiFailed") + this.t("wordAiBadReply");
-            this.rebuildQueue();
-            this.mode = "card";
-        } catch (e) {
-            this.aiMsg = "!" + this.t("wordAiFailed") + String((e as Error)?.message ?? e).slice(0, 120);
-        }
-        this.aiRunning = false;
-        this.paint();
+        return this.ai.msgHtml();
     }
 
     // ---------- 完成 ----------
 
     private paintDone(): void {
         const p = this.progress!;
-        this.el.innerHTML = `<div class="wengu-word">
-  <div class="wengu-word-head">
-    <span class="wengu-word-title">${esc(WORD_BOOK.title)}</span>
-    <span class="fn__flex-1"></span>
-    ${this.aiButtonHtml()}
-    <button class="b3-button b3-button--icon" data-act="setstart" title="${esc(this.t("wordSetStart"))}">${
-            svgIcon("iconSettings")
-        }</button>
-  </div>
-  ${this.aiMsgHtml()}
-  <div class="wengu-word-card wengu-word-done">
-    <div class="wengu-word-text">${esc(this.t("wordDoneTitle"))}</div>
-    <div class="wengu-word-meaning wengu-word-revealed">${
-            esc(fmt(this.t("wordDoneBody"), {
-                a: String(p.today.newCount),
-                b: String(p.today.revCount),
-            }))
-        }</div>
-    <div class="wengu-word-actions">
-      <button class="b3-button b3-button--outline" data-act="redohard" ${
-            this.hardList.length === 0 ? " disabled" : ""
-        }>${esc(fmt(this.t("wordRedoHard"), {n: String(this.hardList.length)}))}</button>
-    </div>
-  </div>
-</div>`;
+        this.el.innerHTML = renderWordDone(
+            this.t,
+            this.queueKind,
+            p.today.newCount,
+            p.today.revCount,
+            this.hardList.length,
+            renderWordHead(this.t, this.aiButtonHtml()),
+            this.aiMsgHtml(),
+        );
     }
 
     private redoHard(): void {
@@ -343,13 +317,11 @@ export class WordView {
     private applyStart(): void {
         const p = this.progress!;
         if (applyWordStart(this.el, p)) void this.store.save(p);
-        this.rebuildQueue();
-        this.mode = "card";
+        this.mode = "home";
         this.paint();
     }
     private cancelStart(): void {
-        this.mode = "card";
-        this.rebuildQueue();
+        this.mode = "home";
         this.paint();
     }
 
@@ -360,14 +332,7 @@ export class WordView {
             const target = ev.target as HTMLElement;
             const optBtn = target.closest<HTMLElement>("[data-opt]");
             if (optBtn && !this.answered) {
-                const no = parseInt(optBtn.dataset.opt ?? "0", 10);
-                const texts = this.cardMode === "choiceEn" ?
-                    buildMeaningOptions(this.currentIdx) :
-                    buildWordOptions(this.currentIdx);
-                const correct = this.cardMode === "choiceEn" ?
-                    meaningLine(this.currentIdx) :
-                    WORD_BOOK.words[this.currentIdx].w;
-                this.answerObjective(texts[no] === correct, no);
+                this.answerByOption(parseInt(optBtn.dataset.opt ?? "0", 10));
                 return;
             }
             const gradeBtn = target.closest<HTMLElement>("[data-grade]");
@@ -390,6 +355,31 @@ export class WordView {
                 return;
             }
             switch (actBtn.dataset.act) {
+                case "goreview":
+                    this.mode = "card";
+                    this.rebuildQueue("review");
+                    this.paint();
+                    break;
+                case "gofresh": {
+                    const {review} = this.queueParts();
+                    if (review.length > 0) {
+                        this.mode = "askreview"; // 有到期复习 → 先弹「先复习」
+                    } else {
+                        this.mode = "card";
+                        this.rebuildQueue("fresh");
+                    }
+                    this.paint();
+                    break;
+                }
+                case "gofreshanyway":
+                    this.mode = "card";
+                    this.rebuildQueue("fresh");
+                    this.paint();
+                    break;
+                case "home":
+                    this.mode = "home";
+                    this.paint();
+                    break;
                 case "showanswer":
                     if (this.phase === "prompt") {
                         this.phase = "result";
@@ -419,7 +409,16 @@ export class WordView {
                     this.redoHard();
                     break;
                 case "aianalyze":
-                    void this.runAiAnalyze();
+                    if (this.progress) {
+                        void this.ai.run(
+                            this.progress,
+                            () => this.store.save(this.progress!),
+                            () => {
+                                this.mode = "home";
+                            },
+                            () => this.paint(),
+                        );
+                    }
                     break;
             }
         });
@@ -444,16 +443,7 @@ export class WordView {
                 }
                 if ((this.cardMode === "choiceEn" || this.cardMode === "choiceZh") && /^Digit[1-4]$/.test(ev.code)) {
                     ev.preventDefault();
-                    const no = parseInt(ev.code.slice(5), 10) - 1;
-                    const texts = this.cardMode === "choiceEn" ?
-                        buildMeaningOptions(this.currentIdx) :
-                        buildWordOptions(this.currentIdx);
-                    if (texts[no] !== undefined) {
-                        const correct = this.cardMode === "choiceEn" ?
-                            meaningLine(this.currentIdx) :
-                            WORD_BOOK.words[this.currentIdx].w;
-                        this.answerObjective(texts[no] === correct, no);
-                    }
+                    this.answerByOption(parseInt(ev.code.slice(5), 10) - 1);
                 }
                 return;
             }

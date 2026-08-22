@@ -210,5 +210,15 @@
   "wordSpellPlaceholder": "Type the word, Enter to submit",
   "wordSpellOk": "✓ Spelled right",
   "wordSpellWrong": "✗ Correct spelling: {w}",
-  "wordSubmit": "Submit"
+  "wordSubmit": "Submit",
+  "wordHomeReviewTitle": "Review",
+  "wordHomeReviewCount": "{n} due today",
+  "wordHomeFreshTitle": "New words",
+  "wordHomeFreshCount": "{n} left to learn",
+  "wordAskReview": "{n} words due for review today — review first is recommended",
+  "wordGoReview": "Go review",
+  "wordStillFresh": "Learn new anyway",
+  "wordReviewDone": "Reviews done for today",
+  "wordBackHome": "Back to home",
+  "wordBookDone": "Book finished — only reviews remain"
 }
