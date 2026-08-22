@@ -55,19 +55,18 @@ export function defaultAgentModelId(): string {
     return aiConf().agent?.modelId ?? "";
 }
 
-/** 模型下拉的全部选项（默认项 + 各模型「提供商 · 名称」），设置页/转换弹窗共用。 */
-export function modelOptionsHtml(selectedId: string, defaultLabel: string): string {
+/** 模型下拉的全部选项（各模型「提供商 · 名称」），设置页/转换弹窗共用。
+ *  不单列「默认」项：selectedId 命中则选中，否则预选智能体设置的默认模型。 */
+export function modelOptionsHtml(selectedId: string): string {
     const models = listAiModels();
-    const def = models.find((m) => m.id === defaultAgentModelId());
-    return `<option value="">${esc(defaultLabel)}${def ? `（${esc(def.provider)} · ${esc(def.name)}）` : ""}</option>${
-        models
-            .map((m) =>
-                `<option value="${esc(m.id)}"${selectedId === m.id ? " selected" : ""}>${esc(m.provider)} · ${
-                    esc(m.name)
-                }</option>`
-            )
-            .join("")
-    }`;
+    const sel = selectedId && models.some((m) => m.id === selectedId) ? selectedId : defaultAgentModelId();
+    return models
+        .map((m) =>
+            `<option value="${esc(m.id)}"${sel === m.id ? " selected" : ""}>${esc(m.provider)} · ${
+                esc(m.name)
+            }</option>`
+        )
+        .join("");
 }
 
 /**

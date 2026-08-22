@@ -87,7 +87,7 @@ export function renderRoundReport(m: RoundReportModel): string {
             ""
     }
   <div>
-    <button class="b3-button b3-button--text" data-act="ai-report">${esc(t("reportAiBtn"))}</button>
+    <button class="b3-button b3-button--outline" data-act="ai-report">${esc(t("reportAiBtn"))}</button>
   </div>
   <div class="wengu-report-ai" data-ai hidden></div>
 </div>`;
@@ -105,7 +105,7 @@ function byBaseQid(s: WenguSession): Map<string, {ok: boolean; sec: number;}> {
     return out;
 }
 
-/** 绑定 AI 报告按钮（点击 → 加载态 → 展示分析文本）。 */
+/** 绑定 AI 报告按钮：优先开思源智能体新会话，失败降级页内拉取。 */
 export function bindRoundReport(root: HTMLElement, m: RoundReportModel, modelId: string): void {
     const btn = root.querySelector<HTMLButtonElement>("[data-act='ai-report']");
     const out = root.querySelector<HTMLElement>("[data-ai]");
@@ -119,6 +119,9 @@ async function run(
     m: RoundReportModel,
     modelId: string,
 ): Promise<void> {
+    // 首选：在思源内置智能体里开新会话发分析（可追问、markdown 渲染）
+    if (await openAgentWithPrompt(buildAnalysisPrompt(m))) return;
+    // 降级：页内拉智能体回答（纯文本）
     btn.disabled = true;
     out.textContent = m.t("reportAiLoading");
     out.removeAttribute("hidden");
@@ -129,6 +132,49 @@ async function run(
         out.textContent = `${m.t("convertAiFailed")}${String((e as Error)?.message ?? e)}`;
     } finally {
         btn.disabled = false;
+    }
+}
+
+/**
+ * 打开思源内置智能体面板、开新会话并填入 prompt 发送。DOM 自动化
+ * （插件 API 无官方入口，选择器按 3.8.0 真机 dump 校准）；任何一步
+ * 失配都返回 false，调用方降级页内分析。
+ */
+async function openAgentWithPrompt(prompt: string): Promise<boolean> {
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const visible = (): HTMLElement | null => {
+        for (const el of document.querySelectorAll<HTMLElement>(".agent-chat")) {
+            if (el.offsetHeight > 0) return el;
+        }
+        return null;
+    };
+    try {
+        let panel = visible();
+        if (!panel) {
+            const dockItem = document.querySelector<HTMLElement>('.dock__item[data-type="agentChat"]');
+            if (!dockItem) return false;
+            dockItem.click(); // 单击展开（再点是最小化，仅在不可见时点）
+            await sleep(400);
+            panel = visible();
+        }
+        if (!panel) return false;
+        panel.querySelector<HTMLElement>('[data-type="new-session"]')?.click(); // 新会话
+        const wysiwyg = panel.querySelector<HTMLElement>(".agent-chat__composer-host .protyle-wysiwyg");
+        const send = panel.querySelector<HTMLButtonElement>(".agent-chat__send");
+        if (!wysiwyg || !send) return false;
+        wysiwyg.focus();
+        // 以纯文本粘贴喂给 Protyle（自带粘贴解析；execCommand 不处理多行）
+        const dt = new DataTransfer();
+        dt.setData("text/plain", prompt);
+        wysiwyg.dispatchEvent(
+            new ClipboardEvent("paste", {clipboardData: dt, bubbles: true, cancelable: true}),
+        );
+        await sleep(150);
+        if (!wysiwyg.textContent?.includes("刷题分析助手")) return false; // 未粘上
+        send.click();
+        return true;
+    } catch (_) {
+        return false;
     }
 }
 
@@ -160,7 +206,7 @@ export function showTimeUpChoice(
 ): void {
     slot.innerHTML = `<div class="wengu-timeup">
   <span>${svgIcon("iconClock")} ${esc(t("timeUpShort"))}</span>
-  <button class="b3-button b3-button--text" data-act="overtime">${esc(t("continueAnswer"))}</button>
+  <button class="b3-button b3-button--outline" data-act="overtime">${esc(t("continueAnswer"))}</button>
   <button class="b3-button b3-button--cancel" data-act="finish-round">${esc(t("finishRound"))}</button>
 </div>`;
     const clear = () => (slot.innerHTML = "");

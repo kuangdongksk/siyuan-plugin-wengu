@@ -48,7 +48,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 formRow(
                     t("modelLabel"),
                     t("setModelHint"),
-                    formSelect("dlg-model", modelOptionsHtml(deps.initialModelId, t("modelDefault")), "data-act"),
+                    formSelect("dlg-model", modelOptionsHtml(deps.initialModelId), "data-act"),
                 ) +
                     formRow(
                         t("fillToChoice"),
@@ -78,7 +78,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="dlg-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--text" data-act="dlg-ok">${esc(t("convertStart"))}</button>
+      <button class="b3-button b3-button--outline" data-act="dlg-ok">${esc(t("convertStart"))}</button>
     </div>`,
     });
     const root = dialog.element;
