@@ -1,11 +1,11 @@
 /* ── 开刷面板 / 转换弹窗：与插件设置同款（FormHtml 行样式） ── */
 .wengu-start {
   max-width: 620px;
-  margin: 24px auto 0;
+  margin: 16px auto 0;
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   border: 1px solid var(--b3-theme-surface);
   border-radius: var(--b3-border-radius);
   background: var(--b3-theme-background);

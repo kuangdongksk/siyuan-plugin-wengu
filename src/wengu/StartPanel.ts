@@ -69,36 +69,33 @@ export function renderStartPanel(m: StartPanelModel): string {
     // 继续上次默认选中：初始展示的就是要恢复的原配置
     const cont = m.unfinishedAnswered !== undefined && !!resume;
     const cur = cont ? resume : defaults;
-    const progress = m.unfinishedAnswered !== undefined ?
-        formGroup(
+    // 组一（条件出现）：进度与范围——有未完成轮或上轮错题才有
+    const progressRow = m.unfinishedAnswered !== undefined ?
+        formRow(
             t("progressTitle"),
-            formRow(
-                t("progressTitle"),
-                fmt(t("continueHint"), {n: String(m.unfinishedAnswered ?? 0)}),
-                formSelect(
-                    "progress",
-                    formOption("continue", fmt(t("continueLast"), {n: String(m.unfinishedAnswered ?? 0)}), true) +
-                        formOption("fresh", t("startFresh"), false),
-                ),
+            fmt(t("continueHint"), {n: String(m.unfinishedAnswered ?? 0)}),
+            formSelect(
+                "progress",
+                formOption("continue", fmt(t("continueLast"), {n: String(m.unfinishedAnswered ?? 0)}), true) +
+                    formOption("fresh", t("startFresh"), false),
             ),
         ) :
         "";
-    const scope = m.lastWrong > 0 ?
-        formGroup(
+    const scopeRow = m.lastWrong > 0 ?
+        formRow(
             t("scopeTitle"),
-            formRow(
-                t("scopeTitle"),
-                t("scopeHint"),
-                formSelect(
-                    "scope",
-                    formOption("all", t("scopeAll"), !cont) +
-                        formOption("wrong", fmt(t("scopeWrongOnly"), {n: String(m.lastWrong)}), false),
-                ),
+            t("scopeHint"),
+            formSelect(
+                "scope",
+                formOption("all", t("scopeAll"), !cont) +
+                    formOption("wrong", fmt(t("scopeWrongOnly"), {n: String(m.lastWrong)}), false),
             ),
         ) :
         "";
-    const reveal = formGroup(
-        t("revealTitle"),
+    const head = progressRow || scopeRow ? formGroup(t("progressScopeTitle"), progressRow + scopeRow) : "";
+    // 组二：作答设置——展示/多步/计时（含倒计时分钟）
+    const settings = formGroup(
+        t("runSettingsTitle"),
         formRow(
             t("revealTitle"),
             t("revealHint"),
@@ -107,11 +104,7 @@ export function renderStartPanel(m: StartPanelModel): string {
                 formOption("instant", t("revealInstant"), cur.reveal === "instant") +
                     formOption("after", t("revealAfter"), cur.reveal === "after"),
             ),
-        ),
-    );
-    const stepsMode = formGroup(
-        t("stepsModeTitle"),
-        formRow(
+        ) + formRow(
             t("stepsModeTitle"),
             t("stepsModeHint"),
             formSelect(
@@ -119,11 +112,7 @@ export function renderStartPanel(m: StartPanelModel): string {
                 formOption("offline", t("stepsModeOffline"), cur.stepsMode !== "ai") +
                     formOption("ai", t("stepsModeAi"), cur.stepsMode === "ai"),
             ),
-        ),
-    );
-    const timing = formGroup(
-        t("timingTitle"),
-        formRow(
+        ) + formRow(
             t("timingTitle"),
             t("timingHint"),
             formSelect(
@@ -140,11 +129,8 @@ export function renderStartPanel(m: StartPanelModel): string {
         ),
     );
     return `<div class="wengu-start">
-  ${progress}
-  ${scope}
-  ${reveal}
-  ${stepsMode}
-  ${timing}
+  ${head}
+  ${settings}
   <div><button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button></div>
 </div>`;
 }

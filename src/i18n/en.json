@@ -72,6 +72,8 @@
   "settingShowNums": "Show question numbers",
   "settingShowNumsDesc": "Show the question-number rail on the left of the quiz area; click a number to jump to that question",
   "progressTitle": "Last progress",
+  "progressScopeTitle": "Progress & scope",
+  "runSettingsTitle": "Round settings",
   "continueLast": "Continue last ({n} answered)",
   "startFresh": "Start over",
   "revealTitle": "Answer reveal",
