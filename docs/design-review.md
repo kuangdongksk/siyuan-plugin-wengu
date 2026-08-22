@@ -6,9 +6,10 @@
 > 下一轮重构的依据。逐条执行，不做一次性大改。
 >
 > **进度**：P0 全部、P1 全部、P2-3/P2-5 已完成（2026-08-22）；模块化
-> 拆分完成（全仓单文件 ≤500 行，QuizView 488 行），新增
-> CardHtml/ProtyleHost/AnswerFlow/ConvertDialog/RoundReport/QuizLoader/
-> ViewBindings/NumRail/AgentClient/FormHtml。
+> 拆分完成且全仓单文件 ≤500 行（最大 QuizView 490），新增
+> CardHtml/ProtyleHost/AnswerFlow/StepsFlow/AiJudge/ConvertDialog/
+> RoundReport/QuizLoader/OrphanCleaner/QuestionGrading/Flashcards/
+> ConvertHost/ViewBindings/NumRail/AgentClient/FormHtml。
 
 ## 〇、界面规范（2026-08-22 起硬性约定）
 
@@ -20,31 +21,44 @@
    `formRow`（标题说明在左、控件在右）+ `formSelect/formSwitch/
    formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自写布局。
 3. 图标型入口（如目录底部「设置」）只放图标本体，文字放 title 提示。
+4. **带文字的按钮一律 `b3-button--outline` 带边框**（开始刷题/AI 转习题/
+   开始转换/继续作答/AI 分析报告）；只有纯图标按钮可以无框
+   （b3-button--text/icon）；取消类沿用 b3-button--cancel。
+5. **AI 分析报告打开思源内置智能体**：DOM 自动化（dock `agentChat` →
+   新会话 → 合成 paste 喂 prompt → 发送，选择器按 3.8.0 dump 校准），
+   失配降级页内纯文本分析。
 
 ## 一、现状全景
 
-| 模块                           | 行数 | 职责                                                   |
-| ------------------------------ | ---- | ------------------------------------------------------ |
-| `src/index.ts`                 | 154  | 插件入口：topbar、页签注册、settings 装载、openSetting |
-| `src/wengu/QuizView.ts`        | 500  | 页签编排层：状态持有 + 各模块接线（已到行数上限）      |
-| `src/wengu/CardHtml.ts`        | 348  | 纯 HTML 构建：题卡/作答位/目录/头部/主区外壳           |
-| `src/wengu/AnswerFlow.ts`      | 302  | 作答流程：判分/揭示/自评/恢复已答                      |
-| `src/wengu/StartPanel.ts`      | 271  | 开刷面板：RoundConfig 表单渲染/读取/开轮               |
-| `src/wengu/RoundReport.ts`     | 255  | 一轮总结：图表 + AI 分析 + 收卷编排                    |
-| `src/wengu/ConvertService.ts`  | 233  | 转换编排：文档定位 + prompt + 落盘《·习题》            |
-| `src/wengu/SettingsDialog.ts`  | 230  | 仿原生设置页（左导航 + 分组）                          |
-| `src/wengu/ProtyleHost.ts`     | 157  | 内嵌 Protyle 逐卡串行挂载                              |
-| `src/wengu/AgentClient.ts`     | 142  | 智能体 SSE 客户端 + 模型清单/下拉选项                  |
-| `src/wengu/QuizLoader.ts`      | 135  | 一次装载：文档/题目/轮次/prefs 恢复                    |
-| `src/wengu/ConvertDialog.ts`   | 131  | AI 转习题弹窗                                          |
-| `src/wengu/TimerController.ts` | 128  | 计时状态机（4 模式 + 逐题秒数）                        |
-| `src/wengu/HistoryStore.ts`    | 96   | N 刷会话历史（saveData("history")）                    |
-| `src/wengu/types.ts`           | 182  | 领域类型 + 清洗/比较纯函数                             |
-| `src/wengu/FormHtml.ts`        | 54   | 共享表单构件（§〇 规范落地）                           |
-| `src/wengu/NumRail.ts`         | 52   | 题号导航渲染与绑定                                     |
-| `src/wengu/attrs.ts`           | 45   | 属性名常量                                             |
-| `src/wengu/ui.ts`              | 29   | esc/fmt/mmss/clampMinutes                              |
-| `src/wengu/ViewBindings.ts`    | 36   | 头部与目录事件绑定（搜索/委托点击）                    |
+| 模块                           | 行数 | 职责                                                           |
+| ------------------------------ | ---- | -------------------------------------------------------------- |
+| `src/index.ts`                 | 161  | 插件入口：topbar、页签注册、settings 装载、openSetting         |
+| `src/wengu/QuizView.ts`        | 490  | 页签编排层：状态持有 + 各模块接线                              |
+| `src/wengu/AnswerFlow.ts`      | 420  | 作答流程：判分/揭示/自评/恢复已答                              |
+| `src/wengu/CardHtml.ts`        | 419  | 纯 HTML 构建：题卡/作答位/目录/头部/主区外壳                   |
+| `src/wengu/QuestionService.ts` | 390  | 块读写内核 API：SQL 聚合、hydrate、记账（判分/闪卡 re-export） |
+| `src/wengu/StepsFlow.ts`       | 381  | steps 多步引导题作答流程                                       |
+| `src/wengu/StartPanel.ts`      | 303  | 开刷面板：RoundConfig 表单渲染/读取/开轮                       |
+| `src/wengu/RoundReport.ts`     | 314  | 一轮总结：图表 + AI 分析（开智能体新会话，降级页内）+ 收卷编排 |
+| `src/wengu/ConvertService.ts`  | 290  | 转换编排：文档定位 + prompt + 落盘 + 生成位置 + 配对属性       |
+| `src/wengu/types.ts`           | 247  | 领域类型 + 清洗/比较纯函数                                     |
+| `src/wengu/SettingsDialog.ts`  | 276  | 仿原生设置页（左导航 + 分组）                                  |
+| `src/wengu/ProtyleHost.ts`     | 167  | 内嵌 Protyle 逐卡串行挂载                                      |
+| `src/wengu/AiJudge.ts`         | 154  | steps 题 AI 实时判分                                           |
+| `src/wengu/QuizLoader.ts`      | 152  | 一次装载：孤儿清理/文档/题目/轮次/prefs 恢复                   |
+| `src/wengu/ConvertDialog.ts`   | 172  | AI 转习题弹窗                                                  |
+| `src/wengu/AgentClient.ts`     | 138  | 智能体 SSE 客户端 + 模型清单/下拉选项                          |
+| `src/wengu/TimerController.ts` | 128  | 计时状态机（4 模式 + 逐题秒数）                                |
+| `src/wengu/QuestionGrading.ts` | 129  | 判分纯函数：客观题/多步题自动判分与选项描色                    |
+| `src/wengu/HistoryStore.ts`    | 112  | N 刷会话历史（saveData("history")）                            |
+| `src/wengu/Flashcards.ts`      | 92   | 「温故错题」闪卡卡组：懒创建与加/移卡片                        |
+| `src/wengu/ConvertHost.ts`     | 66   | 转换编排：弹窗依赖组装/转换按钮/页内状态条                     |
+| `src/wengu/OrphanCleaner.ts`   | 55   | 孤儿习题文档清理（源删则习题随删，进回收站）                   |
+| `src/wengu/FormHtml.ts`        | 54   | 共享表单构件（§〇 规范落地）                                   |
+| `src/wengu/attrs.ts`           | 53   | 属性名常量                                                     |
+| `src/wengu/NumRail.ts`         | 52   | 题号导航渲染与绑定                                             |
+| `src/wengu/ViewBindings.ts`    | 36   | 头部与目录事件绑定（搜索/委托点击）                            |
+| `src/wengu/ui.ts`              | 29   | esc/fmt/mmss/clampMinutes                                      |
 
 分层：**内核 API（QuestionService/ConvertService/AgentClient）→
 领域纯函数（types）→ 视图（QuizView 编排 + 各渲染/流程模块）→ 存储

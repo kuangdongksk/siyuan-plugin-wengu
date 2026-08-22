@@ -4,16 +4,13 @@ import {
     Attr,
     Q_FLAG,
 } from "./attrs";
+import {gradeQuestion} from "./QuestionGrading";
 import {
     cleanStemMd,
-    LETTERS,
-    normAnswerText,
     normalizeAnswerMd,
     normalizeType,
-    optionComparable,
     parseDifficulty,
     parseStepKinds,
-    QuestionType,
     splitOptionMd,
 } from "./types";
 import type {
@@ -23,13 +20,17 @@ import type {
 } from "./types";
 
 /**
- * 题目块读写服务。
+ * 题目块读写服务（判分纯函数在 QuestionGrading、错题闪卡在 Flashcards，
+ * 这里 re-export 保持既有导入路径稳定）。
  *
  * 只依赖思源原生机制：
  * - 检测/查询：/api/query/sql（attributes 表按 custom-plugin-wengu-% 聚合，同参考插件 sy-lively）
  * - 单块读写：/api/attr/getBlockAttrs、/api/attr/setBlockAttrs
  * 不建任何外部存储。
  */
+
+export { addWrongFlashcard, removeWrongFlashcard } from "./Flashcards";
+export { gradeQuestion, gradeStep, optionIsRight, stepOptionIsRight } from "./QuestionGrading";
 
 interface AttrsRow {
     block_id: string;
@@ -316,91 +317,6 @@ export async function setBlockAttrs(id: string, attrs: AttrsObject): Promise<voi
     await fetchSyncPost("/api/attr/setBlockAttrs", {id, attrs});
 }
 
-/** 答案的多接受形态（fill 的 `a|b`、内容答案顿号分隔等）。 */
-function acceptedAnswers(answer: string): string[] {
-    return answer.split(/\||[,，、;；]/).map(normAnswerText).filter(Boolean);
-}
-
-/** submitted 是选项字母时映射到该选项的可比内容，否则原样返回。 */
-function submittedComparable(q: WenguQuestion, submitted: string): string {
-    const letters = submitted.toUpperCase().replace(/[^A-Z]/g, "");
-    if (letters && letters.length === submitted.replace(/\s/g, "").length && q.optionMd?.length) {
-        // 整串都是字母且与选项数对得上，按字母取选项内容
-        const contents = [...letters].map((ch) => {
-            const idx = LETTERS.indexOf(ch);
-            return idx >= 0 && idx < q.optionMd.length ? optionComparable(q.optionMd[idx]) : "";
-        });
-        if (contents.every((c) => c)) return contents.sort().join("|");
-    }
-    return normAnswerText(submitted);
-}
-
-/**
- * 客观题判分（single/multiple/judge/fill），对真实转换结果容错：
- * - 选择题答案为字母串（契约写法）按字母比；
- * - 答案为内容（如 `$e^2$`）则把所选项内容与答案内容比对；
- * - 填空允许输入选项字母（把选项内容代入比对）；
- * - 比较对大小写、空白、`$` 定界不敏感。
- */
-export function gradeQuestion(q: WenguQuestion, submitted: string): boolean {
-    const type = q.type;
-    const answer = q.answer ?? "";
-    if (!type) return false;
-    const ansNorm = normAnswerText(answer);
-    switch (type) {
-        case QuestionType.Single: {
-            if (/^[A-Z]+$/.test(ansNorm)) {
-                return normAnswerText(submitted) === ansNorm;
-            }
-            return submittedComparable(q, submitted) === ansNorm;
-        }
-        case QuestionType.Multiple: {
-            if (/^[A-Z]+$/.test(ansNorm)) {
-                return normAnswerText(submitted) === ansNorm;
-            }
-            // 内容答案：所选项内容集合 == 答案集合（排序后拼接比对）
-            return submittedComparable(q, submitted) === [...acceptedAnswers(answer)].sort().join("|");
-        }
-        case QuestionType.Judge: {
-            const map: Record<string, string> = {
-                "√": "√",
-                "对": "√",
-                "T": "√",
-                "TRUE": "√",
-                "X": "×",
-                "x": "×",
-                "错": "×",
-                "F": "×",
-                "FALSE": "×",
-                "×": "×",
-            };
-            return (map[normAnswerText(submitted)] ?? normAnswerText(submitted)) ===
-                (map[ansNorm] ?? ansNorm);
-        }
-        case QuestionType.Fill: {
-            const s = normAnswerText(submitted);
-            if (acceptedAnswers(answer).includes(s)) return true;
-            // 带选项的填空（真实转换会出现）：输字母等价于输选项内容
-            return acceptedAnswers(answer).includes(submittedComparable(q, submitted));
-        }
-        default:
-            return false;
-    }
-}
-
-/** 第 idx 个选项是否属于正确答案（判分后描色用）。 */
-export function optionIsRight(q: WenguQuestion, idx: number): boolean {
-    const answer = q.answer ?? "";
-    const ansNorm = normAnswerText(answer);
-    const letter = LETTERS[idx] ?? "";
-    if (/^[A-Z]+$/.test(ansNorm)) {
-        return ansNorm.includes(letter);
-    }
-    const accepted = acceptedAnswers(answer);
-    const comparable = q.optionMd?.[idx] !== undefined ? optionComparable(q.optionMd[idx]) : "";
-    return accepted.includes(comparable);
-}
-
 /**
  * 作答记账：写 attempts / wrong-count / last-answer / right 到容器块。
  * 累计答错次数答错 +1、答对不清零（历史统计）。
@@ -426,34 +342,6 @@ export async function recordAttempt(q: WenguQuestion, submitted: string): Promis
     const correct = gradeQuestion(q, submitted);
     await recordAttemptResult(q.id, submitted, correct);
     return correct;
-}
-
-/**
- * 多步题单步判分：method 步任一可行方法即对（answer 为可行字母集合）；
- * result 步比字母（或把所选项内容与答案内容比对，同 single 容错）。
- */
-export function gradeStep(step: WenguStep, submitted: string): boolean {
-    const ansNorm = normAnswerText(step.answer);
-    const subNorm = normAnswerText(submitted);
-    if (/^[A-Z]+$/.test(ansNorm)) {
-        return step.kind === "method" ? ansNorm.includes(subNorm) : subNorm === ansNorm;
-    }
-    const letters = submitted.toUpperCase().replace(/[^A-Z]/g, "");
-    if (letters.length === 1) {
-        const idx = LETTERS.indexOf(letters);
-        if (idx >= 0 && idx < step.optionMd.length) {
-            return optionComparable(step.optionMd[idx]) === ansNorm;
-        }
-    }
-    return subNorm === ansNorm;
-}
-
-/** 多步题某选项是否属于正确项（method 步=可行集合；判分后描色用）。 */
-export function stepOptionIsRight(step: WenguStep, idx: number): boolean {
-    const ansNorm = normAnswerText(step.answer);
-    const letter = LETTERS[idx] ?? "";
-    if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
-    return step.optionMd[idx] !== undefined && optionComparable(step.optionMd[idx]) === ansNorm;
 }
 
 /**
@@ -498,93 +386,5 @@ export async function overrideAttemptResult(id: string, correct: boolean): Promi
         });
     } else {
         await setBlockAttrs(id, {[Attr.right]: "0", [Attr.wrongCount]: String(cur + 1)});
-    }
-}
-
-/** 错题闪卡卡组名（首次加错题时懒创建）。 */
-const WRONG_DECK_NAME = "温故错题";
-
-interface RiffDeck {
-    id?: string;
-    name?: string;
-    size?: number;
-}
-
-/** 「温故错题」卡组 id 缓存。 */
-let wrongDeckId = "";
-
-/** /api/transactions 要求的请求序号。 */
-let txReqId = 0;
-
-/**
- * 发一条事务。思源 3.x 起加/移闪卡不再是独立端点，
- * 走事务 action=addFlashcards / removeFlashcards（真机 3.8.0 验证）。
- */
-async function transact(operations: Record<string, unknown>[]): Promise<boolean> {
-    const {code} = await fetchSyncPost("/api/transactions", {
-        reqId: ++txReqId,
-        transactions: [{doOperations: operations, undoOperations: []}],
-    });
-    return code === 0;
-}
-
-async function listRiffDecks(): Promise<RiffDeck[]> {
-    const {data} = await fetchSyncPost("/api/riff/getRiffDecks");
-    return (data ?? []) as RiffDeck[];
-}
-
-/** 卡组当前卡片数；找不到卡组返回 -1。 */
-async function deckSize(deckId: string): Promise<number> {
-    const deck = (await listRiffDecks()).find((d) => d.id === deckId);
-    return deck ? (deck.size ?? 0) : -1;
-}
-
-/** 按 name 找卡组，找不到返回空串。 */
-async function findWrongDeck(): Promise<string> {
-    return (await listRiffDecks()).find((d) => d.name === WRONG_DECK_NAME)?.id ?? "";
-}
-
-/** 确保「温故错题」卡组存在（不存在则创建），返回其 id。 */
-async function ensureWrongDeck(): Promise<string> {
-    if (!wrongDeckId) wrongDeckId = await findWrongDeck();
-    if (!wrongDeckId) {
-        const {data} = await fetchSyncPost("/api/riff/createRiffDeck", {name: WRONG_DECK_NAME});
-        wrongDeckId = String((data as RiffDeck)?.id ?? "");
-    }
-    return wrongDeckId;
-}
-
-/**
- * 错题入闪卡（产品决策 3）：把题目容器块加入「温故错题」卡组。
- * addFlashcards 幂等（重复加同一块不重复计），用卡组 size 变化判断是否新加入。
- * 尽力而为，失败不影响答题主流程。
- */
-export async function addWrongFlashcard(blockId: string): Promise<boolean> {
-    try {
-        const deckId = await ensureWrongDeck();
-        if (!deckId) return false;
-        const before = await deckSize(deckId);
-        if (!(await transact([{action: "addFlashcards", deckID: deckId, blockIDs: [blockId]}]))) {
-            return false;
-        }
-        return await deckSize(deckId) > before;
-    } catch (_) {
-        return false;
-    }
-}
-
-/** 答对后把块移出错题卡组，让卡组始终等于当前错题集（不创建卡组）。 */
-export async function removeWrongFlashcard(blockId: string): Promise<boolean> {
-    try {
-        const deckId = wrongDeckId || await findWrongDeck();
-        if (!deckId) return false;
-        const before = await deckSize(deckId);
-        if (before <= 0) return false;
-        if (!(await transact([{action: "removeFlashcards", deckID: deckId, blockIDs: [blockId]}]))) {
-            return false;
-        }
-        return await deckSize(deckId) < before;
-    } catch (_) {
-        return false;
     }
 }
