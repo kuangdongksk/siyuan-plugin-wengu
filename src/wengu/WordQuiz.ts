@@ -5,16 +5,27 @@ import {
 import WORD_BOOK from "./WordBook";
 
 /**
- * 单词出题渲染（WordView 的展示层，不持有状态）。
+ * 单词出题渲染（WordView 的展示层，不持有状态）。仿不背单词：
  *
- * 三种模式（仿不背单词）：
- * - choice   看单词选意思（四选一，干扰项取同单元）
- * - recallEn 看英文回想中文（翻面后三档自评）
- * - recallZh 看中文回想英文（翻面后三档自评）
- * 每题答完都进结果页：单词 + 释义 + AI 提示 + 模式对应的收尾按钮。
+ * - learn    新词学习卡：先看词猜意，翻面给完整释义，四档收尾
+ *            （不认识/模糊/认识/太简单，太简单此后不再复习）
+ * - choiceEn 看单词选释义（四选一，干扰取同单元）
+ * - choiceZh 看释义选单词（四选一，选项是英文单词）
+ * - spell    看释义拼单词（输入提交，即对错）
+ * - recallEn/recallZh 回想自评（翻面后三档）
+ *
+ * 客观题点选/提交后在题面内即时标色（对绿错红、正确项高亮），
+ * 下方内嵌词详情（单词+释义+AI 提示）与继续按钮。
  */
 
-export type WordCardMode = "choice" | "recallEn" | "recallZh";
+export type WordCardMode = "learn" | "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
+
+/** 客观题作答态（题面标色与详情用）。 */
+export interface AnsweredState {
+    correct: boolean;
+    /** 选择题选中的选项号（spell 无）。 */
+    pick?: number;
+}
 
 /** 释义首行（多行释义取第一行，选择题选项用）。 */
 export function meaningLine(idx: number): string {
@@ -22,96 +33,189 @@ export function meaningLine(idx: number): string {
     return m.split("\n")[0].trim();
 }
 
-/** 出四选一的选项（正确 + 3 个同单元干扰项，按 idx 稳定取样）。 */
-export function buildChoiceOptions(idx: number): {text: string; correct: boolean;}[] {
-    const unit = WORD_BOOK.units.find((u) => idx >= u.start && idx < u.start + u.count) ??
-        WORD_BOOK.units[0];
-    const correct = meaningLine(idx);
-    const pool: number[] = [];
-    for (let i = unit.start; i < unit.start + unit.count && pool.length < 60; i++) {
-        if (i !== idx && meaningLine(i) !== correct) pool.push(i);
-    }
-    const picks: string[] = [];
-    let seed = idx * 2654435761 >>> 0;
-    const next = () => {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        return seed;
-    };
-    while (picks.length < 3 && pool.length > 0) {
-        const j = next() % pool.length;
-        const text = meaningLine(pool[j]);
-        pool.splice(j, 1);
-        if (text && !picks.includes(text)) picks.push(text);
-    }
-    const opts = picks.map((text) => ({text, correct: false}));
-    const at = next() % (opts.length + 1);
-    opts.splice(at, 0, {text: correct, correct: true});
-    return opts;
+function unitRange(idx: number): {start: number; count: number;} {
+    const u = WORD_BOOK.units.find((v) => idx >= v.start && idx < v.start + v.count) ?? WORD_BOOK.units[0];
+    return {start: u.start, count: u.count};
 }
 
-/** 提示页（题面）：choice 带选项，recall* 带显示答案按钮。 */
-export function renderPrompt(
+/** 稳定伪随机（按词下标作种子，同一词每次选项组合一致）。 */
+function seeded(idx: number) {
+    let s = (idx * 2654435761) >>> 0;
+    return () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s;
+    };
+}
+
+/** 看词选义：干扰 = 同单元其它释义首行。 */
+export function buildMeaningOptions(idx: number): string[] {
+    const {start, count} = unitRange(idx);
+    const correct = meaningLine(idx);
+    const pool: string[] = [];
+    for (let i = start; i < start + count && pool.length < 60; i++) {
+        if (i === idx) continue;
+        const t = meaningLine(i);
+        if (t && t !== correct && !pool.includes(t)) pool.push(t);
+    }
+    const next = seeded(idx);
+    const picks: string[] = [];
+    while (picks.length < 3 && pool.length > 0) {
+        picks.push(pool.splice(next() % pool.length, 1)[0]);
+    }
+    const at = next() % (picks.length + 1);
+    picks.splice(at, 0, correct);
+    return picks;
+}
+
+/** 看义选词：干扰 = 同单元其它单词。 */
+export function buildWordOptions(idx: number): string[] {
+    const {start, count} = unitRange(idx);
+    const correct = WORD_BOOK.words[idx].w;
+    const pool: string[] = [];
+    for (let i = start; i < start + count && pool.length < 60; i++) {
+        if (i === idx) continue;
+        const w = WORD_BOOK.words[i].w;
+        if (w && w !== correct && !pool.includes(w)) pool.push(w);
+    }
+    const next = seeded(idx + 7919);
+    const picks: string[] = [];
+    while (picks.length < 3 && pool.length > 0) {
+        picks.push(pool.splice(next() % pool.length, 1)[0]);
+    }
+    const at = next() % (picks.length + 1);
+    picks.splice(at, 0, correct);
+    return picks;
+}
+
+function optionCls(i: number, answered: AnsweredState | undefined, correctText: string, texts: string[]): string {
+    if (!answered) return "";
+    if (answered.pick === i) return answered.correct ? " is-correct" : " is-wrong";
+    if (texts[i] === correctText) return " is-correct";
+    return " is-dim";
+}
+
+/** 详情区（单词+释义+AI提示），客观题作答后与回想结果视图共用。 */
+function detailHtml(idx: number, t: (k: string) => string, note: string | undefined): string {
+    const entry = WORD_BOOK.words[idx];
+    return `<div class="wengu-word-detail">
+    <div class="wengu-word-detail-word">${esc(entry.w)}</div>
+    <div class="wengu-word-detail-meaning">${esc(entry.m)}</div>
+    ${note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(note)}</div>` : ""}
+  </div>`;
+}
+
+/** 客观题作答后的收尾按钮：继续（对→know/错→no）+ 记错了。 */
+function continueButtons(t: (k: string) => string): string {
+    return `<button class="b3-button b3-button--outline" data-act="next">${esc(t("wordNext"))}</button>
+    <button class="b3-button b3-button--cancel" data-act="markwrong">${esc(t("wordMarkWrong"))}</button>`;
+}
+
+const MODE_KEY: Record<WordCardMode, string> = {
+    learn: "wordModeLearn",
+    choiceEn: "wordModeChoice",
+    choiceZh: "wordModeChoiceZh",
+    spell: "wordModeSpell",
+    recallEn: "wordModeRecallEn",
+    recallZh: "wordModeRecallZh",
+};
+
+/**
+ * 渲染一张卡。answered 仅客观题有（题面标色+内嵌详情+继续按钮）；
+ * learn/recall 的翻面结果视图用 reveal=true 表达。
+ */
+export function renderCard(
     mode: WordCardMode,
     idx: number,
     t: (k: string) => string,
+    opts: {
+        reveal?: boolean;
+        answered?: AnsweredState;
+        note?: string;
+    } = {},
 ): string {
     const entry = WORD_BOOK.words[idx];
-    const modeLabel = t(
-        mode === "choice" ? "wordModeChoice" : mode === "recallEn" ? "wordModeRecallEn" : "wordModeRecallZh",
-    );
+    const label = t(MODE_KEY[mode]);
     let body: string;
-    if (mode === "choice") {
-        const opts = buildChoiceOptions(idx)
-            .map((o, i) => `<button class="b3-button wengu-word-opt" data-opt="${i}">${esc(o.text)}</button>`)
-            .join("");
-        body = `<div class="wengu-word-text">${esc(entry.w)}</div>
-    <div class="wengu-word-hint">${esc(t("wordPickMeaning"))}</div>
-    <div class="wengu-word-opts">${opts}</div>`;
-    } else if (mode === "recallEn") {
-        body = `<div class="wengu-word-text">${esc(entry.w)}</div>
+    if (mode === "learn") {
+        body = opts.reveal ?
+            `<div class="wengu-word-text">${esc(entry.w)}</div>
+    ${detailHtml(idx, t, opts.note)}
+    <div class="wengu-word-actions">
+      <button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
+      <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
+      <button class="b3-button b3-button--outline" data-grade="know">${esc(t("wordGradeKnow"))}</button>
+      <button class="b3-button b3-button--outline" data-grade="easy">${esc(t("wordEasy"))}</button>
+    </div>` :
+            `<div class="wengu-word-text">${esc(entry.w)}</div>
+    <div class="wengu-word-hint">${esc(t("wordLearnHint"))}</div>`;
+    } else if (mode === "choiceEn" || mode === "choiceZh") {
+        const texts = mode === "choiceEn" ? buildMeaningOptions(idx) : buildWordOptions(idx);
+        const correct = mode === "choiceEn" ? meaningLine(idx) : entry.w;
+        const buttons = texts.map((text, i) =>
+            `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, texts)}" data-opt="${i}"${
+                opts.answered ? " disabled" : ""
+            }>${esc(text)}</button>`
+        ).join("");
+        const topic = mode === "choiceEn" ? esc(entry.w) : esc(meaningLine(idx));
+        const topicCls = mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh";
+        body = `<div class="${topicCls}">${topic}</div>
+    ${
+            opts.answered ?
+                `<div class="wengu-word-feedback">${
+                    esc(opts.answered.correct ? t("wordCorrectPick") : t("wordWrongPick2"))
+                }</div>` :
+                `<div class="wengu-word-hint">${esc(t("wordPickHint"))}</div>`
+        }
+    <div class="wengu-word-opts">${buttons}</div>
+    ${
+            opts.answered ?
+                detailHtml(idx, t, opts.note) + `<div class="wengu-word-actions">${continueButtons(t)}</div>` :
+                ""
+        }`;
+    } else if (mode === "spell") {
+        if (opts.answered) {
+            body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
+    <div class="wengu-word-feedback">${
+                esc(opts.answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), {w: entry.w}))
+            }</div>
+    ${detailHtml(idx, t, opts.note)}
+    <div class="wengu-word-actions">${continueButtons(t)}</div>`;
+        } else {
+            body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
+    <input class="b3-text-field wengu-word-spell" data-field="spell" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${
+                esc(t("wordSpellPlaceholder"))
+            }">
+    <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="submit">${
+                esc(t("wordSubmit"))
+            }</button></div>`;
+        }
+    } else { // recallEn / recallZh
+        if (opts.reveal) {
+            body = `<div class="wengu-word-feedback">${esc(t(mode === "recallEn" ? "wordSelfEn" : "wordSelfZh"))}</div>
+    ${detailHtml(idx, t, opts.note)}
+    <div class="wengu-word-actions">
+      <button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
+      <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
+      <button class="b3-button b3-button--outline" data-grade="know">${esc(t("wordGradeKnow"))}</button>
+    </div>`;
+        } else {
+            const topic = mode === "recallEn" ? esc(entry.w) : esc(meaningLine(idx));
+            const cls = mode === "recallEn" ? "wengu-word-text" : "wengu-word-zh";
+            body = `<div class="${cls}">${topic}</div>
     <div class="wengu-word-hint">${esc(t("wordRecallHint"))}</div>
     <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="showanswer">${
-            esc(t("wordShowAnswer"))
-        }</button></div>`;
-    } else {
-        body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
-    <div class="wengu-word-hint">${esc(t("wordRecallHint"))}</div>
-    <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="showanswer">${
-            esc(t("wordShowAnswer"))
-        }</button></div>`;
+                esc(t("wordShowAnswer"))
+            }</button></div>`;
+        }
     }
-    return `<div class="wengu-word-card" tabindex="0">
-    <div class="wengu-word-unit">${esc(modeLabel)}</div>
+    return `<div class="wengu-word-card${opts.reveal || opts.answered ? " wengu-word-revealed" : ""}" tabindex="0">
+    <div class="wengu-word-unit">${esc(label)}</div>
     ${body}
   </div>`;
 }
 
-/** 结果页（单词 + 释义 + AI 提示 + 收尾按钮区，按钮由 WordView 拼装）。 */
-export function renderResult(
-    idx: number,
-    t: (k: string) => string,
-    note: string | undefined,
-    actions: string,
-    feedback = "",
-): string {
-    const entry = WORD_BOOK.words[idx];
-    return `<div class="wengu-word-card wengu-word-revealed">
-    ${feedback ? `<div class="wengu-word-feedback">${esc(feedback)}</div>` : ""}
-    <div class="wengu-word-text">${esc(entry.w)}</div>
-    <div class="wengu-word-meaning">${esc(entry.m)}</div>
-    ${note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(note)}</div>` : ""}
-    <div class="wengu-word-actions">${actions}</div>
-  </div>`;
-}
-
-/** 三档自评按钮（回想模式结果页用）。 */
-export function gradeButtons(t: (k: string) => string): string {
-    return `<button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="know">${esc(t("wordGradeKnow"))}</button>`;
-}
-
-/** 选择题反馈文案。 */
-export function choiceFeedback(correct: boolean, idx: number, t: (k: string) => string): string {
-    return correct ? t("wordCorrectPick") : fmt(t("wordWrongPick"), {m: meaningLine(idx)});
+/** 拼写判定：忽略大小写/多余空格/连字符差异。 */
+export function spellMatches(input: string, word: string): boolean {
+    const n = (s: string) => s.toLowerCase().replace(/[\s\-']/g, "");
+    return n(input).length > 0 && n(input) === n(word);
 }

@@ -29,12 +29,14 @@ export interface WenguWordProgress {
     words: Record<string, WordState>;
     /** 误认词记录，key 为扁平下标字符串。 */
     mistakes: Record<string, WenguWordMistake>;
+    /** 「太简单」集合（不再进复习），key 为扁平下标字符串。 */
+    simple: Record<string, 1>;
     /** 今日打卡统计（跨天重置）。 */
     today: {key: string; newCount: number; revCount: number;};
 }
 
 /** 认识程度。 */
-export type WordGrade = "no" | "fuzzy" | "know";
+export type WordGrade = "no" | "fuzzy" | "know" | "easy";
 
 /** Leitner 档位对应的复习间隔（天），下标=档位-1。 */
 const INTERVAL_DAYS = [1, 2, 4, 8, 16, 32];
@@ -50,6 +52,7 @@ export function defaultProgress(): WenguWordProgress {
         cursor: 0,
         words: {},
         mistakes: {},
+        simple: {},
         today: {key: todayKey(), newCount: 0, revCount: 0},
     };
 }
@@ -58,6 +61,7 @@ export function defaultProgress(): WenguWordProgress {
 export function buildQueue(progress: WenguWordProgress, now = Date.now()): {review: number[]; fresh: number[];} {
     const review: number[] = [];
     for (const key of Object.keys(progress.words)) {
+        if (progress.simple[key]) continue;
         const i = Number(key);
         if (progress.words[key][1] <= now) review.push(i);
     }
@@ -76,6 +80,7 @@ export function dueTomorrowCount(progress: WenguWordProgress, now = Date.now()):
     const end = endToday.getTime() + 86400_000;
     let count = 0;
     for (const key of Object.keys(progress.words)) {
+        if (progress.simple[key]) continue;
         const due = progress.words[key][1];
         if (due > now && due <= end) count++;
     }
@@ -93,11 +98,13 @@ export function applyGrade(
     const prev = progress.words[String(index)];
     const level = prev ? prev[0] : 0;
     let next: number;
-    if (grade === "know") next = Math.min(INTERVAL_DAYS.length, level + 1);
+    if (grade === "easy") next = INTERVAL_DAYS.length;
+    else if (grade === "know") next = Math.min(INTERVAL_DAYS.length, level + 1);
     else if (grade === "fuzzy") next = Math.max(1, level);
     else next = 1;
     const days = INTERVAL_DAYS[next - 1];
     progress.words[String(index)] = [next, now + days * 86400_000];
+    if (grade === "easy") progress.simple[String(index)] = 1;
     if (grade === "no") {
         // 误认本：再次答错会清空旧 AI 提示，重回待分析队列
         const m = progress.mistakes[String(index)];
@@ -152,6 +159,7 @@ export class WordStore {
         }
         const p = this.cache;
         if (!p.mistakes) p.mistakes = {}; // 旧数据回填
+        if (!p.simple) p.simple = {};
         const key = todayKey();
         if (p.today.key !== key) p.today = {key, newCount: 0, revCount: 0};
         return p;

@@ -213,3 +213,48 @@
   background: var(--b3-theme-primary);
   transition: width 0.2s ease;
 }
+
+/* ── 仿不背单词:选项标色/词详情/拼写框 ── */
+
+.wengu-word-opt.is-correct {
+  border-color: var(--b3-card-success-color);
+  color: var(--b3-card-success-color);
+  background: var(--b3-card-success-background);
+}
+
+.wengu-word-opt.is-wrong {
+  border-color: var(--b3-card-error-color);
+  color: var(--b3-card-error-color);
+  background: var(--b3-card-error-background);
+}
+
+.wengu-word-opt.is-dim {
+  opacity: 0.45;
+}
+
+/* 客观题作答后/回想翻面后的词详情区 */
+.wengu-word-detail {
+  width: 100%;
+  max-width: 440px;
+  text-align: left;
+  border-top: 1px solid var(--b3-border-color);
+  padding-top: 10px;
+}
+
+.wengu-word-detail-word {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.wengu-word-detail-meaning {
+  font-size: 14px;
+  white-space: pre-line;
+  margin-top: 4px;
+}
+
+.wengu-word-spell {
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  font-size: 16px;
+}
