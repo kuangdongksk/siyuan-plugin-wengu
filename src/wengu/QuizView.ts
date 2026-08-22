@@ -6,6 +6,7 @@ import {
 } from "./AnswerFlow";
 import type {AnswerHost} from "./AnswerFlow";
 import {
+    collectCardThoughts,
     renderCardsHtml,
     renderMainShell,
     renderNumsHtml,
@@ -175,6 +176,7 @@ export class QuizView implements AnswerHost {
         this.session = undefined;
         s.endedAt = Date.now();
         s.elapsedSec = Math.max(s.elapsedSec, this.timer.elapsed());
+        s.thoughts = collectCardThoughts(this.el); // 思路随卷快照（未作答的题也保得住）
         this.finished = s;
         void this.history?.upsert(s);
     }
@@ -451,6 +453,9 @@ export class QuizView implements AnswerHost {
 
     private bindCards(): void {
         for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
+            node.querySelector("[data-act='thought-toggle']")?.addEventListener("click", () => {
+                node.querySelector("[data-thought-wrap]")?.toggleAttribute("hidden");
+            });
             const q = this.list.find((x) => x.id === node.dataset.qid);
             if (q) bindCardEvents(this, node, q);
         }

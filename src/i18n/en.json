@@ -30,6 +30,8 @@
   "back": "Back",
   "submit": "Submit",
   "inputPlaceholder": "Type your answer…",
+  "thoughtToggle": "My approach",
+  "thoughtPlaceholder": "Jot down your reasoning (optional) — the AI review will comment on it",
   "correct": "✓ Correct",
   "wrong": "✗ Wrong,",
   "answerLabel": "Answer:",

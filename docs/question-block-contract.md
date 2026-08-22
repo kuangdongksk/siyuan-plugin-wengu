@@ -118,9 +118,11 @@
 | **N 刷会话历史**  | `saveData("history")`（HistoryStore）       | 按轮次维度，官方存储足够       |
 
 会话（`WenguSession`）：`{id, docId, startedAt, endedAt, mode,
-plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok}]}`
-——开刷时创建、逐题作答时更新落盘、切文档/刷新/关页签时收卷。文档头部
-据此显示「已刷 N 轮 · 最近 c/a · 最佳 c/a」。
+plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok}],
+thoughts?{qid→思路文本}}`——开刷时创建、逐题作答时更新落盘、切文档/刷新/
+关页签时收卷。`thoughts` 是收卷时对各题卡「思路」输入区的一次性快照
+（未作答的题也保留）；总结报告的 AI 判卷 prompt 逐题带上思路，要求
+点评方向/卡点/改进。文档头部据此显示「已刷 N 轮 · 最近 c/a · 最佳 c/a」。
 
 ## 三点六、多步引导题（steps）与 brief 的 AI 判分
 
@@ -207,6 +209,10 @@ last-answer/right。评语展示在结果行，原自评按钮保留为**改判*
   * 判断：`√`/`×` 按钮；填空：输入框；简答（brief）：多行输入；
   * 多步引导（steps）：卡内逐步解锁，每步「引导语 + 选项行 + 下一步」，
     逐步反馈后解锁下一步（见 §三点六）。
+* **每题可写思路**（两种题卡通用）：作答位下方「思路」折叠开关
+  （`data-act="thought-toggle"`）展开文本域（`data-field="thought"`），
+  可选填写；收卷时快照进会话 `thoughts`（见 §三点五），AI 判卷逐题
+  点评（方向是否正确、卡点、下次怎么想）。
 * 客观题提交自动判分，写 `attempts/wrong-count/last-answer/right`；
   判分后 chip 描色（答案项绿、误选红），Protyle 内揭示答案与解析。
   `brief` 提交后 AI 判分并计入（评语 + 改判兜底，见 §三点六）。

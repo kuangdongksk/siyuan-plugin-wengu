@@ -56,6 +56,18 @@ export interface CardHtmlModel {
     showWrongBadge: boolean;
 }
 
+/** 「思路」折叠输入区（收卷时快照进会话 thoughts，AI 判卷点评用）。 */
+function renderThoughtArea(t: (k: string) => string): string {
+    return `<button class="wengu-thought-toggle" data-act="thought-toggle">${svgIcon("iconEdit")} ${
+        esc(t("thoughtToggle"))
+    }</button>
+      <div class="wengu-thought" data-thought-wrap hidden>
+        <textarea class="wengu-input" data-field="thought" rows="3" placeholder="${
+        esc(t("thoughtPlaceholder"))
+    }"></textarea>
+      </div>`;
+}
+
 /** 一张题卡：头部元信息 + Protyle 占位（题目内容）+ 作答位。 */
 export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
     if (hasSteps(q)) return renderStepsCardHtml(q, idx, m);
@@ -65,6 +77,7 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
       ${renderCardHead(q, idx, m, objective)}
       <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
       ${renderAnswerArea(q, m.t)}
+      ${renderThoughtArea(m.t)}
       <button class="wengu-btn" data-act="submit">${esc(t("submit"))}</button>
       <div class="wengu-result" data-result hidden></div>
       <div class="wengu-note" data-note hidden></div>
@@ -111,9 +124,21 @@ export function renderStepsCardHtml(q: WenguQuestion, idx: number, m: CardHtmlMo
       ${renderCardHead(q, idx, m, false)}
       <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
       <div class="wengu-steps" data-steps>${renderStepsInnerHtml(q, m.t)}</div>
+      ${renderThoughtArea(m.t)}
       <div class="wengu-result" data-result hidden></div>
       <div class="wengu-note" data-note hidden></div>
     </div>`;
+}
+
+/** 收集各题卡「思路」输入（qid→思路，空值跳过；收卷快照用）。 */
+export function collectCardThoughts(root: ParentNode): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const ta of root.querySelectorAll<HTMLTextAreaElement>("[data-field='thought']")) {
+        const v = ta.value.trim();
+        const card = ta.closest<HTMLElement>(".wengu-card");
+        if (v && card?.dataset.qid) out[card.dataset.qid] = v;
+    }
+    return out;
 }
 
 /** 步骤作答区 HTML（实时模式回落离线时 StepsFlow 重建用）。

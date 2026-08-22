@@ -102,6 +102,30 @@
   margin-bottom: 8px;
 }
 
+/* 「思路」折叠输入：低调的文字开关 + 展开后的文本域 */
+.wengu-thought-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--b3-border-radius);
+  background: none;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.wengu-thought-toggle:hover {
+  background: var(--b3-theme-background-light);
+  color: var(--b3-theme-on-background);
+}
+
+.wengu-thought {
+  margin-bottom: 8px;
+}
+
 .wengu-btn {
   padding: 4px 10px;
   border: 0;

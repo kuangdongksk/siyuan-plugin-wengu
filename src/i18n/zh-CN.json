@@ -30,6 +30,8 @@
   "back": "返回",
   "submit": "提交",
   "inputPlaceholder": "输入你的答案…",
+  "thoughtToggle": "思路",
+  "thoughtPlaceholder": "写你的思路/推导（可选）——收卷后 AI 判卷会点评",
   "correct": "✓ 回答正确",
   "wrong": "✗ 回答错误，",
   "answerLabel": "正确答案：",

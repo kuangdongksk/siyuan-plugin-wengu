@@ -31,6 +31,8 @@ export interface WenguSession {
     answered: number;
     correct: number;
     results: WenguSessionResult[];
+    /** 各题思路（qid→文本，收卷时从题卡「思路」输入区快照；AI 判卷用）。 */
+    thoughts?: Record<string, string>;
 }
 
 /** 插件存储（saveData("history")）里的会话历史。 */

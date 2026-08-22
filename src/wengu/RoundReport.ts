@@ -178,20 +178,26 @@ async function openAgentWithPrompt(prompt: string): Promise<boolean> {
     }
 }
 
-/** 把一轮数据交给 AI 出简短分析（总体/薄弱点/用时异常/建议）。 */
+/** 把一轮数据交给 AI 判卷（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。 */
 function buildAnalysisPrompt(m: RoundReportModel): string {
     const {session: s, list, rounds} = m;
     const byQid = byBaseQid(s);
+    const thoughts = s.thoughts ?? {};
+    const hasThoughts = Object.keys(thoughts).length > 0;
     const perQ = list
         .map((q, i) => {
             const r = byQid.get(q.id);
             const label = q.knowledge || q.chapter || String(i + 1);
-            return r ? `${i + 1}. ${label} ${r.ok ? "对" : "错"} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
+            const base = r ? `${i + 1}. ${label} ${r.ok ? "对" : "错"} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
+            return thoughts[q.id] ? `${base}｜思路：${thoughts[q.id]}` : base;
         })
-        .join("；");
+        .join("；\n");
     const history = rounds.map((r, i) => `第${i + 1}轮 ${r.correct}/${r.answered}`).join("；");
     const overtime = m.overtimeSec > 0 ? `；超时 ${mmss(m.overtimeSec)}` : "";
-    return `你是刷题分析助手。根据下面的一轮刷题数据给出简短分析报告，不超过 150 字，分三行：总体评价；薄弱知识点与明显偏慢的题（指出题号）；下一轮建议。
+    const thoughtRule = hasThoughts ?
+        "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。" :
+        "";
+    return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分四段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议。${thoughtRule}
 本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
 每题：${perQ}
 历史轮次：${history}
