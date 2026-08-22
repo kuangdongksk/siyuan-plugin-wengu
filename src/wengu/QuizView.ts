@@ -12,6 +12,7 @@ import {
     renderSideBodyHtml,
     renderSubheadHtml,
 } from "./CardHtml";
+import type {ConvertProgressRecord} from "./ConvertBatch";
 import {openConvertDialog} from "./ConvertDialog";
 import type {HistoryStore} from "./HistoryStore";
 import type {WenguSession} from "./HistoryStore";
@@ -87,6 +88,7 @@ export class QuizView implements AnswerHost {
     private lastConvertModelId = "";
     private lastConvertFill = false;
     private lastConvertSteps = false;
+    private convertProgress: Record<string, ConvertProgressRecord> = {};
     private session?: WenguSession;
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
     private finished?: WenguSession;
@@ -164,6 +166,7 @@ export class QuizView implements AnswerHost {
             lastConvertModelId: this.lastConvertModelId,
             lastConvertFill: this.lastConvertFill,
             lastConvertSteps: this.lastConvertSteps,
+            convertProgress: this.convertProgress,
         });
     }
 
@@ -206,6 +209,7 @@ export class QuizView implements AnswerHost {
         this.lastConvertModelId = r.lastConvertModelId;
         this.lastConvertFill = r.lastConvertFill;
         this.lastConvertSteps = r.lastConvertSteps;
+        this.convertProgress = r.convertProgress;
         this.revealMode = r.revealMode;
         this.started = false;
         this.activeQIdx = 0;
@@ -465,6 +469,12 @@ export class QuizView implements AnswerHost {
                 this.lastConvertModelId = modelId;
                 this.lastConvertFill = fill;
                 this.lastConvertSteps = steps;
+                this.persistPrefs();
+            },
+            getProgress: (srcDocId) => this.convertProgress[srcDocId],
+            saveProgress: (srcDocId, rec) => {
+                if (rec) this.convertProgress[srcDocId] = rec;
+                else delete this.convertProgress[srcDocId];
                 this.persistPrefs();
             },
             setConverting: (v) => {

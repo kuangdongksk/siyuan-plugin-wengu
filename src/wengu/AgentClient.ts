@@ -74,10 +74,18 @@ export function modelOptionsHtml(selectedId: string, defaultLabel: string): stri
  * 调思源内置智能体（/api/ai/agent/chat，SSE 流式）并收集完整回答。
  * 真机 3.8.0 验证：model 传模型 id（与智能体面板同源）；event:content
  * 的 token 拼接为回答，event:error 抛错；非 SSE 响应是普通 JSON 错误。
+ * 可选 signal 供调用方中途终止（分批转换的「终止生成」）。
  */
-export async function agentChat(message: string, modelId: string, timeoutMs: number): Promise<string> {
+export async function agentChat(
+    message: string,
+    modelId: string,
+    timeoutMs: number,
+    signal?: AbortSignal,
+): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const onAbort = () => controller.abort();
+    signal?.addEventListener("abort", onAbort);
     try {
         const lang = (window as unknown as SiyuanWindow).siyuan?.config?.lang ?? "zh_CN";
         const resp = await fetch("/api/ai/agent/chat", {
@@ -138,5 +146,6 @@ export async function agentChat(message: string, modelId: string, timeoutMs: num
         return out;
     } finally {
         clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
     }
 }

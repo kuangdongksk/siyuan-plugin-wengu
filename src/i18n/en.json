@@ -142,5 +142,17 @@
   "reportTimeChart": "Time per question (s)",
   "reportScoreChart": "Score rate by round",
   "reportAiBtn": "AI analysis",
-  "reportAiLoading": "Analyzing…"
+  "reportAiLoading": "Analyzing…",
+  "convertDetecting": "AI inspecting document…",
+  "convertDetected": "Detected {n} question(s)",
+  "convertDetectedCount": "Detected {n} question(s) in source",
+  "convertBatchProgress": "Generating batch {i}/{n} · {c} question(s) so far",
+  "convertStop": "Stop",
+  "convertStopped": "Stopped: {c} question(s) generated ({b}/{n} batches)",
+  "convertStoppedEmpty": "Stopped: nothing generated yet",
+  "convertKeep": "Keep generated",
+  "convertDiscard": "Discard all",
+  "convertDiscarded": "Discarded; no document created",
+  "convertResumeHint": "Last conversion unfinished: {c} question(s) ({b}/{n} batches) kept in \"{title}\"",
+  "convertResumeBtn": "Continue remaining batches"
 }

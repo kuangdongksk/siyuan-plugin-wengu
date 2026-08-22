@@ -1,5 +1,4 @@
 import {fetchSyncPost} from "siyuan";
-import {agentChat} from "./AgentClient";
 
 /**
  * AI 转换服务：把一篇笔记文档交给思源内置智能体（AgentClient，
@@ -38,13 +37,14 @@ export interface ConvertResult {
 }
 
 /**
- * 送入 AI 的文档内容上限（超长截断）。真机实测：内核 AI 代理约 30 秒
- * 硬超时，12k 字符源会超时空返回；6k 字符约 22 秒稳定返回（12 题）。
+ * 送入 AI 的单批内容上限（超长由 ConvertBatch 分批，本值是批大小）。
+ * 真机实测：内核 AI 代理约 30 秒硬超时，12k 字符源会超时空返回；
+ * 6k 字符约 22 秒稳定返回（12 题）。
  */
-const MAX_SOURCE_CHARS = 6000;
+export const MAX_SOURCE_CHARS = 6000;
 
 /** AI 调用超时（毫秒）：模型卡住时状态条报错，而不是永远「转换中」。 */
-const AI_TIMEOUT_MS = 300_000;
+export const AI_TIMEOUT_MS = 300_000;
 
 /** 取文档定位信息（标题/笔记本/路径）。 */
 export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
@@ -68,66 +68,8 @@ export function extractBlockId(input: string): string {
     return m ? m[1] : input.trim();
 }
 
-/**
- * 把文档转换成习题文档。AI 先判定能不能转（不能则带原因返回），
- * 能则解析其题目块并生成《原标题·习题》同级文档。
- * modelId 指定用哪个模型（空串=智能体默认模型）；fillToChoice=true 时
- * prompt 要求把原文的填空题改写成单选题（原空答案作正确项 + 干扰项）。
- */
-export async function convertDocToQuestions(
-    docIdRaw: string,
-    t: (key: string) => string,
-    modelId = "",
-    fillToChoice = false,
-    bigToSteps = false,
-): Promise<ConvertResult> {
-    const docId = extractBlockId(docIdRaw);
-    const info = await getDocInfo(docId);
-    if (!info?.notebook) {
-        return {canConvert: false, message: t("convertNoDoc"), count: 0};
-    }
-    const kd = await fetchSyncPost("/api/block/getBlockKramdown", {id: docId});
-    const kramdown = String((kd.data as {kramdown?: string;} | null)?.kramdown ?? "");
-    if (!kramdown.trim()) {
-        return {canConvert: false, message: t("convertEmptyDoc"), count: 0};
-    }
-    const source = kramdown.length > MAX_SOURCE_CHARS ?
-        `${kramdown.slice(0, MAX_SOURCE_CHARS)}\n<!-- 内容过长已截断 -->` :
-        kramdown;
-
-    let reply: string;
-    try {
-        reply = await agentChat(buildPrompt(source, fillToChoice, bigToSteps), modelId, AI_TIMEOUT_MS);
-    } catch (e) {
-        const err = e as Error;
-        const reason = err?.name === "AbortError" ? t("convertTimeout") : String(err?.message ?? e);
-        return {canConvert: false, message: `${t("convertAiFailed")}${reason}`, count: 0};
-    }
-    if (!reply.trim()) {
-        return {canConvert: false, message: t("convertEmptyReply"), count: 0};
-    }
-    const verdict = parseVerdict(reply);
-    const questions = extractQuestions(reply).filter((q) => q.includes('part="stem"'));
-    if (!verdict.can) {
-        return {canConvert: false, message: verdict.reason || t("convertRefused"), count: 0};
-    }
-    if (questions.length === 0) {
-        return {canConvert: false, message: t("convertNoQuestions"), count: 0};
-    }
-
-    const parentPath = parentOf(info.path ?? "/");
-    const created = await createExerciseDoc(info.notebook, parentPath, info.title, questions.join("\n\n"));
-    return {
-        canConvert: true,
-        message: `${verdict.reason}`,
-        docId: created.id,
-        title: created.title,
-        count: questions.length,
-    };
-}
-
 /** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。 */
-function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): string {
+export function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): string {
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
     const fillRule = fillToChoice ?
         `
@@ -205,14 +147,14 @@ ${stepsRule}
 4. difficulty 为可选项：原文档/题目有明确难度线索才写（1~5），没有就整个省略，不要编造。
 5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
 6. 保留原文的公式与代码；一个选项块里可以写多个选项。
-7. 题量与文档内容相称：内容少时至少 1 道，内容丰富时 5~10 道，覆盖主要知识点。${fillRule}
+7. 题量：若原文档本身是试卷/题库（已有现成题目），必须**逐题全部**转换——不得限量、不得合并、不得漏题，也不得自行新造题目；若是讲义/笔记，按知识点出题：内容少时至少 1 道，丰富时 5~12 道，覆盖主要知识点。${fillRule}
 
 文档内容：
 ${source}`;
 }
 
 /** 解析 AI 的判定（CAN_CONVERT / REASON 行）。 */
-function parseVerdict(reply: string): {can: boolean; reason: string;} {
+export function parseVerdict(reply: string): {can: boolean; reason: string;} {
     const vm = /CAN_CONVERT\s*[:：]\s*(yes|no|是|否|true|false)/i.exec(reply);
     const can = vm !== null ?
         /^(yes|是|true)$/i.test(vm[1]) :
@@ -244,14 +186,19 @@ function extractQuestions(reply: string): string[] {
     );
 }
 
+/** 抽取并规整一批回复里的题目块（AI 偏差规整见上）。 */
+export function extractBatchQuestions(reply: string): string[] {
+    return extractQuestions(reply).filter((q) => q.includes('part="stem"'));
+}
+
 /** "/a/b.sy" → "/a"；"/x.sy" → "/"。 */
-function parentOf(path: string): string {
+export function parentOf(path: string): string {
     const cut = path.lastIndexOf("/");
     return cut <= 0 ? "/" : path.slice(0, cut);
 }
 
 /** 生成《标题·习题》文档；先去掉已有的 ·习题 后缀避免「·习题·习题」，同名冲突追加时间戳。 */
-async function createExerciseDoc(
+export async function createExerciseDoc(
     notebook: string,
     parentPath: string,
     baseTitle: string,
