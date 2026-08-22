@@ -209,5 +209,6 @@
   "wordCorrectPick": "✓ Correct",
   "wordWrongPick": "✗ Wrong: {m}",
   "convertLastBatch": "last batch +{k}",
-  "convertTotalUnknown": "long doc: total undetermined, progress by batch"
+  "convertTotalUnknown": "long doc: total undetermined, progress by batch",
+  "convertPartialKept": "Generated part kept in the doc with progress recorded; you can continue later"
 }

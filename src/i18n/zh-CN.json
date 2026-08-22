@@ -209,5 +209,6 @@
   "wordCorrectPick": "✓ 答对了",
   "wordWrongPick": "✗ 答错了：{m}",
   "convertLastBatch": "上批 +{k}",
-  "convertTotalUnknown": "长文档：总题数未确定，按批次计"
+  "convertTotalUnknown": "长文档：总题数未确定，按批次计",
+  "convertPartialKept": "已生成的部分保留在文档中并记录进度，可稍后继续生成"
 }

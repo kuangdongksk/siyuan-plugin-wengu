@@ -113,6 +113,33 @@ export interface ConvertProgress {
     detected?: number;
     /** 检测只覆盖了前缀（长文档），总数是下限（显示 N+）。 */
     detectedTruncated?: boolean;
+    /** 刚完成那批的题目预览（弹窗渐进展示）。 */
+    newStems?: QuestionPreview[];
+}
+
+/** 弹窗预览行：题号 + 题型 + 题干片段。 */
+export interface QuestionPreview {
+    no: number;
+    type: string;
+    stem: string;
+}
+
+/** 从题目 kramdown 抽预览：题型属性 + 去标记后的题干开头（截 80 字）。 */
+export function questionPreview(kd: string, no: number): QuestionPreview {
+    const type = /custom-plugin-wengu-type="([a-z]+)"/.exec(kd)?.[1] ?? "";
+    const stem = kd
+        .split(/\r?\n/)
+        .filter((l) =>
+            !/^\s*\{:/.test(l) && // IAL 属性行
+            !/^\s*\{\{\{/.test(l) && // 超级块定界
+            !/^\s*\}\}\}/.test(l) &&
+            !/^\s*>/.test(l) && // 答案/解析引述
+            !/^\s*[-*]\s/.test(l) // 选项列表
+        )
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return {no, type, stem: stem.slice(0, 80)};
 }
 
 /** 终止保留的进度记录（prefs 持久化，重开思源后可继续生成）。 */
@@ -245,6 +272,23 @@ export async function convertDocBatched(
     let doneOffset = opts.resume?.offset ?? 0;
     let count = 0;
     let lastBatch = 0;
+    // 目标位置提前解析（每批渐进重建都用到）；失败直接早退
+    const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
+    if (!loc.ok) {
+        return {
+            status: "failed",
+            message: loc.message,
+            count: 0,
+            batches: 0,
+            total: chunks.length,
+            doneOffset: 0,
+            kramdown: "",
+        };
+    }
+    // 渐进式落盘：每批后删除重建累积文档（内核无追加通道，删+建是本地快操作），
+    // 生成期间文档树里即可查看已生成部分；重建失败不阻断生成，末尾兜底落盘。
+    let created: {id: string; title: string;} | undefined;
+    let oldResumeRemoved = false;
     // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
     opts.onProgress({
         phase: "generating",
@@ -274,6 +318,8 @@ export async function convertDocBatched(
                     batches: i,
                     total: chunks.length,
                     doneOffset,
+                    docId: created?.id,
+                    title: created?.title,
                     kramdown: [existing, ...parts].filter(Boolean).join("\n\n"),
                 };
             }
@@ -285,39 +331,45 @@ export async function convertDocBatched(
                 batches: i,
                 total: chunks.length,
                 doneOffset,
+                docId: created?.id,
+                title: created?.title,
                 kramdown: [existing, ...parts].filter(Boolean).join("\n\n"),
             };
         }
         const questions = extractBatchQuestions(reply);
+        let previews: QuestionPreview[] = [];
         if (questions.length > 0) {
             parts.push(questions.join("\n\n"));
             count += questions.length;
+            previews = questions.map((kd, j) => questionPreview(kd, count - questions.length + j + 1));
+            const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
+            try {
+                if (created) await removeDoc(created.id);
+                created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
+                // 继续生成：新的完整文档已含旧部分内容，删掉上次保留的旧文档
+                if (opts.resume && !oldResumeRemoved) {
+                    await removeDoc(opts.resume.docId);
+                    oldResumeRemoved = true;
+                }
+            } catch (_) {
+                created = undefined;
+            }
         }
         lastBatch = questions.length;
         doneOffset = chunks[i].offset + chunks[i].text.length;
-        // 末批完成随即转 writing，避免出现「第 total+1 批」的进度行
-        if (i + 1 < chunks.length) {
-            opts.onProgress({
-                phase: "generating",
-                batch: i + 1,
-                total: chunks.length,
-                count,
-                lastBatch,
-                detected,
-                detectedTruncated,
-            });
-        }
+        // 末批直接转 writing 状态（弹窗展示入库中，同时追加最后一批预览）
+        opts.onProgress({
+            phase: i + 1 >= chunks.length ? "writing" : "generating",
+            batch: i + 1,
+            total: chunks.length,
+            count,
+            lastBatch,
+            detected,
+            detectedTruncated,
+            ...(previews.length > 0 ? {newStems: previews} : {}),
+        });
     }
 
-    opts.onProgress({
-        phase: "writing",
-        batch: chunks.length,
-        total: chunks.length,
-        count,
-        lastBatch,
-        detected,
-        detectedTruncated,
-    });
     const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
     if (!markdown.trim()) {
         return {
@@ -330,20 +382,10 @@ export async function convertDocBatched(
             kramdown: "",
         };
     }
-    // 落盘：解析生成位置（targetRaw 空=原文档同目录；hPath 标题路径定位）
-    const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
-    if (!loc.ok) {
-        return {
-            status: "failed",
-            message: loc.message,
-            count,
-            batches: chunks.length,
-            total: chunks.length,
-            doneOffset,
-            kramdown: markdown,
-        };
+    // 渐进重建已落盘则直接用；中途重建失败过才在这里兜底创建
+    if (!created) {
+        created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
     }
-    const created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
     return {
         status: "done",
         message: detected !== undefined && detected > 0 ?

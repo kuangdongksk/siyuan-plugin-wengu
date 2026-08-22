@@ -117,6 +117,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             )
         }
       <div class="wengu-status" data-act="dlg-status" hidden></div>
+      <div class="wengu-convert-preview" data-act="dlg-preview" hidden></div>
       <div data-act="dlg-resume-row" hidden>
         <button class="b3-button b3-button--text" data-act="dlg-resume">${esc(t("convertResumeBtn"))}</button>
       </div>
@@ -139,12 +140,31 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const stopBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-stop']");
     const resumeRow = root.querySelector<HTMLElement>("[data-act='dlg-resume-row']");
     const status = root.querySelector<HTMLElement>("[data-act='dlg-status']");
+    const preview = root.querySelector<HTMLElement>("[data-act='dlg-preview']");
+
+    /** 渐进预览：追加本批题目的「题号 题型 题干片段」行并滚到底。 */
+    const appendStems = (stems: {no: number; type: string; stem: string;}[] | undefined): void => {
+        if (!preview || !stems?.length) return;
+        preview.removeAttribute("hidden");
+        for (const s of stems) {
+            const row = document.createElement("div");
+            row.className = "wengu-preview-row";
+            const key = s.type ? `type${s.type[0].toUpperCase()}${s.type.slice(1)}` : "";
+            const known = key ? t(key) : "";
+            const typeLabel = known && known !== key ? known : s.type;
+            row.innerHTML = `<span class="wengu-preview-no">${s.no}</span>` +
+                (typeLabel ? `<span class="wengu-badge">${esc(typeLabel)}</span>` : "") +
+                `<span class="wengu-preview-stem" title="${esc(s.stem)}">${esc(s.stem)}</span>`;
+            preview.appendChild(row);
+        }
+        preview.scrollTop = preview.scrollHeight;
+    };
     /** 按钮阶段：idle 默认 / running 生成中 / choice 终止后的二选一。 */
     let phase: "idle" | "running" | "choice" = "idle";
 
-    const showDlgStatus = (html: string, kind: "ok" | "err" | "muted") => {
+    const showDlgStatus = (html: string, kind: "ok" | "err" | "muted", keptPartial = false) => {
         if (!status) return;
-        status.innerHTML = html;
+        status.innerHTML = html + (keptPartial ? `<br>${esc(t("convertPartialKept"))}` : "");
         status.className = `wengu-status wengu-status-${kind}`;
         status.removeAttribute("hidden");
     };
@@ -211,6 +231,19 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         phase = "choice";
         okBtn.onclick = () =>
             void (async () => {
+                // 渐进落盘已有文档：只记进度；否则（首批前终止）现写一份
+                if (r.docId && r.title) {
+                    deps.saveProgress(srcDocId, {
+                        docId: r.docId,
+                        title: r.title,
+                        offset: r.doneOffset,
+                        batches: r.batches,
+                        total: r.total,
+                        count: r.count,
+                    });
+                    await finish(r);
+                    return;
+                }
                 const info = await getDocInfo(srcDocId);
                 if (!info) return;
                 setBusy(true);
@@ -231,6 +264,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 }
             })();
         cancelBtn.onclick = () => {
+            void (r.docId ? removeDoc(r.docId) : Promise.resolve());
             deps.saveProgress(srcDocId, undefined);
             bindDefaultButtons();
             showDlgStatus(t("convertDiscarded"), "muted");
@@ -253,6 +287,10 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         const controller = new AbortController();
         phase = "running";
         setBusy(true);
+        if (preview) {
+            preview.innerHTML = "";
+            preview.setAttribute("hidden", "");
+        }
         if (stopBtn) {
             stopBtn.onclick = () => controller.abort();
         }
@@ -273,10 +311,12 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                     }
                     if (p.phase === "writing") {
                         showDlgStatus(t("settling"), "muted");
+                        appendStems(p.newStems);
                         return;
                     }
                     // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
                     // 检测总数：截断时 N+（下限）；多批文档数不出时明说「未确定」
+                    appendStems(p.newStems);
                     const totalHint = p.detected !== undefined && p.detected > 0 ?
                         ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}${
                             p.detectedTruncated ? "+" : ""
@@ -299,8 +339,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             });
             if (r.status === "done") {
                 if (resumeRec) {
-                    // 继续生成完成：删旧的部分文档、清进度
-                    await removeDoc(resumeRec.docId);
+                    // 继续生成完成：旧文档已在批间重建时删除，这里只清进度
                     deps.saveProgress(target, undefined);
                 } else {
                     deps.saveProgress(target, undefined);
@@ -312,7 +351,18 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 chooseStop(r, target, genTarget);
                 return;
             }
-            showDlgStatus(r.message || t("convertNoQuestions"), "err");
+            showDlgStatus(r.message || t("convertNoQuestions"), "err", r.count > 0 && !!r.docId);
+            if (r.count > 0 && r.docId && r.title) {
+                // 中途失败但已有渐进落盘的部分文档：保留 + 记进度（可继续生成）
+                deps.saveProgress(target, {
+                    docId: r.docId,
+                    title: r.title,
+                    offset: r.doneOffset,
+                    batches: r.batches,
+                    total: r.total,
+                    count: r.count,
+                });
+            }
             bindDefaultButtons();
         } catch (e) {
             showDlgStatus(String((e as Error)?.message ?? e), "err");
