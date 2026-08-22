@@ -12,6 +12,14 @@ import WORD_BOOK, {type WenguWordUnitMeta} from "./WordBook";
 /** 进度里一个词条的记忆状态：[Leitner 档位 1..6, 下次到期时间戳]。 */
 type WordState = [number, number];
 
+/** 误认词记录（答「不认识」累计，AI 分析后附记忆提示）。 */
+export interface WenguWordMistake {
+    count: number;
+    lastTs: number;
+    /** AI 记忆提示（有值后不再重复分析，除非再次答错清空）。 */
+    note?: string;
+}
+
 /** 插件存储（saveData("words")）里的单词进度。 */
 export interface WenguWordProgress {
     version: 1;
@@ -21,6 +29,8 @@ export interface WenguWordProgress {
     dailyNew: number;
     /** 词条状态，key 为扁平下标字符串。 */
     words: Record<string, WordState>;
+    /** 误认词记录，key 为扁平下标字符串。 */
+    mistakes: Record<string, WenguWordMistake>;
     /** 今日打卡统计（跨天重置）。 */
     today: {key: string; newCount: number; revCount: number;};
 }
@@ -39,7 +49,14 @@ export function todayKey(ts = Date.now()): string {
 }
 
 export function defaultProgress(): WenguWordProgress {
-    return {version: 1, cursor: 0, dailyNew: 20, words: {}, today: {key: todayKey(), newCount: 0, revCount: 0}};
+    return {
+        version: 1,
+        cursor: 0,
+        dailyNew: 20,
+        words: {},
+        mistakes: {},
+        today: {key: todayKey(), newCount: 0, revCount: 0},
+    };
 }
 
 /** 组一次会话队列：到期复习词（书序，封顶 100）+ 今日剩余新词。 */
@@ -75,11 +92,31 @@ export function applyGrade(
     else next = 1;
     const days = INTERVAL_DAYS[next - 1];
     progress.words[String(index)] = [next, now + days * 86400_000];
+    if (grade === "no") {
+        // 误认本：再次答错会清空旧 AI 提示，重回待分析队列
+        const m = progress.mistakes[String(index)];
+        progress.mistakes[String(index)] = {count: (m?.count ?? 0) + 1, lastTs: now};
+    }
     if (wasNew) {
         progress.today.newCount++;
         if (index >= progress.cursor) progress.cursor = index + 1;
     } else {
         progress.today.revCount++;
+    }
+}
+
+/** AI 分析结果落盘：记忆提示 + 覆盖到期时间（days 天后）。 */
+export function applyAiPlan(
+    progress: WenguWordProgress,
+    items: {index: number; tip: string; days: number;}[],
+    now = Date.now(),
+): void {
+    for (const it of items) {
+        const key = String(it.index);
+        const m = progress.mistakes[key];
+        if (m) m.note = it.tip;
+        const st = progress.words[key];
+        progress.words[key] = [st?.[0] ?? 1, now + Math.max(1, Math.min(30, it.days)) * 86400_000];
     }
 }
 
@@ -108,6 +145,7 @@ export class WordStore {
             this.cache = defaultProgress();
         }
         const p = this.cache;
+        if (!p.mistakes) p.mistakes = {}; // 旧数据回填
         const key = todayKey();
         if (p.today.key !== key) p.today = {key, newCount: 0, revCount: 0};
         return p;

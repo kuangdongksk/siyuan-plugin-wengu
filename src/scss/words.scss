@@ -44,6 +44,43 @@
   font-size: 12px;
 }
 
+/* 误认徽标（Unit 行内） */
+.wengu-word-badge {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--b3-card-warning-color);
+  background: var(--b3-card-warning-background);
+}
+
+/* 卡片内 AI 记忆提示（翻面后可见，随 meaning 的显隐控制） */
+.wengu-word-ainote {
+  max-width: 520px;
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+  background: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.wengu-word-card:not(.wengu-word-revealed) .wengu-word-ainote {
+  display: none;
+}
+
+/* 头部下方的 AI 状态/结果条 */
+.wengu-word-aimsg {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-word-aimsg.wengu-word-ai-err {
+  color: var(--b3-card-error-color);
+}
+
 .wengu-word-text {
   font-size: 40px;
   font-weight: 700;
@@ -75,6 +112,68 @@
   display: flex;
   gap: 12px;
   margin-top: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── 不背单词式两段流：选项/中文题面/反馈 ── */
+
+/* 看中文回想：中文大字题面 */
+.wengu-word-zh {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 420px;
+}
+
+/* 看单词选意思：选项瓦片（整宽、可换行，Dock 窄面板友好） */
+.wengu-word-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.wengu-word-opt {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+  line-height: 1.4;
+  white-space: normal;
+  height: auto;
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+/* 结果页对错反馈 */
+.wengu-word-feedback {
+  font-size: 13px;
+  color: var(--b3-theme-on-surface-light);
+  background: var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  padding: 6px 12px;
+  max-width: 440px;
+  word-break: break-all;
+}
+
+/* Dock 窄面板收敛字号/边距（页签宽面板不受影响） */
+.dock .wengu-word {
+  padding: 10px 12px;
+}
+
+.dock .wengu-word-text {
+  font-size: 30px;
+}
+
+.dock .wengu-word-zh {
+  font-size: 18px;
+}
+
+.dock .wengu-word-ainote,
+.dock .wengu-word-feedback {
+  max-width: none;
 }
 
 .wengu-word-done .wengu-word-text {

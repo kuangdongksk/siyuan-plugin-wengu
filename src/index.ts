@@ -19,8 +19,24 @@ import {WordView} from "./wengu/WordView";
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
 
-/** 单词复习页签 type（与刷题页签并存，同一顶栏入口旁）。 */
+/** 单词复习页签 type（Dock 面板与兜底页签共用）。 */
 const TAB_WORDS = "wengu-words";
+
+/** 3.8.0 运行时的插件 Dock 注册入参（类型包 1.2.x 未收录，按运行时形状声明）。 */
+interface WordDockConfig {
+    type: string;
+    config: {title: string; icon: string; index?: number; hotkey?: string;};
+    init: (custom: {element?: Element;}) => void;
+    destroy?: () => void;
+    update?: () => void;
+    resize?: () => void;
+}
+
+/** 激活 Dock 用的最小接口（window.siyuan.layout 上的 Dock 实例）。 */
+interface DockLike {
+    data: Record<string, unknown>;
+    toggleModel: (type: string, show?: boolean) => void;
+}
 
 /** 打开页签时记录的目标文档 id（addTab 回调读不到 Tab.data，用模块级传递）。 */
 let targetDocId = "";
@@ -65,6 +81,8 @@ export default class WenguPlugin extends Plugin {
     settings: WenguSettings = {showNums: true, showAttempts: true, showWrong: true};
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
     activeView: QuizView | undefined;
+    /** 单词进度存储单例（Dock 面板与页签共享同一缓存）。 */
+    private wordStore: WordStore | undefined;
 
     async onload() {
         WenguPlugin.instance = this;
@@ -118,16 +136,34 @@ export default class WenguPlugin extends Plugin {
             title: this.i18n.wordBtn || "背单词",
             position: "right",
             callback: async () => {
-                await openTab({
-                    app: this.app,
-                    custom: {
-                        icon: "iconWenguWords",
-                        title: this.i18n.wordBtn || "背单词",
-                        id: this.name + TAB_WORDS,
-                    },
-                });
+                if (!this.activateWordDock()) {
+                    await openTab({
+                        app: this.app,
+                        custom: {
+                            icon: "iconWenguWords",
+                            title: this.i18n.wordBtn || "背单词",
+                            id: this.name + TAB_WORDS,
+                        },
+                    });
+                }
             },
         });
+
+        // 单词复习 Dock 面板（3.8.0 运行时支持，类型包未收录 → 局部声明）。
+        const dockHost = this as unknown as {addDock?: (c: WordDockConfig) => unknown;};
+        if (dockHost.addDock) {
+            dockHost.addDock({
+                type: TAB_WORDS,
+                config: {
+                    title: this.i18n.wordBtn || "背单词",
+                    icon: "iconWenguWords",
+                    index: 1000,
+                    hotkey: "",
+                },
+                init: (custom) => this.mountWordView(custom),
+                destroy: () => undefined,
+            });
+        }
 
         this.addTab({
             type: TAB_RESULT,
@@ -176,18 +212,7 @@ export default class WenguPlugin extends Plugin {
             type: TAB_WORDS,
             init(this: Custom | MobileCustom) {
                 const plugin = WenguPlugin.instance;
-                if (!plugin) return;
-                const view = new WordView(
-                    this.element as HTMLElement,
-                    plugin.i18n ?? {},
-                    new WordStore(
-                        () => plugin.loadData("words"),
-                        (p) => plugin.saveData("words", p),
-                    ),
-                );
-                (this as any).wenguWordView = view;
-                view.bind();
-                void view.render();
+                if (plugin) plugin.mountWordView(this);
             },
             update(this: Custom | MobileCustom) {
                 (this as any).wenguWordView?.render?.();
@@ -196,6 +221,35 @@ export default class WenguPlugin extends Plugin {
                 (this as any).wenguWordView?.destroy?.();
             },
         });
+    }
+
+    /** 单词视图挂载（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。 */
+    private mountWordView(custom: {element?: Element;}): void {
+        const el = custom.element as HTMLElement | undefined;
+        if (!el || !WenguPlugin.instance) return;
+        if (!this.wordStore) {
+            this.wordStore = new WordStore(
+                () => this.loadData("words"),
+                (p) => this.saveData("words", p),
+            );
+        }
+        const view = new WordView(el, this.i18n ?? {}, this.wordStore);
+        (custom as unknown as {wenguWordView?: WordView;}).wenguWordView = view;
+        view.bind();
+        void view.render();
+    }
+
+    /** 激活背单词 Dock 面板；未注册/未布局返回 false 由页签兜底。 */
+    private activateWordDock(): boolean {
+        const full = this.name + TAB_WORDS;
+        const layout = (window as unknown as {
+            siyuan?: {layout?: {leftDock?: DockLike; rightDock?: DockLike; bottomDock?: DockLike;};};
+        }).siyuan?.layout;
+        const dock = [layout?.leftDock, layout?.rightDock, layout?.bottomDock]
+            .find((d) => d && full in d.data);
+        if (!dock) return false;
+        dock.toggleModel(full);
+        return true;
     }
 
     /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */
