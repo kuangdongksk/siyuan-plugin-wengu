@@ -184,5 +184,9 @@
   "convertDiscard": "Discard all",
   "convertDiscarded": "Discarded; no document created",
   "convertResumeHint": "Last conversion unfinished: {c} question(s) ({b}/{n} batches) kept in \"{title}\"",
-  "convertResumeBtn": "Continue remaining batches"
+  "convertResumeBtn": "Continue remaining batches",
+  "stepAppeal": "AI review: my method works",
+  "stepAppealing": "AI reviewing…",
+  "stepAppealOk": "✓ Review passed, corrected: ",
+  "stepAppealRejected": "✗ Review rejected: "
 }

@@ -388,3 +388,28 @@ export async function overrideAttemptResult(id: string, correct: boolean): Promi
         await setBlockAttrs(id, {[Attr.right]: "0", [Attr.wrongCount]: String(cur + 1)});
     }
 }
+
+/**
+ * steps 改判落盘（方法步申诉复核通过）：翻逐步 step-right 与整题
+ * right，不动 attempts；整题由错翻对时回退一次 wrong-count。
+ */
+export async function overrideStepsResult(
+    q: WenguQuestion,
+    letters: string[],
+    oks: boolean[],
+): Promise<boolean> {
+    const allOk = oks.length > 0 && oks.every(Boolean);
+    const attrs = await getBlockAttrs(q.id);
+    const payload: AttrsObject = {
+        [Attr.stepRight]: oks.map((ok) => ok ? "1" : "0").join(""),
+        [Attr.stepLast]: letters.join("|"),
+        [Attr.lastAnswer]: letters.join("|"),
+        [Attr.right]: allOk ? "1" : "0",
+    };
+    const wrongCount = Number(attrs[Attr.wrongCount]) || 0;
+    if (attrs[Attr.right] !== "1" && allOk && wrongCount > 0) {
+        payload[Attr.wrongCount] = String(wrongCount - 1);
+    }
+    await setBlockAttrs(q.id, payload);
+    return allOk;
+}

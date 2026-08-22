@@ -227,6 +227,17 @@ function revealBriefExtras(host: AnswerHost, card: HTMLElement): void {
     }
 }
 
+/** 会话结果原位改判（brief 改判 / steps 方法步申诉共用）：
+ *  只翻该条 ok 并调整 correct 计数，不动 answered/attempts。 */
+export function appealSessionResult(host: AnswerHost, qid: string, correct: boolean): void {
+    const s = host.currentSession();
+    const r = s?.results.find((x) => x.qid === qid);
+    if (s && r && r.ok !== correct) {
+        r.ok = correct;
+        s.correct = Math.max(0, s.correct + (correct ? 1 : -1));
+    }
+}
+
 /** brief 改判（AI 误判纠错）：翻块属性 right、微调 wrong-count，
  *  会话结果原位改写（不动 attempts/answered）。 */
 async function appealGrade(
@@ -236,12 +247,7 @@ async function appealGrade(
     correct: boolean,
 ): Promise<void> {
     await overrideAttemptResult(q.id, correct);
-    const s = host.currentSession();
-    const r = s?.results.find((x) => x.qid === q.id);
-    if (s && r && r.ok !== correct) {
-        r.ok = correct;
-        s.correct = Math.max(0, s.correct + (correct ? 1 : -1));
-    }
+    appealSessionResult(host, q.id, correct);
     markNum(host, q, correct);
     card.querySelector("[data-self]")?.setAttribute("hidden", "");
     showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct);

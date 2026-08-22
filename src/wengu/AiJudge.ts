@@ -1,7 +1,10 @@
 import {agentChat} from "./AgentClient";
 import type {WenguQuestion} from "./types";
 import type {WenguStep} from "./types";
-import {optionDisplayMd} from "./types";
+import {
+    LETTERS,
+    optionDisplayMd,
+} from "./types";
 
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
@@ -61,6 +64,54 @@ function parseBriefVerdict(reply: string): BriefVerdict {
     const ok = v === "right" || v === "对";
     const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
     return {ok, comment: (cm?.[1] ?? "").trim()};
+}
+
+/* ── steps 方法步申诉 ── */
+
+/** 方法步申诉结论：出题时标注的可行集合可能标漏，AI 独立复核。 */
+export interface MethodAppealVerdict {
+    feasible: boolean;
+    comment: string;
+}
+
+/** 方法步答错后的 AI 复核：学生所选方法对该题是否实际可行（串行）。 */
+export function appealMethodStep(
+    q: WenguQuestion,
+    step: WenguStep,
+    chosen: string,
+    modelId: string,
+): Promise<MethodAppealVerdict> {
+    return enqueue(async () => {
+        const reply = await agentChat(buildAppealPrompt(q, step, chosen), modelId, JUDGE_TIMEOUT_MS);
+        const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
+        if (!m) throw new Error("AI 未按格式返回复核");
+        const v = m[1].toLowerCase();
+        const feasible = v === "yes" || v === "true" || v === "是" || v === "可行";
+        const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
+        return {feasible, comment: (cm?.[1] ?? "").trim()};
+    });
+}
+
+function buildAppealPrompt(q: WenguQuestion, step: WenguStep, chosen: string): string {
+    const options = step.optionMd
+        .map((md, i) => `${LETTERS[i]}. ${optionDisplayMd(md)}`)
+        .join("\n");
+    const answer = [q.answer, q.solutionMd].filter(Boolean).join("\n\n") || "（无参考解答）";
+    return `你是解题方法复核助手。一道多步引导题的「选方法」步骤，出题时标注的可行方法集合可能标漏；学生认为自己所选的方法其实可行，请你独立判断。
+只依据学科正确性：该方法能走通本题（即使比参考路径更绕）即可行。
+输出严格两行，格式之外不要输出任何文字：
+FEASIBLE: yes 或 no
+COMMENT: 一句话理由（可行时说明如何走通；不可行时指出问题所在）
+【题目】
+${q.stemMd ?? ""}
+【参考解答】
+${answer}
+【该步候选方法】
+${options}
+【出题时标注的可行集合】
+${step.answer}
+【学生所选方法】
+${chosen}`;
 }
 
 /* ── steps 实时引导 ── */

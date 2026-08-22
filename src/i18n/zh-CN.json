@@ -184,5 +184,9 @@
   "convertDiscard": "全部丢弃",
   "convertDiscarded": "已丢弃，未创建文档",
   "convertResumeHint": "上次转换未完成：已生成 {c} 题（{b}/{n} 批），保留在《{title}》",
-  "convertResumeBtn": "继续生成剩余部分"
+  "convertResumeBtn": "继续生成剩余部分",
+  "stepAppeal": "AI 复核：所选方法其实可行",
+  "stepAppealing": "AI 复核中…",
+  "stepAppealOk": "✓ 复核通过，已改判：",
+  "stepAppealRejected": "✗ 复核未通过："
 }
