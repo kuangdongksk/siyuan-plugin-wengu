@@ -149,7 +149,7 @@ function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): 
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
     const fillRule = fillToChoice ?
         `
-8. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。` :
+9. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。` :
         "";
     // 大题拆多步：可分解的工科大题 → 多步引导题（method/result 步）
     const stepsRule = bigToSteps ?
@@ -187,7 +187,7 @@ function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): 
 }}}
 {: custom-plugin-wengu-q="1" custom-plugin-wengu-type="steps" custom-plugin-wengu-steps="method|result" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节"}
 
-9. 大题拆多步：原文中可分解的工科大题（计算/求值/化简，每步有确定的中间结果）改写为 type="steps" 的多步引导题——选定一条典型参考路径拆 2~5 步；方法分歧处设 method 步（选项为候选方法，answer 写**全部可行方法**的字母集合如 AB，任选可行即对）；其余为 result 步考该步的中间结果，answer 写唯一正确字母，干扰项来自常见计算错误；每步 3~4 个选项，结果步的引导语写明所用方法（如「第 2 步 · 等价无穷小代换：本步得（ ）」）；容器必须带 custom-plugin-wengu-steps="method|result|…" 属性按序声明每步类型；论述/证明/开放等不可分解的题仍用 type="brief"。` :
+10. 大题拆多步：原文中可分解的工科大题（计算/求值/化简，每步有确定的中间结果）改写为 type="steps" 的多步引导题——选定一条典型参考路径拆 2~5 步；方法分歧处设 method 步（选项为候选方法，answer 写**全部可行方法**的字母集合如 AB，任选可行即对）；其余为 result 步考该步的中间结果，answer 写唯一正确字母，干扰项来自常见计算错误；每步 3~4 个选项，结果步的引导语写明所用方法（如「第 2 步 · 等价无穷小代换：本步得（ ）」）；容器必须带 custom-plugin-wengu-steps="method|result|…" 属性按序声明每步类型；论述/证明/开放等不可分解的题仍用 type="brief"。` :
         "";
     return `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目块。
 
@@ -218,12 +218,13 @@ QUESTIONS:
 ${stepsRule}
 硬性规则：
 1. 容器超级块以 {{{row 开始、}}} 结束；容器属性 {: ...} 必须另起一行紧跟在 }}} 之后，该行只包含 {: ...}。
-2. type 取 single/multiple/judge/fill/brief/steps（steps 见第 9 条格式）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
-3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 9 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
+2. type 取 single/multiple/judge/fill/brief/steps（steps 见第 10 条格式）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
+3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 10 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
 4. difficulty 为可选项：原文档/题目有明确难度线索才写（1~5），没有就整个省略，不要编造。
 5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
 6. 保留原文的公式与代码；一个选项块里可以写多个选项。
-7. 题量与文档内容相称：内容少时至少 1 道，内容丰富时 5~10 道，覆盖主要知识点。${fillRule}
+7. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**到该题的题干里——单独成段、紧跟题干文字段之后，同样标记 part="stem"；路径与文件名一个字符都不能改，没有插图的题**不要**编造图片行。
+8. 题量与文档内容相称：内容少时至少 1 道，内容丰富时 5~10 道，覆盖主要知识点。${fillRule}
 
 文档内容：
 ${source}`;
