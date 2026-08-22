@@ -276,9 +276,12 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         return;
                     }
                     // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
-                    const detected = p.detected !== undefined && p.detected > 0 ?
-                        ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}` :
-                        "";
+                    // 检测总数：截断时 N+（下限）；多批文档数不出时明说「未确定」
+                    const totalHint = p.detected !== undefined && p.detected > 0 ?
+                        ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}${
+                            p.detectedTruncated ? "+" : ""
+                        }` :
+                        (p.total > 1 ? ` · ${esc(t("convertTotalUnknown"))}` : "");
                     const lastDelta = p.lastBatch > 0 ?
                         ` · ${esc(fmt(t("convertLastBatch"), {k: String(p.lastBatch)}))}` :
                         "";
@@ -289,7 +292,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                                 n: String(p.total),
                                 c: String(p.count),
                             }))
-                        }${lastDelta}${detected}`,
+                        }${lastDelta}${totalHint}`,
                         "muted",
                     );
                 },

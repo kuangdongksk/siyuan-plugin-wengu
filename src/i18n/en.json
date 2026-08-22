@@ -208,5 +208,6 @@
   "wordMarkWrong": "Got it wrong",
   "wordCorrectPick": "✓ Correct",
   "wordWrongPick": "✗ Wrong: {m}",
-  "convertLastBatch": "last batch +{k}"
+  "convertLastBatch": "last batch +{k}",
+  "convertTotalUnknown": "long doc: total undetermined, progress by batch"
 }

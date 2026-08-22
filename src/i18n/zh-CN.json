@@ -208,5 +208,6 @@
   "wordMarkWrong": "记错了",
   "wordCorrectPick": "✓ 答对了",
   "wordWrongPick": "✗ 答错了：{m}",
-  "convertLastBatch": "上批 +{k}"
+  "convertLastBatch": "上批 +{k}",
+  "convertTotalUnknown": "长文档：总题数未确定，按批次计"
 }
