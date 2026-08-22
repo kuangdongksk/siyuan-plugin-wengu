@@ -25,8 +25,6 @@ export interface WenguWordProgress {
     version: 1;
     /** 下一个新词的扁平下标。 */
     cursor: number;
-    /** 每日新词数。 */
-    dailyNew: number;
     /** 词条状态，key 为扁平下标字符串。 */
     words: Record<string, WordState>;
     /** 误认词记录，key 为扁平下标字符串。 */
@@ -40,8 +38,6 @@ export type WordGrade = "no" | "fuzzy" | "know";
 
 /** Leitner 档位对应的复习间隔（天），下标=档位-1。 */
 const INTERVAL_DAYS = [1, 2, 4, 8, 16, 32];
-/** 单次会话复习队列上限（防积压多日后一次爆量）。 */
-const MAX_REVIEW_PER_SESSION = 100;
 
 export function todayKey(ts = Date.now()): string {
     const d = new Date(ts);
@@ -52,14 +48,13 @@ export function defaultProgress(): WenguWordProgress {
     return {
         version: 1,
         cursor: 0,
-        dailyNew: 20,
         words: {},
         mistakes: {},
         today: {key: todayKey(), newCount: 0, revCount: 0},
     };
 }
 
-/** 组一次会话队列：到期复习词（书序，封顶 100）+ 今日剩余新词。 */
+/** 组一次会话队列：全部到期复习词（书序）+ 全部未学新词（书序，不限量）。 */
 export function buildQueue(progress: WenguWordProgress, now = Date.now()): {review: number[]; fresh: number[];} {
     const review: number[] = [];
     for (const key of Object.keys(progress.words)) {
@@ -67,13 +62,24 @@ export function buildQueue(progress: WenguWordProgress, now = Date.now()): {revi
         if (progress.words[key][1] <= now) review.push(i);
     }
     review.sort((a, b) => a - b);
-    if (review.length > MAX_REVIEW_PER_SESSION) review.length = MAX_REVIEW_PER_SESSION;
-    const remainNew = Math.max(0, progress.dailyNew - progress.today.newCount);
     const fresh: number[] = [];
-    for (let i = progress.cursor; i < WORD_BOOK.words.length && fresh.length < remainNew; i++) {
+    for (let i = progress.cursor; i < WORD_BOOK.words.length; i++) {
         if (!progress.words[String(i)]) fresh.push(i);
     }
     return {review, fresh};
+}
+
+/** 明天要复习多少个：到期时间落在 (现在, 明天结束] 的词（随批改实时变）。 */
+export function dueTomorrowCount(progress: WenguWordProgress, now = Date.now()): number {
+    const endToday = new Date(now);
+    endToday.setHours(23, 59, 59, 999);
+    const end = endToday.getTime() + 86400_000;
+    let count = 0;
+    for (const key of Object.keys(progress.words)) {
+        const due = progress.words[key][1];
+        if (due > now && due <= end) count++;
+    }
+    return count;
 }
 
 /** 批改一次：更新档位与到期时间，返回是否算「学过」（新词计数用）。 */

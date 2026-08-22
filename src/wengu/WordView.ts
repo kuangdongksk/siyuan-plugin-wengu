@@ -27,6 +27,7 @@ import {
     applyAiPlan,
     applyGrade,
     buildQueue,
+    dueTomorrowCount,
     todayKey,
     unitOf,
     WordStore,
@@ -163,6 +164,7 @@ export class WordView {
                 a: String(p.today.newCount),
                 b: String(p.today.revCount),
                 c: String(total - this.pos),
+                d: String(dueTomorrowCount(p)),
             }))
         }</span>${badge}
     <span class="fn__flex-1"></span>
@@ -320,9 +322,6 @@ export class WordView {
         const unitOptions = WORD_BOOK.units.map((u) =>
             formOption(String(u.u), fmt(this.t("wordUnitOpt"), {n: String(u.u), c: String(u.count)}), u.u === curUnit)
         ).join("");
-        const dailyOptions = [10, 20, 30, 50].map((n) =>
-            formOption(String(n), fmt(this.t("wordDailyN"), {n: String(n)}), n === p.dailyNew)
-        ).join("");
         this.el.innerHTML = `<div class="wengu-word">
   <div class="wengu-word-head">
     <span class="wengu-word-title">${esc(WORD_BOOK.title)}</span>
@@ -331,8 +330,7 @@ export class WordView {
     ${
             formGroup(
                 this.t("wordSetStart"),
-                formRow(this.t("wordStartUnit"), this.t("wordStartUnitDesc"), formSelect("unit", unitOptions)) +
-                    formRow(this.t("wordDailyNew"), this.t("wordDailyNewDesc"), formSelect("daily", dailyOptions)),
+                formRow(this.t("wordStartUnit"), this.t("wordStartUnitDesc"), formSelect("unit", unitOptions)),
             )
         }
     <div class="wengu-word-form-tip">${esc(this.t("wordResetWarn"))}</div>
@@ -351,9 +349,7 @@ export class WordView {
     private applyStart(): void {
         const p = this.progress!;
         const unitSel = this.el.querySelector<HTMLSelectElement>('[data-field="unit"]');
-        const dailySel = this.el.querySelector<HTMLSelectElement>('[data-field="daily"]');
         const unitNo = parseInt(unitSel?.value ?? "1", 10);
-        p.dailyNew = parseInt(dailySel?.value ?? "20", 10) || 20;
         const unit = WORD_BOOK.units.find((u) => u.u === unitNo);
         if (unit) {
             p.cursor = unit.start;
