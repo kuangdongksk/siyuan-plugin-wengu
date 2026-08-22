@@ -1,12 +1,12 @@
 import {Dialog} from "siyuan";
-import {
-    defaultAgentModelId,
-    listAiModels,
-} from "./AgentClient";
+import {modelOptionsHtml} from "./AgentClient";
 import {convertDocToQuestions} from "./ConvertService";
 import {
     formGroup,
+    formInput,
     formRow,
+    formSelect,
+    formSwitch,
 } from "./FormHtml";
 import {listQuestionDocs} from "./QuestionService";
 import {esc} from "./ui";
@@ -35,19 +35,6 @@ export interface ConvertDialogDeps {
 
 export function openConvertDialog(deps: ConvertDialogDeps): void {
     const {t} = deps;
-    const models = listAiModels();
-    const def = models.find((m) => m.id === defaultAgentModelId());
-    const modelOptions = `<option value="">${esc(t("modelDefault"))}${
-        def ? `（${esc(def.provider)} · ${esc(def.name)}）` : ""
-    }</option>${
-        models
-            .map((m) =>
-                `<option value="${esc(m.id)}"${deps.initialModelId === m.id ? " selected" : ""}>${esc(m.provider)} · ${
-                    esc(m.name)
-                }</option>`
-            )
-            .join("")
-    }`;
     const dialog = new Dialog({
         title: t("convertBtn"),
         width: "560px",
@@ -59,20 +46,22 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 formRow(
                     t("modelLabel"),
                     t("setModelHint"),
-                    `<select class="b3-select fn__flex-center fn__size200" data-act="dlg-model">${modelOptions}</select>`,
+                    formSelect("dlg-model", modelOptionsHtml(deps.initialModelId, t("modelDefault")), "data-act"),
                 ) +
                     formRow(
                         t("fillToChoice"),
                         t("fillToChoiceHint"),
-                        `<input class="b3-switch fn__flex-center" type="checkbox" data-act="dlg-fill"${
-                            deps.initialFillToChoice ? " checked" : ""
-                        }>`,
+                        formSwitch("dlg-fill", deps.initialFillToChoice, "data-act"),
                     ) +
                     formRow(
                         t("docIdLabel"),
                         t("docIdPlaceholder"),
-                        `<input class="b3-text-field fn__flex-center fn__size200" data-act="dlg-docid" spellcheck="false"
-        placeholder="${esc(t("docIdPlaceholder"))}" value="${esc(deps.activeDocId)}" />`,
+                        formInput(
+                            "dlg-docid",
+                            deps.activeDocId,
+                            `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
+                            "data-act",
+                        ),
                     ),
             )
         }

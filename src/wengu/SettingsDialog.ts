@@ -1,10 +1,11 @@
 import {Dialog} from "siyuan";
+import {modelOptionsHtml} from "./AgentClient";
 import {
-    defaultAgentModelId,
-    listAiModels,
-} from "./AgentClient";
-import {
+    formInput,
+    formOption,
     formRow,
+    formSelect,
+    formSwitch,
     svgIcon,
 } from "./FormHtml";
 import type {
@@ -52,20 +53,7 @@ export function openWenguSetting(opts: {
 }): void {
     const t = (k: string) => opts.i18n[k] || k;
 
-    const models = listAiModels();
-    const def = models.find((m) => m.id === defaultAgentModelId());
     const saved = opts.settings.convertModelId ?? "";
-    const modelOptions = `<option value="">${esc(t("modelDefault"))}${
-        def ? `（${esc(def.provider)} · ${esc(def.name)}）` : ""
-    }</option>${
-        models
-            .map((m) =>
-                `<option value="${esc(m.id)}"${saved === m.id ? " selected" : ""}>${esc(m.provider)} · ${
-                    esc(m.name)
-                }</option>`
-            )
-            .join("")
-    }`;
     const tabIcon = (id: string, icon: string, label: string, focus = false) =>
         `<li class="b3-list-item${focus ? " b3-list-item--focus" : ""}" data-tab="${id}">
   ${svgIcon(icon, "b3-list-item__graphic")}
@@ -93,27 +81,21 @@ export function openWenguSetting(opts: {
             formRow(
                 t("settingShowNums"),
                 t("settingShowNumsDesc"),
-                `<input class="b3-switch fn__flex-center" type="checkbox" data-set="shownums"${
-                    opts.settings.showNums ? " checked" : ""
-                }>`,
+                formSwitch("shownums", opts.settings.showNums, "data-set"),
             )
         }
           ${
             formRow(
                 t("settingShowAttempts"),
                 t("settingShowAttemptsDesc"),
-                `<input class="b3-switch fn__flex-center" type="checkbox" data-set="showattempts"${
-                    opts.settings.showAttempts !== false ? " checked" : ""
-                }>`,
+                formSwitch("showattempts", opts.settings.showAttempts !== false, "data-set"),
             )
         }
           ${
             formRow(
                 t("settingShowWrong"),
                 t("settingShowWrongDesc"),
-                `<input class="b3-switch fn__flex-center" type="checkbox" data-set="showwrong"${
-                    opts.settings.showWrong !== false ? " checked" : ""
-                }>`,
+                formSwitch("showwrong", opts.settings.showWrong !== false, "data-set"),
             )
         }
         </div>
@@ -125,40 +107,47 @@ export function openWenguSetting(opts: {
             formRow(
                 t("setDefaultTiming"),
                 t("setDefaultHint"),
-                `<select class="b3-select fn__flex-center fn__size200" data-set="deftiming">
-<option value="countUp"${
-                    opts.settings.defaultTiming !== "countdown" && opts.settings.defaultTiming !== "perQuestion" &&
-                        opts.settings.defaultTiming !== "none" ?
-                        " selected" :
-                        ""
-                }>${esc(t("timingCountUp"))}</option>
-<option value="countdown"${opts.settings.defaultTiming === "countdown" ? " selected" : ""}>${
-                    esc(t("timingCountdown"))
-                }</option>
-<option value="perQuestion"${opts.settings.defaultTiming === "perQuestion" ? " selected" : ""}>${
-                    esc(t("timingPerQuestion"))
-                }</option>
-<option value="none"${opts.settings.defaultTiming === "none" ? " selected" : ""}>${esc(t("timingNone"))}</option>
-</select>`,
+                formSelect(
+                    "deftiming",
+                    formOption(
+                        "countUp",
+                        t("timingCountUp"),
+                        opts.settings.defaultTiming !== "countdown" && opts.settings.defaultTiming !== "perQuestion" &&
+                            opts.settings.defaultTiming !== "none",
+                    ) +
+                        formOption("countdown", t("timingCountdown"), opts.settings.defaultTiming === "countdown") +
+                        formOption(
+                            "perQuestion",
+                            t("timingPerQuestion"),
+                            opts.settings.defaultTiming === "perQuestion",
+                        ) +
+                        formOption("none", t("timingNone"), opts.settings.defaultTiming === "none"),
+                    "data-set",
+                ),
             )
         }
           ${
             formRow(
                 t("setDefaultReveal"),
                 t("setDefaultHint"),
-                `<select class="b3-select fn__flex-center fn__size200" data-set="defreveal">
-<option value="instant"${opts.settings.defaultReveal !== "after" ? " selected" : ""}>${esc(t("revealInstant"))}</option>
-<option value="after"${opts.settings.defaultReveal === "after" ? " selected" : ""}>${esc(t("revealAfter"))}</option>
-</select>`,
+                formSelect(
+                    "defreveal",
+                    formOption("instant", t("revealInstant"), opts.settings.defaultReveal !== "after") +
+                        formOption("after", t("revealAfter"), opts.settings.defaultReveal === "after"),
+                    "data-set",
+                ),
             )
         }
           ${
             formRow(
                 t("setDefaultCountdownMin"),
                 t("setDefaultCountdownMinDesc"),
-                `<input class="b3-text-field fn__flex-center fn__size200" type="number" min="1" max="600" data-set="defminutes" value="${
-                    opts.settings.defaultCountdownMin ?? 20
-                }">`,
+                formInput(
+                    "defminutes",
+                    String(opts.settings.defaultCountdownMin ?? 20),
+                    "type='number' min='1' max='600'",
+                    "data-set",
+                ),
             )
         }
         </div>
@@ -172,16 +161,14 @@ export function openWenguSetting(opts: {
             formRow(
                 t("setModelLabel"),
                 t("setModelHint"),
-                `<select class="b3-select fn__flex-center fn__size200" data-set="model">${modelOptions}</select>`,
+                formSelect("model", modelOptionsHtml(saved, t("modelDefault")), "data-set"),
             )
         }
           ${
             formRow(
                 t("fillToChoice"),
                 t("fillToChoiceDesc"),
-                `<input class="b3-switch fn__flex-center" type="checkbox" data-set="fillchoice"${
-                    opts.settings.fillToChoice ? " checked" : ""
-                }>`,
+                formSwitch("fillchoice", opts.settings.fillToChoice === true, "data-set"),
             )
         }
         </div>

@@ -2,6 +2,7 @@
  * 思源内置智能体客户端（design-review P2-5）：SSE 调用 + 用户配置的
  * 模型清单。转换与 AI 分析报告共用，ConvertService 不再持有这层。
  */
+import {esc} from "./ui";
 
 /** 用户在 设置→AI 配置的可选模型（提供商 × 模型）。 */
 export interface WenguAiModel {
@@ -52,6 +53,21 @@ export function listAiModels(): WenguAiModel[] {
 /** 智能体设置里的默认模型 id（空串表示未配置）。 */
 export function defaultAgentModelId(): string {
     return aiConf().agent?.modelId ?? "";
+}
+
+/** 模型下拉的全部选项（默认项 + 各模型「提供商 · 名称」），设置页/转换弹窗共用。 */
+export function modelOptionsHtml(selectedId: string, defaultLabel: string): string {
+    const models = listAiModels();
+    const def = models.find((m) => m.id === defaultAgentModelId());
+    return `<option value="">${esc(defaultLabel)}${def ? `（${esc(def.provider)} · ${esc(def.name)}）` : ""}</option>${
+        models
+            .map((m) =>
+                `<option value="${esc(m.id)}"${selectedId === m.id ? " selected" : ""}>${esc(m.provider)} · ${
+                    esc(m.name)
+                }</option>`
+            )
+            .join("")
+    }`;
 }
 
 /**

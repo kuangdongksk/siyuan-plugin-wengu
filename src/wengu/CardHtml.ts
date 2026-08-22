@@ -114,13 +114,21 @@ export interface SideHtmlModel {
     docId: string;
     sideCollapsed: boolean;
     hasSettingsButton: boolean;
+    /** 目录搜索过滤词（按标题/路径包含匹配，空=全部）。 */
+    filter: string;
 }
 
-/** 左侧文档目录（hPath 分组，可收起；底部刷新/转习题/设置）。 */
-export function renderSideHtml(m: SideHtmlModel): string {
-    const {t, docs, docId} = m;
+/** 目录文档清单（hPath 分组 + 搜索过滤）。单独导出：搜索输入时只刷新这一块，输入框不重建。 */
+export function renderSideBodyHtml(
+    docs: WenguDoc[],
+    docId: string,
+    t: (key: string) => string,
+    filter: string,
+): string {
+    const q = filter.trim().toLowerCase();
     const groups = new Map<string, WenguDoc[]>();
     for (const d of docs) {
+        if (q && !`${d.title}\n${d.hPath}`.toLowerCase().includes(q)) continue;
         const seg = (d.hPath || "").split("/").filter(Boolean);
         seg.pop();
         const key = seg.length ? `/${seg.join("/")}` : "/";
@@ -149,27 +157,40 @@ export function renderSideHtml(m: SideHtmlModel): string {
             }</div>`
         )
         .join("");
+    if (items) return items;
+    return `<div class="wengu-muted wengu-side-empty">${
+        esc(docs.length === 0 ? t("noExerciseDocs") : t("sideNoMatch"))
+    }</div>`;
+}
+
+/** 左侧文档目录：头部图标操作（刷新/设置/收起）+ 顶部工具区（搜索 + AI 转习题）+ 分组清单。 */
+export function renderSideHtml(m: SideHtmlModel): string {
+    const {t, docId} = m;
     return `<div class="wengu-side${m.sideCollapsed ? " wengu-side-collapsed" : ""}" data-side>
       <div class="wengu-side-head">
         <span>${esc(t("sideTitle"))}</span>
-        <button class="wengu-btn wengu-side-fold" data-act="side-fold" title="${esc(t("sideFold"))}">«</button>
-      </div>
-      <div class="wengu-side-body">${items || `<div class="wengu-muted">${esc(t("noExerciseDocs"))}</div>`}</div>
-      <div class="wengu-side-foot">
-        <button class="wengu-btn wengu-side-action" data-act="refresh" title="${esc(t("quizRefresh"))}">${
+        <span class="wengu-side-headbtns">
+          <button class="wengu-side-iconbtn" data-act="refresh" title="${esc(t("quizRefresh"))}">${
         svgIcon("iconRefresh")
-    } ${esc(t("quizRefresh"))}</button>
-        <button class="wengu-btn wengu-side-action" data-act="convert" title="${esc(t("convertBtn"))}">${
-        svgIcon("iconSparkles")
-    } ${esc(t("convertBtn"))}</button>
-        ${
+    }</button>
+          ${
         m.hasSettingsButton ?
-            `<button class="wengu-btn wengu-side-action" data-act="settings" title="${esc(t("settingsBtn"))}">${
+            `<button class="wengu-side-iconbtn" data-act="settings" title="${esc(t("settingsBtn"))}">${
                 svgIcon("iconSettings")
             }</button>` :
             ""
     }
+          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">«</button>
+        </span>
       </div>
+      <div class="wengu-side-tools">
+        <input class="wengu-side-search" data-act="side-search" type="search" spellcheck="false"
+          placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
+        <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${
+        esc(t("convertBtn"))
+    }">${svgIcon("iconSparkles")} <span data-convert-label>${esc(t("convertBtn"))}</span></button>
+      </div>
+      <div class="wengu-side-body" data-side-body>${renderSideBodyHtml(m.docs, docId, t, m.filter)}</div>
     </div>`;
 }
 
@@ -239,6 +260,8 @@ export interface MainShellModel {
     docId: string;
     sideCollapsed: boolean;
     hasSettingsButton: boolean;
+    /** 目录搜索过滤词（透传给目录）。 */
+    filter: string;
     loading: boolean;
     loadError: string;
     started: boolean;
@@ -261,6 +284,7 @@ export function renderMainShell(m: MainShellModel): string {
                 docId: m.docId,
                 sideCollapsed: m.sideCollapsed,
                 hasSettingsButton: m.hasSettingsButton,
+                filter: m.filter,
             })
         }<div class="wengu-main">
     <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed)}</div>

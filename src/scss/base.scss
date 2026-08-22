@@ -42,27 +42,73 @@
   border-bottom: 1px solid var(--b3-theme-surface);
 }
 
+/* 头部图标操作（刷新/设置/收起）：图标本体 + title 提示 */
+.wengu-side-headbtns {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 400;
+}
+
+.wengu-side-iconbtn {
+  padding: 3px 4px;
+  border: 0;
+  border-radius: var(--b3-border-radius);
+  background: none;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wengu-side-iconbtn:hover {
+  background: var(--b3-theme-background-light);
+  color: var(--b3-theme-on-background);
+}
+
+/* 顶部工具区：搜索 + AI 转习题（创建类入口放顶部） */
+.wengu-side-tools {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--b3-theme-surface);
+}
+
+.wengu-side-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background-light);
+  color: var(--b3-theme-on-background);
+  font-size: 13px;
+}
+
+.wengu-side-search:focus {
+  outline: none;
+  background: var(--b3-theme-surface);
+}
+
+.wengu-side-search::placeholder {
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-side-convert {
+  justify-content: center;
+  width: 100%;
+}
+
+.wengu-side-empty {
+  padding: 8px;
+}
+
 .wengu-side-body {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
-}
-
-/* 目录底部操作区：刷新 / AI 转习题 */
-.wengu-side-foot {
-  flex: none;
-  display: flex;
-  gap: 6px;
-  padding: 8px;
-  border-top: 1px solid var(--b3-border-color);
-}
-
-.wengu-side-action {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .wengu-side-group {

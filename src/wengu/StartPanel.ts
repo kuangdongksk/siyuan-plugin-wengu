@@ -1,5 +1,6 @@
 import {
     formGroup,
+    formInput,
     formOption,
     formRow,
     formSelect,
@@ -118,7 +119,7 @@ export function renderStartPanel(m: StartPanelModel): string {
         ) + formRow(
             t("timingMinutes"),
             t("timingMinutesHint"),
-            `<input class="b3-text-field fn__flex-center fn__size200" type="number" min="1" max="600" data-field="minutes" value="${cur.countdownMin}">`,
+            formInput("minutes", String(cur.countdownMin), "type='number' min='1' max='600'"),
         ),
     );
     return `<div class="wengu-start">

@@ -9,6 +9,7 @@ import {
     renderCardsHtml,
     renderMainShell,
     renderNumsHtml,
+    renderSideBodyHtml,
     renderSubheadHtml,
 } from "./CardHtml";
 import {openConvertDialog} from "./ConvertDialog";
@@ -71,6 +72,7 @@ export class QuizView implements AnswerHost {
     private activeDocId: string;
     private docs: WenguDoc[] = [];
     private sideCollapsed = false;
+    private sideFilter = "";
     private pendingDoc: {id: string; title: string;} | undefined;
     private list: WenguQuestion[] = [];
     private fullList: WenguQuestion[] = [];
@@ -292,6 +294,7 @@ export class QuizView implements AnswerHost {
     readonly revealAnsweredNow = (): void => void revealAll(this);
     readonly stopRoundNow = (): void => {
         this.started = false;
+        this.flushTime(); // 收卷即落库，避免轮尾未满 15s 的秒数在下次开轮时被清零
         this.updateTimerLabel();
     };
     readonly lockAllCardsNow = (): void => {
@@ -308,16 +311,6 @@ export class QuizView implements AnswerHost {
             timing: this.timer.mode,
             countdownMin: this.timer.countdownMin,
         };
-    }
-
-    private lastUnfinished(): WenguSession | undefined {
-        const last = this.rounds[this.rounds.length - 1];
-        return last && last.results.length > 0 && last.results.length < this.list.length ? last : undefined;
-    }
-
-    private lastRoundWrongQids(): Set<string> {
-        const last = this.rounds[this.rounds.length - 1];
-        return new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => r.qid));
     }
 
     private startPanelModel() {
@@ -374,6 +367,7 @@ export class QuizView implements AnswerHost {
             docs: this.docs,
             docId: this.docId,
             sideCollapsed: this.sideCollapsed,
+            filter: this.sideFilter,
             hasSettingsButton: !!this.openSettings,
             loading: this.loading,
             loadError: this.loadError,
@@ -412,6 +406,7 @@ export class QuizView implements AnswerHost {
             reload: () => void this.load(),
             openConvert: () => this.openConvert(),
             openSettings: this.openSettings,
+            filterDocs: (text) => this.filterSideDocs(text),
             toggleSide: (collapsed) => {
                 this.sideCollapsed = collapsed;
                 this.persistPrefs();
@@ -426,6 +421,13 @@ export class QuizView implements AnswerHost {
                 void this.load();
             },
         });
+    }
+
+    /** 目录搜索：只重绘清单块，输入框不重建、焦点不丢。 */
+    private filterSideDocs(text: string): void {
+        this.sideFilter = text;
+        const body = this.el.querySelector("[data-side-body]");
+        if (body) body.innerHTML = renderSideBodyHtml(this.docs, this.docId, this.t, text);
     }
 
     private bindNums(): void {
@@ -484,7 +486,8 @@ export class QuizView implements AnswerHost {
         const btn = this.el.querySelector<HTMLButtonElement>("[data-act='convert']");
         if (!btn) return;
         btn.disabled = this.converting;
-        btn.textContent = this.converting ? this.t("converting") : this.t("convertBtn");
+        const label = btn.querySelector<HTMLElement>("[data-convert-label]");
+        if (label) label.textContent = this.converting ? this.t("converting") : this.t("convertBtn");
     }
 
     private showStatus(text: string, kind: "ok" | "err" | "muted"): void {

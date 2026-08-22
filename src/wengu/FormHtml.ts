@@ -41,6 +41,13 @@ export function formSwitch(field: string, checked: boolean, act = "data-field"):
     return `<input class="b3-switch fn__flex-center" type="checkbox" ${act}="${field}"${checked ? " checked" : ""}>`;
 }
 
+/** 文本/数字输入控件（attrs 透传 type/min/max/placeholder 等附加属性）。 */
+export function formInput(field: string, value: string, attrs = "", act = "data-field"): string {
+    return `<input class="b3-text-field fn__flex-center fn__size200" ${act}="${field}"${
+        attrs ? ` ${attrs}` : ""
+    } value="${esc(value)}">`;
+}
+
 /** 选项。 */
 export function formOption(value: string, label: string, selected: boolean): string {
     return `<option value="${esc(value)}"${selected ? " selected" : ""}>${esc(label)}</option>`;

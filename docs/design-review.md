@@ -5,10 +5,8 @@
 > → 只刷错题）。本文档先**理清现状**，再列出**可统一的设计点**，作为
 > 下一轮重构的依据。逐条执行，不做一次性大改。
 >
-> **进度**：P0-1、P0-2、P1-1、P1-2、P1-3 已完成（2026-08-22，
-> 新增 `ui.ts` / `StartPanel.ts` / `TimerController.ts`，QuizView 从
-> 1399 行降到 ~1305 行，开刷面板与计时模式分支不再散落）；P2 待做。
-> 模块化拆分已完成（全仓单文件 ≤500 行，QuizView 496 行），新增
+> **进度**：P0 全部、P1 全部、P2-3/P2-5 已完成（2026-08-22）；模块化
+> 拆分完成（全仓单文件 ≤500 行，QuizView 488 行），新增
 > CardHtml/ProtyleHost/AnswerFlow/ConvertDialog/RoundReport/QuizLoader/
 > ViewBindings/NumRail/AgentClient/FormHtml。
 
@@ -25,21 +23,33 @@
 
 ## 一、现状全景
 
-| 模块                           | 行数 | 职责                                                                                            |
-| ------------------------------ | ---- | ----------------------------------------------------------------------------------------------- |
-| `src/index.ts`                 | 138  | 插件入口：topbar、页签注册、settings 装载、openSetting                                          |
-| `src/wengu/QuizView.ts`        | 1399 | **上帝类**：目录/头部/开刷面板/卡片/题号导航/判分/计时（4 模式）/会话记账/转换对话框/偏好持久化 |
-| `src/wengu/QuestionService.ts` | 468  | 块读写内核 API 封装：SQL 聚合、hydrate、判分、属性写                                            |
-| `src/wengu/ConvertService.ts`  | 354  | 文档定位 + 模型清单 + agentChat(SSE) + prompt + 落盘《·习题》                                   |
-| `src/wengu/HistoryStore.ts`    | 96   | N 刷会话历史（saveData("history")）                                                             |
-| `src/wengu/SettingsDialog.ts`  | 133  | 仿原生设置页（左导航 + 分组）                                                                   |
-| `src/wengu/types.ts`           | 182  | 领域类型 + 清洗/比较纯函数                                                                      |
-| `src/wengu/attrs.ts`           | 45   | 属性名常量                                                                                      |
+| 模块                           | 行数 | 职责                                                   |
+| ------------------------------ | ---- | ------------------------------------------------------ |
+| `src/index.ts`                 | 154  | 插件入口：topbar、页签注册、settings 装载、openSetting |
+| `src/wengu/QuizView.ts`        | 500  | 页签编排层：状态持有 + 各模块接线（已到行数上限）      |
+| `src/wengu/CardHtml.ts`        | 348  | 纯 HTML 构建：题卡/作答位/目录/头部/主区外壳           |
+| `src/wengu/AnswerFlow.ts`      | 302  | 作答流程：判分/揭示/自评/恢复已答                      |
+| `src/wengu/StartPanel.ts`      | 271  | 开刷面板：RoundConfig 表单渲染/读取/开轮               |
+| `src/wengu/RoundReport.ts`     | 255  | 一轮总结：图表 + AI 分析 + 收卷编排                    |
+| `src/wengu/ConvertService.ts`  | 233  | 转换编排：文档定位 + prompt + 落盘《·习题》            |
+| `src/wengu/SettingsDialog.ts`  | 230  | 仿原生设置页（左导航 + 分组）                          |
+| `src/wengu/ProtyleHost.ts`     | 157  | 内嵌 Protyle 逐卡串行挂载                              |
+| `src/wengu/AgentClient.ts`     | 142  | 智能体 SSE 客户端 + 模型清单/下拉选项                  |
+| `src/wengu/QuizLoader.ts`      | 135  | 一次装载：文档/题目/轮次/prefs 恢复                    |
+| `src/wengu/ConvertDialog.ts`   | 131  | AI 转习题弹窗                                          |
+| `src/wengu/TimerController.ts` | 128  | 计时状态机（4 模式 + 逐题秒数）                        |
+| `src/wengu/HistoryStore.ts`    | 96   | N 刷会话历史（saveData("history")）                    |
+| `src/wengu/types.ts`           | 182  | 领域类型 + 清洗/比较纯函数                             |
+| `src/wengu/FormHtml.ts`        | 54   | 共享表单构件（§〇 规范落地）                           |
+| `src/wengu/NumRail.ts`         | 52   | 题号导航渲染与绑定                                     |
+| `src/wengu/attrs.ts`           | 45   | 属性名常量                                             |
+| `src/wengu/ui.ts`              | 29   | esc/fmt/mmss/clampMinutes                              |
+| `src/wengu/ViewBindings.ts`    | 36   | 头部与目录事件绑定（搜索/委托点击）                    |
 
-分层本身是清楚的：**内核 API（QuestionService/ConvertService）→
-领域纯函数（types）→ 视图（QuizView/SettingsDialog）→ 存储
-（块属性 / prefs / settings / history 四类）**。问题集中在 QuizView
-一个类承担了太多「逐步长出来」的职责。
+分层：**内核 API（QuestionService/ConvertService/AgentClient）→
+领域纯函数（types）→ 视图（QuizView 编排 + 各渲染/流程模块）→ 存储
+（块属性 / prefs / settings / history 四类）**。原「QuizView 上帝类」
+问题已由 2026-08-22 的拆分解决。
 
 ## 二、一轮刷题的状态机（理清后的骨架）
 
@@ -137,12 +147,12 @@ reveal/timing 影响作答与展示全程——**这是最重要的统一抽象*
 * **统一**：抽 `DocSource.load(docId) → {docs, fullList, rounds}`，
   过滤与补位在源头完成，视图只拿最终要渲染的数组。
 
-### P2-3 三套表单外观
+### P2-3 三套表单外观（已完成，2026-08-22）
 
-* 开刷面板（wengu-start 自定义）、转换弹窗（b3-dialog + 手写行）、
-* 设置页（config__panel 原生仿制）。
-* **统一**：不必强求同一种容器（场景不同），但**行级控件**统一为
-  ui.ts 里的 `radioRow/selectRow` 生成器，保证间距/禁用态/占位符一致。
+* 开刷面板（wengu-start 自定义）、转换弹窗（b3-dialog）、设置页
+  （config__panel 原生仿制）容器保持各自场景，**行级控件**统一为
+  `FormHtml` 的 formGroup/formRow/formSelect/formSwitch/formOption/
+  formInput，间距/禁用态/占位符一致；规范固化为 §〇。
 
 ### P2-4 i18n 键风格
 
@@ -151,12 +161,19 @@ reveal/timing 影响作答与展示全程——**这是最重要的统一抽象*
 * **统一**：新键一律「组前缀 + 含义」；模板键注释在 zh-CN.json 头部
   说明占位符。旧键暂不迁移（避免无收益 churn），新增不再偏离。
 
-### P2-5 ConvertService 拆 AgentClient
+### P2-5 ConvertService 拆 AgentClient（已完成，2026-08-22）
 
-* 现在一个文件五件事：文档定位、模型清单、SSE 客户端、prompt、落盘。
-* **统一**：`AgentClient.ts`（agentChat + listAiModels +
-  defaultAgentModelId）独立；ConvertService 只做转换编排。模型清单
-  被 SettingsDialog/转换弹窗两处消费，值得独立出口。
+* `AgentClient.ts`（agentChat + listAiModels + defaultAgentModelId +
+  modelOptionsHtml 下拉选项拼装）已独立；ConvertService 只做转换编排，
+  模型清单被 SettingsDialog/转换弹窗两处消费。
+
+### P2-6 「继续上次」不恢复刷题范围
+
+* session 未记录 scope：未完成轮若是以「只刷错题」开的，继续时会
+  展开为全量题表（计时/展示/分钟恢复，范围不恢复），与面板
+  「继续=原样恢复」的注释有出入。
+* **修法**：WenguSession 增加 scope 字段（缺省 all 向后兼容），
+  startRound 继续时按它过滤 fullList。
 
 ## 五、执行建议
 
