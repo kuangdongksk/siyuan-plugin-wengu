@@ -77,12 +77,14 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
     </div>`;
 }
 
-/** 卡片头部：标题 + 题型/自评徽标 + 难度/来源/次数（两种题卡共用）。 */
+/** 卡片头部：题号 + 题型徽标 + 知识点标题 + 难度/来源/次数（两种题卡共用）。 */
 function renderCardHead(q: WenguQuestion, idx: number, m: CardHtmlModel, objective: boolean): string {
     const {t} = m;
+    const label = q.knowledge || q.chapter;
     return `<div class="wengu-card-head">
-        <span class="wengu-card-title">${esc(q.knowledge || q.chapter || String(idx + 1))}</span>
+        <span class="wengu-card-num">${idx + 1}</span>
         ${q.type ? `<span class="wengu-badge">${esc(t(typeKey(q.type)))}</span>` : ""}
+        ${label ? `<span class="wengu-card-title">${esc(label)}</span>` : ""}
         ${!objective ? `<span class="wengu-badge">${esc(t("selfBadge"))}</span>` : ""}
         ${q.difficulty ? `<span class="wengu-meta">${"★".repeat(q.difficulty)}</span>` : ""}
         ${q.source ? `<span class="wengu-meta">${esc(q.source)}</span>` : ""}

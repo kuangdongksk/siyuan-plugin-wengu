@@ -87,6 +87,12 @@
   margin-bottom: 8px;
 }
 
+.wengu-card-num {
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+  font-variant-numeric: tabular-nums;
+}
+
 .wengu-card-title {
   margin-right: auto;
   font-weight: 600;
