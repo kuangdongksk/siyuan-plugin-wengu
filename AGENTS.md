@@ -51,6 +51,11 @@
 * `insertBlock/appendBlock` 在 3.8.0 不可用，写 kramdown 用
   `/api/filetree/createDocWithMd`；改块内容用 `/api/block/updateBlock`
   （markdown 里带 `{: id="…" 属性}` 可保留 IAL）。
+* **没有可靠的「向已有文档追加内容」通道**（20260822 真机验证）：
+  `updateBlock` 打文档根传多块 → 全部并成**一个段落**；打普通子块传
+  多块 → **只保留第一段、后续段丢失**（危险）；`/api/transactions`
+  的 `insert` 操作返回 code 0 但**静默无效**。增量写入只能
+  「累积内容后整体 createDocWithMd 重建」。
 * 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
   references:[], model?}`，model=设置里模型 id；`event:content` 的
   `data.token` 是回答增量，`event:error` 报错。
