@@ -172,5 +172,17 @@
   "wordDailyN": "每天 {n} 个",
   "wordUnitOpt": "Unit {n}（{c} 词）",
   "wordResetWarn": "应用后：该单元起的作答进度清零重学，之前的保留。",
-  "wordApply": "开始背"
+  "wordApply": "开始背",
+  "convertDetecting": "AI 检测文档中…",
+  "convertDetected": "检测到 {n} 题",
+  "convertDetectedCount": "检测到原文共 {n} 题",
+  "convertBatchProgress": "正在生成 第 {i}/{n} 批 · 已得 {c} 题",
+  "convertStop": "终止生成",
+  "convertStopped": "已终止：已生成 {c} 题（{b}/{n} 批）",
+  "convertStoppedEmpty": "已终止：尚未生成任何题",
+  "convertKeep": "保留已生成",
+  "convertDiscard": "全部丢弃",
+  "convertDiscarded": "已丢弃，未创建文档",
+  "convertResumeHint": "上次转换未完成：已生成 {c} 题（{b}/{n} 批），保留在《{title}》",
+  "convertResumeBtn": "继续生成剩余部分"
 }

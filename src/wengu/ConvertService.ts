@@ -1,5 +1,4 @@
 import {fetchSyncPost} from "siyuan";
-import {agentChat} from "./AgentClient";
 import {Attr} from "./attrs";
 
 /**
@@ -41,13 +40,14 @@ export interface ConvertResult {
 }
 
 /**
- * 送入 AI 的文档内容上限（超长截断）。真机实测：内核 AI 代理约 30 秒
- * 硬超时，12k 字符源会超时空返回；6k 字符约 22 秒稳定返回（12 题）。
+ * 送入 AI 的单批内容上限（超长由 ConvertBatch 分批，本值是批大小）。
+ * 真机实测：内核 AI 代理约 30 秒硬超时，12k 字符源会超时空返回；
+ * 6k 字符约 22 秒稳定返回（12 题）。
  */
-const MAX_SOURCE_CHARS = 6000;
+export const MAX_SOURCE_CHARS = 6000;
 
 /** AI 调用超时（毫秒）：模型卡住时状态条报错，而不是永远「转换中」。 */
-const AI_TIMEOUT_MS = 300_000;
+export const AI_TIMEOUT_MS = 300_000;
 
 /** 取文档定位信息（标题/笔记本/标题路径）。 */
 export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
@@ -72,84 +72,12 @@ export function extractBlockId(input: string): string {
     return m ? m[1] : input.trim();
 }
 
-/**
- * 把文档转换成习题文档。AI 先判定能不能转（不能则带原因返回），
- * 能则解析其题目块并生成习题文档。生成位置（targetRaw 空=原文档同目录，
- * 否则生成到指定父文档下面）；modelId 指定用哪个模型（空串=智能体默认
- * 模型）；fillToChoice=true 时 prompt 要求把原文的填空题改写成单选题。
- */
-export async function convertDocToQuestions(
-    docIdRaw: string,
-    t: (key: string) => string,
-    modelId = "",
-    fillToChoice = false,
-    bigToSteps = false,
-    targetRaw = "",
-): Promise<ConvertResult> {
-    const docId = extractBlockId(docIdRaw);
-    const info = await getDocInfo(docId);
-    if (!info?.notebook) {
-        return {canConvert: false, message: t("convertNoDoc"), count: 0};
-    }
-    const kd = await fetchSyncPost("/api/block/getBlockKramdown", {id: docId});
-    const kramdown = String((kd.data as {kramdown?: string;} | null)?.kramdown ?? "");
-    if (!kramdown.trim()) {
-        return {canConvert: false, message: t("convertEmptyDoc"), count: 0};
-    }
-    const source = kramdown.length > MAX_SOURCE_CHARS ?
-        `${kramdown.slice(0, MAX_SOURCE_CHARS)}\n<!-- 内容过长已截断 -->` :
-        kramdown;
-
-    let reply: string;
-    try {
-        reply = await agentChat(buildPrompt(source, fillToChoice, bigToSteps), modelId, AI_TIMEOUT_MS);
-    } catch (e) {
-        const err = e as Error;
-        const reason = err?.name === "AbortError" ? t("convertTimeout") : String(err?.message ?? e);
-        return {canConvert: false, message: `${t("convertAiFailed")}${reason}`, count: 0};
-    }
-    if (!reply.trim()) {
-        return {canConvert: false, message: t("convertEmptyReply"), count: 0};
-    }
-    const verdict = parseVerdict(reply);
-    const questions = extractQuestions(reply).filter((q) => q.includes('part="stem"'));
-    if (!verdict.can) {
-        return {canConvert: false, message: verdict.reason || t("convertRefused"), count: 0};
-    }
-    if (questions.length === 0) {
-        return {canConvert: false, message: t("convertNoQuestions"), count: 0};
-    }
-
-    // 生成位置：默认原文档同目录（父级用 hPath 标题路径定位）；指定
-    // 父文档时生成到它下面（子文档，笔记本也跟随目标）。
-    let notebook = info.notebook;
-    let parentPath = parentOf(info.hPath ?? "/");
-    if (targetRaw) {
-        const target = await getDocInfo(extractBlockId(targetRaw));
-        if (!target?.notebook || !target.hPath) {
-            return {canConvert: false, message: t("convertTargetMissing"), count: 0};
-        }
-        notebook = target.notebook;
-        parentPath = target.hPath;
-    }
-    const created = await createExerciseDoc(notebook, parentPath, info.title, questions.join("\n\n"));
-    // 配对属性：源讲义删除时习题文档随之清理（见 OrphanCleaner）
-    await fetchSyncPost("/api/attr/setBlockAttrs", {id: created.id, attrs: {[Attr.sourceDoc]: docId}});
-    return {
-        canConvert: true,
-        message: `${verdict.reason}`,
-        docId: created.id,
-        title: created.title,
-        count: questions.length,
-    };
-}
-
 /** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。 */
-function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): string {
+export function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): string {
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
     const fillRule = fillToChoice ?
         `
-9. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。` :
+10. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。` :
         "";
     // 大题拆多步：可分解的工科大题 → 多步引导题（method/result 步）
     const stepsRule = bigToSteps ?
@@ -187,7 +115,7 @@ function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): 
 }}}
 {: custom-plugin-wengu-q="1" custom-plugin-wengu-type="steps" custom-plugin-wengu-steps="method|result" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节"}
 
-10. 大题拆多步：原文中可分解的工科大题（计算/求值/化简，每步有确定的中间结果）改写为 type="steps" 的多步引导题——选定一条典型参考路径拆 2~5 步；方法分歧处设 method 步（选项为候选方法，answer 写**全部可行方法**的字母集合如 AB，任选可行即对）；其余为 result 步考该步的中间结果，answer 写唯一正确字母，干扰项来自常见计算错误；每步 3~4 个选项，结果步的引导语写明所用方法（如「第 2 步 · 等价无穷小代换：本步得（ ）」）；容器必须带 custom-plugin-wengu-steps="method|result|…" 属性按序声明每步类型；论述/证明/开放等不可分解的题仍用 type="brief"。` :
+11. 大题拆多步：原文中可分解的工科大题（计算/求值/化简，每步有确定的中间结果）改写为 type="steps" 的多步引导题——选定一条典型参考路径拆 2~5 步；方法分歧处设 method 步（选项为候选方法，answer 写**全部可行方法**的字母集合如 AB，任选可行即对）；其余为 result 步考该步的中间结果，answer 写唯一正确字母，干扰项来自常见计算错误；每步 3~4 个选项，结果步的引导语写明所用方法（如「第 2 步 · 等价无穷小代换：本步得（ ）」）；容器必须带 custom-plugin-wengu-steps="method|result|…" 属性按序声明每步类型；论述/证明/开放等不可分解的题仍用 type="brief"。` :
         "";
     return `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目块。
 
@@ -218,20 +146,20 @@ QUESTIONS:
 ${stepsRule}
 硬性规则：
 1. 容器超级块以 {{{row 开始、}}} 结束；容器属性 {: ...} 必须另起一行紧跟在 }}} 之后，该行只包含 {: ...}。
-2. type 取 single/multiple/judge/fill/brief/steps（steps 见第 10 条格式）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
-3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 10 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
+2. type 取 single/multiple/judge/fill/brief/steps（steps 见第 11 条格式）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
+3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 11 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
 4. difficulty 为可选项：原文档/题目有明确难度线索才写（1~5），没有就整个省略，不要编造。
 5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
 6. 保留原文的公式与代码；一个选项块里可以写多个选项。
-7. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**到该题的题干里——单独成段、紧跟题干文字段之后，同样标记 part="stem"；路径与文件名一个字符都不能改，没有插图的题**不要**编造图片行。
-8. 题量与文档内容相称：内容少时至少 1 道，内容丰富时 5~10 道，覆盖主要知识点。${fillRule}
+7. 题量：若原文档本身是试卷/题库（已有现成题目），必须**逐题全部**转换——不得限量、不得合并、不得漏题，也不得自行新造题目；若是讲义/笔记，按知识点出题：内容少时至少 1 道，丰富时 5~12 道，覆盖主要知识点。
+8. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**到该题的题干里——单独成段、紧跟题干文字段之后，同样标记 part="stem"；路径与文件名一个字符都不能改，没有插图的题**不要**编造图片行。${fillRule}
 
 文档内容：
 ${source}`;
 }
 
 /** 解析 AI 的判定（CAN_CONVERT / REASON 行）。 */
-function parseVerdict(reply: string): {can: boolean; reason: string;} {
+export function parseVerdict(reply: string): {can: boolean; reason: string;} {
     const vm = /CAN_CONVERT\s*[:：]\s*(yes|no|是|否|true|false)/i.exec(reply);
     const can = vm !== null ?
         /^(yes|是|true)$/i.test(vm[1]) :
@@ -263,18 +191,51 @@ function extractQuestions(reply: string): string[] {
     );
 }
 
+/** 抽取并规整一批回复里的题目块（AI 偏差规整见上）。 */
+export function extractBatchQuestions(reply: string): string[] {
+    return extractQuestions(reply).filter((q) => q.includes('part="stem"'));
+}
+
 /** "/a/b.sy" → "/a"；"/x.sy" → "/"。 */
-function parentOf(path: string): string {
+export function parentOf(path: string): string {
     const cut = path.lastIndexOf("/");
     return cut <= 0 ? "/" : path.slice(0, cut);
 }
 
-/** 生成《标题·习题》文档；先去掉已有的 ·习题 后缀避免「·习题·习题」，同名冲突追加时间戳。 */
-async function createExerciseDoc(
+/** 生成位置解析结果：ok=false 时 message 有值。 */
+export interface TargetLocation {
+    ok: boolean;
+    notebook: string;
+    parentPath: string;
+    message: string;
+}
+
+/** 解析生成位置：targetRaw 空=原文档同目录（父级用 hPath 标题路径——
+ *  内核按标题匹配路径段，.sy 文件路径会让导入文档被重建空父链）；
+ *  指定父文档时生成到它下面（子文档，笔记本跟随目标）。 */
+export async function resolveTarget(
+    info: DocInfo,
+    targetRaw: string,
+    t: (key: string) => string,
+): Promise<TargetLocation> {
+    if (!targetRaw) {
+        return {ok: true, notebook: info.notebook ?? "", parentPath: parentOf(info.hPath ?? "/"), message: ""};
+    }
+    const target = await getDocInfo(extractBlockId(targetRaw));
+    if (!target?.notebook || !target.hPath) {
+        return {ok: false, notebook: "", parentPath: "", message: t("convertTargetMissing")};
+    }
+    return {ok: true, notebook: target.notebook, parentPath: target.hPath, message: ""};
+}
+
+/** 生成《标题·习题》文档；先去掉已有的 ·习题 后缀避免「·习题·习题」，同名冲突追加时间戳。
+ *  srcDocId 非空时在根块打 source-doc 配对属性（源删则习题随删，见 OrphanCleaner）。 */
+export async function createExerciseDoc(
     notebook: string,
     parentPath: string,
     baseTitle: string,
     markdown: string,
+    srcDocId = "",
 ): Promise<{id: string; title: string;}> {
     const safe = baseTitle.replace(/[\\/:*?"<>|]/g, "-").replace(/(·习题)+$/, "").trim() || "习题";
     const titles = [`${safe}·习题`, `${safe}·习题${Date.now().toString(36)}`];
@@ -283,7 +244,11 @@ async function createExerciseDoc(
         const path = `${parentPath === "/" ? "" : parentPath}/${title}.sy`;
         const res = await fetchSyncPost("/api/filetree/createDocWithMd", {notebook, path, markdown});
         if (res.code === 0 && res.data) {
-            return {id: String(res.data), title};
+            const id = String(res.data);
+            if (srcDocId) {
+                await fetchSyncPost("/api/attr/setBlockAttrs", {id, attrs: {[Attr.sourceDoc]: srcDocId}});
+            }
+            return {id, title};
         }
         lastMsg = res.msg;
     }

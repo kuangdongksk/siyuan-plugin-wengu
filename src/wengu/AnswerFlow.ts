@@ -55,6 +55,10 @@ export interface AnswerHost {
 }
 
 export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQuestion): void {
+    // 「思路」折叠开关：普通题/steps 题通用
+    card.querySelector("[data-act='thought-toggle']")?.addEventListener("click", () => {
+        card.querySelector("[data-thought-wrap]")?.toggleAttribute("hidden");
+    });
     if (hasSteps(q)) {
         bindStepsCard(host, card, q);
         return;

@@ -98,3 +98,19 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* 进度条(不依赖思源是否内置 b3-progress 样式) */
+.wengu-word .b3-progress__bar {
+  height: 4px;
+  margin-top: 12px;
+  background: var(--b3-border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.wengu-word .b3-progress__bar span {
+  display: block;
+  height: 100%;
+  background: var(--b3-theme-primary);
+  transition: width 0.2s ease;
+}

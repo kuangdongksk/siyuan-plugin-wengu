@@ -1,3 +1,4 @@
+import type {ConvertProgressRecord} from "./ConvertBatch";
 import type {HistoryStore} from "./HistoryStore";
 import {cleanOrphanExerciseDocs} from "./OrphanCleaner";
 import {
@@ -26,6 +27,7 @@ export interface QuizLoadDeps {
         lastConvertModelId?: string;
         lastConvertFill?: boolean;
         lastConvertSteps?: boolean;
+        convertProgress?: Record<string, ConvertProgressRecord>;
     };
     settings?: SettingsDialogShape;
     timer: TimerController;
@@ -50,6 +52,8 @@ export interface QuizLoadResult {
     lastConvertModelId: string;
     lastConvertFill: boolean;
     lastConvertSteps: boolean;
+    /** 未完成转换的进度（源文档 id → 记录）。 */
+    convertProgress: Record<string, ConvertProgressRecord>;
     revealMode: WenguRevealMode;
     docTotalSec: number;
     loadError: string;
@@ -66,6 +70,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         lastConvertModelId: deps.prefs.lastConvertModelId ?? "",
         lastConvertFill: deps.prefs.lastConvertFill ?? (deps.settings?.fillToChoice === true),
         lastConvertSteps: deps.prefs.lastConvertSteps ?? (deps.settings?.bigToSteps === true),
+        convertProgress: deps.prefs.convertProgress ?? {},
         revealMode: deps.settings?.defaultReveal === "after" ? "after" : "instant",
         docTotalSec: 0,
         loadError: "",
@@ -126,6 +131,8 @@ export interface WenguPrefsIo {
     lastConvertModelId?: string;
     lastConvertFill?: boolean;
     lastConvertSteps?: boolean;
+    /** 未完成的分批转换进度（源文档 id → 记录），供「继续生成」。 */
+    convertProgress?: Record<string, ConvertProgressRecord>;
 }
 
 export async function loadPrefs(

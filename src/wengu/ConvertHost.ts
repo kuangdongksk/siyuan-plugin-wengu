@@ -1,3 +1,4 @@
+import type {ConvertProgressRecord} from "./ConvertBatch";
 import {openConvertDialog} from "./ConvertDialog";
 import type {WenguSettingsShape as SettingsDialogShape} from "./SettingsDialog";
 import {fmt} from "./ui";
@@ -20,6 +21,10 @@ export interface ConvertHostCtx {
     lastConvertSteps: boolean;
     /** 弹窗内临时选择（记 prefs）。 */
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean): void;
+    /** 读取某源文档的未完成转换进度（无则 undefined）。 */
+    getProgress(srcDocId: string): ConvertProgressRecord | undefined;
+    /** 记录/清除未完成转换进度（prefs 持久化）。 */
+    saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 转换状态变化（按钮禁用/文案）。 */
     setConverting(v: boolean): void;
     /** 成功收尾：切到新文档、重载、报状态（视图实现）。 */
@@ -37,6 +42,8 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         initialTargetMode: ctx.settings?.convertTargetMode === "custom" ? "custom" : "same",
         initialTargetId: ctx.settings?.convertTargetId ?? "",
         saveChoice: ctx.saveChoice,
+        getProgress: ctx.getProgress,
+        saveProgress: ctx.saveProgress,
         setConverting: ctx.setConverting,
         onDone: ctx.onDone,
     });

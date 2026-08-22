@@ -172,5 +172,17 @@
   "wordDailyN": "{n} per day",
   "wordUnitOpt": "Unit {n} ({c} words)",
   "wordResetWarn": "Applying resets progress from that unit onward; earlier units are kept.",
-  "wordApply": "Start"
+  "wordApply": "Start",
+  "convertDetecting": "AI inspecting document…",
+  "convertDetected": "Detected {n} question(s)",
+  "convertDetectedCount": "Detected {n} question(s) in source",
+  "convertBatchProgress": "Generating batch {i}/{n} · {c} question(s) so far",
+  "convertStop": "Stop",
+  "convertStopped": "Stopped: {c} question(s) generated ({b}/{n} batches)",
+  "convertStoppedEmpty": "Stopped: nothing generated yet",
+  "convertKeep": "Keep generated",
+  "convertDiscard": "Discard all",
+  "convertDiscarded": "Discarded; no document created",
+  "convertResumeHint": "Last conversion unfinished: {c} question(s) ({b}/{n} batches) kept in \"{title}\"",
+  "convertResumeBtn": "Continue remaining batches"
 }

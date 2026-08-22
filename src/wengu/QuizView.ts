@@ -13,6 +13,7 @@ import {
     renderSideBodyHtml,
     renderSubheadHtml,
 } from "./CardHtml";
+import type {ConvertProgressRecord} from "./ConvertBatch";
 import {
     convertDoneText,
     openWenguConvert,
@@ -90,6 +91,7 @@ export class QuizView implements AnswerHost {
     private lastConvertModelId = "";
     private lastConvertFill = false;
     private lastConvertSteps = false;
+    private convertProgress: Record<string, ConvertProgressRecord> = {};
     private session?: WenguSession;
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
     private finished?: WenguSession;
@@ -122,7 +124,7 @@ export class QuizView implements AnswerHost {
     readonly currentRevealMode = (): WenguRevealMode => this.revealMode;
     readonly timerController = (): TimerController => this.timer;
     readonly currentSession = (): WenguSession | undefined => this.session ?? this.finished;
-    readonly roundComplete = (): void => this.showRoundReport();
+    readonly roundComplete = (): void => showRoundReportNow(roundFinishCtx(this));
     readonly flushTime = (): void => void this.flushTimeAsync();
     readonly recordAnswer = (qid: string, submitted: string, ok: boolean): void => {
         this.noteSessionAnswer(qid, submitted, ok, this.timer.takeQuestionSec(qid));
@@ -167,6 +169,7 @@ export class QuizView implements AnswerHost {
             lastConvertModelId: this.lastConvertModelId,
             lastConvertFill: this.lastConvertFill,
             lastConvertSteps: this.lastConvertSteps,
+            convertProgress: this.convertProgress,
         });
     }
 
@@ -210,6 +213,7 @@ export class QuizView implements AnswerHost {
         this.lastConvertModelId = r.lastConvertModelId;
         this.lastConvertFill = r.lastConvertFill;
         this.lastConvertSteps = r.lastConvertSteps;
+        this.convertProgress = r.convertProgress;
         this.revealMode = r.revealMode;
         this.started = false;
         this.activeQIdx = 0;
@@ -281,18 +285,8 @@ export class QuizView implements AnswerHost {
         if (!slot || slot.childElementCount > 0) return;
         showTimeUpChoice(slot, this.t, {
             onOvertime: () => this.timer.beginOvertime(),
-            onFinish: () => this.finishRound(),
+            onFinish: () => manualFinishRound(roundFinishCtx(this)),
         });
-    }
-
-    /** 手动收卷：after 模式先揭示已答，再出总结报告（委托 RoundReport）。 */
-    private finishRound(): void {
-        manualFinishRound(roundFinishCtx(this));
-    }
-
-    /** 一轮完成：收卷 + 总结报告（委托 RoundReport）。 */
-    private showRoundReport(): void {
-        showRoundReportNow(roundFinishCtx(this));
     }
 
     readonly allRounds = (): WenguSession[] => this.rounds;
@@ -453,9 +447,6 @@ export class QuizView implements AnswerHost {
 
     private bindCards(): void {
         for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
-            node.querySelector("[data-act='thought-toggle']")?.addEventListener("click", () => {
-                node.querySelector("[data-thought-wrap]")?.toggleAttribute("hidden");
-            });
             const q = this.list.find((x) => x.id === node.dataset.qid);
             if (q) bindCardEvents(this, node, q);
         }
@@ -474,6 +465,12 @@ export class QuizView implements AnswerHost {
                 this.lastConvertModelId = modelId;
                 this.lastConvertFill = fill;
                 this.lastConvertSteps = steps;
+                this.persistPrefs();
+            },
+            getProgress: (srcDocId) => this.convertProgress[srcDocId],
+            saveProgress: (srcDocId, rec) => {
+                if (rec) this.convertProgress[srcDocId] = rec;
+                else delete this.convertProgress[srcDocId];
                 this.persistPrefs();
             },
             setConverting: (v) => {
