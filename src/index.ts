@@ -13,9 +13,14 @@ import type {
     WenguRevealMode,
     WenguTimingMode,
 } from "./wengu/types";
+import {WordStore} from "./wengu/WordStore";
+import {WordView} from "./wengu/WordView";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
+
+/** 单词复习页签 type（与刷题页签并存，同一顶栏入口旁）。 */
+const TAB_WORDS = "wengu-words";
 
 /** 打开页签时记录的目标文档 id（addTab 回调读不到 Tab.data，用模块级传递）。 */
 let targetDocId = "";
@@ -79,6 +84,11 @@ export default class WenguPlugin extends Plugin {
   <path d="M4 6h10a4 4 0 0 1 4 4v16a3 3 0 0 0-3-3H4z" fill="currentColor"/>
   <path d="M28 6H18a4 4 0 0 0-4 4v16a3 3 0 0 1 3-3h11z" fill="currentColor" opacity="0.55"/>
   <path d="M13 15.5l2.2 2.2 4.3-4.6" fill="none" stroke="var(--b3-theme-background)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</symbol>
+<symbol id="iconWenguWords" viewBox="0 0 32 32">
+  <path d="M6 5h9c1.7 0 3 1.3 3 3v19c0-1.7-1.3-3-3-3H6z" fill="currentColor"/>
+  <path d="M26 5h-9c-1.7 0-3 1.3-3 3v19c0-1.7 1.3-3 3-3h9z" fill="currentColor" opacity="0.55"/>
+  <path d="M11 11.5h3M11 15h3M18 11.5h3M18 15h3" stroke="var(--b3-theme-background)" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
 </symbol>`);
 
         this.addTopBar({
@@ -100,6 +110,22 @@ export default class WenguPlugin extends Plugin {
                 // 页签已打开时 openTab 只聚焦不重建：把新文档 id 推给既有视图
                 const view = (tab as unknown as {model?: {wenguView?: QuizView;};})?.model?.wenguView;
                 view?.setDoc(targetDocId);
+            },
+        });
+
+        this.addTopBar({
+            icon: "iconWenguWords",
+            title: this.i18n.wordBtn || "背单词",
+            position: "right",
+            callback: async () => {
+                await openTab({
+                    app: this.app,
+                    custom: {
+                        icon: "iconWenguWords",
+                        title: this.i18n.wordBtn || "背单词",
+                        id: this.name + TAB_WORDS,
+                    },
+                });
             },
         });
 
@@ -143,6 +169,31 @@ export default class WenguPlugin extends Plugin {
                 view?.destroy?.();
                 const plugin = WenguPlugin.instance;
                 if (plugin && plugin.activeView === view) plugin.activeView = undefined;
+            },
+        });
+
+        this.addTab({
+            type: TAB_WORDS,
+            init(this: Custom | MobileCustom) {
+                const plugin = WenguPlugin.instance;
+                if (!plugin) return;
+                const view = new WordView(
+                    this.element as HTMLElement,
+                    plugin.i18n ?? {},
+                    new WordStore(
+                        () => plugin.loadData("words"),
+                        (p) => plugin.saveData("words", p),
+                    ),
+                );
+                (this as any).wenguWordView = view;
+                view.bind();
+                void view.render();
+            },
+            update(this: Custom | MobileCustom) {
+                (this as any).wenguWordView?.render?.();
+            },
+            destroy() {
+                (this as any).wenguWordView?.destroy?.();
             },
         });
     }

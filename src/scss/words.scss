@@ -1,0 +1,100 @@
+/* 单词复习页签：卡片 + 起点设置。b3 体系为主，这里只补布局。 */
+.wengu-word {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px 24px;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.wengu-word-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.wengu-word-title {
+  font-weight: 600;
+}
+
+.wengu-word-stats {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.wengu-word-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 24px;
+  min-height: 240px;
+  outline: none;
+  cursor: pointer;
+}
+
+.wengu-word-unit {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.wengu-word-text {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* 未翻面时藏释义/按钮（视觉隐藏，键盘可达性由翻面交互保证） */
+.wengu-word-card:not(.wengu-word-revealed) .wengu-word-meaning,
+.wengu-word-card:not(.wengu-word-revealed) .wengu-word-actions {
+  display: none;
+}
+
+.wengu-word-card.wengu-word-revealed .wengu-word-hint {
+  display: none;
+}
+
+.wengu-word-meaning {
+  font-size: 16px;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.wengu-word-hint {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.wengu-word-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.wengu-word-done .wengu-word-text {
+  font-size: 24px;
+}
+
+.wengu-word-form {
+  max-width: 640px;
+  margin: 24px auto 0;
+  width: 100%;
+}
+
+.wengu-word-form-tip {
+  color: var(--b3-card-info-color);
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+
+.wengu-word-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
