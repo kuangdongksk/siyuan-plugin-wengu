@@ -160,12 +160,19 @@ thoughts?{qid→思路文本}}`——开刷时创建、逐题作答时更新落�
 * steps 属性缺失/非法时逐步按 result 容错；完全无步骤数据的 steps
   块按普通自评流程降级。
 
-**brief 的 AI 判分并计入**：提交思路后走 AiJudge（同一智能体端点，
-串行队列），prompt 要求输出 `VERDICT: right|partial|wrong`（partial
-记错）+ `COMMENT:` 评语；verdict 直接写 attempts/wrong-count/
-last-answer/right。评语展示在结果行，原自评按钮保留为**改判**入口
-（改判只翻 right 并微调 wrong-count，不动 attempts；会话结果原位
-改写）。AI 失败/超时回落纯自评。
+**brief 的 AI 判分并计入（三态）**：提交作答后走 AiJudge（同一智能体
+端点，串行队列），「思路」折叠区若填了推导备注会一并送判——思路
+输入正是判 partial 的素材。prompt 要求输出 `VERDICT: right|partial|
+wrong` + `COMMENT:` 评语：
+
+* **统计口径**：partial 记错（right=0、wrong-count+1，进错题重刷）；
+* **展示口径**：partial 单列——结果行「◐ 部分正确——方向对但有缺口」
+  （黄色），区别于全错；verdict 与评语随会话结果（`results[].verdict/
+  comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每题条
+  形图 partial 描黄、AI 分析逐题点名「部分正确」；
+* **改判**：原自评按钮保留为改判入口（翻 right 并微调 wrong-count，
+  不动 attempts；会话结果原位改写，verdict 随改判同步）；
+* AI 失败/超时回落纯自评。
 
 ## 四、渲染与答题
 

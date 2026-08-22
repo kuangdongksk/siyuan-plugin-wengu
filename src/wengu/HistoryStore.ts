@@ -11,6 +11,10 @@ export interface WenguSessionResult {
     ok: boolean;
     /** 该题用时（秒，逐题计时模式记录）。 */
     sec?: number;
+    /** brief 的 AI 判分三态（partial 统计记错但展示单列）。 */
+    verdict?: "right" | "partial" | "wrong";
+    /** brief 的 AI 评语（恢复继续时仍能展示）。 */
+    comment?: string;
 }
 
 /** 一轮刷题（N 刷里的一刷）：开刷时创建，逐题作答时更新，结束时封卷。 */

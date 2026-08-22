@@ -188,5 +188,6 @@
   "stepAppeal": "AI review: my method works",
   "stepAppealing": "AI reviewing…",
   "stepAppealOk": "✓ Review passed, corrected: ",
-  "stepAppealRejected": "✗ Review rejected: "
+  "stepAppealRejected": "✗ Review rejected: ",
+  "verdictPartial": "◐ Partially correct — right direction, gaps remain"
 }

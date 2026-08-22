@@ -126,8 +126,13 @@ export class QuizView implements AnswerHost {
     readonly currentSession = (): WenguSession | undefined => this.session ?? this.finished;
     readonly roundComplete = (): void => showRoundReportNow(roundFinishCtx(this));
     readonly flushTime = (): void => void this.flushTimeAsync();
-    readonly recordAnswer = (qid: string, submitted: string, ok: boolean): void => {
-        this.noteSessionAnswer(qid, submitted, ok, this.timer.takeQuestionSec(qid));
+    readonly recordAnswer = (
+        qid: string,
+        submitted: string,
+        ok: boolean,
+        extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+    ): void => {
+        this.noteSessionAnswer(qid, submitted, ok, this.timer.takeQuestionSec(qid), extra);
     };
 
     /** 设置页开关变更后由插件调用：立即按新设置重渲染。 */
@@ -184,10 +189,23 @@ export class QuizView implements AnswerHost {
         void this.history?.upsert(s);
     }
 
-    private noteSessionAnswer(qid: string, submitted: string, ok: boolean, sec: number): void {
+    private noteSessionAnswer(
+        qid: string,
+        submitted: string,
+        ok: boolean,
+        sec: number,
+        extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+    ): void {
         const s = this.session;
         if (!s) return;
-        s.results.push({qid, submitted, ok, ...(sec > 0 ? {sec} : {})});
+        s.results.push({
+            qid,
+            submitted,
+            ok,
+            ...(sec > 0 ? {sec} : {}),
+            ...(extra?.verdict ? {verdict: extra.verdict} : {}),
+            ...(extra?.comment ? {comment: extra.comment} : {}),
+        });
         s.answered++;
         if (ok) s.correct++;
         s.elapsedSec = Math.max(s.elapsedSec, this.timer.elapsed());

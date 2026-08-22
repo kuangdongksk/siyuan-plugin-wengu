@@ -73,6 +73,10 @@
 .wengu-bar-wrong {
   background: var(--b3-theme-error);
 }
+/* brief 的 partial：方向对但有缺口（统计记错，单独描黄） */
+.wengu-bar-partial {
+  background: var(--b3-theme-warning);
+}
 .wengu-bar-muted {
   background: var(--b3-theme-surface);
 }

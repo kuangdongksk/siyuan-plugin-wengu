@@ -188,5 +188,6 @@
   "stepAppeal": "AI 复核：所选方法其实可行",
   "stepAppealing": "AI 复核中…",
   "stepAppealOk": "✓ 复核通过，已改判：",
-  "stepAppealRejected": "✗ 复核未通过："
+  "stepAppealRejected": "✗ 复核未通过：",
+  "verdictPartial": "◐ 部分正确——方向对但有缺口"
 }
