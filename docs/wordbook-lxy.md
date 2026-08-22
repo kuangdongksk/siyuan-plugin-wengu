@@ -49,12 +49,12 @@ iconSparkles 按钮把**未分析的误认词**批量(≤20/批,串行队列)交
 
 ## Dock 面板与三模式出题(2026-08-23 二增)
 
-- **Dock**:3.8.0 运行时有 `Plugin.addDock`(类型包未收录,index.ts 里按运行时
+* **Dock**:3.8.0 运行时有 `Plugin.addDock`(类型包未收录,index.ts 里按运行时
   形状局部声明);面板 type 复用 `wengu-words`,顶栏按钮优先激活 Dock——
   遍历 `window.siyuan.layout.{leftDock,rightDock,bottomDock}`,谁的
   `data[插件名+type]` 存在就 `toggleModel(全type)`;未注册/未布局时回退页签。
   Dock 与页签共享同一个 `WordStore` 单例(进度缓存同源)。
-- **三模式轮换**(仿不背单词):看单词选意思(四选一,干扰项取同单元、按
+* **三模式轮换**(仿不背单词):看单词选意思(四选一,干扰项取同单元、按
   下标做种子稳定抽样)/看英文回想/看中文回想;每题提示页→结果页两段,
   结果页固定展示 单词+释义+AI提示,回想模式给三档自评,选择题给
   下一个(对→know/错→no)与记错了(强制 no 入误认本)。

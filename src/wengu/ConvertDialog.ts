@@ -275,17 +275,21 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         showDlgStatus(t("settling"), "muted");
                         return;
                     }
+                    // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
                     const detected = p.detected !== undefined && p.detected > 0 ?
                         ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}` :
+                        "";
+                    const lastDelta = p.lastBatch > 0 ?
+                        ` · ${esc(fmt(t("convertLastBatch"), {k: String(p.lastBatch)}))}` :
                         "";
                     showDlgStatus(
                         `${
                             esc(fmt(t("convertBatchProgress"), {
-                                i: String(p.batch),
+                                i: String(p.batch + 1),
                                 n: String(p.total),
                                 c: String(p.count),
                             }))
-                        }${detected}`,
+                        }${lastDelta}${detected}`,
                         "muted",
                     );
                 },

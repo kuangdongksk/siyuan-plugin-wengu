@@ -174,9 +174,9 @@
   "wordResetWarn": "Applying resets progress from that unit onward; earlier units are kept.",
   "wordApply": "Start",
   "convertDetecting": "AI inspecting document…",
-  "convertDetected": "Detected {n} question(s)",
+  "convertDetected": "{n} question(s) detected in source",
   "convertDetectedCount": "Detected {n} question(s) in source",
-  "convertBatchProgress": "Generating batch {i}/{n} · {c} question(s) so far",
+  "convertBatchProgress": "Generating batch {i}/{n} · {c} question(s) total",
   "convertStop": "Stop",
   "convertStopped": "Stopped: {c} question(s) generated ({b}/{n} batches)",
   "convertStoppedEmpty": "Stopped: nothing generated yet",
@@ -207,5 +207,6 @@
   "wordNext": "Next",
   "wordMarkWrong": "Got it wrong",
   "wordCorrectPick": "✓ Correct",
-  "wordWrongPick": "✗ Wrong: {m}"
+  "wordWrongPick": "✗ Wrong: {m}",
+  "convertLastBatch": "last batch +{k}"
 }

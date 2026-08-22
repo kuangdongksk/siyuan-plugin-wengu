@@ -94,12 +94,14 @@ ${head}`,
 export interface ConvertProgress {
     /** detect=前置检测中；generating=逐批生成中；writing=落盘中。 */
     phase: "detect" | "generating" | "writing";
-    /** 已完成批数。 */
+    /** 已完成批数（batch=i 表示第 i+1 批正在进行）。 */
     batch: number;
     /** 总批数。 */
     total: number;
     /** 已生成题数（累积）。 */
     count: number;
+    /** 刚完成那批生成的题数（首批前为 0）。 */
+    lastBatch: number;
     /** 前置检测到的现成题数（未确定为空）。 */
     detected?: number;
 }
@@ -197,7 +199,7 @@ export async function convertDocBatched(
 
     let detected: number | undefined;
     if (!opts.resume) {
-        opts.onProgress({phase: "detect", batch: 0, total: chunks.length, count: 0});
+        opts.onProgress({phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0});
         try {
             const d = await detectQuestions(kramdown, opts.modelId, opts.signal);
             if (!d.can) {
@@ -231,8 +233,10 @@ export async function convertDocBatched(
     const parts: string[] = [];
     let doneOffset = opts.resume?.offset ?? 0;
     let count = 0;
+    let lastBatch = 0;
+    // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
+    opts.onProgress({phase: "generating", batch: 0, total: chunks.length, count: 0, lastBatch: 0, detected});
     for (let i = 0; i < chunks.length; i++) {
-        opts.onProgress({phase: "generating", batch: i, total: chunks.length, count, detected});
         let reply: string;
         try {
             reply = await agentChat(
@@ -270,11 +274,15 @@ export async function convertDocBatched(
             parts.push(questions.join("\n\n"));
             count += questions.length;
         }
+        lastBatch = questions.length;
         doneOffset = chunks[i].offset + chunks[i].text.length;
-        opts.onProgress({phase: "generating", batch: i + 1, total: chunks.length, count, detected});
+        // 末批完成随即转 writing，避免出现「第 total+1 批」的进度行
+        if (i + 1 < chunks.length) {
+            opts.onProgress({phase: "generating", batch: i + 1, total: chunks.length, count, lastBatch, detected});
+        }
     }
 
-    opts.onProgress({phase: "writing", batch: chunks.length, total: chunks.length, count, detected});
+    opts.onProgress({phase: "writing", batch: chunks.length, total: chunks.length, count, lastBatch, detected});
     const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
     if (!markdown.trim()) {
         return {

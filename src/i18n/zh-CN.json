@@ -174,9 +174,9 @@
   "wordResetWarn": "应用后：该单元起的作答进度清零重学，之前的保留。",
   "wordApply": "开始背",
   "convertDetecting": "AI 检测文档中…",
-  "convertDetected": "检测到 {n} 题",
+  "convertDetected": "检测共 {n} 题",
   "convertDetectedCount": "检测到原文共 {n} 题",
-  "convertBatchProgress": "正在生成 第 {i}/{n} 批 · 已得 {c} 题",
+  "convertBatchProgress": "正在生成 第 {i}/{n} 批 · 累计 {c} 题",
   "convertStop": "终止生成",
   "convertStopped": "已终止：已生成 {c} 题（{b}/{n} 批）",
   "convertStoppedEmpty": "已终止：尚未生成任何题",
@@ -207,5 +207,6 @@
   "wordNext": "下一个",
   "wordMarkWrong": "记错了",
   "wordCorrectPick": "✓ 答对了",
-  "wordWrongPick": "✗ 答错了：{m}"
+  "wordWrongPick": "✗ 答错了：{m}",
+  "convertLastBatch": "上批 +{k}"
 }
