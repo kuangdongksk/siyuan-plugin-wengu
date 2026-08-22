@@ -1,4 +1,5 @@
 import {agentChat} from "./AgentClient";
+import {svgIcon} from "./FormHtml";
 import type {WenguSession} from "./HistoryStore";
 import type {TimerController} from "./TimerController";
 import type {WenguQuestion} from "./types";
@@ -70,7 +71,7 @@ export function renderRoundReport(m: RoundReportModel): string {
   <div class="wengu-start-title">${esc(t("reportTitle"))}</div>
   <div class="wengu-report-summary">
     <span class="wengu-meta">${esc(fmt(t("reportScore"), {c: String(s.correct), a: String(s.answered)}))}</span>
-    <span class="wengu-meta">⏱ ${esc(mmss(m.totalSec))}</span>
+    <span class="wengu-meta">${svgIcon("iconClock")} ${esc(mmss(m.totalSec))}</span>
     ${overtime}
   </div>
   <div class="wengu-report-chart">
@@ -158,7 +159,7 @@ export function showTimeUpChoice(
     handlers: {onOvertime: () => void; onFinish: () => void;},
 ): void {
     slot.innerHTML = `<div class="wengu-timeup">
-  <span>⏰ ${esc(t("timeUpShort"))}</span>
+  <span>${svgIcon("iconClock")} ${esc(t("timeUpShort"))}</span>
   <button class="b3-button b3-button--text" data-act="overtime">${esc(t("continueAnswer"))}</button>
   <button class="b3-button b3-button--cancel" data-act="finish-round">${esc(t("finishRound"))}</button>
 </div>`;

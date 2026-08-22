@@ -8,6 +8,20 @@
 > **进度**：P0-1、P0-2、P1-1、P1-2、P1-3 已完成（2026-08-22，
 > 新增 `ui.ts` / `StartPanel.ts` / `TimerController.ts`，QuizView 从
 > 1399 行降到 ~1305 行，开刷面板与计时模式分支不再散落）；P2 待做。
+> 模块化拆分已完成（全仓单文件 ≤500 行，QuizView 496 行），新增
+> CardHtml/ProtyleHost/AnswerFlow/ConvertDialog/RoundReport/QuizLoader/
+> ViewBindings/NumRail/AgentClient/FormHtml。
+
+## 〇、界面规范（2026-08-22 起硬性约定）
+
+1. **图标一律用思源内置 SVG symbol**（`FormHtml.svgIcon("iconClock")`
+   等），**禁止 emoji/表情字符**（⏱⏰⟳✨⚙ 一类）。symbol id 需存在于
+   主程序 stage（iconClock/iconRefresh/iconSettings/iconSparkles/
+   iconInfo/iconList 已验证）。
+2. **全项目表单统一 FormHtml 行样式**：`formGroup`（分组+标题）+
+   `formRow`（标题说明在左、控件在右）+ `formSelect/formSwitch/
+   formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自写布局。
+3. 图标型入口（如目录底部「设置」）只放图标本体，文字放 title 提示。
 
 ## 一、现状全景
 

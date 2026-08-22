@@ -262,7 +262,8 @@ export class QuizView implements AnswerHost {
         }
         el.style.display = "";
         const qid = this.list[this.activeQIdx]?.id;
-        el.textContent = this.timer.labelText(
+        const text = el.querySelector<HTMLElement>("[data-timer-text]") ?? el;
+        text.textContent = this.timer.labelText(
             this.t,
             this.docTotalSec + this.timer.pending,
             qid ? this.timer.questionSec(qid) : 0,

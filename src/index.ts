@@ -124,7 +124,7 @@ export default class WenguPlugin extends Plugin {
                             (h) => plugin.saveData("history", h),
                         ) :
                         undefined,
-                    // 目录底部 ⚙ 设置按钮 → 插件设置弹窗
+                    // 目录底部设置图标按钮 → 插件设置弹窗
                     plugin ? () => plugin.openSetting() : undefined,
                 );
                 (this as any).wenguView = view;

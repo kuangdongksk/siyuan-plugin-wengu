@@ -4,6 +4,10 @@ import {
     listAiModels,
 } from "./AgentClient";
 import {convertDocToQuestions} from "./ConvertService";
+import {
+    formGroup,
+    formRow,
+} from "./FormHtml";
 import {listQuestionDocs} from "./QuestionService";
 import {esc} from "./ui";
 
@@ -48,24 +52,39 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     }`;
     const dialog = new Dialog({
         title: t("convertBtn"),
-        width: "520px",
+        width: "560px",
         content: `<div class="b3-dialog__content wengu-convert-dialog">
       <div class="wengu-muted">${esc(t("convertDialogHint"))}</div>
-      <label class="wengu-dialog-label">${esc(t("modelLabel"))}</label>
-      <select class="b3-select fn__block" data-act="dlg-model">${modelOptions}</select>
-      <label class="wengu-dialog-label">${esc(t("docIdLabel"))}</label>
-      <input class="b3-text-field fn__block" data-act="dlg-docid" spellcheck="false"
-        placeholder="${esc(t("docIdPlaceholder"))}" value="${esc(deps.activeDocId)}" />
-      <label class="fn__flex b3-label" style="gap:8px;margin-top:8px">
-        <input class="b3-switch" type="checkbox" data-act="dlg-fill"${deps.initialFillToChoice ? " checked" : ""}>
-        <span>${esc(t("fillToChoice"))}</span>
-        <span class="b3-label__text fn__flex-1">${esc(t("fillToChoiceHint"))}</span>
-      </label>
-      <label class="fn__flex b3-label" style="gap:8px;margin-top:8px">
-        <input class="b3-switch" type="checkbox" data-act="dlg-steps"${deps.initialBigToSteps ? " checked" : ""}>
-        <span>${esc(t("bigToSteps"))}</span>
-        <span class="b3-label__text fn__flex-1">${esc(t("bigToStepsHint"))}</span>
-      </label>
+      ${
+            formGroup(
+                t("convertBtn"),
+                formRow(
+                    t("modelLabel"),
+                    t("setModelHint"),
+                    `<select class="b3-select fn__flex-center fn__size200" data-act="dlg-model">${modelOptions}</select>`,
+                ) +
+                    formRow(
+                        t("fillToChoice"),
+                        t("fillToChoiceHint"),
+                        `<input class="b3-switch fn__flex-center" type="checkbox" data-act="dlg-fill"${
+                            deps.initialFillToChoice ? " checked" : ""
+                        }>`,
+                    ) +
+                    formRow(
+                        t("bigToSteps"),
+                        t("bigToStepsHint"),
+                        `<input class="b3-switch fn__flex-center" type="checkbox" data-act="dlg-steps"${
+                            deps.initialBigToSteps ? " checked" : ""
+                        }>`,
+                    ) +
+                    formRow(
+                        t("docIdLabel"),
+                        t("docIdPlaceholder"),
+                        `<input class="b3-text-field fn__flex-center fn__size200" data-act="dlg-docid" spellcheck="false"
+        placeholder="${esc(t("docIdPlaceholder"))}" value="${esc(deps.activeDocId)}" />`,
+                    ),
+            )
+        }
       <div class="wengu-status" data-act="dlg-status" hidden></div>
     </div>
     <div class="b3-dialog__action">

@@ -3,6 +3,10 @@ import {
     defaultAgentModelId,
     listAiModels,
 } from "./AgentClient";
+import {
+    formRow,
+    svgIcon,
+} from "./FormHtml";
 import type {
     WenguRevealMode,
     WenguTimingMode,
@@ -64,20 +68,11 @@ export function openWenguSetting(opts: {
             )
             .join("")
     }`;
-
-    const tab = (id: string, icon: string, label: string, focus = false) =>
+    const tabIcon = (id: string, icon: string, label: string, focus = false) =>
         `<li class="b3-list-item${focus ? " b3-list-item--focus" : ""}" data-tab="${id}">
-  <svg class="b3-list-item__graphic"><use xlink:href="#${icon}"></use></svg>
+  ${svgIcon(icon, "b3-list-item__graphic")}
   <span class="b3-list-item__text">${esc(label)}</span>
 </li>`;
-    const item = (title: string, desc: string, control: string) =>
-        `<div class="fn__flex b3-label config__item">
-  <div class="fn__flex-1 fn__flex-center">${esc(title)}
-    <div class="b3-label__text">${esc(desc)}</div>
-  </div>
-  <div class="fn__space"></div>
-  ${control}
-</div>`;
 
     const dialog = new Dialog({
         title: `${opts.pluginName} · ${t("settingsTitle")}`,
@@ -86,9 +81,9 @@ export function openWenguSetting(opts: {
         content: `<div class="fn__flex config__panel" style="height:100%;max-width:none">
   <div class="config__side b3-list b3-list--background">
     <ul class="config__tab-scroll">
-      ${tab("drill", "iconList", t("setTabDrill"), true)}
-      ${tab("convert", "iconSparkles", t("setTabConvert"))}
-      ${tab("about", "iconInfo", t("setTabAbout"))}
+      ${tabIcon("drill", "iconList", t("setTabDrill"), true)}
+      ${tabIcon("convert", "iconSparkles", t("setTabConvert"))}
+      ${tabIcon("about", "iconInfo", t("setTabAbout"))}
     </ul>
   </div>
   <div class="config__tab-wrap">
@@ -97,7 +92,7 @@ export function openWenguSetting(opts: {
         <div class="config-title">${esc(t("setGroupDisplay"))}</div>
         <div class="config-items">
           ${
-            item(
+            formRow(
                 t("settingShowNums"),
                 t("settingShowNumsDesc"),
                 `<input class="b3-switch fn__flex-center" type="checkbox" data-set="shownums"${
@@ -106,7 +101,7 @@ export function openWenguSetting(opts: {
             )
         }
           ${
-            item(
+            formRow(
                 t("settingShowAttempts"),
                 t("settingShowAttemptsDesc"),
                 `<input class="b3-switch fn__flex-center" type="checkbox" data-set="showattempts"${
@@ -115,7 +110,7 @@ export function openWenguSetting(opts: {
             )
         }
           ${
-            item(
+            formRow(
                 t("settingShowWrong"),
                 t("settingShowWrongDesc"),
                 `<input class="b3-switch fn__flex-center" type="checkbox" data-set="showwrong"${
@@ -129,7 +124,7 @@ export function openWenguSetting(opts: {
         <div class="config-title">${esc(t("setGroupDefaults"))}</div>
         <div class="config-items">
           ${
-            item(
+            formRow(
                 t("setDefaultTiming"),
                 t("setDefaultHint"),
                 `<select class="b3-select fn__flex-center fn__size200" data-set="deftiming">
@@ -150,7 +145,7 @@ export function openWenguSetting(opts: {
             )
         }
           ${
-            item(
+            formRow(
                 t("setDefaultReveal"),
                 t("setDefaultHint"),
                 `<select class="b3-select fn__flex-center fn__size200" data-set="defreveal">
@@ -160,7 +155,7 @@ export function openWenguSetting(opts: {
             )
         }
           ${
-            item(
+            formRow(
                 t("setDefaultCountdownMin"),
                 t("setDefaultCountdownMinDesc"),
                 `<input class="b3-text-field fn__flex-center fn__size200" type="number" min="1" max="600" data-set="defminutes" value="${
@@ -176,14 +171,14 @@ export function openWenguSetting(opts: {
         <div class="config-title">${esc(t("setGroupConvert"))}</div>
         <div class="config-items">
           ${
-            item(
+            formRow(
                 t("setModelLabel"),
                 t("setModelHint"),
                 `<select class="b3-select fn__flex-center fn__size200" data-set="model">${modelOptions}</select>`,
             )
         }
           ${
-            item(
+            formRow(
                 t("fillToChoice"),
                 t("fillToChoiceDesc"),
                 `<input class="b3-switch fn__flex-center" type="checkbox" data-set="fillchoice"${
@@ -192,7 +187,7 @@ export function openWenguSetting(opts: {
             )
         }
           ${
-            item(
+            formRow(
                 t("bigToSteps"),
                 t("bigToStepsDesc"),
                 `<input class="b3-switch fn__flex-center" type="checkbox" data-set="bigsteps"${
