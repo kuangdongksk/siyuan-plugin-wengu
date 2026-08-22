@@ -14,13 +14,14 @@ import WORD_BOOK from "./WordBook";
  * - 会话完成页:按队列种类给文案,含生词重过与回首页。
  */
 
-/** 首页入口渲染。reviewDue=到期复习数,freshLeft=未学新词数。 */
+/** 首页入口渲染。reviewDue=到期复习数,freshLeft=未学新词数,starN=星标词数。 */
 export function renderWordHome(
     t: (k: string) => string,
     reviewDue: number,
     freshLeft: number,
     headHtml: string,
     msgHtml: string,
+    starN = 0,
 ): string {
     const entries: string[] = [];
     if (reviewDue > 0) {
@@ -33,6 +34,12 @@ export function renderWordHome(
         entries.push(`<button class="wengu-word-entry" data-act="gofresh">
   <span class="wengu-word-entry-title">${esc(t("wordHomeFreshTitle"))}</span>
   <span class="wengu-word-entry-count">${esc(fmt(t("wordHomeFreshCount"), {n: String(freshLeft)}))}</span>
+</button>`);
+    }
+    if (starN > 0) {
+        entries.push(`<button class="wengu-word-entry wengu-word-entry-star" data-act="gostar">
+  <span class="wengu-word-entry-title">${esc(t("wordHomeStarTitle"))}</span>
+  <span class="wengu-word-entry-count">${esc(fmt(t("wordHomeStarCount"), {n: String(starN)}))}</span>
 </button>`);
     }
     if (entries.length === 0) {
@@ -83,7 +90,7 @@ export function renderAskReview(t: (k: string) => string, n: number, headHtml: s
 /** 会话完成页:kind 决定文案;hardN>0 给生词重过。 */
 export function renderWordDone(
     t: (k: string) => string,
-    kind: "review" | "fresh",
+    kind: "review" | "fresh" | "star",
     todayNew: number,
     todayRev: number,
     hardN: number,

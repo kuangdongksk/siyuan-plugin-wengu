@@ -228,6 +228,14 @@
   "wordStatsTodayNew": "今日新学",
   "wordStatsTodayRev": "今日复习",
   "wordStatsStreakN": "连续打卡(天)",
-  "wordStatsMistakesLine": "误认词 {a} 个(待AI分析 {b}) · 太简单 {c} 个",
-  "wordStatsNext7": "未来 7 天到期分布(含今天剩余)"
+  "wordStatsNext7": "未来 7 天到期分布(含今天剩余)",
+  "wordStatsLine2": "误认词 {a} 个(待AI辨析 {b}) · 熟 {c} · 星标 {d} · 太简单 {e}",
+  "wordFamiliar": "熟",
+  "wordFamiliarTip": "已掌握,不再进复习",
+  "wordStar": "星标",
+  "wordHomeStarTitle": "星标",
+  "wordHomeStarCount": "重点词 {n} 个,过一遍",
+  "wordConfusedHint": "把 {w} 认成了…(选填)",
+  "wordConfusedPh": "如 revolution 或 革新的那个",
+  "wordConfusedChip": "曾认成:{v}"
 }

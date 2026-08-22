@@ -228,6 +228,14 @@
   "wordStatsTodayNew": "New today",
   "wordStatsTodayRev": "Reviewed",
   "wordStatsStreakN": "Streak (days)",
-  "wordStatsMistakesLine": "Misremembered {a} ({b} pending AI) · too easy {c}",
-  "wordStatsNext7": "Due in next 7 days (incl. today)"
+  "wordStatsNext7": "Due in next 7 days (incl. today)",
+  "wordStatsLine2": "Misremembered {a} ({b} pending AI) · familiar {c} · starred {d} · easy {e}",
+  "wordFamiliar": "Known",
+  "wordFamiliarTip": "Mastered, removed from review",
+  "wordStar": "Star",
+  "wordHomeStarTitle": "Starred",
+  "wordHomeStarCount": "{n} key words, drill them",
+  "wordConfusedHint": "mistook {w} for… (optional)",
+  "wordConfusedPh": "e.g. revolution",
+  "wordConfusedChip": "mistook for: {v}"
 }

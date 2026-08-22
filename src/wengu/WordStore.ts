@@ -12,11 +12,13 @@ import WORD_BOOK, {type WenguWordUnitMeta} from "./WordBook";
 /** 进度里一个词条的记忆状态：[Leitner 档位 1..6, 下次到期时间戳]。 */
 type WordState = [number, number];
 
-/** 误认词记录（答「不认识」累计，AI 分析后附记忆提示）。 */
+/** 误认词记录（答错累计 + 用户自述「认成了什么」，AI 分析后附辨析）。 */
 export interface WenguWordMistake {
     count: number;
     lastTs: number;
-    /** AI 记忆提示（有值后不再重复分析，除非再次答错清空）。 */
+    /** 用户自述的混淆对象原文（英文单词或中文模糊描述，AI 负责推断）。 */
+    confused?: string;
+    /** AI 辨析提示（有值后不再重复分析，除非再次答错清空）。 */
     note?: string;
 }
 
@@ -31,6 +33,10 @@ export interface WenguWordProgress {
     mistakes: Record<string, WenguWordMistake>;
     /** 「太简单」集合（不再进复习），key 为扁平下标字符串。 */
     simple: Record<string, 1>;
+    /** 「熟」集合（用户判定已掌握，不再复习），key 为扁平下标字符串。 */
+    familiar: Record<string, 1>;
+    /** 星标集合（重点词，可单独刷），key 为扁平下标字符串。 */
+    starred: Record<string, 1>;
     /** 打卡日志：日期 key → [当日新学数, 当日复习数]。 */
     log: Record<string, [number, number]>;
     /** 今日打卡统计（跨天重置）。 */
@@ -55,6 +61,8 @@ export function defaultProgress(): WenguWordProgress {
         words: {},
         mistakes: {},
         simple: {},
+        familiar: {},
+        starred: {},
         log: {},
         today: {key: todayKey(), newCount: 0, revCount: 0},
     };
@@ -72,7 +80,7 @@ export function rollToday(progress: WenguWordProgress, now = Date.now()): boolea
 export function buildQueue(progress: WenguWordProgress, now = Date.now()): {review: number[]; fresh: number[];} {
     const review: number[] = [];
     for (const key of Object.keys(progress.words)) {
-        if (progress.simple[key]) continue;
+        if (progress.simple[key] || progress.familiar[key]) continue;
         const i = Number(key);
         if (progress.words[key][1] <= now) review.push(i);
     }
@@ -91,7 +99,7 @@ export function dueTomorrowCount(progress: WenguWordProgress, now = Date.now()):
     const end = endToday.getTime() + 86400_000;
     let count = 0;
     for (const key of Object.keys(progress.words)) {
-        if (progress.simple[key]) continue;
+        if (progress.simple[key] || progress.familiar[key]) continue;
         const due = progress.words[key][1];
         if (due > now && due <= end) count++;
     }
@@ -117,7 +125,7 @@ export function applyGrade(
     progress.words[String(index)] = [next, now + days * 86400_000];
     if (grade === "easy") progress.simple[String(index)] = 1;
     if (grade === "no") {
-        // 误认本：再次答错会清空旧 AI 提示，重回待分析队列
+        // 误认本：再次答错清空旧 AI 辨析、保留混淆自述由调用方回填
         const m = progress.mistakes[String(index)];
         progress.mistakes[String(index)] = {count: (m?.count ?? 0) + 1, lastTs: now};
     }
@@ -132,6 +140,42 @@ export function applyGrade(
     progress.log[progress.today.key] = [progress.today.newCount, progress.today.revCount];
 }
 
+/* ── 熟 / 星标 / 误认自述 ── */
+
+/** 标「熟」：退出复习循环（同太简单），今日计数与打卡照记。 */
+export function markFamiliar(
+    progress: WenguWordProgress,
+    index: number,
+    wasNew: boolean,
+    now = Date.now(),
+): void {
+    progress.familiar[String(index)] = 1;
+    if (wasNew) {
+        progress.today.newCount++;
+        if (index >= progress.cursor) progress.cursor = index + 1;
+    } else {
+        progress.today.revCount++;
+    }
+    rollToday(progress, now);
+    progress.log[progress.today.key] = [progress.today.newCount, progress.today.revCount];
+}
+
+/** 星标开关，返回切换后是否已星标。 */
+export function toggleStar(progress: WenguWordProgress, index: number): boolean {
+    const key = String(index);
+    if (progress.starred[key]) {
+        delete progress.starred[key];
+        return false;
+    }
+    progress.starred[key] = 1;
+    return true;
+}
+
+/** 星标词清单（书序）。 */
+export function starredList(progress: WenguWordProgress): number[] {
+    return Object.keys(progress.starred).map(Number).sort((a, b) => a - b);
+}
+
 /* ── 统计 ── */
 
 /** 统计页数据（buildStats 一次遍历算齐）。 */
@@ -142,6 +186,8 @@ export interface WenguWordStats {
     /** 档位 ≥5（巩固中）。 */
     mastered: number;
     simple: number;
+    familiar: number;
+    starred: number;
     mistakes: number;
     mistakesPending: number;
     todayNew: number;
@@ -164,7 +210,7 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
     const next7 = new Array(8).fill(0);
     let mastered = 0;
     for (const key of Object.keys(progress.words)) {
-        if (progress.simple[key]) continue;
+        if (progress.simple[key] || progress.familiar[key]) continue;
         const [level, due] = progress.words[key];
         if (level >= 5) mastered++;
         if (due <= now) next7[0]++;
@@ -196,6 +242,8 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
         left: WORD_BOOK.words.length - learned,
         mastered,
         simple: Object.keys(progress.simple).length,
+        familiar: Object.keys(progress.familiar).length,
+        starred: Object.keys(progress.starred).length,
         mistakes: Object.keys(progress.mistakes).length,
         mistakesPending,
         todayNew: progress.today.newCount,

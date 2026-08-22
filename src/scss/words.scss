@@ -388,3 +388,50 @@
   color: var(--b3-theme-on-surface-light);
   white-space: nowrap;
 }
+
+/* 星标角标(卡右上角) */
+.wengu-word-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0.4;
+}
+
+.wengu-word-star.is-starred {
+  opacity: 1;
+  color: var(--b3-theme-primary);
+}
+
+.wengu-word-card {
+  position: relative;
+}
+
+/* 「认成了…」自述行 + 曾认成 chip */
+.wengu-word-confess {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 440px;
+}
+
+.wengu-word-confess-label {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  white-space: nowrap;
+}
+
+.wengu-word-confess .wengu-word-spell {
+  flex: 1;
+  max-width: none;
+}
+
+.wengu-word-confused {
+  font-size: 12px;
+  color: var(--b3-card-warning-color);
+  margin-top: 4px;
+}
+
+.wengu-word-entry-star .wengu-word-entry-title {
+  color: var(--b3-theme-primary);
+}

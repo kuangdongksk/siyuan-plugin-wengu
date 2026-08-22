@@ -53,10 +53,12 @@ export function renderWordStats(
     }
     </div>
     <div class="wengu-stats-sub">${
-        esc(fmt(t("wordStatsMistakesLine"), {
+        esc(fmt(t("wordStatsLine2"), {
             a: String(s.mistakes),
             b: String(s.mistakesPending),
-            c: String(s.simple),
+            c: String(s.familiar),
+            d: String(s.starred),
+            e: String(s.simple),
         }))
     }</div>
     <div class="wengu-stats-chart-title">${esc(t("wordStatsNext7"))}</div>

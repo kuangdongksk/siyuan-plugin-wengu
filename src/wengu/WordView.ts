@@ -4,6 +4,7 @@ import {
     fmt,
 } from "./ui";
 import {WordAiRunner} from "./WordAi";
+import {bindWordEvents} from "./WordBind";
 import WORD_BOOK from "./WordBook";
 import {
     renderAskReview,
@@ -13,11 +14,11 @@ import {
     renderWordHome,
 } from "./WordHome";
 import {
+    checkOption,
+    checkSpell,
     buildMeaningOptions,
-    meaningLine,
     buildWordOptions,
     renderCard,
-    spellMatches,
     type AnsweredState,
     type WordCardMode,
 } from "./WordQuiz";
@@ -31,7 +32,10 @@ import {
     buildQueue,
     buildStats,
     dueTomorrowCount,
+    markFamiliar,
     rollToday,
+    starredList,
+    toggleStar,
     WordStore,
     type WordGrade,
     type WenguWordProgress,
@@ -43,12 +47,10 @@ const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell
 const REINSERT_GAP = 3;
 
 /**
- * 单词复习视图（Dock 面板/页签同款挂载）：仿不背单词。
- *
- * 新词先学（learn 卡翻面看释义，四档含「太简单」）后测；复习题
- * 五种轮换（看词选义/看英回想/看义选词/拼写/看中回想）。客观题
- * 题面内即时标色 + 内嵌词详情 + 继续/记错了；答错的词隔 3 张卡
- * 重现直到当场过关。「不认识/记错了」累计误认本，可交 AI 分析重排。
+ * 单词复习视图（Dock/页签同挂载），仿不背单词：新词先学后测、五题型
+ * 轮换、题面即时标色、错词隔卡重现；误认可自述「认成了什么」交 AI
+ * 辨析；熟/星标随时标记。渲染拆 WordQuiz/WordHome/WordStats，事件拆
+ * WordBind，AI 胶水在 WordAi.runner。
  */
 export class WordView {
     readonly t: (key: string) => string;
@@ -73,7 +75,7 @@ export class WordView {
     private hardList: number[] = [];
     private mode: "home" | "askreview" | "stats" | "card" | "setstart" | "done" = "home";
     /** 当前会话队列种类(入口决定)。 */
-    private queueKind: "review" | "fresh" = "fresh";
+    private queueKind: "review" | "fresh" | "star" = "fresh";
     private busy = false;
     /** 误认词 AI 视图胶水。 */
     private readonly ai: WordAiRunner;
@@ -101,14 +103,19 @@ export class WordView {
     }
 
     /** 当前首页视角的队列构成（进入入口前统算一次）。 */
-    private queueParts(): {review: number[]; fresh: number[];} {
-        return buildQueue(this.progress!);
-    }
-
-    /** 按入口建队列：review=到期复习 / fresh=新学。 */
-    private rebuildQueue(kind: "review" | "fresh"): void {
+    /** 按入口建队列：review=到期复习 / fresh=新学 / star=星标。 */
+    private rebuildQueue(kind: "review" | "fresh" | "star"): void {
         const p = this.progress;
         if (!p) return;
+        if (kind === "star") {
+            this.queue = starredList(p);
+            this.sessionNew = new Set<number>();
+            this.queueKind = kind;
+            this.pos = 0;
+            this.hardList = [];
+            this.enterPrompt();
+            return;
+        }
         const {review, fresh} = buildQueue(p);
         if (kind === "review") {
             this.queue = [...review];
@@ -184,17 +191,17 @@ export class WordView {
         this.el.innerHTML = renderWordStats(
             this.t,
             buildStats(this.progress!),
-            renderWordHead(this.t, this.aiButtonHtml()),
+            renderWordHead(this.t, this.ai.buttonHtml(this.progress!)),
         );
     }
 
     private paintHome(): void {
-        const {review, fresh} = this.queueParts();
+        const {review, fresh} = buildQueue(this.progress!);
         if (this.mode === "askreview") {
             this.el.innerHTML = renderAskReview(
                 this.t,
                 review.length,
-                renderWordHead(this.t, this.statsBtnHtml() + this.aiButtonHtml()),
+                renderWordHead(this.t, this.statsBtnHtml() + this.ai.buttonHtml(this.progress!)),
             );
             return;
         }
@@ -202,8 +209,9 @@ export class WordView {
             this.t,
             review.length,
             fresh.length,
-            renderWordHead(this.t, this.statsBtnHtml() + this.aiButtonHtml()),
-            this.aiMsgHtml(),
+            renderWordHead(this.t, this.statsBtnHtml() + this.ai.buttonHtml(this.progress!)),
+            this.ai.msgHtml(),
+            starredList(this.progress!).length,
         );
     }
 
@@ -224,6 +232,8 @@ export class WordView {
             reveal: this.phase === "result",
             answered: this.answered,
             note: mistake?.note,
+            confused: mistake?.confused,
+            starred: !!p.starred[String(idx)],
         });
         this.el.innerHTML = `<div class="wengu-word">
   ${
@@ -236,10 +246,10 @@ export class WordView {
                     d: String(dueTomorrowCount(p)),
                 }),
                 badge,
-                this.aiButtonHtml(),
+                this.ai.buttonHtml(this.progress!),
             )
         }
-  ${this.aiMsgHtml()}
+  ${this.ai.msgHtml()}
   ${card}
   <div class="b3-progress__bar"><span style="width:${pct}%"></span></div>
 </div>`;
@@ -251,31 +261,21 @@ export class WordView {
         }
     }
 
-    /** 选择题作答(点击/数字键共用):按题面选项判定对错。 */
+    /** 选择题作答(点击/数字键共用)。 */
     private answerByOption(no: number): void {
-        const texts = this.cardMode === "choiceEn" ?
-            buildMeaningOptions(this.currentIdx) :
-            buildWordOptions(this.currentIdx);
-        if (texts[no] === undefined) return;
-        const correct = this.cardMode === "choiceEn" ?
-            meaningLine(this.currentIdx) :
-            WORD_BOOK.words[this.currentIdx].w;
-        this.answerObjective(texts[no] === correct, no);
-    }
-
-    /** 客观题作答：题面内标色 + 详情 + 继续按钮（评分延迟到收尾）。 */
-    private answerObjective(correct: boolean, pick?: number): void {
-        if (this.phase !== "prompt" || this.answered) return;
-        if (this.cardMode !== "choiceEn" && this.cardMode !== "choiceZh" && this.cardMode !== "spell") return;
-        this.answered = {correct, pick};
-        this.paint();
+        if (this.cardMode !== "choiceEn" && this.cardMode !== "choiceZh") return;
+        this.applyAnswered(checkOption(this.cardMode, this.currentIdx, no));
     }
 
     private submitSpell(): void {
-        if (this.cardMode !== "spell" || this.answered) return;
-        const input = this.el.querySelector<HTMLInputElement>("[data-field='spell']");
-        const v = input?.value ?? "";
-        this.answerObjective(spellMatches(v, WORD_BOOK.words[this.currentIdx].w));
+        if (this.cardMode === "spell") this.applyAnswered(checkSpell(this.el, this.currentIdx));
+    }
+
+    /** 客观题作答落位：题面内标色 + 详情 + 继续按钮（评分延迟到收尾）。 */
+    private applyAnswered(a: AnsweredState | undefined): void {
+        if (!a || this.phase !== "prompt" || this.answered) return;
+        this.answered = a;
+        this.paint();
     }
 
     /** 收尾：应用档位并进下一张；答错的词隔 3 张重现直到当场过关。 */
@@ -286,6 +286,36 @@ export class WordView {
         const p = this.progress;
         const idx = this.currentIdx;
         applyGrade(p, idx, grade, this.sessionNew.has(idx));
+        if (grade === "no") {
+            // 误认自述：结果页输入框里的「认成了什么」回填，交 AI 辨析
+            const conf = this.el.querySelector<HTMLInputElement>("[data-field='confessed']");
+            const v = conf?.value.trim();
+            if (v) p.mistakes[String(idx)].confused = v;
+        }
+        this.advanceAfterFinish(grade, idx);
+    }
+
+    /** 标「熟」收尾：退出复习循环，不进误认/重现。 */
+    private finishMastered(): void {
+        const awaiting = this.phase === "result" || this.answered;
+        if (!awaiting || this.busy || !this.progress) return;
+        this.busy = true;
+        const idx = this.currentIdx;
+        markFamiliar(this.progress, idx, this.sessionNew.has(idx));
+        this.advanceAfterFinish("easy", idx);
+    }
+
+    /** 星标开关（任意卡、任意阶段可点）。 */
+    private toggleStarCard(): void {
+        if (!this.progress || this.mode !== "card") return;
+        toggleStar(this.progress, this.currentIdx);
+        void this.store.save(this.progress);
+        this.paint();
+    }
+
+    /** finishCard/finishMastered 公共推进。 */
+    private advanceAfterFinish(grade: WordGrade, idx: number): void {
+        const p = this.progress!;
         if (this.cardMode === "learn") this.learned.add(idx);
         if (grade === "no") {
             if (!this.hardList.includes(idx)) this.hardList.push(idx);
@@ -300,15 +330,6 @@ export class WordView {
         this.paint();
     }
 
-    // ---------- 误认词 AI（逻辑在 WordAi.runner，这里只做视图接线） ----------
-
-    private aiButtonHtml(): string {
-        return this.ai.buttonHtml(this.progress!);
-    }
-
-    private aiMsgHtml(): string {
-        return this.ai.msgHtml();
-    }
 
     // ---------- 完成 ----------
 
@@ -320,8 +341,8 @@ export class WordView {
             p.today.newCount,
             p.today.revCount,
             this.hardList.length,
-            renderWordHead(this.t, this.aiButtonHtml()),
-            this.aiMsgHtml(),
+            renderWordHead(this.t, this.ai.buttonHtml(this.progress!)),
+            this.ai.msgHtml(),
         );
     }
 
@@ -356,145 +377,117 @@ export class WordView {
     // ---------- 事件 ----------
 
     bind(): void {
-        this.el.addEventListener("click", (ev) => {
-            const target = ev.target as HTMLElement;
-            const optBtn = target.closest<HTMLElement>("[data-opt]");
-            if (optBtn && !this.answered) {
-                this.answerByOption(parseInt(optBtn.dataset.opt ?? "0", 10));
-                return;
-            }
-            const gradeBtn = target.closest<HTMLElement>("[data-grade]");
-            if (gradeBtn) {
-                this.finishCard((gradeBtn.dataset.grade as WordGrade) ?? "know");
-                return;
-            }
-            const actBtn = target.closest<HTMLElement>("[data-act]");
-            if (!actBtn) {
-                if (target.closest(".wengu-word-card")) {
-                    // learn/recall 未翻面时点卡翻面
-                    if (
-                        this.phase === "prompt" && this.cardMode !== "choiceEn" &&
-                        this.cardMode !== "choiceZh" && this.cardMode !== "spell"
-                    ) {
-                        this.phase = "result";
-                        this.paint();
-                    }
-                }
-                return;
-            }
-            switch (actBtn.dataset.act) {
-                case "goreview":
-                    this.mode = "card";
-                    this.rebuildQueue("review");
+        bindWordEvents(this.el, {
+            state: () => ({
+                mode: this.mode,
+                phase: this.phase,
+                cardMode: this.cardMode,
+                answered: this.answered !== undefined,
+                answeredCorrect: this.answered?.correct,
+            }),
+            option: (no) => {
+                if (!this.answered) this.answerByOption(no);
+            },
+            grade: (g) => this.finishCard(g),
+            reveal: () => {
+                if (
+                    this.phase === "prompt" && this.cardMode !== "choiceEn" &&
+                    this.cardMode !== "choiceZh" && this.cardMode !== "spell"
+                ) {
+                    this.phase = "result";
                     this.paint();
-                    break;
-                case "gofresh": {
-                    const {review} = this.queueParts();
-                    if (review.length > 0) {
-                        this.mode = "askreview"; // 有到期复习 → 先弹「先复习」
-                    } else {
-                        this.mode = "card";
-                        this.rebuildQueue("fresh");
-                    }
-                    this.paint();
-                    break;
                 }
-                case "gofreshanyway":
+            },
+            submitSpell: () => this.submitSpell(),
+            confessEnter: () => this.finishCard("no"),
+            continueObjective: () => this.finishCard(this.answered?.correct ? "know" : "no"),
+            act: (name) => this.dispatchAct(name),
+        });
+    }
+
+    /** data-act 动作分发（绑定细节在 WordBind）。 */
+    private dispatchAct(name: string): void {
+        switch (name) {
+            case "goreview":
+                this.mode = "card";
+                this.rebuildQueue("review");
+                this.paint();
+                break;
+            case "gofresh": {
+                const {review} = buildQueue(this.progress!);
+                if (review.length > 0) {
+                    this.mode = "askreview"; // 有到期复习 → 先弹「先复习」
+                } else {
                     this.mode = "card";
                     this.rebuildQueue("fresh");
-                    this.paint();
-                    break;
-                case "stats":
-                    this.mode = "stats";
-                    this.paint();
-                    break;
-                case "home":
-                    this.mode = "home";
-                    this.paint();
-                    break;
-                case "showanswer":
-                    if (this.phase === "prompt") {
-                        this.phase = "result";
-                        this.paint();
-                    }
-                    break;
-                case "submit":
-                    this.submitSpell();
-                    break;
-                case "next":
-                    this.finishCard(this.answered?.correct ? "know" : "no");
-                    break;
-                case "markwrong":
-                    this.finishCard("no");
-                    break;
-                case "setstart":
-                    this.mode = "setstart";
-                    this.paint();
-                    break;
-                case "applystart":
-                    this.applyStart();
-                    break;
-                case "cancelset":
-                    this.cancelStart();
-                    break;
-                case "redohard":
-                    this.redoHard();
-                    break;
-                case "aianalyze":
-                    if (this.progress) {
-                        void this.ai.run(
-                            this.progress,
-                            () => this.store.save(this.progress!),
-                            () => {
-                                this.mode = "home";
-                            },
-                            () => this.paint(),
-                        );
-                    }
-                    break;
+                }
+                this.paint();
+                break;
             }
-        });
-        this.el.addEventListener("keydown", (ev) => {
-            if (this.mode !== "card" || this.busy) return;
-            const inInput = (ev.target as HTMLElement).tagName === "INPUT";
-            if (this.phase === "prompt" && !this.answered) {
-                if (inInput) {
-                    if (ev.code === "Enter") {
-                        ev.preventDefault();
-                        this.submitSpell();
-                    }
-                    return;
+            case "gofreshanyway":
+                this.mode = "card";
+                this.rebuildQueue("fresh");
+                this.paint();
+                break;
+            case "gostar":
+                this.mode = "card";
+                this.rebuildQueue("star");
+                this.paint();
+                break;
+            case "mastered":
+                this.finishMastered();
+                break;
+            case "star":
+                this.toggleStarCard();
+                break;
+            case "stats":
+                this.mode = "stats";
+                this.paint();
+                break;
+            case "home":
+                this.mode = "home";
+                this.paint();
+                break;
+            case "showanswer":
+                if (this.phase === "prompt") {
+                    this.phase = "result";
+                    this.paint();
                 }
-                if (ev.code === "Space") {
-                    if (this.cardMode === "learn" || this.cardMode === "recallEn" || this.cardMode === "recallZh") {
-                        ev.preventDefault();
-                        this.phase = "result";
-                        this.paint();
-                    }
-                    return;
-                }
-                if ((this.cardMode === "choiceEn" || this.cardMode === "choiceZh") && /^Digit[1-4]$/.test(ev.code)) {
-                    ev.preventDefault();
-                    this.answerByOption(parseInt(ev.code.slice(5), 10) - 1);
-                }
-                return;
-            }
-            // 答完待收尾：learn 四档(1-4)；recall 三档(1-3)；客观题空格/回车=继续
-            if (inInput) return;
-            const map: Record<string, WordGrade> = this.cardMode === "learn" ?
-                {Digit1: "no", Digit2: "fuzzy", Digit3: "know", Digit4: "easy"} :
-                {Digit1: "no", Digit2: "fuzzy", Digit3: "know"};
-            const g = map[ev.code];
-            if (g) {
-                ev.preventDefault();
-                this.finishCard(g);
-            } else if (
-                (this.cardMode === "choiceEn" || this.cardMode === "choiceZh" || this.cardMode === "spell") &&
-                (ev.code === "Space" || ev.code === "Enter")
-            ) {
-                ev.preventDefault();
+                break;
+            case "submit":
+                this.submitSpell();
+                break;
+            case "next":
                 this.finishCard(this.answered?.correct ? "know" : "no");
-            }
-        });
+                break;
+            case "markwrong":
+                this.finishCard("no");
+                break;
+            case "setstart":
+                this.mode = "setstart";
+                this.paint();
+                break;
+            case "applystart":
+                this.applyStart();
+                break;
+            case "cancelset":
+                this.cancelStart();
+                break;
+            case "redohard":
+                this.redoHard();
+                break;
+            case "aianalyze":
+                if (this.progress) {
+                    void this.ai.run(
+                        this.progress,
+                        () => this.store.save(this.progress!),
+                        () => {
+                            this.mode = "home";
+                        },
+                        () => this.paint(),
+                    );
+                }
+                break;
+        }
     }
 }

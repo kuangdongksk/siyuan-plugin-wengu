@@ -34,12 +34,14 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
     return run;
 }
 
-/** 待分析的误认词（词条信息 + 答错次数）。 */
+/** 待分析的误认词（词条信息 + 答错次数 + 混淆自述）。 */
 export interface WordAiInput {
     index: number;
     w: string;
     m: string;
     count: number;
+    /** 用户自述「认成了什么」（英文或中文模糊描述，AI 负责推断）。 */
+    confused?: string;
 }
 
 /** AI 分析结果：记忆提示 + 建议几天后复习。 */
@@ -64,11 +66,16 @@ export async function analyzeMistakes(inputs: WordAiInput[], modelId: string): P
 }
 
 function buildPrompt(batch: WordAiInput[]): string {
-    const list = batch.map((e, i) => `${i + 1}. ${e.w}（${e.m.split("\n")[0]}）— 答错 ${e.count} 次`).join("\n");
-    return `你是考研单词复习教练。学生在背单词时反复答错下面这些词，请逐词给出记忆帮助和复习安排。
+    const list = batch.map((e, i) =>
+        `${i + 1}. ${e.w}（${e.m.split("\n")[0]}）— 答错 ${e.count} 次${
+            e.confused ? `，学生自述认成了：${e.confused}` : ""
+        }`
+    ).join("\n");
+    return `你是考研单词复习教练。学生在背单词时反复答错下面这些词，请逐词给出辨析和复习安排。
+学生自述的混淆对象可能只是模糊描述（如"革新的那个"），你要先推断出最可能混淆的那个英文单词，再做辨析。
 对每个词按顺序输出三行，除此之外不要输出任何文字：
 W: 单词原样
-T: 记忆提示（混淆点/词根词缀/联想，不超过 40 个字）
+T: 辨析提示（若学生认成了别的词：先写出那个词及其中文意思，再用一句话讲两者区别；没有混淆对象则给词根/联想记忆法。不超过 60 个字）
 D: 建议几天后再次复习（1-30 的整数；答错次数越多、词越难则天数越短）
 单词列表：
 ${list}`;
@@ -88,7 +95,8 @@ function parseReply(reply: string, batch: WordAiInput[]): WordAiItem[] {
     return out;
 }
 
-/* ── 视图接线
+/* ── 视图接线：按钮/消息/运行（WordView 委托，含状态位） ── */
+
 /** 误认词 AI 的视图胶水：pending 计数、按钮/消息渲染、一次分析的运行。 */
 export class WordAiRunner {
     running = false;
@@ -102,7 +110,9 @@ export class WordAiRunner {
             const m = p.mistakes[key];
             if (m.note) continue;
             const entry = WORD_BOOK.words[Number(key)];
-            if (entry) out.push({index: Number(key), w: entry.w, m: entry.m, count: m.count});
+            if (entry) {
+                out.push({index: Number(key), w: entry.w, m: entry.m, count: m.count, confused: m.confused});
+            }
         }
         return out;
     }

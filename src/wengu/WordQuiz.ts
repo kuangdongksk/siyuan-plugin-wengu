@@ -94,14 +94,32 @@ function optionCls(i: number, answered: AnsweredState | undefined, correctText: 
     return " is-dim";
 }
 
-/** 详情区（单词+释义+AI提示），客观题作答后与回想结果视图共用。 */
-function detailHtml(idx: number, t: (k: string) => string, note: string | undefined): string {
+/** 详情区（单词+释义+曾认成 chip+AI辨析），结果视图共用。 */
+function detailHtml(idx: number, t: (k: string) => string, note: string | undefined, confused?: string): string {
     const entry = WORD_BOOK.words[idx];
     return `<div class="wengu-word-detail">
     <div class="wengu-word-detail-word">${esc(entry.w)}</div>
     <div class="wengu-word-detail-meaning">${esc(entry.m)}</div>
+    ${confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), {v: confused}))}</div>` : ""}
     ${note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(note)}</div>` : ""}
   </div>`;
+}
+
+/** 结果视图的「认成了…」自述输入（答错时填,回车=不认识并记录）。 */
+function confessHtml(t: (k: string) => string, word: string): string {
+    return `<div class="wengu-word-confess">
+    <span class="wengu-word-confess-label">${esc(fmt(t("wordConfusedHint"), {w: word}))}</span>
+    <input class="b3-text-field wengu-word-spell" data-field="confessed" autocomplete="off" placeholder="${
+        esc(t("wordConfusedPh"))
+    }">
+  </div>`;
+}
+
+/** 「熟」按钮（标熟=退出复习循环）。 */
+function familiarButton(t: (k: string) => string): string {
+    return `<button class="b3-button b3-button--outline" data-act="mastered" title="${esc(t("wordFamiliarTip"))}">${
+        esc(t("wordFamiliar"))
+    }</button>`;
 }
 
 /** 客观题作答后的收尾按钮：继续（对→know/错→no）+ 记错了。 */
@@ -131,15 +149,24 @@ export function renderCard(
         reveal?: boolean;
         answered?: AnsweredState;
         note?: string;
+        /** 曾认成的对象原文（详情区 chip）。 */
+        confused?: string;
+        /** 是否已星标（角标星高亮）。 */
+        starred?: boolean;
     } = {},
 ): string {
     const entry = WORD_BOOK.words[idx];
     const label = t(MODE_KEY[mode]);
+    // 结果视图公共件：详情(含混淆chip)+自述输入+熟按钮
+    const wrongPending = opts.reveal || (opts.answered && !opts.answered.correct);
+    const resultBlocks = `${detailHtml(idx, t, opts.note, opts.confused)}
+    ${wrongPending ? confessHtml(t, entry.w) : ""}
+    ${wrongPending ? familiarButton(t) : ""}`;
     let body: string;
     if (mode === "learn") {
         body = opts.reveal ?
             `<div class="wengu-word-text">${esc(entry.w)}</div>
-    ${detailHtml(idx, t, opts.note)}
+    ${resultBlocks}
     <div class="wengu-word-actions">
       <button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
       <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
@@ -154,7 +181,7 @@ export function renderCard(
         const buttons = texts.map((text, i) =>
             `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, texts)}" data-opt="${i}"${
                 opts.answered ? " disabled" : ""
-            }>${esc(text)}</button>`
+            }">${esc(text)}</button>`
         ).join("");
         const topic = mode === "choiceEn" ? esc(entry.w) : esc(meaningLine(idx));
         const topicCls = mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh";
@@ -167,18 +194,14 @@ export function renderCard(
                 `<div class="wengu-word-hint">${esc(t("wordPickHint"))}</div>`
         }
     <div class="wengu-word-opts">${buttons}</div>
-    ${
-            opts.answered ?
-                detailHtml(idx, t, opts.note) + `<div class="wengu-word-actions">${continueButtons(t)}</div>` :
-                ""
-        }`;
+    ${opts.answered ? resultBlocks + `<div class="wengu-word-actions">${continueButtons(t)}</div>` : ""}`;
     } else if (mode === "spell") {
         if (opts.answered) {
             body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
     <div class="wengu-word-feedback">${
                 esc(opts.answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), {w: entry.w}))
             }</div>
-    ${detailHtml(idx, t, opts.note)}
+    ${resultBlocks}
     <div class="wengu-word-actions">${continueButtons(t)}</div>`;
         } else {
             body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
@@ -192,7 +215,7 @@ export function renderCard(
     } else { // recallEn / recallZh
         if (opts.reveal) {
             body = `<div class="wengu-word-feedback">${esc(t(mode === "recallEn" ? "wordSelfEn" : "wordSelfZh"))}</div>
-    ${detailHtml(idx, t, opts.note)}
+    ${resultBlocks}
     <div class="wengu-word-actions">
       <button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
       <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
@@ -208,8 +231,12 @@ export function renderCard(
             }</button></div>`;
         }
     }
+    const starBtn = `<button class="b3-button b3-button--icon wengu-word-star${
+        opts.starred ? " is-starred" : ""
+    }" data-act="star" title="${esc(t("wordStar"))}"><svg><use xlink:href="#iconStar"></use></svg></button>`;
     return `<div class="wengu-word-card${opts.reveal || opts.answered ? " wengu-word-revealed" : ""}" tabindex="0">
     <div class="wengu-word-unit">${esc(label)}</div>
+    ${starBtn}
     ${body}
   </div>`;
 }
@@ -218,4 +245,22 @@ export function renderCard(
 export function spellMatches(input: string, word: string): boolean {
     const n = (s: string) => s.toLowerCase().replace(/[\s\-']/g, "");
     return n(input).length > 0 && n(input) === n(word);
+}
+
+/** 选择题判定（mode ∈ choiceEn/choiceZh）：返回作答态，选项不存在返回 undefined。 */
+export function checkOption(
+    mode: "choiceEn" | "choiceZh",
+    idx: number,
+    no: number,
+): AnsweredState | undefined {
+    const texts = mode === "choiceEn" ? buildMeaningOptions(idx) : buildWordOptions(idx);
+    if (texts[no] === undefined) return undefined;
+    const correct = mode === "choiceEn" ? meaningLine(idx) : WORD_BOOK.words[idx].w;
+    return {correct: texts[no] === correct, pick: no};
+}
+
+/** 读拼写框并判定（el 为视图容器）。 */
+export function checkSpell(el: HTMLElement, idx: number): AnsweredState {
+    const input = el.querySelector<HTMLInputElement>("[data-field='spell']");
+    return {correct: spellMatches(input?.value ?? "", WORD_BOOK.words[idx].w)};
 }
