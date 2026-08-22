@@ -220,5 +220,14 @@
   "wordStillFresh": "Learn new anyway",
   "wordReviewDone": "Reviews done for today",
   "wordBackHome": "Back to home",
-  "wordBookDone": "Book finished — only reviews remain"
+  "wordBookDone": "Book finished — only reviews remain",
+  "wordStatsTitle": "Stats",
+  "wordStatsLearned": "Learned",
+  "wordStatsLeft": "Left",
+  "wordStatsMastered": "Solid",
+  "wordStatsTodayNew": "New today",
+  "wordStatsTodayRev": "Reviewed",
+  "wordStatsStreakN": "Streak (days)",
+  "wordStatsMistakesLine": "Misremembered {a} ({b} pending AI) · too easy {c}",
+  "wordStatsNext7": "Due in next 7 days (incl. today)"
 }

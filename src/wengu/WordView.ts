@@ -1,3 +1,4 @@
+import {svgIcon} from "./FormHtml";
 import {
     esc,
     fmt,
@@ -24,10 +25,13 @@ import {
     applyWordStart,
     renderWordStart,
 } from "./WordStart";
+import {renderWordStats} from "./WordStats";
 import {
     applyGrade,
     buildQueue,
+    buildStats,
     dueTomorrowCount,
+    rollToday,
     WordStore,
     type WordGrade,
     type WenguWordProgress,
@@ -67,7 +71,7 @@ export class WordView {
     private sessionNew = new Set<number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     private hardList: number[] = [];
-    private mode: "home" | "askreview" | "card" | "setstart" | "done" = "home";
+    private mode: "home" | "askreview" | "stats" | "card" | "setstart" | "done" = "home";
     /** 当前会话队列种类(入口决定)。 */
     private queueKind: "review" | "fresh" = "fresh";
     private busy = false;
@@ -146,8 +150,14 @@ export class WordView {
 
     private paint(): void {
         if (!this.progress) return;
+        // 隔夜不关：每次重绘先翻转今日统计
+        rollToday(this.progress);
         if (this.mode === "setstart") {
             this.paintStartPanel();
+            return;
+        }
+        if (this.mode === "stats") {
+            this.paintStats();
             return;
         }
         if (this.mode === "home" || this.mode === "askreview") {
@@ -162,19 +172,37 @@ export class WordView {
         this.paintCard();
     }
 
-    // ---------- 首页/先复习确认 ----------
+    // ---------- 首页/先复习确认/统计 ----------
+
+    private statsBtnHtml(): string {
+        return `<button class="b3-button b3-button--icon" data-act="stats" title="${esc(this.t("wordStatsTitle"))}">${
+            svgIcon("iconInfo")
+        }</button>`;
+    }
+
+    private paintStats(): void {
+        this.el.innerHTML = renderWordStats(
+            this.t,
+            buildStats(this.progress!),
+            renderWordHead(this.t, this.aiButtonHtml()),
+        );
+    }
 
     private paintHome(): void {
         const {review, fresh} = this.queueParts();
         if (this.mode === "askreview") {
-            this.el.innerHTML = renderAskReview(this.t, review.length, renderWordHead(this.t, this.aiButtonHtml()));
+            this.el.innerHTML = renderAskReview(
+                this.t,
+                review.length,
+                renderWordHead(this.t, this.statsBtnHtml() + this.aiButtonHtml()),
+            );
             return;
         }
         this.el.innerHTML = renderWordHome(
             this.t,
             review.length,
             fresh.length,
-            renderWordHead(this.t, this.aiButtonHtml()),
+            renderWordHead(this.t, this.statsBtnHtml() + this.aiButtonHtml()),
             this.aiMsgHtml(),
         );
     }
@@ -374,6 +402,10 @@ export class WordView {
                 case "gofreshanyway":
                     this.mode = "card";
                     this.rebuildQueue("fresh");
+                    this.paint();
+                    break;
+                case "stats":
+                    this.mode = "stats";
                     this.paint();
                     break;
                 case "home":
