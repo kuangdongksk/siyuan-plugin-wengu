@@ -4,7 +4,7 @@ import type {WordGrade} from "./WordStore";
  * 单词面板事件绑定（WordView 拆件）：DOM 委托与按键分发在此，
  * 语义动作通过 host 回调交还视图，视图不再持有监听器细节。
  *
- * 按键约定：空格=翻面/继续；选择题 1-4；learn 四档 1-4；
+ * 按键约定：空格=翻面/继续；选择题 1-4；
  * 回想三档 1-3；拼写框回车=提交；「认成了…」框回车=记录并判不认识。
  */
 
@@ -114,9 +114,7 @@ export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
         }
         // 答完待收尾
         if (inInput) return;
-        const map: Record<string, WordGrade> = s.cardMode === "learn" ?
-            {Digit1: "no", Digit2: "fuzzy", Digit3: "know", Digit4: "easy"} :
-            {Digit1: "no", Digit2: "fuzzy", Digit3: "know"};
+        const map: Record<string, WordGrade> = {Digit1: "no", Digit2: "fuzzy", Digit3: "know"};
         const g = map[ev.code];
         if (g) {
             ev.preventDefault();

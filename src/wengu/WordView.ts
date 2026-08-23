@@ -82,7 +82,7 @@ export class WordView {
     /** 提示页/翻面结果（learn、recall 用）。 */
     phase: "prompt" | "result" = "prompt";
     /** 当前卡模式。 */
-    private cardMode: WordCardMode = "learn";
+    private cardMode: WordCardMode = "choiceEn";
     private cardSeq = 0;
     /** 客观题作答态（choiceEn/choiceZh/spell）。 */
     answered: AnsweredState | undefined;
@@ -317,7 +317,7 @@ export class WordView {
         this.busy = true;
         const idx = this.currentIdx;
         markFamiliar(this.progress, idx, this.sessionNew.has(idx));
-        this.advanceAfterFinish("easy", idx);
+        this.advanceAfterFinish("know", idx);
     }
 
     /** 星标开关（任意卡、任意阶段可点）。 */

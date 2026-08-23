@@ -71,7 +71,7 @@ export interface WenguWordProgress {
 }
 
 /** 认识程度。 */
-export type WordGrade = "no" | "fuzzy" | "know" | "easy";
+export type WordGrade = "no" | "fuzzy" | "know";
 
 /** Leitner 档位对应的复习间隔（天），下标=档位-1。 */
 const INTERVAL_DAYS = [1, 2, 4, 8, 16, 32];
@@ -170,13 +170,11 @@ export function applyGrade(
     const prev = progress.words[String(index)];
     const level = prev ? prev[0] : 0;
     let next: number;
-    if (grade === "easy") next = INTERVAL_DAYS.length;
-    else if (grade === "know") next = Math.min(INTERVAL_DAYS.length, level + 1);
+    if (grade === "know") next = Math.min(INTERVAL_DAYS.length, level + 1);
     else if (grade === "fuzzy") next = Math.max(1, level);
     else next = 1;
     const days = INTERVAL_DAYS[next - 1];
     progress.words[String(index)] = [next, now + days * 86400_000];
-    if (grade === "easy") progress.simple[String(index)] = 1;
     if (grade === "no") {
         // 误认本：再次答错清空旧 AI 辨析、保留混淆自述由调用方回填
         const m = progress.mistakes[String(index)];

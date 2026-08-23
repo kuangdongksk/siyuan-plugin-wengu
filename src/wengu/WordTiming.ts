@@ -11,10 +11,9 @@ import {
  * 犹豫，spell 的决策信号实际成为「看题到开始输入的首键延迟」。
  * 可见、非输入状态下的超时（走神，无法与深度思考区分）按「忘记」
  * 处理（不对称设计：误伤成本一次重见，漏抓成本假熟词流进长间隔）。
- * learn 是学习不是测试，不判超时。
  */
 
-/** 题型超时阈值（毫秒）；learn 不在表内 = 不判。 */
+/** 题型超时阈值（毫秒），不在表内的题型不判。 */
 const OVER_MS: Record<string, number> = {
     choiceEn: 12_000,
     choiceZh: 12_000,
@@ -83,7 +82,7 @@ export class WordTimer {
         this.segStart = this.active() ? Date.now() : 0;
     }
 
-    /** 结算并复位；未 begin 过（如 learn 外的翻面）返回 undefined。 */
+    /** 结算并复位；未 begin 过返回 undefined。 */
     settle(): SettledTiming | undefined {
         if (this.mode === "") return undefined;
         if (this.segStart > 0) {

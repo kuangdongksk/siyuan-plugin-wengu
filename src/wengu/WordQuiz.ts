@@ -7,8 +7,6 @@ import WORD_BOOK from "./WordBook";
 /**
  * 单词出题渲染（WordView 的展示层，不持有状态）。仿不背单词：
  *
- * - learn    新词学习卡：先看词猜意，翻面给完整释义，四档收尾
- *            （不认识/模糊/认识/太简单，太简单此后不再复习）
  * - choiceEn 看单词选释义（四选一，干扰取同单元）
  * - choiceZh 看释义选单词（四选一，选项是英文单词）
  * - spell    看释义拼单词（输入提交，即对错）
@@ -18,9 +16,9 @@ import WORD_BOOK from "./WordBook";
  * 下方内嵌词详情（单词+释义+AI 提示）与继续按钮。
  */
 
-export type WordCardMode = "learn" | "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
+export type WordCardMode = "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
 
-/** 复习题型轮换（新词走 learn 学习卡，不在此列）。 */
+/** 题型轮换（首题按流分流在 WordView.enterPrompt，不在轮换内）。 */
 const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell", "recallZh"];
 
 /** 会话题型轮换：按 seq 取模；干扰项不足或空格/超长词降级到
@@ -167,7 +165,6 @@ function continueButtons(t: (k: string) => string): string {
 }
 
 const MODE_KEY: Record<WordCardMode, string> = {
-    learn: "wordModeLearn",
     choiceEn: "wordModeChoice",
     choiceZh: "wordModeChoiceZh",
     spell: "wordModeSpell",
@@ -205,19 +202,7 @@ export function renderCard(
     ${wrongPending ? confessHtml(t, entry.w) : ""}
     ${wrongPending ? familiarButton(t) : ""}`;
     let body: string;
-    if (mode === "learn") {
-        body = opts.reveal ?
-            `<div class="wengu-word-text">${esc(entry.w)}</div>
-    ${resultBlocks}
-    <div class="wengu-word-actions">
-      <button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="know">${esc(t("wordGradeKnow"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="easy">${esc(t("wordEasy"))}</button>
-    </div>` :
-            `<div class="wengu-word-text">${esc(entry.w)}</div>
-    <div class="wengu-word-hint">${esc(t("wordLearnHint"))}</div>`;
-    } else if (mode === "choiceEn" || mode === "choiceZh") {
+    if (mode === "choiceEn" || mode === "choiceZh") {
         const texts = mode === "choiceEn" ?
             buildMeaningOptions(idx, opts.confIds) :
             buildWordOptions(idx, opts.confIds);

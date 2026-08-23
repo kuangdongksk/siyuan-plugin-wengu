@@ -26,7 +26,7 @@ export interface WordViewApi {
     lookupSel: number | undefined;
     rebuildQueue(kind: "review" | "fresh" | "star"): void;
     paint(): void;
-    finishCard(g: "no" | "fuzzy" | "know" | "easy"): void;
+    finishCard(g: "no" | "fuzzy" | "know"): void;
     finishMastered(): void;
     toggleStarCard(): void;
     submitSpell(): void;
