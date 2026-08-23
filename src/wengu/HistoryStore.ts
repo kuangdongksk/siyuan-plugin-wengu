@@ -116,3 +116,26 @@ export class HistoryStore {
 export function newSessionId(): string {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+/** 把一次作答记入会话（计数/用时/三态评语；落库由持有方调用）。 */
+export function pushSessionAnswer(
+    s: WenguSession,
+    qid: string,
+    submitted: string,
+    ok: boolean,
+    sec: number,
+    elapsedSec: number,
+    extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+): void {
+    s.results.push({
+        qid,
+        submitted,
+        ok,
+        ...(sec > 0 ? {sec} : {}),
+        ...(extra?.verdict ? {verdict: extra.verdict} : {}),
+        ...(extra?.comment ? {comment: extra.comment} : {}),
+    });
+    s.answered++;
+    if (ok) s.correct++;
+    s.elapsedSec = Math.max(s.elapsedSec, elapsedSec);
+}

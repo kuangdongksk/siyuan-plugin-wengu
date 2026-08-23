@@ -181,6 +181,17 @@ export async function addDocTotalTime(docId: string, addSeconds: number): Promis
     await setBlockAttrs(docId, {[Attr.totalTime]: String(cur + addSeconds)});
 }
 
+/** 轮询直到习题文档进入 SQL 聚合列表（内核 attributes 索引有数秒延迟）。 */
+export async function waitForDocInList(docId: string, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        const docs = await listQuestionDocs();
+        if (docs.some((d) => d.id === docId)) return true;
+        if (Date.now() >= deadline) return false;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+}
+
 /** 取某容器块的所有子块，按 part 属性归类到题目字段。 */
 async function hydrate(q: WenguQuestion): Promise<void> {
     const {data: children} = await fetchSyncPost("/api/block/getChildBlocks", {id: q.id, length: 128});

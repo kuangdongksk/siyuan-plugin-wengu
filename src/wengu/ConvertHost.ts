@@ -19,6 +19,8 @@ export interface ConvertHostCtx {
     lastConvertModelId: string;
     lastConvertFill: boolean;
     lastConvertSteps: boolean;
+    /** 并发批数默认值（设置页，1=串行）。 */
+    convertParallel?: number;
     /** 弹窗内临时选择（记 prefs）。 */
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean): void;
     /** 读取某源文档的未完成转换进度（无则 undefined）。 */
@@ -27,6 +29,10 @@ export interface ConvertHostCtx {
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 转换状态变化（按钮禁用/文案）。 */
     setConverting(v: boolean): void;
+    /** 每批渐进落盘后回调（页签以做题界面渐进呈现）。 */
+    onBatch?(docId: string, title: string, count: number, batch: number, total: number): void;
+    /** 全部丢弃后回调（页签恢复原状）。 */
+    onCancel?(): void;
     /** 成功收尾：切到新文档、重载、报状态（视图实现）。 */
     onDone(r: {docId: string; title: string; count: number;}): void;
 }
@@ -40,12 +46,15 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         initialModelId: ctx.lastConvertModelId || ctx.settings?.convertModelId || "",
         initialFillToChoice: ctx.lastConvertFill || ctx.settings?.fillToChoice === true,
         initialBigToSteps: ctx.lastConvertSteps || ctx.settings?.bigToSteps === true,
+        initialParallel: ctx.convertParallel ?? 1,
         initialTargetMode: ctx.settings?.convertTargetMode === "custom" ? "custom" : "same",
         initialTargetId: ctx.settings?.convertTargetId ?? "",
         saveChoice: ctx.saveChoice,
         getProgress: ctx.getProgress,
         saveProgress: ctx.saveProgress,
         setConverting: ctx.setConverting,
+        onBatch: ctx.onBatch,
+        onCancel: ctx.onCancel,
         onDone: ctx.onDone,
     });
 }

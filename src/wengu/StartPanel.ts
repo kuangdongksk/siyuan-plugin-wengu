@@ -287,3 +287,13 @@ export function startRound(ctx: StartRoundCtx): void {
     void ctx.history?.upsert(session);
     ctx.afterStart();
 }
+
+/** 轮次默认值（开刷面板模型与开轮共用；stepsMode 默认离线）。 */
+export function roundDefaults(reveal: WenguRevealMode, timer: TimerController): RoundDefaults {
+    return {
+        reveal,
+        stepsMode: "offline",
+        timing: timer.mode,
+        countdownMin: timer.countdownMin,
+    };
+}

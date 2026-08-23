@@ -337,3 +337,12 @@ export function roundFinishCtx(view: RoundFinishView): RoundFinishCtx {
         lockAllCards: () => view.lockAllCardsNow(),
     };
 }
+
+/** 锁定全部卡片的作答位（收卷用）。 */
+export function lockAllCards(el: HTMLElement): void {
+    el.querySelectorAll<HTMLElement>(".wengu-card").forEach((c) => {
+        c.querySelectorAll("input, textarea, button").forEach((n) => {
+            (n as HTMLButtonElement).disabled = true;
+        });
+    });
+}

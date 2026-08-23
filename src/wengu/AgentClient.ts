@@ -148,3 +148,31 @@ export async function agentChat(
         signal?.removeEventListener("abort", onAbort);
     }
 }
+
+/**
+ * 旧直答端点（POST /api/ai/chatGPT，{msg} → {code, data: 回复全文}）。
+ * 与 agent/chat 的关键差异（真机 20260823 验证）：无智能体会话，
+ * **支持并发**（agent/chat 并发会报 "session is busy in another
+ * instance"）；模型跟随 设置→AI 的默认模型，不能按次指定。分批转换
+ * 的并发池走这里。
+ */
+export async function agentChatConcurrent(message: string, timeoutMs: number, signal?: AbortSignal): Promise<string> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const onAbort = (): void => controller.abort();
+    signal?.addEventListener("abort", onAbort);
+    try {
+        const resp = await fetch("/api/ai/chatGPT", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({msg: message}),
+            signal: controller.signal,
+        });
+        const j = await resp.json() as {code?: number; msg?: string; data?: unknown;};
+        if (j.code !== 0) throw new Error(j.msg || `chatGPT ${j.code}`);
+        return String(j.data ?? "");
+    } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+    }
+}

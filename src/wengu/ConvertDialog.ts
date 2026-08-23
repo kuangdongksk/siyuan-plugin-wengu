@@ -20,21 +20,20 @@ import {
     formSwitch,
     svgIcon,
 } from "./FormHtml";
-import {MinerUError} from "./MinerUClient";
-import {importPdfAsDoc} from "./PdfImport";
-import {listQuestionDocs} from "./QuestionService";
+import {bindPdfImportRow} from "./PdfImportRow";
+import {waitForDocInList} from "./QuestionService";
 import {
     esc,
     fmt,
 } from "./ui";
 
 /**
- * AI 转习题对话框（从 QuizView 拆出）：选模型 + 转换开关 + 文档 id。
- * 分批生成长文档：状态行实时展示「检测到 N 题 / 第 x/y 批 · 已 n 题」，
- * 生成中可终止——终止后选择保留进度（另存模式建部分文档，原位模式只
- * 记录已生成 kramdown）或全部丢弃；有保留进度时弹出「继续生成」入口。
- * 落盘默认「原位替换」（本文档变成题库，原文进回收站），可切「另存
- * 新文档」；另支持「从 PDF 导入」：MinerU 解析建原文档并自动填入。
+ * AI 转习题对话框（从 QuizView 拆出）：选模型 + 转换开关 + 并发批数 +
+ * 文档 id + 转换方式（默认原位替换，可切另存）+ 从 PDF 导入。
+ * 分批生成长文档：状态行实时展示「检测到 N 题 / 第 x/y 批 · 已 n 题 /
+ * 本批 +k」，另存模式每批渐进落盘（页签渐进呈现、弹窗预览题目行），
+ * 生成中可终止——终止后保留进度（另存=部分文档；原位=记录 kramdown）
+ * 或全部丢弃；有保留进度时弹出「继续生成」入口。
  */
 
 /** 对话框依赖的宿主能力（QuizView 提供）。 */
@@ -50,6 +49,8 @@ export interface ConvertDialogDeps {
     initialFillToChoice: boolean;
     /** 大题拆多步预选值（prefs 上次 > 设置默认）。 */
     initialBigToSteps: boolean;
+    /** 并发批数预选值（设置默认，1=串行）。 */
+    initialParallel: number;
     /** 生成位置预选：same=原文档同目录；custom=指定父文档下面。 */
     initialTargetMode: "same" | "custom";
     /** 指定父文档 id 预选（生成位置=custom 时用）。 */
@@ -62,6 +63,10 @@ export interface ConvertDialogDeps {
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 转换状态变化（禁用/恢复目录底部的转换按钮）。 */
     setConverting(v: boolean): void;
+    /** 每批渐进落盘后回调（页签以做题界面渐进呈现；id 每批会变）。 */
+    onBatch?(docId: string, title: string, count: number, batch: number, total: number): void;
+    /** 全部丢弃后回调（页签清掉渐进呈现、恢复原状）。 */
+    onCancel?(): void;
     /** 成功：docId/title/count + 摘要 message。 */
     onDone(r: {docId: string; title: string; count: number; message: string;}): void;
 }
@@ -90,6 +95,18 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         t("bigToSteps"),
                         t("bigToStepsHint"),
                         formSwitch("dlg-steps", deps.initialBigToSteps, "data-act"),
+                    ) +
+                    formRow(
+                        t("convertParallelLabel"),
+                        t("convertParallelHint"),
+                        formSelect(
+                            "dlg-parallel",
+                            formOption("1", t("convertParallel1"), deps.initialParallel <= 1) +
+                                formOption("2", fmt(t("convertParallelN"), {n: "2"}), deps.initialParallel === 2) +
+                                formOption("3", fmt(t("convertParallelN"), {n: "3"}), deps.initialParallel === 3) +
+                                formOption("4", fmt(t("convertParallelN"), {n: "4"}), deps.initialParallel === 4),
+                            "data-act",
+                        ),
                     ) +
                     formRow(
                         t("docIdLabel"),
@@ -142,6 +159,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             )
         }
       <div class="wengu-status" data-act="dlg-status" hidden></div>
+      <div class="wengu-convert-preview" data-act="dlg-preview" hidden></div>
       <div data-act="dlg-resume-row" hidden>
         <button class="b3-button b3-button--text" data-act="dlg-resume">${esc(t("convertResumeBtn"))}</button>
       </div>
@@ -157,22 +175,41 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const modelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-model']");
     const fillInput = root.querySelector<HTMLInputElement>("[data-act='dlg-fill']");
     const stepsInput = root.querySelector<HTMLInputElement>("[data-act='dlg-steps']");
-    const targetSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-target']");
-    const targetInput = root.querySelector<HTMLInputElement>("[data-act='dlg-targetid']");
+    const parallelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-parallel']");
     const wmodeSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-wmode']");
     const pdfBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-pdf']");
-    const pdfFile = root.querySelector<HTMLInputElement>("[data-act='dlg-pdffile']");
+    const targetSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-target']");
+    const targetInput = root.querySelector<HTMLInputElement>("[data-act='dlg-targetid']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
     const cancelBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-cancel']");
     const stopBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-stop']");
     const resumeRow = root.querySelector<HTMLElement>("[data-act='dlg-resume-row']");
     const status = root.querySelector<HTMLElement>("[data-act='dlg-status']");
+    const preview = root.querySelector<HTMLElement>("[data-act='dlg-preview']");
+
+    /** 渐进预览：追加本批题目的「题号 题型 题干片段」行并滚到底。 */
+    const appendStems = (stems: {no: number; type: string; stem: string;}[] | undefined): void => {
+        if (!preview || !stems?.length) return;
+        preview.removeAttribute("hidden");
+        for (const s of stems) {
+            const row = document.createElement("div");
+            row.className = "wengu-preview-row";
+            const key = s.type ? `type${s.type[0].toUpperCase()}${s.type.slice(1)}` : "";
+            const known = key ? t(key) : "";
+            const typeLabel = known && known !== key ? known : s.type;
+            row.innerHTML = `<span class="wengu-preview-no">${s.no}</span>` +
+                (typeLabel ? `<span class="wengu-badge">${esc(typeLabel)}</span>` : "") +
+                `<span class="wengu-preview-stem" title="${esc(s.stem)}">${esc(s.stem)}</span>`;
+            preview.appendChild(row);
+        }
+        preview.scrollTop = preview.scrollHeight;
+    };
     /** 按钮阶段：idle 默认 / running 生成中 / choice 终止后的二选一。 */
     let phase: "idle" | "running" | "choice" = "idle";
 
-    const showDlgStatus = (html: string, kind: "ok" | "err" | "muted") => {
+    const showDlgStatus = (html: string, kind: "ok" | "err" | "muted", keptPartial = false) => {
         if (!status) return;
-        status.innerHTML = html;
+        status.innerHTML = html + (keptPartial ? `<br>${esc(t("convertPartialKept"))}` : "");
         status.className = `wengu-status wengu-status-${kind}`;
         status.removeAttribute("hidden");
     };
@@ -182,7 +219,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (stopBtn) stopBtn.hidden = !running;
         if (cancelBtn) cancelBtn.disabled = running;
         if (resumeRow) resumeRow.hidden = running || resumeRow.dataset.has !== "1";
-        [input, modelSel, fillInput, stepsInput, wmodeSel, pdfBtn].forEach((el) => {
+        [input, modelSel, fillInput, stepsInput, parallelSel, wmodeSel, pdfBtn].forEach((el) => {
             if (el) el.disabled = running;
         });
     };
@@ -222,8 +259,8 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         deps.onDone({docId: c.docId ?? "", title: c.title ?? "", count: c.count, message: c.message});
     };
 
-    /** 终止后的二选一：保留进度（另存=建部分文档并记进度；原位=只记
-     *  kramdown 进度、原文档不动）/ 全部丢弃。 */
+    /** 终止后的二选一：保留进度（另存=渐进文档已在，记 docId；原位=
+     *  原文档不动，已生成 kramdown 存进记录）/ 全部丢弃。 */
     const chooseStop = (r: BatchedResult, srcDocId: string, targetRaw: string, writeMode: "inplace" | "newdoc") => {
         if (!okBtn || !cancelBtn) return;
         if (!r.kramdown.trim()) {
@@ -242,6 +279,19 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         phase = "choice";
         okBtn.onclick = () =>
             void (async () => {
+                // 渐进落盘已有文档：只记进度；否则（首批前终止）现写一份
+                if (r.docId && r.title) {
+                    deps.saveProgress(srcDocId, {
+                        docId: r.docId,
+                        title: r.title,
+                        offset: r.doneOffset,
+                        batches: r.batches,
+                        total: r.total,
+                        count: r.count,
+                    });
+                    await finish(r);
+                    return;
+                }
                 if (writeMode === "inplace") {
                     const info = await getDocInfo(srcDocId);
                     deps.saveProgress(srcDocId, {
@@ -276,7 +326,9 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 }
             })();
         cancelBtn.onclick = () => {
+            void (r.docId ? removeDoc(r.docId) : Promise.resolve());
             deps.saveProgress(srcDocId, undefined);
+            deps.onCancel?.();
             bindDefaultButtons();
             showDlgStatus(t("convertDiscarded"), "muted");
             setBusy(false);
@@ -289,6 +341,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         const modelId = modelSel?.value ?? "";
         const fill = fillInput?.checked ?? false;
         const bigSteps = stepsInput?.checked ?? false;
+        const parallel = Math.max(1, Math.min(4, Number(parallelSel?.value ?? 1) || 1));
         const writeMode = wmodeSel?.value === "newdoc" ? "newdoc" : "inplace";
         const genTarget = targetSel?.value === "custom" ? (targetInput?.value ?? "").trim() : "";
         if (targetSel?.value === "custom" && !genTarget) {
@@ -299,6 +352,10 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         const controller = new AbortController();
         phase = "running";
         setBusy(true);
+        if (preview) {
+            preview.innerHTML = "";
+            preview.setAttribute("hidden", "");
+        }
         if (stopBtn) {
             stopBtn.onclick = () => controller.abort();
         }
@@ -309,6 +366,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 modelId,
                 fillToChoice: fill,
                 bigToSteps: bigSteps,
+                parallel,
                 signal: controller.signal,
                 resume: resumeRec ?
                     {offset: resumeRec.offset, docId: resumeRec.docId, kramdown: resumeRec.kramdown} :
@@ -322,28 +380,37 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                     }
                     if (p.phase === "writing") {
                         showDlgStatus(t("settling"), "muted");
+                        appendStems(p.newStems);
+                        if (p.docId) deps.onBatch?.(p.docId, p.title ?? "", p.count, p.batch, p.total);
                         return;
                     }
-                    const detected = p.detected !== undefined && p.detected > 0 ?
-                        ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}` :
+                    // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
+                    // 检测总数：截断时 N+（下限）；多批文档数不出时明说「未确定」
+                    appendStems(p.newStems);
+                    if (p.docId) deps.onBatch?.(p.docId, p.title ?? "", p.count, p.batch, p.total);
+                    const totalHint = p.detected !== undefined && p.detected > 0 ?
+                        ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}${
+                            p.detectedTruncated ? "+" : ""
+                        }` :
+                        (p.total > 1 ? ` · ${esc(t("convertTotalUnknown"))}` : "");
+                    const lastDelta = p.lastBatch > 0 ?
+                        ` · ${esc(fmt(t("convertLastBatch"), {k: String(p.lastBatch)}))}` :
                         "";
-                    showDlgStatus(
-                        `${
-                            esc(fmt(t("convertBatchProgress"), {
-                                i: String(p.batch),
-                                n: String(p.total),
-                                c: String(p.count),
-                            }))
-                        }${detected}`,
-                        "muted",
-                    );
+                    const main = parallel > 1 ?
+                        esc(fmt(t("convertBatchParallel"), {
+                            b: String(p.batch),
+                            n: String(p.total),
+                            c: String(p.count),
+                        })) :
+                        esc(fmt(t("convertBatchProgress"), {
+                            i: String(p.batch + 1),
+                            n: String(p.total),
+                            c: String(p.count),
+                        }));
+                    showDlgStatus(`${main}${lastDelta}${totalHint}`, "muted");
                 },
             });
             if (r.status === "done") {
-                if (resumeRec?.docId) {
-                    // 继续生成完成：删旧的部分文档、清进度
-                    await removeDoc(resumeRec.docId);
-                }
                 deps.saveProgress(target, undefined);
                 await finish(r);
                 return;
@@ -352,68 +419,36 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 chooseStop(r, target, genTarget, writeMode);
                 return;
             }
-            showDlgStatus(r.message || t("convertNoQuestions"), "err");
+            showDlgStatus(r.message || t("convertNoQuestions"), "err", r.count > 0 && !!r.docId);
+            if (r.count > 0) {
+                // 中途失败但已有部分内容：保留 + 记进度（可继续生成）。
+                // 渐进/另存=部分文档 docId；原位=kramdown 进记录
+                deps.saveProgress(
+                    target,
+                    r.docId && r.title ?
+                        {
+                            docId: r.docId,
+                            title: r.title,
+                            offset: r.doneOffset,
+                            batches: r.batches,
+                            total: r.total,
+                            count: r.count,
+                        } :
+                        {
+                            title: "",
+                            offset: r.doneOffset,
+                            batches: r.batches,
+                            total: r.total,
+                            count: r.count,
+                            kramdown: r.kramdown,
+                        },
+                );
+            }
             bindDefaultButtons();
         } catch (e) {
             showDlgStatus(String((e as Error)?.message ?? e), "err");
             bindDefaultButtons();
         } finally {
-            setBusy(false);
-        }
-    };
-
-    /** MinerU/导入错误 → i18n 文案（未知错误原样展示）。 */
-    const importError = (e: unknown): string => {
-        if (e instanceof MinerUError) {
-            const head = t(`mineruErr_${e.kind}`);
-            return e.detail ? `${head}（${e.detail}）` : head;
-        }
-        const m = String((e as Error)?.message ?? e);
-        return m === "pdfImportParentMissing" ? t("pdfImportParentMissing") : m;
-    };
-
-    /** 从 PDF 导入：MinerU 解析建原文档 → 自动填入文档 id。导入位置 =
-     *  生成位置的指定父文档（custom）；same 时建到当前文档旁边。 */
-    const runImport = async (file: File) => {
-        if (!okBtn) return;
-        if (!deps.mineruToken) {
-            showDlgStatus(t("mineruNoToken"), "err");
-            return;
-        }
-        const controller = new AbortController();
-        phase = "running";
-        setBusy(true);
-        if (stopBtn) stopBtn.onclick = () => controller.abort();
-        try {
-            const custom = (targetInput?.value ?? "").trim();
-            const r = await importPdfAsDoc(file, {
-                token: deps.mineruToken,
-                ...(targetSel?.value === "custom" && custom ? {parentDocId: custom} : {
-                    siblingDocId: (input?.value ?? "").trim() || deps.activeDocId,
-                }),
-                signal: controller.signal,
-                onProgress: (p) => {
-                    if (p.stage === "upload") showDlgStatus(t("mineruUploading"), "muted");
-                    else if (p.stage === "wait") {
-                        showDlgStatus(fmt(t("mineruWaiting"), {p: String(p.percent ?? 0)}), "muted");
-                    } else if (p.stage === "download") showDlgStatus(t("mineruDownloading"), "muted");
-                    else showDlgStatus(t("mineruSaving"), "muted");
-                },
-            });
-            if (input) input.value = r.docId;
-            syncResumeHint();
-            showDlgStatus(
-                esc(fmt(t("mineruImported"), {title: r.title, n: String(r.charCount), img: String(r.imageCount)})),
-                "ok",
-            );
-        } catch (e) {
-            if ((e as Error)?.name === "AbortError") {
-                showDlgStatus(t("convertDiscarded"), "muted");
-            } else {
-                showDlgStatus(importError(e), "err");
-            }
-        } finally {
-            phase = "idle";
             setBusy(false);
         }
     };
@@ -431,10 +466,25 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         }
     };
     bindDefaultButtons();
-    pdfBtn?.addEventListener("click", () => pdfFile?.click());
-    pdfFile?.addEventListener("change", () => {
-        const f = pdfFile?.files?.[0];
-        if (f) void runImport(f);
+    // 从 PDF 导入（MinerU）：位置=custom 指定父文档，否则当前文档旁边
+    bindPdfImportRow(root, {
+        t,
+        mineruToken: deps.mineruToken,
+        hookStop: (c) => {
+            if (stopBtn) stopBtn.onclick = () => c.abort();
+        },
+        resolveTarget: () => {
+            const custom = (targetInput?.value ?? "").trim();
+            return targetSel?.value === "custom" && custom ? {parentDocId: custom} : {
+                siblingDocId: (input?.value ?? "").trim() || deps.activeDocId,
+            };
+        },
+        showStatus: (html, kind) => showDlgStatus(html, kind),
+        setBusy,
+        onImported: (r) => {
+            if (input) input.value = r.docId;
+            syncResumeHint();
+        },
     });
     root.querySelector("[data-act='dlg-resume']")?.addEventListener("click", () => {
         const docId = (input?.value ?? "").trim();
@@ -446,15 +496,4 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     });
     input?.focus();
     syncResumeHint();
-}
-
-/** 轮询直到习题文档进入 SQL 聚合结果（内核 attributes 索引有数秒延迟）。 */
-async function waitForDocInList(docId: string, timeoutMs: number): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    for (;;) {
-        const docs = await listQuestionDocs();
-        if (docs.some((d) => d.id === docId)) return true;
-        if (Date.now() >= deadline) return false;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
 }
