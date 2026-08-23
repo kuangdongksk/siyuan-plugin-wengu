@@ -120,7 +120,7 @@ export class WordStartCtl {
                 this.t("wordImportNoText") :
                 r.error === "noMatch" ?
                 this.t("wordImportNoMatch") :
-                this.t("wordImportDone")
+                this.t("wordImportResult")
                     .replace("{a}", String(r.hit))
                     .replace("{b}", String(r.miss)) +
                 (r.missSample.length > 0 ? `（${r.missSample.join(", ")}）` : "");
