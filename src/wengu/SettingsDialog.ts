@@ -73,7 +73,7 @@ export function openWenguSetting(opts: {
         title: `${opts.pluginName} · ${t("settingsTitle")}`,
         width: "780px",
         height: "520px",
-        content: `<div class="fn__flex config__panel" style="height:100%;max-width:none">
+        content: `<div class="fn__flex config__panel wengu-setting" style="height:100%;max-width:none">
   <div class="config__side b3-list b3-list--background">
     <ul class="config__tab-scroll">
       ${tabIcon("drill", "iconList", t("setTabDrill"), true)}
