@@ -12,3 +12,4 @@ index.js
 kernel.js
 /i18n
 .worktree/
+package-lock.json
