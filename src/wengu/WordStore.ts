@@ -64,6 +64,8 @@ export interface WenguWordProgress {
     confusables?: WenguConfusableGroup[];
     /** 易混组辨析笔记（用户手写），key = 组 ids 升序逗号串。 */
     confNotes?: Record<string, string>;
+    /** 词级笔记（用户手写，任何词可写），key 为扁平下标字符串。 */
+    notes?: Record<string, string>;
     /** 每组单词数（AI 复盘粒度，5~20）。 */
     groupSize?: number;
 }
@@ -363,6 +365,7 @@ export class WordStore {
         if (!p.timing) p.timing = {};
         if (!p.confusables) p.confusables = [];
         if (!p.confNotes) p.confNotes = {};
+        if (!p.notes) p.notes = {};
         const key = todayKey();
         if (p.today.key !== key) p.today = {key, newCount: 0, revCount: 0};
         return p;

@@ -285,5 +285,7 @@
   "wordConfusePair": "Confusable",
   "wordConfuseAsk": "Copy prompt",
   "wordConfuseSave": "Save note",
-  "wordConfuseNotePh": "Note: copy the prompt to AI, then paste here"
+  "wordConfuseNotePh": "Note: copy the prompt to AI, then paste here",
+  "wordNotePh": "Word note: root/mnemonic/sentence…",
+  "wordNoteSave": "Save"
 }

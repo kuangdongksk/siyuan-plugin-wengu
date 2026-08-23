@@ -9,6 +9,7 @@ import {
     confusableHtml,
     groupsOf,
     setNote,
+    wordNoteHtml,
 } from "./WordConfusables";
 import {
     renderWordHead,
@@ -53,7 +54,7 @@ function statusLine(p: WenguWordProgress, idx: number, t: (k: string) => string)
     return fmt(t("wordStLevel"), {n: String(st[0])});
 }
 
-/** 详情页易混笔记编辑行（仅属易混组时渲染；值走 confNoteDraft 不重绘）。 */
+/** 详情页易混笔记编辑行（仅属易混组时渲染；值走 confCtl.draft 不重绘）。 */
 function confEditHtml(t: (k: string) => string, p: WenguWordProgress, idx: number): string {
     const g = groupsOf(p, idx)[0];
     if (!g) return "";
@@ -67,6 +68,17 @@ function confEditHtml(t: (k: string) => string, p: WenguWordProgress, idx: numbe
     }</button>
     <button class="b3-button b3-button--outline" data-act="confsave" data-idx="${idx}">${
         esc(t("wordConfuseSave"))
+    }</button>
+  </div>`;
+}
+
+/** 详情页词级笔记编辑行（任何词都有：词根/助记/例句等）。 */
+function wordEditHtml(t: (k: string) => string, p: WenguWordProgress, idx: number): string {
+    const note = p.notes?.[String(idx)] ?? "";
+    return `<div class="wengu-word-confuse-edit">
+    <input class="b3-text-field" data-field="wordnote" value="${esc(note)}" placeholder="${esc(t("wordNotePh"))}">
+    <button class="b3-button b3-button--outline" data-act="wordnotesave" data-idx="${idx}">${
+        esc(t("wordNoteSave"))
     }</button>
   </div>`;
 }
@@ -88,8 +100,10 @@ export function renderLookup(
     <div class="wengu-word-text">${esc(e.w)}</div>
     <div class="wengu-word-detail-meaning">${esc(e.m)}</div>
     ${m?.confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), {v: m.confused}))}</div>` : ""}
+    ${wordNoteHtml(p, sel)}
     ${confusableHtml(t, p, sel)}
     ${m?.note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(m.note)}</div>` : ""}
+    ${wordEditHtml(t, p, sel)}
     ${confEditHtml(t, p, sel)}
     <div class="wengu-word-actions">
       <button class="b3-button b3-button--outline" data-act="lookupstar" data-idx="${sel}">${svgIcon("iconStar")}${
@@ -156,14 +170,24 @@ export function paintLookupInto(
 /** 查词详情的易混笔记控制器（草稿跟踪 + 保存/复制提问，
  * 自 WordView 外移行数受限）。 */
 export class LookupConfCtl {
-    /** 笔记草稿（input 委托写入，不触发重绘）。 */
+    /** 辨析笔记草稿（input 委托写入，不触发重绘）。 */
     draft = "";
+    /** 词级笔记草稿。 */
+    wordDraft = "";
 
     constructor(
         private readonly getProgress: () => WenguWordProgress,
         private readonly save: (p: WenguWordProgress) => Promise<unknown>,
         private readonly refresh: () => void,
     ) {}
+
+    /** 保存词级笔记（任何词，词根/助记/例句）。 */
+    saveWordNote(idx: number): void {
+        const p = this.getProgress();
+        (p.notes ??= {})[String(idx)] = this.wordDraft.trim();
+        void this.save(p);
+        this.refresh();
+    }
 
     /** 保存辨析笔记到词条第一个易混组。 */
     saveNote(idx: number): void {

@@ -81,6 +81,12 @@ export function askPrompt(idx: number, other: string): string {
     return `请辨析这两个考研易混单词：${WORD_BOOK.words[idx].w} / ${other}。各给中文释义，再用一句话讲两者区别与记法。`;
 }
 
+/** 词级笔记的只读块（卡片/查词详情区：这个词怎么记，任何词可写）。 */
+export function wordNoteHtml(p: WenguWordProgress, idx: number): string {
+    const v = p.notes?.[String(idx)];
+    return v ? `<div class="wengu-word-confuse-note">${esc(v)}</div>` : "";
+}
+
 /** 保存易混组辨析笔记（用户手写）。 */
 export function setNote(p: WenguWordProgress, g: WenguConfusableGroup, note: string): void {
     (p.confNotes ??= {})[confKey(g.ids)] = note;

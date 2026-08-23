@@ -146,6 +146,9 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
         case "confask":
             v.confCtl.ask(parseInt(dataset?.idx ?? "0", 10));
             break;
+        case "wordnotesave":
+            v.confCtl.saveWordNote(parseInt(dataset?.idx ?? "0", 10));
+            break;
         case "confsave":
             v.confCtl.saveNote(parseInt(dataset?.idx ?? "0", 10));
             break;

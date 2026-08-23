@@ -285,5 +285,7 @@
   "wordConfusePair": "易混淆",
   "wordConfuseAsk": "复制提问",
   "wordConfuseSave": "保存笔记",
-  "wordConfuseNotePh": "辨析笔记：点「复制提问」去 AI 生成后粘贴"
+  "wordConfuseNotePh": "辨析笔记：点「复制提问」去 AI 生成后粘贴",
+  "wordNotePh": "单词笔记：词根/助记/例句…",
+  "wordNoteSave": "保存"
 }

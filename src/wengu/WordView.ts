@@ -17,6 +17,7 @@ import {
     addPair,
     confOthers,
     confusableHtml,
+    wordNoteHtml,
 } from "./WordConfusables";
 import {
     paintDoneInto,
@@ -230,7 +231,7 @@ export class WordView {
             confused: mistake?.confused,
             starred: !!p.starred[String(idx)],
             confIds: this.confIds,
-            confHtml: confusableHtml(this.t, p, idx),
+            confHtml: wordNoteHtml(p, idx) + confusableHtml(this.t, p, idx),
         });
         this.el.innerHTML = `<div class="wengu-word">
   ${
@@ -474,6 +475,10 @@ export class WordView {
 
     confNoteInput(value: string): void {
         this.confCtl.draft = value;
+    }
+
+    wordNoteInput(value: string): void {
+        this.confCtl.wordDraft = value;
     }
 
     /** data-act 动作分发在 WordActs（视图成员公开给 WordViewApi）。 */
