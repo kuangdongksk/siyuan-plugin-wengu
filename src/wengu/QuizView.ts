@@ -20,8 +20,10 @@ import {
     showStatus,
     updateConvertBtn,
 } from "./ConvertHost";
-import type {HistoryStore} from "./HistoryStore";
-import type {WenguSession} from "./HistoryStore";
+import type {
+    HistoryStore,
+    WenguSession,
+} from "./HistoryStore";
 import {pushSessionAnswer} from "./HistoryStore";
 import {bindNumRail} from "./NumRail";
 import {
@@ -54,8 +56,10 @@ import {
 } from "./StartPanel";
 import {bindViewEvents} from "./ViewBindings";
 
-import {renderTimerLabel} from "./TimerController";
-import {TimerController} from "./TimerController";
+import {
+    renderTimerLabel,
+    TimerController,
+} from "./TimerController";
 import type {
     WenguDoc,
     WenguQuestion,
