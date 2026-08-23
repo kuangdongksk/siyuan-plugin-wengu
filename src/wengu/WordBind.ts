@@ -38,19 +38,27 @@ export interface WordBindHost {
     importFile(file: File, input: HTMLInputElement): void;
     /** 查词输入变化。 */
     lookupInput(value: string): void;
+    /** 易混辨析笔记草稿输入（查词详情，不重绘）。 */
+    confNoteInput(value: string): void;
 }
 
 /** 绑定点击、键盘、输入与文件选择（容器上委托，重渲染不用重绑）。 */
 export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
     el.addEventListener("change", (ev) => {
-        const input = ev.target as HTMLInputElement;
-        if (input.tagName === "INPUT" && input.type === "file" && input.files?.[0]) {
-            host.importFile(input.files[0], input);
+        const target = ev.target as HTMLElement;
+        if (target.tagName === "INPUT" && (target as HTMLInputElement).type === "file") {
+            const input = target as HTMLInputElement;
+            if (input.files?.[0]) host.importFile(input.files[0], input);
+            return;
+        }
+        if (target.tagName === "SELECT" && target.dataset.field === "groupsize") {
+            host.act("setgroupsize", {value: (target as HTMLSelectElement).value});
         }
     });
     el.addEventListener("input", (ev) => {
         const input = ev.target as HTMLInputElement;
         if (input.dataset.field === "lookup") host.lookupInput(input.value);
+        else if (input.dataset.field === "confnote") host.confNoteInput(input.value);
     });
     el.addEventListener("click", (ev) => {
         const target = ev.target as HTMLElement;

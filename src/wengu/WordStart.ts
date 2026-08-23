@@ -12,6 +12,7 @@ import WORD_BOOK from "./WordBook";
 import {runWordImport} from "./WordImport";
 import {
     todayKey,
+    groupSizeOf,
     type WenguWordProgress,
 } from "./WordStore";
 
@@ -31,6 +32,10 @@ export function renderWordStart(
     const unitOptions = WORD_BOOK.units.map((u) =>
         formOption(String(u.u), fmt(t("wordUnitOpt"), {n: String(u.u), c: String(u.count)}), u.u === curUnit)
     ).join("");
+    const gs = groupSizeOf(p);
+    const groupOptions = [5, 10, 15, 20].map(n =>
+        formOption(String(n), fmt(t("wordGroupOpt"), {n: String(n)}), n === gs)
+    ).join("");
     const hasProgress = p.cursor > 0 || Object.keys(p.words).length > 0;
     const statusOptions = formOption("auto", t("wordImportAuto"), true) +
         formOption("unlearned", t("wordImportUnlearned"), false) +
@@ -45,7 +50,9 @@ export function renderWordStart(
     ${
         formGroup(
             t("wordSetStart"),
-            formRow(t("wordStartUnit"), t("wordStartUnitDesc"), formSelect("unit", unitOptions)),
+            formRow(t("wordStartUnit"), t("wordStartUnitDesc"), formSelect("unit", unitOptions)) +
+                // 组大小独立即时生效（change 走 setgroupsize），不随「开始背」重置
+                formRow(t("wordGroupSize"), t("wordGroupSizeDesc"), formSelect("groupsize", groupOptions)),
         )
     }
     <div class="wengu-word-form-tip">${esc(t("wordResetWarn"))}</div>

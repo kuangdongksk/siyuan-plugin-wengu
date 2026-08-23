@@ -5,7 +5,7 @@
 
 ## 背景与现状
 
-* 单词复习现为纯本地 Leitner：`WordStore.applyGrade` + 
+* 单词复习现为纯本地 Leitner：`WordStore.applyGrade` +
   `INTERVAL_DAYS = [1,2,4,8,16,32]`，档位只由「对错/自评档」驱动，
   **作答耗时信号被完全丢弃**——秒答对与犹豫十秒后答对拿到同一档位。
 * `WordAi.ts` 已有误认词批量 AI 分析管线可复用/扩展：
@@ -60,7 +60,7 @@
 * **新文件 `src/wengu/WordTiming.ts`**：计时器（卡片进入 prompt 态
   启动、作答回调结算、可见性暂停、超时阈值判定）+ 题型基线表与
   归一化。`WordView.ts` 只做最少接线——它已 479 行，超限就再拆。
-* `WordStore.ts`：`WenguWordProgress` 增计时段（如 
+* `WordStore.ts`：`WenguWordProgress` 增计时段（如
   `timing: Record<string, {mode, ms, over}[]>`）；`get()` 里按现有
   模式做旧数据回填（无字段补空对象）；批改路径与计时器对接
   （超时 → 等同 grade "no"）。
@@ -95,8 +95,8 @@
 
 1. `npx tsc --noEmit && npx eslint src --ext .ts && npx dprint fmt && npm run build`
 2. 部署按 AGENTS.md「通用调试流程」：dist/index.js + dist/index.css
-   + i18n 拷 `D:/data/思源/工作/data/plugins/siyuan-plugin-wengu/`，
-   setPetalEnabled 禁→启重载，让用户重开背单词页签验证。
+   * i18n 拷 `D:/data/思源/工作/data/plugins/siyuan-plugin-wengu/`，
+     setPetalEnabled 禁→启重载，让用户重开背单词页签验证。
 3. ⚠️ 装机目录 2026-08-23 22:09 被 wengu/pdf-import 会话部署的旧版
    占据（含已废弃的 dailyNew 每日 20 上限 + MinerU 导入）。本分支
    部署会覆盖它——部署前先与用户确认 pdf-import 真机验证是否已停。

@@ -1,4 +1,5 @@
 import {WordAiRunner} from "./WordAi";
+import type {LookupConfCtl} from "./WordLookup";
 import type {WordStartCtl} from "./WordStart";
 import type {WenguWordProgress} from "./WordStore";
 import {
@@ -33,6 +34,8 @@ export interface WordViewApi {
     startCtl(): WordStartCtl;
     enterLookup(): void;
     lookupPick(idx: number): void;
+    /** 查词详情的易混笔记控制器（保存手写辨析 / 复制提问）。 */
+    confCtl: LookupConfCtl;
 }
 
 export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStringMap): void {
@@ -140,5 +143,19 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
                 );
             }
             break;
+        case "confask":
+            v.confCtl.ask(parseInt(dataset?.idx ?? "0", 10));
+            break;
+        case "confsave":
+            v.confCtl.saveNote(parseInt(dataset?.idx ?? "0", 10));
+            break;
+        case "setgroupsize": {
+            const n = parseInt(dataset?.value ?? "0", 10);
+            if (n >= 5 && n <= 20 && v.progress) {
+                v.progress.groupSize = n;
+                void v.store.save(v.progress);
+            }
+            break;
+        }
     }
 }
