@@ -45,7 +45,6 @@ import {
     showRoundReportNow,
     showTimeUpChoice,
 } from "./RoundReport";
-
 import type {WenguSettingsShape as SettingsDialogShape} from "./SettingsDialog";
 import {
     bindStartPanel,
@@ -99,6 +98,7 @@ export class QuizView implements AnswerHost {
     private lastConvertModelId = "";
     private lastConvertFill = false;
     private lastConvertSteps = false;
+    private lastConvertKnow = "";
     private convertProgress: Record<string, ConvertProgressRecord> = {};
     private session?: WenguSession;
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
@@ -186,6 +186,7 @@ export class QuizView implements AnswerHost {
             lastConvertModelId: this.lastConvertModelId,
             lastConvertFill: this.lastConvertFill,
             lastConvertSteps: this.lastConvertSteps,
+            lastConvertKnow: this.lastConvertKnow,
             convertProgress: this.convertProgress,
         });
     }
@@ -220,6 +221,7 @@ export class QuizView implements AnswerHost {
         this.lastConvertModelId = r.lastConvertModelId;
         this.lastConvertFill = r.lastConvertFill;
         this.lastConvertSteps = r.lastConvertSteps;
+        this.lastConvertKnow = r.lastConvertKnow;
         this.convertProgress = r.convertProgress;
         this.revealMode = r.revealMode;
         this.started = false;
@@ -384,7 +386,12 @@ export class QuizView implements AnswerHost {
 
     private bindAll(): void {
         this.bindHead();
-        this.bindNums();
+        bindNumRail(this.el, {
+            onActive: (idx) => {
+                this.activeQIdx = idx;
+                this.timer.setQuestion(this.list[idx]?.id ?? "");
+            },
+        });
         bindStartPanel(this.el, this.startPanelModel(), () => this.beginDrill());
         this.bindCards();
     }
@@ -415,15 +422,6 @@ export class QuizView implements AnswerHost {
         });
     }
 
-    private bindNums(): void {
-        bindNumRail(this.el, {
-            onActive: (idx) => {
-                this.activeQIdx = idx;
-                this.timer.setQuestion(this.list[idx]?.id ?? "");
-            },
-        });
-    }
-
     private bindCards(): void {
         if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
         for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
@@ -441,11 +439,13 @@ export class QuizView implements AnswerHost {
             lastConvertModelId: this.lastConvertModelId,
             lastConvertFill: this.lastConvertFill,
             lastConvertSteps: this.lastConvertSteps,
+            lastConvertKnow: this.lastConvertKnow,
             convertParallel: this.settings?.convertParallel ?? 1,
-            saveChoice: (modelId, fill, steps) => {
+            saveChoice: (modelId, fill, steps, know) => {
                 this.lastConvertModelId = modelId;
                 this.lastConvertFill = fill;
                 this.lastConvertSteps = steps;
+                this.lastConvertKnow = know;
                 this.persistPrefs();
             },
             getProgress: (srcDocId) => this.convertProgress[srcDocId],
