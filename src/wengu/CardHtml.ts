@@ -84,8 +84,12 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
       <div class="wengu-ai-comment" data-ai-comment hidden></div>
       <div class="wengu-self" data-self hidden>
         <span>${esc(t("selfAssess"))}</span>
-        <button class="wengu-btn wengu-btn-success" data-act="self-right">${esc(t("selfRight"))}</button>
-        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${esc(t("selfWrong"))}</button>
+        <button class="wengu-btn wengu-btn-success" data-act="self-right">${svgIcon("iconCheck")} ${
+        esc(t("selfRight"))
+    }</button>
+        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${svgIcon("iconClose")} ${
+        esc(t("selfWrong"))
+    }</button>
       </div>
     </div>`;
 }
@@ -99,7 +103,9 @@ function renderCardHead(q: WenguQuestion, idx: number, m: CardHtmlModel, objecti
         ${q.type ? `<span class="wengu-badge">${esc(t(typeKey(q.type)))}</span>` : ""}
         ${label ? `<span class="wengu-card-title">${esc(label)}</span>` : ""}
         ${!objective ? `<span class="wengu-badge">${esc(t("selfBadge"))}</span>` : ""}
-        ${q.difficulty ? `<span class="wengu-meta">${"★".repeat(q.difficulty)}</span>` : ""}
+        ${
+        q.difficulty ? `<span class="wengu-meta">${svgIcon("iconStar", "wengu-star").repeat(q.difficulty)}</span>` : ""
+    }
         ${q.source ? `<span class="wengu-meta">${esc(q.source)}</span>` : ""}
         ${
         q.attempts > 0 && m.showAttempts ?
@@ -278,11 +284,13 @@ export function renderSideHtml(m: SideHtmlModel): string {
             }</button>` :
             ""
     }
-          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">«</button>
+          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">${
+        svgIcon("iconLeft")
+    }</button>
         </span>
       </div>
       <div class="wengu-side-tools">
-        <input class="wengu-side-search" data-act="side-search" type="search" spellcheck="false"
+        <input class="b3-text-field wengu-side-search" data-act="side-search" type="search" spellcheck="false"
           placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
         <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${
         esc(t("convertBtn"))
@@ -295,7 +303,9 @@ export function renderSideHtml(m: SideHtmlModel): string {
 /** 头部：目录开关（收起时）+ 用时。 */
 export function renderHeadHtml(t: (k: string) => string, sideCollapsed: boolean): string {
     const toggle = sideCollapsed ?
-        `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">»</button>` :
+        `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">${
+            svgIcon("iconRight")
+        }</button>` :
         "";
     return `${toggle}
       <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${
