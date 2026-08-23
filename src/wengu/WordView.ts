@@ -86,7 +86,7 @@ export class WordView {
     private cardSeq = 0;
     /** 客观题作答态（choiceEn/choiceZh/spell）。 */
     answered: AnsweredState | undefined;
-    /** 本会话已出过学习卡的词（学过一遍就不再 learn）。 */
+    /** 本会话已作答过的词（新词首答后，重现走题型轮换）。 */
     private learned = new Set<number>();
     /** 构队时标记的新词（首次作答计入今日新词数）。 */
     private sessionNew = new Set<number>();
@@ -168,7 +168,7 @@ export class WordView {
         this.enterPrompt();
     }
 
-    /** 进入当前位置的卡：新词 learn，否则题型轮换（选择在 WordQuiz.pickMode）。 */
+    /** 进入当前位置的卡：本会话未答过 → choiceEn 先测后学，答过 → 题型轮换。 */
     private enterPrompt(): void {
         this.phase = "prompt";
         this.answered = undefined;
@@ -176,7 +176,7 @@ export class WordView {
         this.spellTyped = undefined;
         const idx = this.currentIdx;
         this.confIds = confOthers(this.progress!, idx);
-        this.cardMode = pickMode(this.cardSeq, idx, this.sessionNew.has(idx) && !this.learned.has(idx), this.confIds);
+        this.cardMode = this.learned.has(idx) ? pickMode(this.cardSeq, idx, this.confIds) : "choiceEn";
         this.timer.begin(this.cardMode);
     }
 
@@ -330,7 +330,7 @@ export class WordView {
     /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
     private advanceAfterFinish(grade: WordGrade, idx: number): void {
         const p = this.progress!;
-        if (this.cardMode === "learn") this.learned.add(idx);
+        this.learned.add(idx);
         if (grade === "no") {
             if (!this.hardList.includes(idx)) this.hardList.push(idx);
             // 会话内重现：插到 3 张卡之后（到末尾则接着出）

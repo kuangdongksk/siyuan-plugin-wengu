@@ -23,10 +23,10 @@ export type WordCardMode = "learn" | "choiceEn" | "choiceZh" | "spell" | "recall
 /** 复习题型轮换（新词走 learn 学习卡，不在此列）。 */
 const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell", "recallZh"];
 
-/** 会话题型选择：新词 learn，否则按 seq 轮换；干扰项不足或
- * 空格/超长词降级到回想（confIds 须与本卡判定同源）。 */
-export function pickMode(seq: number, idx: number, isNew: boolean, confIds: readonly number[]): WordCardMode {
-    if (isNew) return "learn";
+/** 会话题型轮换：按 seq 取模；干扰项不足或空格/超长词降级到
+ * 回想（confIds 须与本卡判定同源）。新词首题不走轮换（视图直接
+ * 给 choiceEn 先测后学，错词重现才进轮换）。 */
+export function pickMode(seq: number, idx: number, confIds: readonly number[]): WordCardMode {
     let mode = REVIEW_MODES[seq % REVIEW_MODES.length];
     if (mode === "choiceEn" && buildMeaningOptions(idx, confIds).length < 4) mode = "recallEn";
     else if (mode === "choiceZh" && buildWordOptions(idx, confIds).length < 4) mode = "recallZh";
