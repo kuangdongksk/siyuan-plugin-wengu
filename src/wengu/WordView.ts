@@ -23,8 +23,8 @@ import {
     type WordCardMode,
 } from "./WordQuiz";
 import {
-    applyWordStart,
     renderWordStart,
+    WordStartCtl,
 } from "./WordStart";
 import {renderWordStats} from "./WordStats";
 import {
@@ -330,7 +330,6 @@ export class WordView {
         this.paint();
     }
 
-
     // ---------- 完成 ----------
 
     private paintDone(): void {
@@ -357,21 +356,23 @@ export class WordView {
         this.paint();
     }
 
-    // ---------- 起点设置 ----------
+    // ---------- 起点设置（操作在 WordStartCtl） ----------
+
+    private startCtlCache?: WordStartCtl;
+
+    private startCtl(): WordStartCtl {
+        this.startCtlCache ??= new WordStartCtl(
+            this.el,
+            this.t,
+            () => this.progress!,
+            (p) => this.store.save(p),
+            () => this.paint(),
+        );
+        return this.startCtlCache;
+    }
 
     private paintStartPanel(): void {
-        this.el.innerHTML = renderWordStart(this.t, this.progress!);
-    }
-
-    private applyStart(): void {
-        const p = this.progress!;
-        if (applyWordStart(this.el, p)) void this.store.save(p);
-        this.mode = "home";
-        this.paint();
-    }
-    private cancelStart(): void {
-        this.mode = "home";
-        this.paint();
+        this.el.innerHTML = renderWordStart(this.t, this.progress!, this.startCtl().msg);
     }
 
     // ---------- 事件 ----------
@@ -401,6 +402,7 @@ export class WordView {
             submitSpell: () => this.submitSpell(),
             confessEnter: () => this.finishCard("no"),
             continueObjective: () => this.finishCard(this.answered?.correct ? "know" : "no"),
+            importFile: (file, input) => void this.startCtl().importFile(file, input),
             act: (name) => this.dispatchAct(name),
         });
     }
@@ -468,10 +470,13 @@ export class WordView {
                 this.paint();
                 break;
             case "applystart":
-                this.applyStart();
+                this.startCtl().apply();
+                this.mode = "home";
+                this.paint();
                 break;
             case "cancelset":
-                this.cancelStart();
+                this.mode = "home";
+                this.paint();
                 break;
             case "redohard":
                 this.redoHard();

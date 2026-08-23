@@ -34,10 +34,18 @@ export interface WordBindHost {
     confessEnter(): void;
     /** 客观题作答后空格/回车 → 继续（对 know/错 no）。 */
     continueObjective(): void;
+    /** 进度导入文件选中（起点面板的文件框）。 */
+    importFile(file: File, input: HTMLInputElement): void;
 }
 
-/** 绑定点击与键盘（容器上委托，重渲染不用重绑）。 */
+/** 绑定点击、键盘与文件选择（容器上委托，重渲染不用重绑）。 */
 export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
+    el.addEventListener("change", (ev) => {
+        const input = ev.target as HTMLInputElement;
+        if (input.tagName === "INPUT" && input.type === "file" && input.files?.[0]) {
+            host.importFile(input.files[0], input);
+        }
+    });
     el.addEventListener("click", (ev) => {
         const target = ev.target as HTMLElement;
         const optBtn = target.closest<HTMLElement>("[data-opt]");

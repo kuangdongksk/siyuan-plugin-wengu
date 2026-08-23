@@ -114,3 +114,19 @@ iconSparkles 按钮把**未分析的误认词**批量(≤20/批,串行队列)交
   「曾认成:{v}」chip 与 AI 辨析。
 - 结构:事件绑定拆 WordBind,判定函数下沉 WordQuiz(checkOption/checkSpell),
   WordView 493 行守线。
+
+## 不背单词进度导入(2026-08-23 八改)
+
+- 入口:起点设置面板(首页 ⚙)新增「导入不背单词进度」组——状态选择
+  (自动识别/未学习/复习中/复习完成/已标熟)+ 文件选择(.pdf/.txt/.csv)。
+- **PDF 直接解析,不依赖 MinerU**:不背导出的是 App 生成的文本 PDF——
+  `WordImport.ts` 自带文字层提取器(流定位用负向断言避开 endstream、
+  DecompressionStream 解压含流尾换行裁剪与误判回退、ToUnicode CMap
+  bfchar/bfrange 映射中文、Td/T*/BT 原位换行后逐行取字面量),零依赖。
+  扫描件(无文字层)明确报错引导转 txt。
+- 词条匹配:行首「编号 单词」/独立词元 → 精确 + 首字母桶 lev≤1 模糊;
+  状态应用:未学习=清进度;复习中=档位2/明天到期;复习完成=档位5;
+  已标熟=熟集合;导入后 cursor 对齐到书序第一个未学词。
+- 已用仿真 PDF(Flate+CID+CMap)+txt 三场景离线测试通过(自动识别/
+  清进度/标熟/模糊命中)。真实导出 PDF 待用户实测,若其编码方式特殊
+  再补 ToUnicode 变体。

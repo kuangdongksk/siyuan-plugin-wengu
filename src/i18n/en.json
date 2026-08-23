@@ -237,5 +237,20 @@
   "wordHomeStarCount": "{n} key words, drill them",
   "wordConfusedHint": "mistook {w} for… (optional)",
   "wordConfusedPh": "e.g. revolution",
-  "wordConfusedChip": "mistook for: {v}"
+  "wordConfusedChip": "mistook for: {v}",
+  "wordImportTitle": "Import Bubei progress",
+  "wordImportStatus": "List status",
+  "wordImportStatusDesc": "Bubei exports one PDF per status",
+  "wordImportAuto": "Auto (PDF title)",
+  "wordImportUnlearned": "Unlearned",
+  "wordImportReviewing": "Reviewing",
+  "wordImportDone": "Imported: {a} matched, {b} unmatched",
+  "wordImportFamiliar": "Marked easy",
+  "wordImportFile": "Pick file",
+  "wordImportFileDesc": "Bubei-exported PDF, or converted txt/csv",
+  "wordImportHint": "Unlearned=clear these; Reviewing=level2 due tomorrow; Done=level5; Marked easy=familiar (no review). Import all four, cursor auto-aligns.",
+  "wordImportRunning": "Parsing… (large PDFs take seconds)",
+  "wordImportNoText": "No text layer in this PDF (scanned) — convert to txt first",
+  "wordImportNoMatch": "No words matched this book — right book?",
+  "wordImportFailed": "Import failed: "
 }
