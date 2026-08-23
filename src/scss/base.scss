@@ -76,24 +76,11 @@
   border-bottom: 1px solid var(--b3-theme-surface);
 }
 
+/* 边框/背景/focus 走思源 b3-text-field；此处只收敛尺寸（min-width 防 flex 固有宽度溢出） */
 .wengu-side-search {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 3px 8px;
-  border: 0;
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-background-light);
-  color: var(--b3-theme-on-background);
+  min-width: 0;
+  margin-top: 0;
   font-size: 13px;
-}
-
-.wengu-side-search:focus {
-  outline: none;
-  background: var(--b3-theme-surface);
-}
-
-.wengu-side-search::placeholder {
-  color: var(--b3-theme-on-surface-light);
 }
 
 .wengu-side-convert {

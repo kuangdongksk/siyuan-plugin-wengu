@@ -290,7 +290,7 @@ export function renderSideHtml(m: SideHtmlModel): string {
         </span>
       </div>
       <div class="wengu-side-tools">
-        <input class="wengu-side-search" data-act="side-search" type="search" spellcheck="false"
+        <input class="b3-text-field wengu-side-search" data-act="side-search" type="search" spellcheck="false"
           placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
         <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${
         esc(t("convertBtn"))
