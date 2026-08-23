@@ -211,5 +211,12 @@
   "convertLastBatch": "last batch +{k}",
   "convertTotalUnknown": "long doc: total undetermined, progress by batch",
   "convertPartialKept": "Generated part kept in the doc with progress recorded; you can continue later",
-  "convertPreviewStatus": "Generating batch {b}/{n} · {c} question(s) ready (answering unlocked when done)"
+  "convertPreviewStatus": "Generating batch {b}/{n} · {c} question(s) ready (answering unlocked when done)",
+  "convertParallelLabel": "Concurrency",
+  "convertParallelHint": "Above 1, batches generate in parallel (built-in direct channel, default model), bounded by provider rate limits",
+  "convertParallel1": "Serial (model selectable)",
+  "convertParallelN": "{n} parallel",
+  "setConvertParallel": "Default conversion concurrency",
+  "setConvertParallelDesc": "Initial choice in the convert dialog; serial uses the agent channel (model selectable), parallel uses the built-in direct channel",
+  "convertBatchParallel": "Parallel generating · {b}/{n} batches done · {c} question(s) so far"
 }

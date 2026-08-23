@@ -15,6 +15,7 @@ import type {
 import {
     clampMinutes,
     esc,
+    fmt,
 } from "./ui";
 
 /**
@@ -38,6 +39,8 @@ export interface WenguSettingsShape {
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（转换时把可分解的工科大题改写为多步引导题）。 */
     bigToSteps?: boolean;
+    /** 默认转换并发批数（1=串行；>1 走内置直连通道）。 */
+    convertParallel?: number;
     /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
     convertTargetMode?: "same" | "custom";
     /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
@@ -182,6 +185,18 @@ export function openWenguSetting(opts: {
                 t("bigToSteps"),
                 t("bigToStepsDesc"),
                 formSwitch("bigsteps", opts.settings.bigToSteps === true, "data-set"),
+            ) +
+            formRow(
+                t("setConvertParallel"),
+                t("setConvertParallelDesc"),
+                formSelect(
+                    "defparallel",
+                    formOption("1", t("convertParallel1"), (opts.settings.convertParallel ?? 1) <= 1) +
+                        formOption("2", fmt(t("convertParallelN"), {n: "2"}), opts.settings.convertParallel === 2) +
+                        formOption("3", fmt(t("convertParallelN"), {n: "3"}), opts.settings.convertParallel === 3) +
+                        formOption("4", fmt(t("convertParallelN"), {n: "4"}), opts.settings.convertParallel === 4),
+                    "data-set",
+                ),
             )
         }
           ${
@@ -251,6 +266,11 @@ export function openWenguSetting(opts: {
     root.querySelector<HTMLSelectElement>("[data-set='deftiming']")?.addEventListener("change", (ev) => {
         const v = (ev.target as HTMLSelectElement).value;
         opts.settings.defaultTiming = v === "countdown" || v === "perQuestion" || v === "none" ? v : "countUp";
+        opts.settings.save?.();
+    });
+    root.querySelector<HTMLSelectElement>("[data-set='defparallel']")?.addEventListener("change", (ev) => {
+        const n = Number((ev.target as HTMLSelectElement).value);
+        opts.settings.convertParallel = n >= 2 && n <= 4 ? n : 1;
         opts.settings.save?.();
     });
     root.querySelector<HTMLSelectElement>("[data-set='defreveal']")?.addEventListener("change", (ev) => {

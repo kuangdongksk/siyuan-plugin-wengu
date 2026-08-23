@@ -19,6 +19,8 @@ export interface ConvertHostCtx {
     lastConvertModelId: string;
     lastConvertFill: boolean;
     lastConvertSteps: boolean;
+    /** 并发批数默认值（设置页，1=串行）。 */
+    convertParallel?: number;
     /** 弹窗内临时选择（记 prefs）。 */
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean): void;
     /** 读取某源文档的未完成转换进度（无则 undefined）。 */
@@ -43,6 +45,7 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         initialModelId: ctx.lastConvertModelId || ctx.settings?.convertModelId || "",
         initialFillToChoice: ctx.lastConvertFill || ctx.settings?.fillToChoice === true,
         initialBigToSteps: ctx.lastConvertSteps || ctx.settings?.bigToSteps === true,
+        initialParallel: ctx.convertParallel ?? 1,
         initialTargetMode: ctx.settings?.convertTargetMode === "custom" ? "custom" : "same",
         initialTargetId: ctx.settings?.convertTargetId ?? "",
         saveChoice: ctx.saveChoice,

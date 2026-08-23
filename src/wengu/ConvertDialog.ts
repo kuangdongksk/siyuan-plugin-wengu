@@ -43,6 +43,8 @@ export interface ConvertDialogDeps {
     initialFillToChoice: boolean;
     /** 大题拆多步预选值（prefs 上次 > 设置默认）。 */
     initialBigToSteps: boolean;
+    /** 并发批数预选值（设置默认，1=串行）。 */
+    initialParallel: number;
     /** 生成位置预选：same=原文档同目录；custom=指定父文档下面。 */
     initialTargetMode: "same" | "custom";
     /** 指定父文档 id 预选（生成位置=custom 时用）。 */
@@ -87,6 +89,18 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         t("bigToSteps"),
                         t("bigToStepsHint"),
                         formSwitch("dlg-steps", deps.initialBigToSteps, "data-act"),
+                    ) +
+                    formRow(
+                        t("convertParallelLabel"),
+                        t("convertParallelHint"),
+                        formSelect(
+                            "dlg-parallel",
+                            formOption("1", t("convertParallel1"), deps.initialParallel <= 1) +
+                                formOption("2", fmt(t("convertParallelN"), {n: "2"}), deps.initialParallel === 2) +
+                                formOption("3", fmt(t("convertParallelN"), {n: "3"}), deps.initialParallel === 3) +
+                                formOption("4", fmt(t("convertParallelN"), {n: "4"}), deps.initialParallel === 4),
+                            "data-act",
+                        ),
                     ) +
                     formRow(
                         t("docIdLabel"),
@@ -137,6 +151,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const modelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-model']");
     const fillInput = root.querySelector<HTMLInputElement>("[data-act='dlg-fill']");
     const stepsInput = root.querySelector<HTMLInputElement>("[data-act='dlg-steps']");
+    const parallelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-parallel']");
     const targetSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-target']");
     const targetInput = root.querySelector<HTMLInputElement>("[data-act='dlg-targetid']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
@@ -178,7 +193,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (stopBtn) stopBtn.hidden = !running;
         if (cancelBtn) cancelBtn.disabled = running;
         if (resumeRow) resumeRow.hidden = running || resumeRow.dataset.has !== "1";
-        [input, modelSel, fillInput, stepsInput].forEach((el) => {
+        [input, modelSel, fillInput, stepsInput, parallelSel].forEach((el) => {
             if (el) el.disabled = running;
         });
     };
@@ -283,6 +298,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         const modelId = modelSel?.value ?? "";
         const fill = fillInput?.checked ?? false;
         const bigSteps = stepsInput?.checked ?? false;
+        const parallel = Math.max(1, Math.min(4, Number(parallelSel?.value ?? 1) || 1));
         const genTarget = targetSel?.value === "custom" ? (targetInput?.value ?? "").trim() : "";
         if (targetSel?.value === "custom" && !genTarget) {
             showDlgStatus(t("convertTargetMissing"), "err");
@@ -306,6 +322,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 modelId,
                 fillToChoice: fill,
                 bigToSteps: bigSteps,
+                parallel,
                 signal: controller.signal,
                 resume: resumeRec ? {offset: resumeRec.offset, docId: resumeRec.docId} : undefined,
                 targetRaw: genTarget,
@@ -332,16 +349,18 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                     const lastDelta = p.lastBatch > 0 ?
                         ` · ${esc(fmt(t("convertLastBatch"), {k: String(p.lastBatch)}))}` :
                         "";
-                    showDlgStatus(
-                        `${
-                            esc(fmt(t("convertBatchProgress"), {
-                                i: String(p.batch + 1),
-                                n: String(p.total),
-                                c: String(p.count),
-                            }))
-                        }${lastDelta}${totalHint}`,
-                        "muted",
-                    );
+                    const main = parallel > 1 ?
+                        esc(fmt(t("convertBatchParallel"), {
+                            b: String(p.batch),
+                            n: String(p.total),
+                            c: String(p.count),
+                        })) :
+                        esc(fmt(t("convertBatchProgress"), {
+                            i: String(p.batch + 1),
+                            n: String(p.total),
+                            c: String(p.count),
+                        }));
+                    showDlgStatus(`${main}${lastDelta}${totalHint}`, "muted");
                 },
             });
             if (r.status === "done") {

@@ -425,8 +425,7 @@ export class QuizView implements AnswerHost {
     }
 
     private bindCards(): void {
-        // 渐进呈现期不绑作答事件（文档每批重建，作答状态无法保留）
-        if (this.progressive.active) return;
+        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
         for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
             const q = this.list.find((x) => x.id === node.dataset.qid);
             if (q) bindCardEvents(this, node, q);
@@ -442,6 +441,7 @@ export class QuizView implements AnswerHost {
             lastConvertModelId: this.lastConvertModelId,
             lastConvertFill: this.lastConvertFill,
             lastConvertSteps: this.lastConvertSteps,
+            convertParallel: this.settings?.convertParallel ?? 1,
             saveChoice: (modelId, fill, steps) => {
                 this.lastConvertModelId = modelId;
                 this.lastConvertFill = fill;

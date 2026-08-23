@@ -1,5 +1,8 @@
 import {fetchSyncPost} from "siyuan";
-import {agentChat} from "./AgentClient";
+import {
+    agentChat,
+    agentChatConcurrent,
+} from "./AgentClient";
 import {
     AI_TIMEOUT_MS,
     buildPrompt,
@@ -192,6 +195,8 @@ export async function convertDocBatched(
         modelId: string;
         fillToChoice: boolean;
         bigToSteps: boolean;
+        /** 并发批次数（1=串行 agent/chat；2~4=chatGPT 并发通道）。 */
+        parallel?: number;
         signal?: AbortSignal;
         resume?: ResumeInfo;
         /** 生成位置：空=原文档同目录；否则生成到指定父文档下面。 */
@@ -302,76 +307,104 @@ export async function convertDocBatched(
         detected,
         detectedTruncated,
     });
-    for (let i = 0; i < chunks.length; i++) {
-        let reply: string;
+    // 并发池（parallel=1 串行走 agent/chat，可选模型；>1 走可并发的
+    // chatGPT 通道，模型跟随设置默认——agent/chat 并发会被内核拒绝，
+    // 真机 20260823 验证见 AGENTS.md）。结果按「连续完成前缀」拼装，
+    // 题目顺序与渐进文档始终是原文档的忠实前缀；并发度受供应商限流
+    // 约束，由弹窗选择。
+    const parallel = Math.max(1, Math.min(4, Math.floor(opts.parallel ?? 1)));
+    const results: (string[] | undefined)[] = new Array(chunks.length).fill(undefined);
+    let cursor = 0;
+    let contiguous = 0;
+    let firstError = "";
+    let userAborted = false;
+    const internal = new AbortController();
+    const relayAbort = (): void => {
+        userAborted = true;
+        internal.abort();
+    };
+    opts.signal?.addEventListener("abort", relayAbort);
+    const callAi = (chunk: SourceChunk): Promise<string> => {
+        const prompt = buildPrompt(chunk.text, opts.fillToChoice, opts.bigToSteps);
+        return parallel > 1 ?
+            agentChatConcurrent(prompt, AI_TIMEOUT_MS, internal.signal) :
+            agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, internal.signal);
+    };
+    /** 连续前缀推进：按文档序拼装、计数、渐进重建与进度上报。 */
+    const flushPrefix = async (): Promise<void> => {
+        const newStems: QuestionPreview[] = [];
+        while (contiguous < chunks.length && results[contiguous]) {
+            const qs = results[contiguous]!;
+            if (qs.length > 0) {
+                parts.push(qs.join("\n\n"));
+                count += qs.length;
+                lastBatch = qs.length;
+                qs.forEach((kd, j) => newStems.push(questionPreview(kd, count - qs.length + j + 1)));
+            }
+            doneOffset = chunks[contiguous].offset + chunks[contiguous].text.length;
+            contiguous++;
+        }
+        if (newStems.length === 0) return;
+        const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
         try {
-            reply = await agentChat(
-                buildPrompt(chunks[i].text, opts.fillToChoice, opts.bigToSteps),
-                opts.modelId,
-                AI_TIMEOUT_MS,
-                opts.signal,
-            );
-        } catch (e) {
-            const err = e as Error;
-            if (err?.name === "AbortError") {
-                return {
-                    status: "aborted",
-                    message: "",
-                    count,
-                    batches: i,
-                    total: chunks.length,
-                    doneOffset,
-                    docId: created?.id,
-                    title: created?.title,
-                    kramdown: [existing, ...parts].filter(Boolean).join("\n\n"),
-                };
+            if (created) await removeDoc(created.id);
+            created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
+            if (opts.resume && !oldResumeRemoved) {
+                await removeDoc(opts.resume.docId);
+                oldResumeRemoved = true;
             }
-            const reason = err?.name === "TimeoutError" ? t("convertTimeout") : String(err?.message ?? e);
-            return {
-                status: "failed",
-                message: `${t("convertAiFailed")}${reason}`,
-                count,
-                batches: i,
-                total: chunks.length,
-                doneOffset,
-                docId: created?.id,
-                title: created?.title,
-                kramdown: [existing, ...parts].filter(Boolean).join("\n\n"),
-            };
+        } catch (_) {
+            created = undefined;
         }
-        const questions = extractBatchQuestions(reply);
-        let previews: QuestionPreview[] = [];
-        if (questions.length > 0) {
-            parts.push(questions.join("\n\n"));
-            count += questions.length;
-            previews = questions.map((kd, j) => questionPreview(kd, count - questions.length + j + 1));
-            const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
-            try {
-                if (created) await removeDoc(created.id);
-                created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
-                // 继续生成：新的完整文档已含旧部分内容，删掉上次保留的旧文档
-                if (opts.resume && !oldResumeRemoved) {
-                    await removeDoc(opts.resume.docId);
-                    oldResumeRemoved = true;
-                }
-            } catch (_) {
-                created = undefined;
-            }
-        }
-        lastBatch = questions.length;
-        doneOffset = chunks[i].offset + chunks[i].text.length;
-        // 末批直接转 writing 状态（弹窗展示入库中，同时追加最后一批预览）
         opts.onProgress({
-            phase: i + 1 >= chunks.length ? "writing" : "generating",
-            batch: i + 1,
+            phase: contiguous >= chunks.length ? "writing" : "generating",
+            batch: contiguous,
             total: chunks.length,
             count,
             lastBatch,
             detected,
             detectedTruncated,
-            ...(previews.length > 0 ? {newStems: previews} : {}),
+            newStems,
             ...(created ? {docId: created.id, title: created.title} : {}),
         });
+    };
+    const worker = async (): Promise<void> => {
+        for (;;) {
+            if (firstError || userAborted) return;
+            const i = cursor++;
+            if (i >= chunks.length) return;
+            let reply: string;
+            try {
+                reply = await callAi(chunks[i]);
+            } catch (e) {
+                if (opts.signal?.aborted) return; // 用户终止由 relayAbort 收口
+                const err = e as Error;
+                if (!firstError) {
+                    firstError = err?.name === "TimeoutError" || err?.name === "AbortError" ?
+                        t("convertTimeout") :
+                        String(err?.message ?? e);
+                    internal.abort(); // 首个失败取消兄弟任务
+                }
+                return;
+            }
+            results[i] = extractBatchQuestions(reply);
+            await flushPrefix();
+        }
+    };
+    await Promise.all(Array.from({length: Math.min(parallel, chunks.length)}, () => worker()));
+    opts.signal?.removeEventListener("abort", relayAbort);
+    if (userAborted || firstError) {
+        return {
+            status: userAborted ? "aborted" : "failed",
+            message: userAborted ? "" : `${t("convertAiFailed")}${firstError}`,
+            count,
+            batches: contiguous,
+            total: chunks.length,
+            doneOffset,
+            docId: created?.id,
+            title: created?.title,
+            kramdown: [existing, ...parts].filter(Boolean).join("\n\n"),
+        };
     }
 
     const markdown = [existing, ...parts].filter(Boolean).join("\n\n");

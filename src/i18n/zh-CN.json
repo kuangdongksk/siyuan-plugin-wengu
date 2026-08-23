@@ -211,5 +211,12 @@
   "convertLastBatch": "上批 +{k}",
   "convertTotalUnknown": "长文档：总题数未确定，按批次计",
   "convertPartialKept": "已生成的部分保留在文档中并记录进度，可稍后继续生成",
-  "convertPreviewStatus": "生成中 第 {b}/{n} 批 · 已生成 {c} 题（完成前暂不能作答）"
+  "convertPreviewStatus": "生成中 第 {b}/{n} 批 · 已生成 {c} 题（完成前暂不能作答）",
+  "convertParallelLabel": "转换并发",
+  "convertParallelHint": "大于 1 时并发生成各批（走内置直连通道、跟随设置默认模型），受供应商限流约束",
+  "convertParallel1": "串行（可选模型）",
+  "convertParallelN": "{n} 并发",
+  "setConvertParallel": "默认转换并发",
+  "setConvertParallelDesc": "转换弹窗的初始并发选择；串行走智能体通道可选模型，并发走内置直连通道",
+  "convertBatchParallel": "并发生成 · 完成 {b}/{n} 批 · 已得 {c} 题"
 }
