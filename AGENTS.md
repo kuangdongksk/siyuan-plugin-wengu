@@ -58,7 +58,16 @@
   「累积内容后整体 createDocWithMd 重建」。
 * 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
   references:[], model?}`，model=设置里模型 id；`event:content` 的
-  `data.token` 是回答增量，`event:error` 报错。
+  `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
+  调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
+  instance"}`（20260823 真机验证）。
+* 旧直答端点 `/api/ai/chatGPT`（`{msg}` → `{code,data:回复全文}`）
+  **支持并发**（真机验证），模型跟随设置默认、不可按次指定；插件要
+  并发 AI 只有这条路。conf.json 里 providers 的 apiKey 是**内核加密
+  密文**（hex，长 224/512），插件拿不到明文、无法绕开内核直连供应商。
+* 插件 addDock 的 config **必须带 position 与 size**：缺 position 会在
+  内核 dock 布局初始化里 `.startsWith` undefined 直接崩，且是 onload 级
+  崩溃（整个插件不可用，20260823 真机踩坑）。
 * Lute：自建实例必须 `SetInlineMath(true)`（编辑器默认关行级公式，
   否则 `$...$` 原样输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发
   getDoc 挂起）。
