@@ -13,6 +13,7 @@ import {
     bindWordEvents,
     type WordBindState,
 } from "./WordBind";
+import WORD_BOOK from "./WordBook";
 import {
     addPair,
     confOthers,
@@ -293,10 +294,11 @@ export class WordView {
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
         applyGrade(p, idx, grade, this.sessionNew.has(idx));
-        if (v) {
-            p.mistakes[String(idx)].confused = v;
-            addPair(p, idx, v, "evidence");
-        }
+        if (v) p.mistakes[String(idx)].confused = v;
+        // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
+        const pf = this.answered && !this.answered.correct ? this.answered.pickFrom : undefined;
+        if (v) addPair(p, idx, v, "evidence");
+        else if (pf !== undefined && pf !== idx) addPair(p, idx, WORD_BOOK.words[pf].w, "evidence");
         if (this.curTiming) {
             this.curTiming.typed = this.spellTyped;
             pushTiming(p, idx, this.curTiming);

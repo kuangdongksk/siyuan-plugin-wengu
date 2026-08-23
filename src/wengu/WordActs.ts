@@ -112,9 +112,6 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
         case "next":
             v.finishCard(v.answered?.correct ? "know" : "no");
             break;
-        case "markwrong":
-            v.finishCard("no");
-            break;
         case "setstart":
             v.mode = "setstart";
             v.paint();

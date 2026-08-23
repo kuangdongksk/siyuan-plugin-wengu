@@ -197,7 +197,6 @@
   "wordRecallHint": "心里回想后按空格或点按钮看答案",
   "wordShowAnswer": "显示答案",
   "wordNext": "下一个",
-  "wordMarkWrong": "记错了",
   "wordCorrectPick": "✓ 答对了",
   "convertLastBatch": "上批 +{k}",
   "convertTotalUnknown": "长文档：总题数未确定，按批次计",
@@ -280,5 +279,6 @@
   "wordConfuseSave": "保存笔记",
   "wordConfuseNotePh": "辨析笔记：点「复制提问」去 AI 生成后粘贴",
   "wordNotePh": "单词笔记：词根/助记/例句…",
-  "wordNoteSave": "保存"
+  "wordNoteSave": "保存",
+  "wordWrongPickEntry": "你选的是"
 }

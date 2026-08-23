@@ -489,3 +489,11 @@
   flex: 1;
   min-width: 0;
 }
+
+/* 错选词条展示（你选的选项对应的中英文） */
+.wengu-word-wrongpick {
+  font-size: 13px;
+  color: var(--b3-card-warning-color);
+  text-align: center;
+  max-width: 440px;
+}

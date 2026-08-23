@@ -197,7 +197,6 @@
   "wordRecallHint": "Recall, then Space or click to reveal",
   "wordShowAnswer": "Reveal",
   "wordNext": "Next",
-  "wordMarkWrong": "Got it wrong",
   "wordCorrectPick": "✓ Correct",
   "convertLastBatch": "last batch +{k}",
   "convertTotalUnknown": "long doc: total undetermined, progress by batch",
@@ -280,5 +279,6 @@
   "wordConfuseSave": "Save note",
   "wordConfuseNotePh": "Note: copy the prompt to AI, then paste here",
   "wordNotePh": "Word note: root/mnemonic/sentence…",
-  "wordNoteSave": "Save"
+  "wordNoteSave": "Save",
+  "wordWrongPickEntry": "You picked"
 }
