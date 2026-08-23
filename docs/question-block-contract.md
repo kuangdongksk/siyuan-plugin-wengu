@@ -116,13 +116,32 @@
 | 单题最新状态/累计 | 块属性（attempts/wrong-count/right…）       | 随文档走、SQL 可聚合、联动闪卡 |
 | 偏好/设置         | `saveData("quiz")` / `saveData("settings")` | 官方插件存储，小 JSON          |
 | **N 刷会话历史**  | `saveData("history")`（HistoryStore）       | 按轮次维度，官方存储足够       |
+| **薄弱画像**      | `saveData("weakness")`（WeaknessStore）     | 跨轮聚合的派生数据，2026-08-23 |
 
 会话（`WenguSession`）：`{id, docId, startedAt, endedAt, mode,
-plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok}],
+plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok,
+verdict?, comment?, cause?}],
 thoughts?{qid→思路文本}}`——开刷时创建、逐题作答时更新落盘、切文档/刷新/
 关页签时收卷。`thoughts` 是收卷时对各题卡「思路」输入区的一次性快照
 （未作答的题也保留）；总结报告的 AI 判卷 prompt 逐题带上思路，要求
 点评方向/卡点/改进。文档头部据此显示「已刷 N 轮 · 最近 c/a · 最佳 c/a」。
+
+### 薄弱画像（2026-08-23 起）
+
+AI 判卷把薄弱处沉淀为跨轮次结构化档案（`weakness` 文件）：
+
+* **聚合键**：题目解析里的知识点块引用（`kp:标题块id`，转换挂反链时
+  注入，多个引用全计入）→ 无引用退化 `kn:knowledge属性` → `ch:chapter
+  属性`；一条都不会落（无锚点的题不进画像）。
+* **条目**：`{key, title, wrong(错+半对), total, lastWrongAt,
+  causes{错因键→次数}, aiNote(最近评语)}`。
+* **错因键**（AI 输出规整为规范键，展示走 i18n）：concept/calc/
+  method/formula/misread/other。来源两路——brief 判分输出**第三行
+  `CAUSE:`**（不增加调用）；客观/steps 错题在收卷时**打包一次批量归因**
+  （≤12 题、≤4000 字，走 AiJudge 串行队列）。
+* **时序**：收卷即本地计数（applied 会话名单幂等，零 AI）；错因随后
+  异步补记（causeApplied 名单幂等）——归因失败只丢错因不丢计数。
+* **展示**：收卷报告「薄弱沉淀（累计）」区块 = Top 8（错数降序）。
 
 ## 三点六、多步引导题（steps）与 brief 的 AI 判分
 

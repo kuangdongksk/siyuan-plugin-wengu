@@ -15,6 +15,8 @@ export interface WenguSessionResult {
     verdict?: "right" | "partial" | "wrong";
     /** brief 的 AI 评语（恢复继续时仍能展示）。 */
     comment?: string;
+    /** 错因规范键（weakness 画像用，AI 判分/批量归因写入）。 */
+    cause?: string;
 }
 
 /** 一轮刷题（N 刷里的一刷）：开刷时创建，逐题作答时更新，结束时封卷。 */
@@ -125,7 +127,7 @@ export function pushSessionAnswer(
     ok: boolean,
     sec: number,
     elapsedSec: number,
-    extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+    extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string;},
 ): void {
     s.results.push({
         qid,
@@ -134,6 +136,7 @@ export function pushSessionAnswer(
         ...(sec > 0 ? {sec} : {}),
         ...(extra?.verdict ? {verdict: extra.verdict} : {}),
         ...(extra?.comment ? {comment: extra.comment} : {}),
+        ...(extra?.cause ? {cause: extra.cause} : {}),
     });
     s.answered++;
     if (ok) s.correct++;

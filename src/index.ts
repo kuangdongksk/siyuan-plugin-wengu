@@ -13,6 +13,7 @@ import type {
     WenguRevealMode,
     WenguTimingMode,
 } from "./wengu/types";
+import {WeaknessStore} from "./wengu/WeaknessStore";
 import {WordStore} from "./wengu/WordStore";
 import {WordView} from "./wengu/WordView";
 
@@ -198,6 +199,13 @@ export default class WenguPlugin extends Plugin {
                         new HistoryStore(
                             () => plugin.loadData("history"),
                             (h) => plugin.saveData("history", h),
+                        ) :
+                        undefined,
+                    // 薄弱画像（插件数据 weakness 文件）
+                    plugin ?
+                        new WeaknessStore(
+                            () => plugin.loadData("weakness"),
+                            (v) => plugin.saveData("weakness", v),
                         ) :
                         undefined,
                     // 目录底部设置图标按钮 → 插件设置弹窗

@@ -1,4 +1,6 @@
 import {agentChat} from "./AgentClient";
+import {attributeWrongCauses} from "./AiJudge";
+import type {CauseItem} from "./AiJudge";
 import {svgIcon} from "./FormHtml";
 import type {WenguSession} from "./HistoryStore";
 import type {TimerController} from "./TimerController";
@@ -9,6 +11,12 @@ import {
     fmt,
     mmss,
 } from "./ui";
+import type {
+    WeakCause,
+    WeakTopRow,
+    WeaknessStore,
+} from "./WeaknessStore";
+import {roundAggByQid} from "./WeaknessStore";
 
 /**
  * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：
@@ -31,6 +39,8 @@ export interface RoundReportModel {
     totalSec: number;
     /** 倒计时超时段（秒，非倒计时报 0）。 */
     overtimeSec: number;
+    /** 薄弱沉淀 Top 行（WeaknessStore 同步快照，空=不渲染）。 */
+    weakRows: WeakTopRow[];
 }
 
 export function renderRoundReport(m: RoundReportModel): string {
@@ -99,11 +109,37 @@ export function renderRoundReport(m: RoundReportModel): string {
   </div>` :
             ""
     }
+  ${renderWeakSection(t, m.weakRows)}
   <div>
     <button class="b3-button b3-button--outline" data-act="ai-report">${esc(t("reportAiBtn"))}</button>
   </div>
   <div class="wengu-report-ai" data-ai hidden></div>
 </div>`;
+}
+
+/** 错因显示文案（存储是规范键，展示走 i18n）。 */
+function weakCauseLabel(t: (k: string) => string, cause: WeakCause): string {
+    const cap = cause[0].toUpperCase() + cause.slice(1);
+    return t(`weakCause${cap}`);
+}
+
+/** 薄弱沉淀区块：跨轮次累计的薄弱知识点（错数/题数/主要错因）。 */
+function renderWeakSection(t: (k: string) => string, rows: WeakTopRow[]): string {
+    if (rows.length === 0) return "";
+    const items = rows
+        .map((r) =>
+            `<div class="wengu-weak-row" title="${esc(r.title)}">
+    <span class="wengu-weak-title">${esc(r.title)}</span>
+    <span class="wengu-meta">${esc(fmt(t("weakStats"), {w: String(r.wrong), n: String(r.total)}))}</span>${
+                r.topCause ? `<span class="wengu-badge">${esc(weakCauseLabel(t, r.topCause))}</span>` : ""
+            }
+  </div>`
+        )
+        .join("");
+    return `<div class="wengu-report-chart">
+    <div class="wengu-report-label">${esc(t("weakTitle"))}</div>
+    <div class="wengu-weak-list">${items}</div>
+  </div>`;
 }
 
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
@@ -257,6 +293,8 @@ export interface RoundFinishCtx {
     revealMode: "instant" | "after";
     /** AI 报告使用的模型 id（空=智能体默认）。 */
     aiModelId: string;
+    /** 薄弱画像（有则收卷计数 + 异步补错因 + 报告展示）。 */
+    weakness?: WeaknessStore;
     /** 收卷：落库、置 finished、清 session（视图实现）。 */
     finishSession(): void;
     /** after 模式手动收卷时揭示已答部分。 */
@@ -287,11 +325,51 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
         rounds: roundsWithCurrent(ctx.rounds, s),
         totalSec,
         overtimeSec: overtime,
+        weakRows: ctx.weakness?.topSync(8) ?? [],
     };
     out.innerHTML = renderRoundReport(model);
     out.removeAttribute("hidden");
     bindRoundReport(out, model, ctx.aiModelId);
     out.scrollIntoView({behavior: "smooth", block: "nearest"});
+    if (ctx.weakness) void settleWeakness(ctx.weakness, s, ctx.list, ctx.aiModelId);
+}
+
+/** 收卷后异步沉淀错因：brief 判分自带的先入账，客观/steps 错题打包
+ *  一次 AI 归因（≤12 题、≤4000 字），任何失败静默降级（计数已在）。 */
+async function settleWeakness(
+    store: WeaknessStore,
+    s: WenguSession,
+    list: WenguQuestion[],
+    modelId: string,
+): Promise<void> {
+    try {
+        const agg = roundAggByQid(s);
+        const causes = new Map<string, WeakCause>();
+        const notes = new Map<string, string>();
+        const mineByQid = new Map<string, string>();
+        for (const r of s.results) {
+            const b = baseQid(r.qid);
+            mineByQid.set(b, r.submitted);
+            if (!r.ok && r.cause) causes.set(b, r.cause as WeakCause);
+            if (!r.ok && r.comment) notes.set(b, r.comment);
+        }
+        const items: CauseItem[] = [];
+        let chars = 0;
+        for (const q of list) {
+            if (agg.get(q.id) !== false || causes.has(q.id) || items.length >= 12) continue;
+            const stem = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+            if (!stem) continue;
+            chars += stem.length;
+            if (chars > 4000) break;
+            items.push({qid: q.id, stem, mine: mineByQid.get(q.id) ?? "", answer: q.answer ?? ""});
+        }
+        if (items.length > 0) {
+            for (const [qid, cause] of await attributeWrongCauses(items, modelId)) causes.set(qid, cause);
+        }
+        await store.applyCauses(s, list, causes, notes);
+    } catch (_) {
+        // 归因失败不影响报告（计数已本地落）
+    }
 }
 
 /** 手动收卷（倒计时归零选「结束本轮」）：after 模式先揭示已答，再报告。 */
@@ -313,6 +391,7 @@ export interface RoundFinishView {
     timerController(): TimerController;
     currentRevealMode(): "instant" | "after";
     aiModelId(): string;
+    weaknessStore(): WeaknessStore | undefined;
     finishSession(): void;
     revealAnsweredNow(): void;
     stopRoundNow(): void;
@@ -331,6 +410,7 @@ export function roundFinishCtx(view: RoundFinishView): RoundFinishCtx {
         timer: view.timerController(),
         revealMode: view.currentRevealMode(),
         aiModelId: view.aiModelId(),
+        weakness: view.weaknessStore(),
         finishSession: () => view.finishSession(),
         revealAnswered: () => view.revealAnsweredNow(),
         stopRound: () => view.stopRoundNow(),

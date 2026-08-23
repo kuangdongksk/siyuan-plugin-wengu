@@ -54,6 +54,7 @@ import {
     startRound,
 } from "./StartPanel";
 import {bindViewEvents} from "./ViewBindings";
+import type {WeaknessStore} from "./WeaknessStore";
 
 import {
     renderTimerLabel,
@@ -75,6 +76,7 @@ export class QuizView implements AnswerHost {
     private readonly storage?: {load: () => Promise<unknown>; save: (v: WenguPrefsIo) => Promise<unknown>;};
     private readonly settings?: SettingsDialogShape;
     private readonly history?: HistoryStore;
+    private readonly weakness?: WeaknessStore;
     private readonly openSettings?: () => void;
     private readonly timer = new TimerController(() => this.updateTimerLabel());
     private readonly protyleHost: ProtyleHost;
@@ -113,6 +115,7 @@ export class QuizView implements AnswerHost {
         storage?: {load: () => Promise<unknown>; save: (v: WenguPrefsIo) => Promise<unknown>;},
         settings?: SettingsDialogShape,
         history?: HistoryStore,
+        weakness?: WeaknessStore,
         openSettings?: () => void,
     ) {
         this.el = element;
@@ -123,6 +126,7 @@ export class QuizView implements AnswerHost {
         this.storage = storage;
         this.settings = settings;
         this.history = history;
+        this.weakness = weakness;
         this.openSettings = openSettings;
         this.protyleHost = new ProtyleHost(app);
     }
@@ -138,7 +142,7 @@ export class QuizView implements AnswerHost {
         qid: string,
         submitted: string,
         ok: boolean,
-        extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+        extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string;},
     ): void => {
         const s = this.session;
         if (!s) return;
@@ -200,6 +204,7 @@ export class QuizView implements AnswerHost {
         s.thoughts = collectCardThoughts(this.el); // 思路随卷快照（未作答的题也保得住）
         this.finished = s;
         void this.history?.upsert(s);
+        void this.weakness?.applyRound(s, this.list); // 薄弱计数本地落，错因收卷后异步补
     }
 
     private async load(): Promise<void> {
@@ -208,6 +213,7 @@ export class QuizView implements AnswerHost {
         this.loadError = "";
         this.renderList();
         const prefs = await loadPrefs(this.storage);
+        await this.weakness?.preload(); // 薄弱 Top 快照（报告同步渲染用）
         const r = await loadQuizState({
             prefs,
             settings: this.settings,
@@ -302,6 +308,7 @@ export class QuizView implements AnswerHost {
         this.updateTimerLabel();
     };
     readonly lockAllCardsNow = (): void => lockAllCards(this.el);
+    readonly weaknessStore = (): WeaknessStore | undefined => this.weakness;
 
     private startPanelModel() {
         return buildStartPanelModel({
@@ -393,7 +400,11 @@ export class QuizView implements AnswerHost {
             },
         });
         bindStartPanel(this.el, this.startPanelModel(), () => this.beginDrill());
-        this.bindCards();
+        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
+        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
+            const q = this.list.find((x) => x.id === node.dataset.qid);
+            if (q) bindCardEvents(this, node, q);
+        }
     }
 
     private bindHead(): void {
@@ -412,22 +423,8 @@ export class QuizView implements AnswerHost {
                 this.renderList();
             },
             updateConvertBtn: () => updateConvertBtn(this.el, this.converting, this.t),
-            switchDoc: (id) => {
-                if (!id || id === this.docId) return;
-                void this.flushTimeAsync();
-                this.docId = id;
-                this.persistPrefs();
-                void this.load();
-            },
+            switchDoc: (id) => this.selectDoc(id),
         });
-    }
-
-    private bindCards(): void {
-        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
-        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
-            const q = this.list.find((x) => x.id === node.dataset.qid);
-            if (q) bindCardEvents(this, node, q);
-        }
     }
 
     private openConvert(): void {
