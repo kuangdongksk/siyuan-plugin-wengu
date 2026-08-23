@@ -474,7 +474,6 @@ export class QuizView implements AnswerHost {
         });
     }
 
-    /** 渐进呈现的宿主适配（showBatchPreview 用，视图状态切换集中在这）。 */
     private previewHost() {
         return {
             t: this.t,
