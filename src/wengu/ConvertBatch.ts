@@ -7,8 +7,11 @@ import {
     extractBatchQuestions,
     extractBlockId,
     getDocInfo,
+    hasChildDocs,
     MAX_SOURCE_CHARS,
     parseVerdict,
+    replaceDocInPlace,
+    ReplaceInplaceError,
     resolveTarget,
 } from "./ConvertService";
 import type {
@@ -22,8 +25,12 @@ import {fmt} from "./ui";
  * 生成，批次结果累积在内存，完成（或终止保留）时一次性
  * createDocWithMd 落盘——真机 3.8.0 验证没有可靠的「追加到已有文档」
  * 通道（updateBlock 多块并一段/丢内容、transactions insert 无效），
- * 所以进度持久化只记「已生成到源文档的字符偏移 + 已建文档 id」，
- * 继续生成 = 拉旧文档 kramdown 并入累积、从偏移处续跑剩余批。
+ * 所以进度持久化只记「已生成到源文档的字符偏移 + 已保留内容」，
+ * 继续生成 = 上次保留内容并入累积、从偏移处续跑剩余批。
+ *
+ * 落盘双模式（writeMode）：inplace=删原文档同路径同标题重建（原文进
+ * 回收站）；newdoc=《标题·习题》另存新文档（旧默认，配 source-doc
+ * 配对清理）。inplace 要求原文档无子文档。
  */
 
 /** 单批字符上限（略小于 MAX_SOURCE_CHARS，给 prompt 头部留余量）。 */
@@ -104,10 +111,12 @@ export interface ConvertProgress {
     detected?: number;
 }
 
-/** 终止保留的进度记录（prefs 持久化，重开思源后可继续生成）。 */
+/** 终止保留的进度记录（prefs 持久化，重开思源后可继续生成）。
+ *  另存模式保留部分习题文档（docId）；原位模式原文档不动，已生成
+ *  kramdown 直接存进记录（kramdown）。 */
 export interface ConvertProgressRecord {
-    /** 保留的（部分）习题文档 id。 */
-    docId: string;
+    /** 保留的（部分）习题文档 id（另存模式）。 */
+    docId?: string;
     title: string;
     /** 已生成覆盖到的源文档字符偏移。 */
     offset: number;
@@ -116,6 +125,8 @@ export interface ConvertProgressRecord {
     total: number;
     /** 已生成题数。 */
     count: number;
+    /** 已生成的题目 kramdown（原位模式续跑并入）。 */
+    kramdown?: string;
 }
 
 /** 批式转换结果：done=全部完成；aborted=用户终止（未落盘）。 */
@@ -139,8 +150,10 @@ export interface BatchedResult {
 export interface ResumeInfo {
     /** 已生成覆盖到的源文档偏移。 */
     offset: number;
-    /** 上次保留的习题文档（其内容并入本次结果）。 */
-    docId: string;
+    /** 上次保留的部分习题文档（另存模式，内容并入本次结果）。 */
+    docId?: string;
+    /** 上次保留的题目 kramdown（原位模式，内容并入本次结果）。 */
+    kramdown?: string;
 }
 
 /** 分批转换主流程。终止时返回 aborted + 已累积内容（不落盘）。 */
@@ -153,7 +166,9 @@ export async function convertDocBatched(
         bigToSteps: boolean;
         signal?: AbortSignal;
         resume?: ResumeInfo;
-        /** 生成位置：空=原文档同目录；否则生成到指定父文档下面。 */
+        /** 落盘模式：inplace=原位替换原文档；newdoc=另存《·习题》（默认）。 */
+        writeMode?: "inplace" | "newdoc";
+        /** 生成位置（仅 newdoc）：空=原文档同目录；否则生成到指定父文档下面。 */
         targetRaw?: string;
         onProgress(p: ConvertProgress): void;
     },
@@ -165,6 +180,18 @@ export async function convertDocBatched(
         return {
             status: "failed",
             message: t("convertNoDoc"),
+            count: 0,
+            batches: 0,
+            total: 0,
+            doneOffset: 0,
+            kramdown: "",
+        };
+    }
+    // 原位替换会连子文档一起删——有子文档直接拦，提示改走另存
+    if (opts.writeMode === "inplace" && await hasChildDocs(docId)) {
+        return {
+            status: "failed",
+            message: t("convertInplaceChildren"),
             count: 0,
             batches: 0,
             total: 0,
@@ -186,11 +213,16 @@ export async function convertDocBatched(
         };
     }
 
-    // 继续生成：旧文档内容并入累积，只跑剩余批
+    // 继续生成：上次保留内容并入累积（另存=旧部分文档 kramdown，
+    // 原位=记录里的 kramdown），只跑剩余批
     let existing = "";
     if (opts.resume) {
-        const old = await fetchSyncPost("/api/block/getBlockKramdown", {id: opts.resume.docId});
-        existing = String((old.data as {kramdown?: string;} | null)?.kramdown ?? "");
+        if (opts.resume.kramdown) {
+            existing = opts.resume.kramdown;
+        } else if (opts.resume.docId) {
+            const old = await fetchSyncPost("/api/block/getBlockKramdown", {id: opts.resume.docId});
+            existing = String((old.data as {kramdown?: string;} | null)?.kramdown ?? "");
+        }
     }
     const allChunks = chunkKramdown(kramdown);
     const chunks = opts.resume ? allChunks.filter((c) => c.offset >= opts.resume!.offset) : allChunks;
@@ -287,7 +319,51 @@ export async function convertDocBatched(
             kramdown: "",
         };
     }
-    // 落盘：解析生成位置（targetRaw 空=原文档同目录；hPath 标题路径定位）
+    // 插图自检：源文档的图片行没被带进生成结果（真机案例：AI 读不了
+    // 图、把带图题整题跳过），完成消息里附警告提示重新转换
+    const srcImgs = new Set(kramdown.match(/!\[\]\([^)\s]+\)/g) ?? []);
+    const outImgs = new Set(markdown.match(/!\[\]\([^)\s]+\)/g) ?? []);
+    let missingImgs = 0;
+    for (const img of srcImgs) {
+        if (!outImgs.has(img)) missingImgs++;
+    }
+    const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), {n: String(missingImgs)})}` : "";
+    // 落盘：原位=删旧同路径同标题重建（不加 source-doc 配对——源即本文档）；
+    // 另存=解析生成位置（targetRaw 空=原文档同目录；hPath 标题路径定位）
+    if (opts.writeMode === "inplace") {
+        let replaced: {id: string; title: string;};
+        try {
+            replaced = await replaceDocInPlace(info, markdown);
+        } catch (e) {
+            if (e instanceof ReplaceInplaceError) {
+                // 写盘时刻状态已变（原文档被删/中途建了子文档）：按终止
+                // 处理，已生成内容不丢——挪走子文档后可继续生成剩余部分
+                return {
+                    status: "aborted",
+                    message: e.reason === "hasChildren" ? t("convertInplaceChildren") : t("convertNoDoc"),
+                    count,
+                    batches: chunks.length,
+                    total: chunks.length,
+                    doneOffset,
+                    kramdown: markdown,
+                };
+            }
+            throw e;
+        }
+        return {
+            status: "done",
+            message: (detected !== undefined && detected > 0 ?
+                fmt(t("convertDetectedCount"), {n: String(detected)}) :
+                "") + imgWarn,
+            docId: replaced.id,
+            title: replaced.title,
+            count,
+            batches: chunks.length,
+            total: chunks.length,
+            doneOffset: kramdown.length,
+            kramdown: markdown,
+        };
+    }
     const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
     if (!loc.ok) {
         return {
@@ -303,9 +379,9 @@ export async function convertDocBatched(
     const created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
     return {
         status: "done",
-        message: detected !== undefined && detected > 0 ?
+        message: (detected !== undefined && detected > 0 ?
             fmt(t("convertDetectedCount"), {n: String(detected)}) :
-            "",
+            "") + imgWarn,
         docId: created.id,
         title: created.title,
         count,

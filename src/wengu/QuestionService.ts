@@ -20,8 +20,8 @@ import type {
 } from "./types";
 
 /**
- * 题目块读写服务（判分纯函数在 QuestionGrading、错题闪卡在 Flashcards，
- * 这里 re-export 保持既有导入路径稳定）。
+ * 题目块读写服务（判分纯函数在 QuestionGrading，这里 re-export
+ * 保持既有导入路径稳定）。
  *
  * 只依赖思源原生机制：
  * - 检测/查询：/api/query/sql（attributes 表按 custom-plugin-wengu-% 聚合，同参考插件 sy-lively）
@@ -29,7 +29,6 @@ import type {
  * 不建任何外部存储。
  */
 
-export { addWrongFlashcard, removeWrongFlashcard } from "./Flashcards";
 export { gradeQuestion, gradeStep, optionIsRight, stepOptionIsRight } from "./QuestionGrading";
 
 interface AttrsRow {

@@ -36,6 +36,7 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
     openConvertDialog({
         t: ctx.t,
         activeDocId: ctx.activeDocId,
+        mineruToken: ctx.settings?.mineruToken ?? "",
         initialModelId: ctx.lastConvertModelId || ctx.settings?.convertModelId || "",
         initialFillToChoice: ctx.lastConvertFill || ctx.settings?.fillToChoice === true,
         initialBigToSteps: ctx.lastConvertSteps || ctx.settings?.bigToSteps === true,

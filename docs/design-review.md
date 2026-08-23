@@ -8,8 +8,9 @@
 > **进度**：P0 全部、P1 全部、P2-3/P2-5 已完成（2026-08-22）；模块化
 > 拆分完成且全仓单文件 ≤500 行（最大 QuizView 490），新增
 > CardHtml/ProtyleHost/AnswerFlow/StepsFlow/AiJudge/ConvertDialog/
-> RoundReport/QuizLoader/OrphanCleaner/QuestionGrading/Flashcards/
-> ConvertHost/ViewBindings/NumRail/AgentClient/FormHtml。
+> RoundReport/QuizLoader/OrphanCleaner/QuestionGrading/
+> ConvertHost/ViewBindings/NumRail/AgentClient/FormHtml（Flashcards
+> 20260823 删除——错题闪卡废弃，见 question-block-contract.md）。
 
 ## 〇、界面规范（2026-08-22 起硬性约定）
 
@@ -36,22 +37,23 @@
 | `src/wengu/QuizView.ts`        | 490  | 页签编排层：状态持有 + 各模块接线                              |
 | `src/wengu/AnswerFlow.ts`      | 420  | 作答流程：判分/揭示/自评/恢复已答                              |
 | `src/wengu/CardHtml.ts`        | 419  | 纯 HTML 构建：题卡/作答位/目录/头部/主区外壳                   |
-| `src/wengu/QuestionService.ts` | 390  | 块读写内核 API：SQL 聚合、hydrate、记账（判分/闪卡 re-export） |
+| `src/wengu/QuestionService.ts` | 390  | 块读写内核 API：SQL 聚合、hydrate、记账（判分 re-export）      |
 | `src/wengu/StepsFlow.ts`       | 381  | steps 多步引导题作答流程                                       |
 | `src/wengu/StartPanel.ts`      | 303  | 开刷面板：RoundConfig 表单渲染/读取/开轮                       |
 | `src/wengu/RoundReport.ts`     | 314  | 一轮总结：图表 + AI 分析（开智能体新会话，降级页内）+ 收卷编排 |
-| `src/wengu/ConvertService.ts`  | 290  | 转换编排：文档定位 + prompt + 落盘 + 生成位置 + 配对属性       |
+| `src/wengu/ConvertService.ts`  | 340  | 转换编排：文档定位 + prompt + 落盘（原位/另存）+ 配对属性      |
 | `src/wengu/types.ts`           | 247  | 领域类型 + 清洗/比较纯函数                                     |
-| `src/wengu/SettingsDialog.ts`  | 276  | 仿原生设置页（左导航 + 分组）                                  |
+| `src/wengu/MinerUClient.ts`    | 200  | MinerU 解析客户端（forwardProxy + OSS 直连 + fflate 解压）     |
+| `src/wengu/PdfImport.ts`       | 150  | PDF 导入编排：插图落 assets + 建原文档                         |
+| `src/wengu/SettingsDialog.ts`  | 296  | 仿原生设置页（左导航 + 分组）                                  |
 | `src/wengu/ProtyleHost.ts`     | 167  | 内嵌 Protyle 逐卡串行挂载                                      |
 | `src/wengu/AiJudge.ts`         | 154  | steps 题 AI 实时判分                                           |
 | `src/wengu/QuizLoader.ts`      | 152  | 一次装载：孤儿清理/文档/题目/轮次/prefs 恢复                   |
-| `src/wengu/ConvertDialog.ts`   | 172  | AI 转习题弹窗                                                  |
+| `src/wengu/ConvertDialog.ts`   | 172  | AI 转习题弹窗（原位/另存 + PDF 导入入口）                      |
 | `src/wengu/AgentClient.ts`     | 138  | 智能体 SSE 客户端 + 模型清单/下拉选项                          |
 | `src/wengu/TimerController.ts` | 128  | 计时状态机（4 模式 + 逐题秒数）                                |
 | `src/wengu/QuestionGrading.ts` | 129  | 判分纯函数：客观题/多步题自动判分与选项描色                    |
 | `src/wengu/HistoryStore.ts`    | 112  | N 刷会话历史（saveData("history")）                            |
-| `src/wengu/Flashcards.ts`      | 92   | 「温故错题」闪卡卡组：懒创建与加/移卡片                        |
 | `src/wengu/ConvertHost.ts`     | 66   | 转换编排：弹窗依赖组装/转换按钮/页内状态条                     |
 | `src/wengu/OrphanCleaner.ts`   | 55   | 孤儿习题文档清理（源删则习题随删，进回收站）                   |
 | `src/wengu/FormHtml.ts`        | 54   | 共享表单构件（§〇 规范落地）                                   |

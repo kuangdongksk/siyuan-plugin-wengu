@@ -152,7 +152,8 @@ ${stepsRule}
 5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
 6. 保留原文的公式与代码；一个选项块里可以写多个选项。
 7. 题量：若原文档本身是试卷/题库（已有现成题目），必须**逐题全部**转换——不得限量、不得合并、不得漏题，也不得自行新造题目；若是讲义/笔记，按知识点出题：内容少时至少 1 道，丰富时 5~12 道，覆盖主要知识点。
-8. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**到该题的题干里——单独成段、紧跟题干文字段之后，同样标记 part="stem"；路径与文件名一个字符都不能改，没有插图的题**不要**编造图片行。${fillRule}
+8. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**进对应题——单独成段、路径与文件名一个字符都不能改。题目本身依赖的图（原理示意图/结构图，题干常写「如图/下图/图所示」）放**题干**（紧跟题干文字段之后，标记 part="stem"）；答案/解析里给出的图（如解答画出的方框图）放**解析**（标记 part="solution"），不放题干。没有插图的题**不要**编造图片行。
+9. **禁止跳过带图题**：题干含「如图/下图/图所示」或题目相关段落配有图片行的题，必须与所有题一样逐题转换（插图按第 8 条处理）；因为题里有图、读不了图就跳过整道题，是比漏选项严重得多的错误。${fillRule}
 
 文档内容：
 ${source}`;
@@ -238,19 +239,94 @@ export async function createExerciseDoc(
     srcDocId = "",
 ): Promise<{id: string; title: string;}> {
     const safe = baseTitle.replace(/[\\/:*?"<>|]/g, "-").replace(/(·习题)+$/, "").trim() || "习题";
-    const titles = [`${safe}·习题`, `${safe}·习题${Date.now().toString(36)}`];
+    const created = await createDocWithTitles(notebook, parentPath, [
+        `${safe}·习题`,
+        `${safe}·习题${Date.now().toString(36)}`,
+    ], markdown);
+    if (srcDocId) {
+        await fetchSyncPost("/api/attr/setBlockAttrs", {id: created.id, attrs: {[Attr.sourceDoc]: srcDocId}});
+    }
+    return created;
+}
+
+/** 按候选标题顺序建文档，同名冲突落到下一个（时间戳后缀）。 */
+async function createDocWithTitles(
+    notebook: string,
+    parentPath: string,
+    titles: string[],
+    markdown: string,
+): Promise<{id: string; title: string;}> {
     let lastMsg = "";
     for (const title of titles) {
         const path = `${parentPath === "/" ? "" : parentPath}/${title}.sy`;
         const res = await fetchSyncPost("/api/filetree/createDocWithMd", {notebook, path, markdown});
         if (res.code === 0 && res.data) {
-            const id = String(res.data);
-            if (srcDocId) {
-                await fetchSyncPost("/api/attr/setBlockAttrs", {id, attrs: {[Attr.sourceDoc]: srcDocId}});
-            }
-            return {id, title};
+            return {id: String(res.data), title};
         }
         lastMsg = res.msg;
     }
     throw new Error(lastMsg || "createDocWithMd failed");
+}
+
+/** 文档是否有子文档（任一后代层级）。原位替换会连子文档一起删，必须先拦。 */
+export async function hasChildDocs(docId: string): Promise<boolean> {
+    const {data} = await fetchSyncPost("/api/query/sql", {
+        stmt: `SELECT box, path FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`,
+    });
+    const row = (data as {box?: string; path?: string;}[] | null)?.[0];
+    if (!row?.box || !row.path) return false;
+    const {data: children} = await fetchSyncPost("/api/query/sql", {
+        stmt: `SELECT COUNT(*) AS n FROM blocks
+            WHERE type = 'd' AND box = '${row.box}' AND path LIKE '${row.path}/%' LIMIT 1`,
+    });
+    return Number((children as {n?: number;}[] | null)?.[0]?.n ?? 0) > 0;
+}
+
+/** 原位替换失败原因：原文档已删 / 写盘时刻发现有子文档。 */
+export type ReplaceInplaceReason = "noDoc" | "hasChildren";
+
+export class ReplaceInplaceError extends Error {
+    constructor(public readonly reason: ReplaceInplaceReason) {
+        super(reason);
+    }
+}
+
+/**
+ * 原位替换：删除原文档（进回收站，可恢复）→ 同路径同标题重建为题目版。
+ * 内核没有可靠的「改写已有文档内容」通道（updateBlock 多块并段/丢段、
+ * transactions insert 静默无效，20260822 真机验证），原位只能删旧重建，
+ * 文档 id 会变——这些文档只作插件的题库底座，无外部引用场景。
+ *
+ * 转换耗时数分钟，调用方传入的 info 是开始时的快照——写盘时刻
+ * **重查**文档当前位置与子文档（中途移动/重命名/建子文档都按当下
+ * 状态处理：位置与标题跟新，发现子文档抛 hasChildren 拒绝）。
+ * 另把旧「另存」习题文档的 source-doc 配对改指到新文档 id，否则
+ * 旧 id 消失会让 OrphanCleaner 误判源已删、连删旧习题文档。
+ */
+export async function replaceDocInPlace(oldInfo: DocInfo, markdown: string): Promise<{id: string; title: string;}> {
+    const fresh = await getDocInfo(oldInfo.id);
+    if (!fresh?.notebook) throw new ReplaceInplaceError("noDoc");
+    if (await hasChildDocs(fresh.id)) throw new ReplaceInplaceError("hasChildren");
+    const safe = fresh.title.replace(/[\\/:*?"<>|]/g, "-").trim() || "习题";
+    await fetchSyncPost("/api/filetree/removeDocByID", {id: fresh.id});
+    const created = await createDocWithTitles(
+        fresh.notebook,
+        parentOf(fresh.hPath ?? "/"),
+        [safe, `${safe}·${Date.now().toString(36)}`],
+        markdown,
+    );
+    await repointSourcePairs(fresh.id, created.id);
+    return created;
+}
+
+/** 旧「另存」习题文档的配对源改指到原位重建后的新文档。 */
+async function repointSourcePairs(oldDocId: string, newDocId: string): Promise<void> {
+    const {data} = await fetchSyncPost("/api/query/sql", {
+        stmt: `SELECT block_id AS id FROM attributes WHERE name = '${Attr.sourceDoc}' AND value = '${oldDocId}'`,
+    });
+    for (const row of ((data ?? []) as {id?: string;}[])) {
+        if (row.id) {
+            await fetchSyncPost("/api/attr/setBlockAttrs", {id: row.id, attrs: {[Attr.sourceDoc]: newDocId}});
+        }
+    }
 }
