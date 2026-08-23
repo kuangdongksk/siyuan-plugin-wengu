@@ -46,6 +46,18 @@
   fill: currentColor;
 }
 
+/* 结果/反馈行内联状态图标（statusIcon 前缀，颜色随容器 right/wrong/partial） */
+.wengu-result svg,
+.wengu-step-result svg,
+.wengu-word-feedback svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
 /* 转换弹窗：分批生成的渐进预览（题号 + 题型 + 题干片段，随批追加） */
 .wengu-convert-preview {
   max-height: 168px;

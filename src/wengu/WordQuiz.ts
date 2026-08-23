@@ -1,3 +1,4 @@
+import {statusIcon} from "./FormHtml";
 import {
     esc,
     fmt,
@@ -188,7 +189,7 @@ export function renderCard(
         body = `<div class="${topicCls}">${topic}</div>
     ${
             opts.answered ?
-                `<div class="wengu-word-feedback">${
+                `<div class="wengu-word-feedback">${statusIcon(opts.answered.correct ? "right" : "wrong")}${
                     esc(opts.answered.correct ? t("wordCorrectPick") : t("wordWrongPick2"))
                 }</div>` :
                 `<div class="wengu-word-hint">${esc(t("wordPickHint"))}</div>`
@@ -198,7 +199,7 @@ export function renderCard(
     } else if (mode === "spell") {
         if (opts.answered) {
             body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
-    <div class="wengu-word-feedback">${
+    <div class="wengu-word-feedback">${statusIcon(opts.answered.correct ? "right" : "wrong")}${
                 esc(opts.answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), {w: entry.w}))
             }</div>
     ${resultBlocks}

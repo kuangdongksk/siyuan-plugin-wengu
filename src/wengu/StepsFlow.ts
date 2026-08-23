@@ -14,6 +14,7 @@ import {
     renderOneStepHtml,
     renderStepsInnerHtml,
 } from "./CardHtml";
+import {statusIcon} from "./FormHtml";
 import {
     gradeStep,
     overrideStepsResult,
@@ -298,7 +299,7 @@ function markStepOptions(step: WenguStep, stepEl: HTMLElement, submitted: string
 function showStepResult(stepEl: HTMLElement, html: string, ok: boolean, warn = false): void {
     const el = stepEl.querySelector<HTMLElement>("[data-step-result]");
     if (!el) return;
-    el.innerHTML = html;
+    el.innerHTML = (warn ? "" : statusIcon(ok ? "right" : "wrong")) + html;
     el.removeAttribute("hidden");
     el.className = `wengu-step-result ${warn ? "wengu-muted" : ok ? "wengu-right" : "wengu-wrong"}`;
 }
@@ -307,7 +308,7 @@ function showStepResult(stepEl: HTMLElement, html: string, ok: boolean, warn = f
 function showCardResult(card: HTMLElement, html: string, ok: boolean): void {
     const el = card.querySelector<HTMLElement>("[data-result]");
     if (!el) return;
-    el.innerHTML = html;
+    el.innerHTML = statusIcon(ok ? "right" : "wrong") + html;
     el.removeAttribute("hidden");
     el.className = `wengu-result ${ok ? "wengu-right" : "wengu-wrong"}`;
 }

@@ -14,9 +14,13 @@
 ## 〇、界面规范（2026-08-22 起硬性约定）
 
 1. **图标一律用思源内置 SVG symbol**（`FormHtml.svgIcon("iconClock")`
-   等），**禁止 emoji/表情字符**（⏱⏰⟳✨⚙ 一类）。symbol id 需存在于
-   主程序 stage（iconClock/iconRefresh/iconSettings/iconSparkles/
-   iconInfo/iconList 已验证）。
+   等），**禁止 emoji/表情/符号字符**（⏱⏰⟳✨⚙ 及 «»✓✗◐★ 一类，
+   2026-08-23 清零：结果行状态图统一走 `FormHtml.statusIcon`，难度星
+   用 iconStar）。symbol id 以
+   `resources/appearance/icons/index.html`（官方图标清单页）为准
+   （iconClock/iconRefresh/iconSettings/iconSparkles/iconInfo/
+   iconList/iconLeft/iconRight/iconStar/iconCheck/iconClose/
+   iconIndeterminateCheck 已验证）。
 2. **全项目表单统一 FormHtml 行样式**：`formGroup`（分组+标题）+
    `formRow`（标题说明在左、控件在右）+ `formSelect/formSwitch/
    formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自写布局。

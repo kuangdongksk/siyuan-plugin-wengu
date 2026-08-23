@@ -158,6 +158,15 @@
   word-break: break-all;
 }
 
+/* 反馈容器是中性色，状态图标单独着色 */
+.wengu-word-feedback .wengu-status-right {
+  fill: var(--b3-theme-success);
+}
+
+.wengu-word-feedback .wengu-status-wrong {
+  fill: var(--b3-theme-error);
+}
+
 /* Dock 窄面板收敛字号/边距（页签宽面板不受影响） */
 .dock .wengu-word {
   padding: 10px 12px;

@@ -3,6 +3,7 @@ import {
     isChoice,
     isObjective,
 } from "./CardHtml";
+import {statusIcon} from "./FormHtml";
 import type {WenguSession} from "./HistoryStore";
 import {
     optionIsRight,
@@ -441,7 +442,7 @@ function verdictStatus(verdict: string): ResultStatus {
 function showResult(card: HTMLElement, html: string, status: ResultStatus): void {
     const result = card.querySelector<HTMLElement>("[data-result]");
     if (!result) return;
-    result.innerHTML = html;
+    result.innerHTML = (status === "warn" ? "" : statusIcon(status)) + html;
     result.removeAttribute("hidden");
     result.classList.remove("wengu-right", "wengu-wrong", "wengu-muted", "wengu-partial");
     result.classList.add(status === "warn" ? "wengu-muted" : `wengu-${status}`);
