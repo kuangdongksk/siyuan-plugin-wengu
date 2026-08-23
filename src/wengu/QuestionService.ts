@@ -45,6 +45,7 @@ type AttrsObject = Record<string, string>;
 const FIELD_BY_ATTR: Record<string, keyof WenguQuestion> = {
     [Attr.type]: "type",
     [Attr.steps]: "steps",
+    [Attr.group]: "group",
     [Attr.knowledge]: "knowledge",
     [Attr.chapter]: "chapter",
     [Attr.difficulty]: "difficulty",

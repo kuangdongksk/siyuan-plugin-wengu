@@ -8,6 +8,7 @@ import type {WenguStep} from "./types";
 import {
     AUTO_GRADE_TYPES,
     hasSteps,
+    isBriefLike,
     LETTERS,
     optionDisplayMd,
     QuestionType,
@@ -190,7 +191,7 @@ export function fillOneStep(stepEl: HTMLElement, step: WenguStep): void {
     renderMathIn(stepEl);
 }
 
-/** 作答位：选择题字母 chip / 判断按钮 / 填空输入 / 简答多行。 */
+/** 作答位：选择题字母 chip / 判断按钮 / 填空输入 / 简答·作文·翻译多行。 */
 export function renderAnswerArea(q: WenguQuestion, t: (k: string) => string): string {
     if (isChoice(q)) {
         const chips = (q.optionMd ?? [])
@@ -205,8 +206,11 @@ export function renderAnswerArea(q: WenguQuestion, t: (k: string) => string): st
         <button class="wengu-btn" data-judge="×">${esc(t("judgeNo"))}</button>
       </div>`;
     }
-    if (q.type === QuestionType.Brief) {
-        return `<textarea class="wengu-input" data-field="mine" rows="4" placeholder="${ph}"></textarea>`;
+    if (isBriefLike(q)) {
+        // 作文给更高的输入区（词数/判分 rubric 是 E3；E0 先多行输入）
+        return `<textarea class="wengu-input" data-field="mine" rows="${
+            q.type === QuestionType.Essay ? 10 : 4
+        }" placeholder="${ph}"></textarea>`;
     }
     return `<input class="wengu-input" data-field="mine" placeholder="${ph}" />`;
 }

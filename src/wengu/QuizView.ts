@@ -7,7 +7,6 @@ import {
 import type {AnswerHost} from "./AnswerFlow";
 import {
     collectCardThoughts,
-    renderCardsHtml,
     renderMainShell,
     applySideFilter,
     renderNumsHtml,
@@ -25,6 +24,10 @@ import type {
     WenguSession,
 } from "./HistoryStore";
 import {pushSessionAnswer} from "./HistoryStore";
+import {
+    bindMaterialPanels,
+    renderCardsWithMaterials,
+} from "./MaterialView";
 import {bindNumRail} from "./NumRail";
 import {
     ProgressivePreview,
@@ -62,6 +65,7 @@ import {
 } from "./TimerController";
 import type {
     WenguDoc,
+    WenguMaterial,
     WenguQuestion,
     WenguRevealMode,
 } from "./types";
@@ -88,6 +92,8 @@ export class QuizView implements AnswerHost {
     private pendingDoc: {id: string; title: string;} | undefined;
     private list: WenguQuestion[] = [];
     private fullList: WenguQuestion[] = [];
+    /** 当前文档材料块（E0 材料组：组头渲染共享原文）。 */
+    private materials: WenguMaterial[] = [];
     private loading = false;
     private converting = false;
     private loadError = "";
@@ -229,8 +235,8 @@ export class QuizView implements AnswerHost {
         this.pendingDoc = r.pendingDoc;
         this.docId = r.docId;
         this.docTotalSec = r.docTotalSec;
-        this.fullList = r.fullList;
-        this.list = r.fullList;
+        this.list = this.fullList = r.fullList;
+        this.materials = r.materials;
         this.rounds = r.rounds;
         this.loadError = r.loadError;
         this.loading = false;
@@ -365,11 +371,11 @@ export class QuizView implements AnswerHost {
             listCount: this.list.length,
             startPanelHtml: renderStartPanel(this.startPanelModel()),
             subheadHtml: renderSubheadHtml({t: this.t, doc, listCount: this.list.length, rounds: this.rounds}),
-            cardsHtml: renderCardsHtml(this.list, {
+            cardsHtml: renderCardsWithMaterials(this.list, {
                 t: this.t,
                 showAttempts: this.settings?.showAttempts !== false,
                 showWrongBadge: this.settings?.showWrong !== false && this.revealMode !== "after",
-            }),
+            }, this.materials),
             numsHtml: renderNumsHtml(
                 this.list,
                 this.t,
@@ -378,15 +384,26 @@ export class QuizView implements AnswerHost {
             ),
         });
         this.bindAll();
-        void this.protyleHost.mount(this.el, this.list);
+        void this.protyleHost.mount(this.el, this.list, this.materials);
         this.updateTimerLabel();
     }
 
+    /** 视图级绑定：头部/题号/开刷面板/题卡/材料面板。 */
     private bindAll(): void {
         this.bindHead();
-        this.bindNums();
+        bindNumRail(this.el, {
+            onActive: (idx) => {
+                this.activeQIdx = idx;
+                this.timer.setQuestion(this.list[idx]?.id ?? "");
+            },
+        });
         bindStartPanel(this.el, this.startPanelModel(), () => this.beginDrill());
-        this.bindCards();
+        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
+        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
+            const q = this.list.find((x) => x.id === node.dataset.qid);
+            if (q) bindCardEvents(this, node, q);
+        }
+        bindMaterialPanels(this.el);
     }
 
     private bindHead(): void {
@@ -413,23 +430,6 @@ export class QuizView implements AnswerHost {
                 void this.load();
             },
         });
-    }
-
-    private bindNums(): void {
-        bindNumRail(this.el, {
-            onActive: (idx) => {
-                this.activeQIdx = idx;
-                this.timer.setQuestion(this.list[idx]?.id ?? "");
-            },
-        });
-    }
-
-    private bindCards(): void {
-        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
-        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
-            const q = this.list.find((x) => x.id === node.dataset.qid);
-            if (q) bindCardEvents(this, node, q);
-        }
     }
 
     private openConvert(): void {
@@ -490,9 +490,9 @@ export class QuizView implements AnswerHost {
                     );
                 }
             },
-            applyList: (list: WenguQuestion[]) => {
-                this.fullList = list;
-                this.list = list;
+            applyList: (list: WenguQuestion[], materials?: WenguMaterial[]) => {
+                this.list = this.fullList = list;
+                if (materials) this.materials = materials;
                 this.renderList();
             },
         };

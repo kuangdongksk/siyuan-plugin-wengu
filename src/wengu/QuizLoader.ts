@@ -1,5 +1,10 @@
+import {GROUP_PREV} from "./attrs";
 import type {ConvertProgressRecord} from "./ConvertBatch";
 import type {HistoryStore} from "./HistoryStore";
+import {
+    listMaterials,
+    resolveGroupPlaceholders,
+} from "./MaterialService";
 import {cleanOrphanExerciseDocs} from "./OrphanCleaner";
 import {
     listQuestionDocs,
@@ -9,6 +14,7 @@ import type {WenguSettingsShape as SettingsDialogShape} from "./SettingsDialog";
 import type {TimerController} from "./TimerController";
 import type {
     WenguDoc,
+    WenguMaterial,
     WenguQuestion,
     WenguRevealMode,
 } from "./types";
@@ -47,6 +53,8 @@ export interface QuizLoadResult {
     /** pendingDoc 是否仍需保留（未进列表）。 */
     pendingDoc: {id: string; title: string;} | undefined;
     fullList: WenguQuestion[];
+    /** 当前文档的材料块（材料组渲染用）。 */
+    materials: WenguMaterial[];
     rounds: Awaited<ReturnType<HistoryStore["docSessions"]>>;
     sideCollapsed: boolean;
     lastConvertModelId: string;
@@ -65,6 +73,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         docId: deps.docId,
         pendingDoc: deps.pendingDoc,
         fullList: [],
+        materials: [],
         rounds: [],
         sideCollapsed: !!deps.prefs.sideCollapsed,
         lastConvertModelId: deps.prefs.lastConvertModelId ?? "",
@@ -116,6 +125,20 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         }
         r.docTotalSec = r.docs.find((d) => d.id === r.docId)?.totalTime ?? 0;
         r.fullList = r.docId ? await listQuestions(r.docId) : [];
+        // 材料组：转换写的 group="prev" 占位按文档序解析回写真实材料块 id
+        // （渐进重建期间不解析，装载即最终文档，幂等）
+        if (r.docId && r.fullList.some((q) => q.group === GROUP_PREV)) {
+            try {
+                const patches = await resolveGroupPlaceholders(r.docId);
+                for (const q of r.fullList) {
+                    const mid = patches.get(q.id);
+                    if (mid) q.group = mid;
+                }
+            } catch (_) {
+                // 解析失败按无材料降级（下次装载再试）
+            }
+        }
+        r.materials = r.docId ? await listMaterials(r.docId).catch((): WenguMaterial[] => []) : [];
         r.rounds = r.docId && deps.history ? await deps.history.docSessions(r.docId) : [];
     } catch (e) {
         r.fullList = [];

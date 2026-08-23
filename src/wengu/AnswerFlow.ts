@@ -5,6 +5,7 @@ import {
 } from "./CardHtml";
 import {statusIcon} from "./FormHtml";
 import type {WenguSession} from "./HistoryStore";
+import {syncMaterialReveal} from "./MaterialView";
 import {
     optionIsRight,
     overrideAttemptResult,
@@ -22,6 +23,7 @@ import type {
 } from "./types";
 import {
     hasSteps,
+    isBriefLike,
     LETTERS,
     QuestionType,
 } from "./types";
@@ -130,9 +132,11 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
     lockInputs(card);
     host.flushTime();
     if (!objective) {
-        // brief：AI 判分并计入（AI 不可用回落自评）；多步题在 StepsFlow，
-        // 缺题型/答案属性的题维持自评。after 模式判分照跑，揭示时只展示评语。
-        if (q.type === QuestionType.Brief && submitted) {
+        // brief（含英语 essay/trans）：AI 判分并计入（AI 不可用回落自评）；
+        // 多步题在 StepsFlow，缺题型/答案属性的题维持自评（cloze/match
+        // 的逐空作答是 E2，E0 先走这条自评降级）。after 模式判分照跑，
+        // 揭示时只展示评语。
+        if (isBriefLike(q) && submitted) {
             await judgeBriefAnswer(host, q, card, submitted, batch);
             return;
         }
@@ -173,8 +177,10 @@ export async function selfGrade(
     markNum(host, q, correct);
     host.recordAnswer(q.id, mine, correct);
     card.querySelector("[data-self]")?.setAttribute("hidden", "");
+    card.classList.add("wengu-graded");
     showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct ? "right" : "wrong");
     showQTime(host, card, q.id);
+    syncMaterialReveal(host.container(), host.questions());
     checkAllDone(host);
 }
 
@@ -381,6 +387,8 @@ function revealCard(
         showResult(card, briefResultHtml(host, verdict), verdictStatus(verdict));
         revealBriefExtras(host, card);
     }
+    // 材料组：组内题目全部判分后揭示共享材料的译文（E0 防剧透规则）
+    syncMaterialReveal(host.container(), host.questions());
 }
 
 /** 全部作答后收口：after 模式先统一揭示（revealAll 会再触发总结），
