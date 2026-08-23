@@ -15,13 +15,23 @@ export interface ViewBindCtx {
     filterDocs(text: string): void;
     /** 切换刷题文档（结算旧文档用时）。 */
     switchDoc(docId: string): void;
+    /** 切换到专题刷题（题库模式；空串回文档模式）。 */
+    switchCollection(collectionId: string): void;
+    /** 打开专题管理（按知识点收集/删除专题）。 */
+    openCollections(): void;
 }
 
 export function bindViewEvents(ctx: ViewBindCtx): void {
     const q = (sel: string) => ctx.el.querySelector(sel);
+    // 静态渲染（题库模式）的块引用点击跳转（Protyle 模式原生自带）
+    ctx.el.addEventListener("click", (ev) => {
+        const id = (ev.target as HTMLElement).closest<HTMLElement>("[data-type='block-ref']")?.dataset.id;
+        if (id) window.open(`siyuan://blocks/${id}`);
+    });
     q("[data-act='refresh']")?.addEventListener("click", () => ctx.reload());
     ctx.updateConvertBtn();
     q("[data-act='convert']")?.addEventListener("click", () => ctx.openConvert());
+    q("[data-act='collections']")?.addEventListener("click", () => ctx.openCollections());
     q("[data-act='settings']")?.addEventListener("click", () => ctx.openSettings?.());
     q("[data-act='side-toggle']")?.addEventListener("click", () => ctx.toggleSide(false));
     q("[data-act='side-fold']")?.addEventListener("click", () => ctx.toggleSide(true));
@@ -31,6 +41,11 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
     // 事件委托：搜索过滤只重绘清单 innerHTML，点击绑定挂在容器上不失效
     q("[data-side-body]")?.addEventListener("click", (ev) => {
         const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid]");
-        if (node) ctx.switchDoc(node.dataset.docid ?? "");
+        if (node) {
+            ctx.switchDoc(node.dataset.docid ?? "");
+            return;
+        }
+        const col = (ev.target as HTMLElement).closest<HTMLElement>("[data-colid]");
+        if (col) ctx.switchCollection(col.dataset.colid ?? "");
     });
 }

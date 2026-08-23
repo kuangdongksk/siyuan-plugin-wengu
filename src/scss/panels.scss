@@ -84,3 +84,55 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── 专题管理对话框 ── */
+
+.wengu-col-dialog .wengu-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow: auto;
+  margin-top: 8px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 6px;
+}
+
+.wengu-col-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: var(--b3-border-radius);
+  cursor: default;
+}
+
+.wengu-col-row:hover {
+  background-color: var(--b3-list-hover);
+}
+
+.wengu-col-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.wengu-col-new {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wengu-col-new .wengu-input {
+  flex: 1;
+}
+
+.wengu-col-del {
+  padding: 0 8px;
+  min-width: auto;
+}

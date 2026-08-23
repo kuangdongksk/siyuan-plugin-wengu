@@ -13,10 +13,11 @@ import {
     renderNumsHtml,
     renderSubheadHtml,
 } from "./CardHtml";
+import {CollectionFlow} from "./CollectionFlow";
 import type {ConvertProgressRecord} from "./ConvertBatch";
 import {
     convertDoneText,
-    openWenguConvert,
+    openConvertForView,
     showStatus,
     updateConvertBtn,
 } from "./ConvertHost";
@@ -26,46 +27,38 @@ import type {
 } from "./HistoryStore";
 import {pushSessionAnswer} from "./HistoryStore";
 import {bindNumRail} from "./NumRail";
-import {
-    ProgressivePreview,
-    showBatchPreview,
-} from "./ProgressivePreview";
+import {ProgressivePreview} from "./ProgressivePreview";
 import {ProtyleHost} from "./ProtyleHost";
+import type {QuestionBank} from "./QuestionBank";
 import {addDocTotalTime} from "./QuestionService";
 import {
     loadPrefs,
     loadQuizState,
     savePrefs,
+    type WenguPrefsIo,
 } from "./QuizLoader";
-import type {WenguPrefsIo} from "./QuizLoader";
 import {
     lockAllCards,
-    manualFinishRound,
     roundFinishCtx,
     showRoundReportNow,
-    showTimeUpChoice,
 } from "./RoundReport";
 import type {WenguSettingsShape as SettingsDialogShape} from "./SettingsDialog";
 import {
+    beginDrillFor,
     bindStartPanel,
-    buildStartPanelModel,
     renderStartPanel,
-    roundDefaults,
-    startRound,
+    startPanelModelFor,
 } from "./StartPanel";
-import {bindViewEvents} from "./ViewBindings";
-import type {WeaknessStore} from "./WeaknessStore";
-
-import {
-    renderTimerLabel,
-    TimerController,
-} from "./TimerController";
+import {TimerBar} from "./TimerBar";
+import {TimerController} from "./TimerController";
 import type {
     WenguDoc,
     WenguQuestion,
     WenguRevealMode,
 } from "./types";
 import {esc} from "./ui";
+import {bindViewEvents} from "./ViewBindings";
+import type {WeaknessStore} from "./WeaknessStore";
 
 /** 温故刷题页签视图（编排层），各模块见 docs/design-review.md。 */
 export class QuizView implements AnswerHost {
@@ -77,10 +70,13 @@ export class QuizView implements AnswerHost {
     private readonly settings?: SettingsDialogShape;
     private readonly history?: HistoryStore;
     private readonly weakness?: WeaknessStore;
+    private readonly bank?: QuestionBank;
     private readonly openSettings?: () => void;
-    private readonly timer = new TimerController(() => this.updateTimerLabel());
+    private readonly timer = new TimerController(() => this.timerBar.update());
     private readonly protyleHost: ProtyleHost;
     private readonly progressive = new ProgressivePreview();
+    private readonly timerBar: TimerBar;
+    private readonly colFlow: CollectionFlow;
     private docId: string;
     private activeDocId: string;
     private docs: WenguDoc[] = [];
@@ -93,7 +89,6 @@ export class QuizView implements AnswerHost {
     private converting = false;
     private loadError = "";
     private docTotalSec = 0;
-    private timerInt: number | undefined;
     private revealMode: WenguRevealMode = "instant";
     private activeQIdx = 0;
     private started = false;
@@ -116,6 +111,7 @@ export class QuizView implements AnswerHost {
         settings?: SettingsDialogShape,
         history?: HistoryStore,
         weakness?: WeaknessStore,
+        bank?: QuestionBank,
         openSettings?: () => void,
     ) {
         this.el = element;
@@ -127,8 +123,36 @@ export class QuizView implements AnswerHost {
         this.settings = settings;
         this.history = history;
         this.weakness = weakness;
+        this.bank = bank;
         this.openSettings = openSettings;
         this.protyleHost = new ProtyleHost(app);
+        this.timerBar = new TimerBar({
+            t: this.t,
+            container: this.container,
+            timer: this.timerController,
+            docTotalSec: () => this.docTotalSec,
+            activeQid: () => this.list[this.activeQIdx]?.id,
+            running: () => this.started && (!!this.docId || this.colFlow.isActive()),
+            onTick: (elapsed) => {
+                if (this.session) this.session.elapsedSec = elapsed;
+            },
+            timeUpCtx: () => (this.session ? roundFinishCtx(this) : undefined),
+            autoFlush: this.flushTime,
+        });
+        this.colFlow = new CollectionFlow({
+            t: this.t,
+            container: this.container,
+            bank: () => this.bank,
+            docs: () => this.docs,
+            docId: () => this.docId,
+            sideFilter: () => this.sideFilter,
+            reloadFromCollection: () => {
+                void this.flushTimeAsync();
+                this.docId = "";
+                this.persistPrefs();
+                void this.load();
+            },
+        });
     }
 
     readonly container = (): HTMLElement => this.el;
@@ -148,6 +172,7 @@ export class QuizView implements AnswerHost {
         if (!s) return;
         pushSessionAnswer(s, qid, submitted, ok, this.timer.takeQuestionSec(qid), this.timer.elapsed(), extra);
         void this.history?.upsert(s);
+        if (!qid.includes("#")) void this.bank?.recordAnswer(qid, submitted, ok); // 题库统计镜像（多步按整题在外层记）
     };
 
     /** 设置页开关变更后由插件调用：立即按新设置重渲染。 */
@@ -164,19 +189,21 @@ export class QuizView implements AnswerHost {
 
     render(): void {
         void this.load();
-        this.startTimer();
+        this.timerBar.start();
     }
 
     destroy(): void {
-        this.stopTimer();
+        this.timerBar.stop();
         this.progressive.clear();
         this.finishSession();
         void this.flushTimeAsync();
+        void this.bank?.flush();
         this.protyleHost.destroyAll();
     }
 
     private selectDoc(docId: string): void {
         if (!docId || docId === this.docId) return;
+        this.colFlow.reset(); // 点文档=离开题库模式
         void this.flushTimeAsync();
         this.docId = docId;
         this.persistPrefs();
@@ -214,6 +241,8 @@ export class QuizView implements AnswerHost {
         this.renderList();
         const prefs = await loadPrefs(this.storage);
         await this.weakness?.preload(); // 薄弱 Top 快照（报告同步渲染用）
+        await this.bank?.preload();
+        const colQuestions = await this.colFlow.questions();
         const r = await loadQuizState({
             prefs,
             settings: this.settings,
@@ -240,27 +269,20 @@ export class QuizView implements AnswerHost {
         this.fullList = r.fullList;
         this.list = r.fullList;
         this.rounds = r.rounds;
+        if (colQuestions) {
+            this.fullList = colQuestions;
+            this.list = colQuestions;
+            this.rounds = []; // 专题暂不挂历史轮次（会话按 docId 记）
+        }
         this.loadError = r.loadError;
         this.loading = false;
+        await this.colFlow.refresh();
         this.renderList();
-    }
-
-    private startTimer(): void {
-        if (this.timerInt !== undefined) return;
-        this.timerInt = window.setInterval(() => {
-            if (!this.docId || !this.started || this.timer.mode === "none") return;
-            const justTimeUp = this.timer.tick();
-            if (this.session) this.session.elapsedSec = this.timer.elapsed();
-            if (justTimeUp) this.showTimeUpBar();
-            this.updateTimerLabel();
-            if (this.timer.pending % 15 === 0) void this.flushTimeAsync();
-        }, 1000);
-    }
-
-    private stopTimer(): void {
-        if (this.timerInt !== undefined) {
-            window.clearInterval(this.timerInt);
-            this.timerInt = undefined;
+        // 存量/新文档迁移入库（后台；完成后补侧栏专题清单）
+        if (this.bank) {
+            void this.bank.ensureMigrated(this.docs).then((): void =>
+                void this.colFlow.refresh().then((): void => this.colFlow.refreshSide())
+            );
         }
     }
 
@@ -277,27 +299,6 @@ export class QuizView implements AnswerHost {
         }
     }
 
-    private updateTimerLabel(): void {
-        const qid = this.list[this.activeQIdx]?.id;
-        renderTimerLabel(
-            this.el.querySelector<HTMLElement>("[data-timer]"),
-            this.timer,
-            this.t,
-            this.docTotalSec + this.timer.pending,
-            qid ? this.timer.questionSec(qid) : 0,
-        );
-    }
-
-    /** 倒计时归零：给出「继续作答 / 结束本轮」的选择条。 */
-    private showTimeUpBar(): void {
-        const slot = this.el.querySelector<HTMLElement>("[data-timeup-slot]");
-        if (!slot || slot.childElementCount > 0) return;
-        showTimeUpChoice(slot, this.t, {
-            onOvertime: () => this.timer.beginOvertime(),
-            onFinish: () => manualFinishRound(roundFinishCtx(this)),
-        });
-    }
-
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly finishedSession = (): WenguSession | undefined => this.finished;
     readonly aiModelId = (): string => this.lastConvertModelId || this.settings?.convertModelId || "";
@@ -305,42 +306,36 @@ export class QuizView implements AnswerHost {
     readonly stopRoundNow = (): void => {
         this.started = false;
         this.flushTime(); // 收卷即落库（未满 15s 的秒数不清零）
-        this.updateTimerLabel();
+        this.timerBar.update();
     };
     readonly lockAllCardsNow = (): void => lockAllCards(this.el);
     readonly weaknessStore = (): WeaknessStore | undefined => this.weakness;
 
     private startPanelModel() {
-        return buildStartPanelModel({
-            t: this.t,
-            defaults: roundDefaults(this.revealMode, this.timer),
-            rounds: this.rounds,
-            list: this.list,
-        });
+        return startPanelModelFor(this);
     }
 
     private beginDrill(): void {
-        startRound({
-            root: this.el,
-            defaults: roundDefaults(this.revealMode, this.timer),
-            rounds: this.rounds,
-            fullList: this.fullList,
-            docId: this.docId,
-            timer: this.timer,
-            history: this.history,
-            setList: (l) => (this.list = l),
-            setRevealMode: (m) => (this.revealMode = m),
-            setActiveIdx: (i) => (this.activeQIdx = i),
-            setStarted: (v) => (this.started = v),
-            setFinished: (s) => (this.finished = s),
-            setSession: (s) => (this.session = s),
-            afterStart: () => {
-                this.renderList();
-                restoreAnsweredCards(this);
-                this.updateTimerLabel();
-            },
-        });
+        beginDrillFor(this);
     }
+
+    /* ── DrillViewAccess（beginDrillFor/startPanelModelFor 消费） ── */
+    readonly fullListOf = (): WenguQuestion[] => this.fullList;
+    readonly docIdOf = (): string => this.docId;
+    readonly historyStore = (): HistoryStore | undefined => this.history;
+    readonly setQuizList = (l: WenguQuestion[]) => (this.list = l);
+    readonly setQuizRevealMode = (m: WenguRevealMode) => (this.revealMode = m);
+    readonly setActiveQIdx = (i: number) => (this.activeQIdx = i);
+    readonly setStartedFlag = (v: boolean) => (this.started = v);
+    readonly setFinishedSession = (s: WenguSession | undefined) => (this.finished = s);
+    readonly setCurSession = (s: WenguSession | undefined) => (this.session = s);
+    readonly renderQuizList = (): void => this.renderList();
+    readonly updateTimerLabelNow = (): void => this.timerBar.update();
+    readonly afterStartHook = (): void => {
+        this.renderList();
+        restoreAnsweredCards(this);
+        this.timerBar.update();
+    };
 
     private renderList(): void {
         this.el.classList.add("wengu-panel");
@@ -358,7 +353,8 @@ export class QuizView implements AnswerHost {
 
     private renderListInner(): void {
         this.protyleHost.destroyAll();
-        const doc = this.docs.find((d) => d.id === this.docId);
+        const colMode = this.colFlow.isActive();
+        const doc = colMode ? undefined : this.docs.find((d) => d.id === this.docId);
         this.el.innerHTML = renderMainShell({
             t: this.t,
             docs: this.docs,
@@ -366,6 +362,8 @@ export class QuizView implements AnswerHost {
             sideCollapsed: this.sideCollapsed,
             filter: this.sideFilter,
             hasSettingsButton: !!this.openSettings,
+            collections: this.colFlow.rowsView(),
+            activeCollection: this.colFlow.id(),
             loading: this.loading,
             loadError: this.loadError,
             started: this.started,
@@ -373,7 +371,11 @@ export class QuizView implements AnswerHost {
             hasDoc: !!doc,
             listCount: this.list.length,
             startPanelHtml: renderStartPanel(this.startPanelModel()),
-            subheadHtml: renderSubheadHtml({t: this.t, doc, listCount: this.list.length, rounds: this.rounds}),
+            subheadHtml: colMode ?
+                `<span class="wengu-muted">${esc(this.colFlow.activeTitle() ?? "")} · ${
+                    esc(String(this.list.length))
+                }</span>` :
+                renderSubheadHtml({t: this.t, doc, listCount: this.list.length, rounds: this.rounds}),
             cardsHtml: renderCardsHtml(this.list, {
                 t: this.t,
                 showAttempts: this.settings?.showAttempts !== false,
@@ -387,8 +389,9 @@ export class QuizView implements AnswerHost {
             ),
         });
         this.bindAll();
-        void this.protyleHost.mount(this.el, this.list);
-        this.updateTimerLabel();
+        if (colMode) this.protyleHost.mountStatic(this.el, this.list); // 题库静态渲染（Lute）
+        else void this.protyleHost.mount(this.el, this.list);
+        this.timerBar.update();
     }
 
     private bindAll(): void {
@@ -411,11 +414,19 @@ export class QuizView implements AnswerHost {
         bindViewEvents({
             el: this.el,
             reload: () => void this.load(),
-            openConvert: () => this.openConvert(),
+            openConvert: () => openConvertForView(this),
             openSettings: this.openSettings,
             filterDocs: (text) => {
                 this.sideFilter = text;
-                applySideFilter(this.el, this.docs, this.docId, this.t, text);
+                applySideFilter(
+                    this.el,
+                    this.docs,
+                    this.docId,
+                    this.t,
+                    text,
+                    this.colFlow.rowsView(),
+                    this.colFlow.id(),
+                );
             },
             toggleSide: (collapsed) => {
                 this.sideCollapsed = collapsed;
@@ -424,74 +435,65 @@ export class QuizView implements AnswerHost {
             },
             updateConvertBtn: () => updateConvertBtn(this.el, this.converting, this.t),
             switchDoc: (id) => this.selectDoc(id),
+            switchCollection: (id) => this.colFlow.switchTo(id),
+            openCollections: () => this.colFlow.openDialog(),
         });
     }
 
-    private openConvert(): void {
-        openWenguConvert({
-            t: this.t,
-            el: this.el,
-            activeDocId: this.activeDocId,
-            settings: this.settings,
-            lastConvertModelId: this.lastConvertModelId,
-            lastConvertFill: this.lastConvertFill,
-            lastConvertSteps: this.lastConvertSteps,
-            lastConvertKnow: this.lastConvertKnow,
-            convertParallel: this.settings?.convertParallel ?? 1,
-            saveChoice: (modelId, fill, steps, know) => {
-                this.lastConvertModelId = modelId;
-                this.lastConvertFill = fill;
-                this.lastConvertSteps = steps;
-                this.lastConvertKnow = know;
-                this.persistPrefs();
-            },
-            getProgress: (srcDocId) => this.convertProgress[srcDocId],
-            saveProgress: (srcDocId, rec) => {
-                if (rec) this.convertProgress[srcDocId] = rec;
-                else delete this.convertProgress[srcDocId];
-                this.persistPrefs();
-            },
-            setConverting: (v) => {
-                this.converting = v;
-                updateConvertBtn(this.el, this.converting, this.t);
-            },
-            onBatch: (docId, title, count, batch, total) =>
-                showBatchPreview(this.progressive, this.previewHost(), docId, title, count, batch, total),
-            onCancel: () => {
-                this.progressive.clear();
-                void this.load();
-            },
-            onDone: (r) => {
-                this.progressive.clear();
-                this.pendingDoc = {id: r.docId, title: r.title};
-                this.docId = r.docId;
-                this.persistPrefs();
-                void this.load().then(() => showStatus(this.el, convertDoneText(this.t, r.title, r.count), "ok"));
-            },
-        });
-    }
-
-    private previewHost() {
-        return {
-            t: this.t,
-            el: this.el,
-            isStarted: () => this.started,
-            currentDocId: () => this.docId,
-            switchDoc: (id: string, title: string, count: number) => {
-                this.pendingDoc = {id, title};
-                this.docId = id;
-                this.persistPrefs();
-                if (!this.docs.some((d) => d.id === id)) {
-                    this.docs.unshift(
-                        {id, title, hPath: "", total: count, attempted: 0, rightCount: 0, totalTime: 0},
-                    );
-                }
-            },
-            applyList: (list: WenguQuestion[]) => {
-                this.fullList = list;
-                this.list = list;
-                this.renderList();
-            },
-        };
-    }
+    /* ── ConvertViewAccess（openConvertForView 消费） ── */
+    readonly activeDocIdOf = (): string => this.activeDocId;
+    readonly settingsOf = (): SettingsDialogShape | undefined => this.settings;
+    readonly lastConvert = (): {modelId: string; fill: boolean; steps: boolean; know: string;} => ({
+        modelId: this.lastConvertModelId,
+        fill: this.lastConvertFill,
+        steps: this.lastConvertSteps,
+        know: this.lastConvertKnow,
+    });
+    readonly convertParallelOf = (): number => this.settings?.convertParallel ?? 1;
+    readonly saveConvertChoice = (modelId: string, fill: boolean, steps: boolean, know: string): void => {
+        this.lastConvertModelId = modelId;
+        this.lastConvertFill = fill;
+        this.lastConvertSteps = steps;
+        this.lastConvertKnow = know;
+        this.persistPrefs();
+    };
+    readonly convertProgressOf = (srcDocId: string): ConvertProgressRecord | undefined =>
+        this.convertProgress[srcDocId];
+    readonly saveConvertProgress = (srcDocId: string, rec: ConvertProgressRecord | undefined): void => {
+        if (rec) this.convertProgress[srcDocId] = rec;
+        else delete this.convertProgress[srcDocId];
+        this.persistPrefs();
+    };
+    readonly setConvertingState = (v: boolean): void => {
+        this.converting = v;
+        updateConvertBtn(this.el, this.converting, this.t);
+    };
+    readonly progressiveOf = (): ProgressivePreview => this.progressive;
+    readonly isStarted = (): boolean => this.started;
+    readonly currentDocId = (): string => this.docId;
+    readonly switchPreviewDoc = (id: string, title: string, count: number): void => {
+        this.colFlow.reset();
+        this.pendingDoc = {id, title};
+        this.docId = id;
+        this.persistPrefs();
+        if (!this.docs.some((d) => d.id === id)) {
+            this.docs.unshift({id, title, hPath: "", total: count, attempted: 0, rightCount: 0, totalTime: 0});
+        }
+    };
+    readonly applyQuizList = (list: WenguQuestion[]): void => {
+        this.fullList = list;
+        this.list = list;
+        this.renderList();
+    };
+    readonly reloadView = (): void => {
+        void this.load();
+    };
+    readonly onConvertDone = (r: {docId: string; title: string; count: number; message: string;}): void => {
+        this.progressive.clear();
+        this.pendingDoc = {id: r.docId, title: r.title};
+        this.docId = r.docId;
+        this.colFlow.reset();
+        this.persistPrefs();
+        void this.load().then(() => showStatus(this.el, convertDoneText(this.t, r.title, r.count), "ok"));
+    };
 }

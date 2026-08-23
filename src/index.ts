@@ -7,6 +7,7 @@ import {
 } from "siyuan";
 import "./index.scss";
 import {HistoryStore} from "./wengu/HistoryStore";
+import {QuestionBank} from "./wengu/QuestionBank";
 import {QuizView} from "./wengu/QuizView";
 import {openWenguSetting} from "./wengu/SettingsDialog";
 import type {
@@ -206,6 +207,13 @@ export default class WenguPlugin extends Plugin {
                         new WeaknessStore(
                             () => plugin.loadData("weakness"),
                             (v) => plugin.saveData("weakness", v),
+                        ) :
+                        undefined,
+                    // 插件题库（bank 文件：题目 kramdown + 专题 + 迁移状态）
+                    plugin ?
+                        new QuestionBank(
+                            () => plugin.loadData("bank"),
+                            (v) => plugin.saveData("bank", v),
                         ) :
                         undefined,
                     // 目录底部设置图标按钮 → 插件设置弹窗

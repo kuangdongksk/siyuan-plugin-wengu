@@ -143,6 +143,30 @@ AI 判卷把薄弱处沉淀为跨轮次结构化档案（`weakness` 文件）：
   异步补记（causeApplied 名单幂等）——归因失败只丢错因不丢计数。
 * **展示**：收卷报告「薄弱沉淀（累计）」区块 = Top 8（错数降序）。
 
+### 插件题库（bank）与专题（2026-08-23 起）
+
+题目以「容器超级块 kramdown 原文」为**主记录**存插件数据
+（`saveData("bank")`，QuestionBank），细粒度管理不再受文档结构锁死：
+
+* **记录**：`{qid(容器块id), kramdown 原文, type/knowledge/chapter/
+  difficulty, kpRefs(知识点反链目标), sourceDocId, hash(内容指纹),
+  stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
+  （块属性照写 + 题库镜像），防抖 2s 落盘。
+* **解析**：BankParse 把 kramdown 拆回 WenguQuestion（语义与
+  QuestionService.hydrate 一致；注意 IAL 是**尾随**行——part 属性行
+  之前的内容才是该 part 的块）。
+* **入库**：`refreshDoc(docId)` 幂等——listQuestions 拿容器 id/属性 +
+  getBlockKramdown 拿原文；migratedDocs 名单防重；**内容指纹跨卷去重**
+  （同一真题多卷收录只留第一条）；源卷自动落成 `doc:` 前缀的影子专题。
+  存量迁移 = 装载时对未迁移文档后台跑 refreshDoc；新转换的文档下次
+  装载时自动同步入库。
+* **专题**：`{id, title, qids[], origin}`；「按知识点收集」= 知识点
+  索引（kpRefs 优先，降级 knowledge/chapter）勾选后并集收集成新专题。
+* **题库模式渲染**：静态路径（Lute Md2BlockDOM + KaTeX），解析/
+  答案在 `.wengu-static-sol` 容器里随 `wengu-graded` 显隐（与文档
+  模式 part 显隐同语义）；块引用静态渲染、点击 `siyuan://blocks/id`
+  跳转。文档模式仍走内嵌 Protyle。
+
 ## 三点六、多步引导题（steps）与 brief 的 AI 判分
 
 **steps 题的作答语义**（一张卡内逐步解锁，不参与 after 统一揭示——

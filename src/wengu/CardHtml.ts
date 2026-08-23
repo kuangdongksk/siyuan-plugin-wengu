@@ -214,16 +214,36 @@ export interface SideHtmlModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（按标题/路径包含匹配，空=全部）。 */
     filter: string;
+    /** 题库专题清单（空=不渲染专题区）。 */
+    collections: {id: string; title: string; count: number;}[];
+    /** 当前选中的专题 id（题库模式）。 */
+    activeCollection: string;
 }
 
-/** 目录文档清单（hPath 分组 + 搜索过滤）。单独导出：搜索输入时只刷新这一块，输入框不重建。 */
+/** 目录文档清单（hPath 分组 + 搜索过滤）。单独导出：搜索输入时只刷新这一块，输入框不重建。
+ *  collections 非空时顶部先渲染「专题」区（题库入口）。 */
 export function renderSideBodyHtml(
     docs: WenguDoc[],
     docId: string,
     t: (key: string) => string,
     filter: string,
+    collections: {id: string; title: string; count: number;}[] = [],
+    activeCollection = "",
 ): string {
     const q = filter.trim().toLowerCase();
+    const colSection = collections.length > 0 ?
+        `<div class="wengu-side-group">
+        <div class="wengu-side-label">${esc(t("collectionsTitle"))}</div>${
+            collections.map((c) =>
+                `<div class="wengu-side-item${c.id === activeCollection ? " wengu-side-active" : ""}" data-colid="${
+                    esc(c.id)
+                }" title="${esc(c.title)}">
+          <div class="wengu-side-title">${esc(c.title)}</div>
+          <div class="wengu-side-meta">${esc(fmt(t("collectionCount"), {n: String(c.count)}))}</div>
+        </div>`
+            ).join("")
+        }</div>` :
+        "";
     const groups = new Map<string, WenguDoc[]>();
     for (const d of docs) {
         if (q && !`${d.title}\n${d.hPath}`.toLowerCase().includes(q)) continue;
@@ -234,12 +254,12 @@ export function renderSideBodyHtml(
         arr.push(d);
         groups.set(key, arr);
     }
-    const items = [...groups.entries()]
+    const items = colSection + [...groups.entries()]
         .map(([group, gdocs]) =>
             `<div class="wengu-side-group">
         <div class="wengu-side-label">${esc(group)}</div>${
                 gdocs.map((d) => {
-                    const active = d.id === docId ? " wengu-side-active" : "";
+                    const active = d.id === docId && !activeCollection ? " wengu-side-active" : "";
                     const meta = [
                         fmt(t("exerciseCount"), {n: String(d.total)}),
                         d.attempted > 0 ? fmt(t("drilledCount"), {a: String(d.attempted)}) : "",
@@ -284,11 +304,16 @@ export function renderSideHtml(m: SideHtmlModel): string {
       <div class="wengu-side-tools">
         <input class="wengu-side-search" data-act="side-search" type="search" spellcheck="false"
           placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
+        <button class="b3-button b3-button--outline wengu-side-convert" data-act="collections" title="${
+        esc(t("collectionsBtn"))
+    }">${svgIcon("iconList")}</button>
         <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${
         esc(t("convertBtn"))
     }">${svgIcon("iconSparkles")} <span data-convert-label>${esc(t("convertBtn"))}</span></button>
       </div>
-      <div class="wengu-side-body" data-side-body>${renderSideBodyHtml(m.docs, docId, t, m.filter)}</div>
+      <div class="wengu-side-body" data-side-body>${
+        renderSideBodyHtml(m.docs, docId, t, m.filter, m.collections, m.activeCollection)
+    }</div>
     </div>`;
 }
 
@@ -360,6 +385,9 @@ export interface MainShellModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（透传给目录）。 */
     filter: string;
+    /** 题库专题清单与选中项（透传给目录）。 */
+    collections: {id: string; title: string; count: number;}[];
+    activeCollection: string;
     loading: boolean;
     loadError: string;
     started: boolean;
@@ -385,6 +413,8 @@ export function renderMainShell(m: MainShellModel): string {
                 sideCollapsed: m.sideCollapsed,
                 hasSettingsButton: m.hasSettingsButton,
                 filter: m.filter,
+                collections: m.collections,
+                activeCollection: m.activeCollection,
             })
         }<div class="wengu-main">
     <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed)}</div>
@@ -454,9 +484,11 @@ export function applySideFilter(
     el: HTMLElement,
     docs: WenguDoc[],
     docId: string,
-    t: (k: string) => string,
+    t: (key: string) => string,
     text: string,
+    collections: {id: string; title: string; count: number;}[] = [],
+    activeCollection = "",
 ): void {
     const body = el.querySelector("[data-side-body]");
-    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text);
+    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text, collections, activeCollection);
 }
