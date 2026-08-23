@@ -168,7 +168,7 @@ export class WordView {
         this.enterPrompt();
     }
 
-    /** 进入当前位置的卡：本会话未答过 → choiceEn 先测后学，答过 → 题型轮换。 */
+    /** 进入当前位置的卡：未答过 → 新学 choiceEn 先测后学 / 复习 recallEn 回想；答过 → 题型轮换。 */
     private enterPrompt(): void {
         this.phase = "prompt";
         this.answered = undefined;
@@ -176,7 +176,8 @@ export class WordView {
         this.spellTyped = undefined;
         const idx = this.currentIdx;
         this.confIds = confOthers(this.progress!, idx);
-        this.cardMode = this.learned.has(idx) ? pickMode(this.cardSeq, idx, this.confIds) : "choiceEn";
+        const first = this.sessionNew.has(idx) ? "choiceEn" : "recallEn";
+        this.cardMode = this.learned.has(idx) ? pickMode(this.cardSeq, idx, this.confIds) : first;
         this.timer.begin(this.cardMode);
     }
 
