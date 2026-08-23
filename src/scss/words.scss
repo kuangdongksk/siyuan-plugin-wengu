@@ -435,3 +435,26 @@
 .wengu-word-entry-star .wengu-word-entry-title {
   color: var(--b3-theme-primary);
 }
+
+/* 查词:结果行(单词左,释义右) */
+.wengu-word-lk-word {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wengu-word-lk-meaning {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-left: 12px;
+  text-align: right;
+}
+
+.wengu-word-opt[data-act="lookuppick"] {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}

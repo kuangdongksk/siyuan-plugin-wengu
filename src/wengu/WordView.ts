@@ -3,8 +3,12 @@ import {
     esc,
     fmt,
 } from "./ui";
+import {dispatchWordAct} from "./WordActs";
 import {WordAiRunner} from "./WordAi";
-import {bindWordEvents} from "./WordBind";
+import {
+    bindWordEvents,
+    type WordBindState,
+} from "./WordBind";
 import WORD_BOOK from "./WordBook";
 import {
     renderAskReview,
@@ -13,6 +17,7 @@ import {
     renderWordHead,
     renderWordHome,
 } from "./WordHome";
+import {renderLookup} from "./WordLookup";
 import {
     checkOption,
     checkSpell,
@@ -55,30 +60,33 @@ const REINSERT_GAP = 3;
 export class WordView {
     readonly t: (key: string) => string;
     private readonly el: HTMLElement;
-    private readonly store: WordStore;
-    private progress: WenguWordProgress | undefined;
+    readonly store: WordStore;
+    progress: WenguWordProgress | undefined;
     /** 本会话队列（扁平下标）。 */
     private queue: number[] = [];
     private pos = 0;
     /** 提示页/翻面结果（learn、recall 用）。 */
-    private phase: "prompt" | "result" = "prompt";
+    phase: "prompt" | "result" = "prompt";
     /** 当前卡模式。 */
     private cardMode: WordCardMode = "learn";
     private cardSeq = 0;
     /** 客观题作答态（choiceEn/choiceZh/spell）。 */
-    private answered: AnsweredState | undefined;
+    answered: AnsweredState | undefined;
     /** 本会话已出过学习卡的词（学过一遍就不再 learn）。 */
     private learned = new Set<number>();
     /** 构队时标记的新词（首次作答计入今日新词数）。 */
     private sessionNew = new Set<number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
-    private hardList: number[] = [];
-    private mode: "home" | "askreview" | "stats" | "card" | "setstart" | "done" = "home";
+    hardList: number[] = [];
+    mode: "home" | "askreview" | "stats" | "lookup" | "card" | "setstart" | "done" = "home";
+    /** 查词状态（非答题期间可用）。 */
+    private lookupQuery = "";
+    lookupSel: number | undefined;
     /** 当前会话队列种类(入口决定)。 */
     private queueKind: "review" | "fresh" | "star" = "fresh";
     private busy = false;
     /** 误认词 AI 视图胶水。 */
-    private readonly ai: WordAiRunner;
+    readonly ai: WordAiRunner;
 
     constructor(
         element: HTMLElement,
@@ -104,7 +112,7 @@ export class WordView {
 
     /** 当前首页视角的队列构成（进入入口前统算一次）。 */
     /** 按入口建队列：review=到期复习 / fresh=新学 / star=星标。 */
-    private rebuildQueue(kind: "review" | "fresh" | "star"): void {
+    rebuildQueue(kind: "review" | "fresh" | "star"): void {
         const p = this.progress;
         if (!p) return;
         if (kind === "star") {
@@ -155,7 +163,7 @@ export class WordView {
         return this.queue[this.pos] ?? 0;
     }
 
-    private paint(): void {
+    paint(): void {
         if (!this.progress) return;
         // 隔夜不关：每次重绘先翻转今日统计
         rollToday(this.progress);
@@ -165,6 +173,10 @@ export class WordView {
         }
         if (this.mode === "stats") {
             this.paintStats();
+            return;
+        }
+        if (this.mode === "lookup") {
+            this.paintLookup();
             return;
         }
         if (this.mode === "home" || this.mode === "askreview") {
@@ -179,40 +191,52 @@ export class WordView {
         this.paintCard();
     }
 
-    // ---------- 首页/先复习确认/统计 ----------
+    // ---------- 首页/先复习确认/统计/查词 ----------
 
-    private statsBtnHtml(): string {
+    /** 非答题页头部按钮组：统计 + 查词 + AI。 */
+    private homeExtras(): string {
         return `<button class="b3-button b3-button--icon" data-act="stats" title="${esc(this.t("wordStatsTitle"))}">${
             svgIcon("iconInfo")
-        }</button>`;
+        }</button><button class="b3-button b3-button--icon" data-act="lookup" title="${esc(this.t("wordLookup"))}">${
+            svgIcon("iconSearch")
+        }</button>${this.ai.buttonHtml(this.progress!)}`;
     }
 
     private paintStats(): void {
         this.el.innerHTML = renderWordStats(
             this.t,
             buildStats(this.progress!),
-            renderWordHead(this.t, this.ai.buttonHtml(this.progress!)),
+            renderWordHead(this.t, this.homeExtras()),
         );
     }
 
     private paintHome(): void {
         const {review, fresh} = buildQueue(this.progress!);
+        const head = renderWordHead(this.t, this.homeExtras());
         if (this.mode === "askreview") {
-            this.el.innerHTML = renderAskReview(
-                this.t,
-                review.length,
-                renderWordHead(this.t, this.statsBtnHtml() + this.ai.buttonHtml(this.progress!)),
-            );
+            this.el.innerHTML = renderAskReview(this.t, review.length, head);
             return;
         }
         this.el.innerHTML = renderWordHome(
             this.t,
             review.length,
             fresh.length,
-            renderWordHead(this.t, this.statsBtnHtml() + this.ai.buttonHtml(this.progress!)),
+            head,
             this.ai.msgHtml(),
             starredList(this.progress!).length,
         );
+    }
+
+    private paintLookup(): void {
+        this.el.innerHTML = renderLookup(
+            this.t,
+            this.progress!,
+            this.lookupQuery,
+            this.lookupSel,
+            renderWordHead(this.t, this.homeExtras()),
+        );
+        const input = this.el.querySelector<HTMLInputElement>("[data-field='lookup']");
+        input?.focus();
     }
 
     // ---------- 卡片 ----------
@@ -246,7 +270,12 @@ export class WordView {
                     d: String(dueTomorrowCount(p)),
                 }),
                 badge,
-                this.ai.buttonHtml(this.progress!),
+                // 查词入口仅非答题态（已翻面/已作答）给
+                (this.phase === "result" || this.answered ?
+                    `<button class="b3-button b3-button--icon" data-act="lookup" title="${esc(this.t("wordLookup"))}">${
+                        svgIcon("iconSearch")
+                    }</button>` :
+                    "") + this.ai.buttonHtml(this.progress!),
             )
         }
   ${this.ai.msgHtml()}
@@ -267,10 +296,6 @@ export class WordView {
         this.applyAnswered(checkOption(this.cardMode, this.currentIdx, no));
     }
 
-    private submitSpell(): void {
-        if (this.cardMode === "spell") this.applyAnswered(checkSpell(this.el, this.currentIdx));
-    }
-
     /** 客观题作答落位：题面内标色 + 详情 + 继续按钮（评分延迟到收尾）。 */
     private applyAnswered(a: AnsweredState | undefined): void {
         if (!a || this.phase !== "prompt" || this.answered) return;
@@ -279,7 +304,7 @@ export class WordView {
     }
 
     /** 收尾：应用档位并进下一张；答错的词隔 3 张重现直到当场过关。 */
-    private finishCard(grade: WordGrade): void {
+    finishCard(grade: WordGrade): void {
         const awaitingGrade = this.phase === "result" || this.answered;
         if (!awaitingGrade || this.busy || !this.progress) return;
         this.busy = true;
@@ -296,7 +321,7 @@ export class WordView {
     }
 
     /** 标「熟」收尾：退出复习循环，不进误认/重现。 */
-    private finishMastered(): void {
+    finishMastered(): void {
         const awaiting = this.phase === "result" || this.answered;
         if (!awaiting || this.busy || !this.progress) return;
         this.busy = true;
@@ -306,7 +331,7 @@ export class WordView {
     }
 
     /** 星标开关（任意卡、任意阶段可点）。 */
-    private toggleStarCard(): void {
+    toggleStarCard(): void {
         if (!this.progress || this.mode !== "card") return;
         toggleStar(this.progress, this.currentIdx);
         void this.store.save(this.progress);
@@ -340,12 +365,12 @@ export class WordView {
             p.today.newCount,
             p.today.revCount,
             this.hardList.length,
-            renderWordHead(this.t, this.ai.buttonHtml(this.progress!)),
+            renderWordHead(this.t, this.homeExtras()),
             this.ai.msgHtml(),
         );
     }
 
-    private redoHard(): void {
+    redoHard(): void {
         if (this.hardList.length === 0) return;
         this.queue = [...this.hardList];
         this.hardList = [];
@@ -358,9 +383,9 @@ export class WordView {
 
     // ---------- 起点设置（操作在 WordStartCtl） ----------
 
-    private startCtlCache?: WordStartCtl;
+    startCtlCache?: WordStartCtl;
 
-    private startCtl(): WordStartCtl {
+    startCtl(): WordStartCtl {
         this.startCtlCache ??= new WordStartCtl(
             this.el,
             this.t,
@@ -375,124 +400,80 @@ export class WordView {
         this.el.innerHTML = renderWordStart(this.t, this.progress!, this.startCtl().msg);
     }
 
-    // ---------- 事件 ----------
+    // ---------- 事件（WordView 直接实现 WordBindHost，绑定细节在 WordBind） ----------
 
     bind(): void {
-        bindWordEvents(this.el, {
-            state: () => ({
-                mode: this.mode,
-                phase: this.phase,
-                cardMode: this.cardMode,
-                answered: this.answered !== undefined,
-                answeredCorrect: this.answered?.correct,
-            }),
-            option: (no) => {
-                if (!this.answered) this.answerByOption(no);
-            },
-            grade: (g) => this.finishCard(g),
-            reveal: () => {
-                if (
-                    this.phase === "prompt" && this.cardMode !== "choiceEn" &&
-                    this.cardMode !== "choiceZh" && this.cardMode !== "spell"
-                ) {
-                    this.phase = "result";
-                    this.paint();
-                }
-            },
-            submitSpell: () => this.submitSpell(),
-            confessEnter: () => this.finishCard("no"),
-            continueObjective: () => this.finishCard(this.answered?.correct ? "know" : "no"),
-            importFile: (file, input) => void this.startCtl().importFile(file, input),
-            act: (name) => this.dispatchAct(name),
-        });
+        bindWordEvents(this.el, this);
     }
 
-    /** data-act 动作分发（绑定细节在 WordBind）。 */
-    private dispatchAct(name: string): void {
-        switch (name) {
-            case "goreview":
-                this.mode = "card";
-                this.rebuildQueue("review");
-                this.paint();
-                break;
-            case "gofresh": {
-                const {review} = buildQueue(this.progress!);
-                if (review.length > 0) {
-                    this.mode = "askreview"; // 有到期复习 → 先弹「先复习」
-                } else {
-                    this.mode = "card";
-                    this.rebuildQueue("fresh");
-                }
-                this.paint();
-                break;
-            }
-            case "gofreshanyway":
-                this.mode = "card";
-                this.rebuildQueue("fresh");
-                this.paint();
-                break;
-            case "gostar":
-                this.mode = "card";
-                this.rebuildQueue("star");
-                this.paint();
-                break;
-            case "mastered":
-                this.finishMastered();
-                break;
-            case "star":
-                this.toggleStarCard();
-                break;
-            case "stats":
-                this.mode = "stats";
-                this.paint();
-                break;
-            case "home":
-                this.mode = "home";
-                this.paint();
-                break;
-            case "showanswer":
-                if (this.phase === "prompt") {
-                    this.phase = "result";
-                    this.paint();
-                }
-                break;
-            case "submit":
-                this.submitSpell();
-                break;
-            case "next":
-                this.finishCard(this.answered?.correct ? "know" : "no");
-                break;
-            case "markwrong":
-                this.finishCard("no");
-                break;
-            case "setstart":
-                this.mode = "setstart";
-                this.paint();
-                break;
-            case "applystart":
-                this.startCtl().apply();
-                this.mode = "home";
-                this.paint();
-                break;
-            case "cancelset":
-                this.mode = "home";
-                this.paint();
-                break;
-            case "redohard":
-                this.redoHard();
-                break;
-            case "aianalyze":
-                if (this.progress) {
-                    void this.ai.run(
-                        this.progress,
-                        () => this.store.save(this.progress!),
-                        () => {
-                            this.mode = "home";
-                        },
-                        () => this.paint(),
-                    );
-                }
-                break;
+    state(): WordBindState {
+        return {
+            mode: this.mode,
+            phase: this.phase,
+            cardMode: this.cardMode,
+            answered: this.answered !== undefined,
+            answeredCorrect: this.answered?.correct,
+        };
+    }
+
+    option(no: number): void {
+        if (!this.answered) this.answerByOption(no);
+    }
+
+    grade(g: WordGrade): void {
+        this.finishCard(g);
+    }
+
+    reveal(): void {
+        if (
+            this.phase === "prompt" && this.cardMode !== "choiceEn" &&
+            this.cardMode !== "choiceZh" && this.cardMode !== "spell"
+        ) {
+            this.phase = "result";
+            this.paint();
         }
+    }
+
+    submitSpell(): void {
+        if (this.cardMode === "spell") this.applyAnswered(checkSpell(this.el, this.currentIdx));
+    }
+
+    confessEnter(): void {
+        this.finishCard("no");
+    }
+
+    continueObjective(): void {
+        this.finishCard(this.answered?.correct ? "know" : "no");
+    }
+
+    importFile(file: File, input: HTMLInputElement): void {
+        void this.startCtl().importFile(file, input);
+    }
+
+    lookupInput(value: string): void {
+        this.lookupQuery = value;
+        this.lookupSel = undefined;
+        this.paint();
+        const input = this.el.querySelector<HTMLInputElement>("[data-field='lookup']");
+        if (input && document.activeElement !== input) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+        }
+    }
+
+    /** data-act 动作分发在 WordActs（视图成员公开给 WordViewApi）。 */
+    act(name: string, dataset: DOMStringMap): void {
+        dispatchWordAct(this, name, dataset);
+    }
+
+    enterLookup(): void {
+        this.lookupSel = undefined;
+        this.mode = "lookup";
+        this.paint();
+    }
+
+    lookupPick(idx: number): void {
+        this.lookupSel = idx;
+        this.paint();
     }
 }

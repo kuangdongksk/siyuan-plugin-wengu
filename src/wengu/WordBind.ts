@@ -21,7 +21,7 @@ export interface WordBindState {
 export interface WordBindHost {
     state(): WordBindState;
     /** data-act 动作（goreview/gofresh/…/next/markwrong/mastered/star/…）。 */
-    act(name: string): void;
+    act(name: string, dataset: DOMStringMap): void;
     /** 选择题选项（no 从 0 起）。 */
     option(no: number): void;
     /** 三档/四档收尾。 */
@@ -36,15 +36,21 @@ export interface WordBindHost {
     continueObjective(): void;
     /** 进度导入文件选中（起点面板的文件框）。 */
     importFile(file: File, input: HTMLInputElement): void;
+    /** 查词输入变化。 */
+    lookupInput(value: string): void;
 }
 
-/** 绑定点击、键盘与文件选择（容器上委托，重渲染不用重绑）。 */
+/** 绑定点击、键盘、输入与文件选择（容器上委托，重渲染不用重绑）。 */
 export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
     el.addEventListener("change", (ev) => {
         const input = ev.target as HTMLInputElement;
         if (input.tagName === "INPUT" && input.type === "file" && input.files?.[0]) {
             host.importFile(input.files[0], input);
         }
+    });
+    el.addEventListener("input", (ev) => {
+        const input = ev.target as HTMLInputElement;
+        if (input.dataset.field === "lookup") host.lookupInput(input.value);
     });
     el.addEventListener("click", (ev) => {
         const target = ev.target as HTMLElement;
@@ -60,7 +66,7 @@ export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
         }
         const actBtn = target.closest<HTMLElement>("[data-act]");
         if (actBtn) {
-            host.act(actBtn.dataset.act ?? "");
+            host.act(actBtn.dataset.act ?? "", actBtn.dataset);
             return;
         }
         if (target.closest(".wengu-word-card")) host.reveal();

@@ -252,5 +252,14 @@
   "wordImportRunning": "解析中…(大 PDF 需数秒)",
   "wordImportNoText": "该 PDF 没有文字层(扫描件),请先转成 txt 再导入",
   "wordImportNoMatch": "没匹配到词书里的单词,确认导的是这本书?",
-  "wordImportFailed": "导入失败:"
+  "wordImportFailed": "导入失败:",
+  "wordLookup": "查词",
+  "wordLookupPh": "搜索单词或中文释义…",
+  "wordLookupHint": "输入即搜,支持中文释义",
+  "wordLookupNone": "没有匹配的词",
+  "wordLookupBack": "返回搜索",
+  "wordStSimple": "太简单",
+  "wordStFamiliar": "熟(不再复习)",
+  "wordStNew": "未学",
+  "wordStLevel": "档位 {n} · 复习中"
 }

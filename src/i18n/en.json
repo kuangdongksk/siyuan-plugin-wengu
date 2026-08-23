@@ -252,5 +252,14 @@
   "wordImportRunning": "Parsing… (large PDFs take seconds)",
   "wordImportNoText": "No text layer in this PDF (scanned) — convert to txt first",
   "wordImportNoMatch": "No words matched this book — right book?",
-  "wordImportFailed": "Import failed: "
+  "wordImportFailed": "Import failed: ",
+  "wordLookup": "Lookup",
+  "wordLookupPh": "Search word or meaning…",
+  "wordLookupHint": "Type to search, Chinese meanings too",
+  "wordLookupNone": "No match",
+  "wordLookupBack": "Back to search",
+  "wordStSimple": "Too easy",
+  "wordStFamiliar": "Familiar (no review)",
+  "wordStNew": "Not learned",
+  "wordStLevel": "Level {n} · reviewing"
 }
