@@ -355,8 +355,10 @@ export class WordStore {
             this.cache = defaultProgress();
         }
         const p = this.cache;
-        if (!p.mistakes) p.mistakes = {}; // 旧数据回填
-        if (!p.simple) p.simple = {};
+        if (!p.mistakes) p.mistakes = {}; // 旧数据回填（全字段：早期
+        if (!p.simple) p.simple = {}; // 文件只写到 mistakes，familiar/
+        if (!p.familiar) p.familiar = {}; // starred 缺失会让 buildQueue
+        if (!p.starred) p.starred = {}; // 的 simple||familiar 判定炸掉）
         if (!p.log) p.log = {};
         if (!p.timing) p.timing = {};
         if (!p.confusables) p.confusables = [];
