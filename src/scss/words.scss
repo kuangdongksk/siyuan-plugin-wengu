@@ -467,3 +467,28 @@
   align-items: baseline;
   justify-content: space-between;
 }
+
+/* 易混对照块与笔记编辑(卡片详情/查词详情共用) */
+.wengu-word-confuse {
+  font-size: 12px;
+  color: var(--b3-card-info-color);
+  margin-top: 4px;
+}
+
+.wengu-word-confuse-note {
+  margin-top: 2px;
+  color: var(--b3-theme-on-surface);
+  white-space: pre-wrap;
+}
+
+.wengu-word-confuse-edit {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.wengu-word-confuse-edit .b3-text-field {
+  flex: 1;
+  min-width: 0;
+}

@@ -278,5 +278,14 @@
   "wordStSimple": "Too easy",
   "wordStFamiliar": "Familiar (no review)",
   "wordStNew": "Not learned",
-  "wordStLevel": "Level {n} · reviewing"
+  "wordStLevel": "Level {n} · reviewing",
+  "wordGroupSize": "Words per group",
+  "wordGroupSizeDesc": "AI reviews each finished group and adjusts review scheduling (5-20)",
+  "wordGroupOpt": "{n} words",
+  "wordConfusePair": "Confusable",
+  "wordConfuseAsk": "Copy prompt",
+  "wordConfuseSave": "Save note",
+  "wordConfuseNotePh": "Note: copy the prompt to AI, then paste here",
+  "wordNotePh": "Word note: root/mnemonic/sentence…",
+  "wordNoteSave": "Save"
 }

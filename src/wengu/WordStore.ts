@@ -22,6 +22,23 @@ export interface WenguWordMistake {
     note?: string;
 }
 
+/** 单次作答计时（题型 + 有效停留毫秒 + 是否超时；spell 附错拼原文）。 */
+export interface WenguTimingRec {
+    mode: string;
+    ms: number;
+    over: 0 | 1;
+    typed?: string;
+}
+
+/** 易混组：一组互相易混的词（docs/confusable-words.md，不分形近/音近）。 */
+export interface WenguConfusableGroup {
+    /** 组内词条（扁平下标升序；evidence 的 B 不在词书时可仅 1 个 + raw）。 */
+    ids: number[];
+    src: "preset" | "ai" | "evidence";
+    /** 混淆对象不在词书时的原文（小写）。 */
+    raw?: string;
+}
+
 /** 插件存储（saveData("words")）里的单词进度。 */
 export interface WenguWordProgress {
     version: 1;
@@ -41,6 +58,16 @@ export interface WenguWordProgress {
     log: Record<string, [number, number]>;
     /** 今日打卡统计（跨天重置）。 */
     today: {key: string; newCount: number; revCount: number;};
+    /** 每词最近作答计时（key 扁平下标，保留最近 5 条）。 */
+    timing?: Record<string, WenguTimingRec[]>;
+    /** 实证/AI 判定的易混组（预置组在 data/confusables.ts，不在此）。 */
+    confusables?: WenguConfusableGroup[];
+    /** 易混组辨析笔记（用户手写），key = 组 ids 升序逗号串。 */
+    confNotes?: Record<string, string>;
+    /** 词级笔记（用户手写，任何词可写），key 为扁平下标字符串。 */
+    notes?: Record<string, string>;
+    /** 每组单词数（AI 复盘粒度，5~20）。 */
+    groupSize?: number;
 }
 
 /** 认识程度。 */
@@ -48,6 +75,9 @@ export type WordGrade = "no" | "fuzzy" | "know" | "easy";
 
 /** Leitner 档位对应的复习间隔（天），下标=档位-1。 */
 const INTERVAL_DAYS = [1, 2, 4, 8, 16, 32];
+
+/** 默认每组单词数（AI 复盘粒度）。 */
+const DEFAULT_GROUP_SIZE = 10;
 
 export function todayKey(ts = Date.now()): string {
     const d = new Date(ts);
@@ -65,7 +95,30 @@ export function defaultProgress(): WenguWordProgress {
         starred: {},
         log: {},
         today: {key: todayKey(), newCount: 0, revCount: 0},
+        timing: {},
+        confusables: [],
+        confNotes: {},
+        groupSize: DEFAULT_GROUP_SIZE,
     };
+}
+
+/** 每组单词数（夹 5~20，缺省 10）。 */
+export function groupSizeOf(p: WenguWordProgress): number {
+    const n = p.groupSize;
+    return Number.isFinite(n) && n !== undefined && n >= 5 ? Math.min(20, Math.floor(n)) : DEFAULT_GROUP_SIZE;
+}
+
+/** 记一条作答计时（每词保留最近 5 条）。 */
+export function pushTiming(p: WenguWordProgress, index: number, rec: WenguTimingRec): void {
+    const key = String(index);
+    const arr = p.timing![key] ?? [];
+    arr.push(rec);
+    p.timing![key] = arr.slice(-5);
+}
+
+/** 易混组笔记 key：ids 升序逗号串。 */
+export function confKey(ids: number[]): string {
+    return [...ids].sort((a, b) => a - b).join(",");
 }
 
 /** 跨天翻转：面板隔夜不关也正确（paint/批改前调用，翻过返回 true）。 */
@@ -254,18 +307,28 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
     };
 }
 
-/** AI 分析结果落盘：记忆提示 + 覆盖到期时间（days 天后）。 */
-export function applyAiPlan(
+/** AI 复盘结果落盘：档位动作（up/keep/down，Leitner 表内挪，不凭空
+ * 给天数）+ 误认词辨析 tip；配对组由 WordConfusables.applyAi 落。 */
+export function applyAiReview(
     progress: WenguWordProgress,
-    items: {index: number; tip: string; days: number;}[],
+    items: {index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string;}[],
     now = Date.now(),
 ): void {
     for (const it of items) {
         const key = String(it.index);
-        const m = progress.mistakes[key];
-        if (m) m.note = it.tip;
+        if (it.tip) {
+            const m = progress.mistakes[key];
+            if (m) m.note = it.tip;
+        }
+        if (it.act === "keep") continue;
         const st = progress.words[key];
-        progress.words[key] = [st?.[0] ?? 1, now + Math.max(1, Math.min(30, it.days)) * 86400_000];
+        if (it.act === "up") {
+            const lv = Math.min(INTERVAL_DAYS.length, (st?.[0] ?? 0) + 1);
+            progress.words[key] = [lv, now + INTERVAL_DAYS[lv - 1] * 86400_000];
+        } else {
+            // down：回 1 档、明天见（走神/误认的不对称成本，见任务书）
+            progress.words[key] = [1, now + 86400_000];
+        }
     }
 }
 
@@ -294,9 +357,15 @@ export class WordStore {
             this.cache = defaultProgress();
         }
         const p = this.cache;
-        if (!p.mistakes) p.mistakes = {}; // 旧数据回填
-        if (!p.simple) p.simple = {};
+        if (!p.mistakes) p.mistakes = {}; // 旧数据回填（全字段：早期
+        if (!p.simple) p.simple = {}; // 文件只写到 mistakes，familiar/
+        if (!p.familiar) p.familiar = {}; // starred 缺失会让 buildQueue
+        if (!p.starred) p.starred = {}; // 的 simple||familiar 判定炸掉）
         if (!p.log) p.log = {};
+        if (!p.timing) p.timing = {};
+        if (!p.confusables) p.confusables = [];
+        if (!p.confNotes) p.confNotes = {};
+        if (!p.notes) p.notes = {};
         const key = todayKey();
         if (p.today.key !== key) p.today = {key, newCount: 0, revCount: 0};
         return p;

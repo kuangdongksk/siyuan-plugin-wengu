@@ -21,6 +21,23 @@ import WORD_BOOK from "./WordBook";
 
 export type WordCardMode = "learn" | "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
 
+/** 复习题型轮换（新词走 learn 学习卡，不在此列）。 */
+const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell", "recallZh"];
+
+/** 会话题型选择：新词 learn，否则按 seq 轮换；干扰项不足或
+ * 空格/超长词降级到回想（confIds 须与本卡判定同源）。 */
+export function pickMode(seq: number, idx: number, isNew: boolean, confIds: readonly number[]): WordCardMode {
+    if (isNew) return "learn";
+    let mode = REVIEW_MODES[seq % REVIEW_MODES.length];
+    if (mode === "choiceEn" && buildMeaningOptions(idx, confIds).length < 4) mode = "recallEn";
+    else if (mode === "choiceZh" && buildWordOptions(idx, confIds).length < 4) mode = "recallZh";
+    else if (mode === "spell") {
+        const w = WORD_BOOK.words[idx].w;
+        if (w.includes(" ") || w.length > 14) mode = "recallZh";
+    }
+    return mode;
+}
+
 /** 客观题作答态（题面标色与详情用）。 */
 export interface AnsweredState {
     correct: boolean;
@@ -48,15 +65,23 @@ function seeded(idx: number) {
     };
 }
 
-/** 看词选义：干扰 = 同单元其它释义首行。 */
-export function buildMeaningOptions(idx: number): string[] {
-    const {start, count} = unitRange(idx);
+/** 看词选义：干扰 = 易混组词优先，同单元其它释义首行补足。
+ * confIds 为易混组内其它词下标（调用方保证本卡内快照稳定，
+ * 渲染与判定必须传同一份，否则选项错位）。 */
+export function buildMeaningOptions(idx: number, confIds: readonly number[] = []): string[] {
     const correct = meaningLine(idx);
     const pool: string[] = [];
-    for (let i = start; i < start + count && pool.length < 60; i++) {
-        if (i === idx) continue;
+    const push = (i: number): void => {
         const t = meaningLine(i);
         if (t && t !== correct && !pool.includes(t)) pool.push(t);
+    };
+    for (const i of confIds) {
+        if (i !== idx) push(i);
+    }
+    const {start, count} = unitRange(idx);
+    for (let i = start; i < start + count && pool.length < 60; i++) {
+        if (i === idx || confIds.includes(i)) continue;
+        push(i);
     }
     const next = seeded(idx);
     const picks: string[] = [];
@@ -68,15 +93,21 @@ export function buildMeaningOptions(idx: number): string[] {
     return picks;
 }
 
-/** 看义选词：干扰 = 同单元其它单词。 */
-export function buildWordOptions(idx: number): string[] {
-    const {start, count} = unitRange(idx);
+/** 看义选词：干扰 = 易混组词优先，同单元其它单词补足。 */
+export function buildWordOptions(idx: number, confIds: readonly number[] = []): string[] {
     const correct = WORD_BOOK.words[idx].w;
     const pool: string[] = [];
-    for (let i = start; i < start + count && pool.length < 60; i++) {
-        if (i === idx) continue;
+    const push = (i: number): void => {
         const w = WORD_BOOK.words[i].w;
         if (w && w !== correct && !pool.includes(w)) pool.push(w);
+    };
+    for (const i of confIds) {
+        if (i !== idx) push(i);
+    }
+    const {start, count} = unitRange(idx);
+    for (let i = start; i < start + count && pool.length < 60; i++) {
+        if (i === idx || confIds.includes(i)) continue;
+        push(i);
     }
     const next = seeded(idx + 7919);
     const picks: string[] = [];
@@ -95,13 +126,20 @@ function optionCls(i: number, answered: AnsweredState | undefined, correctText: 
     return " is-dim";
 }
 
-/** 详情区（单词+释义+曾认成 chip+AI辨析），结果视图共用。 */
-function detailHtml(idx: number, t: (k: string) => string, note: string | undefined, confused?: string): string {
+/** 详情区（单词+释义+曾认成 chip+易混对照+AI辨析），结果视图共用。 */
+function detailHtml(
+    idx: number,
+    t: (k: string) => string,
+    note: string | undefined,
+    confused?: string,
+    confHtml = "",
+): string {
     const entry = WORD_BOOK.words[idx];
     return `<div class="wengu-word-detail">
     <div class="wengu-word-detail-word">${esc(entry.w)}</div>
     <div class="wengu-word-detail-meaning">${esc(entry.m)}</div>
     ${confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), {v: confused}))}</div>` : ""}
+    ${confHtml}
     ${note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(note)}</div>` : ""}
   </div>`;
 }
@@ -154,13 +192,17 @@ export function renderCard(
         confused?: string;
         /** 是否已星标（角标星高亮）。 */
         starred?: boolean;
+        /** 易混组其它词下标（选择题干扰项优先取，须与判定同源）。 */
+        confIds?: readonly number[];
+        /** 易混对照块 HTML（视图预构建注入）。 */
+        confHtml?: string;
     } = {},
 ): string {
     const entry = WORD_BOOK.words[idx];
     const label = t(MODE_KEY[mode]);
-    // 结果视图公共件：详情(含混淆chip)+自述输入+熟按钮
+    // 结果视图公共件：详情(含混淆chip+易混对照)+自述输入+熟按钮
     const wrongPending = opts.reveal || (opts.answered && !opts.answered.correct);
-    const resultBlocks = `${detailHtml(idx, t, opts.note, opts.confused)}
+    const resultBlocks = `${detailHtml(idx, t, opts.note, opts.confused, opts.confHtml ?? "")}
     ${wrongPending ? confessHtml(t, entry.w) : ""}
     ${wrongPending ? familiarButton(t) : ""}`;
     let body: string;
@@ -177,7 +219,9 @@ export function renderCard(
             `<div class="wengu-word-text">${esc(entry.w)}</div>
     <div class="wengu-word-hint">${esc(t("wordLearnHint"))}</div>`;
     } else if (mode === "choiceEn" || mode === "choiceZh") {
-        const texts = mode === "choiceEn" ? buildMeaningOptions(idx) : buildWordOptions(idx);
+        const texts = mode === "choiceEn" ?
+            buildMeaningOptions(idx, opts.confIds) :
+            buildWordOptions(idx, opts.confIds);
         const correct = mode === "choiceEn" ? meaningLine(idx) : entry.w;
         const buttons = texts.map((text, i) =>
             `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, texts)}" data-opt="${i}"${
@@ -248,13 +292,15 @@ export function spellMatches(input: string, word: string): boolean {
     return n(input).length > 0 && n(input) === n(word);
 }
 
-/** 选择题判定（mode ∈ choiceEn/choiceZh）：返回作答态，选项不存在返回 undefined。 */
+/** 选择题判定（mode ∈ choiceEn/choiceZh）：返回作答态，选项不存在
+ * 返回 undefined。confIds 必须与渲染时同源（同一快照）。 */
 export function checkOption(
     mode: "choiceEn" | "choiceZh",
     idx: number,
     no: number,
+    confIds: readonly number[] = [],
 ): AnsweredState | undefined {
-    const texts = mode === "choiceEn" ? buildMeaningOptions(idx) : buildWordOptions(idx);
+    const texts = mode === "choiceEn" ? buildMeaningOptions(idx, confIds) : buildWordOptions(idx, confIds);
     if (texts[no] === undefined) return undefined;
     const correct = mode === "choiceEn" ? meaningLine(idx) : WORD_BOOK.words[idx].w;
     return {correct: texts[no] === correct, pick: no};

@@ -4,6 +4,13 @@ import {
     fmt,
 } from "./ui";
 import WORD_BOOK from "./WordBook";
+import {renderWordStats} from "./WordStats";
+import {
+    buildQueue,
+    buildStats,
+    starredList,
+    type WenguWordProgress,
+} from "./WordStore";
 
 /**
  * 单词每日首页与选择层（WordView 拆件，仿不背单词首页）：
@@ -127,4 +134,66 @@ export function renderWordHead(t: (k: string) => string, extraButtons: string): 
         svgIcon("iconSettings")
     }</button>
   </div>`;
+}
+
+/* ── 视图组装（自 WordView 外移，行数受限） ── */
+
+/** AI 视图胶水的最小面（避免 WordHome 反向 import WordAi）。 */
+export interface AiGlue {
+    buttonHtml(p: WenguWordProgress): string;
+    msgHtml(): string;
+}
+
+/** 非答题页头部按钮组：统计 + 查词 + AI。 */
+export function homeExtrasHtml(t: (k: string) => string, ai: AiGlue, p: WenguWordProgress): string {
+    return `<button class="b3-button b3-button--icon" data-act="stats" title="${esc(t("wordStatsTitle"))}">${
+        svgIcon("iconInfo")
+    }</button><button class="b3-button b3-button--icon" data-act="lookup" title="${esc(t("wordLookup"))}">${
+        svgIcon("iconSearch")
+    }</button>${ai.buttonHtml(p)}`;
+}
+
+/** 首页 / 先复习确认层组装。 */
+export function paintHomeInto(
+    el: HTMLElement,
+    t: (k: string) => string,
+    p: WenguWordProgress,
+    askReview: boolean,
+    ai: AiGlue,
+): void {
+    const {review, fresh} = buildQueue(p);
+    const head = renderWordHead(t, homeExtrasHtml(t, ai, p));
+    el.innerHTML = askReview ?
+        renderAskReview(t, review.length, head) :
+        renderWordHome(t, review.length, fresh.length, head, ai.msgHtml(), starredList(p).length);
+}
+
+/** 统计页组装。 */
+export function paintStatsInto(
+    el: HTMLElement,
+    t: (k: string) => string,
+    p: WenguWordProgress,
+    ai: AiGlue,
+): void {
+    el.innerHTML = renderWordStats(t, buildStats(p), renderWordHead(t, homeExtrasHtml(t, ai, p)));
+}
+
+/** 会话完成页组装（自 WordView 外移）。 */
+export function paintDoneInto(
+    el: HTMLElement,
+    t: (k: string) => string,
+    p: WenguWordProgress,
+    kind: "review" | "fresh" | "star",
+    hardN: number,
+    ai: AiGlue,
+): void {
+    el.innerHTML = renderWordDone(
+        t,
+        kind,
+        p.today.newCount,
+        p.today.revCount,
+        hardN,
+        renderWordHead(t, homeExtrasHtml(t, ai, p)),
+        ai.msgHtml(),
+    );
 }
