@@ -67,11 +67,7 @@ import type {
 } from "./types";
 import {esc} from "./ui";
 
-/**
- * 温故刷题页签视图（编排层）。各模块见 docs/design-review.md：
- * CardHtml/StartPanel/ProtyleHost/AnswerFlow/ConvertDialog/RoundReport/
- * QuizLoader/ViewBindings/NumRail/TimerController/HistoryStore。
- */
+/** 温故刷题页签视图（编排层），各模块见 docs/design-review.md。 */
 export class QuizView implements AnswerHost {
     /** i18n 取值（public：AnswerHost 接口按结构匹配）。 */
     readonly t: (key: string) => string;
@@ -300,7 +296,7 @@ export class QuizView implements AnswerHost {
     readonly revealAnsweredNow = (): void => void revealAll(this);
     readonly stopRoundNow = (): void => {
         this.started = false;
-        this.flushTime(); // 收卷即落库，避免轮尾未满 15s 的秒数在下次开轮时被清零
+        this.flushTime(); // 收卷即落库（未满 15s 的秒数不清零）
         this.updateTimerLabel();
     };
     readonly lockAllCardsNow = (): void => lockAllCards(this.el);
