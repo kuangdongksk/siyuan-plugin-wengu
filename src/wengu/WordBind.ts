@@ -39,9 +39,8 @@ export interface WordBindHost {
     /** 查词输入变化。 */
     lookupInput(value: string): void;
     /** 易混辨析笔记草稿输入（查词详情，不重绘）。 */
-    confNoteInput(value: string): void;
-    /** 词级笔记草稿输入（不重绘）。 */
-    wordNoteInput(value: string): void;
+    /** 笔记草稿输入（field: confnote/wordnote，不重绘）。 */
+    noteInput(field: string, value: string): void;
 }
 
 /** 绑定点击、键盘、输入与文件选择（容器上委托，重渲染不用重绑）。 */
@@ -60,8 +59,9 @@ export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
     el.addEventListener("input", (ev) => {
         const input = ev.target as HTMLInputElement;
         if (input.dataset.field === "lookup") host.lookupInput(input.value);
-        else if (input.dataset.field === "confnote") host.confNoteInput(input.value);
-        else if (input.dataset.field === "wordnote") host.wordNoteInput(input.value);
+        else if (input.dataset.field === "confnote" || input.dataset.field === "wordnote") {
+            host.noteInput(input.dataset.field, input.value);
+        }
     });
     el.addEventListener("click", (ev) => {
         const target = ev.target as HTMLElement;

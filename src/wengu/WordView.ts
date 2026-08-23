@@ -95,6 +95,7 @@ export class WordView {
     mode: "home" | "askreview" | "stats" | "lookup" | "card" | "setstart" | "done" = "home";
     /** 查词状态（非答题期间可用）。 */
     private lookupQuery = "";
+    private fromCard = false; // 查词自刷卡进入：返回=直接续刷
     lookupSel: number | undefined;
     /** 当前会话队列种类(入口决定)。 */
     private queueKind: "review" | "fresh" | "star" = "fresh";
@@ -198,7 +199,7 @@ export class WordView {
             return;
         }
         if (this.mode === "lookup") {
-            paintLookupInto(this.el, this.t, this.progress, this.lookupQuery, this.lookupSel, this.ai);
+            paintLookupInto(this.el, this.t, this.progress, this.lookupQuery, this.lookupSel, this.ai, this.fromCard);
             return;
         }
         if (this.mode === "home" || this.mode === "askreview") {
@@ -474,12 +475,10 @@ export class WordView {
         }
     }
 
-    confNoteInput(value: string): void {
-        this.confCtl.draft = value;
-    }
-
-    wordNoteInput(value: string): void {
-        this.confCtl.wordDraft = value;
+    /** 笔记草稿输入（confnote=组辨析 / wordnote=词级，不重绘）。 */
+    noteInput(field: string, value: string): void {
+        if (field === "confnote") this.confCtl.draft = value;
+        else this.confCtl.wordDraft = value;
     }
 
     /** data-act 动作分发在 WordActs（视图成员公开给 WordViewApi）。 */
@@ -489,6 +488,7 @@ export class WordView {
 
     enterLookup(): void {
         this.lookupSel = undefined;
+        this.fromCard = this.mode === "card";
         this.mode = "lookup";
         this.paint();
     }

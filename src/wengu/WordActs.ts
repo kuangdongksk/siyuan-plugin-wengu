@@ -143,6 +143,10 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
                 );
             }
             break;
+        case "resumecard":
+            v.mode = "card";
+            v.paint();
+            break;
         case "confask":
             v.confCtl.ask(parseInt(dataset?.idx ?? "0", 10));
             break;
