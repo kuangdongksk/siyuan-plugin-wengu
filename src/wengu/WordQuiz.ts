@@ -8,8 +8,6 @@ import WORD_BOOK from "./WordBook";
 /**
  * 单词出题渲染（WordView 的展示层，不持有状态）。仿不背单词：
  *
- * - learn    新词学习卡：先看词猜意，翻面给完整释义，四档收尾
- *            （不认识/模糊/认识/太简单，太简单此后不再复习）
  * - choiceEn 看单词选释义（四选一，干扰取同单元）
  * - choiceZh 看释义选单词（四选一，选项是英文单词）
  * - spell    看释义拼单词（输入提交，即对错）
@@ -19,15 +17,15 @@ import WORD_BOOK from "./WordBook";
  * 下方内嵌词详情（单词+释义+AI 提示）与继续按钮。
  */
 
-export type WordCardMode = "learn" | "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
+export type WordCardMode = "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
 
-/** 复习题型轮换（新词走 learn 学习卡，不在此列）。 */
+/** 题型轮换（首题按流分流在 WordView.enterPrompt，不在轮换内）。 */
 const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell", "recallZh"];
 
-/** 会话题型选择：新词 learn，否则按 seq 轮换；干扰项不足或
- * 空格/超长词降级到回想（confIds 须与本卡判定同源）。 */
-export function pickMode(seq: number, idx: number, isNew: boolean, confIds: readonly number[]): WordCardMode {
-    if (isNew) return "learn";
+/** 会话题型轮换：按 seq 取模；干扰项不足或空格/超长词降级到
+ * 回想（confIds 须与本卡判定同源）。新词首题不走轮换（视图直接
+ * 给 choiceEn 先测后学，错词重现才进轮换）。 */
+export function pickMode(seq: number, idx: number, confIds: readonly number[]): WordCardMode {
     let mode = REVIEW_MODES[seq % REVIEW_MODES.length];
     if (mode === "choiceEn" && buildMeaningOptions(idx, confIds).length < 4) mode = "recallEn";
     else if (mode === "choiceZh" && buildWordOptions(idx, confIds).length < 4) mode = "recallZh";
@@ -38,11 +36,20 @@ export function pickMode(seq: number, idx: number, isNew: boolean, confIds: read
     return mode;
 }
 
+/** 选择题选项：文本 + 来源词条（正确项=本题，干扰=易混组/同单元；
+ * 错选展示与误认实证都靠 from 找到「你选的是哪个词」）。 */
+export interface WenguOpt {
+    text: string;
+    from: number;
+}
+
 /** 客观题作答态（题面标色与详情用）。 */
 export interface AnsweredState {
     correct: boolean;
     /** 选择题选中的选项号（spell 无）。 */
     pick?: number;
+    /** 错选时所选选项的来源词条（错选展示/误认实证用）。 */
+    pickFrom?: number;
 }
 
 /** 释义首行（多行释义取第一行，选择题选项用）。 */
@@ -68,12 +75,12 @@ function seeded(idx: number) {
 /** 看词选义：干扰 = 易混组词优先，同单元其它释义首行补足。
  * confIds 为易混组内其它词下标（调用方保证本卡内快照稳定，
  * 渲染与判定必须传同一份，否则选项错位）。 */
-export function buildMeaningOptions(idx: number, confIds: readonly number[] = []): string[] {
+export function buildMeaningOptions(idx: number, confIds: readonly number[] = []): WenguOpt[] {
     const correct = meaningLine(idx);
-    const pool: string[] = [];
+    const pool: WenguOpt[] = [];
     const push = (i: number): void => {
         const t = meaningLine(i);
-        if (t && t !== correct && !pool.includes(t)) pool.push(t);
+        if (t && t !== correct && !pool.some(o => o.text === t)) pool.push({text: t, from: i});
     };
     for (const i of confIds) {
         if (i !== idx) push(i);
@@ -84,22 +91,22 @@ export function buildMeaningOptions(idx: number, confIds: readonly number[] = []
         push(i);
     }
     const next = seeded(idx);
-    const picks: string[] = [];
+    const picks: WenguOpt[] = [];
     while (picks.length < 3 && pool.length > 0) {
         picks.push(pool.splice(next() % pool.length, 1)[0]);
     }
     const at = next() % (picks.length + 1);
-    picks.splice(at, 0, correct);
+    picks.splice(at, 0, {text: correct, from: idx});
     return picks;
 }
 
 /** 看义选词：干扰 = 易混组词优先，同单元其它单词补足。 */
-export function buildWordOptions(idx: number, confIds: readonly number[] = []): string[] {
+export function buildWordOptions(idx: number, confIds: readonly number[] = []): WenguOpt[] {
     const correct = WORD_BOOK.words[idx].w;
-    const pool: string[] = [];
+    const pool: WenguOpt[] = [];
     const push = (i: number): void => {
         const w = WORD_BOOK.words[i].w;
-        if (w && w !== correct && !pool.includes(w)) pool.push(w);
+        if (w && w !== correct && !pool.some(o => o.text === w)) pool.push({text: w, from: i});
     };
     for (const i of confIds) {
         if (i !== idx) push(i);
@@ -110,20 +117,29 @@ export function buildWordOptions(idx: number, confIds: readonly number[] = []): 
         push(i);
     }
     const next = seeded(idx + 7919);
-    const picks: string[] = [];
+    const picks: WenguOpt[] = [];
     while (picks.length < 3 && pool.length > 0) {
         picks.push(pool.splice(next() % pool.length, 1)[0]);
     }
     const at = next() % (picks.length + 1);
-    picks.splice(at, 0, correct);
+    picks.splice(at, 0, {text: correct, from: idx});
     return picks;
 }
 
-function optionCls(i: number, answered: AnsweredState | undefined, correctText: string, texts: string[]): string {
+function optionCls(i: number, answered: AnsweredState | undefined, correctText: string, choices: WenguOpt[]): string {
     if (!answered) return "";
     if (answered.pick === i) return answered.correct ? " is-correct" : " is-wrong";
-    if (texts[i] === correctText) return " is-correct";
+    if (choices[i].text === correctText) return " is-correct";
     return " is-dim";
+}
+
+/** 错选展示：你选的选项对应的词条（不背单词式——错的中英文）。 */
+function wrongPickHtml(t: (k: string) => string, from: number): string {
+    const e = WORD_BOOK.words[from];
+    if (!e) return "";
+    return `<div class="wengu-word-wrongpick">${esc(t("wordWrongPickEntry"))}：${esc(e.w)} ${
+        esc(e.m.split("\n")[0])
+    }</div>`;
 }
 
 /** 详情区（单词+释义+曾认成 chip+易混对照+AI辨析），结果视图共用。 */
@@ -161,14 +177,12 @@ function familiarButton(t: (k: string) => string): string {
     }</button>`;
 }
 
-/** 客观题作答后的收尾按钮：继续（对→know/错→no）+ 记错了。 */
+/** 客观题作答后的收尾按钮：下一个（对→know/错→no，错的判分自带）。 */
 function continueButtons(t: (k: string) => string): string {
-    return `<button class="b3-button b3-button--outline" data-act="next">${esc(t("wordNext"))}</button>
-    <button class="b3-button b3-button--cancel" data-act="markwrong">${esc(t("wordMarkWrong"))}</button>`;
+    return `<button class="b3-button b3-button--outline" data-act="next">${esc(t("wordNext"))}</button>`;
 }
 
 const MODE_KEY: Record<WordCardMode, string> = {
-    learn: "wordModeLearn",
     choiceEn: "wordModeChoice",
     choiceZh: "wordModeChoiceZh",
     spell: "wordModeSpell",
@@ -206,27 +220,18 @@ export function renderCard(
     ${wrongPending ? confessHtml(t, entry.w) : ""}
     ${wrongPending ? familiarButton(t) : ""}`;
     let body: string;
-    if (mode === "learn") {
-        body = opts.reveal ?
-            `<div class="wengu-word-text">${esc(entry.w)}</div>
-    ${resultBlocks}
-    <div class="wengu-word-actions">
-      <button class="b3-button b3-button--outline" data-grade="no">${esc(t("wordGradeNo"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="fuzzy">${esc(t("wordGradeFuzzy"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="know">${esc(t("wordGradeKnow"))}</button>
-      <button class="b3-button b3-button--outline" data-grade="easy">${esc(t("wordEasy"))}</button>
-    </div>` :
-            `<div class="wengu-word-text">${esc(entry.w)}</div>
-    <div class="wengu-word-hint">${esc(t("wordLearnHint"))}</div>`;
-    } else if (mode === "choiceEn" || mode === "choiceZh") {
-        const texts = mode === "choiceEn" ?
+    if (mode === "choiceEn" || mode === "choiceZh") {
+        const choices = mode === "choiceEn" ?
             buildMeaningOptions(idx, opts.confIds) :
             buildWordOptions(idx, opts.confIds);
         const correct = mode === "choiceEn" ? meaningLine(idx) : entry.w;
-        const buttons = texts.map((text, i) =>
-            `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, texts)}" data-opt="${i}"${
+        const wrongPick = opts.answered && !opts.answered.correct && opts.answered.pickFrom !== undefined ?
+            wrongPickHtml(t, opts.answered.pickFrom) :
+            "";
+        const buttons = choices.map((o, i) =>
+            `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, choices)}" data-opt="${i}"${
                 opts.answered ? " disabled" : ""
-            }">${esc(text)}</button>`
+            }">${esc(o.text)}</button>`
         ).join("");
         const topic = mode === "choiceEn" ? esc(entry.w) : esc(meaningLine(idx));
         const topicCls = mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh";
@@ -239,6 +244,7 @@ export function renderCard(
                 `<div class="wengu-word-hint">${esc(t("wordPickHint"))}</div>`
         }
     <div class="wengu-word-opts">${buttons}</div>
+    ${wrongPick}
     ${opts.answered ? resultBlocks + `<div class="wengu-word-actions">${continueButtons(t)}</div>` : ""}`;
     } else if (mode === "spell") {
         if (opts.answered) {
@@ -300,10 +306,10 @@ export function checkOption(
     no: number,
     confIds: readonly number[] = [],
 ): AnsweredState | undefined {
-    const texts = mode === "choiceEn" ? buildMeaningOptions(idx, confIds) : buildWordOptions(idx, confIds);
-    if (texts[no] === undefined) return undefined;
+    const choices = mode === "choiceEn" ? buildMeaningOptions(idx, confIds) : buildWordOptions(idx, confIds);
+    if (choices[no] === undefined) return undefined;
     const correct = mode === "choiceEn" ? meaningLine(idx) : WORD_BOOK.words[idx].w;
-    return {correct: texts[no] === correct, pick: no};
+    return {correct: choices[no].text === correct, pick: no, pickFrom: choices[no].from};
 }
 
 /** 读拼写框并判定（el 为视图容器）。 */

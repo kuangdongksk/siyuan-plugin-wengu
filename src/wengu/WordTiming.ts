@@ -11,10 +11,9 @@ import {
  * 犹豫，spell 的决策信号实际成为「看题到开始输入的首键延迟」。
  * 可见、非输入状态下的超时（走神，无法与深度思考区分）按「忘记」
  * 处理（不对称设计：误伤成本一次重见，漏抓成本假熟词流进长间隔）。
- * learn 是学习不是测试，不判超时。
  */
 
-/** 题型超时阈值（毫秒）；learn 不在表内 = 不判。 */
+/** 题型超时阈值（毫秒），不在表内的题型不判。 */
 const OVER_MS: Record<string, number> = {
     choiceEn: 12_000,
     choiceZh: 12_000,
@@ -83,7 +82,7 @@ export class WordTimer {
         this.segStart = this.active() ? Date.now() : 0;
     }
 
-    /** 结算并复位；未 begin 过（如 learn 外的翻面）返回 undefined。 */
+    /** 结算并复位；未 begin 过返回 undefined。 */
     settle(): SettledTiming | undefined {
         if (this.mode === "") return undefined;
         if (this.segStart > 0) {
@@ -103,10 +102,13 @@ export class WordTimer {
 
 /* ── 组边界：重排未消费队列（决策 3/6，本地算法即时，不等 AI） ── */
 
-/** 组边界重排队列余量：已刷过（doneSet）剔除、hardList 未过关的
- * 保持在最前（当场重现语义不丢）、其余按 buildQueue 书序重排——
- * AI 已落盘的 due 变化由此吃到。star 队列原样返回。
+/** 组边界重排队列余量：已刷过（doneSet）剔除、错词重现卡按
+ * REINSERT_GAP 间隔散布进新 tail（贴队首会让同一词连出两张，
+ * 20260824 真机踩坑）、其余按 buildQueue 书序重排——AI 已落盘的
+ * due 变化由此吃到。star 队列原样返回。
  * newcomers：fresh 会话重排新进、尚未计入 sessionNew 的词。 */
+export const REINSERT_GAP = 3;
+
 export function rebuildTail(
     p: WenguWordProgress,
     kind: "review" | "fresh" | "star",
@@ -130,5 +132,14 @@ export function rebuildTail(
         tail.push(i);
         if (kind === "fresh" && !sessionNew.has(i)) newcomers.push(i);
     }
-    return {queue: [...queue.slice(0, pos), ...hardPending, ...tail], newcomers};
+    const merged: number[] = [];
+    let h = 0;
+    for (const i of tail) {
+        if (h < hardPending.length && merged.length >= (h + 1) * REINSERT_GAP) {
+            merged.push(hardPending[h++]);
+        }
+        merged.push(i);
+    }
+    merged.push(...hardPending.slice(h));
+    return {queue: [...queue.slice(0, pos), ...merged], newcomers};
 }

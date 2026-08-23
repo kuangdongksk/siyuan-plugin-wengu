@@ -13,6 +13,7 @@ import {
     bindWordEvents,
     type WordBindState,
 } from "./WordBind";
+import WORD_BOOK from "./WordBook";
 import {
     addPair,
     confOthers,
@@ -58,11 +59,9 @@ import {
 } from "./WordStore";
 import {
     rebuildTail,
+    REINSERT_GAP,
     WordTimer,
 } from "./WordTiming";
-
-/** 答错后隔几张卡重现（仿不背单词组内重现）。 */
-const REINSERT_GAP = 3;
 
 /**
  * 单词复习视图（Dock/页签同挂载），仿不背单词：新词先学后测、五题型
@@ -82,11 +81,11 @@ export class WordView {
     /** 提示页/翻面结果（learn、recall 用）。 */
     phase: "prompt" | "result" = "prompt";
     /** 当前卡模式。 */
-    private cardMode: WordCardMode = "learn";
+    private cardMode: WordCardMode = "choiceEn";
     private cardSeq = 0;
     /** 客观题作答态（choiceEn/choiceZh/spell）。 */
     answered: AnsweredState | undefined;
-    /** 本会话已出过学习卡的词（学过一遍就不再 learn）。 */
+    /** 本会话已作答过的词（新词首答后，重现走题型轮换）。 */
     private learned = new Set<number>();
     /** 构队时标记的新词（首次作答计入今日新词数）。 */
     private sessionNew = new Set<number>();
@@ -95,6 +94,7 @@ export class WordView {
     mode: "home" | "askreview" | "stats" | "lookup" | "card" | "setstart" | "done" = "home";
     /** 查词状态（非答题期间可用）。 */
     private lookupQuery = "";
+    private fromCard = false; // 查词自刷卡进入：返回=直接续刷
     lookupSel: number | undefined;
     /** 当前会话队列种类(入口决定)。 */
     private queueKind: "review" | "fresh" | "star" = "fresh";
@@ -168,7 +168,7 @@ export class WordView {
         this.enterPrompt();
     }
 
-    /** 进入当前位置的卡：新词 learn，否则题型轮换（选择在 WordQuiz.pickMode）。 */
+    /** 进入当前位置的卡：未答过 → 新学 choiceEn 先测后学 / 复习 recallEn 回想；答过 → 题型轮换。 */
     private enterPrompt(): void {
         this.phase = "prompt";
         this.answered = undefined;
@@ -176,7 +176,8 @@ export class WordView {
         this.spellTyped = undefined;
         const idx = this.currentIdx;
         this.confIds = confOthers(this.progress!, idx);
-        this.cardMode = pickMode(this.cardSeq, idx, this.sessionNew.has(idx) && !this.learned.has(idx), this.confIds);
+        const first = this.sessionNew.has(idx) ? "choiceEn" : "recallEn";
+        this.cardMode = this.learned.has(idx) ? pickMode(this.cardSeq, idx, this.confIds) : first;
         this.timer.begin(this.cardMode);
     }
 
@@ -197,7 +198,7 @@ export class WordView {
             return;
         }
         if (this.mode === "lookup") {
-            paintLookupInto(this.el, this.t, this.progress, this.lookupQuery, this.lookupSel, this.ai);
+            paintLookupInto(this.el, this.t, this.progress, this.lookupQuery, this.lookupSel, this.ai, this.fromCard);
             return;
         }
         if (this.mode === "home" || this.mode === "askreview") {
@@ -293,10 +294,11 @@ export class WordView {
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
         applyGrade(p, idx, grade, this.sessionNew.has(idx));
-        if (v) {
-            p.mistakes[String(idx)].confused = v;
-            addPair(p, idx, v, "evidence");
-        }
+        if (v) p.mistakes[String(idx)].confused = v;
+        // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
+        const pf = this.answered && !this.answered.correct ? this.answered.pickFrom : undefined;
+        if (v) addPair(p, idx, v, "evidence");
+        else if (pf !== undefined && pf !== idx) addPair(p, idx, WORD_BOOK.words[pf].w, "evidence");
         if (this.curTiming) {
             this.curTiming.typed = this.spellTyped;
             pushTiming(p, idx, this.curTiming);
@@ -316,7 +318,7 @@ export class WordView {
         this.busy = true;
         const idx = this.currentIdx;
         markFamiliar(this.progress, idx, this.sessionNew.has(idx));
-        this.advanceAfterFinish("easy", idx);
+        this.advanceAfterFinish("know", idx);
     }
 
     /** 星标开关（任意卡、任意阶段可点）。 */
@@ -330,7 +332,7 @@ export class WordView {
     /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
     private advanceAfterFinish(grade: WordGrade, idx: number): void {
         const p = this.progress!;
-        if (this.cardMode === "learn") this.learned.add(idx);
+        this.learned.add(idx);
         if (grade === "no") {
             if (!this.hardList.includes(idx)) this.hardList.push(idx);
             // 会话内重现：插到 3 张卡之后（到末尾则接着出）
@@ -473,12 +475,10 @@ export class WordView {
         }
     }
 
-    confNoteInput(value: string): void {
-        this.confCtl.draft = value;
-    }
-
-    wordNoteInput(value: string): void {
-        this.confCtl.wordDraft = value;
+    /** 笔记草稿输入（confnote=组辨析 / wordnote=词级，不重绘）。 */
+    noteInput(field: string, value: string): void {
+        if (field === "confnote") this.confCtl.draft = value;
+        else this.confCtl.wordDraft = value;
     }
 
     /** data-act 动作分发在 WordActs（视图成员公开给 WordViewApi）。 */
@@ -488,6 +488,7 @@ export class WordView {
 
     enterLookup(): void {
         this.lookupSel = undefined;
+        this.fromCard = this.mode === "card";
         this.mode = "lookup";
         this.paint();
     }

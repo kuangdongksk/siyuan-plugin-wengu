@@ -148,6 +148,7 @@ export function paintLookupInto(
     query: string,
     sel: number | undefined,
     ai: AiGlue,
+    fromCard = false,
 ): void {
     el.innerHTML = renderLookup(
         t,
@@ -158,9 +159,15 @@ export function paintLookupInto(
             t,
             `<button class="b3-button b3-button--icon" data-act="stats" title="${esc(t("wordStatsTitle"))}">${
                 svgIcon("iconInfo")
-            }</button><button class="b3-button b3-button--icon" data-act="home" title="${esc(t("wordBackHome"))}">${
-                svgIcon("iconList")
-            }</button>${ai.buttonHtml(p)}`,
+            }</button>${
+                fromCard ?
+                    `<button class="b3-button b3-button--icon" data-act="resumecard" title="${
+                        esc(t("wordResumeCard"))
+                    }">${svgIcon("iconBack")}</button>` :
+                    `<button class="b3-button b3-button--icon" data-act="home" title="${esc(t("wordBackHome"))}">${
+                        svgIcon("iconList")
+                    }</button>`
+            }${ai.buttonHtml(p)}`,
         ),
     );
     const input = el.querySelector<HTMLInputElement>("[data-field='lookup']");

@@ -11,14 +11,15 @@ import {
 import WORD_BOOK from "./WordBook";
 import {runWordImport} from "./WordImport";
 import {
-    todayKey,
     groupSizeOf,
     type WenguWordProgress,
 } from "./WordStore";
 
 /**
- * 起点设置面板（WordView 拆件，样式沿 FormHtml 规范）：
- * 选起始单元重置进度——该单元起的作答记录清零重学，之前的保留。
+ * 背单词设置面板（WordView 拆件，样式沿 FormHtml 规范）：
+ * 每组单词数 + 不背单词进度导入。无手动起点——未导入时从词书
+ * 第一个词开始；导入后按进度来（cursor 自动对齐书序第一个未学词，
+ * 未学的新学、学过的到期复习、标熟的不再出现）。
  */
 
 /** 渲染面板 HTML（挂 WordView 的容器里；importMsg=导入结果行）。 */
@@ -27,11 +28,6 @@ export function renderWordStart(
     p: WenguWordProgress,
     importMsg = "",
 ): string {
-    const cur = p.cursor > 0 ? p.cursor : 0;
-    const curUnit = unitNumberOf(cur);
-    const unitOptions = WORD_BOOK.units.map((u) =>
-        formOption(String(u.u), fmt(t("wordUnitOpt"), {n: String(u.u), c: String(u.count)}), u.u === curUnit)
-    ).join("");
     const gs = groupSizeOf(p);
     const groupOptions = [5, 10, 15, 20].map(n =>
         formOption(String(n), fmt(t("wordGroupOpt"), {n: String(n)}), n === gs)
@@ -50,12 +46,10 @@ export function renderWordStart(
     ${
         formGroup(
             t("wordSetStart"),
-            formRow(t("wordStartUnit"), t("wordStartUnitDesc"), formSelect("unit", unitOptions)) +
-                // 组大小独立即时生效（change 走 setgroupsize），不随「开始背」重置
-                formRow(t("wordGroupSize"), t("wordGroupSizeDesc"), formSelect("groupsize", groupOptions)),
+            // 组大小独立即时生效（change 走 setgroupsize）
+            formRow(t("wordGroupSize"), t("wordGroupSizeDesc"), formSelect("groupsize", groupOptions)),
         )
     }
-    <div class="wengu-word-form-tip">${esc(t("wordResetWarn"))}</div>
     <div class="wengu-word-form-actions">
       ${
         hasProgress ?
@@ -81,21 +75,7 @@ export function renderWordStart(
 </div>`;
 }
 
-/** 读取面板选择并落到进度（cursor/清词/今日统计），返回是否生效。 */
-export function applyWordStart(el: HTMLElement, p: WenguWordProgress): boolean {
-    const unitSel = el.querySelector<HTMLSelectElement>('[data-field="unit"]');
-    const unitNo = parseInt(unitSel?.value ?? "1", 10);
-    const unit = WORD_BOOK.units.find((u) => u.u === unitNo);
-    if (!unit) return false;
-    p.cursor = unit.start;
-    for (const key of Object.keys(p.words)) {
-        if (Number(key) >= unit.start) delete p.words[key];
-    }
-    p.today = {key: todayKey(), newCount: 0, revCount: 0};
-    return true;
-}
-
-/** 起点面板控制器：应用/取消 + 进度导入（PDF/txt）。 */
+/** 起点面板控制器：进入背词 + 进度导入（PDF/txt）。 */
 export class WordStartCtl {
     /** 最近一次导入结果文案（渲染在面板底部）。 */
     msg = "";
@@ -109,8 +89,7 @@ export class WordStartCtl {
     ) {}
 
     apply(): void {
-        const p = this.getProgress();
-        if (applyWordStart(this.el, p)) void this.save(p);
+        // 无手动起点：不重置任何数据，「开始背」= 进入背词
         this.refresh();
     }
 
@@ -137,9 +116,4 @@ export class WordStartCtl {
         input.value = "";
         this.refresh();
     }
-}
-
-function unitNumberOf(idx: number): number {
-    const u = WORD_BOOK.units.find((v) => idx >= v.start && idx < v.start + v.count);
-    return u?.u ?? 1;
 }

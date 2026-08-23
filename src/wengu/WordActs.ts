@@ -26,7 +26,7 @@ export interface WordViewApi {
     lookupSel: number | undefined;
     rebuildQueue(kind: "review" | "fresh" | "star"): void;
     paint(): void;
-    finishCard(g: "no" | "fuzzy" | "know" | "easy"): void;
+    finishCard(g: "no" | "fuzzy" | "know"): void;
     finishMastered(): void;
     toggleStarCard(): void;
     submitSpell(): void;
@@ -112,9 +112,6 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
         case "next":
             v.finishCard(v.answered?.correct ? "know" : "no");
             break;
-        case "markwrong":
-            v.finishCard("no");
-            break;
         case "setstart":
             v.mode = "setstart";
             v.paint();
@@ -142,6 +139,10 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
                     () => v.paint(),
                 );
             }
+            break;
+        case "resumecard":
+            v.mode = "card";
+            v.paint();
             break;
         case "confask":
             v.confCtl.ask(parseInt(dataset?.idx ?? "0", 10));
