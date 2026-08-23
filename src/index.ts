@@ -25,7 +25,15 @@ const TAB_WORDS = "wengu-words";
 /** 3.8.0 运行时的插件 Dock 注册入参（类型包 1.2.x 未收录，按运行时形状声明）。 */
 interface WordDockConfig {
     type: string;
-    config: {title: string; icon: string; index?: number; hotkey?: string;};
+    config: {
+        title: string;
+        icon: string;
+        index?: number;
+        hotkey?: string;
+        /** 内核 dock 布局必读字段（缺失会在 addDock 内部 startsWith 崩溃）。 */
+        position?: "LeftBottom" | "LeftTop" | "RightBottom" | "RightTop" | "BottomLeft" | "BottomRight";
+        size?: {width?: number; height?: number;};
+    };
     init: (custom: {element?: Element;}) => void;
     destroy?: () => void;
     update?: () => void;
@@ -159,6 +167,8 @@ export default class WenguPlugin extends Plugin {
                     icon: "iconWenguWords",
                     index: 1000,
                     hotkey: "",
+                    position: "RightBottom",
+                    size: {width: 360, height: 0},
                 },
                 init: (custom) => this.mountWordView(custom),
                 destroy: () => undefined,
