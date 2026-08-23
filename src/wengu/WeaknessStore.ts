@@ -52,12 +52,14 @@ export interface WeaknessData {
     causeApplied: string[];
 }
 
-/** 报告展示行（同步快照，渲染不等待）。 */
+/** 报告展示行（同步快照，渲染不等待；key 供针对性生成回查）。 */
 export interface WeakTopRow {
+    key: string;
     title: string;
     wrong: number;
     total: number;
     topCause?: WeakCause;
+    aiNote?: string;
 }
 
 /** 题目的聚合键列表（知识点引用优先，多个引用全计入）。 */
@@ -178,6 +180,27 @@ export class WeaknessStore {
         await this.save(data);
     }
 
+    /** 悬空对账：把 oldKey 的条目并入 newKey（统计合并），删除旧键。 */
+    async remapKey(oldKey: string, newKey: string, newTitle: string): Promise<void> {
+        const data = await this.all();
+        const old = data.points[oldKey];
+        if (!old) return;
+        const cur = data.points[newKey];
+        if (cur) {
+            cur.wrong += old.wrong;
+            cur.total += old.total;
+            cur.lastWrongAt = Math.max(cur.lastWrongAt, old.lastWrongAt);
+            for (const [c, n] of Object.entries(old.causes)) {
+                cur.causes[c as WeakCause] = (cur.causes[c as WeakCause] ?? 0) + n;
+            }
+            if (old.aiNote) cur.aiNote = old.aiNote;
+        } else {
+            data.points[newKey] = {...old, key: newKey, title: newTitle};
+        }
+        delete data.points[oldKey];
+        await this.save(data);
+    }
+
     private async save(data: WeaknessData): Promise<void> {
         try {
             await this.saveRaw(data);
@@ -194,10 +217,12 @@ export class WeaknessStore {
             .filter((e) => e.wrong > 0)
             .sort((a, b) => b.wrong - a.wrong || b.lastWrongAt - a.lastWrongAt)
             .map((e) => ({
+                key: e.key,
                 title: e.title,
                 wrong: e.wrong,
                 total: e.total,
                 topCause: Object.entries(e.causes).sort((a, b) => b[1] - a[1])[0]?.[0] as WeakCause | undefined,
+                ...(e.aiNote ? {aiNote: e.aiNote} : {}),
             }));
     }
 }

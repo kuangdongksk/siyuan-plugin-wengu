@@ -113,6 +113,9 @@ function renderCardHead(q: WenguQuestion, idx: number, m: CardHtmlModel, objecti
             }</span>` :
             ""
     }
+        <button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title="${esc(t("regenTitle"))}">${
+        svgIcon("iconRefresh")
+    }</button>
       </div>`;
 }
 

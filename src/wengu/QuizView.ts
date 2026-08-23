@@ -14,6 +14,8 @@ import {
     renderSubheadHtml,
 } from "./CardHtml";
 import {CollectionFlow} from "./CollectionFlow";
+import {reconcileKnowledgeRefs} from "./BankReconcile";
+import {openRegenDialog} from "./RegenDialog";
 import type {ConvertProgressRecord} from "./ConvertBatch";
 import {
     convertDoneText,
@@ -126,6 +128,22 @@ export class QuizView implements AnswerHost {
         this.bank = bank;
         this.openSettings = openSettings;
         this.protyleHost = new ProtyleHost(app);
+        // 一次性事件委托（重渲染不重复绑定）：静态块引用跳转 + 题卡「重新生成」
+        this.el.addEventListener("click", (ev) => {
+            const target = ev.target as HTMLElement;
+            const ref = target.closest<HTMLElement>("[data-type='block-ref']")?.dataset.id;
+            if (ref) {
+                window.open(`siyuan://blocks/${ref}`);
+                return;
+            }
+            const regen = target.closest<HTMLElement>("[data-act='regen']");
+            if (regen) {
+                const qid = regen.closest<HTMLElement>(".wengu-card")?.dataset.qid ?? "";
+                const q = this.list.find((x) => x.id === qid);
+                if (q && this.bank) openRegenDialog({t: this.t, bank: this.bank, modelId: this.aiModelId(), onDone: () => void this.load()});
+                return;
+            }
+        });
         this.timerBar = new TimerBar({
             t: this.t,
             container: this.container,
@@ -278,11 +296,11 @@ export class QuizView implements AnswerHost {
         this.loading = false;
         await this.colFlow.refresh();
         this.renderList();
-        // 存量/新文档迁移入库（后台；完成后补侧栏专题清单）
+        // 后台链：知识引用对账 → 存量/新文档迁移入库 → 补侧栏专题清单
         if (this.bank) {
-            void this.bank.ensureMigrated(this.docs).then((): void =>
-                void this.colFlow.refresh().then((): void => this.colFlow.refreshSide())
-            );
+            void (this.weakness ? reconcileKnowledgeRefs(this.bank, this.weakness) : Promise.resolve(0))
+                .then((): Promise<void> => this.bank!.ensureMigrated(this.docs))
+                .then((): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide()));
         }
     }
 

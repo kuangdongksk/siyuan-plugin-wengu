@@ -23,11 +23,6 @@ export interface ViewBindCtx {
 
 export function bindViewEvents(ctx: ViewBindCtx): void {
     const q = (sel: string) => ctx.el.querySelector(sel);
-    // 静态渲染（题库模式）的块引用点击跳转（Protyle 模式原生自带）
-    ctx.el.addEventListener("click", (ev) => {
-        const id = (ev.target as HTMLElement).closest<HTMLElement>("[data-type='block-ref']")?.dataset.id;
-        if (id) window.open(`siyuan://blocks/${id}`);
-    });
     q("[data-act='refresh']")?.addEventListener("click", () => ctx.reload());
     ctx.updateConvertBtn();
     q("[data-act='convert']")?.addEventListener("click", () => ctx.openConvert());
