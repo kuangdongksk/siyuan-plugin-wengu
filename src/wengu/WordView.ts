@@ -58,11 +58,9 @@ import {
 } from "./WordStore";
 import {
     rebuildTail,
+    REINSERT_GAP,
     WordTimer,
 } from "./WordTiming";
-
-/** 答错后隔几张卡重现（仿不背单词组内重现）。 */
-const REINSERT_GAP = 3;
 
 /**
  * 单词复习视图（Dock/页签同挂载），仿不背单词：新词先学后测、五题型

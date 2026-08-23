@@ -102,10 +102,13 @@ export class WordTimer {
 
 /* ── 组边界：重排未消费队列（决策 3/6，本地算法即时，不等 AI） ── */
 
-/** 组边界重排队列余量：已刷过（doneSet）剔除、hardList 未过关的
- * 保持在最前（当场重现语义不丢）、其余按 buildQueue 书序重排——
- * AI 已落盘的 due 变化由此吃到。star 队列原样返回。
+/** 组边界重排队列余量：已刷过（doneSet）剔除、错词重现卡按
+ * REINSERT_GAP 间隔散布进新 tail（贴队首会让同一词连出两张，
+ * 20260824 真机踩坑）、其余按 buildQueue 书序重排——AI 已落盘的
+ * due 变化由此吃到。star 队列原样返回。
  * newcomers：fresh 会话重排新进、尚未计入 sessionNew 的词。 */
+export const REINSERT_GAP = 3;
+
 export function rebuildTail(
     p: WenguWordProgress,
     kind: "review" | "fresh" | "star",
@@ -129,5 +132,14 @@ export function rebuildTail(
         tail.push(i);
         if (kind === "fresh" && !sessionNew.has(i)) newcomers.push(i);
     }
-    return {queue: [...queue.slice(0, pos), ...hardPending, ...tail], newcomers};
+    const merged: number[] = [];
+    let h = 0;
+    for (const i of tail) {
+        if (h < hardPending.length && merged.length >= (h + 1) * REINSERT_GAP) {
+            merged.push(hardPending[h++]);
+        }
+        merged.push(i);
+    }
+    merged.push(...hardPending.slice(h));
+    return {queue: [...queue.slice(0, pos), ...merged], newcomers};
 }
