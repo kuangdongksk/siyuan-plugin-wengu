@@ -27,6 +27,10 @@ export interface ConvertHostCtx {
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 转换状态变化（按钮禁用/文案）。 */
     setConverting(v: boolean): void;
+    /** 每批渐进落盘后回调（页签以做题界面渐进呈现）。 */
+    onBatch?(docId: string, title: string, count: number, batch: number, total: number): void;
+    /** 全部丢弃后回调（页签恢复原状）。 */
+    onCancel?(): void;
     /** 成功收尾：切到新文档、重载、报状态（视图实现）。 */
     onDone(r: {docId: string; title: string; count: number;}): void;
 }
@@ -45,6 +49,8 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         getProgress: ctx.getProgress,
         saveProgress: ctx.saveProgress,
         setConverting: ctx.setConverting,
+        onBatch: ctx.onBatch,
+        onCancel: ctx.onCancel,
         onDone: ctx.onDone,
     });
 }

@@ -55,6 +55,10 @@ export interface ConvertDialogDeps {
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 转换状态变化（禁用/恢复目录底部的转换按钮）。 */
     setConverting(v: boolean): void;
+    /** 每批渐进落盘后回调（页签以做题界面渐进呈现；id 每批会变）。 */
+    onBatch?(docId: string, title: string, count: number, batch: number, total: number): void;
+    /** 全部丢弃后回调（页签清掉渐进呈现、恢复原状）。 */
+    onCancel?(): void;
     /** 成功：docId/title/count + 摘要 message。 */
     onDone(r: {docId: string; title: string; count: number; message: string;}): void;
 }
@@ -266,6 +270,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         cancelBtn.onclick = () => {
             void (r.docId ? removeDoc(r.docId) : Promise.resolve());
             deps.saveProgress(srcDocId, undefined);
+            deps.onCancel?.();
             bindDefaultButtons();
             showDlgStatus(t("convertDiscarded"), "muted");
             setBusy(false);
@@ -312,11 +317,13 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                     if (p.phase === "writing") {
                         showDlgStatus(t("settling"), "muted");
                         appendStems(p.newStems);
+                        if (p.docId) deps.onBatch?.(p.docId, p.title ?? "", p.count, p.batch, p.total);
                         return;
                     }
                     // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
                     // 检测总数：截断时 N+（下限）；多批文档数不出时明说「未确定」
                     appendStems(p.newStems);
+                    if (p.docId) deps.onBatch?.(p.docId, p.title ?? "", p.count, p.batch, p.total);
                     const totalHint = p.detected !== undefined && p.detected > 0 ?
                         ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}${
                             p.detectedTruncated ? "+" : ""

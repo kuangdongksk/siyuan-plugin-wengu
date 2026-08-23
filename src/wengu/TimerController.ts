@@ -126,3 +126,21 @@ export class TimerController {
         return mmss(docTotalPending);
     }
 }
+
+/** 把计时标签渲染进头部元素（QuizView 的 updateTimerLabel 收敛于此）。 */
+export function renderTimerLabel(
+    el: HTMLElement | null,
+    timer: TimerController,
+    t: (k: string) => string,
+    totalSec: number,
+    qSec: number,
+): void {
+    if (!el) return;
+    if (timer.mode === "none") {
+        el.style.display = "none";
+        return;
+    }
+    el.style.display = "";
+    const text = el.querySelector<HTMLElement>("[data-timer-text]") ?? el;
+    text.textContent = timer.labelText(t, totalSec, qSec);
+}

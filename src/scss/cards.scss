@@ -467,3 +467,14 @@
   background: var(--b3-theme-error);
   color: var(--b3-theme-on-primary);
 }
+
+/* 转换渐进呈现：与做题同界面，生成完成前屏蔽作答位（文档每批重建） */
+.wengu-previewing .wengu-chips,
+.wengu-previewing .wengu-input,
+.wengu-previewing [data-judge],
+.wengu-previewing .wengu-card [data-act="submit"],
+.wengu-previewing .wengu-step-opts,
+.wengu-previewing .wengu-step-next {
+  pointer-events: none;
+  opacity: 0.55;
+}

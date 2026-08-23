@@ -363,6 +363,8 @@ export interface MainShellModel {
     loading: boolean;
     loadError: string;
     started: boolean;
+    /** 转换渐进呈现：按作答态渲染卡片但屏蔽作答位（生成中）。 */
+    previewing: boolean;
     hasDoc: boolean;
     listCount: number;
     /** 未开刷时渲染开刷面板。 */
@@ -396,7 +398,7 @@ export function renderMainShell(m: MainShellModel): string {
             `<div class="wengu-status wengu-status-err">${esc(m.t("loadFailed"))}${esc(m.loadError)}</div>`,
         );
     }
-    if (m.hasDoc && m.listCount > 0 && !m.started) {
+    if (m.hasDoc && m.listCount > 0 && !m.started && !m.previewing) {
         return main(`
     <div class="wengu-subhead">${m.subheadHtml}</div>
     <div class="wengu-status" data-status hidden></div>
@@ -411,7 +413,9 @@ export function renderMainShell(m: MainShellModel): string {
             `<div class="wengu-muted">${esc(m.t("noExerciseDocs"))}</div>` :
             (m.listCount === 0 ? `<div class="wengu-muted">${esc(m.t("quizNone"))}</div>` : "")
     }
-    <div class="wengu-body">${m.numsHtml}<div class="wengu-card-list">${m.cardsHtml}</div></div>
+    <div class="wengu-body">${m.numsHtml}<div class="wengu-card-list${
+        m.previewing ? " wengu-previewing" : ""
+    }">${m.cardsHtml}</div></div>
     <div data-report hidden></div>`);
 }
 
@@ -443,4 +447,16 @@ export function renderNumsHtml(
             .map((q, i) => `<button class="wengu-num${numState(q, showPast)}" data-num="${i + 1}">${i + 1}</button>`)
             .join("")
     }</nav>`;
+}
+
+/** 目录搜索：只重绘清单块（输入框不重建、焦点不丢）。 */
+export function applySideFilter(
+    el: HTMLElement,
+    docs: WenguDoc[],
+    docId: string,
+    t: (k: string) => string,
+    text: string,
+): void {
+    const body = el.querySelector("[data-side-body]");
+    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text);
 }

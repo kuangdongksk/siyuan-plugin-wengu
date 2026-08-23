@@ -115,6 +115,9 @@ export interface ConvertProgress {
     detectedTruncated?: boolean;
     /** 刚完成那批的题目预览（弹窗渐进展示）。 */
     newStems?: QuestionPreview[];
+    /** 渐进落盘的习题文档（每批重建，id 会变；页签据此渐进呈现）。 */
+    docId?: string;
+    title?: string;
 }
 
 /** 弹窗预览行：题号 + 题型 + 题干片段。 */
@@ -271,7 +274,7 @@ export async function convertDocBatched(
     const parts: string[] = [];
     let doneOffset = opts.resume?.offset ?? 0;
     let count = 0;
-    let lastBatch = 0;
+    let lastBatch: number;
     // 目标位置提前解析（每批渐进重建都用到）；失败直接早退
     const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
     if (!loc.ok) {
@@ -367,6 +370,7 @@ export async function convertDocBatched(
             detected,
             detectedTruncated,
             ...(previews.length > 0 ? {newStems: previews} : {}),
+            ...(created ? {docId: created.id, title: created.title} : {}),
         });
     }
 
