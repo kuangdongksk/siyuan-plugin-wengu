@@ -268,71 +268,8 @@
   padding-left: 6px;
 }
 
-/* ── 材料面板（E0 退化视图）：组头共享原文，可折叠 ──
-   译文（part=trans）作答前隐藏，组内题目全部判分后揭示；
-   cloze 题的 slot-* 子块同样判分后揭示（E2 前先整题自评）。 */
-.wengu-material {
-  margin: 0 0 8px;
-  border: 1px solid var(--b3-border-color);
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-surface);
-  overflow: hidden;
-}
-
-.wengu-material-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 6px 10px;
-  border: none;
-  background: var(--b3-theme-background);
-  color: var(--b3-theme-on-background);
-  font-size: 87.5%;
-  cursor: pointer;
-  text-align: left;
-}
-
-.wengu-material-toggle:hover {
-  background: var(--b3-list-hover);
-}
-
-.wengu-material-toggle svg {
-  flex: none;
-  transform: rotate(90deg);
-  transition: transform 0.1s ease-in-out;
-}
-
-.wengu-material[data-collapsed] .wengu-material-toggle svg {
-  transform: rotate(0deg);
-}
-
-.wengu-material[data-collapsed] .wengu-material-body {
-  display: none;
-}
-
-.wengu-material-body {
-  padding: 4px 12px 8px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.wengu-material-body .protyle {
-  background: transparent;
-}
-
-.wengu-material [custom-plugin-wengu-part="trans"] {
-  display: none;
-  border-top: 1px dashed var(--b3-border-color);
-  margin-top: 8px;
-  padding-top: 8px;
-}
-
-.wengu-material.wengu-mat-graded [custom-plugin-wengu-part="trans"] {
-  display: block;
-}
-
-/* cloze 题：逐空 slot 子块（选项与答案）判分前隐藏 */
+/* cloze 题：逐空 slot 子块（选项与答案）判分前隐藏
+   （材料组分栏壳与译文揭示的样式在 english.scss） */
 .wengu-card [custom-plugin-wengu-part^="slot-"] {
   display: none;
 }
