@@ -103,3 +103,6 @@ instance"}`（20260823 真机验证）。
   （Write 工具写临时文件再 `curl -d @file`），别在命令行内联 JSON。
 - `python` 是 WindowsApps 桩，用 `node -e` 做解析。
 - 重 grep minified bundle 会卡死（见机器 A 节的 tr 分行法）。
+- **CRLF 幻影脏**：pull 机器 B（Mac，LF）推的提交后，`git status` 报
+  几十个 M 但 `git diff` 为空（换行符归一化假阳性，且会挡住 pull）——
+  确认 `git diff --name-only` 无真实改动后 `git checkout -- .` 清掉再拉。
