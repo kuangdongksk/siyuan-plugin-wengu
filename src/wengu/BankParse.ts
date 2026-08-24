@@ -1,13 +1,6 @@
-import type {WenguQuestion} from "./types";
-import type {WenguStep} from "./types";
-import {
-    cleanStemMd,
-    normalizeAnswerMd,
-    normalizeType,
-    parseDifficulty,
-    parseStepKinds,
-    splitOptionMd,
-} from "./types";
+import type { WenguQuestion } from "./types";
+import type { WenguStep } from "./types";
+import { cleanStemMd, normalizeAnswerMd, normalizeType, parseDifficulty, parseStepKinds, splitOptionMd } from "./types";
 
 /**
  * 题目 kramdown → WenguQuestion 纯函数解析器（题库侧专用）。
@@ -33,7 +26,7 @@ function containerAttr(ial: string, name: string): string | undefined {
 }
 
 /** 按 part IAL 行把容器体切段：part 名 → 该块去 IAL 的 markdown。 */
-function splitParts(kd: string): {containerIal: string; parts: Map<string, string[]>;} {
+function splitParts(kd: string): { containerIal: string; parts: Map<string, string[]> } {
     const parts = new Map<string, string[]>();
     let containerIal = "";
     let buf: string[] = [];
@@ -69,22 +62,22 @@ function splitParts(kd: string): {containerIal: string; parts: Map<string, strin
         buf.push(line);
     }
     flush();
-    return {containerIal, parts};
+    return { containerIal, parts };
 }
 
 /** 题库题目：解析出的结构化视图 + 知识点引用（反链目标）。 */
 export interface ParsedQuestion extends WenguQuestion {
     /** 知识点标题块引用（解析里的 ((id "标题"))，按序去重）。 */
-    kpRefs: {id: string; title: string;}[];
+    kpRefs: { id: string; title: string }[];
 }
 
 /** 解析题目 kramdown；容器缺 q/type 等关键属性时返回 undefined。 */
 export function parseQuestionKramdown(kd: string, qid: string, rootId?: string): ParsedQuestion | undefined {
-    const {containerIal, parts} = splitParts(kd);
+    const { containerIal, parts } = splitParts(kd);
     if (!containerIal) return undefined;
     const type = normalizeType(containerAttr(containerIal, "type") ?? "");
     if (!type) return undefined;
-    const q: ParsedQuestion = {id: qid, ...(rootId ? {rootId} : {}), type, attempts: 0, wrongCount: 0, kpRefs: []};
+    const q: ParsedQuestion = { id: qid, ...(rootId ? { rootId } : {}), type, attempts: 0, wrongCount: 0, kpRefs: [] };
     const difficulty = parseDifficulty(containerAttr(containerIal, "difficulty") ?? "");
     if (difficulty !== undefined) q.difficulty = difficulty;
     const knowledge = containerAttr(containerIal, "knowledge");
@@ -92,14 +85,14 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
     const chapter = containerAttr(containerIal, "chapter");
     if (chapter) q.chapter = chapter;
     const kinds = parseStepKinds(containerAttr(containerIal, "steps") ?? "");
-    if (kinds) q.steps = kinds.map((kind): WenguStep => ({kind, stemMd: "", optionMd: [], answer: ""}));
+    if (kinds) q.steps = kinds.map((kind): WenguStep => ({ kind, stemMd: "", optionMd: [], answer: "" }));
 
-    const options: {index: number; md: string;}[] = [];
-    const stepAcc = new Map<number, {stems: string[]; options: {index: number; md: string;}[]; answers: string[];}>();
+    const options: { index: number; md: string }[] = [];
+    const stepAcc = new Map<number, { stems: string[]; options: { index: number; md: string }[]; answers: string[] }>();
     const stepOf = (k: number) => {
         let acc = stepAcc.get(k);
         if (!acc) {
-            acc = {stems: [], options: [], answers: []};
+            acc = { stems: [], options: [], answers: [] };
             stepAcc.set(k, acc);
         }
         return acc;
@@ -111,12 +104,12 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
                 const acc = stepOf(Number(sm[1]));
                 if (sm[2] === "stem") acc.stems.push(md);
                 else if (sm[2] === "answer") acc.answers.push(md);
-                else acc.options.push({index: sm[3] !== undefined ? Number(sm[3]) : acc.options.length, md});
+                else acc.options.push({ index: sm[3] !== undefined ? Number(sm[3]) : acc.options.length, md });
                 continue;
             }
             const om = /^option(?:-(\d+))?$/.exec(part);
             if (om) {
-                options.push({index: om[1] !== undefined ? Number(om[1]) : options.length, md});
+                options.push({ index: om[1] !== undefined ? Number(om[1]) : options.length, md });
                 continue;
             }
             if (part === "stem") md = cleanStemMd(md);
@@ -133,15 +126,14 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
     const kindList = q.steps?.map((s) => s.kind);
     const steps = [...stepAcc.entries()]
         .sort((x, y) => x[0] - y[0])
-        .map(([, acc], i) =>
-            ({
-                kind: kindList?.[i] ?? "result",
-                stemMd: acc.stems.join("\n\n"),
-                optionMd: acc.options
-                    .sort((x, y) => x.index - y.index)
-                    .flatMap((o) => splitOptionMd(o.md)),
-                answer: normalizeAnswerMd(acc.answers.join("\n")),
-            }) satisfies WenguStep
+        .map(
+            ([, acc], i) =>
+                ({
+                    kind: kindList?.[i] ?? "result",
+                    stemMd: acc.stems.join("\n\n"),
+                    optionMd: acc.options.sort((x, y) => x.index - y.index).flatMap((o) => splitOptionMd(o.md)),
+                    answer: normalizeAnswerMd(acc.answers.join("\n")),
+                }) satisfies WenguStep
         );
     if (steps.length > 0) q.steps = steps;
 
@@ -149,7 +141,7 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
     for (const m of solution.matchAll(/\(\((\d{14}-[a-z0-9]+)\s+"([^"]{1,80})"\)\)/g)) {
         if (!seen.has(m[1])) {
             seen.add(m[1]);
-            q.kpRefs.push({id: m[1], title: m[2]});
+            q.kpRefs.push({ id: m[1], title: m[2] });
         }
     }
     return q;

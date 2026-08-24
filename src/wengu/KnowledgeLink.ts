@@ -1,9 +1,6 @@
-import {fetchSyncPost} from "siyuan";
-import {
-    agentChat,
-    agentChatConcurrent,
-} from "./AgentClient";
-import {AI_TIMEOUT_MS} from "./ConvertService";
+import { fetchSyncPost } from "siyuan";
+import { agentChat, agentChatConcurrent } from "./AgentClient";
+import { AI_TIMEOUT_MS } from "./ConvertService";
 
 /**
  * 知识点反链（从 ConvertBatch 拆出的独立关注点）：
@@ -50,9 +47,9 @@ export interface KnowRouteDeps {
 
 /** SQL 查询（fetchSyncPost 包装，失败抛错由调用方降级）。 */
 async function sql(stmt: string): Promise<Map<string, string>[]> {
-    const r = await fetchSyncPost("/api/query/sql", {stmt});
+    const r = await fetchSyncPost("/api/query/sql", { stmt });
     if (r.code !== 0) throw new Error(r.msg || "sql failed");
-    return ((r.data ?? []) as {[k: string]: unknown;}[]).map((row) => {
+    return ((r.data ?? []) as { [k: string]: unknown }[]).map((row) => {
         const m = new Map<string, string>();
         for (const [k, v] of Object.entries(row)) m.set(k, typeof v === "string" ? v : String(v ?? ""));
         return m;
@@ -63,7 +60,7 @@ async function sql(stmt: string): Promise<Map<string, string>[]> {
  *  （真机 20260823 验证），子查询不支持（返回空），必须显式分页。 */
 async function sqlAll(stmt: string, pageSize = 512): Promise<Map<string, string>[]> {
     const out: Map<string, string>[] = [];
-    for (let off = 0;; off += pageSize) {
+    for (let off = 0; ; off += pageSize) {
         const page = await sql(`${stmt} LIMIT ${pageSize} OFFSET ${off}`);
         out.push(...page);
         if (page.length < pageSize) return out;
@@ -81,9 +78,9 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
     for (const rid of rootIds) {
         let root;
         try {
-            root = (await sql(
-                `SELECT id, box, path, content, hpath FROM blocks WHERE id = '${rid}' AND type = 'd' LIMIT 1`,
-            ))[0];
+            root = (
+                await sql(`SELECT id, box, path, content, hpath FROM blocks WHERE id = '${rid}' AND type = 'd' LIMIT 1`)
+            )[0];
         } catch (_) {
             continue;
         }
@@ -91,29 +88,31 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
         const rootPath = root.get("path");
         const dir = rootPath.replace(/\.sy$/, "");
         const rows = await sqlAll(
-            `SELECT id, path, content, hpath FROM blocks WHERE type = 'd' AND box = '${
-                root.get("box")
-            }' AND path LIKE '${dir}/%.sy' ORDER BY hpath`,
+            `SELECT id, path, content, hpath FROM blocks WHERE type = 'd' AND box = '${root.get(
+                "box"
+            )}' AND path LIKE '${dir}/%.sy' ORDER BY hpath`
         );
         // 叶子 = 没有任何文档以它为父目录（书名空壳层自动出局）
-        const parentDirs = new Set(rows.map((r) => {
-            const p = r.get("path");
-            return p.slice(0, p.lastIndexOf("/"));
-        }));
+        const parentDirs = new Set(
+            rows.map((r) => {
+                const p = r.get("path");
+                return p.slice(0, p.lastIndexOf("/"));
+            })
+        );
         let leaves = rows.filter((r) => !parentDirs.has(r.get("path").replace(/\.sy$/, "")));
         if (leaves.length === 0) leaves = [root];
         // 一次性拉全部叶子章节的 h2~h4 标题块（按 sort 保序；分页后要按章重排）
         const ids = leaves.map((r) => `'${r.get("id")}'`).join(",");
-        const heads = ids ?
-            await sqlAll(
-                `SELECT root_id, id, content FROM blocks WHERE type = 'h' AND subtype IN ('h2','h3','h4') AND root_id IN (${ids}) ORDER BY root_id, sort`,
-            ) :
-            [];
-        const byRoot = new Map<string, {id: string; content: string;}[]>();
+        const heads = ids
+            ? await sqlAll(
+                  `SELECT root_id, id, content FROM blocks WHERE type = 'h' AND subtype IN ('h2','h3','h4') AND root_id IN (${ids}) ORDER BY root_id, sort`
+              )
+            : [];
+        const byRoot = new Map<string, { id: string; content: string }[]>();
         for (const h of heads) {
             const k = h.get("root_id");
             const arr = byRoot.get(k) ?? [];
-            arr.push({id: h.get("id"), content: h.get("content")});
+            arr.push({ id: h.get("id"), content: h.get("content") });
             byRoot.set(k, arr);
         }
         for (const leaf of leaves) {
@@ -131,7 +130,7 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
             });
         }
     }
-    return {chapters};
+    return { chapters };
 }
 
 /** 从路由回复里抽数字（JSON 或裸列表都行），保序去重并限界 [1,max]。 */
@@ -158,7 +157,7 @@ const MAX_SECTIONS = 10;
 export async function routeKnowledge(
     chunk: string,
     index: KnowledgeIndex,
-    deps: KnowRouteDeps,
+    deps: KnowRouteDeps
 ): Promise<Map<string, KnowSection>> {
     const out = new Map<string, KnowSection>();
     try {
@@ -176,7 +175,7 @@ export async function routeKnowledge(
 ${list}
 
 题目原文：
-${chunk}`,
+${chunk}`
             );
             const nums = parseNums(reply, index.chapters.length).slice(0, MAX_HIT_CHAPTERS);
             hit = nums.map((n) => index.chapters[n - 1]);
@@ -187,7 +186,7 @@ ${chunk}`,
         let chars = 0;
         for (const ch of hit) {
             if (ch.sections.length === 0) {
-                picked.push({id: ch.docId, title: ch.title, path: ch.path});
+                picked.push({ id: ch.docId, title: ch.title, path: ch.path });
                 continue;
             }
             for (const s of ch.sections) {
@@ -208,7 +207,7 @@ ${chunk}`,
 ${list2}
 
 题目原文：
-${chunk}`,
+${chunk}`
         );
         for (const n of parseNums(reply2, picked.length).slice(0, MAX_SECTIONS)) {
             const s = picked[n - 1];
@@ -240,9 +239,9 @@ ${lines.join("\n")}`;
 async function knowAwareCall(
     chunkText: string,
     index: KnowledgeIndex | undefined,
-    deps: KnowRouteDeps & {generate(prompt: string): Promise<string>;},
-    buildPromptFn: (source: string, knowRuleBlock: string, knowList: string) => string,
-): Promise<{reply: string; byAlias?: Map<string, KnowSection>;}> {
+    deps: KnowRouteDeps & { generate(prompt: string): Promise<string> },
+    buildPromptFn: (source: string, knowRuleBlock: string, knowList: string) => string
+): Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     let rule = "";
     let list = "";
     let byAlias: Map<string, KnowSection> | undefined;
@@ -255,7 +254,7 @@ async function knowAwareCall(
         }
     }
     const reply = await deps.generate(buildPromptFn(chunkText, rule, list));
-    return {reply, byAlias};
+    return { reply, byAlias };
 }
 
 /** 知识点路由超时：输入短（批内容+索引）、输出一行 JSON。 */
@@ -269,31 +268,35 @@ export function makeKnowAwareAi(opts: {
     signal: AbortSignal;
     knowIndex: KnowledgeIndex | undefined;
     buildPrompt: (source: string, knowRuleBlock: string, knowList: string) => string;
-}): (chunkText: string) => Promise<{reply: string; byAlias?: Map<string, KnowSection>;}> {
+}): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     const call = (message: string): Promise<string> =>
-        opts.parallel > 1 ?
-            agentChatConcurrent(message, KNOW_ROUTE_TIMEOUT_MS, opts.signal) :
-            agentChat(message, opts.modelId, KNOW_ROUTE_TIMEOUT_MS, opts.signal);
+        opts.parallel > 1
+            ? agentChatConcurrent(message, KNOW_ROUTE_TIMEOUT_MS, opts.signal)
+            : agentChat(message, opts.modelId, KNOW_ROUTE_TIMEOUT_MS, opts.signal);
     const generate = (prompt: string): Promise<string> =>
-        opts.parallel > 1 ?
-            agentChatConcurrent(prompt, AI_TIMEOUT_MS, opts.signal) :
-            agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, opts.signal);
-    return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, {call, generate}, opts.buildPrompt);
+        opts.parallel > 1
+            ? agentChatConcurrent(prompt, AI_TIMEOUT_MS, opts.signal)
+            : agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, opts.signal);
+    return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }
 
 /** 引用文本消毒：去引号/换行，限长（块引用静态锚文本）。 */
 function refTitle(title: string): string {
-    return title.replace(/["<>\n\r]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50);
+    return title
+        .replace(/["<>\n\r]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 50);
 }
 
 /** 生成「相关知识点」引用行（与转换注入同格式，反链面板可见）。 */
-export function knowledgeRefLine(refs: {id: string; title: string;}[]): string {
+export function knowledgeRefLine(refs: { id: string; title: string }[]): string {
     return `> 相关知识点：${refs.map((h) => `((${h.id} "${refTitle(h.title)}"))`).join(" ")}`;
 }
 
 /** 把知识点引用行注入题目 kramdown 的解析块尾（无解析块补独立块）。
  *  重新生成/针对性生成用：AI 不写引用，确定性注入。 */
-export function injectKnowledgeRefs(kd: string, refs: {id: string; title: string;}[]): string {
+export function injectKnowledgeRefs(kd: string, refs: { id: string; title: string }[]): string {
     if (refs.length === 0) return kd;
     const line = knowledgeRefLine(refs);
     const sol = SOLUTION_RE.exec(kd);
@@ -308,13 +311,11 @@ export function injectKnowledgeRefs(kd: string, refs: {id: string; title: string
 /** 取知识点小节的正文（标题块 id → 该标题下到下一个同级/更高级标题
  *  之前的块内容，SQL 按 sort 顺序拼接；供重新生成/针对性生成喂正文）。 */
 export async function sectionKramdown(headingId: string, maxChars = 3000): Promise<string> {
-    const head = (await sql(
-        `SELECT root_id, subtype FROM blocks WHERE id = '${headingId}' AND type = 'h' LIMIT 1`,
-    ))[0];
+    const head = (await sql(`SELECT root_id, subtype FROM blocks WHERE id = '${headingId}' AND type = 'h' LIMIT 1`))[0];
     if (!head) return "";
     const myLevel = Number(head.get("subtype")?.replace("h", "")) || 2;
     const rows = await sqlAll(
-        `SELECT id, subtype, type, content FROM blocks WHERE root_id = '${head.get("root_id")}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`,
+        `SELECT id, subtype, type, content FROM blocks WHERE root_id = '${head.get("root_id")}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`
     );
     let started = false;
     const out: string[] = [];
@@ -346,8 +347,8 @@ const SOLUTION_RE =
  */
 export function applyKnowLinks(
     questions: string[],
-    byAlias: Map<string, KnowSection>,
-): {out: string[]; linked: number;} {
+    byAlias: Map<string, KnowSection>
+): { out: string[]; linked: number } {
     const out = [...questions];
     let linked = 0;
     for (let i = 0; i < out.length; i++) {
@@ -379,10 +380,12 @@ export function applyKnowLinks(
                 out[i] = stripped;
                 continue;
             }
-            out[i] = stripped.slice(0, close) + `${line}\n{: custom-plugin-wengu-part="solution"}\n\n` +
+            out[i] =
+                stripped.slice(0, close) +
+                `${line}\n{: custom-plugin-wengu-part="solution"}\n\n` +
                 stripped.slice(close);
         }
         linked++;
     }
-    return {out, linked};
+    return { out, linked };
 }

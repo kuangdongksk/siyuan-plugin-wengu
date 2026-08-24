@@ -46,6 +46,31 @@
   fill: currentColor;
 }
 
+/* 设置弹窗（wengu-setting）：Neo 等第三方主题把 config__side 改成
+   overflow:auto 且右 padding 归零，与原生 config__tab-scroll 的
+   -12px 负右 margin 失衡 → 侧栏横向滚动条；插件弹窗内归零负 margin
+   并禁横向滚动（特异性同原生规则，靠插件 css 后加载取胜） */
+.config__panel.wengu-setting .config__side {
+  overflow-x: hidden;
+}
+
+.config__panel.wengu-setting .config__tab-scroll {
+  margin-right: 0;
+  padding-right: 0;
+}
+
+/* 结果/反馈行内联状态图标（statusIcon 前缀，颜色随容器 right/wrong/partial） */
+.wengu-result svg,
+.wengu-step-result svg,
+.wengu-word-feedback svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
 /* 转换弹窗：分批生成的渐进预览（题号 + 题型 + 题干片段，随批追加） */
 .wengu-convert-preview {
   max-height: 168px;

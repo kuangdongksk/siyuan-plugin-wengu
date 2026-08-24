@@ -1,12 +1,8 @@
-import {
-    Lute,
-    Protyle,
-    ProtyleMethod,
-} from "siyuan";
-import type {App} from "siyuan";
-import type {WenguQuestion} from "./types";
-import {optionDisplayMd} from "./types";
-import {esc} from "./ui";
+import { Lute, Protyle, ProtyleMethod } from "siyuan";
+import type { App } from "siyuan";
+import type { WenguQuestion } from "./types";
+import { optionDisplayMd } from "./types";
+import { esc } from "./ui";
 
 /**
  * 题目内容的内嵌只读 Protyle 宿主（从 QuizView 拆出）。
@@ -48,7 +44,8 @@ export class ProtyleHost {
             const q = list.find((x) => x.id === card?.dataset.qid);
             if (!q) continue;
             const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
-            node.innerHTML = this.fallbackHtml(q) +
+            node.innerHTML =
+                this.fallbackHtml(q) +
                 (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
             renderMath(node);
         }
@@ -59,7 +56,7 @@ export class ProtyleHost {
             const protyle = new Protyle(this.app!, node, {
                 blockId: q.id,
                 mode: "wysiwyg",
-                render: {title: false, gutter: false, scroll: false, breadcrumb: false},
+                render: { title: false, gutter: false, scroll: false, breadcrumb: false },
             });
             this.protyles.set(q.id, protyle);
             const loaded = await waitForBlockNode(node, 8000);
@@ -147,7 +144,7 @@ function luteToHtml(md: string): string {
     lute.SetKramdownIAL(true);
     // 行级/块级公式必须显式开启（编辑器配置默认关，不开 $...$ 原样输出）
     lute.SetInlineMath(true);
-    (lute as unknown as {SetMathBlock?: (b: boolean) => void;}).SetMathBlock?.(true);
+    (lute as unknown as { SetMathBlock?: (b: boolean) => void }).SetMathBlock?.(true);
     lute.SetInlineMathAllowDigitAfterOpenMarker(true);
     return lute.Md2BlockDOM(md);
 }

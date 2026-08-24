@@ -1,8 +1,8 @@
-import {Dialog} from "siyuan";
-import {svgIcon} from "./FormHtml";
-import {kpRootMap} from "./BankReconcile";
-import type {QuestionBank} from "./QuestionBank";
-import {esc, fmt} from "./ui";
+import { Dialog } from "siyuan";
+import { svgIcon } from "./FormHtml";
+import { kpRootMap } from "./BankReconcile";
+import type { QuestionBank } from "./QuestionBank";
+import { esc, fmt } from "./ui";
 
 /**
  * 知识文档右键「温故：查相关题目」（⑤）：思源侧入口——插件数据与思源
@@ -11,13 +11,13 @@ import {esc, fmt} from "./ui";
  */
 export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => string, blockId: string): Promise<void> {
     // 点击的可能是文档/标题/任意块：定位其根文档
-    const {fetchSyncPost} = await import("siyuan");
+    const { fetchSyncPost } = await import("siyuan");
     let docId = blockId;
     try {
         const r = await fetchSyncPost("/api/query/sql", {
             stmt: `SELECT root_id FROM blocks WHERE id = '${blockId}' LIMIT 1`,
         });
-        const root = (r.data as {root_id?: string;}[] | null)?.[0]?.root_id;
+        const root = (r.data as { root_id?: string }[] | null)?.[0]?.root_id;
         if (root) docId = root;
     } catch (_) {
         // 查不到就按原 id 试
@@ -25,18 +25,20 @@ export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => st
     const refs = await bank.collectKpRefs();
     const roots = await kpRootMap([...refs.keys()]);
     const rows = await bank.questionsRelatedToDoc(docId, roots);
-    const items = rows.length > 0 ?
-        rows
-            .map((r) =>
-                `<div class="wengu-col-row" data-jump="${esc(r.qid)}" title="${esc(r.stem)}">
+    const items =
+        rows.length > 0
+            ? rows
+                  .map(
+                      (r) =>
+                          `<div class="wengu-col-row" data-jump="${esc(r.qid)}" title="${esc(r.stem)}">
         <span class="wengu-col-row-title">${esc(r.stem || r.qid)}</span>
-        <span class="wengu-meta">${
-                    esc(fmt(t("relatedStats"), {a: String(r.attempts), w: String(r.wrongCount)}))
-                }</span>
+        <span class="wengu-meta">${esc(
+            fmt(t("relatedStats"), { a: String(r.attempts), w: String(r.wrongCount) })
+        )}</span>
       </div>`
-            )
-            .join("") :
-        `<div class="wengu-muted">${esc(t("relatedEmpty"))}</div>`;
+                  )
+                  .join("")
+            : `<div class="wengu-muted">${esc(t("relatedEmpty"))}</div>`;
     const dialog = new Dialog({
         title: t("relatedTitle"),
         width: "560px",

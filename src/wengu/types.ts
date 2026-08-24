@@ -32,22 +32,22 @@ export const AUTO_GRADE_TYPES: readonly QuestionType[] = [
 /** type 属性别名映射：AI 偶发输出大小写/中文变体，读入时规整。 */
 const TYPE_ALIASES: Record<string, QuestionType> = {
     [QuestionType.Single]: QuestionType.Single,
-    "单选": QuestionType.Single,
-    "单项选择": QuestionType.Single,
+    单选: QuestionType.Single,
+    单项选择: QuestionType.Single,
     [QuestionType.Multiple]: QuestionType.Multiple,
-    "多选": QuestionType.Multiple,
-    "多项选择": QuestionType.Multiple,
+    多选: QuestionType.Multiple,
+    多项选择: QuestionType.Multiple,
     [QuestionType.Judge]: QuestionType.Judge,
-    "判断": QuestionType.Judge,
+    判断: QuestionType.Judge,
     [QuestionType.Fill]: QuestionType.Fill,
-    "填空": QuestionType.Fill,
+    填空: QuestionType.Fill,
     [QuestionType.Brief]: QuestionType.Brief,
-    "简答": QuestionType.Brief,
-    "问答": QuestionType.Brief,
+    简答: QuestionType.Brief,
+    问答: QuestionType.Brief,
     [QuestionType.Steps]: QuestionType.Steps,
-    "多步": QuestionType.Steps,
-    "多步引导": QuestionType.Steps,
-    "引导": QuestionType.Steps,
+    多步: QuestionType.Steps,
+    多步引导: QuestionType.Steps,
+    引导: QuestionType.Steps,
 };
 
 /** 规整 type 属性为合法题型；无法识别返回 undefined（走自评流程）。 */

@@ -1,6 +1,6 @@
-import {fetchSyncPost} from "siyuan";
-import type {QuestionBank} from "./QuestionBank";
-import type {WeaknessStore} from "./WeaknessStore";
+import { fetchSyncPost } from "siyuan";
+import type { QuestionBank } from "./QuestionBank";
+import type { WeaknessStore } from "./WeaknessStore";
 
 /**
  * 知识引用对账（增量刷新的核心）：知识文档删除/重组后，题库 kpRefs 与
@@ -11,9 +11,9 @@ import type {WeaknessStore} from "./WeaknessStore";
 
 /** SQL 帮手（沿用 KnowledgeLink 的约束：无 LIMIT 截 64 行）。 */
 async function sql(stmt: string): Promise<Map<string, string>[]> {
-    const r = await fetchSyncPost("/api/query/sql", {stmt});
+    const r = await fetchSyncPost("/api/query/sql", { stmt });
     if (r.code !== 0) throw new Error(r.msg || "sql failed");
-    return ((r.data ?? []) as {[k: string]: unknown;}[]).map((row) => {
+    return ((r.data ?? []) as { [k: string]: unknown }[]).map((row) => {
         const m = new Map<string, string>();
         for (const [k, v] of Object.entries(row)) m.set(k, typeof v === "string" ? v : String(v ?? ""));
         return m;
@@ -24,7 +24,10 @@ async function sql(stmt: string): Promise<Map<string, string>[]> {
 export async function kpRootMap(ids: string[]): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     for (let i = 0; i < ids.length; i += 50) {
-        const chunk = ids.slice(i, i + 50).map((x) => `'${x}'`).join(",");
+        const chunk = ids
+            .slice(i, i + 50)
+            .map((x) => `'${x}'`)
+            .join(",");
         if (!chunk) continue;
         try {
             for (const row of await sql(`SELECT id, root_id FROM blocks WHERE id IN (${chunk})`)) {
@@ -51,7 +54,7 @@ export async function reconcileKnowledgeRefs(bank: QuestionBank, weakness: Weakn
             if (!title) continue;
             // 按标题在同库唯一命中才重挂（多命中/零命中保留悬空）
             const rows = await sql(
-                `SELECT id FROM blocks WHERE type = 'h' AND content = '${title.replace(/'/g, "''")}'`,
+                `SELECT id FROM blocks WHERE type = 'h' AND content = '${title.replace(/'/g, "''")}'`
             );
             if (rows.length !== 1) continue;
             const newId = rows[0].get("id");

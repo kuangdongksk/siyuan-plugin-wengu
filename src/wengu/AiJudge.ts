@@ -1,12 +1,9 @@
-import {agentChat} from "./AgentClient";
-import type {WenguQuestion} from "./types";
-import type {WenguStep} from "./types";
-import {
-    LETTERS,
-    optionDisplayMd,
-} from "./types";
-import type {WeakCause} from "./WeaknessStore";
-import {normalizeCause} from "./WeaknessStore";
+import { agentChat } from "./AgentClient";
+import type { WenguQuestion } from "./types";
+import type { WenguStep } from "./types";
+import { LETTERS, optionDisplayMd } from "./types";
+import type { WeakCause } from "./WeaknessStore";
+import { normalizeCause } from "./WeaknessStore";
 
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
@@ -23,7 +20,10 @@ let queue: Promise<unknown> = Promise.resolve();
 
 function enqueue<T>(job: () => Promise<T>): Promise<T> {
     const run = queue.then(job, job);
-    queue = run.then((): void => undefined, (): void => undefined);
+    queue = run.then(
+        (): void => undefined,
+        (): void => undefined
+    );
     return run;
 }
 
@@ -44,12 +44,7 @@ export interface BriefVerdict {
 
 /** 把用户的解题思路交给 AI 对照参考答案判定（串行）。
  *  thought 为「思路」折叠区里的推导备注（可选，判 partial 的素材）。 */
-export function judgeBrief(
-    q: WenguQuestion,
-    mine: string,
-    modelId: string,
-    thought = "",
-): Promise<BriefVerdict> {
+export function judgeBrief(q: WenguQuestion, mine: string, modelId: string, thought = ""): Promise<BriefVerdict> {
     return enqueue(async () => {
         const reply = await agentChat(buildBriefPrompt(q, mine, thought), modelId, JUDGE_TIMEOUT_MS);
         return parseBriefVerdict(reply);
@@ -77,11 +72,12 @@ function parseBriefVerdict(reply: string): BriefVerdict {
     const m = /VERDICT\s*[:：]\s*(right|partial|wrong|对|半对|部分对|错|错误)/i.exec(reply);
     if (!m) throw new Error("AI 未按格式返回判定");
     const raw = m[1].toLowerCase();
-    const verdict: BriefVerdictState = raw === "right" || raw === "对" ?
-        "right" :
-        raw === "partial" || raw === "半对" || raw === "部分对" ?
-        "partial" :
-        "wrong";
+    const verdict: BriefVerdictState =
+        raw === "right" || raw === "对"
+            ? "right"
+            : raw === "partial" || raw === "半对" || raw === "部分对"
+              ? "partial"
+              : "wrong";
     const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
     const cam = /CAUSE\s*[:：]\s*([^\n]+)/i.exec(reply);
     const causeText = (cam?.[1] ?? "").trim();
@@ -89,7 +85,7 @@ function parseBriefVerdict(reply: string): BriefVerdict {
         verdict,
         ok: verdict === "right",
         comment: (cm?.[1] ?? "").trim(),
-        ...(verdict !== "right" && causeText && causeText !== "无" ? {cause: normalizeCause(causeText)} : {}),
+        ...(verdict !== "right" && causeText && causeText !== "无" ? { cause: normalizeCause(causeText) } : {}),
     };
 }
 
@@ -116,7 +112,7 @@ export function attributeWrongCauses(items: CauseItem[], modelId: string): Promi
 题目：
 ${lines}`,
             modelId,
-            JUDGE_TIMEOUT_MS,
+            JUDGE_TIMEOUT_MS
         );
         const out = new Map<string, WeakCause>();
         const jm = /\{[\s\S]*\}/.exec(reply);
@@ -152,7 +148,7 @@ export function appealMethodStep(
     q: WenguQuestion,
     step: WenguStep,
     chosen: string,
-    modelId: string,
+    modelId: string
 ): Promise<MethodAppealVerdict> {
     return enqueue(async () => {
         const reply = await agentChat(buildAppealPrompt(q, step, chosen), modelId, JUDGE_TIMEOUT_MS);
@@ -161,14 +157,12 @@ export function appealMethodStep(
         const v = m[1].toLowerCase();
         const feasible = v === "yes" || v === "true" || v === "是" || v === "可行";
         const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
-        return {feasible, comment: (cm?.[1] ?? "").trim()};
+        return { feasible, comment: (cm?.[1] ?? "").trim() };
     });
 }
 
 function buildAppealPrompt(q: WenguQuestion, step: WenguStep, chosen: string): string {
-    const options = step.optionMd
-        .map((md, i) => `${LETTERS[i]}. ${optionDisplayMd(md)}`)
-        .join("\n");
+    const options = step.optionMd.map((md, i) => `${LETTERS[i]}. ${optionDisplayMd(md)}`).join("\n");
     const answer = [q.answer, q.solutionMd].filter(Boolean).join("\n\n") || "（无参考解答）";
     return `你是解题方法复核助手。一道多步引导题的「选方法」步骤，出题时标注的可行方法集合可能标漏；学生认为自己所选的方法其实可行，请你独立判断。
 只依据学科正确性：该方法能走通本题（即使比参考路径更绕）即可行。
@@ -210,7 +204,7 @@ export interface RealtimeStep {
 export function nextRealtimeStep(
     q: WenguQuestion,
     history: RealtimeHistoryItem[],
-    modelId: string,
+    modelId: string
 ): Promise<RealtimeStep> {
     return enqueue(async () => {
         const reply = await agentChat(buildRealtimePrompt(q, history), modelId, JUDGE_TIMEOUT_MS);
@@ -219,11 +213,14 @@ export function nextRealtimeStep(
 }
 
 function buildRealtimePrompt(q: WenguQuestion, history: RealtimeHistoryItem[]): string {
-    const done = history.length === 0 ?
-        "（尚未开始，请先出第一步）" :
-        history
-            .map((h, i) => `第${i + 1}步「${h.stem}」学生选 ${h.letter}. ${h.chosen}${h.ok ? "（对）" : "（错）"}`)
-            .join("；");
+    const done =
+        history.length === 0
+            ? "（尚未开始，请先出第一步）"
+            : history
+                  .map(
+                      (h, i) => `第${i + 1}步「${h.stem}」学生选 ${h.letter}. ${h.chosen}${h.ok ? "（对）" : "（错）"}`
+                  )
+                  .join("；");
     const answer = [q.answer, q.solutionMd].filter(Boolean).join("\n\n") || "（无参考解答）";
     return `你是解题引导助手。根据题目与参考解答，生成多步引导作答的「下一步」：学生逐步选择方法与中间结果，你为每一步出选择题。
 规则：
@@ -251,7 +248,7 @@ ${done}`;
 /** 解析实时步骤（TYPE/PROMPT/OPTIONS/ANSWER 或 DONE），容错字母标签。 */
 function parseRealtimeStep(reply: string): RealtimeStep {
     const text = reply.trim();
-    if (/DONE\s*[:：]\s*(yes|true|是)/i.test(text)) return {done: true};
+    if (/DONE\s*[:：]\s*(yes|true|是)/i.test(text)) return { done: true };
     const typeM = /TYPE\s*[:：]\s*(method|result|方法|结果)/i.exec(text);
     const promptM = /PROMPT\s*[:：]\s*([^\n]+)/i.exec(text);
     const answerM = /ANSWER\s*[:：]\s*([^\n]+)/i.exec(text);

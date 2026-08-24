@@ -1,11 +1,7 @@
-import {Dialog} from "siyuan";
-import {svgIcon} from "./FormHtml";
-import type {
-    CollectionRow,
-    KnowledgeRow,
-    QuestionBank,
-} from "./QuestionBank";
-import {esc} from "./ui";
+import { Dialog } from "siyuan";
+import { svgIcon } from "./FormHtml";
+import type { CollectionRow, KnowledgeRow, QuestionBank } from "./QuestionBank";
+import { esc } from "./ui";
 
 /**
  * 专题管理对话框：上半=按知识点收集（勾选知识点键 → 并集收集成新
@@ -23,7 +19,7 @@ export interface CollectionDialogDeps {
 }
 
 export function openCollectionDialog(deps: CollectionDialogDeps): void {
-    const {t, bank} = deps;
+    const { t, bank } = deps;
     const dialog = new Dialog({
         title: t("collectionsTitle"),
         width: "560px",
@@ -60,8 +56,9 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         }
         knowledgeBox.innerHTML = rows
             .slice(0, 200)
-            .map((r) =>
-                `<label class="wengu-col-row" data-key="${esc(r.key)}">
+            .map(
+                (r) =>
+                    `<label class="wengu-col-row" data-key="${esc(r.key)}">
         <input type="checkbox" data-key="${esc(r.key)}"${selected.has(r.key) ? " checked" : ""}>
         <span class="wengu-col-row-title" title="${esc(r.title)}">${esc(r.title)}</span>
         <span class="wengu-meta">${esc(String(r.count))}</span>
@@ -92,13 +89,14 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
             return;
         }
         existingBox.innerHTML = rows
-            .map((c) =>
-                `<div class="wengu-col-row" data-colid="${esc(c.id)}">
+            .map(
+                (c) =>
+                    `<div class="wengu-col-row" data-colid="${esc(c.id)}">
         <span class="wengu-col-row-title">${svgIcon("iconList")} ${esc(c.title)}</span>
         <span class="wengu-meta">${esc(String(c.count))}</span>
-        <button class="b3-button b3-button--cancel wengu-col-del" data-del="${esc(c.id)}" title="${
-                    esc(t("collectDelete"))
-                }">×</button>
+        <button class="b3-button b3-button--cancel wengu-col-del" data-del="${esc(c.id)}" title="${esc(
+            t("collectDelete")
+        )}">×</button>
       </div>`
             )
             .join("");

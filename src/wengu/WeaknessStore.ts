@@ -1,6 +1,6 @@
-import type {WenguSession} from "./HistoryStore";
-import {baseQid} from "./types";
-import type {WenguQuestion} from "./types";
+import type { WenguSession } from "./HistoryStore";
+import { baseQid } from "./types";
+import type { WenguQuestion } from "./types";
 
 /**
  * 薄弱画像存储（插件数据 weakness 文件）：跨轮次按知识点聚合错/做题
@@ -63,13 +63,13 @@ export interface WeakTopRow {
 }
 
 /** 题目的聚合键列表（知识点引用优先，多个引用全计入）。 */
-export function weakKeys(q: WenguQuestion): {key: string; title: string;}[] {
-    const out: {key: string; title: string;}[] = [];
+export function weakKeys(q: WenguQuestion): { key: string; title: string }[] {
+    const out: { key: string; title: string }[] = [];
     for (const m of (q.solutionMd ?? "").matchAll(/\(\((\d{14}-[a-z0-9]+)\s+"([^"]{1,80})"\)\)/g)) {
-        out.push({key: `kp:${m[1]}`, title: m[2]});
+        out.push({ key: `kp:${m[1]}`, title: m[2] });
     }
-    if (out.length === 0 && q.knowledge) out.push({key: `kn:${q.knowledge}`, title: q.knowledge});
-    if (out.length === 0 && q.chapter) out.push({key: `ch:${q.chapter}`, title: q.chapter});
+    if (out.length === 0 && q.knowledge) out.push({ key: `kn:${q.knowledge}`, title: q.knowledge });
+    if (out.length === 0 && q.chapter) out.push({ key: `ch:${q.chapter}`, title: q.chapter });
     const seen = new Set<string>();
     return out.filter((k) => (seen.has(k.key) ? false : (seen.add(k.key), true)));
 }
@@ -90,18 +90,19 @@ export class WeaknessStore {
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
-        private readonly saveRaw: (v: WeaknessData) => Promise<unknown>,
+        private readonly saveRaw: (v: WeaknessData) => Promise<unknown>
     ) {}
 
     private async all(): Promise<WeaknessData> {
         if (this.cache) return this.cache;
         try {
-            const data = await this.loadRaw() as WeaknessData | "" | null | undefined;
-            this.cache = data && typeof data === "object" && data.points ?
-                data :
-                {version: 1, points: {}, applied: [], causeApplied: []};
+            const data = (await this.loadRaw()) as WeaknessData | "" | null | undefined;
+            this.cache =
+                data && typeof data === "object" && data.points
+                    ? data
+                    : { version: 1, points: {}, applied: [], causeApplied: [] };
         } catch (_) {
-            this.cache = {version: 1, points: {}, applied: [], causeApplied: []};
+            this.cache = { version: 1, points: {}, applied: [], causeApplied: [] };
         }
         return this.cache;
     }
@@ -153,7 +154,7 @@ export class WeaknessStore {
         s: WenguSession,
         list: WenguQuestion[],
         causeByQid: Map<string, WeakCause>,
-        noteByQid?: Map<string, string>,
+        noteByQid?: Map<string, string>
     ): Promise<void> {
         const data = await this.all();
         if (data.causeApplied.includes(s.id) || causeByQid.size === 0) return;
@@ -195,7 +196,7 @@ export class WeaknessStore {
             }
             if (old.aiNote) cur.aiNote = old.aiNote;
         } else {
-            data.points[newKey] = {...old, key: newKey, title: newTitle};
+            data.points[newKey] = { ...old, key: newKey, title: newTitle };
         }
         delete data.points[oldKey];
         await this.save(data);
@@ -222,7 +223,7 @@ export class WeaknessStore {
                 wrong: e.wrong,
                 total: e.total,
                 topCause: Object.entries(e.causes).sort((a, b) => b[1] - a[1])[0]?.[0] as WeakCause | undefined,
-                ...(e.aiNote ? {aiNote: e.aiNote} : {}),
+                ...(e.aiNote ? { aiNote: e.aiNote } : {}),
             }));
     }
 }

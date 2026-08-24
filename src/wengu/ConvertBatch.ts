@@ -1,5 +1,5 @@
-import {fetchSyncPost} from "siyuan";
-import {agentChat} from "./AgentClient";
+import { fetchSyncPost } from "siyuan";
+import { agentChat } from "./AgentClient";
 import {
     buildPrompt,
     createExerciseDoc,
@@ -9,20 +9,10 @@ import {
     parseVerdict,
     resolveTarget,
 } from "./ConvertService";
-import type {
-    ConvertResult,
-    DocInfo,
-} from "./ConvertService";
-import {
-    applyKnowLinks,
-    buildKnowledgeIndex,
-    makeKnowAwareAi,
-} from "./KnowledgeLink";
-import type {
-    KnowSection,
-    KnowledgeIndex,
-} from "./KnowledgeLink";
-import {fmt} from "./ui";
+import type { ConvertResult, DocInfo } from "./ConvertService";
+import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
+import { fmt } from "./ui";
 
 /**
  * 分批转换编排（从 ConvertService 拆出）：长文档按空行边界切块逐批
@@ -54,7 +44,7 @@ export function chunkKramdown(md: string, maxChars = CHUNK_CHARS): SourceChunk[]
             if (blank > start + Math.floor(maxChars / 2)) end = blank + 2;
         }
         const text = md.slice(start, end).trim();
-        if (text) out.push({text, offset: start});
+        if (text) out.push({ text, offset: start });
         start = end;
     }
     return out;
@@ -78,15 +68,9 @@ export interface DetectResult {
 /** 检测超时短一些：输出只有三行。 */
 const DETECT_TIMEOUT_MS = 120_000;
 
-export async function detectQuestions(
-    source: string,
-    modelId: string,
-    signal?: AbortSignal,
-): Promise<DetectResult> {
+export async function detectQuestions(source: string, modelId: string, signal?: AbortSignal): Promise<DetectResult> {
     const truncated = source.length > DETECT_CHARS;
-    const head = truncated ?
-        `${source.slice(0, DETECT_CHARS)}\n<!-- 内容过长已截断 -->` :
-        source;
+    const head = truncated ? `${source.slice(0, DETECT_CHARS)}\n<!-- 内容过长已截断 -->` : source;
     const reply = await agentChat(
         `你是思源笔记出题助手的前置检查。判断下面的文档是否适合出题，并统计其中现成题目的数量。
 输出严格三行，格式之外不要输出任何文字：
@@ -97,12 +81,12 @@ REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不
 ${head}`,
         modelId,
         DETECT_TIMEOUT_MS,
-        signal,
+        signal
     );
     const verdict = parseVerdict(reply);
     const cm = /COUNT\s*[:：]\s*(\d+)\s*(\+)?/i.exec(reply);
     const count = cm ? Number(cm[1]) : undefined;
-    return {can: verdict.can, reason: verdict.reason, count, truncated: truncated && !!cm};
+    return { can: verdict.can, reason: verdict.reason, count, truncated: truncated && !!cm };
 }
 
 /** 转换进度回调（弹窗状态行展示）。 */
@@ -140,17 +124,18 @@ export function questionPreview(kd: string, no: number): QuestionPreview {
     const type = /custom-plugin-wengu-type="([a-z]+)"/.exec(kd)?.[1] ?? "";
     const stem = kd
         .split(/\r?\n/)
-        .filter((l) =>
-            !/^\s*\{:/.test(l) && // IAL 属性行
-            !/^\s*\{\{\{/.test(l) && // 超级块定界
-            !/^\s*\}\}\}/.test(l) &&
-            !/^\s*>/.test(l) && // 答案/解析引述
-            !/^\s*[-*]\s/.test(l) // 选项列表
+        .filter(
+            (l) =>
+                !/^\s*\{:/.test(l) && // IAL 属性行
+                !/^\s*\{\{\{/.test(l) && // 超级块定界
+                !/^\s*\}\}\}/.test(l) &&
+                !/^\s*>/.test(l) && // 答案/解析引述
+                !/^\s*[-*]\s/.test(l) // 选项列表
         )
         .join(" ")
         .replace(/\s+/g, " ")
         .trim();
-    return {no, type, stem: stem.slice(0, 80)};
+    return { no, type, stem: stem.slice(0, 80) };
 }
 
 /** 终止保留的进度记录（prefs 持久化，重开思源后可继续生成）。 */
@@ -209,9 +194,9 @@ export async function convertDocBatched(
         /** 知识点根文档 id（书架/书/章），非空时路由小节并注入知识点反链。 */
         knowRoots?: string[];
         onProgress(p: ConvertProgress): void;
-    },
+    }
 ): Promise<BatchedResult> {
-    const {t} = opts;
+    const { t } = opts;
     const docId = extractBlockId(docIdRaw);
     const info = await getDocInfo(docId);
     if (!info?.notebook) {
@@ -225,8 +210,8 @@ export async function convertDocBatched(
             kramdown: "",
         };
     }
-    const kd = await fetchSyncPost("/api/block/getBlockKramdown", {id: docId});
-    const kramdown = String((kd.data as {kramdown?: string;} | null)?.kramdown ?? "");
+    const kd = await fetchSyncPost("/api/block/getBlockKramdown", { id: docId });
+    const kramdown = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "");
     if (!kramdown.trim()) {
         return {
             status: "failed",
@@ -242,8 +227,8 @@ export async function convertDocBatched(
     // 继续生成：旧文档内容并入累积，只跑剩余批
     let existing = "";
     if (opts.resume) {
-        const old = await fetchSyncPost("/api/block/getBlockKramdown", {id: opts.resume.docId});
-        existing = String((old.data as {kramdown?: string;} | null)?.kramdown ?? "");
+        const old = await fetchSyncPost("/api/block/getBlockKramdown", { id: opts.resume.docId });
+        existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
     }
     const allChunks = chunkKramdown(kramdown);
     const chunks = opts.resume ? allChunks.filter((c) => c.offset >= opts.resume!.offset) : allChunks;
@@ -258,7 +243,7 @@ export async function convertDocBatched(
     let detected: number | undefined;
     let detectedTruncated = false;
     if (!opts.resume) {
-        opts.onProgress({phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0});
+        opts.onProgress({ phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0 });
         try {
             const d = await detectQuestions(kramdown, opts.modelId, opts.signal);
             if (!d.can) {
@@ -309,7 +294,7 @@ export async function convertDocBatched(
     }
     // 渐进式落盘：每批后删除重建累积文档（内核无追加通道，删+建是本地快操作），
     // 生成期间文档树里即可查看已生成部分；重建失败不阻断生成，末尾兜底落盘。
-    let created: {id: string; title: string;} | undefined;
+    let created: { id: string; title: string } | undefined;
     let oldResumeRemoved = false;
     // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
     opts.onProgress({
@@ -381,7 +366,7 @@ export async function convertDocBatched(
             detected,
             detectedTruncated,
             newStems,
-            ...(created ? {docId: created.id, title: created.title} : {}),
+            ...(created ? { docId: created.id, title: created.title } : {}),
         });
     };
     const worker = async (): Promise<void> => {
@@ -389,16 +374,17 @@ export async function convertDocBatched(
             if (firstError || userAborted) return;
             const i = cursor++;
             if (i >= chunks.length) return;
-            let gen: {reply: string; byAlias?: Map<string, KnowSection>;};
+            let gen: { reply: string; byAlias?: Map<string, KnowSection> };
             try {
                 gen = await callAi(chunks[i].text);
             } catch (e) {
                 if (opts.signal?.aborted) return; // 用户终止由 relayAbort 收口
                 const err = e as Error;
                 if (!firstError) {
-                    firstError = err?.name === "TimeoutError" || err?.name === "AbortError" ?
-                        t("convertTimeout") :
-                        String(err?.message ?? e);
+                    firstError =
+                        err?.name === "TimeoutError" || err?.name === "AbortError"
+                            ? t("convertTimeout")
+                            : String(err?.message ?? e);
                     internal.abort(); // 首个失败取消兄弟任务
                 }
                 return;
@@ -413,7 +399,7 @@ export async function convertDocBatched(
             await flushPrefix();
         }
     };
-    await Promise.all(Array.from({length: Math.min(parallel, chunks.length)}, () => worker()));
+    await Promise.all(Array.from({ length: Math.min(parallel, chunks.length) }, () => worker()));
     opts.signal?.removeEventListener("abort", relayAbort);
     if (userAborted || firstError) {
         return {
@@ -447,9 +433,9 @@ export async function convertDocBatched(
     }
     const doneMsg: string[] = [];
     if (detected !== undefined && detected > 0) {
-        doneMsg.push(fmt(t("convertDetectedCount"), {n: String(detected)}) + (detectedTruncated ? "+" : ""));
+        doneMsg.push(fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : ""));
     }
-    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), {n: String(knowLinked)}));
+    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
     return {
         status: "done",
         message: doneMsg.join(" · "),
@@ -469,8 +455,8 @@ export async function writeExerciseDoc(
     markdown: string,
     srcDocId = "",
     targetRaw = "",
-    t: (key: string) => string = () => "",
-): Promise<{id: string; title: string;}> {
+    t: (key: string) => string = () => ""
+): Promise<{ id: string; title: string }> {
     const loc = await resolveTarget(info, targetRaw, t);
     if (!loc.ok) throw new Error(loc.message);
     return createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, srcDocId);
@@ -479,7 +465,7 @@ export async function writeExerciseDoc(
 /** 继续生成完成后删掉上次终止保留的旧文档（换成完整新文档）。 */
 export async function removeDoc(docId: string): Promise<void> {
     try {
-        await fetchSyncPost("/api/filetree/removeDocByID", {id: docId});
+        await fetchSyncPost("/api/filetree/removeDocByID", { id: docId });
     } catch (_) {
         // 删除失败不影响主流程（旧文档保留）
     }

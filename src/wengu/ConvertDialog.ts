@@ -1,32 +1,11 @@
-import {Dialog} from "siyuan";
-import {modelOptionsHtml} from "./AgentClient";
-import {
-    convertDocBatched,
-    removeDoc,
-    toConvertResult,
-    writeExerciseDoc,
-} from "./ConvertBatch";
-import type {
-    BatchedResult,
-    ConvertProgressRecord,
-} from "./ConvertBatch";
-import {
-    extractBlockId,
-    getDocInfo,
-} from "./ConvertService";
-import {
-    formGroup,
-    formInput,
-    formOption,
-    formRow,
-    formSelect,
-    formSwitch,
-} from "./FormHtml";
-import {listQuestionDocs} from "./QuestionService";
-import {
-    esc,
-    fmt,
-} from "./ui";
+import { Dialog } from "siyuan";
+import { modelOptionsHtml } from "./AgentClient";
+import { convertDocBatched, removeDoc, toConvertResult, writeExerciseDoc } from "./ConvertBatch";
+import type { BatchedResult, ConvertProgressRecord } from "./ConvertBatch";
+import { extractBlockId, getDocInfo } from "./ConvertService";
+import { formGroup, formInput, formOption, formRow, formSelect, formSwitch } from "./FormHtml";
+import { listQuestionDocs } from "./QuestionService";
+import { esc, fmt } from "./ui";
 
 /**
  * AI 转习题对话框（从 QuizView 拆出）：选模型 + 转换开关 + 文档 id。
@@ -67,88 +46,86 @@ export interface ConvertDialogDeps {
     /** 全部丢弃后回调（页签清掉渐进呈现、恢复原状）。 */
     onCancel?(): void;
     /** 成功：docId/title/count + 摘要 message。 */
-    onDone(r: {docId: string; title: string; count: number; message: string;}): void;
+    onDone(r: { docId: string; title: string; count: number; message: string }): void;
 }
 
 export function openConvertDialog(deps: ConvertDialogDeps): void {
-    const {t} = deps;
+    const { t } = deps;
     const dialog = new Dialog({
         title: t("convertBtn"),
         width: "560px",
         content: `<div class="b3-dialog__content wengu-convert-dialog">
       <div class="wengu-muted">${esc(t("convertDialogHint"))}</div>
-      ${
-            formGroup(
-                t("convertBtn"),
-                formRow(
-                    t("modelLabel"),
-                    t("setModelHint"),
-                    formSelect("dlg-model", modelOptionsHtml(deps.initialModelId), "data-act"),
-                ) +
-                    formRow(
-                        t("fillToChoice"),
-                        t("fillToChoiceHint"),
-                        formSwitch("dlg-fill", deps.initialFillToChoice, "data-act"),
-                    ) +
-                    formRow(
-                        t("bigToSteps"),
-                        t("bigToStepsHint"),
-                        formSwitch("dlg-steps", deps.initialBigToSteps, "data-act"),
-                    ) +
-                    formRow(
-                        t("convertParallelLabel"),
-                        t("convertParallelHint"),
-                        formSelect(
-                            "dlg-parallel",
-                            formOption("1", t("convertParallel1"), deps.initialParallel <= 1) +
-                                formOption("2", fmt(t("convertParallelN"), {n: "2"}), deps.initialParallel === 2) +
-                                formOption("3", fmt(t("convertParallelN"), {n: "3"}), deps.initialParallel === 3) +
-                                formOption("4", fmt(t("convertParallelN"), {n: "4"}), deps.initialParallel === 4),
-                            "data-act",
-                        ),
-                    ) +
-                    formRow(
-                        t("docIdLabel"),
-                        t("docIdPlaceholder"),
-                        formInput(
-                            "dlg-docid",
-                            deps.activeDocId,
-                            `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
-                            "data-act",
-                        ),
-                    ) +
-                    formRow(
-                        t("convertTarget"),
-                        t("convertTargetHint"),
-                        formSelect(
-                            "dlg-target",
-                            formOption("same", t("convertTargetSame"), deps.initialTargetMode !== "custom") +
-                                formOption("custom", t("convertTargetCustom"), deps.initialTargetMode === "custom"),
-                            "data-act",
-                        ),
-                    ) +
-                    formRow(
-                        t("convertTargetDoc"),
-                        t("convertTargetDocHint"),
-                        formInput(
-                            "dlg-targetid",
-                            deps.initialTargetId,
-                            `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
-                            "data-act",
-                        ),
-                    ) +
-                    formRow(
-                        t("convertKnowLabel"),
-                        t("convertKnowHint"),
-                        formInput(
-                            "dlg-know",
-                            deps.initialKnowRoots,
-                            `spellcheck="false" placeholder="${esc(t("convertKnowPlaceholder"))}"`,
-                            "data-act",
-                        ),
-                    ),
-            )
-        }
+      ${formGroup(
+          t("convertBtn"),
+          formRow(
+              t("modelLabel"),
+              t("setModelHint"),
+              formSelect("dlg-model", modelOptionsHtml(deps.initialModelId), "data-act")
+          ) +
+              formRow(
+                  t("fillToChoice"),
+                  t("fillToChoiceHint"),
+                  formSwitch("dlg-fill", deps.initialFillToChoice, "data-act")
+              ) +
+              formRow(
+                  t("bigToSteps"),
+                  t("bigToStepsHint"),
+                  formSwitch("dlg-steps", deps.initialBigToSteps, "data-act")
+              ) +
+              formRow(
+                  t("convertParallelLabel"),
+                  t("convertParallelHint"),
+                  formSelect(
+                      "dlg-parallel",
+                      formOption("1", t("convertParallel1"), deps.initialParallel <= 1) +
+                          formOption("2", fmt(t("convertParallelN"), { n: "2" }), deps.initialParallel === 2) +
+                          formOption("3", fmt(t("convertParallelN"), { n: "3" }), deps.initialParallel === 3) +
+                          formOption("4", fmt(t("convertParallelN"), { n: "4" }), deps.initialParallel === 4),
+                      "data-act"
+                  )
+              ) +
+              formRow(
+                  t("docIdLabel"),
+                  t("docIdPlaceholder"),
+                  formInput(
+                      "dlg-docid",
+                      deps.activeDocId,
+                      `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
+                      "data-act"
+                  )
+              ) +
+              formRow(
+                  t("convertTarget"),
+                  t("convertTargetHint"),
+                  formSelect(
+                      "dlg-target",
+                      formOption("same", t("convertTargetSame"), deps.initialTargetMode !== "custom") +
+                          formOption("custom", t("convertTargetCustom"), deps.initialTargetMode === "custom"),
+                      "data-act"
+                  )
+              ) +
+              formRow(
+                  t("convertTargetDoc"),
+                  t("convertTargetDocHint"),
+                  formInput(
+                      "dlg-targetid",
+                      deps.initialTargetId,
+                      `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
+                      "data-act"
+                  )
+              ) +
+              formRow(
+                  t("convertKnowLabel"),
+                  t("convertKnowHint"),
+                  formInput(
+                      "dlg-know",
+                      deps.initialKnowRoots,
+                      `spellcheck="false" placeholder="${esc(t("convertKnowPlaceholder"))}"`,
+                      "data-act"
+                  )
+              )
+      )}
       <div class="wengu-status" data-act="dlg-status" hidden></div>
       <div class="wengu-convert-preview" data-act="dlg-preview" hidden></div>
       <div data-act="dlg-resume-row" hidden>
@@ -178,7 +155,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const preview = root.querySelector<HTMLElement>("[data-act='dlg-preview']");
 
     /** 渐进预览：追加本批题目的「题号 题型 题干片段」行并滚到底。 */
-    const appendStems = (stems: {no: number; type: string; stem: string;}[] | undefined): void => {
+    const appendStems = (stems: { no: number; type: string; stem: string }[] | undefined): void => {
         if (!preview || !stems?.length) return;
         preview.removeAttribute("hidden");
         for (const s of stems) {
@@ -187,7 +164,8 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             const key = s.type ? `type${s.type[0].toUpperCase()}${s.type.slice(1)}` : "";
             const known = key ? t(key) : "";
             const typeLabel = known && known !== key ? known : s.type;
-            row.innerHTML = `<span class="wengu-preview-no">${s.no}</span>` +
+            row.innerHTML =
+                `<span class="wengu-preview-no">${s.no}</span>` +
                 (typeLabel ? `<span class="wengu-badge">${esc(typeLabel)}</span>` : "") +
                 `<span class="wengu-preview-stem" title="${esc(s.stem)}">${esc(s.stem)}</span>`;
             preview.appendChild(row);
@@ -224,13 +202,15 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         }
         if (rec) {
             showDlgStatus(
-                esc(fmt(t("convertResumeHint"), {
-                    c: String(rec.count),
-                    b: String(rec.batches),
-                    n: String(rec.total),
-                    title: rec.title,
-                })),
-                "muted",
+                esc(
+                    fmt(t("convertResumeHint"), {
+                        c: String(rec.count),
+                        b: String(rec.batches),
+                        n: String(rec.total),
+                        title: rec.title,
+                    })
+                ),
+                "muted"
             );
         } else if (status && !status.hidden && status.classList.contains("wengu-status-muted")) {
             status.setAttribute("hidden", "");
@@ -246,7 +226,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         await waitForDocInList(r.docId, 15000);
         const c = toConvertResult(r);
         dialog.destroy();
-        deps.onDone({docId: c.docId ?? "", title: c.title ?? "", count: c.count, message: c.message});
+        deps.onDone({ docId: c.docId ?? "", title: c.title ?? "", count: c.count, message: c.message });
     };
 
     /** 终止后的二选一：保留已生成（建文档+记进度）/ 全部丢弃。 */
@@ -258,8 +238,8 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             return;
         }
         showDlgStatus(
-            esc(fmt(t("convertStopped"), {c: String(r.count), b: String(r.batches), n: String(r.total)})),
-            "muted",
+            esc(fmt(t("convertStopped"), { c: String(r.count), b: String(r.batches), n: String(r.total) })),
+            "muted"
         );
         okBtn.textContent = t("convertKeep");
         cancelBtn.textContent = t("convertDiscard");
@@ -292,7 +272,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                         total: r.total,
                         count: r.count,
                     });
-                    await finish({...r, status: "done", docId: created.id, title: created.title});
+                    await finish({ ...r, status: "done", docId: created.id, title: created.title });
                 } catch (e) {
                     setBusy(false);
                     showDlgStatus(String((e as Error)?.message ?? e), "err");
@@ -345,7 +325,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 bigToSteps: bigSteps,
                 parallel,
                 signal: controller.signal,
-                resume: resumeRec ? {offset: resumeRec.offset, docId: resumeRec.docId} : undefined,
+                resume: resumeRec ? { offset: resumeRec.offset, docId: resumeRec.docId } : undefined,
                 targetRaw: genTarget,
                 knowRoots,
                 onProgress: (p) => {
@@ -363,25 +343,32 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                     // 检测总数：截断时 N+（下限）；多批文档数不出时明说「未确定」
                     appendStems(p.newStems);
                     if (p.docId) deps.onBatch?.(p.docId, p.title ?? "", p.count, p.batch, p.total);
-                    const totalHint = p.detected !== undefined && p.detected > 0 ?
-                        ` · ${esc(fmt(t("convertDetected"), {n: String(p.detected)}))}${
-                            p.detectedTruncated ? "+" : ""
-                        }` :
-                        (p.total > 1 ? ` · ${esc(t("convertTotalUnknown"))}` : "");
-                    const lastDelta = p.lastBatch > 0 ?
-                        ` · ${esc(fmt(t("convertLastBatch"), {k: String(p.lastBatch)}))}` :
-                        "";
-                    const main = parallel > 1 ?
-                        esc(fmt(t("convertBatchParallel"), {
-                            b: String(p.batch),
-                            n: String(p.total),
-                            c: String(p.count),
-                        })) :
-                        esc(fmt(t("convertBatchProgress"), {
-                            i: String(p.batch + 1),
-                            n: String(p.total),
-                            c: String(p.count),
-                        }));
+                    const totalHint =
+                        p.detected !== undefined && p.detected > 0
+                            ? ` · ${esc(fmt(t("convertDetected"), { n: String(p.detected) }))}${
+                                  p.detectedTruncated ? "+" : ""
+                              }`
+                            : p.total > 1
+                              ? ` · ${esc(t("convertTotalUnknown"))}`
+                              : "";
+                    const lastDelta =
+                        p.lastBatch > 0 ? ` · ${esc(fmt(t("convertLastBatch"), { k: String(p.lastBatch) }))}` : "";
+                    const main =
+                        parallel > 1
+                            ? esc(
+                                  fmt(t("convertBatchParallel"), {
+                                      b: String(p.batch),
+                                      n: String(p.total),
+                                      c: String(p.count),
+                                  })
+                              )
+                            : esc(
+                                  fmt(t("convertBatchProgress"), {
+                                      i: String(p.batch + 1),
+                                      n: String(p.total),
+                                      c: String(p.count),
+                                  })
+                              );
                     showDlgStatus(`${main}${lastDelta}${totalHint}`, "muted");
                 },
             });

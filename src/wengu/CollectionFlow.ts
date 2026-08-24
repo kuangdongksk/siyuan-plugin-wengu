@@ -1,13 +1,7 @@
-import {applySideFilter} from "./CardHtml";
-import {openCollectionDialog} from "./CollectionDialog";
-import type {
-    CollectionRow,
-    QuestionBank,
-} from "./QuestionBank";
-import type {
-    WenguDoc,
-    WenguQuestion,
-} from "./types";
+import { applySideFilter } from "./CardHtml";
+import { openCollectionDialog } from "./CollectionDialog";
+import type { CollectionRow, QuestionBank } from "./QuestionBank";
+import type { WenguDoc, WenguQuestion } from "./types";
 
 /**
  * 专题编排（从 QuizView 拆出）：持有当前选中的专题 id 与侧栏清单，
@@ -82,7 +76,7 @@ export class CollectionFlow {
             (key) => this.v.t(key),
             this.v.sideFilter(),
             this.rows,
-            this.collectionId,
+            this.collectionId
         );
     }
 

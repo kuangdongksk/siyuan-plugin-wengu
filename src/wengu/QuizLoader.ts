@@ -1,18 +1,11 @@
-import type {ConvertProgressRecord} from "./ConvertBatch";
-import type {HistoryStore} from "./HistoryStore";
-import {cleanOrphanExerciseDocs} from "./OrphanCleaner";
-import {
-    listQuestionDocs,
-    listQuestions,
-} from "./QuestionService";
-import type {WenguSettingsShape as SettingsDialogShape} from "./SettingsDialog";
-import type {TimerController} from "./TimerController";
-import type {
-    WenguDoc,
-    WenguQuestion,
-    WenguRevealMode,
-} from "./types";
-import {clampMinutes} from "./ui";
+import type { ConvertProgressRecord } from "./ConvertBatch";
+import type { HistoryStore } from "./HistoryStore";
+import { cleanOrphanExerciseDocs } from "./OrphanCleaner";
+import { listQuestionDocs, listQuestions } from "./QuestionService";
+import type { WenguSettingsShape as SettingsDialogShape } from "./SettingsDialog";
+import type { TimerController } from "./TimerController";
+import type { WenguDoc, WenguQuestion, WenguRevealMode } from "./types";
+import { clampMinutes } from "./ui";
 
 /**
  * 刷题数据装载（从 QuizView 拆出）：一次 load 要拉的文档列表、当前
@@ -38,7 +31,7 @@ export interface QuizLoadDeps {
     /** 顶栏带来的活动文档（无历史选择时优先）。 */
     activeDocId: string;
     /** 刚生成、索引未可见的习题文档（列表临时补位）。 */
-    pendingDoc?: {id: string; title: string;};
+    pendingDoc?: { id: string; title: string };
 }
 
 /** 装载结果。 */
@@ -46,7 +39,7 @@ export interface QuizLoadResult {
     docs: WenguDoc[];
     docId: string;
     /** pendingDoc 是否仍需保留（未进列表）。 */
-    pendingDoc: {id: string; title: string;} | undefined;
+    pendingDoc: { id: string; title: string } | undefined;
     fullList: WenguQuestion[];
     rounds: Awaited<ReturnType<HistoryStore["docSessions"]>>;
     sideCollapsed: boolean;
@@ -71,8 +64,8 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         rounds: [],
         sideCollapsed: !!deps.prefs.sideCollapsed,
         lastConvertModelId: deps.prefs.lastConvertModelId ?? "",
-        lastConvertFill: deps.prefs.lastConvertFill ?? (deps.settings?.fillToChoice === true),
-        lastConvertSteps: deps.prefs.lastConvertSteps ?? (deps.settings?.bigToSteps === true),
+        lastConvertFill: deps.prefs.lastConvertFill ?? deps.settings?.fillToChoice === true,
+        lastConvertSteps: deps.prefs.lastConvertSteps ?? deps.settings?.bigToSteps === true,
         lastConvertKnow: deps.prefs.lastConvertKnow ?? "",
         convertProgress: deps.prefs.convertProgress ?? {},
         revealMode: deps.settings?.defaultReveal === "after" ? "after" : "instant",
@@ -83,9 +76,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         // 开刷面板默认值来自设置页（design-review P1-3）
         const s = deps.settings;
         const timing = s?.defaultTiming;
-        deps.timer.mode = timing === "countdown" || timing === "none" || timing === "perQuestion" ?
-            timing :
-            "countUp";
+        deps.timer.mode = timing === "countdown" || timing === "none" || timing === "perQuestion" ? timing : "countUp";
         deps.timer.countdownMin = clampMinutes(s?.defaultCountdownMin ?? 20);
         // 源讲义已删的孤儿习题文档先清理（含其会话历史），再拉列表
         try {
@@ -114,9 +105,8 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
             r.docId = remembered && r.docs.some((d) => d.id === remembered) ? remembered : "";
         }
         if (!r.docId && r.docs.length > 0) {
-            r.docId = deps.activeDocId && r.docs.some((d) => d.id === deps.activeDocId) ?
-                deps.activeDocId :
-                r.docs[0].id;
+            r.docId =
+                deps.activeDocId && r.docs.some((d) => d.id === deps.activeDocId) ? deps.activeDocId : r.docs[0].id;
         }
         r.docTotalSec = r.docs.find((d) => d.id === r.docId)?.totalTime ?? 0;
         r.fullList = r.docId ? await listQuestions(r.docId) : [];
@@ -141,11 +131,9 @@ export interface WenguPrefsIo {
     convertProgress?: Record<string, ConvertProgressRecord>;
 }
 
-export async function loadPrefs(
-    storage?: {load: () => Promise<unknown>;},
-): Promise<WenguPrefsIo> {
+export async function loadPrefs(storage?: { load: () => Promise<unknown> }): Promise<WenguPrefsIo> {
     try {
-        const data = await storage?.load() as WenguPrefsIo | "" | null | undefined;
+        const data = (await storage?.load()) as WenguPrefsIo | "" | null | undefined;
         return data && typeof data === "object" ? data : {};
     } catch (_) {
         return {};
@@ -153,8 +141,8 @@ export async function loadPrefs(
 }
 
 export function savePrefs(
-    storage: {save: (v: WenguPrefsIo) => Promise<unknown>;} | undefined,
-    prefs: WenguPrefsIo,
+    storage: { save: (v: WenguPrefsIo) => Promise<unknown> } | undefined,
+    prefs: WenguPrefsIo
 ): void {
     if (!storage) return;
     try {

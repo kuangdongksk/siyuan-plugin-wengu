@@ -1,9 +1,6 @@
-import {svgIcon} from "./FormHtml";
-import {
-    esc,
-    fmt,
-} from "./ui";
-import type {WenguWordStats} from "./WordStore";
+import { svgIcon } from "./FormHtml";
+import { esc, fmt } from "./ui";
+import type { WenguWordStats } from "./WordStore";
 
 /**
  * 单词统计页（WordView 拆件，纯渲染）：
@@ -26,47 +23,51 @@ function num(t: (k: string) => string, key: string, v: number): string {
   </div>`;
 }
 
-export function renderWordStats(
-    t: (k: string) => string,
-    s: WenguWordStats,
-    headHtml: string,
-): string {
+export function renderWordStats(t: (k: string) => string, s: WenguWordStats, headHtml: string): string {
     const max = Math.max(1, ...s.next7);
-    const bars = s.next7.slice(0, 8).map((c, i) =>
-        `<div class="wengu-stats-bar${i === 0 ? " wengu-stats-bar-today" : ""}" title="${c}">
+    const bars = s.next7
+        .slice(0, 8)
+        .map(
+            (c, i) =>
+                `<div class="wengu-stats-bar${i === 0 ? " wengu-stats-bar-today" : ""}" title="${c}">
     <div class="wengu-stats-bar-col" style="height:${Math.max(4, Math.round((c / max) * 100))}%"></div>
     <div class="wengu-stats-bar-count">${c > 0 ? String(c) : ""}</div>
     <div class="wengu-stats-bar-label">${esc(dayLabel(i))}</div>
   </div>`
-    ).join("");
+        )
+        .join("");
     return `<div class="wengu-word">
   ${headHtml}
   <div class="wengu-stats">
     <div class="wengu-stats-row">
-      ${num(t, "wordStatsLearned", s.learned)}${num(t, "wordStatsLeft", s.left)}${
-        num(t, "wordStatsMastered", s.mastered)
-    }
+      ${num(t, "wordStatsLearned", s.learned)}${num(t, "wordStatsLeft", s.left)}${num(
+          t,
+          "wordStatsMastered",
+          s.mastered
+      )}
     </div>
     <div class="wengu-stats-row">
-      ${num(t, "wordStatsTodayNew", s.todayNew)}${num(t, "wordStatsTodayRev", s.todayRev)}${
-        num(t, "wordStatsStreakN", s.streak)
-    }
+      ${num(t, "wordStatsTodayNew", s.todayNew)}${num(t, "wordStatsTodayRev", s.todayRev)}${num(
+          t,
+          "wordStatsStreakN",
+          s.streak
+      )}
     </div>
-    <div class="wengu-stats-sub">${
-        esc(fmt(t("wordStatsLine2"), {
+    <div class="wengu-stats-sub">${esc(
+        fmt(t("wordStatsLine2"), {
             a: String(s.mistakes),
             b: String(s.mistakesPending),
             c: String(s.familiar),
             d: String(s.starred),
             e: String(s.simple),
-        }))
-    }</div>
+        })
+    )}</div>
     <div class="wengu-stats-chart-title">${esc(t("wordStatsNext7"))}</div>
     <div class="wengu-stats-bars">${bars}</div>
     <div class="wengu-word-form-actions">
-      <button class="b3-button b3-button--outline" data-act="home">${svgIcon("iconList")} ${
-        esc(t("wordBackHome"))
-    }</button>
+      <button class="b3-button b3-button--outline" data-act="home">${svgIcon("iconList")} ${esc(
+          t("wordBackHome")
+      )}</button>
     </div>
   </div>
 </div>`;

@@ -1,12 +1,12 @@
-import {Dialog} from "siyuan";
-import {agentChat} from "./AgentClient";
-import {extractBlockId, extractBatchQuestions} from "./ConvertService";
-import {formGroup, formInput, formRow} from "./FormHtml";
-import {injectKnowledgeRefs, sectionKramdown} from "./KnowledgeLink";
-import type {QuestionBank} from "./QuestionBank";
-import type {WenguQuestion} from "./types";
-import {esc} from "./ui";
-import {fetchSyncPost} from "siyuan";
+import { Dialog } from "siyuan";
+import { agentChat } from "./AgentClient";
+import { extractBlockId, extractBatchQuestions } from "./ConvertService";
+import { formGroup, formInput, formRow } from "./FormHtml";
+import { injectKnowledgeRefs, sectionKramdown } from "./KnowledgeLink";
+import type { QuestionBank } from "./QuestionBank";
+import type { WenguQuestion } from "./types";
+import { esc } from "./ui";
+import { fetchSyncPost } from "siyuan";
 
 /**
  * 题卡「重新生成」（④）：题错了/OCR 坏了时按题重出。
@@ -26,37 +26,63 @@ export interface RegenDeps {
     onDone(): void;
 }
 
+/** 一次性事件委托（视图构造时调用一次，重渲染不重复绑定）：
+ *  静态渲染的块引用跳转 + 题卡「重新生成」入口。 */
+export function bindCardActions(
+    el: HTMLElement,
+    deps: {
+        t(key: string): string;
+        find(qid: string): WenguQuestion | undefined;
+        bank?: QuestionBank;
+        modelId(): string;
+        reload(): void;
+    }
+): void {
+    el.addEventListener("click", (ev) => {
+        const target = ev.target as HTMLElement;
+        const ref = target.closest<HTMLElement>("[data-type='block-ref']")?.dataset.id;
+        if (ref) {
+            window.open(`siyuan://blocks/${ref}`);
+            return;
+        }
+        if (!target.closest("[data-act='regen']")) return;
+        const qid = target.closest<HTMLElement>(".wengu-card")?.dataset.qid ?? "";
+        const q = deps.find(qid);
+        if (q && deps.bank)
+            openRegenDialog({ t: deps.t, bank: deps.bank, modelId: deps.modelId(), onDone: deps.reload }, q);
+    });
+}
+
 export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
-    const {t} = deps;
+    const { t } = deps;
     const dialog = new Dialog({
         title: t("regenTitle"),
         width: "560px",
         content: `<div class="b3-dialog__content">
       <div class="wengu-muted">${esc(t("regenHint"))}</div>
-      ${
-            formGroup(
-                t("regenTitle"),
-                formRow(
-                    t("regenSourceLabel"),
-                    t("regenSourceHint"),
-                    formInput(
-                        "regen-src",
-                        "",
-                        `spellcheck="false" placeholder="${esc(t("regenSourcePlaceholder"))}"`,
-                        "data-act",
-                    ),
-                ) + formRow(
-                    t("regenNoteLabel"),
-                    t("regenNoteHint"),
-                    formInput(
-                        "regen-note",
-                        "",
-                        `spellcheck="false" placeholder="${esc(t("regenNotePlaceholder"))}"`,
-                        "data-act",
-                    ),
-                ),
-            )
-        }
+      ${formGroup(
+          t("regenTitle"),
+          formRow(
+              t("regenSourceLabel"),
+              t("regenSourceHint"),
+              formInput(
+                  "regen-src",
+                  "",
+                  `spellcheck="false" placeholder="${esc(t("regenSourcePlaceholder"))}"`,
+                  "data-act"
+              )
+          ) +
+              formRow(
+                  t("regenNoteLabel"),
+                  t("regenNoteHint"),
+                  formInput(
+                      "regen-note",
+                      "",
+                      `spellcheck="false" placeholder="${esc(t("regenNotePlaceholder"))}"`,
+                      "data-act"
+                  )
+              )
+      )}
       <div class="wengu-status" data-act="regen-status" hidden></div>
     </div>
     <div class="b3-dialog__action">
@@ -88,9 +114,9 @@ async function runRegen(
     srcRaw: string,
     note: string,
     show: (text: string, kind: "ok" | "err" | "muted") => void,
-    okBtn?: HTMLButtonElement,
+    okBtn?: HTMLButtonElement
 ): Promise<void> {
-    const {t, bank, modelId} = deps;
+    const { t, bank, modelId } = deps;
     const record = await bank.recordOf(q.id);
     if (!record) {
         show(t("regenNoRecord"), "err");
@@ -104,14 +130,14 @@ async function runRegen(
         const srcId = extractBlockId(srcRaw);
         if (srcId) {
             try {
-                const r = await fetchSyncPost("/api/block/getBlockKramdown", {id: srcId});
-                sourceBlock = String((r.data as {kramdown?: string;} | null)?.kramdown ?? "");
+                const r = await fetchSyncPost("/api/block/getBlockKramdown", { id: srcId });
+                sourceBlock = String((r.data as { kramdown?: string } | null)?.kramdown ?? "");
             } catch (_) {
                 // 原文块拉不到：按无链接模式继续
             }
         }
         const kp = record.kpRefs[0];
-        const section = sourceBlock ? "" : (kp ? await sectionKramdown(kp.id) : "");
+        const section = sourceBlock ? "" : kp ? await sectionKramdown(kp.id) : "";
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
         const reply = await agentChat(prompt, modelId, REGEN_TIMEOUT_MS);
         const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
@@ -120,7 +146,8 @@ async function runRegen(
         // 保留原容器的其余属性（q/type/steps/knowledge/chapter…），只换内容
         const oldIal = /\n(\{:[^\n]*custom-plugin-wengu-q="1"[^\n]*\})\s*$/.exec(record.kramdown)?.[1] ?? "";
         if (oldIal) {
-            kd = kd.replace(/\n(\{:[^\n]*custom-plugin-wengu-q="\d+"[^\n]*\})\s*$/, (_m, ial: string) => `\n${oldIal}`);
+            const tail = /\n(\{:[^\n]*custom-plugin-wengu-q="\d+"[^\n]*\})\s*$/.exec(kd);
+            if (tail) kd = kd.slice(0, tail.index) + "\n" + oldIal;
         }
         kd = injectKnowledgeRefs(kd, record.kpRefs);
         const replaced = await bank.replaceRecordKramdown(q.id, kd);
@@ -128,7 +155,7 @@ async function runRegen(
         await bank.flush();
         // 源文档块尽力同步（updateBlock 单块；失败不阻断，题库为主记录）
         try {
-            await fetchSyncPost("/api/block/updateBlock", {id: q.id, dataType: "markdown", data: kd});
+            await fetchSyncPost("/api/block/updateBlock", { id: q.id, dataType: "markdown", data: kd });
         } catch (_) {
             // 文档块同步失败：题库已是新内容
         }

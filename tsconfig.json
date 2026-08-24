@@ -6,7 +6,5 @@
     "lib": ["es2020", "dom"],
     "strictNullChecks": false
   },
-  "include": [
-    "src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }

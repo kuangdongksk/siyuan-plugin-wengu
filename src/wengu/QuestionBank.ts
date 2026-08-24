@@ -1,13 +1,7 @@
-import {
-    parseQuestionKramdown,
-    questionHash,
-} from "./BankParse";
-import type {ParsedQuestion} from "./BankParse";
-import {
-    getBlockKramdown,
-    listQuestions,
-} from "./QuestionService";
-import type {WenguQuestion} from "./types";
+import { parseQuestionKramdown, questionHash } from "./BankParse";
+import type { ParsedQuestion } from "./BankParse";
+import { getBlockKramdown, listQuestions } from "./QuestionService";
+import type { WenguQuestion } from "./types";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -39,7 +33,7 @@ export interface BankRecord {
     chapter?: string;
     difficulty?: number;
     /** 知识点标题块引用（反链目标，按序去重）。 */
-    kpRefs: {id: string; title: string;}[];
+    kpRefs: { id: string; title: string }[];
     /** 来源习题文档 id。 */
     sourceDocId: string;
     hash: string;
@@ -87,22 +81,23 @@ export class QuestionBank {
     private dirty = false;
     private flushTimer?: number;
     private migrating?: Promise<void>;
-    private readonly parsedCache = new Map<string, {hash: string; parsed: ParsedQuestion;}>();
+    private readonly parsedCache = new Map<string, { hash: string; parsed: ParsedQuestion }>();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
-        private readonly saveRaw: (v: BankData) => Promise<unknown>,
+        private readonly saveRaw: (v: BankData) => Promise<unknown>
     ) {}
 
     private async all(): Promise<BankData> {
         if (this.cache) return this.cache;
         try {
-            const data = await this.loadRaw() as BankData | "" | null | undefined;
-            this.cache = data && typeof data === "object" && data.records ?
-                data :
-                {version: 1, records: {}, collections: [], migratedDocs: [], hashed: {}};
+            const data = (await this.loadRaw()) as BankData | "" | null | undefined;
+            this.cache =
+                data && typeof data === "object" && data.records
+                    ? data
+                    : { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {} };
         } catch (_) {
-            this.cache = {version: 1, records: {}, collections: [], migratedDocs: [], hashed: {}};
+            this.cache = { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {} };
         }
         return this.cache;
     }
@@ -159,14 +154,13 @@ export class QuestionBank {
                     qid: q.id,
                     kramdown: kd,
                     type: parsed.type ?? "brief",
-                    ...(parsed.knowledge ? {knowledge: parsed.knowledge} : {}),
-                    ...(parsed.chapter ? {chapter: parsed.chapter} : {}),
-                    ...(parsed.difficulty !== undefined ? {difficulty: parsed.difficulty} : {}),
+                    ...(parsed.knowledge ? { knowledge: parsed.knowledge } : {}),
+                    ...(parsed.chapter ? { chapter: parsed.chapter } : {}),
+                    ...(parsed.difficulty !== undefined ? { difficulty: parsed.difficulty } : {}),
                     kpRefs: parsed.kpRefs,
                     sourceDocId: docId,
                     hash,
-                    stats: exists?.stats ??
-                        {attempts: q.attempts, wrongCount: q.wrongCount, updatedAt: Date.now()},
+                    stats: exists?.stats ?? { attempts: q.attempts, wrongCount: q.wrongCount, updatedAt: Date.now() },
                 };
                 data.hashed[hash] = q.id;
                 added++;
@@ -193,7 +187,7 @@ export class QuestionBank {
     }
 
     /** 存量迁移（后台一次）：listQuestionDocs 里有而未迁移过的文档。 */
-    async ensureMigrated(docs: {id: string; title?: string;}[]): Promise<void> {
+    async ensureMigrated(docs: { id: string; title?: string }[]): Promise<void> {
         const data = await this.all();
         const pending = docs.filter((d) => d.id && !data.migratedDocs.includes(d.id));
         if (pending.length === 0) return;
@@ -240,7 +234,7 @@ export class QuestionBank {
             if (!parsed) {
                 parsed = parseQuestionKramdown(r.kramdown, r.qid);
                 if (!parsed) continue;
-                this.parsedCache.set(qid, {hash: r.hash, parsed});
+                this.parsedCache.set(qid, { hash: r.hash, parsed });
             }
             out.push(overlayStats(parsed, r));
         }
@@ -253,7 +247,7 @@ export class QuestionBank {
         return data.collections
             .slice()
             .sort((a, b) => b.createdAt - a.createdAt)
-            .map((c) => ({id: c.id, title: c.title, count: c.qids.length}));
+            .map((c) => ({ id: c.id, title: c.title, count: c.qids.length }));
     }
 
     /** 全库知识点索引（kp 引用优先，降级 knowledge/chapter 文本）。 */
@@ -261,13 +255,16 @@ export class QuestionBank {
         const data = await this.all();
         const acc = new Map<string, KnowledgeRow>();
         for (const r of Object.values(data.records)) {
-            const keys = r.kpRefs.length > 0 ?
-                r.kpRefs.map((k) => ({key: `kp:${k.id}`, title: k.title})) :
-                (r.knowledge ?
-                    [{key: `kn:${r.knowledge}`, title: r.knowledge}] :
-                    (r.chapter ? [{key: `ch:${r.chapter}`, title: r.chapter}] : []));
+            const keys =
+                r.kpRefs.length > 0
+                    ? r.kpRefs.map((k) => ({ key: `kp:${k.id}`, title: k.title }))
+                    : r.knowledge
+                      ? [{ key: `kn:${r.knowledge}`, title: r.knowledge }]
+                      : r.chapter
+                        ? [{ key: `ch:${r.chapter}`, title: r.chapter }]
+                        : [];
             for (const k of keys) {
-                const row = acc.get(k.key) ?? {key: k.key, title: k.title, count: 0};
+                const row = acc.get(k.key) ?? { key: k.key, title: k.title, count: 0 };
                 row.count++;
                 acc.set(k.key, row);
             }
@@ -280,15 +277,16 @@ export class QuestionBank {
         const data = await this.all();
         const set = new Set(keys);
         return Object.values(data.records)
-            .filter((r) =>
-                r.kpRefs.some((k) => set.has(`kp:${k.id}`)) ||
-                (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
-                (r.chapter && set.has(`ch:${r.chapter}`))
+            .filter(
+                (r) =>
+                    r.kpRefs.some((k) => set.has(`kp:${k.id}`)) ||
+                    (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
+                    (r.chapter && set.has(`ch:${r.chapter}`))
             )
             .sort((a, b) =>
-                a.sourceDocId === b.sourceDocId ?
-                    a.qid.localeCompare(b.qid) :
-                    a.sourceDocId.localeCompare(b.sourceDocId)
+                a.sourceDocId === b.sourceDocId
+                    ? a.qid.localeCompare(b.qid)
+                    : a.sourceDocId.localeCompare(b.sourceDocId)
             )
             .map((r) => r.qid);
     }
@@ -304,7 +302,7 @@ export class QuestionBank {
         };
         data.collections.push(row);
         this.markDirty();
-        return {id: row.id, title: row.title, count: row.qids.length};
+        return { id: row.id, title: row.title, count: row.qids.length };
     }
 
     async deleteCollection(id: string): Promise<void> {
@@ -361,7 +359,7 @@ export class QuestionBank {
         let n = 0;
         for (const r of Object.values(data.records)) {
             if (r.kpRefs.some((k) => k.id === oldId)) {
-                r.kpRefs = r.kpRefs.map((k) => (k.id === oldId ? {id: newId, title} : k));
+                r.kpRefs = r.kpRefs.map((k) => (k.id === oldId ? { id: newId, title } : k));
                 this.parsedCache.delete(r.qid);
                 n++;
             }
@@ -374,17 +372,17 @@ export class QuestionBank {
      *  kpRoots 由调用方查好（kp 块 id → 所在文档 id）。 */
     async questionsRelatedToDoc(
         docId: string,
-        kpRoots: Map<string, string>,
-    ): Promise<{qid: string; stem: string; attempts: number; wrongCount: number;}[]> {
+        kpRoots: Map<string, string>
+    ): Promise<{ qid: string; stem: string; attempts: number; wrongCount: number }[]> {
         const data = await this.all();
-        const out: {qid: string; stem: string; attempts: number; wrongCount: number;}[] = [];
+        const out: { qid: string; stem: string; attempts: number; wrongCount: number }[] = [];
         for (const r of Object.values(data.records)) {
-            const hit = r.sourceDocId === docId ||
-                r.kpRefs.some((k) => kpRoots.get(k.id) === docId);
+            const hit = r.sourceDocId === docId || r.kpRefs.some((k) => kpRoots.get(k.id) === docId);
             if (!hit) continue;
-            const parsed = this.parsedCache.get(r.qid)?.hash === r.hash ?
-                this.parsedCache.get(r.qid)!.parsed :
-                parseQuestionKramdown(r.kramdown, r.qid);
+            const parsed =
+                this.parsedCache.get(r.qid)?.hash === r.hash
+                    ? this.parsedCache.get(r.qid)!.parsed
+                    : parseQuestionKramdown(r.kramdown, r.qid);
             out.push({
                 qid: r.qid,
                 stem: (parsed?.stemMd ?? r.kramdown).replace(/\s+/g, " ").trim().slice(0, 60),
@@ -399,19 +397,16 @@ export class QuestionBank {
     async recordsByKeys(keys: string[]): Promise<BankRecord[]> {
         const data = await this.all();
         const set = new Set(keys);
-        return Object.values(data.records).filter((r) =>
-            r.kpRefs.some((k) => set.has(`kp:${k.id}`)) ||
-            (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
-            (r.chapter && set.has(`ch:${r.chapter}`))
+        return Object.values(data.records).filter(
+            (r) =>
+                r.kpRefs.some((k) => set.has(`kp:${k.id}`)) ||
+                (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
+                (r.chapter && set.has(`ch:${r.chapter}`))
         );
     }
 
     /** 生成的新题入库（针对性练习；qid 自分配，来源标记 gen）。 */
-    async addGenerated(
-        kd: string,
-        kpRefs: {id: string; title: string}[],
-        title: string,
-    ): Promise<string> {
+    async addGenerated(kd: string, kpRefs: { id: string; title: string }[], title: string): Promise<string> {
         const data = await this.all();
         const parsed = parseQuestionKramdown(kd, "");
         if (!parsed) throw new Error("generated question parse failed");
@@ -423,16 +418,16 @@ export class QuestionBank {
             qid,
             kramdown: kd,
             type: parsed.type ?? "brief",
-            ...(parsed.knowledge ? {knowledge: parsed.knowledge} : {}),
-            ...(parsed.chapter ? {chapter: parsed.chapter} : {}),
-            ...(parsed.difficulty !== undefined ? {difficulty: parsed.difficulty} : {}),
+            ...(parsed.knowledge ? { knowledge: parsed.knowledge } : {}),
+            ...(parsed.chapter ? { chapter: parsed.chapter } : {}),
+            ...(parsed.difficulty !== undefined ? { difficulty: parsed.difficulty } : {}),
             kpRefs,
             sourceDocId: "",
             hash,
-            stats: {attempts: 0, wrongCount: 0, updatedAt: Date.now()},
+            stats: { attempts: 0, wrongCount: 0, updatedAt: Date.now() },
         };
         data.hashed[hash] = qid;
-        const col = data.collections.find((c) => c.id === title);
+        const col = data.collections.find((c) => c.title === title);
         if (col) col.qids.push(qid);
         this.markDirty();
         return qid;
@@ -442,7 +437,13 @@ export class QuestionBank {
     async ensureCollection(title: string): Promise<void> {
         const data = await this.all();
         if (!data.collections.some((c) => c.title === title)) {
-            data.collections.push({id: `col-${Date.now().toString(36)}`, title, qids: [], origin: "manual", createdAt: Date.now()});
+            data.collections.push({
+                id: `col-${Date.now().toString(36)}`,
+                title,
+                qids: [],
+                origin: "manual",
+                createdAt: Date.now(),
+            });
             this.markDirty();
         }
     }

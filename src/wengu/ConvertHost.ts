@@ -1,10 +1,10 @@
-import type {ConvertProgressRecord} from "./ConvertBatch";
-import {openConvertDialog} from "./ConvertDialog";
-import type {ProgressivePreview} from "./ProgressivePreview";
-import {showBatchPreview} from "./ProgressivePreview";
-import type {WenguSettingsShape as SettingsDialogShape} from "./SettingsDialog";
-import type {WenguQuestion} from "./types";
-import {fmt} from "./ui";
+import type { ConvertProgressRecord } from "./ConvertBatch";
+import { openConvertDialog } from "./ConvertDialog";
+import type { ProgressivePreview } from "./ProgressivePreview";
+import { showBatchPreview } from "./ProgressivePreview";
+import type { WenguSettingsShape as SettingsDialogShape } from "./SettingsDialog";
+import type { WenguQuestion } from "./types";
+import { fmt } from "./ui";
 
 /**
  * 转换编排（从 QuizView 拆出）：组装 ConvertDialog 的依赖、转换按钮
@@ -39,7 +39,7 @@ export interface ConvertHostCtx {
     /** 全部丢弃后回调（页签恢复原状）。 */
     onCancel?(): void;
     /** 成功收尾：切到新文档、重载、报状态（视图实现）。 */
-    onDone(r: {docId: string; title: string; count: number;}): void;
+    onDone(r: { docId: string; title: string; count: number }): void;
 }
 
 /** 打开 AI 转习题弹窗（预选值：prefs 上次 > 设置默认）。 */
@@ -71,7 +71,7 @@ export interface ConvertViewAccess {
     /** 顶栏带来的活动文档 id。 */
     activeDocIdOf(): string;
     settingsOf(): SettingsDialogShape | undefined;
-    lastConvert(): {modelId: string; fill: boolean; steps: boolean; know: string;};
+    lastConvert(): { modelId: string; fill: boolean; steps: boolean; know: string };
     convertParallelOf(): number;
     /** 弹窗选择落 prefs。 */
     saveConvertChoice(modelId: string, fill: boolean, steps: boolean, know: string): void;
@@ -87,7 +87,7 @@ export interface ConvertViewAccess {
     applyQuizList(list: WenguQuestion[]): void;
     reloadView(): void;
     /** 转换完成收尾（pendingDoc/选中/刷新/状态条）。 */
-    onConvertDone(r: {docId: string; title: string; count: number; message?: string;}): void;
+    onConvertDone(r: { docId: string; title: string; count: number; message?: string }): void;
 }
 
 /** 由视图能力组装 ConvertHostCtx 并打开弹窗（openConvert 的拆出体）。 */
@@ -155,5 +155,5 @@ export function showStatus(el: HTMLElement, text: string, kind: "ok" | "err" | "
 
 /** 转换成功后的统一收尾文案（onDone 里展示用）。 */
 export function convertDoneText(t: (k: string) => string, title: string, count: number): string {
-    return fmt(t("convertDone"), {title, n: String(count)});
+    return fmt(t("convertDone"), { title, n: String(count) });
 }
