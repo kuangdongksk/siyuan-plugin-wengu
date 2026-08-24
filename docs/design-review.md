@@ -8,8 +8,9 @@
 > **进度**：P0 全部、P1 全部、P2-3/P2-5 已完成（2026-08-22）；模块化
 > 拆分完成且全仓单文件 ≤500 行（最大 QuizView 490），新增
 > CardHtml/ProtyleHost/AnswerFlow/StepsFlow/AiJudge/ConvertDialog/
-> RoundReport/QuizLoader/OrphanCleaner/QuestionGrading/Flashcards/
-> ConvertHost/ViewBindings/NumRail/AgentClient/FormHtml。
+> RoundReport/QuizLoader/OrphanCleaner/QuestionGrading/
+> ConvertHost/ViewBindings/NumRail/AgentClient/FormHtml（Flashcards
+> 20260823 删除——错题闪卡废弃，见 question-block-contract.md）。
 
 ## 〇、界面规范（2026-08-22 起硬性约定）
 
@@ -40,7 +41,7 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
 | `src/wengu/CardHtml.ts`        | 470  | 纯 HTML 构建：题卡/作答位/目录/头部/主区外壳                    |
 | `src/wengu/StepsFlow.ts`       | 453  | steps 多步引导题作答流程                                        |
 | `src/wengu/AnswerFlow.ts`      | 440  | 作答流程：判分/揭示/自评/恢复已答                               |
-| `src/wengu/ConvertDialog.ts`   | 425  | AI 转习题弹窗                                                   |
+| `src/wengu/ConvertDialog.ts`   | 425  | AI 转习题弹窗（原位/另存 + PDF 导入入口）                       |
 | `src/wengu/QuestionService.ts` | 393  | 块读写内核 API：SQL 聚合、hydrate、记账（判分/闪卡 re-export）  |
 | `src/wengu/RoundReport.ts`     | 337  | 一轮总结：图表 + AI 分析 + 收卷编排（openAgentWithPrompt 复用） |
 | `src/wengu/StartPanel.ts`      | 287  | 开刷面板：RoundConfig 表单渲染/读取/开轮                        |
@@ -67,6 +68,8 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
 | `src/wengu/OrphanCleaner.ts`   | 55   | 孤儿习题文档清理（源删则习题随删，进回收站）                    |
 | `src/wengu/attrs.ts`           | 53   | 属性名常量                                                      |
 | `src/wengu/ui.ts`              | 40   | esc/fmt/mmss/clampMinutes                                       |
+| `src/wengu/MinerUClient.ts`    | 200  | MinerU 解析客户端（forwardProxy + OSS 直连 + fflate 解压）      |
+| `src/wengu/PdfImport.ts`       | 150  | PDF 导入编排：插图落 assets + 建原文档                          |
 | `src/wengu/ViewBindings.ts`    | 39   | 头部与目录事件绑定（搜索/委托点击/统计入口）                    |
 
 分层：**内核 API（QuestionService/ConvertService/AgentClient）→

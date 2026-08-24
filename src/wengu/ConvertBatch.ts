@@ -1,27 +1,35 @@
 import { fetchSyncPost } from "siyuan";
-import { agentChat } from "./AgentClient";
+import { detectQuestions, questionPreview } from "./ConvertDetect";
+import type { QuestionPreview } from "./ConvertDetect";
 import {
     buildPrompt,
     createExerciseDoc,
     extractBatchQuestions,
     extractBlockId,
     getDocInfo,
+    hasChildDocs,
     isMaterialKramdown,
-    parseVerdict,
+    removeDoc,
+    replaceDocInPlace,
+    ReplaceInplaceError,
     resolveTarget,
 } from "./ConvertService";
-import type { ConvertResult, DocInfo } from "./ConvertService";
 import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { fmt } from "./ui";
 
 /**
  * 分批转换编排（从 ConvertService 拆出）：长文档按空行边界切块逐批
- * 生成，批次结果累积在内存，完成（或终止保留）时一次性
- * createDocWithMd 落盘——真机 3.8.0 验证没有可靠的「追加到已有文档」
- * 通道（updateBlock 多块并一段/丢内容、transactions insert 无效），
- * 所以进度持久化只记「已生成到源文档的字符偏移 + 已建文档 id」，
- * 继续生成 = 拉旧文档 kramdown 并入累积、从偏移处续跑剩余批。
+ * 生成，批次结果累积在内存——真机 3.8.0 验证没有可靠的「追加到已有
+ * 文档」通道（updateBlock 多块并一段/丢内容、transactions insert
+ * 无效），所以只能删旧重建式落盘。
+ *
+ * 落盘双模式（writeMode）：inplace=**终态一次性**原位替换（转换期间
+ * 原文档不动，完成时删旧同路径同标题重建，写盘时刻重查位置/子文档，
+ * 见 ConvertService.replaceDocInPlace）；newdoc=另存《标题·习题》+
+ * **渐进式落盘**（每批删旧重建累积文档，文档树实时长大，页签渐进
+ * 呈现）。并发池（parallel>1 走 chatGPT 通道）按「连续完成前缀」
+ * 拼装，题目顺序始终是原文档的忠实前缀。
  */
 
 /** 单批字符上限（略小于 MAX_SOURCE_CHARS，给 prompt 头部留余量）。 */
@@ -51,45 +59,6 @@ export function chunkKramdown(md: string, maxChars = CHUNK_CHARS): SourceChunk[]
     return out;
 }
 
-/** 检测窗口：检测调用只看前 N 字符（输入越长内核 AI 越易超时；
- *  超窗时 AI 只数可见部分并带 + 号（如 12+），UI 如实展示。 */
-const DETECT_CHARS = 12000;
-
-/** 前置检测：能否出题 + 原文现成题目数（试卷题库才有意义）。
- *  truncated=文档超出检测窗口，count 是可见部分的下限（N+）。 */
-export interface DetectResult {
-    can: boolean;
-    reason: string;
-    /** 原文现成题目数；讲义/无法判定为 undefined。 */
-    count?: number;
-    /** 文档超出检测窗口，计数只覆盖可见前缀。 */
-    truncated?: boolean;
-}
-
-/** 检测超时短一些：输出只有三行。 */
-const DETECT_TIMEOUT_MS = 120_000;
-
-export async function detectQuestions(source: string, modelId: string, signal?: AbortSignal): Promise<DetectResult> {
-    const truncated = source.length > DETECT_CHARS;
-    const head = truncated ? `${source.slice(0, DETECT_CHARS)}\n<!-- 内容过长已截断 -->` : source;
-    const reply = await agentChat(
-        `你是思源笔记出题助手的前置检查。判断下面的文档是否适合出题，并统计其中现成题目的数量。
-输出严格三行，格式之外不要输出任何文字：
-CAN_CONVERT: yes 或 no
-COUNT: 数字（原文中现成题目的总数；讲义/笔记等没有现成题目时输出 0；若下方内容带「已截断」标记，只数可见部分并在数字后紧跟一个加号，如 12+）
-REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不能转换时说明原因）
-文档内容：
-${head}`,
-        modelId,
-        DETECT_TIMEOUT_MS,
-        signal
-    );
-    const verdict = parseVerdict(reply);
-    const cm = /COUNT\s*[:：]\s*(\d+)\s*(\+)?/i.exec(reply);
-    const count = cm ? Number(cm[1]) : undefined;
-    return { can: verdict.can, reason: verdict.reason, count, truncated: truncated && !!cm };
-}
-
 /** 转换进度回调（弹窗状态行展示）。 */
 export interface ConvertProgress {
     /** detect=前置检测中；generating=逐批生成中；writing=落盘中。 */
@@ -108,42 +77,18 @@ export interface ConvertProgress {
     detectedTruncated?: boolean;
     /** 刚完成那批的题目预览（弹窗渐进展示）。 */
     newStems?: QuestionPreview[];
-    /** 渐进落盘的习题文档（每批重建，id 会变；页签据此渐进呈现）。 */
+    /** 渐进落盘的习题文档（每批重建，id 会变；页签据此渐进呈现，
+     *  原位模式无渐进文档、不出现）。 */
     docId?: string;
     title?: string;
 }
 
-/** 弹窗预览行：题号 + 题型 + 题干片段。 */
-export interface QuestionPreview {
-    no: number;
-    type: string;
-    stem: string;
-}
-
-/** 从题目 kramdown 抽预览：题型属性 + 去标记后的题干开头（截 80 字）。
- *  材料块无 type 属性，type 记为 "material"（弹窗按 typeMaterial 标签展示）。 */
-export function questionPreview(kd: string, no: number): QuestionPreview {
-    const type = isMaterialKramdown(kd) ? "material" : (/custom-plugin-wengu-type="([a-z]+)"/.exec(kd)?.[1] ?? "");
-    const stem = kd
-        .split(/\r?\n/)
-        .filter(
-            (l) =>
-                !/^\s*\{:/.test(l) && // IAL 属性行
-                !/^\s*\{\{\{/.test(l) && // 超级块定界
-                !/^\s*\}\}\}/.test(l) &&
-                !/^\s*>/.test(l) && // 答案/解析引述
-                !/^\s*[-*]\s/.test(l) // 选项列表
-        )
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-    return { no, type, stem: stem.slice(0, 80) };
-}
-
-/** 终止保留的进度记录（prefs 持久化，重开思源后可继续生成）。 */
+/** 终止/失败保留的进度记录（prefs 持久化，重开思源后可继续生成）。
+ *  渐进/另存模式保留部分习题文档（docId）；原位模式原文档不动，
+ *  已生成 kramdown 直接存进记录（kramdown）。 */
 export interface ConvertProgressRecord {
-    /** 保留的（部分）习题文档 id。 */
-    docId: string;
+    /** 保留的（部分）习题文档 id（渐进/另存模式）。 */
+    docId?: string;
     title: string;
     /** 已生成覆盖到的源文档字符偏移。 */
     offset: number;
@@ -152,6 +97,8 @@ export interface ConvertProgressRecord {
     total: number;
     /** 已生成题数。 */
     count: number;
+    /** 已生成的题目 kramdown（原位模式续跑并入）。 */
+    kramdown?: string;
 }
 
 /** 批式转换结果：done=全部完成；aborted=用户终止（未落盘）。 */
@@ -175,8 +122,10 @@ export interface BatchedResult {
 export interface ResumeInfo {
     /** 已生成覆盖到的源文档偏移。 */
     offset: number;
-    /** 上次保留的习题文档（其内容并入本次结果）。 */
-    docId: string;
+    /** 上次保留的部分习题文档（渐进/另存模式，内容并入本次结果）。 */
+    docId?: string;
+    /** 上次保留的题目 kramdown（原位模式，内容并入本次结果）。 */
+    kramdown?: string;
 }
 
 /** 分批转换主流程。终止时返回 aborted + 已累积内容（不落盘）。 */
@@ -191,7 +140,9 @@ export async function convertDocBatched(
         parallel?: number;
         signal?: AbortSignal;
         resume?: ResumeInfo;
-        /** 生成位置：空=原文档同目录；否则生成到指定父文档下面。 */
+        /** 落盘模式：inplace=原位替换原文档；newdoc=另存《·习题》（默认）。 */
+        writeMode?: "inplace" | "newdoc";
+        /** 生成位置（仅 newdoc）：空=原文档同目录；否则指定父文档下面。 */
         targetRaw?: string;
         /** 知识点根文档 id（书架/书/章），非空时路由小节并注入知识点反链。 */
         knowRoots?: string[];
@@ -199,12 +150,25 @@ export async function convertDocBatched(
     }
 ): Promise<BatchedResult> {
     const { t } = opts;
+    const inplace = opts.writeMode === "inplace";
     const docId = extractBlockId(docIdRaw);
     const info = await getDocInfo(docId);
     if (!info?.notebook) {
         return {
             status: "failed",
             message: t("convertNoDoc"),
+            count: 0,
+            batches: 0,
+            total: 0,
+            doneOffset: 0,
+            kramdown: "",
+        };
+    }
+    // 原位替换会连子文档一起删——开始即拦（写盘时刻 replaceDocInPlace 还会重查）
+    if (inplace && (await hasChildDocs(docId))) {
+        return {
+            status: "failed",
+            message: t("convertInplaceChildren"),
             count: 0,
             batches: 0,
             total: 0,
@@ -226,11 +190,16 @@ export async function convertDocBatched(
         };
     }
 
-    // 继续生成：旧文档内容并入累积，只跑剩余批
+    // 继续生成：上次保留内容并入累积（渐进/另存=旧部分文档 kramdown，
+    // 原位=记录里的 kramdown），只跑剩余批
     let existing = "";
     if (opts.resume) {
-        const old = await fetchSyncPost("/api/block/getBlockKramdown", { id: opts.resume.docId });
-        existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
+        if (opts.resume.kramdown) {
+            existing = opts.resume.kramdown;
+        } else if (opts.resume.docId) {
+            const old = await fetchSyncPost("/api/block/getBlockKramdown", { id: opts.resume.docId });
+            existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
+        }
     }
     const allChunks = chunkKramdown(kramdown);
     const chunks = opts.resume ? allChunks.filter((c) => c.offset >= opts.resume!.offset) : allChunks;
@@ -280,10 +249,10 @@ export async function convertDocBatched(
     const parts: string[] = [];
     let doneOffset = opts.resume?.offset ?? 0;
     let count = 0;
-    let lastBatch: number;
-    // 目标位置提前解析（每批渐进重建都用到）；失败直接早退
-    const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
-    if (!loc.ok) {
+    let lastBatch = 0;
+    // 目标位置提前解析（渐进重建每批用到；仅另存模式，原位写盘自定位）
+    const loc = inplace ? undefined : await resolveTarget(info, opts.targetRaw ?? "", t);
+    if (loc && !loc.ok) {
         return {
             status: "failed",
             message: loc.message,
@@ -294,8 +263,9 @@ export async function convertDocBatched(
             kramdown: "",
         };
     }
-    // 渐进式落盘：每批后删除重建累积文档（内核无追加通道，删+建是本地快操作），
-    // 生成期间文档树里即可查看已生成部分；重建失败不阻断生成，末尾兜底落盘。
+    // 渐进式落盘（仅另存）：每批后删除重建累积文档，生成期间文档树里
+    // 即可查看已生成部分；重建失败不阻断生成，末尾兜底落盘。原位模式
+    // 转换期间原文档不动（不能每批删一次源文档），终态一次性替换。
     let created: { id: string; title: string } | undefined;
     let oldResumeRemoved = false;
     // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
@@ -351,15 +321,17 @@ export async function convertDocBatched(
         }
         if (newStems.length === 0) return;
         const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
-        try {
-            if (created) await removeDoc(created.id);
-            created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
-            if (opts.resume && !oldResumeRemoved) {
-                await removeDoc(opts.resume.docId);
-                oldResumeRemoved = true;
+        if (!inplace) {
+            try {
+                if (created) await removeDoc(created.id);
+                created = await createExerciseDoc(loc!.notebook, loc!.parentPath, info.title, markdown, docId);
+                if (opts.resume?.docId && !oldResumeRemoved) {
+                    await removeDoc(opts.resume.docId);
+                    oldResumeRemoved = true;
+                }
+            } catch (_) {
+                created = undefined;
             }
-        } catch (_) {
-            created = undefined;
         }
         opts.onProgress({
             phase: contiguous >= chunks.length ? "writing" : "generating",
@@ -431,9 +403,57 @@ export async function convertDocBatched(
             kramdown: "",
         };
     }
-    // 渐进重建已落盘则直接用；中途重建失败过才在这里兜底创建
+    // 插图自检：源文档的图片行没被带进生成结果（真机案例：AI 读不了
+    // 图、把带图题整题跳过），完成消息里附警告提示重新转换
+    const srcImgs = new Set(kramdown.match(/!\[\]\([^)\s]+\)/g) ?? []);
+    const outImgs = new Set(markdown.match(/!\[\]\([^)\s]+\)/g) ?? []);
+    let missingImgs = 0;
+    for (const img of srcImgs) {
+        if (!outImgs.has(img)) missingImgs++;
+    }
+    const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), { n: String(missingImgs) })}` : "";
+    const detectedMsg =
+        detected !== undefined && detected > 0
+            ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : "")
+            : "";
+    // 落盘：原位=写盘时刻重查后删旧同路径同标题重建（不加 source-doc
+    // 配对——源即本文档；旧配对改指新 id 见 replaceDocInPlace）；
+    // 另存=渐进重建已落盘则直接用，中途失败过才在这里兜底创建
+    if (inplace) {
+        let replaced: { id: string; title: string };
+        try {
+            replaced = await replaceDocInPlace(info, markdown);
+        } catch (e) {
+            if (e instanceof ReplaceInplaceError) {
+                // 写盘时刻状态已变（原文档被删/中途建了子文档）：按终止
+                // 处理，已生成内容不丢——挪走子文档后可继续生成剩余部分
+                return {
+                    status: "aborted",
+                    message: e.reason === "hasChildren" ? t("convertInplaceChildren") : t("convertNoDoc"),
+                    count,
+                    batches: chunks.length,
+                    total: chunks.length,
+                    doneOffset,
+                    kramdown: markdown,
+                };
+            }
+            throw e;
+        }
+        if (opts.resume?.docId) await removeDoc(opts.resume.docId);
+        return {
+            status: "done",
+            message: detectedMsg + imgWarn,
+            docId: replaced.id,
+            title: replaced.title,
+            count,
+            batches: chunks.length,
+            total: chunks.length,
+            doneOffset: kramdown.length,
+            kramdown: markdown,
+        };
+    }
     if (!created) {
-        created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
+        created = await createExerciseDoc(loc!.notebook, loc!.parentPath, info.title, markdown, docId);
     }
     const doneMsg: string[] = [];
     if (detected !== undefined && detected > 0) {
@@ -442,7 +462,7 @@ export async function convertDocBatched(
     if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
     return {
         status: "done",
-        message: doneMsg.join(" · "),
+        message: doneMsg.join(" · ") + imgWarn,
         docId: created.id,
         title: created.title,
         count,
@@ -450,38 +470,5 @@ export async function convertDocBatched(
         total: chunks.length,
         doneOffset: kramdown.length,
         kramdown: markdown,
-    };
-}
-
-/** 终止保留 / 继续生成完成后的落盘：把累积 kramdown 建成习题文档。 */
-export async function writeExerciseDoc(
-    info: DocInfo,
-    markdown: string,
-    srcDocId = "",
-    targetRaw = "",
-    t: (key: string) => string = () => ""
-): Promise<{ id: string; title: string }> {
-    const loc = await resolveTarget(info, targetRaw, t);
-    if (!loc.ok) throw new Error(loc.message);
-    return createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, srcDocId);
-}
-
-/** 继续生成完成后删掉上次终止保留的旧文档（换成完整新文档）。 */
-export async function removeDoc(docId: string): Promise<void> {
-    try {
-        await fetchSyncPost("/api/filetree/removeDocByID", { id: docId });
-    } catch (_) {
-        // 删除失败不影响主流程（旧文档保留）
-    }
-}
-
-/** 单发结果包装（兼容弹窗的 onDone 汇报）。 */
-export function toConvertResult(r: BatchedResult): ConvertResult {
-    return {
-        canConvert: r.status === "done",
-        message: r.message,
-        docId: r.docId,
-        title: r.title,
-        count: r.count,
     };
 }

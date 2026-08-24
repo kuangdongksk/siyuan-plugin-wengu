@@ -59,6 +59,8 @@ interface WenguSettings {
     convertTargetMode?: "same" | "custom";
     /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
     convertTargetId?: string;
+    /** MinerU API Token（mineru.net 注册获取，PDF 导入用）。 */
+    mineruToken?: string;
     /** 由插件注入的落盘回调。 */
     save?: () => void;
 }

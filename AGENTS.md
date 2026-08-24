@@ -80,12 +80,18 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   `updateBlock` 打文档根传多块 → 全部并成**一个段落**；打普通子块传
   多块 → **只保留第一段、后续段丢失**（危险）；`/api/transactions`
   的 `insert` 操作返回 code 0 但**静默无效**。增量写入只能
-  「累积内容后整体 createDocWithMd 重建」。
-- 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
+  「累积内容后整体 createDocWithMd 重建」（原位替换 = 删旧 +
+  同路径同标题重建，见 ConvertService.replaceDocInPlace）。
+
+* **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
+  fetch + `window.siyuan.config.api.token` 鉴权（见 PdfImport.putAsset）。
+* 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
 references:[], model?}`，model=设置里模型 id；`event:content` 的
-  `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
-  调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
+
+    `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
+    调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
 instance"}`（20260823 真机验证）。
+
 - 旧直答端点 `/api/ai/chatGPT`（`{msg}` → `{code,data:回复全文}`）
   **支持并发**（真机验证），模型跟随设置默认、不可按次指定；插件要
   并发 AI 只有这条路。conf.json 里 providers 的 apiKey 是**内核加密
@@ -100,6 +106,26 @@ instance"}`（20260823 真机验证）。
 - Lute：自建实例必须 `SetInlineMath(true)`（编辑器默认关行级公式，
   否则 `$...$` 原样输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发
   getDoc 挂起）。
+
+## 外部 API：MinerU（PDF 解析，20260823 接入）
+
+- **浏览器直连 mineru.net API 被 CORS 拦**（OPTIONS 405、响应无
+  ACAO 头）：JSON 请求一律走内核 `/api/network/forwardProxy`
+  `{url, method, headers, payload?, timeout}`，上游响应在
+  `data.body`（3.8.0 真机验证可用）。
+- forwardProxy 的 payload 只收 **string，二进制过不去**：PUT 上传
+  PDF、下载结果 zip 这两步浏览器直连 OSS 预签名地址。PUT **绝不能
+  带 Content-Type**（官方 issue #4145：预签名按无该头计算，File/Blob
+  body 会被 fetch 自动补类型——用 ArrayBuffer body）。
+- 流程（v4 批量接口）：`POST /api/v4/file-urls/batch`
+  `{files:[{name,is_ocr}], enable_formula, enable_table, language}` →
+  `batch_id` + `file_urls[0]` → PUT 文件 → 轮询 `GET
+/api/v4/extract-results/batch/{batch_id}`（state：waiting-file/
+  pending/running/converting → done/failed；running 带
+  extract_progress 页码）→ 下载 `full_zip_url`（full.md + images/，
+  fflate 前端解压）。鉴权 `Authorization: Bearer <token>`。
+- 用户 token 存 `settings.mineruToken`；插图落笔记本
+  `assets/wengu/{时间戳}/` 再建原文档（PdfImport）。
 
 ## Shell/工具坑（本机）
 

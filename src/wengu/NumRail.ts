@@ -46,7 +46,12 @@ export function bindNumRail(
             pending = true;
             window.requestAnimationFrame(() => {
                 pending = false;
-                if (performance.now() < lockUntil) return;
+                if (performance.now() < lockUntil) {
+                    // 平滑滚动仍在进行就续锁：长列表滚到末尾常超 800ms，
+                    // 固定锁过期后「顶端最近」规则会把点击的末题翻回前题
+                    lockUntil = performance.now() + 200;
+                    return;
+                }
                 // 组内隐藏卡不参与「顶端最近」跟踪（rect 全零会误判）
                 const cards = Array.from(root.querySelectorAll<HTMLElement>(".wengu-card:not([hidden])"));
                 if (cards.length === 0) return;

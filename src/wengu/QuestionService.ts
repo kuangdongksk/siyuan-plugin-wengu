@@ -13,8 +13,8 @@ import {
 import type { WenguDoc, WenguQuestion, WenguSlot, WenguStep } from "./types";
 
 /**
- * 题目块读写服务（判分纯函数在 QuestionGrading、错题闪卡在 Flashcards，
- * 这里 re-export 保持既有导入路径稳定）。
+ * 题目块读写服务（判分纯函数在 QuestionGrading，这里 re-export
+ * 保持既有导入路径稳定）。
  *
  * 只依赖思源原生机制：
  * - 检测/查询：/api/query/sql（attributes 表按 custom-plugin-wengu-% 聚合，同参考插件 sy-lively）
@@ -22,7 +22,6 @@ import type { WenguDoc, WenguQuestion, WenguSlot, WenguStep } from "./types";
  * 不建任何外部存储。
  */
 
-export { addWrongFlashcard, removeWrongFlashcard } from "./Flashcards";
 export {
     gradeQuestion,
     gradeSlot,
@@ -181,6 +180,17 @@ export async function addDocTotalTime(docId: string, addSeconds: number): Promis
     const attrs = await getBlockAttrs(docId);
     const cur = Number(attrs[Attr.totalTime]) || 0;
     await setBlockAttrs(docId, { [Attr.totalTime]: String(cur + addSeconds) });
+}
+
+/** 轮询直到习题文档进入 SQL 聚合列表（内核 attributes 索引有数秒延迟）。 */
+export async function waitForDocInList(docId: string, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        const docs = await listQuestionDocs();
+        if (docs.some((d) => d.id === docId)) return true;
+        if (Date.now() >= deadline) return false;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
 }
 
 /** 取某容器块的所有子块，按 part 属性归类到题目字段。 */

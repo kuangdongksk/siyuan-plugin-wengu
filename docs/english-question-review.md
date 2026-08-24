@@ -283,12 +283,12 @@ slots 是**并列空**（无依赖，任意顺序作答）。完形 20 空、新
     - **M5 线索标注**（选中浮层与 M4 共用、不依赖 word-timing；
       AI 判线索可先只对答错题开）+ **M6 模式骨架开口**（重写交互层时
       立架子最便宜）——阅读 40 分 + 翻译 10/15 分先可用，是最高频大头。
-  **✅ 已完成（2026-08-24）**：DrillUnits 单元化渲染（独立题/材料组）+
-  MaterialFlow 组单元（上材料独立滚动可折叠+滚动位置按组记忆，下题
-  一次一题+导航+题号联动；组内卡全在 DOM 非当前 hidden，恢复/揭示/
-  收卷全复用既有流程；Protyle 惰性挂载）；M5=AnnoFlow 选中浮条+
-  ClueFlow（会话 clues+chips+AI 复核 hit/near/miss）；M6=mode 枚举+
-  主区路由（quiz 先行）。
+      **✅ 已完成（2026-08-24）**：DrillUnits 单元化渲染（独立题/材料组）+
+      MaterialFlow 组单元（上材料独立滚动可折叠+滚动位置按组记忆，下题
+      一次一题+导航+题号联动；组内卡全在 DOM 非当前 hidden，恢复/揭示/
+      收卷全复用既有流程；Protyle 惰性挂载）；M5=AnnoFlow 选中浮条+
+      ClueFlow（会话 clues+chips+AI 复核 hit/near/miss）；M6=mode 枚举+
+      主区路由（quiz 先行）。
 - **E2 完形 + 新题型**：slots/match 作答交互（空号条、候选池）。
   **✅ 已完成（2026-08-24）**：WenguSlot 解析（cloze=slot-k-* 子块；
   match=题级 answer 字母序列聚合槽位）+ SlotFlow 逐空作答（空号条+

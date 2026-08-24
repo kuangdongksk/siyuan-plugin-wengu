@@ -31,6 +31,8 @@ export interface WenguSettingsShape {
     convertTargetMode?: "same" | "custom";
     /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
     convertTargetId?: string;
+    /** MinerU API Token（mineru.net 注册获取，PDF 导入用）。 */
+    mineruToken?: string;
     save?: () => void;
 }
 
@@ -182,6 +184,17 @@ export function openWenguSetting(opts: {
                   "data-set"
               )
           )}
+
+          ${formRow(
+              t("mineruTokenLabel"),
+              t("mineruTokenDesc"),
+              formInput(
+                  "minerutoken",
+                  opts.settings.mineruToken ?? "",
+                  'spellcheck="false" placeholder="mineru.net API Token"',
+                  "data-set"
+              )
+          )}
         </div>
       </div>
     </div>
@@ -250,6 +263,10 @@ export function openWenguSetting(opts: {
     });
     root.querySelector<HTMLInputElement>("[data-set='targetid']")?.addEventListener("change", (ev) => {
         opts.settings.convertTargetId = (ev.target as HTMLInputElement).value;
+        opts.settings.save?.();
+    });
+    root.querySelector<HTMLInputElement>("[data-set='minerutoken']")?.addEventListener("change", (ev) => {
+        opts.settings.mineruToken = (ev.target as HTMLInputElement).value.trim();
         opts.settings.save?.();
     });
 }

@@ -8,6 +8,8 @@
 .wengu-card-list {
   flex: 1;
   min-width: 0;
+  /* 末尾留白：让最后一题也能滚到定位线附近，点末题号不再落到倒数第二题 */
+  padding-bottom: 48vh;
 }
 
 /* 题号竖列：跟随滚动吸顶，题多时自身可滚 */
