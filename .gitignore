@@ -13,3 +13,4 @@ kernel.js
 /i18n
 .worktree/
 package-lock.json
+.pnpm-store/
