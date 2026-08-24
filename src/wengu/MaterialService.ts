@@ -1,10 +1,6 @@
-import {fetchSyncPost} from "siyuan";
-import {
-    Attr,
-    GROUP_PREV,
-    MATERIAL_FLAG,
-} from "./attrs";
-import type {WenguMaterial} from "./types";
+import { fetchSyncPost } from "siyuan";
+import { Attr, GROUP_PREV, MATERIAL_FLAG } from "./attrs";
+import type { WenguMaterial } from "./types";
 
 /**
  * 材料组服务（E0，docs/english-question-review.md M1）：阅读/完形等
@@ -21,7 +17,7 @@ import type {WenguMaterial} from "./types";
 /** 解析 group="prev" 占位为真实材料块 id（按文档序：材料在前、
  *  小题紧随）。返回被改写题块 → 材料块 id 的映射，供内存视图同步。 */
 export async function resolveGroupPlaceholders(docId: string): Promise<Map<string, string>> {
-    const {data} = await fetchSyncPost("/api/query/sql", {
+    const { data } = await fetchSyncPost("/api/query/sql", {
         stmt: `
             SELECT a.block_id AS id, a.name AS name, a.value AS value
             FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
@@ -31,7 +27,7 @@ export async function resolveGroupPlaceholders(docId: string): Promise<Map<strin
     });
     const patches = new Map<string, string>();
     let lastMaterial = "";
-    for (const row of (data ?? []) as {id: string; name: string; value: string;}[]) {
+    for (const row of (data ?? []) as { id: string; name: string; value: string }[]) {
         if (row.name === Attr.material) {
             lastMaterial = row.id;
         } else if (row.value === GROUP_PREV && lastMaterial) {
@@ -41,7 +37,7 @@ export async function resolveGroupPlaceholders(docId: string): Promise<Map<strin
     }
     for (const [qid, mid] of patches) {
         try {
-            await fetchSyncPost("/api/attr/setBlockAttrs", {id: qid, attrs: {[Attr.group]: mid}});
+            await fetchSyncPost("/api/attr/setBlockAttrs", { id: qid, attrs: { [Attr.group]: mid } });
         } catch (_) {
             // 回写失败只影响持久化，内存映射仍生效（下次装载再解析）
         }
@@ -51,7 +47,7 @@ export async function resolveGroupPlaceholders(docId: string): Promise<Map<strin
 
 /** 拉取一篇习题文档的全部材料块（正文/译文，供组头渲染与降级 HTML）。 */
 export async function listMaterials(docId: string): Promise<WenguMaterial[]> {
-    const {data} = await fetchSyncPost("/api/query/sql", {
+    const { data } = await fetchSyncPost("/api/query/sql", {
         stmt: `
             SELECT a.block_id AS id
             FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
@@ -60,7 +56,7 @@ export async function listMaterials(docId: string): Promise<WenguMaterial[]> {
             ORDER BY b.sort, b.created`,
     });
     const out: WenguMaterial[] = [];
-    for (const row of (data ?? []) as {id: string;}[]) {
+    for (const row of (data ?? []) as { id: string }[]) {
         try {
             out.push(await hydrateMaterial(row.id, docId));
         } catch (_) {
@@ -72,16 +68,16 @@ export async function listMaterials(docId: string): Promise<WenguMaterial[]> {
 
 /** 取材料块的 body/trans 子块文本（与题目 hydrate 同一套子块模式）。 */
 async function hydrateMaterial(id: string, rootId: string): Promise<WenguMaterial> {
-    const {data: children} = await fetchSyncPost("/api/block/getChildBlocks", {id, length: 128});
-    const blocks = (children as {id: string; markdown?: string;}[]) ?? [];
-    const mat: WenguMaterial = {id, rootId};
+    const { data: children } = await fetchSyncPost("/api/block/getChildBlocks", { id, length: 128 });
+    const blocks = (children as { id: string; markdown?: string }[]) ?? [];
+    const mat: WenguMaterial = { id, rootId };
     if (blocks.length === 0) return mat;
     const ids = blocks.map((b) => b.id).join("','");
-    const {data: partRows} = await fetchSyncPost("/api/query/sql", {
+    const { data: partRows } = await fetchSyncPost("/api/query/sql", {
         stmt: `SELECT block_id, value FROM attributes WHERE name = '${Attr.part}' AND block_id IN ('${ids}')`,
     });
     const partById = new Map<string, string>();
-    for (const r of partRows as {block_id: string; value: string;}[]) {
+    for (const r of partRows as { block_id: string; value: string }[]) {
         partById.set(r.block_id, r.value);
     }
     const body: string[] = [];

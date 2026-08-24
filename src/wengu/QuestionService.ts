@@ -1,23 +1,8 @@
-import {fetchSyncPost} from "siyuan";
-import {
-    ATTR_PREFIX,
-    Attr,
-    Q_FLAG,
-} from "./attrs";
-import {gradeQuestion} from "./QuestionGrading";
-import {
-    cleanStemMd,
-    normalizeAnswerMd,
-    normalizeType,
-    parseDifficulty,
-    parseStepKinds,
-    splitOptionMd,
-} from "./types";
-import type {
-    WenguDoc,
-    WenguQuestion,
-    WenguStep,
-} from "./types";
+import { fetchSyncPost } from "siyuan";
+import { ATTR_PREFIX, Attr, Q_FLAG } from "./attrs";
+import { gradeQuestion } from "./QuestionGrading";
+import { cleanStemMd, normalizeAnswerMd, normalizeType, parseDifficulty, parseStepKinds, splitOptionMd } from "./types";
+import type { WenguDoc, WenguQuestion, WenguStep } from "./types";
 
 /**
  * 题目块读写服务（判分纯函数在 QuestionGrading、错题闪卡在 Flashcards，
@@ -66,7 +51,7 @@ function rowToQuestion(row: AttrsRow): WenguQuestion {
     } catch (_) {
         // 属性 JSON 异常时按空属性处理，仅保留块定位信息
     }
-    const q: WenguQuestion = {id: row.block_id, rootId: row.root_id, attempts: 0, wrongCount: 0};
+    const q: WenguQuestion = { id: row.block_id, rootId: row.root_id, attempts: 0, wrongCount: 0 };
     for (const attr of Object.getOwnPropertyNames(attrs)) {
         const value = attrs[attr];
         const field = FIELD_BY_ATTR[attr];
@@ -81,7 +66,7 @@ function rowToQuestion(row: AttrsRow): WenguQuestion {
             // 步骤类型声明：先建骨架（kind），子块文本由 hydrate 填充
             const kinds = parseStepKinds(value);
             if (kinds) {
-                q.steps = kinds.map((kind) => ({kind, stemMd: "", optionMd: [] as string[], answer: ""}));
+                q.steps = kinds.map((kind) => ({ kind, stemMd: "", optionMd: [] as string[], answer: "" }));
             }
         } else if (field === "attempts") {
             q.attempts = Number(value) || 0;
@@ -99,9 +84,7 @@ function rowToQuestion(row: AttrsRow): WenguQuestion {
  * @param docId 限定某个文档时传入其 id；不传则全库。
  */
 export async function listQuestions(docId?: string): Promise<WenguQuestion[]> {
-    const docFilter = docId ?
-        ` AND b.root_id = '${docId}'` :
-        "";
+    const docFilter = docId ? ` AND b.root_id = '${docId}'` : "";
     const stmt = `
         SELECT
             b.id AS block_id,
@@ -120,7 +103,7 @@ export async function listQuestions(docId?: string): Promise<WenguQuestion[]> {
         GROUP BY
             b.id
         LIMIT 1024 OFFSET 0;`;
-    const {data} = await fetchSyncPost("/api/query/sql", {stmt});
+    const { data } = await fetchSyncPost("/api/query/sql", { stmt });
     const rows = (data as AttrsRow[]) ?? [];
     const questions = rows.filter((r) => typeof r.attrs === "string").map(rowToQuestion);
     // 块优先：取子块(题干/选项/答案/解析)。注意必须串行——思源的
@@ -163,7 +146,7 @@ export async function listQuestionDocs(): Promise<WenguDoc[]> {
         GROUP BY q.root_id, d.content, d.hpath
         ORDER BY total DESC
         LIMIT 256;`;
-    const {data} = await fetchSyncPost("/api/query/sql", {stmt});
+    const { data } = await fetchSyncPost("/api/query/sql", { stmt });
     return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
         id: String(row.docId ?? ""),
         title: String(row.title ?? ""),
@@ -180,34 +163,34 @@ export async function addDocTotalTime(docId: string, addSeconds: number): Promis
     if (addSeconds <= 0) return;
     const attrs = await getBlockAttrs(docId);
     const cur = Number(attrs[Attr.totalTime]) || 0;
-    await setBlockAttrs(docId, {[Attr.totalTime]: String(cur + addSeconds)});
+    await setBlockAttrs(docId, { [Attr.totalTime]: String(cur + addSeconds) });
 }
 
 /** 取某容器块的所有子块，按 part 属性归类到题目字段。 */
 async function hydrate(q: WenguQuestion): Promise<void> {
-    const {data: children} = await fetchSyncPost("/api/block/getChildBlocks", {id: q.id, length: 128});
+    const { data: children } = await fetchSyncPost("/api/block/getChildBlocks", { id: q.id, length: 128 });
     const blocks = (children as ChildBlock[]) ?? [];
     if (blocks.length === 0) return;
 
     // 取这些子块的 part 属性
     const ids = blocks.map((b) => b.id).join("','");
-    const {data: partRows} = await fetchSyncPost("/api/query/sql", {
+    const { data: partRows } = await fetchSyncPost("/api/query/sql", {
         stmt: `SELECT block_id, value FROM attributes WHERE name = '${Attr.part}' AND block_id IN ('${ids}')`,
     });
     const partById = new Map<string, string>();
-    for (const r of partRows as {block_id: string; value: string;}[]) {
+    for (const r of partRows as { block_id: string; value: string }[]) {
         partById.set(r.block_id, r.value);
     }
 
     const partMd = new Map<string, string[]>();
     // 契约规定选项 part 为 option-0 / option-1 …（也容忍不带序号的 option）
-    const options: {index: number; md: string;}[] = [];
+    const options: { index: number; md: string }[] = [];
     // steps 题：step-{k}-stem / step-{k}-option-{j} / step-{k}-answer 按步聚合
-    const stepAcc = new Map<number, {stems: string[]; options: {index: number; md: string;}[]; answers: string[];}>();
+    const stepAcc = new Map<number, { stems: string[]; options: { index: number; md: string }[]; answers: string[] }>();
     const stepOf = (k: number) => {
         let acc = stepAcc.get(k);
         if (!acc) {
-            acc = {stems: [], options: [], answers: []};
+            acc = { stems: [], options: [], answers: [] };
             stepAcc.set(k, acc);
         }
         return acc;
@@ -233,14 +216,14 @@ async function hydrate(q: WenguQuestion): Promise<void> {
             } else if (stepMatch[2] === "answer") {
                 acc.answers.push(md);
             } else {
-                acc.options.push({index: stepMatch[3] !== undefined ? Number(stepMatch[3]) : acc.options.length, md});
+                acc.options.push({ index: stepMatch[3] !== undefined ? Number(stepMatch[3]) : acc.options.length, md });
             }
             continue;
         }
         const optionMatch = /^option(?:-(\d+))?$/.exec(part);
         if (optionMatch) {
             const index = optionMatch[1] !== undefined ? Number(optionMatch[1]) : options.length;
-            options.push({index, md});
+            options.push({ index, md });
             continue;
         }
         const arr = partMd.get(part) ?? [];
@@ -259,15 +242,14 @@ async function hydrate(q: WenguQuestion): Promise<void> {
     const kinds = q.steps?.map((s) => s.kind);
     const steps = [...stepAcc.entries()]
         .sort((x, y) => x[0] - y[0])
-        .map(([, acc], i) =>
-            ({
-                kind: kinds?.[i] ?? "result",
-                stemMd: acc.stems.join("\n\n"),
-                optionMd: acc.options
-                    .sort((x, y) => x.index - y.index)
-                    .flatMap((o) => splitOptionMd(o.md)),
-                answer: normalizeAnswerMd(acc.answers.join("\n")),
-            }) satisfies WenguStep
+        .map(
+            ([, acc], i) =>
+                ({
+                    kind: kinds?.[i] ?? "result",
+                    stemMd: acc.stems.join("\n\n"),
+                    optionMd: acc.options.sort((x, y) => x.index - y.index).flatMap((o) => splitOptionMd(o.md)),
+                    answer: normalizeAnswerMd(acc.answers.join("\n")),
+                }) satisfies WenguStep
         );
     if (steps.length > 0) q.steps = steps;
 }
@@ -303,19 +285,19 @@ async function rewriteStemBlock(id: string, cleaned: string): Promise<void> {
 
 /** 读取单块的原始属性对象。 */
 export async function getBlockAttrs(id: string): Promise<AttrsObject> {
-    const {data} = await fetchSyncPost("/api/attr/getBlockAttrs", {id});
+    const { data } = await fetchSyncPost("/api/attr/getBlockAttrs", { id });
     return (data ?? {}) as AttrsObject;
 }
 
 /** 取容器块的 kramdown 源码（含子块，用于题干/选项/解析展示）。 */
 export async function getBlockKramdown(id: string): Promise<string> {
-    const {data} = await fetchSyncPost("/api/block/getBlockKramdown", {id});
+    const { data } = await fetchSyncPost("/api/block/getBlockKramdown", { id });
     return (data ?? "") as string;
 }
 
 /** 写入单块的若干属性（合并到现有属性上）。 */
 export async function setBlockAttrs(id: string, attrs: AttrsObject): Promise<void> {
-    await fetchSyncPost("/api/attr/setBlockAttrs", {id, attrs});
+    await fetchSyncPost("/api/attr/setBlockAttrs", { id, attrs });
 }
 
 /**
@@ -353,7 +335,7 @@ export async function recordStepsResult(
     q: WenguQuestion,
     letters: string[],
     oks: boolean[],
-    persistStepState: boolean,
+    persistStepState: boolean
 ): Promise<boolean> {
     const allOk = oks.length > 0 && oks.every(Boolean);
     const attrs = await getBlockAttrs(q.id);
@@ -366,7 +348,7 @@ export async function recordStepsResult(
         [Attr.right]: allOk ? "1" : "0",
     };
     if (persistStepState) {
-        payload[Attr.stepRight] = oks.map((ok) => ok ? "1" : "0").join("");
+        payload[Attr.stepRight] = oks.map((ok) => (ok ? "1" : "0")).join("");
         payload[Attr.stepLast] = letters.join("|");
     }
     await setBlockAttrs(q.id, payload);
@@ -383,10 +365,10 @@ export async function overrideAttemptResult(id: string, correct: boolean): Promi
     if (correct) {
         await setBlockAttrs(id, {
             [Attr.right]: "1",
-            ...(cur > 0 ? {[Attr.wrongCount]: String(cur - 1)} : {}),
+            ...(cur > 0 ? { [Attr.wrongCount]: String(cur - 1) } : {}),
         });
     } else {
-        await setBlockAttrs(id, {[Attr.right]: "0", [Attr.wrongCount]: String(cur + 1)});
+        await setBlockAttrs(id, { [Attr.right]: "0", [Attr.wrongCount]: String(cur + 1) });
     }
 }
 
@@ -394,15 +376,11 @@ export async function overrideAttemptResult(id: string, correct: boolean): Promi
  * steps 改判落盘（方法步申诉复核通过）：翻逐步 step-right 与整题
  * right，不动 attempts；整题由错翻对时回退一次 wrong-count。
  */
-export async function overrideStepsResult(
-    q: WenguQuestion,
-    letters: string[],
-    oks: boolean[],
-): Promise<boolean> {
+export async function overrideStepsResult(q: WenguQuestion, letters: string[], oks: boolean[]): Promise<boolean> {
     const allOk = oks.length > 0 && oks.every(Boolean);
     const attrs = await getBlockAttrs(q.id);
     const payload: AttrsObject = {
-        [Attr.stepRight]: oks.map((ok) => ok ? "1" : "0").join(""),
+        [Attr.stepRight]: oks.map((ok) => (ok ? "1" : "0")).join(""),
         [Attr.stepLast]: letters.join("|"),
         [Attr.lastAnswer]: letters.join("|"),
         [Attr.right]: allOk ? "1" : "0",

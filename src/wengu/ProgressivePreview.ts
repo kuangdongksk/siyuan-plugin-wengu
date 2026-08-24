@@ -1,11 +1,8 @@
-import {showStatus} from "./ConvertHost";
-import {listMaterials} from "./MaterialService";
-import {listQuestions} from "./QuestionService";
-import type {
-    WenguMaterial,
-    WenguQuestion,
-} from "./types";
-import {fmt} from "./ui";
+import { showStatus } from "./ConvertHost";
+import { listMaterials } from "./MaterialService";
+import { listQuestions } from "./QuestionService";
+import type { WenguMaterial, WenguQuestion } from "./types";
+import { fmt } from "./ui";
 
 /**
  * 转换期间的页签渐进呈现：每批渐进落盘后，把新文档的题目列表
@@ -43,7 +40,7 @@ export class ProgressivePreview {
         docId: string,
         seq: number,
         apply: (list: WenguQuestion[], materials: WenguMaterial[]) => void,
-        attempt: number,
+        attempt: number
     ): Promise<void> {
         if (seq !== this.seq || !this.activeFlag) return;
         let list: WenguQuestion[];
@@ -87,15 +84,15 @@ export function showBatchPreview(
     title: string,
     count: number,
     batch: number,
-    total: number,
+    total: number
 ): void {
     if (host.isStarted()) return;
     if (host.currentDocId() !== docId) host.switchDoc(docId, title, count);
     const status = () =>
         showStatus(
             host.el,
-            fmt(host.t("convertPreviewStatus"), {b: String(batch), n: String(total), c: String(count)}),
-            "muted",
+            fmt(host.t("convertPreviewStatus"), { b: String(batch), n: String(total), c: String(count) }),
+            "muted"
         );
     status();
     prev.begin(docId, (list, materials) => {

@@ -1,9 +1,5 @@
 import WORD_BOOK from "./WordBook";
-import {
-    rollToday,
-    todayKey,
-    type WenguWordProgress,
-} from "./WordStore";
+import { rollToday, todayKey, type WenguWordProgress } from "./WordStore";
 
 /**
  * 不背单词进度导入（PDF 文字层 / txt）。
@@ -33,9 +29,9 @@ export interface WordImportResult {
 /* ── PDF 文字层提取 ── */
 
 /** 找出全部 stream 的原始字节（dictText 用于类型判断；负向断言避开 endstream）。 */
-function collectStreams(bytes: Uint8Array): {dict: string; data: Uint8Array;}[] {
+function collectStreams(bytes: Uint8Array): { dict: string; data: Uint8Array }[] {
     const latin = new TextDecoder("latin1").decode(bytes);
-    const out: {dict: string; data: Uint8Array;}[] = [];
+    const out: { dict: string; data: Uint8Array }[] = [];
     const re = /(?<!end)stream\r?\n/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(latin)) !== null) {
@@ -125,13 +121,17 @@ function decodeStr(raw: string, cmaps: Map<number, string>): string {
 function contentToText(content: string, cmaps: Map<number, string>): string {
     const marked = content.replace(/\b(Td|TD|T\*|BT|ET)\b/g, "\n");
     const re = /(\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]+>)/g;
-    return marked.split("\n").map((line) => {
-        let out = "";
-        let m: RegExpExecArray | null;
-        re.lastIndex = 0;
-        while ((m = re.exec(line)) !== null) out += decodeStr(m[1], cmaps);
-        return out;
-    }).filter((l) => l.length > 0).join("\n");
+    return marked
+        .split("\n")
+        .map((line) => {
+            let out = "";
+            let m: RegExpExecArray | null;
+            re.lastIndex = 0;
+            while ((m = re.exec(line)) !== null) out += decodeStr(m[1], cmaps);
+            return out;
+        })
+        .filter((l) => l.length > 0)
+        .join("\n");
 }
 
 /** PDF → 文本（无文字层返回空串）。 */
@@ -139,9 +139,9 @@ export async function extractPdfText(bytes: Uint8Array): Promise<string> {
     const streams = await Promise.all(
         collectStreams(bytes).map(async (s) => {
             // Flate 解压失败(如误判)回退原始字节，文本流未压缩也能出字
-            const data = s.dict.includes("FlateDecode") ? (await inflate(s.data)) ?? s.data : s.data;
+            const data = s.dict.includes("FlateDecode") ? ((await inflate(s.data)) ?? s.data) : s.data;
             return data ? new TextDecoder("latin1").decode(data) : "";
-        }),
+        })
     );
     const cmaps = parseCMaps(streams.join(""));
     let text = "";
@@ -176,17 +176,17 @@ function extractWords(text: string): string[] {
 }
 
 /** 词书字母桶索引（懒建，模糊匹配用）。 */
-let letterBuckets: Map<string, {i: number; w: string;}[]> | undefined;
-function buildBuckets(): Map<string, {i: number; w: string;}[]> {
-    const lb = new Map<string, {i: number; w: string;}[]>();
+let letterBuckets: Map<string, { i: number; w: string }[]> | undefined;
+function buildBuckets(): Map<string, { i: number; w: string }[]> {
+    const lb = new Map<string, { i: number; w: string }[]>();
     WORD_BOOK.words.forEach((e, i) => {
         const k = e.w[0].toLowerCase();
         if (!lb.has(k)) lb.set(k, []);
-        lb.get(k)!.push({i, w: e.w.toLowerCase()});
+        lb.get(k)!.push({ i, w: e.w.toLowerCase() });
     });
     return lb;
 }
-function bucketOf(w: string): {i: number; w: string;}[] {
+function bucketOf(w: string): { i: number; w: string }[] {
     letterBuckets ??= buildBuckets();
     return letterBuckets!.get(w[0]) ?? [];
 }
@@ -218,7 +218,7 @@ function lev1(a: string, b: string): boolean {
 export async function runWordImport(
     file: File,
     status: WordImportStatus | "auto",
-    p: WenguWordProgress,
+    p: WenguWordProgress
 ): Promise<WordImportResult> {
     const bytes = new Uint8Array(await file.arrayBuffer());
     let text: string;
@@ -229,7 +229,7 @@ export async function runWordImport(
         text = await extractPdfText(bytes);
         // PDF 空文本 = 无文字层（扫描件）；txt 路径不做此判（小清单也合法）
         if (extractWords(text).length < 5) {
-            return {hit: 0, miss: 0, missSample: [], autoStatus: null, error: "noTextLayer"};
+            return { hit: 0, miss: 0, missSample: [], autoStatus: null, error: "noTextLayer" };
         }
     }
     let autoStatus: WordImportStatus | null = null;
@@ -247,14 +247,15 @@ export async function runWordImport(
     const miss: string[] = [];
     for (const w of extractWords(text)) {
         const lw = w.toLowerCase();
-        let idx = WORD_BOOK.words.findIndex(e => e.w.toLowerCase() === lw);
+        let idx = WORD_BOOK.words.findIndex((e) => e.w.toLowerCase() === lw);
         if (idx < 0) {
-            idx = bucketOf(lw).find(b => lev1(b.w, lw))?.i ?? -1;
+            idx = bucketOf(lw).find((b) => lev1(b.w, lw))?.i ?? -1;
         }
         if (idx >= 0) hits.add(idx);
         else if (miss.length < 50) miss.push(w);
     }
-    if (hits.size === 0) return {hit: 0, miss: miss.length, missSample: miss.slice(0, 5), autoStatus, error: "noMatch"};
+    if (hits.size === 0)
+        return { hit: 0, miss: miss.length, missSample: miss.slice(0, 5), autoStatus, error: "noMatch" };
     applyStatus(p, hits, apply);
     // cursor = 书序上第一个未学词
     for (let i = 0; i < WORD_BOOK.words.length; i++) {
@@ -263,7 +264,7 @@ export async function runWordImport(
             break;
         }
     }
-    return {hit: hits.size, miss: miss.length, missSample: miss.slice(0, 5), autoStatus};
+    return { hit: hits.size, miss: miss.length, missSample: miss.slice(0, 5), autoStatus };
 }
 
 /** 按状态写进度（不触碰误认本）。 */

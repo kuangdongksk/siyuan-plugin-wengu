@@ -1,5 +1,5 @@
 const path = require("path");
-const {EsbuildPlugin} = require("esbuild-loader");
+const { EsbuildPlugin } = require("esbuild-loader");
 
 module.exports = (env, argv) => {
     const production = argv.mode === "production";
@@ -25,9 +25,7 @@ module.exports = (env, argv) => {
         },
         optimization: {
             minimize: production,
-            minimizer: [
-                new EsbuildPlugin(),
-            ],
+            minimizer: [new EsbuildPlugin()],
         },
         resolve: {
             extensions: [".ts", ".js", ".json"],

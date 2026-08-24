@@ -1,10 +1,10 @@
-import {FlatCompat} from "@eslint/eslintrc";
+import { FlatCompat } from "@eslint/eslintrc";
 import js from "@eslint/js";
 import typescriptEslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import globals from "globals";
 import path from "node:path";
-import {fileURLToPath} from "node:url";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,12 +16,7 @@ const compat = new FlatCompat({
 
 export default [
     {
-        ignores: [
-            "dist",
-            "node_modules",
-            "index.js",
-            "kernel.js",
-        ],
+        ignores: ["dist", "node_modules", "index.js", "kernel.js"],
     },
     ...compat.extends("eslint:recommended", "plugin:@typescript-eslint/recommended"),
     {
@@ -40,10 +35,14 @@ export default [
 
         rules: {
             semi: [2, "always"],
-            quotes: [2, "double", {
-                avoidEscape: true,
-            }],
-            "@typescript-eslint/no-unused-vars": ["warn", {caughtErrors: "none"}],
+            quotes: [
+                2,
+                "double",
+                {
+                    avoidEscape: true,
+                },
+            ],
+            "@typescript-eslint/no-unused-vars": ["warn", { caughtErrors: "none" }],
             "no-async-promise-executor": "off",
             "no-prototype-builtins": "off",
             "no-useless-escape": "off",

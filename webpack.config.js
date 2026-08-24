@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const webpack = require("webpack");
-const {EsbuildPlugin} = require("esbuild-loader");
+const { EsbuildPlugin } = require("esbuild-loader");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CopyPlugin = require("copy-webpack-plugin");
 const ZipPlugin = require("zip-webpack-plugin");
@@ -19,19 +19,19 @@ module.exports = (env, argv) => {
                 banner: () => {
                     return fs.readFileSync("LICENSE").toString();
                 },
-            }),
+            })
         );
         plugins.push(
             new CopyPlugin({
                 patterns: [
-                    {from: "preview.png", to: "./dist/"},
-                    {from: "icon.png", to: "./dist/"},
-                    {from: "README*.md", to: "./dist/"},
-                    {from: "plugin.json", to: "./dist/"},
-                    {from: "src/i18n/", to: "./dist/i18n/"},
-                    {from: "dist/kernel.js", to: "./dist/"},
+                    { from: "preview.png", to: "./dist/" },
+                    { from: "icon.png", to: "./dist/" },
+                    { from: "README*.md", to: "./dist/" },
+                    { from: "plugin.json", to: "./dist/" },
+                    { from: "src/i18n/", to: "./dist/i18n/" },
+                    { from: "dist/kernel.js", to: "./dist/" },
                 ],
-            }),
+            })
         );
         plugins.push(
             new ZipPlugin({
@@ -41,15 +41,13 @@ module.exports = (env, argv) => {
                 pathMapper: (assetPath) => {
                     return assetPath.replace("dist/", "");
                 },
-            }),
+            })
         );
     } else {
         plugins.push(
             new CopyPlugin({
-                patterns: [
-                    {from: "src/i18n/", to: "./i18n/"},
-                ],
-            }),
+                patterns: [{ from: "src/i18n/", to: "./i18n/" }],
+            })
         );
     }
     return {
@@ -72,9 +70,7 @@ module.exports = (env, argv) => {
         },
         optimization: {
             minimize: production,
-            minimizer: [
-                new EsbuildPlugin(),
-            ],
+            minimizer: [new EsbuildPlugin()],
         },
         resolve: {
             extensions: [".ts", ".scss", ".js", ".json"],

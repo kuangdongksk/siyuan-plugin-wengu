@@ -1,11 +1,8 @@
-import {renderCardHtml} from "./CardHtml";
-import type {CardHtmlModel} from "./CardHtml";
-import {svgIcon} from "./FormHtml";
-import type {
-    WenguMaterial,
-    WenguQuestion,
-} from "./types";
-import {esc} from "./ui";
+import { renderCardHtml } from "./CardHtml";
+import type { CardHtmlModel } from "./CardHtml";
+import { svgIcon } from "./FormHtml";
+import type { WenguMaterial, WenguQuestion } from "./types";
+import { esc } from "./ui";
 
 /**
  * 材料面板（E0 退化视图，docs/english-question-review.md M1/M3 前置）：
@@ -18,20 +15,16 @@ import {esc} from "./ui";
 /** 单个材料面板 HTML（正文由 ProtyleHost 挂载到 data-mprotyle）。 */
 export function renderMaterialHtml(mat: WenguMaterial, t: (k: string) => string): string {
     return `<div class="wengu-material" data-mid="${esc(mat.id)}">
-      <button class="wengu-material-toggle" data-act="material-toggle" title="${esc(t("materialToggle"))}">${
-        svgIcon("iconRight")
-    }<span>${esc(t("materialTitle"))}</span></button>
+      <button class="wengu-material-toggle" data-act="material-toggle" title="${esc(t("materialToggle"))}">${svgIcon(
+          "iconRight"
+      )}<span>${esc(t("materialTitle"))}</span></button>
       <div class="wengu-material-body" data-mprotyle><span class="wengu-muted">…</span></div>
     </div>`;
 }
 
 /** 题卡列表 + 组头材料面板（每个材料只在其组内第一题前出现一次；
  *  单卡渲染失败给占位卡，不拖垮整个列表——与 renderCardsHtml 同策）。 */
-export function renderCardsWithMaterials(
-    list: WenguQuestion[],
-    m: CardHtmlModel,
-    materials: WenguMaterial[],
-): string {
+export function renderCardsWithMaterials(list: WenguQuestion[], m: CardHtmlModel, materials: WenguMaterial[]): string {
     const byId = new Map(materials.map((x) => [x.id, x] as const));
     const shown = new Set<string>();
     const out: string[] = [];
@@ -46,9 +39,9 @@ export function renderCardsWithMaterials(
             out.push(renderCardHtml(q, i, m));
         } catch (e) {
             out.push(
-                `<div class="wengu-card"><div class="wengu-status wengu-status-err">${
-                    esc(String((e as Error)?.message ?? e))
-                }</div></div>`,
+                `<div class="wengu-card"><div class="wengu-status wengu-status-err">${esc(
+                    String((e as Error)?.message ?? e)
+                )}</div></div>`
             );
         }
     }
@@ -70,7 +63,7 @@ export function syncMaterialReveal(el: HTMLElement, list: WenguQuestion[]): void
     const panels = [...el.querySelectorAll<HTMLElement>(".wengu-material")];
     if (panels.length === 0) return;
     const graded = new Set(
-        [...el.querySelectorAll<HTMLElement>(".wengu-card[data-graded='1']")].map((c) => c.dataset.qid ?? ""),
+        [...el.querySelectorAll<HTMLElement>(".wengu-card[data-graded='1']")].map((c) => c.dataset.qid ?? "")
     );
     for (const panel of panels) {
         const mid = panel.dataset.mid ?? "";

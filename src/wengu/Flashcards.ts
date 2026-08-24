@@ -1,4 +1,4 @@
-import {fetchSyncPost} from "siyuan";
+import { fetchSyncPost } from "siyuan";
 
 /**
  * 错题闪卡卡组（从 QuestionService 拆出）：「温故错题」卡组的
@@ -24,15 +24,15 @@ let txReqId = 0;
 
 /** 发一条事务（reqId 自增）。 */
 async function transact(operations: Record<string, unknown>[]): Promise<boolean> {
-    const {code} = await fetchSyncPost("/api/transactions", {
+    const { code } = await fetchSyncPost("/api/transactions", {
         reqId: ++txReqId,
-        transactions: [{doOperations: operations, undoOperations: []}],
+        transactions: [{ doOperations: operations, undoOperations: [] }],
     });
     return code === 0;
 }
 
 async function listRiffDecks(): Promise<RiffDeck[]> {
-    const {data} = await fetchSyncPost("/api/riff/getRiffDecks");
+    const { data } = await fetchSyncPost("/api/riff/getRiffDecks");
     return (data ?? []) as RiffDeck[];
 }
 
@@ -51,7 +51,7 @@ async function findWrongDeck(): Promise<string> {
 async function ensureWrongDeck(): Promise<string> {
     if (!wrongDeckId) wrongDeckId = await findWrongDeck();
     if (!wrongDeckId) {
-        const {data} = await fetchSyncPost("/api/riff/createRiffDeck", {name: WRONG_DECK_NAME});
+        const { data } = await fetchSyncPost("/api/riff/createRiffDeck", { name: WRONG_DECK_NAME });
         wrongDeckId = String((data as RiffDeck)?.id ?? "");
     }
     return wrongDeckId;
@@ -66,10 +66,10 @@ export async function addWrongFlashcard(blockId: string): Promise<boolean> {
         const deckId = await ensureWrongDeck();
         if (!deckId) return false;
         const before = await deckSize(deckId);
-        if (!(await transact([{action: "addFlashcards", deckID: deckId, blockIDs: [blockId]}]))) {
+        if (!(await transact([{ action: "addFlashcards", deckID: deckId, blockIDs: [blockId] }]))) {
             return false;
         }
-        return await deckSize(deckId) > before;
+        return (await deckSize(deckId)) > before;
     } catch (_) {
         return false;
     }
@@ -78,14 +78,14 @@ export async function addWrongFlashcard(blockId: string): Promise<boolean> {
 /** 答对后把块移出错题卡组，让卡组始终等于当前错题集（不创建卡组）。 */
 export async function removeWrongFlashcard(blockId: string): Promise<boolean> {
     try {
-        const deckId = wrongDeckId || await findWrongDeck();
+        const deckId = wrongDeckId || (await findWrongDeck());
         if (!deckId) return false;
         const before = await deckSize(deckId);
         if (before <= 0) return false;
-        if (!(await transact([{action: "removeFlashcards", deckID: deckId, blockIDs: [blockId]}]))) {
+        if (!(await transact([{ action: "removeFlashcards", deckID: deckId, blockIDs: [blockId] }]))) {
             return false;
         }
-        return await deckSize(deckId) < before;
+        return (await deckSize(deckId)) < before;
     } catch (_) {
         return false;
     }
