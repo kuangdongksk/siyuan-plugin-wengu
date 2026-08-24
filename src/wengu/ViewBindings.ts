@@ -6,6 +6,8 @@ export interface ViewBindCtx {
     el: HTMLElement;
     reload(): void;
     openConvert(): void;
+    /** 打开统计面板（总览 + 本文档详情）。 */
+    openStats(): void;
     openSettings?(): void;
     /** 收起/展开目录（含持久化与重渲染）。 */
     toggleSide(collapsed: boolean): void;
@@ -22,6 +24,7 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
     q("[data-act='refresh']")?.addEventListener("click", () => ctx.reload());
     ctx.updateConvertBtn();
     q("[data-act='convert']")?.addEventListener("click", () => ctx.openConvert());
+    q("[data-act='stats']")?.addEventListener("click", () => ctx.openStats());
     q("[data-act='settings']")?.addEventListener("click", () => ctx.openSettings?.());
     q("[data-act='side-toggle']")?.addEventListener("click", () => ctx.toggleSide(false));
     q("[data-act='side-fold']")?.addEventListener("click", () => ctx.toggleSide(true));

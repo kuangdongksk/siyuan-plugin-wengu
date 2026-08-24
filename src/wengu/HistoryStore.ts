@@ -1,8 +1,4 @@
-import type {
-    WenguRevealMode,
-    WenguStepsMode,
-    WenguTimingMode,
-} from "./types";
+import type { WenguRevealMode, WenguStepsMode, WenguTimingMode } from "./types";
 
 /** 一题在一轮里的作答记录。 */
 export interface WenguSessionResult {
@@ -61,18 +57,17 @@ export class HistoryStore {
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
-        private readonly saveRaw: (h: WenguHistory) => Promise<unknown>,
+        private readonly saveRaw: (h: WenguHistory) => Promise<unknown>
     ) {}
 
     private async all(): Promise<WenguHistory> {
         if (this.cache) return this.cache;
         try {
-            const data = await this.loadRaw() as WenguHistory | "" | null | undefined;
-            this.cache = data && typeof data === "object" && Array.isArray(data.sessions) ?
-                data :
-                {version: 1, sessions: []};
+            const data = (await this.loadRaw()) as WenguHistory | "" | null | undefined;
+            this.cache =
+                data && typeof data === "object" && Array.isArray(data.sessions) ? data : { version: 1, sessions: [] };
         } catch (_) {
-            this.cache = {version: 1, sessions: []};
+            this.cache = { version: 1, sessions: [] };
         }
         return this.cache;
     }
@@ -93,9 +88,13 @@ export class HistoryStore {
     /** 某文档的全部轮次，按开始时间升序。 */
     async docSessions(docId: string): Promise<WenguSession[]> {
         const h = await this.all();
-        return h.sessions
-            .filter((s) => s.docId === docId)
-            .sort((a, b) => a.startedAt - b.startedAt);
+        return h.sessions.filter((s) => s.docId === docId).sort((a, b) => a.startedAt - b.startedAt);
+    }
+
+    /** 全库全部轮次，按开始时间升序（统计面板总览用）。 */
+    async allSessions(): Promise<WenguSession[]> {
+        const h = await this.all();
+        return [...h.sessions].sort((a, b) => a.startedAt - b.startedAt);
     }
 
     /** 删除一组文档的全部轮次（孤儿习题文档清理时联动调用）。 */
@@ -125,15 +124,15 @@ export function pushSessionAnswer(
     ok: boolean,
     sec: number,
     elapsedSec: number,
-    extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+    extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string }
 ): void {
     s.results.push({
         qid,
         submitted,
         ok,
-        ...(sec > 0 ? {sec} : {}),
-        ...(extra?.verdict ? {verdict: extra.verdict} : {}),
-        ...(extra?.comment ? {comment: extra.comment} : {}),
+        ...(sec > 0 ? { sec } : {}),
+        ...(extra?.verdict ? { verdict: extra.verdict } : {}),
+        ...(extra?.comment ? { comment: extra.comment } : {}),
     });
     s.answered++;
     if (ok) s.correct++;
