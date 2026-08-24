@@ -1,7 +1,4 @@
-import {
-    buildQueue,
-    type WenguWordProgress,
-} from "./WordStore";
+import { buildQueue, type WenguWordProgress } from "./WordStore";
 
 /**
  * 作答计时与组边界调度（docs/word-timing.md 决策 2/3/6）。
@@ -68,7 +65,7 @@ export class WordTimer {
     /** 活性翻转时结束/重启当前段。 */
     private flip(): void {
         const live = this.active();
-        if (live === (this.segStart > 0)) return;
+        if (live === this.segStart > 0) return;
         if (live) this.segStart = Date.now();
         else {
             this.accMs += Date.now() - this.segStart;
@@ -116,14 +113,14 @@ export function rebuildTail(
     pos: number,
     hardList: number[],
     doneSet: Set<number>,
-    sessionNew: Set<number>,
-): {queue: number[]; newcomers: number[];} {
-    if (kind === "star") return {queue, newcomers: []};
+    sessionNew: Set<number>
+): { queue: number[]; newcomers: number[] } {
+    if (kind === "star") return { queue, newcomers: [] };
     const hardPending: number[] = [];
     for (const i of queue.slice(pos)) {
         if (hardList.includes(i) && !hardPending.includes(i)) hardPending.push(i);
     }
-    const {review, fresh} = buildQueue(p);
+    const { review, fresh } = buildQueue(p);
     const src = kind === "review" ? review : fresh;
     const tail: number[] = [];
     const newcomers: number[] = [];
@@ -141,5 +138,5 @@ export function rebuildTail(
         merged.push(i);
     }
     merged.push(...hardPending.slice(h));
-    return {queue: [...queue.slice(0, pos), ...merged], newcomers};
+    return { queue: [...queue.slice(0, pos), ...merged], newcomers };
 }

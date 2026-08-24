@@ -77,9 +77,9 @@ Every public API on `globalThis.siyuan` is exercised:
 
 Every method gets a TSDoc block with:
 
-* Summary line describing which API/feature it demonstrates
-* `@remarks` for behavioral constraints (e.g. lifecycle state semantics, when RPC calls are accepted)
-* `@example` snippet for non-obvious usage patterns (e.g. `ws.open()` must be called explicitly)
+- Summary line describing which API/feature it demonstrates
+- `@remarks` for behavioral constraints (e.g. lifecycle state semantics, when RPC calls are accepted)
+- `@example` snippet for non-obvious usage patterns (e.g. `ws.open()` must be called explicitly)
 
 Example:
 
@@ -109,9 +109,9 @@ await this.ws.open();
 
 `KernelPlugin` gets a full class-level doc block explaining:
 
-* purpose (living reference for the kernel plugin API)
-* lifecycle state diagram reference
-* how to update the file when new APIs are added
+- purpose (living reference for the kernel plugin API)
+- lifecycle state diagram reference
+- how to update the file when new APIs are added
 
 ---
 
@@ -143,4 +143,4 @@ await this.ws.open();
 
 ## Out of Scope
 
-* No unit tests (kernel plugin runs inside goja; tested by loading in a live SiYuan instance)
+- No unit tests (kernel plugin runs inside goja; tested by loading in a live SiYuan instance)

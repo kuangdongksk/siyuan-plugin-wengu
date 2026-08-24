@@ -33,8 +33,8 @@ const WORD_BOOK: WenguWordBookData = {
     version: meta.version,
     id: meta.id,
     title: meta.title,
-    words: parts.map(([w, m]) => ({w, m})),
-    units: meta.units.map(([u, start, count, title]) => ({u, start, count, title})),
+    words: parts.map(([w, m]) => ({ w, m })),
+    units: meta.units.map(([u, start, count, title]) => ({ u, start, count, title })),
 };
 
 export default WORD_BOOK;

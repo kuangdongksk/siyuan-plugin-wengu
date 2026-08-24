@@ -1,39 +1,13 @@
-import {
-    appealMethodStep,
-    nextRealtimeStep,
-} from "./AiJudge";
-import type {RealtimeHistoryItem} from "./AiJudge";
-import type {AnswerHost} from "./AnswerFlow";
-import {
-    appealSessionResult,
-    checkAllDone,
-    markNum,
-} from "./AnswerFlow";
-import {
-    fillOneStep,
-    renderOneStepHtml,
-    renderStepsInnerHtml,
-} from "./CardHtml";
-import {statusIcon} from "./FormHtml";
-import {
-    gradeStep,
-    overrideStepsResult,
-    recordStepsResult,
-    stepOptionIsRight,
-} from "./QuestionService";
-import type {
-    WenguQuestion,
-    WenguStep,
-} from "./types";
-import {
-    LETTERS,
-    optionDisplayMd,
-} from "./types";
-import {
-    esc,
-    fmt,
-    mmss,
-} from "./ui";
+import { appealMethodStep, nextRealtimeStep } from "./AiJudge";
+import type { RealtimeHistoryItem } from "./AiJudge";
+import type { AnswerHost } from "./AnswerFlow";
+import { appealSessionResult, checkAllDone, markNum } from "./AnswerFlow";
+import { fillOneStep, renderOneStepHtml, renderStepsInnerHtml } from "./CardHtml";
+import { statusIcon } from "./FormHtml";
+import { gradeStep, overrideStepsResult, recordStepsResult, stepOptionIsRight } from "./QuestionService";
+import type { WenguQuestion, WenguStep } from "./types";
+import { LETTERS, optionDisplayMd } from "./types";
+import { esc, fmt, mmss } from "./ui";
 
 /**
  * 多步引导题作答流程（type="steps"）：一张卡内逐步解锁——每步单选、
@@ -90,10 +64,9 @@ function bindOffline(host: AnswerHost, card: HTMLElement, q: WenguQuestion): voi
         const step = q.steps?.[k];
         if (step) fillOneStep(stepEl, step);
         bindStepSelect(stepEl);
-        stepEl.querySelector("[data-act='step-next']")?.addEventListener(
-            "click",
-            () => void submitOfflineStep(host, card, q, stepEl, k),
-        );
+        stepEl
+            .querySelector("[data-act='step-next']")
+            ?.addEventListener("click", () => void submitOfflineStep(host, card, q, stepEl, k));
     }
 }
 
@@ -103,7 +76,7 @@ async function submitOfflineStep(
     card: HTMLElement,
     q: WenguQuestion,
     stepEl: HTMLElement,
-    k: number,
+    k: number
 ): Promise<void> {
     if (stepEl.dataset.graded === "1" || card.dataset.graded === "1") return;
     const step = q.steps?.[k];
@@ -118,7 +91,7 @@ async function submitOfflineStep(
     if (next) {
         next.removeAttribute("hidden");
         card.dataset.stepCur = String(k + 1);
-        next.scrollIntoView({behavior: "smooth", block: "nearest"});
+        next.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } else {
         await finishFromDom(host, card, q, true);
     }
@@ -133,20 +106,20 @@ function gradeAndShowStep(
     stepEl: HTMLElement,
     step: WenguStep,
     k: number,
-    letter: string,
+    letter: string
 ): boolean {
     const ok = gradeStep(step, letter);
     stepEl.dataset.graded = "1";
-    stepEl.querySelectorAll("button").forEach((b) => (b as HTMLButtonElement).disabled = true);
+    stepEl.querySelectorAll("button").forEach((b) => ((b as HTMLButtonElement).disabled = true));
     host.flushTime();
     host.recordAnswer(`${q.id}#${k}`, letter, ok);
     markStepOptions(step, stepEl, letter);
     showStepResult(
         stepEl,
-        ok ?
-            esc(host.t("correct")) :
-            `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(host, step))}`,
-        ok,
+        ok
+            ? esc(host.t("correct"))
+            : `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(host, step))}`,
+        ok
     );
     if (!ok && step.kind === "method") {
         const btn = document.createElement("button");
@@ -169,7 +142,7 @@ async function runMethodAppeal(
     step: WenguStep,
     k: number,
     letter: string,
-    btn: HTMLButtonElement,
+    btn: HTMLButtonElement
 ): Promise<void> {
     if (btn.disabled) return;
     btn.disabled = true;
@@ -195,12 +168,7 @@ async function runMethodAppeal(
     } catch (e) {
         btn.disabled = false;
         btn.textContent = host.t("stepAppeal");
-        showStepResult(
-            stepEl,
-            esc(`${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`),
-            false,
-            true,
-        );
+        showStepResult(stepEl, esc(`${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`), false, true);
     }
 }
 
@@ -220,8 +188,8 @@ async function refreshFinishedAppeal(host: AnswerHost, card: HTMLElement, q: Wen
     const firstWrong = oks.findIndex((ok) => !ok);
     showCardResult(
         card,
-        allOk ? esc(host.t("stepAllCorrect")) : esc(fmt(host.t("stepWrongAt"), {n: String(firstWrong + 1)})),
-        allOk,
+        allOk ? esc(host.t("stepAllCorrect")) : esc(fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) })),
+        allOk
     );
 }
 
@@ -230,7 +198,7 @@ async function finishFromDom(
     host: AnswerHost,
     card: HTMLElement,
     q: WenguQuestion,
-    persistStepState: boolean,
+    persistStepState: boolean
 ): Promise<void> {
     if (card.dataset.graded === "1") return;
     const steps = q.steps ?? [];
@@ -243,7 +211,7 @@ async function finishFromDom(
         const letter = sel?.dataset.letter ?? "";
         letters.push(letter);
         const step = steps[k];
-        oks.push(letter && step ? (appealed.has(k) || gradeStep(step, letter)) : false);
+        oks.push(letter && step ? appealed.has(k) || gradeStep(step, letter) : false);
     }
     await finishCard(host, card, q, letters, oks, persistStepState);
 }
@@ -256,30 +224,28 @@ async function finishCard(
     q: WenguQuestion,
     letters: string[],
     oks: boolean[],
-    persistStepState: boolean,
+    persistStepState: boolean
 ): Promise<void> {
     card.dataset.graded = "1";
-    card.dataset.stepOks = oks.map((ok) => ok ? "1" : "0").join("");
+    card.dataset.stepOks = oks.map((ok) => (ok ? "1" : "0")).join("");
     card.dataset.stepPersist = persistStepState ? "1" : "0";
     card.classList.add("wengu-graded");
     // 申诉按钮不锁：收口后仍可对答错的 method 步发起 AI 复核
-    card.querySelectorAll("button:not(.wengu-step-appeal)").forEach((b) => (b as HTMLButtonElement).disabled = true);
+    card.querySelectorAll("button:not(.wengu-step-appeal)").forEach((b) => ((b as HTMLButtonElement).disabled = true));
     const allOk = oks.length > 0 && oks.every(Boolean);
     await recordStepsResult(q, letters, oks, persistStepState);
     markNum(host, q, allOk);
     const firstWrong = oks.findIndex((ok) => !ok);
-    const wrongLabel = firstWrong >= 0 ?
-        fmt(host.t("stepWrongAt"), {n: String(firstWrong + 1)}) :
-        host.t("noAnswer");
+    const wrongLabel = firstWrong >= 0 ? fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) }) : host.t("noAnswer");
     showCardResult(card, allOk ? esc(host.t("stepAllCorrect")) : esc(wrongLabel), allOk);
     const sec = host.timerController().questionSec(q.id);
-    if (sec > 0) showCardNote(card, fmt(host.t("perQTime"), {t: mmss(sec)}));
+    if (sec > 0) showCardNote(card, fmt(host.t("perQTime"), { t: mmss(sec) }));
     checkAllDone(host);
 }
 
 /** method 步揭示可行集合，result 步揭示正确答案。 */
 function stepAnswerLabel(host: AnswerHost, step: WenguStep): string {
-    return step.kind === "method" ? fmt(host.t("stepFeasibleLabel"), {s: step.answer}) : step.answer;
+    return step.kind === "method" ? fmt(host.t("stepFeasibleLabel"), { s: step.answer }) : step.answer;
 }
 
 /** 选项行描色：正确（可行）项绿、误选红。 */
@@ -341,7 +307,7 @@ async function requestRealtimeStep(
     q: WenguQuestion,
     box: HTMLElement,
     history: RealtimeHistoryItem[],
-    k: number,
+    k: number
 ): Promise<void> {
     if (card.dataset.graded === "1") return;
     showCardNote(card, host.t("aiStepLoading"));
@@ -349,7 +315,14 @@ async function requestRealtimeStep(
         const r = await nextRealtimeStep(q, history, host.aiModelId());
         hideCardNote(card);
         if (r.done || !r.step) {
-            await finishCard(host, card, q, history.map((h) => h.letter), history.map((h) => h.ok), false);
+            await finishCard(
+                host,
+                card,
+                q,
+                history.map((h) => h.letter),
+                history.map((h) => h.ok),
+                false
+            );
             return;
         }
         const step = r.step;
@@ -358,11 +331,11 @@ async function requestRealtimeStep(
         const node = holder.firstElementChild as HTMLElement;
         box.appendChild(node);
         fillOneStep(node, step);
-        node.scrollIntoView({behavior: "smooth", block: "nearest"});
+        node.scrollIntoView({ behavior: "smooth", block: "nearest" });
         bindStepSelect(node);
         node.querySelector("[data-act='step-next']")?.addEventListener(
             "click",
-            () => void submitRealtimeStep(host, card, q, box, node, step, history, k),
+            () => void submitRealtimeStep(host, card, q, box, node, step, history, k)
         );
     } catch (e) {
         hideCardNote(card);
@@ -379,7 +352,7 @@ async function submitRealtimeStep(
     node: HTMLElement,
     step: WenguStep,
     history: RealtimeHistoryItem[],
-    k: number,
+    k: number
 ): Promise<void> {
     if (node.dataset.graded === "1" || card.dataset.graded === "1") return;
     const selected = node.querySelector<HTMLElement>(".wengu-step-opt.wengu-step-selected");
@@ -391,7 +364,7 @@ async function submitRealtimeStep(
     const idx = LETTERS.indexOf(letter);
     const chosen = idx >= 0 && idx < step.optionMd.length ? optionDisplayMd(step.optionMd[idx]) : "";
     const ok = gradeAndShowStep(host, card, q, node, step, k, letter);
-    history.push({stem: step.stemMd, letter, chosen, ok});
+    history.push({ stem: step.stemMd, letter, chosen, ok });
     await requestRealtimeStep(host, card, q, box, history, k + 1);
 }
 
@@ -402,7 +375,7 @@ function showRealtimeError(
     card: HTMLElement,
     q: WenguQuestion,
     box: HTMLElement,
-    message: string,
+    message: string
 ): void {
     if (box.querySelector("[data-rt-error]")) return;
     const err = document.createElement("div");
@@ -430,7 +403,7 @@ export function restoreStepsCard(
     host: AnswerHost,
     card: HTMLElement,
     q: WenguQuestion,
-    results: {k: number; submitted: string; ok: boolean;}[],
+    results: { k: number; submitted: string; ok: boolean }[]
 ): void {
     const steps = q.steps ?? [];
     const byK = new Map(results.map((r) => [r.k, r] as const));
@@ -446,17 +419,17 @@ export function restoreStepsCard(
         answered++;
         stepEl.removeAttribute("hidden");
         stepEl.dataset.graded = "1";
-        stepEl.querySelectorAll("button").forEach((b) => (b as HTMLButtonElement).disabled = true);
+        stepEl.querySelectorAll("button").forEach((b) => ((b as HTMLButtonElement).disabled = true));
         stepEl
             .querySelector<HTMLElement>(`.wengu-step-opt[data-letter='${r.submitted}']`)
             ?.classList.add("wengu-step-selected");
         markStepOptions(step, stepEl, r.submitted);
         showStepResult(
             stepEl,
-            r.ok ?
-                esc(host.t("correct")) :
-                `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(host, step))}`,
-            r.ok,
+            r.ok
+                ? esc(host.t("correct"))
+                : `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(host, step))}`,
+            r.ok
         );
         card.dataset.stepCur = String(k + 1);
     }
@@ -469,8 +442,8 @@ export function restoreStepsCard(
         const firstWrong = oks.findIndex((ok) => !ok);
         showCardResult(
             card,
-            allOk ? esc(host.t("stepAllCorrect")) : esc(fmt(host.t("stepWrongAt"), {n: String(firstWrong + 1)})),
-            allOk,
+            allOk ? esc(host.t("stepAllCorrect")) : esc(fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) })),
+            allOk
         );
     } else {
         // 部分作答：解锁第一个未答步待续

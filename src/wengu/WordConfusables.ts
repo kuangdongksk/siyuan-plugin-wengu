@@ -1,11 +1,7 @@
 import PRESET from "./data/confusables";
-import {esc} from "./ui";
+import { esc } from "./ui";
 import WORD_BOOK from "./WordBook";
-import {
-    confKey,
-    type WenguConfusableGroup,
-    type WenguWordProgress,
-} from "./WordStore";
+import { confKey, type WenguConfusableGroup, type WenguWordProgress } from "./WordStore";
 
 /**
  * 易混组运行时（docs/confusable-words.md 定稿）：预置组（构建期
@@ -28,23 +24,18 @@ export function allGroups(p: WenguWordProgress): WenguConfusableGroup[] {
 
 /** 含某词的全部易混组。 */
 export function groupsOf(p: WenguWordProgress, idx: number): WenguConfusableGroup[] {
-    return allGroups(p).filter(g => g.ids.includes(idx));
+    return allGroups(p).filter((g) => g.ids.includes(idx));
 }
 
 /** 某词易混组内其它词下标并集（本卡快照：渲染与判定同源，防 AI
  * 异步落盘改变组导致选项错位）。 */
 export function confOthers(p: WenguWordProgress, idx: number): number[] {
-    return [...new Set(allGroups(p).flatMap(g => (g.ids.includes(idx) ? g.ids : [])))].filter(i => i !== idx);
+    return [...new Set(allGroups(p).flatMap((g) => (g.ids.includes(idx) ? g.ids : [])))].filter((i) => i !== idx);
 }
 
 /** 记一对混淆（去重）：B 在词书 → [A,B] 组；不在 → [A] + raw。
  * evidence=作答实证，ai=组复盘判定（docs/confusable-words.md §三）。 */
-export function addPair(
-    p: WenguWordProgress,
-    a: number,
-    bRaw: string,
-    src: "evidence" | "ai",
-): void {
+export function addPair(p: WenguWordProgress, a: number, bRaw: string, src: "evidence" | "ai"): void {
     const raw = bRaw.trim().toLowerCase();
     if (!raw || raw === WORD_BOOK.words[a]?.w.toLowerCase()) return;
     const b = indexOfWord(raw);
@@ -52,9 +43,7 @@ export function addPair(
         if (!g.ids.includes(a)) continue;
         if ((b !== undefined && g.ids.includes(b)) || (b === undefined && g.raw === raw)) return;
     }
-    (p.confusables ??= []).push(
-        b !== undefined ? {ids: [a, b], src} : {ids: [a], src, raw},
-    );
+    (p.confusables ??= []).push(b !== undefined ? { ids: [a, b], src } : { ids: [a], src, raw });
 }
 
 /** 易混对照块 HTML（卡片/查词详情区共用）：同组其它词与笔记。 */
@@ -63,14 +52,14 @@ export function confusableHtml(t: (k: string) => string, p: WenguWordProgress, i
     for (const g of groupsOf(p, idx)) {
         const note = p.confNotes?.[confKey(g.ids)];
         const others = g.ids
-            .filter(i => i !== idx)
-            .map(i => `${WORD_BOOK.words[i].w}：${WORD_BOOK.words[i].m.split("\n")[0]}`);
+            .filter((i) => i !== idx)
+            .map((i) => `${WORD_BOOK.words[i].w}：${WORD_BOOK.words[i].m.split("\n")[0]}`);
         if (g.raw) others.push(`${g.raw}（不在词书）`);
         if (others.length === 0 && !note) continue;
         rows.push(
             `<div class="wengu-word-confuse">${esc(t("wordConfusePair"))}：${others.map(esc).join("；")}` +
                 (note ? `<div class="wengu-word-confuse-note">${esc(note)}</div>` : "") +
-                "</div>",
+                "</div>"
         );
     }
     return rows.join("");

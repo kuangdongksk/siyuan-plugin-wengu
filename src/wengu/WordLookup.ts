@@ -1,24 +1,9 @@
-import {svgIcon} from "./FormHtml";
-import {
-    esc,
-    fmt,
-} from "./ui";
+import { svgIcon } from "./FormHtml";
+import { esc, fmt } from "./ui";
 import WORD_BOOK from "./WordBook";
-import {
-    askPrompt,
-    confusableHtml,
-    groupsOf,
-    setNote,
-    wordNoteHtml,
-} from "./WordConfusables";
-import {
-    renderWordHead,
-    type AiGlue,
-} from "./WordHome";
-import {
-    confKey,
-    type WenguWordProgress,
-} from "./WordStore";
+import { askPrompt, confusableHtml, groupsOf, setNote, wordNoteHtml } from "./WordConfusables";
+import { renderWordHead, type AiGlue } from "./WordHome";
+import { confKey, type WenguWordProgress } from "./WordStore";
 
 /**
  * 查词面板（WordView 拆件）：非答题期间可搜词书任意词。
@@ -51,7 +36,7 @@ function statusLine(p: WenguWordProgress, idx: number, t: (k: string) => string)
     if (p.familiar[String(idx)]) return t("wordStFamiliar");
     const st = p.words[String(idx)];
     if (!st) return t("wordStNew");
-    return fmt(t("wordStLevel"), {n: String(st[0])});
+    return fmt(t("wordStLevel"), { n: String(st[0]) });
 }
 
 /** 详情页易混笔记编辑行（仅属易混组时渲染；值走 confCtl.draft 不重绘）。 */
@@ -60,15 +45,15 @@ function confEditHtml(t: (k: string) => string, p: WenguWordProgress, idx: numbe
     if (!g) return "";
     const note = p.confNotes?.[confKey(g.ids)] ?? "";
     return `<div class="wengu-word-confuse-edit">
-    <input class="b3-text-field" data-field="confnote" value="${esc(note)}" placeholder="${
-        esc(t("wordConfuseNotePh"))
-    }">
-    <button class="b3-button b3-button--outline" data-act="confask" data-idx="${idx}">${
-        esc(t("wordConfuseAsk"))
-    }</button>
-    <button class="b3-button b3-button--outline" data-act="confsave" data-idx="${idx}">${
-        esc(t("wordConfuseSave"))
-    }</button>
+    <input class="b3-text-field" data-field="confnote" value="${esc(note)}" placeholder="${esc(
+        t("wordConfuseNotePh")
+    )}">
+    <button class="b3-button b3-button--outline" data-act="confask" data-idx="${idx}">${esc(
+        t("wordConfuseAsk")
+    )}</button>
+    <button class="b3-button b3-button--outline" data-act="confsave" data-idx="${idx}">${esc(
+        t("wordConfuseSave")
+    )}</button>
   </div>`;
 }
 
@@ -77,9 +62,9 @@ function wordEditHtml(t: (k: string) => string, p: WenguWordProgress, idx: numbe
     const note = p.notes?.[String(idx)] ?? "";
     return `<div class="wengu-word-confuse-edit">
     <input class="b3-text-field" data-field="wordnote" value="${esc(note)}" placeholder="${esc(t("wordNotePh"))}">
-    <button class="b3-button b3-button--outline" data-act="wordnotesave" data-idx="${idx}">${
-        esc(t("wordNoteSave"))
-    }</button>
+    <button class="b3-button b3-button--outline" data-act="wordnotesave" data-idx="${idx}">${esc(
+        t("wordNoteSave")
+    )}</button>
   </div>`;
 }
 
@@ -89,7 +74,7 @@ export function renderLookup(
     p: WenguWordProgress,
     query: string,
     sel: number | undefined,
-    headHtml: string,
+    headHtml: string
 ): string {
     let body: string;
     if (sel !== undefined) {
@@ -99,39 +84,42 @@ export function renderLookup(
     <div class="wengu-word-unit">${esc(statusLine(p, sel, t))}</div>
     <div class="wengu-word-text">${esc(e.w)}</div>
     <div class="wengu-word-detail-meaning">${esc(e.m)}</div>
-    ${m?.confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), {v: m.confused}))}</div>` : ""}
+    ${m?.confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), { v: m.confused }))}</div>` : ""}
     ${wordNoteHtml(p, sel)}
     ${confusableHtml(t, p, sel)}
     ${m?.note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(m.note)}</div>` : ""}
     ${wordEditHtml(t, p, sel)}
     ${confEditHtml(t, p, sel)}
     <div class="wengu-word-actions">
-      <button class="b3-button b3-button--outline" data-act="lookupstar" data-idx="${sel}">${svgIcon("iconStar")}${
-            esc(t("wordStar"))
-        }</button>
-      <button class="b3-button b3-button--outline" data-act="lookupfamiliar" data-idx="${sel}">${
-            esc(t("wordFamiliar"))
-        }</button>
+      <button class="b3-button b3-button--outline" data-act="lookupstar" data-idx="${sel}">${svgIcon("iconStar")}${esc(
+          t("wordStar")
+      )}</button>
+      <button class="b3-button b3-button--outline" data-act="lookupfamiliar" data-idx="${sel}">${esc(
+          t("wordFamiliar")
+      )}</button>
       <button class="b3-button b3-button--outline" data-act="lookup">${esc(t("wordLookupBack"))}</button>
     </div>
   </div>`;
     } else {
         const hits = searchWords(query);
-        const rows = hits.map((i) =>
-            `<button class="wengu-word-opt" data-act="lookuppick" data-idx="${i}">
+        const rows = hits
+            .map(
+                (i) =>
+                    `<button class="wengu-word-opt" data-act="lookuppick" data-idx="${i}">
     <span class="wengu-word-lk-word">${esc(WORD_BOOK.words[i].w)}</span>
     <span class="wengu-word-lk-meaning">${esc(WORD_BOOK.words[i].m.split("\n")[0])}</span>
   </button>`
-        ).join("");
+            )
+            .join("");
         body = `<div class="wengu-word-card">
-    <input class="b3-text-field wengu-word-spell" data-field="lookup" value="${esc(query)}" placeholder="${
-            esc(t("wordLookupPh"))
-        }" autocomplete="off">
+    <input class="b3-text-field wengu-word-spell" data-field="lookup" value="${esc(query)}" placeholder="${esc(
+        t("wordLookupPh")
+    )}" autocomplete="off">
     <div class="wengu-word-opts">${
-            query.trim() === "" ?
-                `<div class="wengu-word-hint">${esc(t("wordLookupHint"))}</div>` :
-                rows || `<div class="wengu-word-hint">${esc(t("wordLookupNone"))}</div>`
-        }</div>
+        query.trim() === ""
+            ? `<div class="wengu-word-hint">${esc(t("wordLookupHint"))}</div>`
+            : rows || `<div class="wengu-word-hint">${esc(t("wordLookupNone"))}</div>`
+    }</div>
   </div>`;
     }
     return `<div class="wengu-word">
@@ -148,7 +136,7 @@ export function paintLookupInto(
     query: string,
     sel: number | undefined,
     ai: AiGlue,
-    fromCard = false,
+    fromCard = false
 ): void {
     el.innerHTML = renderLookup(
         t,
@@ -157,18 +145,18 @@ export function paintLookupInto(
         sel,
         renderWordHead(
             t,
-            `<button class="b3-button b3-button--icon" data-act="stats" title="${esc(t("wordStatsTitle"))}">${
-                svgIcon("iconInfo")
-            }</button>${
-                fromCard ?
-                    `<button class="b3-button b3-button--icon" data-act="resumecard" title="${
-                        esc(t("wordResumeCard"))
-                    }">${svgIcon("iconBack")}</button>` :
-                    `<button class="b3-button b3-button--icon" data-act="home" title="${esc(t("wordBackHome"))}">${
-                        svgIcon("iconList")
-                    }</button>`
-            }${ai.buttonHtml(p)}`,
-        ),
+            `<button class="b3-button b3-button--icon" data-act="stats" title="${esc(t("wordStatsTitle"))}">${svgIcon(
+                "iconInfo"
+            )}</button>${
+                fromCard
+                    ? `<button class="b3-button b3-button--icon" data-act="resumecard" title="${esc(
+                          t("wordResumeCard")
+                      )}">${svgIcon("iconBack")}</button>`
+                    : `<button class="b3-button b3-button--icon" data-act="home" title="${esc(t("wordBackHome"))}">${svgIcon(
+                          "iconList"
+                      )}</button>`
+            }${ai.buttonHtml(p)}`
+        )
     );
     const input = el.querySelector<HTMLInputElement>("[data-field='lookup']");
     input?.focus();
@@ -185,7 +173,7 @@ export class LookupConfCtl {
     constructor(
         private readonly getProgress: () => WenguWordProgress,
         private readonly save: (p: WenguWordProgress) => Promise<unknown>,
-        private readonly refresh: () => void,
+        private readonly refresh: () => void
     ) {}
 
     /** 保存词级笔记（任何词，词根/助记/例句）。 */
@@ -210,9 +198,7 @@ export class LookupConfCtl {
     /** 复制「辨析 A/B」提示词（去外部 AI 或思源内部对话生成）。 */
     ask(idx: number): void {
         const g = groupsOf(this.getProgress(), idx)[0];
-        const other = g && g.ids.some(i => i !== idx) ?
-            WORD_BOOK.words[g.ids.find(i => i !== idx)!].w :
-            g?.raw;
+        const other = g && g.ids.some((i) => i !== idx) ? WORD_BOOK.words[g.ids.find((i) => i !== idx)!].w : g?.raw;
         if (other) void navigator.clipboard?.writeText(askPrompt(idx, other));
     }
 }

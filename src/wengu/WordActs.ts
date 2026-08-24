@@ -1,12 +1,8 @@
-import {WordAiRunner} from "./WordAi";
-import type {LookupConfCtl} from "./WordLookup";
-import type {WordStartCtl} from "./WordStart";
-import type {WenguWordProgress} from "./WordStore";
-import {
-    buildQueue,
-    markFamiliar,
-    toggleStar,
-} from "./WordStore";
+import { WordAiRunner } from "./WordAi";
+import type { LookupConfCtl } from "./WordLookup";
+import type { WordStartCtl } from "./WordStart";
+import type { WenguWordProgress } from "./WordStore";
+import { buildQueue, markFamiliar, toggleStar } from "./WordStore";
 
 /**
  * data-act 动作分发（WordView 拆件）：switch 全集中在此，
@@ -17,11 +13,11 @@ import {
 export interface WordViewApi {
     t: (k: string) => string;
     progress: WenguWordProgress | undefined;
-    store: {save: (p: WenguWordProgress) => Promise<unknown>;};
+    store: { save: (p: WenguWordProgress) => Promise<unknown> };
     ai: WordAiRunner;
     mode: string;
     phase: "prompt" | "result";
-    answered: {correct: boolean;} | undefined;
+    answered: { correct: boolean } | undefined;
     hardList: number[];
     lookupSel: number | undefined;
     rebuildQueue(kind: "review" | "fresh" | "star"): void;
@@ -46,7 +42,7 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
             v.paint();
             break;
         case "gofresh": {
-            const {review} = buildQueue(v.progress!);
+            const { review } = buildQueue(v.progress!);
             if (review.length > 0) {
                 v.mode = "askreview"; // 有到期复习 → 先弹「先复习」
             } else {
@@ -136,7 +132,7 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
                     () => {
                         v.mode = "home";
                     },
-                    () => v.paint(),
+                    () => v.paint()
                 );
             }
             break;

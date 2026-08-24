@@ -1,4 +1,4 @@
-import type {WordGrade} from "./WordStore";
+import type { WordGrade } from "./WordStore";
 
 /**
  * 单词面板事件绑定（WordView 拆件）：DOM 委托与按键分发在此，
@@ -53,7 +53,7 @@ export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
             return;
         }
         if (target.tagName === "SELECT" && target.dataset.field === "groupsize") {
-            host.act("setgroupsize", {value: (target as HTMLSelectElement).value});
+            host.act("setgroupsize", { value: (target as HTMLSelectElement).value });
         }
     });
     el.addEventListener("input", (ev) => {
@@ -114,7 +114,7 @@ export function bindWordEvents(el: HTMLElement, host: WordBindHost): void {
         }
         // 答完待收尾
         if (inInput) return;
-        const map: Record<string, WordGrade> = {Digit1: "no", Digit2: "fuzzy", Digit3: "know"};
+        const map: Record<string, WordGrade> = { Digit1: "no", Digit2: "fuzzy", Digit3: "know" };
         const g = map[ev.code];
         if (g) {
             ev.preventDefault();

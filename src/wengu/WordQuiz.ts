@@ -1,8 +1,5 @@
-import {statusIcon} from "./FormHtml";
-import {
-    esc,
-    fmt,
-} from "./ui";
+import { statusIcon } from "./FormHtml";
+import { esc, fmt } from "./ui";
 import WORD_BOOK from "./WordBook";
 
 /**
@@ -58,9 +55,9 @@ export function meaningLine(idx: number): string {
     return m.split("\n")[0].trim();
 }
 
-function unitRange(idx: number): {start: number; count: number;} {
+function unitRange(idx: number): { start: number; count: number } {
     const u = WORD_BOOK.units.find((v) => idx >= v.start && idx < v.start + v.count) ?? WORD_BOOK.units[0];
-    return {start: u.start, count: u.count};
+    return { start: u.start, count: u.count };
 }
 
 /** 稳定伪随机（按词下标作种子，同一词每次选项组合一致）。 */
@@ -80,12 +77,12 @@ export function buildMeaningOptions(idx: number, confIds: readonly number[] = []
     const pool: WenguOpt[] = [];
     const push = (i: number): void => {
         const t = meaningLine(i);
-        if (t && t !== correct && !pool.some(o => o.text === t)) pool.push({text: t, from: i});
+        if (t && t !== correct && !pool.some((o) => o.text === t)) pool.push({ text: t, from: i });
     };
     for (const i of confIds) {
         if (i !== idx) push(i);
     }
-    const {start, count} = unitRange(idx);
+    const { start, count } = unitRange(idx);
     for (let i = start; i < start + count && pool.length < 60; i++) {
         if (i === idx || confIds.includes(i)) continue;
         push(i);
@@ -96,7 +93,7 @@ export function buildMeaningOptions(idx: number, confIds: readonly number[] = []
         picks.push(pool.splice(next() % pool.length, 1)[0]);
     }
     const at = next() % (picks.length + 1);
-    picks.splice(at, 0, {text: correct, from: idx});
+    picks.splice(at, 0, { text: correct, from: idx });
     return picks;
 }
 
@@ -106,12 +103,12 @@ export function buildWordOptions(idx: number, confIds: readonly number[] = []): 
     const pool: WenguOpt[] = [];
     const push = (i: number): void => {
         const w = WORD_BOOK.words[i].w;
-        if (w && w !== correct && !pool.some(o => o.text === w)) pool.push({text: w, from: i});
+        if (w && w !== correct && !pool.some((o) => o.text === w)) pool.push({ text: w, from: i });
     };
     for (const i of confIds) {
         if (i !== idx) push(i);
     }
-    const {start, count} = unitRange(idx);
+    const { start, count } = unitRange(idx);
     for (let i = start; i < start + count && pool.length < 60; i++) {
         if (i === idx || confIds.includes(i)) continue;
         push(i);
@@ -122,7 +119,7 @@ export function buildWordOptions(idx: number, confIds: readonly number[] = []): 
         picks.push(pool.splice(next() % pool.length, 1)[0]);
     }
     const at = next() % (picks.length + 1);
-    picks.splice(at, 0, {text: correct, from: idx});
+    picks.splice(at, 0, { text: correct, from: idx });
     return picks;
 }
 
@@ -137,9 +134,9 @@ function optionCls(i: number, answered: AnsweredState | undefined, correctText: 
 function wrongPickHtml(t: (k: string) => string, from: number): string {
     const e = WORD_BOOK.words[from];
     if (!e) return "";
-    return `<div class="wengu-word-wrongpick">${esc(t("wordWrongPickEntry"))}：${esc(e.w)} ${
-        esc(e.m.split("\n")[0])
-    }</div>`;
+    return `<div class="wengu-word-wrongpick">${esc(t("wordWrongPickEntry"))}：${esc(e.w)} ${esc(
+        e.m.split("\n")[0]
+    )}</div>`;
 }
 
 /** 详情区（单词+释义+曾认成 chip+易混对照+AI辨析），结果视图共用。 */
@@ -148,13 +145,13 @@ function detailHtml(
     t: (k: string) => string,
     note: string | undefined,
     confused?: string,
-    confHtml = "",
+    confHtml = ""
 ): string {
     const entry = WORD_BOOK.words[idx];
     return `<div class="wengu-word-detail">
     <div class="wengu-word-detail-word">${esc(entry.w)}</div>
     <div class="wengu-word-detail-meaning">${esc(entry.m)}</div>
-    ${confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), {v: confused}))}</div>` : ""}
+    ${confused ? `<div class="wengu-word-confused">${esc(fmt(t("wordConfusedChip"), { v: confused }))}</div>` : ""}
     ${confHtml}
     ${note ? `<div class="wengu-word-ainote">${esc(t("wordAiNote"))}${esc(note)}</div>` : ""}
   </div>`;
@@ -163,18 +160,18 @@ function detailHtml(
 /** 结果视图的「认成了…」自述输入（答错时填,回车=不认识并记录）。 */
 function confessHtml(t: (k: string) => string, word: string): string {
     return `<div class="wengu-word-confess">
-    <span class="wengu-word-confess-label">${esc(fmt(t("wordConfusedHint"), {w: word}))}</span>
-    <input class="b3-text-field wengu-word-spell" data-field="confessed" autocomplete="off" placeholder="${
-        esc(t("wordConfusedPh"))
-    }">
+    <span class="wengu-word-confess-label">${esc(fmt(t("wordConfusedHint"), { w: word }))}</span>
+    <input class="b3-text-field wengu-word-spell" data-field="confessed" autocomplete="off" placeholder="${esc(
+        t("wordConfusedPh")
+    )}">
   </div>`;
 }
 
 /** 「熟」按钮（标熟=退出复习循环）。 */
 function familiarButton(t: (k: string) => string): string {
-    return `<button class="b3-button b3-button--outline" data-act="mastered" title="${esc(t("wordFamiliarTip"))}">${
-        esc(t("wordFamiliar"))
-    }</button>`;
+    return `<button class="b3-button b3-button--outline" data-act="mastered" title="${esc(t("wordFamiliarTip"))}">${esc(
+        t("wordFamiliar")
+    )}</button>`;
 }
 
 /** 客观题作答后的收尾按钮：下一个（对→know/错→no，错的判分自带）。 */
@@ -210,7 +207,7 @@ export function renderCard(
         confIds?: readonly number[];
         /** 易混对照块 HTML（视图预构建注入）。 */
         confHtml?: string;
-    } = {},
+    } = {}
 ): string {
     const entry = WORD_BOOK.words[idx];
     const label = t(MODE_KEY[mode]);
@@ -221,49 +218,53 @@ export function renderCard(
     ${wrongPending ? familiarButton(t) : ""}`;
     let body: string;
     if (mode === "choiceEn" || mode === "choiceZh") {
-        const choices = mode === "choiceEn" ?
-            buildMeaningOptions(idx, opts.confIds) :
-            buildWordOptions(idx, opts.confIds);
+        const choices =
+            mode === "choiceEn" ? buildMeaningOptions(idx, opts.confIds) : buildWordOptions(idx, opts.confIds);
         const correct = mode === "choiceEn" ? meaningLine(idx) : entry.w;
-        const wrongPick = opts.answered && !opts.answered.correct && opts.answered.pickFrom !== undefined ?
-            wrongPickHtml(t, opts.answered.pickFrom) :
-            "";
-        const buttons = choices.map((o, i) =>
-            `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, choices)}" data-opt="${i}"${
-                opts.answered ? " disabled" : ""
-            }">${esc(o.text)}</button>`
-        ).join("");
+        const wrongPick =
+            opts.answered && !opts.answered.correct && opts.answered.pickFrom !== undefined
+                ? wrongPickHtml(t, opts.answered.pickFrom)
+                : "";
+        const buttons = choices
+            .map(
+                (o, i) =>
+                    `<button class="b3-button wengu-word-opt${optionCls(i, opts.answered, correct, choices)}" data-opt="${i}"${
+                        opts.answered ? " disabled" : ""
+                    }">${esc(o.text)}</button>`
+            )
+            .join("");
         const topic = mode === "choiceEn" ? esc(entry.w) : esc(meaningLine(idx));
         const topicCls = mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh";
         body = `<div class="${topicCls}">${topic}</div>
     ${
-            opts.answered ?
-                `<div class="wengu-word-feedback">${statusIcon(opts.answered.correct ? "right" : "wrong")}${
-                    esc(opts.answered.correct ? t("wordCorrectPick") : t("wordWrongPick2"))
-                }</div>` :
-                `<div class="wengu-word-hint">${esc(t("wordPickHint"))}</div>`
-        }
+        opts.answered
+            ? `<div class="wengu-word-feedback">${statusIcon(opts.answered.correct ? "right" : "wrong")}${esc(
+                  opts.answered.correct ? t("wordCorrectPick") : t("wordWrongPick2")
+              )}</div>`
+            : `<div class="wengu-word-hint">${esc(t("wordPickHint"))}</div>`
+    }
     <div class="wengu-word-opts">${buttons}</div>
     ${wrongPick}
     ${opts.answered ? resultBlocks + `<div class="wengu-word-actions">${continueButtons(t)}</div>` : ""}`;
     } else if (mode === "spell") {
         if (opts.answered) {
             body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
-    <div class="wengu-word-feedback">${statusIcon(opts.answered.correct ? "right" : "wrong")}${
-                esc(opts.answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), {w: entry.w}))
-            }</div>
+    <div class="wengu-word-feedback">${statusIcon(opts.answered.correct ? "right" : "wrong")}${esc(
+        opts.answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), { w: entry.w })
+    )}</div>
     ${resultBlocks}
     <div class="wengu-word-actions">${continueButtons(t)}</div>`;
         } else {
             body = `<div class="wengu-word-zh">${esc(meaningLine(idx))}</div>
-    <input class="b3-text-field wengu-word-spell" data-field="spell" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${
-                esc(t("wordSpellPlaceholder"))
-            }">
-    <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="submit">${
-                esc(t("wordSubmit"))
-            }</button></div>`;
+    <input class="b3-text-field wengu-word-spell" data-field="spell" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(
+        t("wordSpellPlaceholder")
+    )}">
+    <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="submit">${esc(
+        t("wordSubmit")
+    )}</button></div>`;
         }
-    } else { // recallEn / recallZh
+    } else {
+        // recallEn / recallZh
         if (opts.reveal) {
             body = `<div class="wengu-word-feedback">${esc(t(mode === "recallEn" ? "wordSelfEn" : "wordSelfZh"))}</div>
     ${resultBlocks}
@@ -277,9 +278,9 @@ export function renderCard(
             const cls = mode === "recallEn" ? "wengu-word-text" : "wengu-word-zh";
             body = `<div class="${cls}">${topic}</div>
     <div class="wengu-word-hint">${esc(t("wordRecallHint"))}</div>
-    <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="showanswer">${
-                esc(t("wordShowAnswer"))
-            }</button></div>`;
+    <div class="wengu-word-actions"><button class="b3-button b3-button--outline" data-act="showanswer">${esc(
+        t("wordShowAnswer")
+    )}</button></div>`;
         }
     }
     const starBtn = `<button class="b3-button b3-button--icon wengu-word-star${
@@ -304,16 +305,16 @@ export function checkOption(
     mode: "choiceEn" | "choiceZh",
     idx: number,
     no: number,
-    confIds: readonly number[] = [],
+    confIds: readonly number[] = []
 ): AnsweredState | undefined {
     const choices = mode === "choiceEn" ? buildMeaningOptions(idx, confIds) : buildWordOptions(idx, confIds);
     if (choices[no] === undefined) return undefined;
     const correct = mode === "choiceEn" ? meaningLine(idx) : WORD_BOOK.words[idx].w;
-    return {correct: choices[no].text === correct, pick: no, pickFrom: choices[no].from};
+    return { correct: choices[no].text === correct, pick: no, pickFrom: choices[no].from };
 }
 
 /** 读拼写框并判定（el 为视图容器）。 */
 export function checkSpell(el: HTMLElement, idx: number): AnsweredState {
     const input = el.querySelector<HTMLInputElement>("[data-field='spell']");
-    return {correct: spellMatches(input?.value ?? "", WORD_BOOK.words[idx].w)};
+    return { correct: spellMatches(input?.value ?? "", WORD_BOOK.words[idx].w) };
 }

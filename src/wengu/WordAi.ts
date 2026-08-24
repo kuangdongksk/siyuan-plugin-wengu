@@ -1,19 +1,9 @@
-import {
-    agentChat,
-    defaultAgentModelId,
-} from "./AgentClient";
-import {svgIcon} from "./FormHtml";
-import {
-    esc,
-    fmt,
-} from "./ui";
+import { agentChat, defaultAgentModelId } from "./AgentClient";
+import { svgIcon } from "./FormHtml";
+import { esc, fmt } from "./ui";
 import WORD_BOOK from "./WordBook";
-import {addPair} from "./WordConfusables";
-import {
-    applyAiReview,
-    type WenguTimingRec,
-    type WenguWordProgress,
-} from "./WordStore";
+import { addPair } from "./WordConfusables";
+import { applyAiReview, type WenguTimingRec, type WenguWordProgress } from "./WordStore";
 
 /**
  * AI 复盘（docs/word-timing.md）：误认词手动分析 + 组完成自动触发
@@ -35,7 +25,10 @@ let queue: Promise<unknown> = Promise.resolve();
 
 function enqueue<T>(job: () => Promise<T>): Promise<T> {
     const run = queue.then(job, job);
-    queue = run.then((): void => undefined, (): void => undefined);
+    queue = run.then(
+        (): void => undefined,
+        (): void => undefined
+    );
     return run;
 }
 
@@ -75,7 +68,7 @@ export function wordAiInput(
     correct: boolean | undefined,
     timing: WenguTimingRec | undefined,
     typed: string | undefined,
-    confessed: string | undefined,
+    confessed: string | undefined
 ): WordAiInput {
     const entry = WORD_BOOK.words[idx];
     const m = p.mistakes[String(idx)];
@@ -85,7 +78,7 @@ export function wordAiInput(
         m: entry.m,
         count: m?.count ?? 0,
         confused: confessed || m?.confused,
-        correct: correct ?? (grade !== "no"),
+        correct: correct ?? grade !== "no",
         mode: timing?.mode,
         ms: timing?.ms,
         over: timing?.over,
@@ -97,15 +90,15 @@ export function wordAiInput(
 async function analyzeBatch(
     inputs: WordAiInput[],
     p: WenguWordProgress,
-    save: () => Promise<unknown>,
+    save: () => Promise<unknown>
 ): Promise<number> {
     const reply = await enqueue(() => agentChat(buildPrompt(inputs), defaultAgentModelId(), ANALYZE_TIMEOUT_MS));
-    const byWord = new Map(inputs.map(e => [e.w.toLowerCase(), e]));
-    const items: {index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string;}[] = [];
+    const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
+    const items: { index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];
     for (const it of parseReply(reply)) {
         const hit = byWord.get(it.word.trim().toLowerCase());
         if (!hit) continue;
-        items.push({index: hit.index, act: it.act, tip: it.tip, confused: it.confused});
+        items.push({ index: hit.index, act: it.act, tip: it.tip, confused: it.confused });
         if (it.confused) addPair(p, hit.index, it.confused, "ai");
     }
     applyAiReview(p, items);
@@ -114,11 +107,7 @@ async function analyzeBatch(
 }
 
 /** 多批串行分析（手动/组触发共用）。 */
-async function analyzeAll(
-    inputs: WordAiInput[],
-    p: WenguWordProgress,
-    save: () => Promise<unknown>,
-): Promise<number> {
+async function analyzeAll(inputs: WordAiInput[], p: WenguWordProgress, save: () => Promise<unknown>): Promise<number> {
     let done = 0;
     for (let i = 0; i < inputs.length; i += BATCH_SIZE) {
         done += await analyzeBatch(inputs.slice(i, i + BATCH_SIZE), p, save);
@@ -127,17 +116,19 @@ async function analyzeAll(
 }
 
 function buildPrompt(inputs: WordAiInput[]): string {
-    const list = inputs.map((e, i) => {
-        const parts = [`${i + 1}. ${e.w}（${e.m.split("\n")[0]}）`];
-        if (e.correct !== undefined) parts.push(e.correct ? "答对" : "答错");
-        if (e.count > 0) parts.push(`累计答错 ${e.count} 次`);
-        if (e.mode && e.ms !== undefined) {
-            parts.push(`${e.mode} 有效用时 ${(e.ms / 1000).toFixed(1)} 秒${e.over ? "（超时）" : ""}`);
-        }
-        if (e.typed) parts.push(`拼成了「${e.typed}」`);
-        if (e.confused) parts.push(`学生自述认成了：${e.confused}`);
-        return parts.join("，");
-    }).join("\n");
+    const list = inputs
+        .map((e, i) => {
+            const parts = [`${i + 1}. ${e.w}（${e.m.split("\n")[0]}）`];
+            if (e.correct !== undefined) parts.push(e.correct ? "答对" : "答错");
+            if (e.count > 0) parts.push(`累计答错 ${e.count} 次`);
+            if (e.mode && e.ms !== undefined) {
+                parts.push(`${e.mode} 有效用时 ${(e.ms / 1000).toFixed(1)} 秒${e.over ? "（超时）" : ""}`);
+            }
+            if (e.typed) parts.push(`拼成了「${e.typed}」`);
+            if (e.confused) parts.push(`学生自述认成了：${e.confused}`);
+            return parts.join("，");
+        })
+        .join("\n");
     return `你是考研单词复习教练。下面是学生的作答数据，请逐词判断掌握程度并安排复习。
 判定规则（严格执行）：
 - 秒答且答对 → L: up
@@ -187,7 +178,7 @@ export class WordAiRunner {
             if (m.note) continue;
             const entry = WORD_BOOK.words[Number(key)];
             if (entry) {
-                out.push({index: Number(key), w: entry.w, m: entry.m, count: m.count, confused: m.confused});
+                out.push({ index: Number(key), w: entry.w, m: entry.m, count: m.count, confused: m.confused });
             }
         }
         return out;
@@ -195,16 +186,16 @@ export class WordAiRunner {
 
     buttonHtml(p: WenguWordProgress): string {
         const n = this.pending(p).length;
-        const title = this.running ?
-            this.t("wordAiRunning") :
-            n > 0 ?
-            fmt(this.t("wordAiPending"), {n: String(n)}) :
-            this.t("wordAiNone");
+        const title = this.running
+            ? this.t("wordAiRunning")
+            : n > 0
+              ? fmt(this.t("wordAiPending"), { n: String(n) })
+              : this.t("wordAiNone");
         return `<button class="b3-button b3-button--icon${
             n === 0 && !this.running ? " fn__none" : ""
-        }" data-act="aianalyze" title="${esc(title)}"${this.running ? " disabled" : ""}>${
-            svgIcon("iconSparkles")
-        }</button>`;
+        }" data-act="aianalyze" title="${esc(title)}"${this.running ? " disabled" : ""}>${svgIcon(
+            "iconSparkles"
+        )}</button>`;
     }
 
     msgHtml(): string {
@@ -219,7 +210,7 @@ export class WordAiRunner {
         p: WenguWordProgress,
         save: () => Promise<unknown>,
         onApplied: () => void,
-        repaint: () => void,
+        repaint: () => void
     ): Promise<void> {
         if (this.running) return;
         const pending = this.pending(p);
@@ -233,9 +224,8 @@ export class WordAiRunner {
         repaint();
         try {
             const n = await analyzeAll(pending, p, save);
-            this.msg = n > 0 ?
-                fmt(this.t("wordAiDone"), {n: String(n)}) :
-                this.t("wordAiFailed") + this.t("wordAiBadReply");
+            this.msg =
+                n > 0 ? fmt(this.t("wordAiDone"), { n: String(n) }) : this.t("wordAiFailed") + this.t("wordAiBadReply");
             onApplied();
         } catch (e) {
             this.msg = "!" + this.t("wordAiFailed") + String((e as Error)?.message ?? e).slice(0, 120);
@@ -250,7 +240,7 @@ export class WordAiRunner {
         inputs: WordAiInput[],
         p: WenguWordProgress,
         save: () => Promise<unknown>,
-        onDirty: () => void,
+        onDirty: () => void
     ): Promise<void> {
         if (inputs.length === 0) return;
         try {

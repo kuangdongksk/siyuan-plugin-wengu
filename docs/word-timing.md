@@ -5,14 +5,14 @@
 
 ## 背景与现状
 
-* 单词复习现为纯本地 Leitner：`WordStore.applyGrade` +
+- 单词复习现为纯本地 Leitner：`WordStore.applyGrade` +
   `INTERVAL_DAYS = [1,2,4,8,16,32]`，档位只由「对错/自评档」驱动，
   **作答耗时信号被完全丢弃**——秒答对与犹豫十秒后答对拿到同一档位。
-* `WordAi.ts` 已有误认词批量 AI 分析管线可复用/扩展：
+- `WordAi.ts` 已有误认词批量 AI 分析管线可复用/扩展：
   `enqueue` 串行队列（内核 `/api/ai/agent/chat` 全局互斥，见 AGENTS.md）、
   `BATCH_SIZE = 20` 多批顺序、W/T/D 三行回复协议、
   `applyAiPlan` 落盘覆盖到期时间（现 clamp 1-30 天）。
-* 答题交互全部经 `WordBind.ts` 的 `WordBindHost` 回调
+- 答题交互全部经 `WordBind.ts` 的 `WordBindHost` 回调
   （option/grade/reveal/submitSpell/continueObjective），
   host 实现在 `WordView.ts`——**该文件 479 行，逼近 500 行硬上限**。
 
@@ -57,58 +57,58 @@
 
 ## 改动点
 
-* **新文件 `src/wengu/WordTiming.ts`**：计时器（卡片进入 prompt 态
+- **新文件 `src/wengu/WordTiming.ts`**：计时器（卡片进入 prompt 态
   启动、作答回调结算、可见性暂停、超时阈值判定）+ 题型基线表与
   归一化。`WordView.ts` 只做最少接线——它已 479 行，超限就再拆。
-* `WordStore.ts`：`WenguWordProgress` 增计时段（如
+- `WordStore.ts`：`WenguWordProgress` 增计时段（如
   `timing: Record<string, {mode, ms, over}[]>`）；`get()` 里按现有
   模式做旧数据回填（无字段补空对象）；批改路径与计时器对接
   （超时 → 等同 grade "no"）。
-* `WordAi.ts`：主通道改为**组完成自动触发**（决策 6）：该组全部
+- `WordAi.ts`：主通道改为**组完成自动触发**（决策 6）：该组全部
   作答数据整体发送；误认词的辨析提示（T 行）并入同一调用；
   回复协议增加**配对建议行**（决策 7：AI 判出的 A↔B 误认对）；
   现有手动按钮保留作兜底（组外遗留误认词/失败重试）；
   `buildPrompt` 带停留时长/题型/答错历史；`applyAiPlan` 按决策
   4 改档位制。
-* 误认对调度（决策 7）：批改路径上 confess 框有内容即「认成了
+- 误认对调度（决策 7）：批改路径上 confess 框有内容即「认成了
   B」——不论自评档位，A 按忘记档处理（本组隔卡重现 + 明天
   到期），复用现有 `mistakes[key].confused` 存储；新增
   `WenguWordProgress.confusion`（A 下标 → B 词书下标或原文，
   `get()` 里旧数据回填）；出题侧把 A 的配对 B（词书内）紧邻
   插卡或 A 详情区并列展示对照，两形态择一、轻者优先。
-* 组边界逻辑（建议放 `WordTiming.ts` 或独立小文件）：计数到组大小
+- 组边界逻辑（建议放 `WordTiming.ts` 或独立小文件）：计数到组大小
   → 触发 AI（不弹窗不等待）→ 重建队列（`buildQueue` 本地毫秒级）
   → 下一组继续；设置项「每组单词数」放起点设置面板
   （`WordStart.ts`，注意 dev 已删掉「每日新词」行，别复用其键名）。
-* i18n `src/i18n/{zh-CN,en}.json` 同步新文案（设置行、可选的
+- i18n `src/i18n/{zh-CN,en}.json` 同步新文案（设置行、可选的
   「本组 n/N」轻量指示——不做重进度条，勿过度设计）。
-* 单词功能不涉及文档块，`docs/question-block-contract.md` 不用动。
+- 单词功能不涉及文档块，`docs/question-block-contract.md` 不用动。
 
 ## 硬约束
 
-* 仓库内单文件 ≤500 行；图标用 `FormHtml.svgIcon` 禁 emoji；
+- 仓库内单文件 ≤500 行；图标用 `FormHtml.svgIcon` 禁 emoji；
   表单统一 FormHtml 行样式（docs/design-review.md §〇）。
-* 内核 agent/chat 并发互斥：所有 AI 调用必须过 `enqueue` 串行队列。
-* `fetchSyncPost` 串行（AGENTS.md 内核坑）。
+- 内核 agent/chat 并发互斥：所有 AI 调用必须过 `enqueue` 串行队列。
+- `fetchSyncPost` 串行（AGENTS.md 内核坑）。
 
 ## 验证与部署
 
 1. `npx tsc --noEmit && npx eslint src --ext .ts && npx dprint fmt && npm run build`
 2. 部署按 AGENTS.md「通用调试流程」：dist/index.js + dist/index.css
-   * i18n 拷 `D:/data/思源/工作/data/plugins/siyuan-plugin-wengu/`，
-     setPetalEnabled 禁→启重载，让用户重开背单词页签验证。
+    - i18n 拷 `D:/data/思源/工作/data/plugins/siyuan-plugin-wengu/`，
+      setPetalEnabled 禁→启重载，让用户重开背单词页签验证。
 3. ⚠️ 装机目录 2026-08-23 22:09 被 wengu/pdf-import 会话部署的旧版
    占据（含已废弃的 dailyNew 每日 20 上限 + MinerU 导入）。本分支
    部署会覆盖它——部署前先与用户确认 pdf-import 真机验证是否已停。
 
 ## 验收标准
 
-* 秒答/犹豫/超时三条路径本地批改正确（超时按「忘记」档处理）；
-* 思源窗口切走/最小化期间时间不累计；
-* **自评「认识」但 confess 框填了误认 B**：A 仍按没记住处理
+- 秒答/犹豫/超时三条路径本地批改正确（超时按「忘记」档处理）；
+- 思源窗口切走/最小化期间时间不累计；
+- **自评「认识」但 confess 框填了误认 B**：A 仍按没记住处理
   （隔卡重现 + 明天到期），B 在词书内则对照出现；
-* **组完成一步继续**：不弹等待、不打断，下一组立即可刷；
+- **组完成一步继续**：不弹等待、不打断，下一组立即可刷；
   AI 结果落盘后下一组起吃到重排；
-* AI 批量重排落盘的天数受 Leitner 相邻档约束；
-* 刷卡全程无 AI 等待（组触发的分析与现有 WordAi 手动按钮共用
+- AI 批量重排落盘的天数受 Leitner 相邻档约束；
+- 刷卡全程无 AI 等待（组触发的分析与现有 WordAi 手动按钮共用
   串行队列，互不吞响应）。

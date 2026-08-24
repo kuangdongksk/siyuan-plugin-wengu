@@ -23,12 +23,12 @@ and automatic sync of wrong answers into the "温故错题" flashcard deck.
 
 Planned:
 
-* [x] Import structured question sets (AI conversion via SiYuan AI)
-* [ ] Drill filters (by chapter / exam point / difficulty)
-* [x] Auto-grading drill mode (single/multiple/judge/fill auto, brief self-grade)
-* [x] Wrong-answer book backed by SiYuan flashcards (spaced repetition)
-* [ ] Question ↔ textbook linking via block references
-* [ ] Database-view statistics (accuracy per exam point, review progress)
+- [x] Import structured question sets (AI conversion via SiYuan AI)
+- [ ] Drill filters (by chapter / exam point / difficulty)
+- [x] Auto-grading drill mode (single/multiple/judge/fill auto, brief self-grade)
+- [x] Wrong-answer book backed by SiYuan flashcards (spaced repetition)
+- [ ] Question ↔ textbook linking via block references
+- [ ] Database-view statistics (accuracy per exam point, review progress)
 
 ## Development
 

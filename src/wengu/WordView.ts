@@ -1,47 +1,14 @@
-import {svgIcon} from "./FormHtml";
-import {
-    esc,
-    fmt,
-} from "./ui";
-import {dispatchWordAct} from "./WordActs";
-import {
-    WordAiRunner,
-    wordAiInput,
-    type WordAiInput,
-} from "./WordAi";
-import {
-    bindWordEvents,
-    type WordBindState,
-} from "./WordBind";
+import { svgIcon } from "./FormHtml";
+import { esc, fmt } from "./ui";
+import { dispatchWordAct } from "./WordActs";
+import { WordAiRunner, wordAiInput, type WordAiInput } from "./WordAi";
+import { bindWordEvents, type WordBindState } from "./WordBind";
 import WORD_BOOK from "./WordBook";
-import {
-    addPair,
-    confOthers,
-    confusableHtml,
-    wordNoteHtml,
-} from "./WordConfusables";
-import {
-    paintDoneInto,
-    paintHomeInto,
-    paintStatsInto,
-    renderCardHead,
-} from "./WordHome";
-import {
-    LookupConfCtl,
-    paintLookupInto,
-} from "./WordLookup";
-import {
-    checkOption,
-    checkSpell,
-    pickMode,
-    renderCard,
-    type AnsweredState,
-    type WordCardMode,
-} from "./WordQuiz";
-import {
-    renderWordStart,
-    WordStartCtl,
-} from "./WordStart";
+import { addPair, confOthers, confusableHtml, wordNoteHtml } from "./WordConfusables";
+import { paintDoneInto, paintHomeInto, paintStatsInto, renderCardHead } from "./WordHome";
+import { LookupConfCtl, paintLookupInto } from "./WordLookup";
+import { checkOption, checkSpell, pickMode, renderCard, type AnsweredState, type WordCardMode } from "./WordQuiz";
+import { renderWordStart, WordStartCtl } from "./WordStart";
 import {
     applyGrade,
     buildQueue,
@@ -57,11 +24,7 @@ import {
     type WenguWordProgress,
     type WordGrade,
 } from "./WordStore";
-import {
-    rebuildTail,
-    REINSERT_GAP,
-    WordTimer,
-} from "./WordTiming";
+import { rebuildTail, REINSERT_GAP, WordTimer } from "./WordTiming";
 
 /**
  * 单词复习视图（Dock/页签同挂载），仿不背单词：新词先学后测、五题型
@@ -118,11 +81,7 @@ export class WordView {
     /** 查词详情的易混笔记控制器。 */
     readonly confCtl: LookupConfCtl;
 
-    constructor(
-        element: HTMLElement,
-        i18n: Record<string, string>,
-        store: WordStore,
-    ) {
+    constructor(element: HTMLElement, i18n: Record<string, string>, store: WordStore) {
         this.el = element;
         this.t = (k) => i18n[k] ?? k;
         this.store = store;
@@ -131,7 +90,7 @@ export class WordView {
         this.confCtl = new LookupConfCtl(
             () => this.progress!,
             (p) => this.store.save(p),
-            () => this.paint(),
+            () => this.paint()
         );
     }
 
@@ -155,7 +114,7 @@ export class WordView {
             this.queue = starredList(p);
             this.sessionNew = new Set<number>();
         } else {
-            const {review, fresh} = buildQueue(p);
+            const { review, fresh } = buildQueue(p);
             this.queue = kind === "review" ? [...review] : [...fresh];
             this.sessionNew = kind === "review" ? new Set<number>() : new Set(fresh);
         }
@@ -220,11 +179,11 @@ export class WordView {
         const total = this.queue.length;
         const pct = total > 0 ? Math.round((this.pos / total) * 100) : 0;
         const mistake = p.mistakes[String(idx)];
-        const badge = mistake ?
-            `<span class="wengu-word-badge">${
-                esc(fmt(this.t("wordMistakeBadge"), {n: String(mistake.count)}))
-            }</span>` :
-            "";
+        const badge = mistake
+            ? `<span class="wengu-word-badge">${esc(
+                  fmt(this.t("wordMistakeBadge"), { n: String(mistake.count) })
+              )}</span>`
+            : "";
         const card = renderCard(this.cardMode, idx, this.t, {
             reveal: this.phase === "result",
             answered: this.answered,
@@ -235,24 +194,22 @@ export class WordView {
             confHtml: wordNoteHtml(p, idx) + confusableHtml(this.t, p, idx),
         });
         this.el.innerHTML = `<div class="wengu-word">
-  ${
-            renderCardHead(
-                this.t,
-                fmt(this.t("wordTodayStats"), {
-                    a: String(p.today.newCount),
-                    b: String(p.today.revCount),
-                    c: String(total - this.pos),
-                    d: String(dueTomorrowCount(p)),
-                }),
-                badge,
-                // 查词入口仅非答题态（已翻面/已作答）给
-                (this.phase === "result" || this.answered ?
-                    `<button class="b3-button b3-button--icon" data-act="lookup" title="${esc(this.t("wordLookup"))}">${
-                        svgIcon("iconSearch")
-                    }</button>` :
-                    "") + this.ai.buttonHtml(p),
-            )
-        }
+  ${renderCardHead(
+      this.t,
+      fmt(this.t("wordTodayStats"), {
+          a: String(p.today.newCount),
+          b: String(p.today.revCount),
+          c: String(total - this.pos),
+          d: String(dueTomorrowCount(p)),
+      }),
+      badge,
+      // 查词入口仅非答题态（已翻面/已作答）给
+      (this.phase === "result" || this.answered
+          ? `<button class="b3-button b3-button--icon" data-act="lookup" title="${esc(this.t("wordLookup"))}">${svgIcon(
+                "iconSearch"
+            )}</button>`
+          : "") + this.ai.buttonHtml(p)
+  )}
   ${this.ai.msgHtml()}
   ${card}
   <div class="b3-progress__bar"><span style="width:${pct}%"></span></div>
@@ -303,9 +260,7 @@ export class WordView {
             this.curTiming.typed = this.spellTyped;
             pushTiming(p, idx, this.curTiming);
         }
-        this.groupLog.push(
-            wordAiInput(p, idx, grade, this.answered?.correct, this.curTiming, this.spellTyped, v),
-        );
+        this.groupLog.push(wordAiInput(p, idx, grade, this.answered?.correct, this.curTiming, this.spellTyped, v));
         this.curTiming = undefined;
         this.spellTyped = undefined;
         this.advanceAfterFinish(grade, idx);
@@ -356,14 +311,19 @@ export class WordView {
                     this.pos,
                     this.hardList,
                     this.doneSet,
-                    this.sessionNew,
+                    this.sessionNew
                 );
                 this.queue = r.queue;
                 for (const i of r.newcomers) this.sessionNew.add(i);
             }
-            void this.ai.runGroup(batch, p, () => this.store.save(p), () => {
-                this.aiDirty = true;
-            });
+            void this.ai.runGroup(
+                batch,
+                p,
+                () => this.store.save(p),
+                () => {
+                    this.aiDirty = true;
+                }
+            );
         }
         this.enterPrompt();
         this.busy = false;
@@ -375,7 +335,12 @@ export class WordView {
         if (this.groupLog.length === 0 || !this.progress) return;
         const batch = this.groupLog;
         this.groupLog = [];
-        void this.ai.runGroup(batch, this.progress, () => this.store.save(this.progress!), () => undefined);
+        void this.ai.runGroup(
+            batch,
+            this.progress,
+            () => this.store.save(this.progress!),
+            () => undefined
+        );
     }
 
     redoHard(): void {
@@ -399,7 +364,7 @@ export class WordView {
             this.t,
             () => this.progress!,
             (p) => this.store.save(p),
-            () => this.paint(),
+            () => this.paint()
         );
         return this.startCtlCache;
     }
@@ -434,8 +399,10 @@ export class WordView {
 
     reveal(): void {
         if (
-            this.phase === "prompt" && this.cardMode !== "choiceEn" &&
-            this.cardMode !== "choiceZh" && this.cardMode !== "spell"
+            this.phase === "prompt" &&
+            this.cardMode !== "choiceEn" &&
+            this.cardMode !== "choiceZh" &&
+            this.cardMode !== "spell"
         ) {
             const s = this.timer.settle();
             if (s) this.curTiming = s;

@@ -1,4 +1,4 @@
-import WORD_BOOK, {type WenguWordUnitMeta} from "./WordBook";
+import WORD_BOOK, { type WenguWordUnitMeta } from "./WordBook";
 
 /**
  * 单词复习的词表与进度存储。
@@ -57,7 +57,7 @@ export interface WenguWordProgress {
     /** 打卡日志：日期 key → [当日新学数, 当日复习数]。 */
     log: Record<string, [number, number]>;
     /** 今日打卡统计（跨天重置）。 */
-    today: {key: string; newCount: number; revCount: number;};
+    today: { key: string; newCount: number; revCount: number };
     /** 每词最近作答计时（key 扁平下标，保留最近 5 条）。 */
     timing?: Record<string, WenguTimingRec[]>;
     /** 实证/AI 判定的易混组（预置组在 data/confusables.ts，不在此）。 */
@@ -94,7 +94,7 @@ export function defaultProgress(): WenguWordProgress {
         familiar: {},
         starred: {},
         log: {},
-        today: {key: todayKey(), newCount: 0, revCount: 0},
+        today: { key: todayKey(), newCount: 0, revCount: 0 },
         timing: {},
         confusables: [],
         confNotes: {},
@@ -125,12 +125,12 @@ export function confKey(ids: number[]): string {
 export function rollToday(progress: WenguWordProgress, now = Date.now()): boolean {
     const key = todayKey(now);
     if (progress.today.key === key) return false;
-    progress.today = {key, newCount: 0, revCount: 0};
+    progress.today = { key, newCount: 0, revCount: 0 };
     return true;
 }
 
 /** 组一次会话队列：全部到期复习词（书序）+ 全部未学新词（书序，不限量）。 */
-export function buildQueue(progress: WenguWordProgress, now = Date.now()): {review: number[]; fresh: number[];} {
+export function buildQueue(progress: WenguWordProgress, now = Date.now()): { review: number[]; fresh: number[] } {
     const review: number[] = [];
     for (const key of Object.keys(progress.words)) {
         if (progress.simple[key] || progress.familiar[key]) continue;
@@ -142,7 +142,7 @@ export function buildQueue(progress: WenguWordProgress, now = Date.now()): {revi
     for (let i = progress.cursor; i < WORD_BOOK.words.length; i++) {
         if (!progress.words[String(i)]) fresh.push(i);
     }
-    return {review, fresh};
+    return { review, fresh };
 }
 
 /** 明天要复习多少个：到期时间落在 (现在, 明天结束] 的词（随批改实时变）。 */
@@ -165,7 +165,7 @@ export function applyGrade(
     index: number,
     grade: WordGrade,
     wasNew: boolean,
-    now = Date.now(),
+    now = Date.now()
 ): void {
     const prev = progress.words[String(index)];
     const level = prev ? prev[0] : 0;
@@ -178,7 +178,7 @@ export function applyGrade(
     if (grade === "no") {
         // 误认本：再次答错清空旧 AI 辨析、保留混淆自述由调用方回填
         const m = progress.mistakes[String(index)];
-        progress.mistakes[String(index)] = {count: (m?.count ?? 0) + 1, lastTs: now};
+        progress.mistakes[String(index)] = { count: (m?.count ?? 0) + 1, lastTs: now };
     }
     if (wasNew) {
         progress.today.newCount++;
@@ -194,12 +194,7 @@ export function applyGrade(
 /* ── 熟 / 星标 / 误认自述 ── */
 
 /** 标「熟」：退出复习循环（同太简单），今日计数与打卡照记。 */
-export function markFamiliar(
-    progress: WenguWordProgress,
-    index: number,
-    wasNew: boolean,
-    now = Date.now(),
-): void {
+export function markFamiliar(progress: WenguWordProgress, index: number, wasNew: boolean, now = Date.now()): void {
     progress.familiar[String(index)] = 1;
     if (wasNew) {
         progress.today.newCount++;
@@ -224,7 +219,9 @@ export function toggleStar(progress: WenguWordProgress, index: number): boolean 
 
 /** 星标词清单（书序）。 */
 export function starredList(progress: WenguWordProgress): number[] {
-    return Object.keys(progress.starred).map(Number).sort((a, b) => a - b);
+    return Object.keys(progress.starred)
+        .map(Number)
+        .sort((a, b) => a - b);
 }
 
 /* ── 统计 ── */
@@ -309,8 +306,8 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
  * 给天数）+ 误认词辨析 tip；配对组由 WordConfusables.applyAi 落。 */
 export function applyAiReview(
     progress: WenguWordProgress,
-    items: {index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string;}[],
-    now = Date.now(),
+    items: { index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string }[],
+    now = Date.now()
 ): void {
     for (const it of items) {
         const key = String(it.index);
@@ -341,16 +338,14 @@ export class WordStore {
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
-        private readonly saveRaw: (p: WenguWordProgress) => Promise<unknown>,
+        private readonly saveRaw: (p: WenguWordProgress) => Promise<unknown>
     ) {}
 
     async get(): Promise<WenguWordProgress> {
         if (this.cache) return this.cache;
         try {
-            const data = await this.loadRaw() as WenguWordProgress | "" | null | undefined;
-            this.cache = data && typeof data === "object" && data.version === 1 ?
-                data :
-                defaultProgress();
+            const data = (await this.loadRaw()) as WenguWordProgress | "" | null | undefined;
+            this.cache = data && typeof data === "object" && data.version === 1 ? data : defaultProgress();
         } catch (_) {
             this.cache = defaultProgress();
         }
@@ -365,7 +360,7 @@ export class WordStore {
         if (!p.confNotes) p.confNotes = {};
         if (!p.notes) p.notes = {};
         const key = todayKey();
-        if (p.today.key !== key) p.today = {key, newCount: 0, revCount: 0};
+        if (p.today.key !== key) p.today = { key, newCount: 0, revCount: 0 };
         return p;
     }
 

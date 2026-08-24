@@ -1,4 +1,4 @@
-import {esc} from "./ui";
+import { esc } from "./ui";
 
 /**
  * 共享表单构件（规范见 docs/design-review.md）：
