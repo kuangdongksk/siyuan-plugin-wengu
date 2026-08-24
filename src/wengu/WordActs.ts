@@ -1,11 +1,8 @@
-import {WordAiRunner} from "./WordAi";
-import type {WordStartCtl} from "./WordStart";
-import type {WenguWordProgress} from "./WordStore";
-import {
-    buildQueue,
-    markFamiliar,
-    toggleStar,
-} from "./WordStore";
+import { WordAiRunner } from "./WordAi";
+import type { LookupConfCtl } from "./WordLookup";
+import type { WordStartCtl } from "./WordStart";
+import type { WenguWordProgress } from "./WordStore";
+import { buildQueue, markFamiliar, toggleStar } from "./WordStore";
 
 /**
  * data-act 动作分发（WordView 拆件）：switch 全集中在此，
@@ -16,16 +13,16 @@ import {
 export interface WordViewApi {
     t: (k: string) => string;
     progress: WenguWordProgress | undefined;
-    store: {save: (p: WenguWordProgress) => Promise<unknown>;};
+    store: { save: (p: WenguWordProgress) => Promise<unknown> };
     ai: WordAiRunner;
     mode: string;
     phase: "prompt" | "result";
-    answered: {correct: boolean;} | undefined;
+    answered: { correct: boolean } | undefined;
     hardList: number[];
     lookupSel: number | undefined;
     rebuildQueue(kind: "review" | "fresh" | "star"): void;
     paint(): void;
-    finishCard(g: "no" | "fuzzy" | "know" | "easy"): void;
+    finishCard(g: "no" | "fuzzy" | "know"): void;
     finishMastered(): void;
     toggleStarCard(): void;
     submitSpell(): void;
@@ -33,6 +30,8 @@ export interface WordViewApi {
     startCtl(): WordStartCtl;
     enterLookup(): void;
     lookupPick(idx: number): void;
+    /** 查词详情的易混笔记控制器（保存手写辨析 / 复制提问）。 */
+    confCtl: LookupConfCtl;
 }
 
 export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStringMap): void {
@@ -43,7 +42,7 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
             v.paint();
             break;
         case "gofresh": {
-            const {review} = buildQueue(v.progress!);
+            const { review } = buildQueue(v.progress!);
             if (review.length > 0) {
                 v.mode = "askreview"; // 有到期复习 → 先弹「先复习」
             } else {
@@ -109,9 +108,6 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
         case "next":
             v.finishCard(v.answered?.correct ? "know" : "no");
             break;
-        case "markwrong":
-            v.finishCard("no");
-            break;
         case "setstart":
             v.mode = "setstart";
             v.paint();
@@ -136,9 +132,30 @@ export function dispatchWordAct(v: WordViewApi, name: string, dataset?: DOMStrin
                     () => {
                         v.mode = "home";
                     },
-                    () => v.paint(),
+                    () => v.paint()
                 );
             }
             break;
+        case "resumecard":
+            v.mode = "card";
+            v.paint();
+            break;
+        case "confask":
+            v.confCtl.ask(parseInt(dataset?.idx ?? "0", 10));
+            break;
+        case "wordnotesave":
+            v.confCtl.saveWordNote(parseInt(dataset?.idx ?? "0", 10));
+            break;
+        case "confsave":
+            v.confCtl.saveNote(parseInt(dataset?.idx ?? "0", 10));
+            break;
+        case "setgroupsize": {
+            const n = parseInt(dataset?.value ?? "0", 10);
+            if (n >= 5 && n <= 20 && v.progress) {
+                v.progress.groupSize = n;
+                void v.store.save(v.progress);
+            }
+            break;
+        }
     }
 }

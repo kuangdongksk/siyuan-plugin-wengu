@@ -32,5 +32,5 @@ export default ([] as [string, string][]).concat(
     p13,
     p14,
     p15,
-    p16,
+    p16
 );

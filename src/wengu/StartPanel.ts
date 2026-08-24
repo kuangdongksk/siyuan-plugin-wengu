@@ -1,25 +1,10 @@
-import {
-    formGroup,
-    formInput,
-    formOption,
-    formRow,
-    formSelect,
-} from "./FormHtml";
-import type {WenguSession} from "./HistoryStore";
-import {newSessionId} from "./HistoryStore";
-import type {TimerController} from "./TimerController";
-import type {
-    WenguQuestion,
-    WenguRevealMode,
-    WenguStepsMode,
-    WenguTimingMode,
-} from "./types";
-import {baseQid} from "./types";
-import {
-    clampMinutes,
-    esc,
-    fmt,
-} from "./ui";
+import { formGroup, formInput, formOption, formRow, formSelect } from "./FormHtml";
+import type { HistoryStore, WenguSession } from "./HistoryStore";
+import { newSessionId } from "./HistoryStore";
+import type { TimerController } from "./TimerController";
+import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } from "./types";
+import { baseQid } from "./types";
+import { clampMinutes, esc, fmt } from "./ui";
 
 /**
  * 开刷面板（design-review P1-1）：四组选择收敛为一张表单——
@@ -61,37 +46,39 @@ export interface StartPanelModel {
     /** 上轮错题数（0 则不出现「刷题范围」组）。 */
     lastWrong: number;
     /** 未完成轮的原配置（继续时锁定回显这些值）。 */
-    resume?: {timing: WenguTimingMode; reveal: WenguRevealMode; stepsMode: WenguStepsMode; countdownMin: number;};
+    resume?: { timing: WenguTimingMode; reveal: WenguRevealMode; stepsMode: WenguStepsMode; countdownMin: number };
 }
 
 export function renderStartPanel(m: StartPanelModel): string {
-    const {t, defaults, resume} = m;
+    const { t, defaults, resume } = m;
     // 继续上次默认选中：初始展示的就是要恢复的原配置
     const cont = m.unfinishedAnswered !== undefined && !!resume;
     const cur = cont ? resume : defaults;
     // 组一（条件出现）：进度与范围——有未完成轮或上轮错题才有
-    const progressRow = m.unfinishedAnswered !== undefined ?
-        formRow(
-            t("progressTitle"),
-            fmt(t("continueHint"), {n: String(m.unfinishedAnswered ?? 0)}),
-            formSelect(
-                "progress",
-                formOption("continue", fmt(t("continueLast"), {n: String(m.unfinishedAnswered ?? 0)}), true) +
-                    formOption("fresh", t("startFresh"), false),
-            ),
-        ) :
-        "";
-    const scopeRow = m.lastWrong > 0 ?
-        formRow(
-            t("scopeTitle"),
-            t("scopeHint"),
-            formSelect(
-                "scope",
-                formOption("all", t("scopeAll"), !cont) +
-                    formOption("wrong", fmt(t("scopeWrongOnly"), {n: String(m.lastWrong)}), false),
-            ),
-        ) :
-        "";
+    const progressRow =
+        m.unfinishedAnswered !== undefined
+            ? formRow(
+                  t("progressTitle"),
+                  fmt(t("continueHint"), { n: String(m.unfinishedAnswered ?? 0) }),
+                  formSelect(
+                      "progress",
+                      formOption("continue", fmt(t("continueLast"), { n: String(m.unfinishedAnswered ?? 0) }), true) +
+                          formOption("fresh", t("startFresh"), false)
+                  )
+              )
+            : "";
+    const scopeRow =
+        m.lastWrong > 0
+            ? formRow(
+                  t("scopeTitle"),
+                  t("scopeHint"),
+                  formSelect(
+                      "scope",
+                      formOption("all", t("scopeAll"), !cont) +
+                          formOption("wrong", fmt(t("scopeWrongOnly"), { n: String(m.lastWrong) }), false)
+                  )
+              )
+            : "";
     const head = progressRow || scopeRow ? formGroup(t("progressScopeTitle"), progressRow + scopeRow) : "";
     // 组二：作答设置——展示/多步/计时（含倒计时分钟）
     const settings = formGroup(
@@ -102,31 +89,34 @@ export function renderStartPanel(m: StartPanelModel): string {
             formSelect(
                 "reveal",
                 formOption("instant", t("revealInstant"), cur.reveal === "instant") +
-                    formOption("after", t("revealAfter"), cur.reveal === "after"),
-            ),
-        ) + formRow(
-            t("stepsModeTitle"),
-            t("stepsModeHint"),
-            formSelect(
-                "steps",
-                formOption("offline", t("stepsModeOffline"), cur.stepsMode !== "ai") +
-                    formOption("ai", t("stepsModeAi"), cur.stepsMode === "ai"),
-            ),
-        ) + formRow(
-            t("timingTitle"),
-            t("timingHint"),
-            formSelect(
-                "timing",
-                formOption("countUp", t("timingCountUp"), cur.timing === "countUp") +
-                    formOption("countdown", t("timingCountdown"), cur.timing === "countdown") +
-                    formOption("perQuestion", t("timingPerQuestion"), cur.timing === "perQuestion") +
-                    formOption("none", t("timingNone"), cur.timing === "none"),
-            ),
-        ) + formRow(
-            t("timingMinutes"),
-            t("timingMinutesHint"),
-            formInput("minutes", String(cur.countdownMin), "type='number' min='1' max='600'"),
-        ),
+                    formOption("after", t("revealAfter"), cur.reveal === "after")
+            )
+        ) +
+            formRow(
+                t("stepsModeTitle"),
+                t("stepsModeHint"),
+                formSelect(
+                    "steps",
+                    formOption("offline", t("stepsModeOffline"), cur.stepsMode !== "ai") +
+                        formOption("ai", t("stepsModeAi"), cur.stepsMode === "ai")
+                )
+            ) +
+            formRow(
+                t("timingTitle"),
+                t("timingHint"),
+                formSelect(
+                    "timing",
+                    formOption("countUp", t("timingCountUp"), cur.timing === "countUp") +
+                        formOption("countdown", t("timingCountdown"), cur.timing === "countdown") +
+                        formOption("perQuestion", t("timingPerQuestion"), cur.timing === "perQuestion") +
+                        formOption("none", t("timingNone"), cur.timing === "none")
+                )
+            ) +
+            formRow(
+                t("timingMinutes"),
+                t("timingMinutesHint"),
+                formInput("minutes", String(cur.countdownMin), "type='number' min='1' max='600'")
+            )
     );
     return `<div class="wengu-start">
   ${head}
@@ -151,19 +141,17 @@ export function buildStartPanelModel(args: {
         defaults: args.defaults,
         unfinishedAnswered: unfinished ? answered : undefined,
         // 多步题的会话记录是 qid#k 条目，按块 id 归并后才等于「题数」
-        lastWrong: new Set(
-            (last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid)),
-        ).size,
-        resume: unfinished ?
-            {
-                timing: unfinished.mode,
-                reveal: resumeReveal,
-                stepsMode: unfinished.stepsMode === "ai" ? "ai" : "offline",
-                countdownMin: unfinished.plannedSec ?
-                    clampMinutes(Math.ceil(unfinished.plannedSec / 60)) :
-                    args.defaults.countdownMin,
-            } :
-            undefined,
+        lastWrong: new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid))).size,
+        resume: unfinished
+            ? {
+                  timing: unfinished.mode,
+                  reveal: resumeReveal,
+                  stepsMode: unfinished.stepsMode === "ai" ? "ai" : "offline",
+                  countdownMin: unfinished.plannedSec
+                      ? clampMinutes(Math.ceil(unfinished.plannedSec / 60))
+                      : args.defaults.countdownMin,
+              }
+            : undefined,
     };
 }
 
@@ -207,7 +195,7 @@ export function bindStartPanel(root: ParentNode, m: StartPanelModel, onStart: ()
     };
     const sync = () => {
         const cont = progressSel.value === "continue";
-        fields.forEach((el) => el.disabled = cont);
+        fields.forEach((el) => (el.disabled = cont));
         const cur = cont && m.resume ? m.resume : m.defaults;
         setVal("scope", "all"); // 继续=原范围；重新开始默认全部
         setVal("reveal", cur.reveal);
@@ -227,7 +215,7 @@ export interface StartRoundCtx {
     fullList: WenguQuestion[];
     docId: string;
     timer: TimerController;
-    history?: {upsert(s: WenguSession): Promise<void>;};
+    history?: { upsert(s: WenguSession): Promise<void> };
     /** 视图侧状态写入。 */
     setList(list: WenguQuestion[]): void;
     setRevealMode(m: "instant" | "after"): void;
@@ -249,17 +237,17 @@ export function startRound(ctx: StartRoundCtx): void {
     const useWrong = cfg.scope === "wrong" && wrong.size > 0;
     ctx.setList(useWrong ? ctx.fullList.filter((q) => wrong.has(q.id)) : ctx.fullList);
     const lastAnswered = new Set((last?.results ?? []).map((r) => baseQid(r.qid))).size;
-    const unfinished = !useWrong && cfg.progress === "continue" && last && lastAnswered > 0 &&
-            lastAnswered < ctx.fullList.length ?
-        last :
-        undefined;
+    const unfinished =
+        !useWrong && cfg.progress === "continue" && last && lastAnswered > 0 && lastAnswered < ctx.fullList.length
+            ? last
+            : undefined;
     let session: WenguSession;
     if (unfinished) {
         // 继续上次 = 原样恢复该轮配置（面板上已锁定回显）
         ctx.setRevealMode(unfinished.revealMode === "after" ? "after" : "instant");
-        const resumeMin = unfinished.plannedSec ?
-            clampMinutes(Math.ceil(unfinished.plannedSec / 60)) :
-            cfg.countdownMin;
+        const resumeMin = unfinished.plannedSec
+            ? clampMinutes(Math.ceil(unfinished.plannedSec / 60))
+            : cfg.countdownMin;
         ctx.timer.start(unfinished.mode, resumeMin, unfinished.elapsedSec);
         for (const r of unfinished.results) {
             if (r.sec) ctx.timer.restoreQuestionSec(r.qid, r.sec);
@@ -296,4 +284,57 @@ export function roundDefaults(reveal: WenguRevealMode, timer: TimerController): 
         timing: timer.mode,
         countdownMin: timer.countdownMin,
     };
+}
+
+/** 开刷编排所需的视图能力（QuizView 用箭头属性实现，beginDrillFor 消费）。 */
+export interface DrillViewAccess {
+    t: (key: string) => string;
+    container(): HTMLElement;
+    currentRevealMode(): WenguRevealMode;
+    timerController(): TimerController;
+    allRounds(): WenguSession[];
+    questions(): WenguQuestion[];
+    fullListOf(): WenguQuestion[];
+    docIdOf(): string;
+    historyStore(): HistoryStore | undefined;
+    setQuizList(list: WenguQuestion[]): void;
+    setQuizRevealMode(mode: WenguRevealMode): void;
+    setActiveQIdx(idx: number): void;
+    setStartedFlag(v: boolean): void;
+    setFinishedSession(s: WenguSession | undefined): void;
+    setCurSession(s: WenguSession | undefined): void;
+    renderQuizList(): void;
+    updateTimerLabelNow(): void;
+    /** 开刷后的收尾（视图自实现：重渲染/恢复已答/计时标签）。 */
+    afterStartHook(): void;
+}
+
+/** 开刷面板模型（startPanelModel 的拆出体）。 */
+export function startPanelModelFor(v: DrillViewAccess): StartPanelModel {
+    return buildStartPanelModel({
+        t: v.t,
+        defaults: roundDefaults(v.currentRevealMode(), v.timerController()),
+        rounds: v.allRounds(),
+        list: v.questions(),
+    });
+}
+
+/** beginDrill（从 QuizView 拆出）：由视图能力组装 StartRoundCtx 开刷。 */
+export function beginDrillFor(v: DrillViewAccess): void {
+    startRound({
+        root: v.container(),
+        defaults: roundDefaults(v.currentRevealMode(), v.timerController()),
+        rounds: v.allRounds(),
+        fullList: v.fullListOf(),
+        docId: v.docIdOf(),
+        timer: v.timerController(),
+        history: v.historyStore(),
+        setList: (l) => v.setQuizList(l),
+        setRevealMode: (m) => v.setQuizRevealMode(m),
+        setActiveIdx: (i) => v.setActiveQIdx(i),
+        setStarted: (flag) => v.setStartedFlag(flag),
+        setFinished: (s) => v.setFinishedSession(s),
+        setSession: (s) => v.setCurSession(s),
+        afterStart: () => v.afterStartHook(),
+    });
 }

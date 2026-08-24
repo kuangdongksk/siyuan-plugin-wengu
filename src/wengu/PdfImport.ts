@@ -1,10 +1,6 @@
-import {fetchSyncPost} from "siyuan";
-import {
-    extractBlockId,
-    getDocInfo,
-    parentOf,
-} from "./ConvertService";
-import {mineruParsePdf} from "./MinerUClient";
+import { fetchSyncPost } from "siyuan";
+import { extractBlockId, getDocInfo, parentOf } from "./ConvertService";
+import { mineruParsePdf } from "./MinerUClient";
 
 /**
  * PDF 一键导入（配合 MinerUClient）：MinerU 解析 → 插图逐张 putFile 到
@@ -18,7 +14,7 @@ import {mineruParsePdf} from "./MinerUClient";
 
 /** 进度回调（弹窗状态行展示）。 */
 export interface PdfImportProgress {
-    (info: {stage: "upload" | "wait" | "download" | "save"; percent?: number;}): void;
+    (info: { stage: "upload" | "wait" | "download" | "save"; percent?: number }): void;
 }
 
 export interface PdfImportOptions {
@@ -41,9 +37,12 @@ export interface PdfImportResult {
 
 /** 上传单个文件到内核 /api/putfile（multipart；token 取自 window.siyuan）。 */
 async function putAsset(path: string, data: Uint8Array): Promise<void> {
-    const token = (window as unknown as {
-        siyuan?: {config?: {api?: {token?: string;};};};
-    }).siyuan?.config?.api?.token ?? "";
+    const token =
+        (
+            window as unknown as {
+                siyuan?: { config?: { api?: { token?: string } } };
+            }
+        ).siyuan?.config?.api?.token ?? "";
     const form = new FormData();
     form.append("path", path);
     form.append("isDir", "false");
@@ -51,12 +50,12 @@ async function putAsset(path: string, data: Uint8Array): Promise<void> {
     form.append("file", new Blob([data.buffer as ArrayBuffer]));
     const res = await fetch("/api/putfile", {
         method: "POST",
-        headers: token ? {Authorization: `Token ${token}`} : undefined,
+        headers: token ? { Authorization: `Token ${token}` } : undefined,
         body: form,
     });
-    let json: {code?: number; msg?: string;} = {};
+    let json: { code?: number; msg?: string } = {};
     try {
-        json = await res.json() as {code?: number; msg?: string;};
+        json = (await res.json()) as { code?: number; msg?: string };
     } catch (_) {
         // 非 JSON 响应按状态码报错
     }
@@ -65,7 +64,10 @@ async function putAsset(path: string, data: Uint8Array): Promise<void> {
 
 /** 文件名清洗（对齐 createExerciseDoc 的规则）+ 去掉 .pdf 后缀。 */
 function titleOf(fileName: string): string {
-    const base = fileName.replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]/g, "-").trim();
+    const base = fileName
+        .replace(/\.pdf$/i, "")
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .trim();
     return base || "PDF 导入";
 }
 
@@ -96,16 +98,16 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
         opts.token,
         (p) =>
             fire(
-                p.stage === "uploading" ?
-                    {stage: "upload"} :
-                    p.stage === "downloading" ?
-                    {stage: "download"} :
-                    {stage: "wait", percent: p.percent},
+                p.stage === "uploading"
+                    ? { stage: "upload" }
+                    : p.stage === "downloading"
+                      ? { stage: "download" }
+                      : { stage: "wait", percent: p.percent }
             ),
-        opts.signal,
+        opts.signal
     );
 
-    fire({stage: "save"});
+    fire({ stage: "save" });
     const stamp = Date.now().toString(36);
     let markdown = parsed.markdown;
     for (const img of parsed.images) {
@@ -120,7 +122,7 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
     let docId = "";
     let lastMsg = "";
     for (const p of [path, fallback]) {
-        const res = await fetchSyncPost("/api/filetree/createDocWithMd", {notebook, path: p, markdown});
+        const res = await fetchSyncPost("/api/filetree/createDocWithMd", { notebook, path: p, markdown });
         if (res.code === 0 && res.data) {
             docId = String(res.data);
             break;
@@ -132,8 +134,8 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
     // 内核索引有数秒延迟：轮询到能查到再返回，保证紧接着的转换不落空
     for (let i = 0; i < 15; i++) {
         const info = await getDocInfo(docId);
-        if (info) return {docId, title, charCount: markdown.length, imageCount: parsed.images.length};
+        if (info) return { docId, title, charCount: markdown.length, imageCount: parsed.images.length };
         await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    return {docId, title, charCount: markdown.length, imageCount: parsed.images.length};
+    return { docId, title, charCount: markdown.length, imageCount: parsed.images.length };
 }

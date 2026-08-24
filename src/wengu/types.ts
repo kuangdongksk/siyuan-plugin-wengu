@@ -5,7 +5,9 @@
  * 通过 attrs.ts -> kebab 转换与自定义属性互转。
  */
 
-/** 题型：前四类自动判分，brief（大题）AI 判分+自评改判，steps 走多步引导。 */
+/** 题型：前四类自动判分，brief（大题）AI 判分+自评改判，steps 走多步引导；
+ * 英语四类（E0 契约先行）：cloze/match 逐空判分待 E2 交互（先走自评降级），
+ * essay/trans 走 brief 同款 AI 判分。 */
 export enum QuestionType {
     /** 单选 */
     Single = "single",
@@ -19,6 +21,14 @@ export enum QuestionType {
     Brief = "brief",
     /** 多步引导（工科大题拆解：方法步 + 结果步，逐步解锁作答） */
     Steps = "steps",
+    /** 完形填空（语篇在材料块里，逐空 slot-{k}-* 子块） */
+    Cloze = "cloze",
+    /** 新题型（候选池 option 块 + 槽位匹配：七选5/排序/标题匹配/多项对应） */
+    Match = "match",
+    /** 作文（大小作文/应用文：题干即材料，AI 判分给分档） */
+    Essay = "essay",
+    /** 翻译（英译汉：逐句或整段，AI 判分） */
+    Trans = "trans",
 }
 
 /** 客观题类型 = 可自动判分；brief 除外。 */
@@ -32,22 +42,40 @@ export const AUTO_GRADE_TYPES: readonly QuestionType[] = [
 /** type 属性别名映射：AI 偶发输出大小写/中文变体，读入时规整。 */
 const TYPE_ALIASES: Record<string, QuestionType> = {
     [QuestionType.Single]: QuestionType.Single,
-    "单选": QuestionType.Single,
-    "单项选择": QuestionType.Single,
+    单选: QuestionType.Single,
+    单项选择: QuestionType.Single,
     [QuestionType.Multiple]: QuestionType.Multiple,
-    "多选": QuestionType.Multiple,
-    "多项选择": QuestionType.Multiple,
+    多选: QuestionType.Multiple,
+    多项选择: QuestionType.Multiple,
     [QuestionType.Judge]: QuestionType.Judge,
-    "判断": QuestionType.Judge,
+    判断: QuestionType.Judge,
     [QuestionType.Fill]: QuestionType.Fill,
-    "填空": QuestionType.Fill,
+    填空: QuestionType.Fill,
     [QuestionType.Brief]: QuestionType.Brief,
-    "简答": QuestionType.Brief,
-    "问答": QuestionType.Brief,
+    简答: QuestionType.Brief,
+    问答: QuestionType.Brief,
     [QuestionType.Steps]: QuestionType.Steps,
-    "多步": QuestionType.Steps,
-    "多步引导": QuestionType.Steps,
-    "引导": QuestionType.Steps,
+    多步: QuestionType.Steps,
+    多步引导: QuestionType.Steps,
+    引导: QuestionType.Steps,
+    [QuestionType.Cloze]: QuestionType.Cloze,
+    完形: QuestionType.Cloze,
+    完形填空: QuestionType.Cloze,
+    英语知识运用: QuestionType.Cloze,
+    [QuestionType.Match]: QuestionType.Match,
+    新题型: QuestionType.Match,
+    七选五: QuestionType.Match,
+    "7选5": QuestionType.Match,
+    匹配: QuestionType.Match,
+    [QuestionType.Essay]: QuestionType.Essay,
+    作文: QuestionType.Essay,
+    写作: QuestionType.Essay,
+    大作文: QuestionType.Essay,
+    小作文: QuestionType.Essay,
+    应用文: QuestionType.Essay,
+    [QuestionType.Trans]: QuestionType.Trans,
+    翻译: QuestionType.Trans,
+    英译汉: QuestionType.Trans,
 };
 
 /** 规整 type 属性为合法题型；无法识别返回 undefined（走自评流程）。 */
@@ -58,6 +86,21 @@ export function normalizeType(raw?: string): QuestionType | undefined {
 /** steps 题且聚合出了至少一步（否则按普通自评流程降级）。 */
 export function hasSteps(q: WenguQuestion): boolean {
     return q.type === QuestionType.Steps && (q.steps?.length ?? 0) > 0;
+}
+
+/** brief 同族：多行输入 + AI 判分（essay/trans 共用 brief 的判分与改判通道）。 */
+export function isBriefLike(q: WenguQuestion): boolean {
+    return q.type === QuestionType.Brief || q.type === QuestionType.Essay || q.type === QuestionType.Trans;
+}
+
+/** slots 题且聚合出了至少一空（否则按普通自评流程降级）。 */
+export function hasSlots(q: WenguQuestion): boolean {
+    return (q.type === QuestionType.Cloze || q.type === QuestionType.Match) && (q.slots?.length ?? 0) > 0;
+}
+
+/** slots 题第 k 空的会话 qid（块 id + "#" + 空号，同 stepsQid 语义）。 */
+export function slotQid(qid: string, k: number): string {
+    return `${qid}#${k}`;
 }
 
 /** 多步引导题的一步类型：method=选方法（可行集合任一即对），result=中间结果。 */
@@ -73,6 +116,15 @@ export interface WenguStep {
     /** 本步选项 markdown，按序对应 A、B、C…。 */
     optionMd: string[];
     /** method 步=全部可行字母集合（如 "AC"）；result 步=正确字母（或内容答案）。 */
+    answer: string;
+}
+
+/** slots 题的一个空/槽（cloze=完形一空，match=新题型一槽）。
+ *  与 steps 的区别：并列空无解锁依赖、逐空独立判分（每空一条会话记录 qid#k）。 */
+export interface WenguSlot {
+    /** 该空的选项 markdown（match 的候选池在题级 optionMd，此处留空）。 */
+    optionMd: string[];
+    /** 该空正确字母（cloze 的 slot-k-answer；match 取题级 answer 的第 k 个字母）。 */
     answer: string;
 }
 
@@ -94,6 +146,9 @@ export interface WenguQuestion {
     difficulty?: number;
     /** 真题来源。 */
     source?: string;
+    /** 所属材料块 id（阅读/完形等共享原文；转换先写 "prev" 占位，
+     *  装载时由 MaterialService 解析回写真实 id）。 */
+    group?: string;
     /** 刷题次数。 */
     attempts: number;
     /** 累计答错次数（答错 +1、答对不清零）。 */
@@ -110,10 +165,16 @@ export interface WenguQuestion {
     solutionMd?: string;
     /** 多步步骤（type="steps"，由 part="step-{k}-*" 子块与 steps 属性聚合）。 */
     steps?: WenguStep[];
+    /** 一题多空（type="cloze"/"match"，由 slot-{k}-* 子块或题级 answer 聚合）。 */
+    slots?: WenguSlot[];
     /** 运行时：逐步最近正误（"1010"，与 steps 对齐）。 */
     stepRight?: string;
     /** 运行时：逐步最近作答（字母按步竖线分隔，如 "A|B"）。 */
     stepLast?: string;
+    /** 运行时（slots 题）：逐空最近正误（与 slots 对齐）。 */
+    slotRight?: string;
+    /** 运行时（slots 题）：逐空最近作答（字母按空竖线分隔）。 */
+    slotLast?: string;
 }
 
 /** 一个习题文档的聚合视图（已生成列表用，随文档持久存在）。 */
@@ -132,6 +193,19 @@ export interface WenguDoc {
     rightCount: number;
     /** 累计刷题用时（秒，文档块 total-time 属性）。 */
     totalTime: number;
+}
+
+/** 材料块（E0 材料组，english-question-review.md M1）：阅读/完形等
+ * 共享原文的超级块容器，与小题同存一篇习题文档；小题用 group 属性引用。 */
+export interface WenguMaterial {
+    /** 材料超级块 id。 */
+    id: string;
+    /** 所属文档 id。 */
+    rootId?: string;
+    /** 材料正文 markdown（part="body" 子块按序拼接）。 */
+    bodyMd?: string;
+    /** 参考译文 markdown（part="trans" 子块，可选；判分后揭示）。 */
+    transMd?: string;
 }
 
 /** 难度取值为合法星数。 */

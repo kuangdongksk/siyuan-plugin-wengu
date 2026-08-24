@@ -1,5 +1,5 @@
-import type {WenguTimingMode} from "./types";
-import {mmss} from "./ui";
+import type { WenguTimingMode } from "./types";
+import { mmss } from "./ui";
 
 /**
  * 一轮刷题的计时状态机（design-review P1-2）。
@@ -133,7 +133,7 @@ export function renderTimerLabel(
     timer: TimerController,
     t: (k: string) => string,
     totalSec: number,
-    qSec: number,
+    qSec: number
 ): void {
     if (!el) return;
     if (timer.mode === "none") {

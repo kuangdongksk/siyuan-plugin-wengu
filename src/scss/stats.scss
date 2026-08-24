@@ -1,0 +1,141 @@
+/* 统计面板浮层（总览 + 本文档详情两 tab）：数字卡复用 words.scss
+ * 的 wengu-stats-*（此处覆盖限宽），这里管浮层布局、表格与错题清单。 */
+
+/* 浮层铺满页签主区：锚定在面板根上 */
+.wengu-panel {
+  position: relative;
+}
+
+.wengu-stats-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  background: var(--b3-theme-background);
+}
+
+.wengu-stats-layer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-stats-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.wengu-stats-title {
+  font-weight: 700;
+}
+
+.wengu-stats-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.wengu-stats-tab-cur {
+  color: var(--b3-theme-primary);
+  border-color: var(--b3-theme-primary);
+}
+
+.wengu-stats-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 16px 24px;
+}
+
+/* 浮层内容比单词统计页宽（图表 + 表格），放开 440px 限宽 */
+.wengu-stats-layer .wengu-stats {
+  max-width: none;
+  margin: 0;
+}
+
+.wengu-stats-chart-box {
+  height: 200px;
+  width: 100%;
+}
+
+.wengu-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th,
+  td {
+    padding: 4px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--b3-border-color);
+    white-space: nowrap;
+  }
+
+  th {
+    color: var(--b3-theme-on-surface-light);
+    font-weight: normal;
+  }
+}
+
+.wengu-stats-doc-row {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--b3-list-hover);
+  }
+}
+
+.wengu-stats-doc-cur {
+  background: var(--b3-list-hover);
+}
+
+.wengu-stats-doc-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wengu-stats-empty {
+  padding: 8px 0;
+}
+
+.wengu-stats-wrong {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--b3-border-color);
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+
+.wengu-stats-wrong-idx {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  font-size: 11px;
+  border-radius: 4px;
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface-light);
+  margin-top: 2px;
+}
+
+.wengu-stats-wrong-body {
+  min-width: 0;
+}
+
+.wengu-stats-wrong-stem {
+  font-size: 13px;
+}
+
+.wengu-stats-wrong-meta {
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  margin-top: 2px;
+}

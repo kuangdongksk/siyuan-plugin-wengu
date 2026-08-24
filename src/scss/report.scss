@@ -49,6 +49,29 @@
   border-bottom: 1px solid var(--b3-border-color);
 }
 
+/* 薄弱沉淀清单：标题占满、统计与错因徽标靠右 */
+.wengu-weak-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wengu-weak-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wengu-weak-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .wengu-bar-col {
   flex: 1;
   min-width: 14px;

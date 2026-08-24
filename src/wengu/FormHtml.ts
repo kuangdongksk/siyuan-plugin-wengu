@@ -1,4 +1,4 @@
-import {esc} from "./ui";
+import { esc } from "./ui";
 
 /**
  * 共享表单构件（规范见 docs/design-review.md）：
@@ -10,6 +10,12 @@ import {esc} from "./ui";
 /** 思源内置图标（symbol id 需存在于主程序 stage，如 iconClock）。 */
 export function svgIcon(id: string, cls = ""): string {
     return `<svg${cls ? ` class="${cls}"` : ""}><use xlink:href="#${id}"></use></svg>`;
+}
+
+/** 结果行状态图标：right=iconCheck / wrong=iconClose / partial=iconIndeterminateCheck。 */
+export function statusIcon(status: "right" | "wrong" | "partial"): string {
+    const id = status === "right" ? "iconCheck" : status === "wrong" ? "iconClose" : "iconIndeterminateCheck";
+    return svgIcon(id, `wengu-status-icon wengu-status-${status}`);
 }
 
 /** 分组：标题 + 条目集合。 */

@@ -1,14 +1,16 @@
-import {agentChat} from "./AgentClient";
-import {svgIcon} from "./FormHtml";
-import type {WenguSession} from "./HistoryStore";
-import type {TimerController} from "./TimerController";
-import type {WenguQuestion} from "./types";
-import {baseQid} from "./types";
-import {
-    esc,
-    fmt,
-    mmss,
-} from "./ui";
+import { agentChat } from "./AgentClient";
+import { attributeWrongCauses } from "./AiJudge";
+import type { CauseItem } from "./AiJudge";
+import { svgIcon } from "./FormHtml";
+import type { WenguSession } from "./HistoryStore";
+import type { TimerController } from "./TimerController";
+import type { WenguQuestion } from "./types";
+import { baseQid } from "./types";
+import { esc, fmt, mmss } from "./ui";
+import type { QuestionBank } from "./QuestionBank";
+import type { WeakCause, WeakTopRow, WeaknessStore } from "./WeaknessStore";
+import { openWeakDrill } from "./WeakDrill";
+import { roundAggByQid } from "./WeaknessStore";
 
 /**
  * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：
@@ -31,10 +33,12 @@ export interface RoundReportModel {
     totalSec: number;
     /** 倒计时超时段（秒，非倒计时报 0）。 */
     overtimeSec: number;
+    /** 薄弱沉淀 Top 行（WeaknessStore 同步快照，空=不渲染）。 */
+    weakRows: WeakTopRow[];
 }
 
 export function renderRoundReport(m: RoundReportModel): string {
-    const {t, session: s, list, rounds} = m;
+    const { t, session: s, list, rounds } = m;
     const byQid = byBaseQid(s);
     // 每题用时条形图：高度 ∝ 秒数，对错描色，未答灰色（多步题按整题聚合）
     const maxSec = Math.max(1, ...list.map((q) => byQid.get(q.id)?.sec ?? 0));
@@ -44,21 +48,21 @@ export function renderRoundReport(m: RoundReportModel): string {
             const sec = r?.sec ?? 0;
             const h = Math.max(4, Math.round((sec / maxSec) * 100));
             // partial（brief 方向对但有缺口）单独描黄，区别于全错
-            const cls = !r ?
-                "wengu-bar-muted" :
-                r.verdict === "partial" ?
-                "wengu-bar-partial" :
-                r.ok ?
-                "wengu-bar-right" :
-                "wengu-bar-wrong";
-            const state = !r ?
-                t("reportUnanswered") :
-                r.verdict === "partial" ?
-                t("verdictPartial") :
-                r.ok ?
-                t("correct") :
-                t("wrong");
-            const title = fmt(t("reportQTime"), {n: String(i + 1), t: mmss(sec)}) + ` · ${state}`;
+            const cls = !r
+                ? "wengu-bar-muted"
+                : r.verdict === "partial"
+                  ? "wengu-bar-partial"
+                  : r.ok
+                    ? "wengu-bar-right"
+                    : "wengu-bar-wrong";
+            const state = !r
+                ? t("reportUnanswered")
+                : r.verdict === "partial"
+                  ? t("verdictPartial")
+                  : r.ok
+                    ? t("correct")
+                    : t("wrong");
+            const title = fmt(t("reportQTime"), { n: String(i + 1), t: mmss(sec) }) + ` · ${state}`;
             return `<div class="wengu-bar-col" title="${esc(title)}">
   <div class="wengu-bar ${cls}" style="height:${h}%"></div>
   <span class="wengu-bar-label">${i + 1}</span>
@@ -70,20 +74,19 @@ export function renderRoundReport(m: RoundReportModel): string {
         .map((r, i) => {
             const rate = r.answered > 0 ? r.correct / r.answered : 0;
             const h = Math.max(4, Math.round(rate * 100));
-            const title = fmt(t("reportRoundScore"), {n: String(i + 1), c: String(r.correct), a: String(r.answered)});
+            const title = fmt(t("reportRoundScore"), { n: String(i + 1), c: String(r.correct), a: String(r.answered) });
             return `<div class="wengu-bar-col" title="${esc(title)}">
   <div class="wengu-bar wengu-bar-score" style="height:${h}%"></div>
   <span class="wengu-bar-label">${i + 1}</span>
 </div>`;
         })
         .join("");
-    const overtime = m.overtimeSec > 0 ?
-        `<span class="wengu-meta">+${mmss(m.overtimeSec)} ${esc(t("reportOvertime"))}</span>` :
-        "";
+    const overtime =
+        m.overtimeSec > 0 ? `<span class="wengu-meta">+${mmss(m.overtimeSec)} ${esc(t("reportOvertime"))}</span>` : "";
     return `<div class="wengu-report" data-report>
   <div class="wengu-start-title">${esc(t("reportTitle"))}</div>
   <div class="wengu-report-summary">
-    <span class="wengu-meta">${esc(fmt(t("reportScore"), {c: String(s.correct), a: String(s.answered)}))}</span>
+    <span class="wengu-meta">${esc(fmt(t("reportScore"), { c: String(s.correct), a: String(s.answered) }))}</span>
     <span class="wengu-meta">${svgIcon("iconClock")} ${esc(mmss(m.totalSec))}</span>
     ${overtime}
   </div>
@@ -92,13 +95,14 @@ export function renderRoundReport(m: RoundReportModel): string {
     <div class="wengu-bars">${timeBars}</div>
   </div>
   ${
-        rounds.length > 0 ?
-            `<div class="wengu-report-chart">
+      rounds.length > 0
+          ? `<div class="wengu-report-chart">
     <div class="wengu-report-label">${esc(t("reportScoreChart"))}</div>
     <div class="wengu-bars">${scoreBars}</div>
-  </div>` :
-            ""
-    }
+  </div>`
+          : ""
+  }
+  ${renderWeakSection(t, m.weakRows)}
   <div>
     <button class="b3-button b3-button--outline" data-act="ai-report">${esc(t("reportAiBtn"))}</button>
   </div>
@@ -106,10 +110,37 @@ export function renderRoundReport(m: RoundReportModel): string {
 </div>`;
 }
 
+/** 错因显示文案（存储是规范键，展示走 i18n）。 */
+function weakCauseLabel(t: (k: string) => string, cause: WeakCause): string {
+    const cap = cause[0].toUpperCase() + cause.slice(1);
+    return t(`weakCause${cap}`);
+}
+
+/** 薄弱沉淀区块：跨轮次累计的薄弱知识点（错数/题数/主要错因）。 */
+function renderWeakSection(t: (k: string) => string, rows: WeakTopRow[]): string {
+    if (rows.length === 0) return "";
+    const items = rows
+        .map(
+            (r) =>
+                `<div class="wengu-weak-row" title="${esc(r.title)}">
+    <span class="wengu-weak-title">${esc(r.title)}</span>
+    <span class="wengu-meta">${esc(fmt(t("weakStats"), { w: String(r.wrong), n: String(r.total) }))}</span>${
+        r.topCause ? `<span class="wengu-badge">${esc(weakCauseLabel(t, r.topCause))}</span>` : ""
+    }
+  </div>`
+        )
+        .join("");
+    return `<div class="wengu-report-chart">
+    <div class="wengu-report-label">${esc(t("weakTitle"))}</div>
+    <div class="wengu-weak-list">${items}</div>
+    <button class="b3-button b3-button--outline" data-act="weak-drill">${esc(t("drillTitle"))}</button>
+  </div>`;
+}
+
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
  *  ok=全步对、sec=各步求和；verdict 保留 brief 的 partial 标记）。 */
-function byBaseQid(s: WenguSession): Map<string, {ok: boolean; sec: number; verdict?: string;}> {
-    const out = new Map<string, {ok: boolean; sec: number; verdict?: string;}>();
+function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
+    const out = new Map<string, { ok: boolean; sec: number; verdict?: string }>();
     for (const r of s.results) {
         const b = baseQid(r.qid);
         const cur = out.get(b);
@@ -130,12 +161,7 @@ export function bindRoundReport(root: HTMLElement, m: RoundReportModel, modelId:
     btn.addEventListener("click", () => void run(btn, out, m, modelId));
 }
 
-async function run(
-    btn: HTMLButtonElement,
-    out: HTMLElement,
-    m: RoundReportModel,
-    modelId: string,
-): Promise<void> {
+async function run(btn: HTMLButtonElement, out: HTMLElement, m: RoundReportModel, modelId: string): Promise<void> {
     // 首选：在思源内置智能体里开新会话发分析（可追问、markdown 渲染）
     if (await openAgentWithPrompt(buildAnalysisPrompt(m))) return;
     // 降级：页内拉智能体回答（纯文本）
@@ -157,7 +183,7 @@ async function run(
  * （插件 API 无官方入口，选择器按 3.8.0 真机 dump 校准）；任何一步
  * 失配都返回 false，调用方降级页内分析。
  */
-async function openAgentWithPrompt(prompt: string): Promise<boolean> {
+export async function openAgentWithPrompt(prompt: string, marker = "刷题分析助手"): Promise<boolean> {
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const visible = (): HTMLElement | null => {
         for (const el of document.querySelectorAll<HTMLElement>(".agent-chat")) {
@@ -183,11 +209,9 @@ async function openAgentWithPrompt(prompt: string): Promise<boolean> {
         // 以纯文本粘贴喂给 Protyle（自带粘贴解析；execCommand 不处理多行）
         const dt = new DataTransfer();
         dt.setData("text/plain", prompt);
-        wysiwyg.dispatchEvent(
-            new ClipboardEvent("paste", {clipboardData: dt, bubbles: true, cancelable: true}),
-        );
+        wysiwyg.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
         await sleep(150);
-        if (!wysiwyg.textContent?.includes("刷题分析助手")) return false; // 未粘上
+        if (!wysiwyg.textContent?.includes(marker)) return false; // 未粘上
         send.click();
         return true;
     } catch (_) {
@@ -197,7 +221,7 @@ async function openAgentWithPrompt(prompt: string): Promise<boolean> {
 
 /** 把一轮数据交给 AI 判卷（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。 */
 function buildAnalysisPrompt(m: RoundReportModel): string {
-    const {session: s, list, rounds} = m;
+    const { session: s, list, rounds } = m;
     const byQid = byBaseQid(s);
     const thoughts = s.thoughts ?? {};
     const hasThoughts = Object.keys(thoughts).length > 0;
@@ -213,9 +237,9 @@ function buildAnalysisPrompt(m: RoundReportModel): string {
         .join("；\n");
     const history = rounds.map((r, i) => `第${i + 1}轮 ${r.correct}/${r.answered}`).join("；");
     const overtime = m.overtimeSec > 0 ? `；超时 ${mmss(m.overtimeSec)}` : "";
-    const thoughtRule = hasThoughts ?
-        "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。" :
-        "";
+    const thoughtRule = hasThoughts
+        ? "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。"
+        : "";
     return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分四段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议。${thoughtRule}
 本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
 每题：${perQ}
@@ -227,7 +251,7 @@ function buildAnalysisPrompt(m: RoundReportModel): string {
 export function showTimeUpChoice(
     slot: HTMLElement,
     t: (k: string) => string,
-    handlers: {onOvertime: () => void; onFinish: () => void;},
+    handlers: { onOvertime: () => void; onFinish: () => void }
 ): void {
     slot.innerHTML = `<div class="wengu-timeup">
   <span>${svgIcon("iconClock")} ${esc(t("timeUpShort"))}</span>
@@ -257,6 +281,12 @@ export interface RoundFinishCtx {
     revealMode: "instant" | "after";
     /** AI 报告使用的模型 id（空=智能体默认）。 */
     aiModelId: string;
+    /** 薄弱画像（有则收卷计数 + 异步补错因 + 报告展示）。 */
+    weakness?: WeaknessStore;
+    /** 题库（针对性加练入库）。 */
+    bank?: QuestionBank;
+    /** 专题清单变化后刷新侧栏。 */
+    refreshCollections?(): void;
     /** 收卷：落库、置 finished、清 session（视图实现）。 */
     finishSession(): void;
     /** after 模式手动收卷时揭示已答部分。 */
@@ -287,11 +317,64 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
         rounds: roundsWithCurrent(ctx.rounds, s),
         totalSec,
         overtimeSec: overtime,
+        weakRows: ctx.weakness?.topSync(8) ?? [],
     };
     out.innerHTML = renderRoundReport(model);
     out.removeAttribute("hidden");
     bindRoundReport(out, model, ctx.aiModelId);
-    out.scrollIntoView({behavior: "smooth", block: "nearest"});
+    out.querySelector("[data-act='weak-drill']")?.addEventListener("click", () => {
+        if (ctx.weakness && ctx.bank)
+            openWeakDrill(
+                {
+                    t: ctx.t,
+                    bank: ctx.bank,
+                    weakness: ctx.weakness,
+                    modelId: ctx.aiModelId,
+                    onDone: () => ctx.refreshCollections?.(),
+                },
+                model.weakRows
+            );
+    });
+    out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (ctx.weakness) void settleWeakness(ctx.weakness, s, ctx.list, ctx.aiModelId);
+}
+
+/** 收卷后异步沉淀错因：brief 判分自带的先入账，客观/steps 错题打包
+ *  一次 AI 归因（≤12 题、≤4000 字），任何失败静默降级（计数已在）。 */
+async function settleWeakness(
+    store: WeaknessStore,
+    s: WenguSession,
+    list: WenguQuestion[],
+    modelId: string
+): Promise<void> {
+    try {
+        const agg = roundAggByQid(s);
+        const causes = new Map<string, WeakCause>();
+        const notes = new Map<string, string>();
+        const mineByQid = new Map<string, string>();
+        for (const r of s.results) {
+            const b = baseQid(r.qid);
+            mineByQid.set(b, r.submitted);
+            if (!r.ok && r.cause) causes.set(b, r.cause as WeakCause);
+            if (!r.ok && r.comment) notes.set(b, r.comment);
+        }
+        const items: CauseItem[] = [];
+        let chars = 0;
+        for (const q of list) {
+            if (agg.get(q.id) !== false || causes.has(q.id) || items.length >= 12) continue;
+            const stem = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+            if (!stem) continue;
+            chars += stem.length;
+            if (chars > 4000) break;
+            items.push({ qid: q.id, stem, mine: mineByQid.get(q.id) ?? "", answer: q.answer ?? "" });
+        }
+        if (items.length > 0) {
+            for (const [qid, cause] of await attributeWrongCauses(items, modelId)) causes.set(qid, cause);
+        }
+        await store.applyCauses(s, list, causes, notes);
+    } catch (_) {
+        // 归因失败不影响报告（计数已本地落）
+    }
 }
 
 /** 手动收卷（倒计时归零选「结束本轮」）：after 模式先揭示已答，再报告。 */
@@ -313,6 +396,9 @@ export interface RoundFinishView {
     timerController(): TimerController;
     currentRevealMode(): "instant" | "after";
     aiModelId(): string;
+    weaknessStore(): WeaknessStore | undefined;
+    bankStore(): QuestionBank | undefined;
+    refreshCollections(): void;
     finishSession(): void;
     revealAnsweredNow(): void;
     stopRoundNow(): void;
@@ -331,6 +417,9 @@ export function roundFinishCtx(view: RoundFinishView): RoundFinishCtx {
         timer: view.timerController(),
         revealMode: view.currentRevealMode(),
         aiModelId: view.aiModelId(),
+        weakness: view.weaknessStore(),
+        bank: view.bankStore(),
+        refreshCollections: () => view.refreshCollections(),
         finishSession: () => view.finishSession(),
         revealAnswered: () => view.revealAnsweredNow(),
         stopRound: () => view.stopRoundNow(),

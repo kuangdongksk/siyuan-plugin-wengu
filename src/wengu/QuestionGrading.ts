@@ -1,13 +1,5 @@
-import {
-    LETTERS,
-    normAnswerText,
-    optionComparable,
-    QuestionType,
-} from "./types";
-import type {
-    WenguQuestion,
-    WenguStep,
-} from "./types";
+import { LETTERS, normAnswerText, optionComparable, QuestionType } from "./types";
+import type { WenguQuestion, WenguStep } from "./types";
 
 /**
  * 判分纯函数（从 QuestionService 拆出，无 IO）：客观题/多步题的
@@ -17,7 +9,10 @@ import type {
 
 /** 答案的多接受形态（fill 的 `a|b`、内容答案顿号分隔等）。 */
 function acceptedAnswers(answer: string): string[] {
-    return answer.split(/\||[,，、;；]/).map(normAnswerText).filter(Boolean);
+    return answer
+        .split(/\||[,，、;；]/)
+        .map(normAnswerText)
+        .filter(Boolean);
 }
 
 /** submitted 是选项字母时映射到该选项的可比内容，否则原样返回。 */
@@ -63,18 +58,17 @@ export function gradeQuestion(q: WenguQuestion, submitted: string): boolean {
         case QuestionType.Judge: {
             const map: Record<string, string> = {
                 "√": "√",
-                "对": "√",
-                "T": "√",
-                "TRUE": "√",
-                "X": "×",
-                "x": "×",
-                "错": "×",
-                "F": "×",
-                "FALSE": "×",
+                对: "√",
+                T: "√",
+                TRUE: "√",
+                X: "×",
+                x: "×",
+                错: "×",
+                F: "×",
+                FALSE: "×",
                 "×": "×",
             };
-            return (map[normAnswerText(submitted)] ?? normAnswerText(submitted)) ===
-                (map[ansNorm] ?? ansNorm);
+            return (map[normAnswerText(submitted)] ?? normAnswerText(submitted)) === (map[ansNorm] ?? ansNorm);
         }
         case QuestionType.Fill: {
             const s = normAnswerText(submitted);
@@ -126,4 +120,27 @@ export function stepOptionIsRight(step: WenguStep, idx: number): boolean {
     const letter = LETTERS[idx] ?? "";
     if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
     return step.optionMd[idx] !== undefined && optionComparable(step.optionMd[idx]) === ansNorm;
+}
+
+/** slots 题单空判分：比字母（cloze 的 slot answer 可能是内容，同 single 容错）。 */
+export function gradeSlot(slot: { optionMd: string[]; answer: string }, submitted: string): boolean {
+    const ansNorm = normAnswerText(slot.answer);
+    const subNorm = normAnswerText(submitted);
+    if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(subNorm);
+    const letters = submitted.toUpperCase().replace(/[^A-Z]/g, "");
+    if (letters.length === 1) {
+        const idx = LETTERS.indexOf(letters);
+        if (idx >= 0 && idx < slot.optionMd.length) {
+            return optionComparable(slot.optionMd[idx]) === ansNorm;
+        }
+    }
+    return subNorm === ansNorm;
+}
+
+/** slots 题某选项是否属于该空正确项（判分后描色用）。 */
+export function slotOptionIsRight(slot: { optionMd: string[]; answer: string }, idx: number): boolean {
+    const ansNorm = normAnswerText(slot.answer);
+    const letter = LETTERS[idx] ?? "";
+    if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
+    return slot.optionMd[idx] !== undefined && optionComparable(slot.optionMd[idx]) === ansNorm;
 }

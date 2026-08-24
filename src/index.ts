@@ -1,20 +1,14 @@
-import {
-    Plugin,
-    openTab,
-    getActiveEditor,
-    type Custom,
-    type MobileCustom,
-} from "siyuan";
+import { Plugin, openTab, getActiveEditor, type Custom, type MobileCustom } from "siyuan";
 import "./index.scss";
-import {HistoryStore} from "./wengu/HistoryStore";
-import {QuizView} from "./wengu/QuizView";
-import {openWenguSetting} from "./wengu/SettingsDialog";
-import type {
-    WenguRevealMode,
-    WenguTimingMode,
-} from "./wengu/types";
-import {WordStore} from "./wengu/WordStore";
-import {WordView} from "./wengu/WordView";
+import { HistoryStore } from "./wengu/HistoryStore";
+import { QuestionBank } from "./wengu/QuestionBank";
+import { QuizView } from "./wengu/QuizView";
+import { openRelatedDialog } from "./wengu/RelatedDialog";
+import { openWenguSetting } from "./wengu/SettingsDialog";
+import type { WenguRevealMode, WenguTimingMode } from "./wengu/types";
+import { WeaknessStore } from "./wengu/WeaknessStore";
+import { WordStore } from "./wengu/WordStore";
+import { WordView } from "./wengu/WordView";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -32,18 +26,12 @@ interface WordDockConfig {
         hotkey?: string;
         /** 内核 dock 布局必读字段（缺失会在 addDock 内部 startsWith 崩溃）。 */
         position?: "LeftBottom" | "LeftTop" | "RightBottom" | "RightTop" | "BottomLeft" | "BottomRight";
-        size?: {width?: number; height?: number;};
+        size?: { width?: number; height?: number };
     };
-    init: (custom: {element?: Element;}) => void;
+    init: (custom: { element?: Element }) => void;
     destroy?: () => void;
     update?: () => void;
     resize?: () => void;
-}
-
-/** 激活 Dock 用的最小接口（window.siyuan.layout 上的 Dock 实例）。 */
-interface DockLike {
-    data: Record<string, unknown>;
-    toggleModel: (type: string, show?: boolean) => void;
 }
 
 /** 打开页签时记录的目标文档 id（addTab 回调读不到 Tab.data，用模块级传递）。 */
@@ -88,23 +76,52 @@ export default class WenguPlugin extends Plugin {
     /** 单例缓存，供 addTab 回调在拿不到插件实例时取 i18n。 */
     static instance: WenguPlugin | undefined;
     /** 插件设置（对象引用共享给 QuizView，开关即时生效）。 */
-    settings: WenguSettings = {showNums: true, showAttempts: true, showWrong: true};
+    settings: WenguSettings = { showNums: true, showAttempts: true, showWrong: true };
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
     activeView: QuizView | undefined;
-    /** 单词进度存储单例（Dock 面板与页签共享同一缓存）。 */
-    private wordStore: WordStore | undefined;
+    /** 刷题侧共享存储单例（多页签/右键反查共享同一份缓存与脏标记）。 */
+    private historyStore?: HistoryStore;
+    private weaknessStore?: WeaknessStore;
+    private bankStore?: QuestionBank;
+
+    /** i18n 取值（右键菜单/对话框用）。 */
+    readonly tKey = (key: string): string => this.i18n[key] || key;
+
+    history(): HistoryStore | undefined {
+        this.historyStore ??= new HistoryStore(
+            () => this.loadData("history"),
+            (h) => this.saveData("history", h)
+        );
+        return this.historyStore;
+    }
+
+    weakness(): WeaknessStore | undefined {
+        this.weaknessStore ??= new WeaknessStore(
+            () => this.loadData("weakness"),
+            (v) => this.saveData("weakness", v)
+        );
+        return this.weaknessStore;
+    }
+
+    bank(): QuestionBank | undefined {
+        this.bankStore ??= new QuestionBank(
+            () => this.loadData("bank"),
+            (v) => this.saveData("bank", v)
+        );
+        return this.bankStore;
+    }
 
     async onload() {
         WenguPlugin.instance = this;
         try {
-            const saved = await this.loadData("settings") as Partial<WenguSettings> | "" | null | undefined;
-            if (saved && typeof saved === "object") this.settings = {...this.settings, ...saved};
+            const saved = (await this.loadData("settings")) as Partial<WenguSettings> | "" | null | undefined;
+            if (saved && typeof saved === "object") this.settings = { ...this.settings, ...saved };
         } catch (_) {
             // 读不到就按默认
         }
         // 持久化回调注入共享对象（落盘时剥掉函数字段）
         this.settings.save = () => {
-            const rest = {...this.settings} as Partial<WenguSettings>;
+            const rest = { ...this.settings } as Partial<WenguSettings>;
             delete rest.save;
             void this.saveData("settings", rest);
         };
@@ -136,31 +153,15 @@ export default class WenguPlugin extends Plugin {
                     },
                 });
                 // 页签已打开时 openTab 只聚焦不重建：把新文档 id 推给既有视图
-                const view = (tab as unknown as {model?: {wenguView?: QuizView;};})?.model?.wenguView;
+                const view = (tab as unknown as { model?: { wenguView?: QuizView } })?.model?.wenguView;
                 view?.setDoc(targetDocId);
             },
         });
 
-        this.addTopBar({
-            icon: "iconWenguWords",
-            title: this.i18n.wordBtn || "背单词",
-            position: "right",
-            callback: async () => {
-                if (!this.activateWordDock()) {
-                    await openTab({
-                        app: this.app,
-                        custom: {
-                            icon: "iconWenguWords",
-                            title: this.i18n.wordBtn || "背单词",
-                            id: this.name + TAB_WORDS,
-                        },
-                    });
-                }
-            },
-        });
-
-        // 单词复习 Dock 面板（3.8.0 运行时支持，类型包未收录 → 局部声明）。
-        const dockHost = this as unknown as {addDock?: (c: WordDockConfig) => unknown;};
+        // 单词复习只走 Dock 面板（顶部入口与同名页签已删：addTab 与
+        // addDock 注册同名 type 会让 dock 的 init 分发到页签实例，
+        // 面板空白的根因）。3.8.0 运行时支持，类型包未收录 → 局部声明。
+        const dockHost = this as unknown as { addDock?: (c: WordDockConfig) => unknown };
         if (dockHost.addDock) {
             dockHost.addDock({
                 type: TAB_WORDS,
@@ -170,12 +171,29 @@ export default class WenguPlugin extends Plugin {
                     index: 1000,
                     hotkey: "",
                     position: "RightBottom",
-                    size: {width: 360, height: 0},
+                    size: { width: 360, height: 0 },
                 },
                 init: (custom) => this.mountWordView(custom),
                 destroy: () => undefined,
             });
         }
+
+        // 知识文档右键「温故：查相关题目」（⑤）：映射在插件数据里，本地反查
+        this.eventBus.on("open-menu-content", (ev) => {
+            const detail = ev.detail as {
+                menu?: { addItem: (item: { icon: string; label: string; click: () => void }) => void };
+                blockElements?: Record<string, unknown>;
+            };
+            const ids = Object.keys(detail.blockElements ?? {});
+            if (!detail.menu || ids.length !== 1) return;
+            const bank = this.bank();
+            if (!bank) return;
+            detail.menu.addItem({
+                icon: "iconSearch",
+                label: this.tKey("relatedMenu"),
+                click: () => void openRelatedDialog(bank, this.tKey, ids[0]),
+            });
+        });
 
         this.addTab({
             type: TAB_RESULT,
@@ -187,23 +205,22 @@ export default class WenguPlugin extends Plugin {
                     i18n,
                     targetDocId,
                     plugin?.app,
-                    plugin ?
-                        {
-                            load: () => plugin.loadData("quiz"),
-                            save: (v) => plugin.saveData("quiz", v),
-                        } :
-                        undefined,
+                    plugin
+                        ? {
+                              load: () => plugin.loadData("quiz"),
+                              save: (v) => plugin.saveData("quiz", v),
+                          }
+                        : undefined,
                     // 共享设置对象：设置页开关后页签立即跟随
                     plugin?.settings,
-                    // N 刷会话历史（插件数据 history 文件）
-                    plugin ?
-                        new HistoryStore(
-                            () => plugin.loadData("history"),
-                            (h) => plugin.saveData("history", h),
-                        ) :
-                        undefined,
+                    // 共享存储单例（历史/薄弱画像/题库，见 onload 字段）
+                    plugin?.history(),
+                    plugin?.weakness(),
+                    plugin?.bank(),
                     // 目录底部设置图标按钮 → 插件设置弹窗
                     plugin ? () => plugin.openSetting() : undefined,
+                    // 背单词存储（生词标记 → 复习队列，与背单词面板共享单例）
+                    plugin?.getWordStore()
                 );
                 (this as any).wenguView = view;
                 if (plugin) plugin.activeView = view;
@@ -219,49 +236,30 @@ export default class WenguPlugin extends Plugin {
                 if (plugin && plugin.activeView === view) plugin.activeView = undefined;
             },
         });
-
-        this.addTab({
-            type: TAB_WORDS,
-            init(this: Custom | MobileCustom) {
-                const plugin = WenguPlugin.instance;
-                if (plugin) plugin.mountWordView(this);
-            },
-            update(this: Custom | MobileCustom) {
-                (this as any).wenguWordView?.render?.();
-            },
-            destroy() {
-                (this as any).wenguWordView?.destroy?.();
-            },
-        });
     }
 
-    /** 单词视图挂载（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。 */
-    private mountWordView(custom: {element?: Element;}): void {
-        const el = custom.element as HTMLElement | undefined;
-        if (!el || !WenguPlugin.instance) return;
+    /** 单词进度存储单例（Dock 面板/兜底页签/刷题生词标记共用同一缓存）。 */
+    private wordStore: WordStore | undefined;
+
+    /** 取共享 WordStore（刷题页签的生词标记也写入同一份进度）。 */
+    getWordStore(): WordStore {
         if (!this.wordStore) {
             this.wordStore = new WordStore(
                 () => this.loadData("words"),
-                (p) => this.saveData("words", p),
+                (p) => this.saveData("words", p)
             );
         }
-        const view = new WordView(el, this.i18n ?? {}, this.wordStore);
-        (custom as unknown as {wenguWordView?: WordView;}).wenguWordView = view;
-        view.bind();
-        void view.render();
+        return this.wordStore;
     }
 
-    /** 激活背单词 Dock 面板；未注册/未布局返回 false 由页签兜底。 */
-    private activateWordDock(): boolean {
-        const full = this.name + TAB_WORDS;
-        const layout = (window as unknown as {
-            siyuan?: {layout?: {leftDock?: DockLike; rightDock?: DockLike; bottomDock?: DockLike;};};
-        }).siyuan?.layout;
-        const dock = [layout?.leftDock, layout?.rightDock, layout?.bottomDock]
-            .find((d) => d && full in d.data);
-        if (!dock) return false;
-        dock.toggleModel(full);
-        return true;
+    /** 单词视图挂载（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。 */
+    private mountWordView(custom: { element?: Element }): void {
+        const el = custom.element as HTMLElement | undefined;
+        if (!el || !WenguPlugin.instance) return;
+        const view = new WordView(el, this.i18n ?? {}, this.getWordStore());
+        (custom as unknown as { wenguWordView?: WordView }).wenguWordView = view;
+        view.bind();
+        void view.render();
     }
 
     /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */
@@ -269,7 +267,7 @@ export default class WenguPlugin extends Plugin {
         openWenguSetting({
             i18n: this.i18n,
             pluginName: this.i18n.pluginName || this.name,
-            version: (this as unknown as {manifest?: {version?: string;};}).manifest?.version ?? "0.1.0",
+            version: (this as unknown as { manifest?: { version?: string } }).manifest?.version ?? "0.1.0",
             settings: this.settings,
             onSettingsChange: () => this.activeView?.applySettings(),
         });

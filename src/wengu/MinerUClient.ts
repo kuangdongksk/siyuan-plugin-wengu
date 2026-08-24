@@ -1,5 +1,5 @@
-import {unzipSync} from "fflate";
-import {fetchSyncPost} from "siyuan";
+import { unzipSync } from "fflate";
+import { fetchSyncPost } from "siyuan";
 
 /**
  * MinerU 文档解析客户端（PDF → markdown + 插图）。
@@ -32,7 +32,7 @@ export type MinerUErrorKind =
 export class MinerUError extends Error {
     constructor(
         public readonly kind: MinerUErrorKind,
-        public readonly detail: string,
+        public readonly detail: string
     ) {
         super(`${kind}: ${detail}`);
     }
@@ -41,7 +41,7 @@ export class MinerUError extends Error {
 /** 解析结果：markdown（插图引用 images/xxx 相对路径）+ 插图二进制。 */
 export interface MinerUParseResult {
     markdown: string;
-    images: {name: string; data: Uint8Array;}[];
+    images: { name: string; data: Uint8Array }[];
 }
 
 /** 阶段回调（status 文案 + 可选进度百分比）。 */
@@ -63,12 +63,12 @@ async function proxyJson(url: string, token: string, method: string, body?: stri
         method,
         headers: {
             Authorization: `Bearer ${token}`,
-            ...(body ? {"Content-Type": "application/json"} : {}),
+            ...(body ? { "Content-Type": "application/json" } : {}),
         },
-        ...(body ? {payload: body} : {}),
+        ...(body ? { payload: body } : {}),
         timeout: 30000,
     });
-    const payload = (res?.data ?? {}) as {body?: unknown;};
+    const payload = (res?.data ?? {}) as { body?: unknown };
     const text = typeof payload.body === "string" ? payload.body : "";
     let json: Record<string, unknown> | undefined;
     try {
@@ -81,7 +81,7 @@ async function proxyJson(url: string, token: string, method: string, body?: stri
         // A0202 token 错误 / A0211 过期；msg 形如 "A0202: Invalid token"
         throw new MinerUError(
             String(json.msg ?? "").includes("A0202") || String(json.msg ?? "").includes("A0211") ? "auth" : "api",
-            String(json.msg ?? text.slice(0, 200)),
+            String(json.msg ?? text.slice(0, 200))
         );
     }
     if (!json) throw new MinerUError("api", text.slice(0, 200) || `HTTP ${method} ${url} 无响应体`);
@@ -93,7 +93,7 @@ async function putToOss(uploadUrl: string, data: ArrayBuffer): Promise<void> {
     try {
         // ArrayBuffer body：fetch 不会自动补 Content-Type（File/Blob 带类型会，
         // 预签名按无 Content-Type 计算，带了直接签名不匹配）
-        const res = await fetch(uploadUrl, {method: "PUT", body: data});
+        const res = await fetch(uploadUrl, { method: "PUT", body: data });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (e) {
         throw new MinerUError("upload", String((e as Error)?.message ?? e));
@@ -104,7 +104,7 @@ interface ExtractResultRow {
     state?: string;
     full_zip_url?: string;
     err_msg?: string;
-    extract_progress?: {extracted_pages?: number; total_pages?: number;};
+    extract_progress?: { extracted_pages?: number; total_pages?: number };
 }
 
 /** 轮询批次结果，done 时返回 zip 地址。 */
@@ -113,7 +113,7 @@ async function pollResult(batchId: string, token: string, onProgress: MinerUProg
     for (;;) {
         if (Date.now() >= deadline) throw new MinerUError("timeout", batchId);
         const json = await proxyJson(`${API_BASE}/extract-results/batch/${batchId}`, token, "GET");
-        const rows = (json.data as {extract_result?: ExtractResultRow[];} | undefined)?.extract_result ?? [];
+        const rows = (json.data as { extract_result?: ExtractResultRow[] } | undefined)?.extract_result ?? [];
         const row = rows[0] ?? {};
         if (row.state === "done" && row.full_zip_url) return row.full_zip_url;
         if (row.state === "failed") throw new MinerUError("parseFailed", row.err_msg ?? "");
@@ -124,7 +124,7 @@ async function pollResult(batchId: string, token: string, onProgress: MinerUProg
                 percent: Math.min(99, Math.round(((p.extracted_pages ?? 0) / p.total_pages) * 100)),
             });
         } else {
-            onProgress({stage: "waiting"});
+            onProgress({ stage: "waiting" });
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
@@ -139,17 +139,17 @@ function extractZip(bytes: Uint8Array): MinerUParseResult {
         throw new MinerUError("download", `zip 解压失败 ${String((e as Error)?.message ?? e)}`);
     }
     let markdown = "";
-    const images: {name: string; data: Uint8Array;}[] = [];
+    const images: { name: string; data: Uint8Array }[] = [];
     for (const [path, data] of Object.entries(entries)) {
         const base = path.slice(path.lastIndexOf("/") + 1);
         if (base === "full.md" && !markdown) {
             markdown = new TextDecoder().decode(data);
         } else if (path.startsWith("images/") && base) {
-            images.push({name: base, data});
+            images.push({ name: base, data });
         }
     }
     if (!markdown) throw new MinerUError("download", "zip 里没有 full.md");
-    return {markdown, images};
+    return { markdown, images };
 }
 
 /** 全流程：申请上传地址 → 上传 → 轮询 → 下载解压。 */
@@ -157,10 +157,10 @@ export async function mineruParsePdf(
     file: File,
     token: string,
     onProgress: MinerUProgress,
-    signal?: AbortSignal,
+    signal?: AbortSignal
 ): Promise<MinerUParseResult> {
     const name = file.name || "upload.pdf";
-    onProgress({stage: "uploading"});
+    onProgress({ stage: "uploading" });
     const apply = await proxyJson(
         `${API_BASE}/file-urls/batch`,
         token,
@@ -169,10 +169,10 @@ export async function mineruParsePdf(
             enable_formula: true,
             enable_table: true,
             language: "ch",
-            files: [{name, is_ocr: false, data_id: `wengu-${Date.now().toString(36)}`}],
-        }),
+            files: [{ name, is_ocr: false, data_id: `wengu-${Date.now().toString(36)}` }],
+        })
     );
-    const data = (apply.data ?? {}) as {batch_id?: string; file_urls?: string[];};
+    const data = (apply.data ?? {}) as { batch_id?: string; file_urls?: string[] };
     const uploadUrl = data.file_urls?.[0];
     const batchId = data.batch_id;
     if (!uploadUrl || !batchId) throw new MinerUError("api", "申请上传地址失败：响应缺 file_urls/batch_id");
@@ -180,7 +180,7 @@ export async function mineruParsePdf(
     await putToOss(uploadUrl, await file.arrayBuffer());
     signal?.throwIfAborted();
     const zipUrl = await pollResult(batchId, token, onProgress);
-    onProgress({stage: "downloading"});
+    onProgress({ stage: "downloading" });
     signal?.throwIfAborted();
     try {
         const res = await fetch(zipUrl);

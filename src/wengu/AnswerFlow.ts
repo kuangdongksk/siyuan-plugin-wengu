@@ -1,34 +1,15 @@
-import {judgeBrief} from "./AiJudge";
-import {
-    isChoice,
-    isObjective,
-} from "./CardHtml";
-import type {WenguSession} from "./HistoryStore";
-import {
-    optionIsRight,
-    overrideAttemptResult,
-    recordAttempt,
-    recordAttemptResult,
-} from "./QuestionService";
-import {
-    bindStepsCard,
-    restoreStepsCard,
-} from "./StepsFlow";
-import type {TimerController} from "./TimerController";
-import type {
-    WenguQuestion,
-    WenguRevealMode,
-} from "./types";
-import {
-    hasSteps,
-    LETTERS,
-    QuestionType,
-} from "./types";
-import {
-    esc,
-    fmt,
-    mmss,
-} from "./ui";
+import { judgeBrief } from "./AiJudge";
+import { isChoice, isObjective } from "./CardHtml";
+import { statusIcon } from "./FormHtml";
+import type { WenguSession, WenguSessionResult } from "./HistoryStore";
+import { syncGroupReveal } from "./MaterialFlow";
+import { optionIsRight, overrideAttemptResult, recordAttempt, recordAttemptResult } from "./QuestionService";
+import { bindSlotsCard, restoreSlotsCard } from "./SlotFlow";
+import { bindStepsCard, restoreStepsCard } from "./StepsFlow";
+import type { TimerController } from "./TimerController";
+import type { WenguQuestion, WenguRevealMode } from "./types";
+import { hasSlots, hasSteps, isBriefLike, LETTERS, QuestionType } from "./types";
+import { esc, fmt, mmss } from "./ui";
 
 /**
  * 作答流程（从 QuizView 拆出）：卡片事件绑定、提交判分、自评、
@@ -47,12 +28,12 @@ export interface AnswerHost {
     currentSession(): WenguSession | undefined;
     /** AI 判分/实时引导使用的模型 id（空=智能体默认）。 */
     aiModelId(): string;
-    /** 记入会话（含逐题秒数）并落库；extra 携带 brief 的 AI 三态与评语。 */
+    /** 记入会话（含逐题秒数）并落库；extra 携带 brief 的 AI 三态/评语/错因。 */
     recordAnswer(
         qid: string,
         submitted: string,
         ok: boolean,
-        extra?: {verdict?: "right" | "partial" | "wrong"; comment?: string;},
+        extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
     ): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
@@ -68,6 +49,19 @@ export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQues
         bindStepsCard(host, card, q);
         return;
     }
+    if (hasSlots(q)) {
+        bindSlotsCard(host, card, q);
+        return;
+    }
+    // 作文：实时词数（E3）
+    const mine = card.querySelector<HTMLInputElement | HTMLTextAreaElement>("[data-field='mine']");
+    const wc = card.querySelector<HTMLElement>("[data-wordcount']");
+    if (mine && wc) {
+        mine.addEventListener("input", () => {
+            const words = mine.value.trim() ? mine.value.trim().split(/\s+/).length : 0;
+            wc.textContent = `${words} words`;
+        });
+    }
     if (isChoice(q)) {
         for (const chip of card.querySelectorAll<HTMLElement>(".wengu-chip")) {
             chip.addEventListener("click", () => toggleChip(q, card, chip));
@@ -82,11 +76,13 @@ export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQues
     }
     card.querySelector("[data-act='submit']")?.addEventListener("click", () => void submitQuestion(host, q, card));
     // 自评按钮：brief 经 AI 判分后语义变为「改判」（appealGrade）
-    const selfHandler = (correct: boolean): () => void => () => {
-        void (card.dataset.aiJudged === "1" ?
-            appealGrade(host, q, card, correct) :
-            selfGrade(host, q, card, correct));
-    };
+    const selfHandler =
+        (correct: boolean): (() => void) =>
+        () => {
+            void (card.dataset.aiJudged === "1"
+                ? appealGrade(host, q, card, correct)
+                : selfGrade(host, q, card, correct));
+        };
     card.querySelector("[data-act='self-right']")?.addEventListener("click", selfHandler(true));
     card.querySelector("[data-act='self-wrong']")?.addEventListener("click", selfHandler(false));
 }
@@ -129,9 +125,11 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
     lockInputs(card);
     host.flushTime();
     if (!objective) {
-        // brief：AI 判分并计入（AI 不可用回落自评）；多步题在 StepsFlow，
-        // 缺题型/答案属性的题维持自评。after 模式判分照跑，揭示时只展示评语。
-        if (q.type === QuestionType.Brief && submitted) {
+        // brief（含英语 essay/trans）：AI 判分并计入（AI 不可用回落自评）；
+        // 多步题在 StepsFlow，缺题型/答案属性的题维持自评（cloze/match
+        // 的逐空作答是 E2，E0 先走这条自评降级）。after 模式判分照跑，
+        // 揭示时只展示评语。
+        if (isBriefLike(q) && submitted) {
             await judgeBriefAnswer(host, q, card, submitted, batch);
             return;
         }
@@ -155,7 +153,7 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
         checkAllDone(host);
         return;
     }
-    revealCard(host, card, q, {submitted, ok});
+    revealCard(host, card, q, { submitted, ok });
     showQTime(host, card, q.id);
     checkAllDone(host);
 }
@@ -165,15 +163,17 @@ export async function selfGrade(
     host: AnswerHost,
     q: WenguQuestion,
     card: HTMLElement,
-    correct: boolean,
+    correct: boolean
 ): Promise<void> {
     const mine = readSubmitted(q, card);
     await recordAttemptResult(q.id, mine, correct);
     markNum(host, q, correct);
     host.recordAnswer(q.id, mine, correct);
     card.querySelector("[data-self]")?.setAttribute("hidden", "");
+    card.classList.add("wengu-graded");
     showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct ? "right" : "wrong");
     showQTime(host, card, q.id);
+    syncGroupReveal(host.container(), host.questions());
     checkAllDone(host);
 }
 
@@ -184,7 +184,7 @@ async function judgeBriefAnswer(
     q: WenguQuestion,
     card: HTMLElement,
     submitted: string,
-    batch: boolean,
+    batch: boolean
 ): Promise<void> {
     card.dataset.graded = "1";
     lockInputs(card);
@@ -197,7 +197,7 @@ async function judgeBriefAnswer(
         card.dataset.aiJudged = "1";
         card.dataset.aiVerdict = v.verdict;
         await recordAttemptResult(q.id, submitted, v.ok);
-        host.recordAnswer(q.id, submitted, v.ok, {verdict: v.verdict, comment: v.comment});
+        host.recordAnswer(q.id, submitted, v.ok, { verdict: v.verdict, comment: v.comment, cause: v.cause });
         const commentEl = card.querySelector<HTMLElement>("[data-ai-comment]");
         if (commentEl && v.comment) commentEl.textContent = v.comment;
         if (batch) {
@@ -250,12 +250,7 @@ export function appealSessionResult(host: AnswerHost, qid: string, correct: bool
 
 /** brief 改判（AI 误判纠错）：翻块属性 right、微调 wrong-count，
  *  会话结果原位改写（不动 attempts/answered）。 */
-async function appealGrade(
-    host: AnswerHost,
-    q: WenguQuestion,
-    card: HTMLElement,
-    correct: boolean,
-): Promise<void> {
+async function appealGrade(host: AnswerHost, q: WenguQuestion, card: HTMLElement, correct: boolean): Promise<void> {
     await overrideAttemptResult(q.id, correct);
     appealSessionResult(host, q.id, correct);
     markNum(host, q, correct);
@@ -266,7 +261,7 @@ async function appealGrade(
 /** 判分后提示本题用时（秒数在所有模式都记录，统一展示）。 */
 function showQTime(host: AnswerHost, card: HTMLElement, qid: string): void {
     const sec = host.timerController().questionSec(qid);
-    if (sec > 0) showNote(card, fmt(host.t("perQTime"), {t: mmss(sec)}));
+    if (sec > 0) showNote(card, fmt(host.t("perQTime"), { t: mmss(sec) }));
 }
 
 /** 继续上轮时：把已答卡片恢复为锁定状态（已选/已填 + 判分揭示视展示模式）。 */
@@ -275,11 +270,16 @@ export function restoreAnsweredCards(host: AnswerHost): void {
     const list = host.questions();
     if (!s || s.results.length === 0) return;
     const byQid = new Map(s.results.map((r) => [r.qid, r] as const));
-    const allDone = list.length > 0 && list.every((q) =>
-        hasSteps(q) ?
-            stepResultsOf(s.results, q.id).length >= (q.steps?.length ?? Number.POSITIVE_INFINITY) :
-            byQid.has(q.id)
-    );
+    const allDone =
+        list.length > 0 &&
+        list.every((q) =>
+            hasSteps(q)
+                ? stepResultsOf(s.results, q.id).length >= (q.steps?.length ?? Number.POSITIVE_INFINITY)
+                : hasSlots(q)
+                  ? s.results.some((r) => r.qid.startsWith(`${q.id}#`)) &&
+                    slotResultsOf(s.results, q.id).length >= (q.slots?.length ?? 0)
+                  : byQid.has(q.id)
+        );
     const revealNow = host.currentRevealMode() === "instant" || allDone;
     for (const node of host.container().querySelectorAll<HTMLElement>(".wengu-card")) {
         const q = list.find((x) => x.id === node.dataset.qid);
@@ -287,6 +287,12 @@ export function restoreAnsweredCards(host: AnswerHost): void {
         if (hasSteps(q)) {
             // 多步卡按 qid#k 逐步还原（完整则锁定收口，部分则待续）
             restoreStepsCard(host, node, q, stepResultsOf(s.results, q.id));
+            continue;
+        }
+        if (hasSlots(q)) {
+            // slots 卡按 qid#k 逐空还原（整题口径在 restoreSlotsCard 内收口）
+            const slotResults = slotResultsOf(s.results, q.id);
+            if (slotResults.length > 0) restoreSlotsCard(host, node, q, slotResults);
             continue;
         }
         const r = byQid.get(q.id);
@@ -304,15 +310,21 @@ export function restoreAnsweredCards(host: AnswerHost): void {
     if (allDone) void revealAll(host);
 }
 
+/** 某 slots 题在会话里的逐空结果（原样传给 restoreSlotsCard）。 */
+function slotResultsOf(results: WenguSessionResult[], qid: string): WenguSessionResult[] {
+    const prefix = `${qid}#`;
+    return results.filter((r) => r.qid.startsWith(prefix) && /^\d+$/.test(r.qid.slice(prefix.length)));
+}
+
 /** 某多步题在会话里的逐步结果（按步序排列）。 */
 function stepResultsOf(
-    results: {qid: string; submitted: string; ok: boolean;}[],
-    qid: string,
-): {k: number; submitted: string; ok: boolean;}[] {
+    results: { qid: string; submitted: string; ok: boolean }[],
+    qid: string
+): { k: number; submitted: string; ok: boolean }[] {
     const prefix = `${qid}#`;
     return results
         .filter((r) => r.qid.startsWith(prefix) && /^\d+$/.test(r.qid.slice(prefix.length)))
-        .map((r) => ({k: Number(r.qid.slice(prefix.length)), submitted: r.submitted, ok: r.ok}))
+        .map((r) => ({ k: Number(r.qid.slice(prefix.length)), submitted: r.submitted, ok: r.ok }))
         .sort((a, b) => a.k - b.k);
 }
 
@@ -357,7 +369,7 @@ function revealCard(
     host: AnswerHost,
     card: HTMLElement,
     q: WenguQuestion,
-    r: {submitted: string; ok: boolean; verdict?: string; comment?: string;},
+    r: { submitted: string; ok: boolean; verdict?: string; comment?: string }
 ): void {
     card.classList.add("wengu-graded");
     markNum(host, q, r.ok);
@@ -365,10 +377,10 @@ function revealCard(
         markChips(q, card, r.submitted);
         showResult(
             card,
-            r.ok ?
-                esc(host.t("correct")) :
-                `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}`,
-            r.ok ? "right" : "wrong",
+            r.ok
+                ? esc(host.t("correct"))
+                : `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}`,
+            r.ok ? "right" : "wrong"
         );
     } else {
         // brief：结果行按三态（恢复时 dataset 丢失则用会话 verdict 兜底）
@@ -380,6 +392,8 @@ function revealCard(
         showResult(card, briefResultHtml(host, verdict), verdictStatus(verdict));
         revealBriefExtras(host, card);
     }
+    // 材料组：组内题目全部判分后揭示共享材料的译文（E0 防剧透规则）
+    syncGroupReveal(host.container(), host.questions());
 }
 
 /** 全部作答后收口：after 模式先统一揭示（revealAll 会再触发总结），
@@ -441,7 +455,7 @@ function verdictStatus(verdict: string): ResultStatus {
 function showResult(card: HTMLElement, html: string, status: ResultStatus): void {
     const result = card.querySelector<HTMLElement>("[data-result]");
     if (!result) return;
-    result.innerHTML = html;
+    result.innerHTML = (status === "warn" ? "" : statusIcon(status)) + html;
     result.removeAttribute("hidden");
     result.classList.remove("wengu-right", "wengu-wrong", "wengu-muted", "wengu-partial");
     result.classList.add(status === "warn" ? "wengu-muted" : `wengu-${status}`);

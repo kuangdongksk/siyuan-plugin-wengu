@@ -2,7 +2,7 @@
  * 思源内置智能体客户端（design-review P2-5）：SSE 调用 + 用户配置的
  * 模型清单。转换与 AI 分析报告共用，ConvertService 不再持有这层。
  */
-import {esc} from "./ui";
+import { esc } from "./ui";
 
 /** 用户在 设置→AI 配置的可选模型（提供商 × 模型）。 */
 export interface WenguAiModel {
@@ -25,11 +25,11 @@ interface SiyuanAiProviderConf {
     models?: SiyuanAiModelConf[];
 }
 interface SiyuanAiConf {
-    agent?: {modelId?: string;};
+    agent?: { modelId?: string };
     providers?: SiyuanAiProviderConf[];
 }
 interface SiyuanWindow {
-    siyuan?: {config?: {ai?: SiyuanAiConf; lang?: string;};};
+    siyuan?: { config?: { ai?: SiyuanAiConf; lang?: string } };
 }
 
 function aiConf(): SiyuanAiConf {
@@ -44,7 +44,7 @@ export function listAiModels(): WenguAiModel[] {
         for (const m of p.models ?? []) {
             if (!m.enabled) continue;
             const name = m.displayName || m.name;
-            if (name) out.push({id: m.id || m.name, name, provider: p.displayName || p.id || "?"});
+            if (name) out.push({ id: m.id || m.name, name, provider: p.displayName || p.id || "?" });
         }
     }
     return out;
@@ -61,10 +61,11 @@ export function modelOptionsHtml(selectedId: string): string {
     const models = listAiModels();
     const sel = selectedId && models.some((m) => m.id === selectedId) ? selectedId : defaultAgentModelId();
     return models
-        .map((m) =>
-            `<option value="${esc(m.id)}"${sel === m.id ? " selected" : ""}>${esc(m.provider)} · ${
-                esc(m.name)
-            }</option>`
+        .map(
+            (m) =>
+                `<option value="${esc(m.id)}"${sel === m.id ? " selected" : ""}>${esc(m.provider)} · ${esc(
+                    m.name
+                )}</option>`
         )
         .join("");
 }
@@ -79,7 +80,7 @@ export async function agentChat(
     message: string,
     modelId: string,
     timeoutMs: number,
-    signal?: AbortSignal,
+    signal?: AbortSignal
 ): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -89,12 +90,12 @@ export async function agentChat(
         const lang = (window as unknown as SiyuanWindow).siyuan?.config?.lang ?? "zh_CN";
         const resp = await fetch("/api/ai/agent/chat", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message,
                 language: lang,
                 references: [],
-                ...(modelId ? {model: modelId} : {}),
+                ...(modelId ? { model: modelId } : {}),
             }),
             signal: controller.signal,
         });
@@ -103,7 +104,7 @@ export async function agentChat(
             const text = await resp.text();
             let msg = "";
             try {
-                msg = String((JSON.parse(text) as {msg?: string;})?.msg ?? "");
+                msg = String((JSON.parse(text) as { msg?: string })?.msg ?? "");
             } catch (_) {
                 msg = text.slice(0, 200);
             }
@@ -116,9 +117,9 @@ export async function agentChat(
         let evt = "";
         let out = "";
         for (;;) {
-            const {done, value} = await reader.read();
+            const { done, value } = await reader.read();
             if (done) break;
-            buf += decoder.decode(value, {stream: true});
+            buf += decoder.decode(value, { stream: true });
             const lines = buf.split("\n");
             buf = lines.pop() ?? "";
             for (const line of lines) {
@@ -129,7 +130,7 @@ export async function agentChat(
                 if (!line.startsWith("data:")) continue;
                 const raw = line.slice(5).trim();
                 if (!evt || !raw) continue;
-                let data: {token?: unknown; message?: unknown; msg?: unknown;};
+                let data: { token?: unknown; message?: unknown; msg?: unknown };
                 try {
                     data = JSON.parse(raw);
                 } catch (_) {
@@ -164,11 +165,11 @@ export async function agentChatConcurrent(message: string, timeoutMs: number, si
     try {
         const resp = await fetch("/api/ai/chatGPT", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({msg: message}),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ msg: message }),
             signal: controller.signal,
         });
-        const j = await resp.json() as {code?: number; msg?: string; data?: unknown;};
+        const j = (await resp.json()) as { code?: number; msg?: string; data?: unknown };
         if (j.code !== 0) throw new Error(j.msg || `chatGPT ${j.code}`);
         return String(j.data ?? "");
     } finally {

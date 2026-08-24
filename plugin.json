@@ -4,34 +4,9 @@
   "url": "https://github.com/kuangdongksk/siyuan-plugin-wengu",
   "version": "0.1.0",
   "minAppVersion": "3.8.0",
-  "kernels": [
-    "windows",
-    "linux",
-    "darwin",
-    "ios",
-    "android",
-    "harmony",
-    "docker",
-    "all"
-  ],
-  "backends": [
-    "windows",
-    "linux",
-    "darwin",
-    "ios",
-    "android",
-    "harmony",
-    "docker",
-    "all"
-  ],
-  "frontends": [
-    "desktop",
-    "mobile",
-    "browser-desktop",
-    "browser-mobile",
-    "desktop-window",
-    "all"
-  ],
+  "kernels": ["windows", "linux", "darwin", "ios", "android", "harmony", "docker", "all"],
+  "backends": ["windows", "linux", "darwin", "ios", "android", "harmony", "docker", "all"],
+  "frontends": ["desktop", "mobile", "browser-desktop", "browser-mobile", "desktop-window", "all"],
   "disabledInPublish": false,
   "displayName": {
     "default": "Wengu",
@@ -51,13 +26,5 @@
     "github": "",
     "custom": []
   },
-  "keywords": [
-    "刷题",
-    "题库",
-    "错题本",
-    "间隔重复",
-    "quiz",
-    "flashcard",
-    "spaced repetition"
-  ]
+  "keywords": ["刷题", "题库", "错题本", "间隔重复", "quiz", "flashcard", "spaced repetition"]
 }

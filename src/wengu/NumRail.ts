@@ -5,7 +5,7 @@
  */
 export function bindNumRail(
     root: HTMLElement,
-    opts: {onActive: (idx: number) => void;},
+    opts: { onActive: (idx: number) => void; onFocus?: (idx: number) => void }
 ): void {
     const nav = root.querySelector<HTMLElement>("[data-nums]");
     // 点击导航后的平滑滚动期间暂停滚动跟踪回写：末尾卡片到不了视口
@@ -23,8 +23,15 @@ export function bindNumRail(
             btn.addEventListener("click", () => {
                 const n = Number(btn.dataset.num);
                 lockUntil = performance.now() + 800;
-                root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]`)
-                    ?.scrollIntoView({behavior: "smooth", block: "center"});
+                if (opts.onFocus) {
+                    // 材料组一次一题：点击组内题号由视图切题并滚到组单元
+                    opts.onFocus(n - 1);
+                } else {
+                    root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`)?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                    });
+                }
                 setActive(n);
             });
         }
@@ -32,31 +39,36 @@ export function bindNumRail(
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (!scroller) return;
     let pending = false;
-    scroller.addEventListener("scroll", () => {
-        if (pending) return;
-        pending = true;
-        window.requestAnimationFrame(() => {
-            pending = false;
-            if (performance.now() < lockUntil) {
-                // 平滑滚动仍在进行就续锁：长列表滚到末尾常超 800ms，
-                // 固定锁过期后「顶端最近」规则会把点击的末题翻回前题
-                lockUntil = performance.now() + 200;
-                return;
-            }
-            const cards = Array.from(root.querySelectorAll<HTMLElement>(".wengu-card"));
-            if (cards.length === 0) return;
-            const top = scroller.getBoundingClientRect().top + 24;
-            let best = 0;
-            let bestDist = Infinity;
-            cards.forEach((c, i) => {
-                const d = Math.abs(c.getBoundingClientRect().top - top);
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = i;
+    scroller.addEventListener(
+        "scroll",
+        () => {
+            if (pending) return;
+            pending = true;
+            window.requestAnimationFrame(() => {
+                pending = false;
+                if (performance.now() < lockUntil) {
+                    // 平滑滚动仍在进行就续锁：长列表滚到末尾常超 800ms，
+                    // 固定锁过期后「顶端最近」规则会把点击的末题翻回前题
+                    lockUntil = performance.now() + 200;
+                    return;
                 }
+                // 组内隐藏卡不参与「顶端最近」跟踪（rect 全零会误判）
+                const cards = Array.from(root.querySelectorAll<HTMLElement>(".wengu-card:not([hidden])"));
+                if (cards.length === 0) return;
+                const top = scroller.getBoundingClientRect().top + 24;
+                let best = 0;
+                let bestDist = Infinity;
+                cards.forEach((c, i) => {
+                    const d = Math.abs(c.getBoundingClientRect().top - top);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        best = i;
+                    }
+                });
+                setActive(best + 1);
             });
-            setActive(best + 1);
-        });
-    }, {passive: true});
+        },
+        { passive: true }
+    );
     setActive(1);
 }

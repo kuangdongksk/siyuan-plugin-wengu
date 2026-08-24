@@ -1,9 +1,6 @@
-import {MinerUError} from "./MinerUClient";
-import {importPdfAsDoc} from "./PdfImport";
-import {
-    esc,
-    fmt,
-} from "./ui";
+import { MinerUError } from "./MinerUClient";
+import { importPdfAsDoc } from "./PdfImport";
+import { esc, fmt } from "./ui";
 
 /**
  * 转换弹窗的「从 PDF 导入」行（从 ConvertDialog 拆出，保其 ≤500 行）：
@@ -20,11 +17,11 @@ export interface PdfImportRowDeps {
     /** 每次导入开始时弹窗接管终止按钮（挂 AbortController）。 */
     hookStop(c: AbortController): void;
     /** 导入位置解析（custom 父文档优先，否则参照文档旁边）。 */
-    resolveTarget(): {parentDocId?: string; siblingDocId?: string;};
+    resolveTarget(): { parentDocId?: string; siblingDocId?: string };
     showStatus(html: string, kind: "ok" | "err" | "muted"): void;
     setBusy(v: boolean): void;
     /** 导入成功（原文档已建好并轮询可查）。 */
-    onImported(r: {docId: string; title: string; charCount: number; imageCount: number;}): void;
+    onImported(r: { docId: string; title: string; charCount: number; imageCount: number }): void;
 }
 
 /** MinerU/导入错误 → i18n 文案（未知错误原样展示）。 */
@@ -58,19 +55,21 @@ export function bindPdfImportRow(root: HTMLElement, deps: PdfImportRowDeps): voi
                 onProgress: (p) => {
                     if (p.stage === "upload") deps.showStatus(deps.t("mineruUploading"), "muted");
                     else if (p.stage === "wait") {
-                        deps.showStatus(fmt(deps.t("mineruWaiting"), {p: String(p.percent ?? 0)}), "muted");
+                        deps.showStatus(fmt(deps.t("mineruWaiting"), { p: String(p.percent ?? 0) }), "muted");
                     } else if (p.stage === "download") deps.showStatus(deps.t("mineruDownloading"), "muted");
                     else deps.showStatus(deps.t("mineruSaving"), "muted");
                 },
             });
             deps.onImported(r);
             deps.showStatus(
-                esc(fmt(deps.t("mineruImported"), {
-                    title: r.title,
-                    n: String(r.charCount),
-                    img: String(r.imageCount),
-                })),
-                "ok",
+                esc(
+                    fmt(deps.t("mineruImported"), {
+                        title: r.title,
+                        n: String(r.charCount),
+                        img: String(r.imageCount),
+                    })
+                ),
+                "ok"
             );
         } catch (e) {
             if ((e as Error)?.name === "AbortError") {

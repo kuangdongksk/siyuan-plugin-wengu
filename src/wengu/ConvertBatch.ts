@@ -1,30 +1,22 @@
-import {fetchSyncPost} from "siyuan";
+import { fetchSyncPost } from "siyuan";
+import { detectQuestions, questionPreview } from "./ConvertDetect";
+import type { QuestionPreview } from "./ConvertDetect";
 import {
-    agentChat,
-    agentChatConcurrent,
-} from "./AgentClient";
-import {
-    detectQuestions,
-    questionPreview,
-} from "./ConvertDetect";
-import type {QuestionPreview} from "./ConvertDetect";
-import {
-    AI_TIMEOUT_MS,
     buildPrompt,
     createExerciseDoc,
     extractBatchQuestions,
     extractBlockId,
     getDocInfo,
     hasChildDocs,
+    isMaterialKramdown,
+    removeDoc,
     replaceDocInPlace,
     ReplaceInplaceError,
     resolveTarget,
 } from "./ConvertService";
-import type {
-    ConvertResult,
-    DocInfo,
-} from "./ConvertService";
-import {fmt} from "./ui";
+import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
+import { fmt } from "./ui";
 
 /**
  * 分批转换编排（从 ConvertService 拆出）：长文档按空行边界切块逐批
@@ -61,7 +53,7 @@ export function chunkKramdown(md: string, maxChars = CHUNK_CHARS): SourceChunk[]
             if (blank > start + Math.floor(maxChars / 2)) end = blank + 2;
         }
         const text = md.slice(start, end).trim();
-        if (text) out.push({text, offset: start});
+        if (text) out.push({ text, offset: start });
         start = end;
     }
     return out;
@@ -152,10 +144,12 @@ export async function convertDocBatched(
         writeMode?: "inplace" | "newdoc";
         /** 生成位置（仅 newdoc）：空=原文档同目录；否则指定父文档下面。 */
         targetRaw?: string;
+        /** 知识点根文档 id（书架/书/章），非空时路由小节并注入知识点反链。 */
+        knowRoots?: string[];
         onProgress(p: ConvertProgress): void;
-    },
+    }
 ): Promise<BatchedResult> {
-    const {t} = opts;
+    const { t } = opts;
     const inplace = opts.writeMode === "inplace";
     const docId = extractBlockId(docIdRaw);
     const info = await getDocInfo(docId);
@@ -171,7 +165,7 @@ export async function convertDocBatched(
         };
     }
     // 原位替换会连子文档一起删——开始即拦（写盘时刻 replaceDocInPlace 还会重查）
-    if (inplace && await hasChildDocs(docId)) {
+    if (inplace && (await hasChildDocs(docId))) {
         return {
             status: "failed",
             message: t("convertInplaceChildren"),
@@ -182,8 +176,8 @@ export async function convertDocBatched(
             kramdown: "",
         };
     }
-    const kd = await fetchSyncPost("/api/block/getBlockKramdown", {id: docId});
-    const kramdown = String((kd.data as {kramdown?: string;} | null)?.kramdown ?? "");
+    const kd = await fetchSyncPost("/api/block/getBlockKramdown", { id: docId });
+    const kramdown = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "");
     if (!kramdown.trim()) {
         return {
             status: "failed",
@@ -203,17 +197,24 @@ export async function convertDocBatched(
         if (opts.resume.kramdown) {
             existing = opts.resume.kramdown;
         } else if (opts.resume.docId) {
-            const old = await fetchSyncPost("/api/block/getBlockKramdown", {id: opts.resume.docId});
-            existing = String((old.data as {kramdown?: string;} | null)?.kramdown ?? "");
+            const old = await fetchSyncPost("/api/block/getBlockKramdown", { id: opts.resume.docId });
+            existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
         }
     }
     const allChunks = chunkKramdown(kramdown);
     const chunks = opts.resume ? allChunks.filter((c) => c.offset >= opts.resume!.offset) : allChunks;
 
+    // 知识点索引（建失败降级为不加反链，不阻断转换）
+    let knowIndex: KnowledgeIndex | undefined;
+    if (opts.knowRoots?.length) {
+        knowIndex = await buildKnowledgeIndex(opts.knowRoots).catch((): undefined => undefined);
+    }
+    let knowLinked = 0;
+
     let detected: number | undefined;
     let detectedTruncated = false;
     if (!opts.resume) {
-        opts.onProgress({phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0});
+        opts.onProgress({ phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0 });
         try {
             const d = await detectQuestions(kramdown, opts.modelId, opts.signal);
             if (!d.can) {
@@ -265,7 +266,7 @@ export async function convertDocBatched(
     // 渐进式落盘（仅另存）：每批后删除重建累积文档，生成期间文档树里
     // 即可查看已生成部分；重建失败不阻断生成，末尾兜底落盘。原位模式
     // 转换期间原文档不动（不能每批删一次源文档），终态一次性替换。
-    let created: {id: string; title: string;} | undefined;
+    let created: { id: string; title: string } | undefined;
     let oldResumeRemoved = false;
     // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
     opts.onProgress({
@@ -294,22 +295,26 @@ export async function convertDocBatched(
         internal.abort();
     };
     opts.signal?.addEventListener("abort", relayAbort);
-    const callAi = (chunk: SourceChunk): Promise<string> => {
-        const prompt = buildPrompt(chunk.text, opts.fillToChoice, opts.bigToSteps);
-        return parallel > 1 ?
-            agentChatConcurrent(prompt, AI_TIMEOUT_MS, internal.signal) :
-            agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, internal.signal);
-    };
-    /** 连续前缀推进：按文档序拼装、计数、渐进重建与进度上报。 */
+    // 批调用 = 知识点路由（有配置时）+ 生成，通道选择见 makeKnowAwareAi
+    const callAi = makeKnowAwareAi({
+        modelId: opts.modelId,
+        parallel,
+        signal: internal.signal,
+        knowIndex,
+        buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),
+    });
+    /** 连续前缀推进：按文档序拼装、计数、渐进重建与进度上报。
+     *  材料块随题目一起落盘（group="prev" 依赖顺序），但不占题数与预览行号。 */
     const flushPrefix = async (): Promise<void> => {
         const newStems: QuestionPreview[] = [];
         while (contiguous < chunks.length && results[contiguous]) {
             const qs = results[contiguous]!;
             if (qs.length > 0) {
                 parts.push(qs.join("\n\n"));
-                count += qs.length;
-                lastBatch = qs.length;
-                qs.forEach((kd, j) => newStems.push(questionPreview(kd, count - qs.length + j + 1)));
+                const nq = qs.filter((kd) => !isMaterialKramdown(kd));
+                count += nq.length;
+                lastBatch = nq.length;
+                nq.forEach((kd, j) => newStems.push(questionPreview(kd, count - nq.length + j + 1)));
             }
             doneOffset = chunks[contiguous].offset + chunks[contiguous].text.length;
             contiguous++;
@@ -337,7 +342,7 @@ export async function convertDocBatched(
             detected,
             detectedTruncated,
             newStems,
-            ...(created ? {docId: created.id, title: created.title} : {}),
+            ...(created ? { docId: created.id, title: created.title } : {}),
         });
     };
     const worker = async (): Promise<void> => {
@@ -345,25 +350,32 @@ export async function convertDocBatched(
             if (firstError || userAborted) return;
             const i = cursor++;
             if (i >= chunks.length) return;
-            let reply: string;
+            let gen: { reply: string; byAlias?: Map<string, KnowSection> };
             try {
-                reply = await callAi(chunks[i]);
+                gen = await callAi(chunks[i].text);
             } catch (e) {
                 if (opts.signal?.aborted) return; // 用户终止由 relayAbort 收口
                 const err = e as Error;
                 if (!firstError) {
-                    firstError = err?.name === "TimeoutError" || err?.name === "AbortError" ?
-                        t("convertTimeout") :
-                        String(err?.message ?? e);
+                    firstError =
+                        err?.name === "TimeoutError" || err?.name === "AbortError"
+                            ? t("convertTimeout")
+                            : String(err?.message ?? e);
                     internal.abort(); // 首个失败取消兄弟任务
                 }
                 return;
             }
-            results[i] = extractBatchQuestions(reply);
+            let qs = extractBatchQuestions(gen.reply);
+            if (gen.byAlias && qs.length > 0) {
+                const applied = applyKnowLinks(qs, gen.byAlias);
+                qs = applied.out;
+                knowLinked += applied.linked;
+            }
+            results[i] = qs;
             await flushPrefix();
         }
     };
-    await Promise.all(Array.from({length: Math.min(parallel, chunks.length)}, () => worker()));
+    await Promise.all(Array.from({ length: Math.min(parallel, chunks.length) }, () => worker()));
     opts.signal?.removeEventListener("abort", relayAbort);
     if (userAborted || firstError) {
         return {
@@ -399,15 +411,16 @@ export async function convertDocBatched(
     for (const img of srcImgs) {
         if (!outImgs.has(img)) missingImgs++;
     }
-    const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), {n: String(missingImgs)})}` : "";
-    const detectedMsg = detected !== undefined && detected > 0 ?
-        fmt(t("convertDetectedCount"), {n: String(detected)}) + (detectedTruncated ? "+" : "") :
-        "";
+    const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), { n: String(missingImgs) })}` : "";
+    const detectedMsg =
+        detected !== undefined && detected > 0
+            ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : "")
+            : "";
     // 落盘：原位=写盘时刻重查后删旧同路径同标题重建（不加 source-doc
     // 配对——源即本文档；旧配对改指新 id 见 replaceDocInPlace）；
     // 另存=渐进重建已落盘则直接用，中途失败过才在这里兜底创建
     if (inplace) {
-        let replaced: {id: string; title: string;};
+        let replaced: { id: string; title: string };
         try {
             replaced = await replaceDocInPlace(info, markdown);
         } catch (e) {
@@ -442,9 +455,14 @@ export async function convertDocBatched(
     if (!created) {
         created = await createExerciseDoc(loc!.notebook, loc!.parentPath, info.title, markdown, docId);
     }
+    const doneMsg: string[] = [];
+    if (detected !== undefined && detected > 0) {
+        doneMsg.push(fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : ""));
+    }
+    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
     return {
         status: "done",
-        message: detectedMsg + imgWarn,
+        message: doneMsg.join(" · ") + imgWarn,
         docId: created.id,
         title: created.title,
         count,
@@ -452,38 +470,5 @@ export async function convertDocBatched(
         total: chunks.length,
         doneOffset: kramdown.length,
         kramdown: markdown,
-    };
-}
-
-/** 终止保留 / 继续生成完成后的落盘：把累积 kramdown 建成习题文档。 */
-export async function writeExerciseDoc(
-    info: DocInfo,
-    markdown: string,
-    srcDocId = "",
-    targetRaw = "",
-    t: (key: string) => string = () => "",
-): Promise<{id: string; title: string;}> {
-    const loc = await resolveTarget(info, targetRaw, t);
-    if (!loc.ok) throw new Error(loc.message);
-    return createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, srcDocId);
-}
-
-/** 继续生成完成后删掉上次终止保留的旧文档（换成完整新文档）。 */
-export async function removeDoc(docId: string): Promise<void> {
-    try {
-        await fetchSyncPost("/api/filetree/removeDocByID", {id: docId});
-    } catch (_) {
-        // 删除失败不影响主流程（旧文档保留）
-    }
-}
-
-/** 单发结果包装（兼容弹窗的 onDone 汇报）。 */
-export function toConvertResult(r: BatchedResult): ConvertResult {
-    return {
-        canConvert: r.status === "done",
-        message: r.message,
-        docId: r.docId,
-        title: r.title,
-        count: r.count,
     };
 }

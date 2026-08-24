@@ -1,22 +1,8 @@
-import {Dialog} from "siyuan";
-import {modelOptionsHtml} from "./AgentClient";
-import {
-    formInput,
-    formOption,
-    formRow,
-    formSelect,
-    formSwitch,
-    svgIcon,
-} from "./FormHtml";
-import type {
-    WenguRevealMode,
-    WenguTimingMode,
-} from "./types";
-import {
-    clampMinutes,
-    esc,
-    fmt,
-} from "./ui";
+import { Dialog } from "siyuan";
+import { modelOptionsHtml } from "./AgentClient";
+import { formInput, formOption, formRow, formSelect, formSwitch, svgIcon } from "./FormHtml";
+import type { WenguRevealMode, WenguTimingMode } from "./types";
+import { clampMinutes, esc, fmt } from "./ui";
 
 /**
  * 设置页共享的设置对象形状（index.ts 持有，转换弹窗也读它）。
@@ -75,7 +61,7 @@ export function openWenguSetting(opts: {
         title: `${opts.pluginName} · ${t("settingsTitle")}`,
         width: "780px",
         height: "520px",
-        content: `<div class="fn__flex config__panel" style="height:100%;max-width:none">
+        content: `<div class="fn__flex config__panel wengu-setting" style="height:100%;max-width:none">
   <div class="config__side b3-list b3-list--background">
     <ul class="config__tab-scroll">
       ${tabIcon("drill", "iconList", t("setTabDrill"), true)}
@@ -88,79 +74,64 @@ export function openWenguSetting(opts: {
       <div class="config-group">
         <div class="config-title">${esc(t("setGroupDisplay"))}</div>
         <div class="config-items">
-          ${
-            formRow(
-                t("settingShowNums"),
-                t("settingShowNumsDesc"),
-                formSwitch("shownums", opts.settings.showNums, "data-set"),
-            )
-        }
-          ${
-            formRow(
-                t("settingShowAttempts"),
-                t("settingShowAttemptsDesc"),
-                formSwitch("showattempts", opts.settings.showAttempts !== false, "data-set"),
-            )
-        }
-          ${
-            formRow(
-                t("settingShowWrong"),
-                t("settingShowWrongDesc"),
-                formSwitch("showwrong", opts.settings.showWrong !== false, "data-set"),
-            )
-        }
+          ${formRow(
+              t("settingShowNums"),
+              t("settingShowNumsDesc"),
+              formSwitch("shownums", opts.settings.showNums, "data-set")
+          )}
+          ${formRow(
+              t("settingShowAttempts"),
+              t("settingShowAttemptsDesc"),
+              formSwitch("showattempts", opts.settings.showAttempts !== false, "data-set")
+          )}
+          ${formRow(
+              t("settingShowWrong"),
+              t("settingShowWrongDesc"),
+              formSwitch("showwrong", opts.settings.showWrong !== false, "data-set")
+          )}
         </div>
       </div>
       <div class="config-group">
         <div class="config-title">${esc(t("setGroupDefaults"))}</div>
         <div class="config-items">
-          ${
-            formRow(
-                t("setDefaultTiming"),
-                t("setDefaultHint"),
-                formSelect(
-                    "deftiming",
-                    formOption(
-                        "countUp",
-                        t("timingCountUp"),
-                        opts.settings.defaultTiming !== "countdown" && opts.settings.defaultTiming !== "perQuestion" &&
-                            opts.settings.defaultTiming !== "none",
-                    ) +
-                        formOption("countdown", t("timingCountdown"), opts.settings.defaultTiming === "countdown") +
-                        formOption(
-                            "perQuestion",
-                            t("timingPerQuestion"),
-                            opts.settings.defaultTiming === "perQuestion",
-                        ) +
-                        formOption("none", t("timingNone"), opts.settings.defaultTiming === "none"),
-                    "data-set",
-                ),
-            )
-        }
-          ${
-            formRow(
-                t("setDefaultReveal"),
-                t("setDefaultHint"),
-                formSelect(
-                    "defreveal",
-                    formOption("instant", t("revealInstant"), opts.settings.defaultReveal !== "after") +
-                        formOption("after", t("revealAfter"), opts.settings.defaultReveal === "after"),
-                    "data-set",
-                ),
-            )
-        }
-          ${
-            formRow(
-                t("setDefaultCountdownMin"),
-                t("setDefaultCountdownMinDesc"),
-                formInput(
-                    "defminutes",
-                    String(opts.settings.defaultCountdownMin ?? 20),
-                    "type='number' min='1' max='600'",
-                    "data-set",
-                ),
-            )
-        }
+          ${formRow(
+              t("setDefaultTiming"),
+              t("setDefaultHint"),
+              formSelect(
+                  "deftiming",
+                  formOption(
+                      "countUp",
+                      t("timingCountUp"),
+                      opts.settings.defaultTiming !== "countdown" &&
+                          opts.settings.defaultTiming !== "perQuestion" &&
+                          opts.settings.defaultTiming !== "none"
+                  ) +
+                      formOption("countdown", t("timingCountdown"), opts.settings.defaultTiming === "countdown") +
+                      formOption("perQuestion", t("timingPerQuestion"), opts.settings.defaultTiming === "perQuestion") +
+                      formOption("none", t("timingNone"), opts.settings.defaultTiming === "none"),
+                  "data-set"
+              )
+          )}
+          ${formRow(
+              t("setDefaultReveal"),
+              t("setDefaultHint"),
+              formSelect(
+                  "defreveal",
+                  formOption("instant", t("revealInstant"), opts.settings.defaultReveal !== "after") +
+                      formOption("after", t("revealAfter"), opts.settings.defaultReveal === "after"),
+                  "data-set"
+              )
+          )}
+          ${formRow(
+              t("setDefaultCountdownMin"),
+              t("setDefaultCountdownMinDesc"),
+              formInput(
+                  "defminutes",
+                  String(opts.settings.defaultCountdownMin ?? 20),
+                  "type='number' min='1' max='600'",
+                  "data-set"
+              )
+          )}
         </div>
       </div>
     </div>
@@ -168,75 +139,62 @@ export function openWenguSetting(opts: {
       <div class="config-group">
         <div class="config-title">${esc(t("setGroupConvert"))}</div>
         <div class="config-items">
+          ${formRow(t("setModelLabel"), t("setModelHint"), formSelect("model", modelOptionsHtml(saved), "data-set"))}
+          ${formRow(
+              t("fillToChoice"),
+              t("fillToChoiceDesc"),
+              formSwitch("fillchoice", opts.settings.fillToChoice === true, "data-set")
+          )}
           ${
-            formRow(
-                t("setModelLabel"),
-                t("setModelHint"),
-                formSelect("model", modelOptionsHtml(saved), "data-set"),
-            )
-        }
-          ${
-            formRow(
-                t("fillToChoice"),
-                t("fillToChoiceDesc"),
-                formSwitch("fillchoice", opts.settings.fillToChoice === true, "data-set"),
-            )
-        }
-          ${
-            formRow(
-                t("bigToSteps"),
-                t("bigToStepsDesc"),
-                formSwitch("bigsteps", opts.settings.bigToSteps === true, "data-set"),
-            ) +
-            formRow(
-                t("setConvertParallel"),
-                t("setConvertParallelDesc"),
-                formSelect(
-                    "defparallel",
-                    formOption("1", t("convertParallel1"), (opts.settings.convertParallel ?? 1) <= 1) +
-                        formOption("2", fmt(t("convertParallelN"), {n: "2"}), opts.settings.convertParallel === 2) +
-                        formOption("3", fmt(t("convertParallelN"), {n: "3"}), opts.settings.convertParallel === 3) +
-                        formOption("4", fmt(t("convertParallelN"), {n: "4"}), opts.settings.convertParallel === 4),
-                    "data-set",
-                ),
-            )
-        }
-          ${
-            formRow(
-                t("convertTarget"),
-                t("convertTargetHint"),
-                formSelect(
-                    "targetmode",
-                    formOption("same", t("convertTargetSame"), opts.settings.convertTargetMode !== "custom") +
-                        formOption("custom", t("convertTargetCustom"), opts.settings.convertTargetMode === "custom"),
-                    "data-set",
-                ),
-            )
-        }
-          ${
-            formRow(
-                t("convertTargetDoc"),
-                t("convertTargetDocHint"),
-                formInput(
-                    "targetid",
-                    opts.settings.convertTargetId ?? "",
-                    `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
-                    "data-set",
-                ),
-            )
-        }
-          ${
-            formRow(
-                t("mineruTokenLabel"),
-                t("mineruTokenDesc"),
-                formInput(
-                    "minerutoken",
-                    opts.settings.mineruToken ?? "",
-                    'spellcheck="false" placeholder="mineru.net API Token"',
-                    "data-set",
-                ),
-            )
-        }
+              formRow(
+                  t("bigToSteps"),
+                  t("bigToStepsDesc"),
+                  formSwitch("bigsteps", opts.settings.bigToSteps === true, "data-set")
+              ) +
+              formRow(
+                  t("setConvertParallel"),
+                  t("setConvertParallelDesc"),
+                  formSelect(
+                      "defparallel",
+                      formOption("1", t("convertParallel1"), (opts.settings.convertParallel ?? 1) <= 1) +
+                          formOption("2", fmt(t("convertParallelN"), { n: "2" }), opts.settings.convertParallel === 2) +
+                          formOption("3", fmt(t("convertParallelN"), { n: "3" }), opts.settings.convertParallel === 3) +
+                          formOption("4", fmt(t("convertParallelN"), { n: "4" }), opts.settings.convertParallel === 4),
+                      "data-set"
+                  )
+              )
+          }
+          ${formRow(
+              t("convertTarget"),
+              t("convertTargetHint"),
+              formSelect(
+                  "targetmode",
+                  formOption("same", t("convertTargetSame"), opts.settings.convertTargetMode !== "custom") +
+                      formOption("custom", t("convertTargetCustom"), opts.settings.convertTargetMode === "custom"),
+                  "data-set"
+              )
+          )}
+          ${formRow(
+              t("convertTargetDoc"),
+              t("convertTargetDocHint"),
+              formInput(
+                  "targetid",
+                  opts.settings.convertTargetId ?? "",
+                  `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
+                  "data-set"
+              )
+          )}
+
+          ${formRow(
+              t("mineruTokenLabel"),
+              t("mineruTokenDesc"),
+              formInput(
+                  "minerutoken",
+                  opts.settings.mineruToken ?? "",
+                  'spellcheck="false" placeholder="mineru.net API Token"',
+                  "data-set"
+              )
+          )}
         </div>
       </div>
     </div>
@@ -264,7 +222,7 @@ export function openWenguSetting(opts: {
     }
     const bindSwitch = (
         key: "shownums" | "showattempts" | "showwrong" | "fillchoice" | "bigsteps",
-        apply: (v: boolean) => void,
+        apply: (v: boolean) => void
     ) => {
         root.querySelector<HTMLInputElement>(`[data-set='${key}']`)?.addEventListener("change", (ev) => {
             apply((ev.target as HTMLInputElement).checked);
@@ -272,11 +230,11 @@ export function openWenguSetting(opts: {
             opts.onSettingsChange();
         });
     };
-    bindSwitch("shownums", (v) => opts.settings.showNums = v);
-    bindSwitch("showattempts", (v) => opts.settings.showAttempts = v);
-    bindSwitch("showwrong", (v) => opts.settings.showWrong = v);
-    bindSwitch("fillchoice", (v) => opts.settings.fillToChoice = v);
-    bindSwitch("bigsteps", (v) => opts.settings.bigToSteps = v);
+    bindSwitch("shownums", (v) => (opts.settings.showNums = v));
+    bindSwitch("showattempts", (v) => (opts.settings.showAttempts = v));
+    bindSwitch("showwrong", (v) => (opts.settings.showWrong = v));
+    bindSwitch("fillchoice", (v) => (opts.settings.fillToChoice = v));
+    bindSwitch("bigsteps", (v) => (opts.settings.bigToSteps = v));
     root.querySelector<HTMLSelectElement>("[data-set='deftiming']")?.addEventListener("change", (ev) => {
         const v = (ev.target as HTMLSelectElement).value;
         opts.settings.defaultTiming = v === "countdown" || v === "perQuestion" || v === "none" ? v : "countUp";

@@ -4,8 +4,8 @@
   "description": "温故 (Wengu) — question drilling, wrong-answer review, and spaced repetition for SiYuan",
   "main": ".src/index.js",
   "scripts": {
-    "format": "dprint fmt",
-    "format:check": "dprint check",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint . --fix --cache",
     "dev": "run-p dev:kernel dev:app",
     "dev:app": "webpack --config webpack.config.js --mode development",
@@ -33,12 +33,12 @@
     "@typescript-eslint/parser": "^8.60.1",
     "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^7.1.4",
-    "dprint": "latest",
     "esbuild-loader": "^4.4.3",
     "eslint": "^10.4.1",
     "globals": "^17.6.0",
     "mini-css-extract-plugin": "^2.10.2",
     "npm-run-all": "^4.1.5",
+    "prettier": "^3.9.6",
     "sass": "^1.100.0",
     "sass-loader": "^17.0.0",
     "siyuan": "1.2.4",
@@ -49,6 +49,7 @@
     "zip-webpack-plugin": "^4.0.3"
   },
   "dependencies": {
+    "echarts": "^6.1.0",
     "fflate": "^0.8.3"
   }
 }
