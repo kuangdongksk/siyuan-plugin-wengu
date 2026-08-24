@@ -57,6 +57,22 @@ export class ProtyleHost {
         return holder?.dataset.mid || holder?.dataset.qid || "";
     }
 
+    /** 题库（专题）模式的静态挂载：Lute 渲染题干/选项 + 解析容器
+     *  （作答前由 CSS 随 wengu-graded 显隐，防剧透与文档模式同机制），
+     *  块引用静态渲染为可点击跳转。不碰内核，无串行约束。 */
+    mountStatic(root: HTMLElement, list: WenguQuestion[]): void {
+        for (const node of Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle]"))) {
+            const card = node.closest<HTMLElement>(".wengu-card");
+            const q = list.find((x) => x.id === card?.dataset.qid);
+            if (!q) continue;
+            const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
+            node.innerHTML =
+                this.fallbackHtml(q) +
+                (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
+            renderMath(node);
+        }
+    }
+
     private async mountOne(node: HTMLElement, blockId: string, fallback: string, gen: number): Promise<void> {
         try {
             const protyle = new Protyle(this.app!, node, {

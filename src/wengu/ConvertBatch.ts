@@ -1,7 +1,6 @@
 import { fetchSyncPost } from "siyuan";
-import { agentChat, agentChatConcurrent } from "./AgentClient";
+import { agentChat } from "./AgentClient";
 import {
-    AI_TIMEOUT_MS,
     buildPrompt,
     createExerciseDoc,
     extractBatchQuestions,
@@ -12,6 +11,8 @@ import {
     resolveTarget,
 } from "./ConvertService";
 import type { ConvertResult, DocInfo } from "./ConvertService";
+import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { fmt } from "./ui";
 
 /**
@@ -192,6 +193,8 @@ export async function convertDocBatched(
         resume?: ResumeInfo;
         /** 生成位置：空=原文档同目录；否则生成到指定父文档下面。 */
         targetRaw?: string;
+        /** 知识点根文档 id（书架/书/章），非空时路由小节并注入知识点反链。 */
+        knowRoots?: string[];
         onProgress(p: ConvertProgress): void;
     }
 ): Promise<BatchedResult> {
@@ -231,6 +234,13 @@ export async function convertDocBatched(
     }
     const allChunks = chunkKramdown(kramdown);
     const chunks = opts.resume ? allChunks.filter((c) => c.offset >= opts.resume!.offset) : allChunks;
+
+    // 知识点索引（建失败降级为不加反链，不阻断转换）
+    let knowIndex: KnowledgeIndex | undefined;
+    if (opts.knowRoots?.length) {
+        knowIndex = await buildKnowledgeIndex(opts.knowRoots).catch((): undefined => undefined);
+    }
+    let knowLinked = 0;
 
     let detected: number | undefined;
     let detectedTruncated = false;
@@ -315,12 +325,14 @@ export async function convertDocBatched(
         internal.abort();
     };
     opts.signal?.addEventListener("abort", relayAbort);
-    const callAi = (chunk: SourceChunk): Promise<string> => {
-        const prompt = buildPrompt(chunk.text, opts.fillToChoice, opts.bigToSteps);
-        return parallel > 1
-            ? agentChatConcurrent(prompt, AI_TIMEOUT_MS, internal.signal)
-            : agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, internal.signal);
-    };
+    // 批调用 = 知识点路由（有配置时）+ 生成，通道选择见 makeKnowAwareAi
+    const callAi = makeKnowAwareAi({
+        modelId: opts.modelId,
+        parallel,
+        signal: internal.signal,
+        knowIndex,
+        buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),
+    });
     /** 连续前缀推进：按文档序拼装、计数、渐进重建与进度上报。
      *  材料块随题目一起落盘（group="prev" 依赖顺序），但不占题数与预览行号。 */
     const flushPrefix = async (): Promise<void> => {
@@ -366,9 +378,9 @@ export async function convertDocBatched(
             if (firstError || userAborted) return;
             const i = cursor++;
             if (i >= chunks.length) return;
-            let reply: string;
+            let gen: { reply: string; byAlias?: Map<string, KnowSection> };
             try {
-                reply = await callAi(chunks[i]);
+                gen = await callAi(chunks[i].text);
             } catch (e) {
                 if (opts.signal?.aborted) return; // 用户终止由 relayAbort 收口
                 const err = e as Error;
@@ -381,7 +393,13 @@ export async function convertDocBatched(
                 }
                 return;
             }
-            results[i] = extractBatchQuestions(reply);
+            let qs = extractBatchQuestions(gen.reply);
+            if (gen.byAlias && qs.length > 0) {
+                const applied = applyKnowLinks(qs, gen.byAlias);
+                qs = applied.out;
+                knowLinked += applied.linked;
+            }
+            results[i] = qs;
             await flushPrefix();
         }
     };
@@ -417,12 +435,14 @@ export async function convertDocBatched(
     if (!created) {
         created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
     }
+    const doneMsg: string[] = [];
+    if (detected !== undefined && detected > 0) {
+        doneMsg.push(fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : ""));
+    }
+    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
     return {
         status: "done",
-        message:
-            detected !== undefined && detected > 0
-                ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : "")
-                : "",
+        message: doneMsg.join(" · "),
         docId: created.id,
         title: created.title,
         count,

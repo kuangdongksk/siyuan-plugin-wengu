@@ -2,7 +2,7 @@ import { Dialog } from "siyuan";
 import { modelOptionsHtml } from "./AgentClient";
 import { convertDocBatched, removeDoc, toConvertResult, writeExerciseDoc } from "./ConvertBatch";
 import type { BatchedResult, ConvertProgressRecord } from "./ConvertBatch";
-import { getDocInfo } from "./ConvertService";
+import { extractBlockId, getDocInfo } from "./ConvertService";
 import { formGroup, formInput, formOption, formRow, formSelect, formSwitch } from "./FormHtml";
 import { listQuestionDocs } from "./QuestionService";
 import { esc, fmt } from "./ui";
@@ -31,8 +31,10 @@ export interface ConvertDialogDeps {
     initialTargetMode: "same" | "custom";
     /** 指定父文档 id 预选（生成位置=custom 时用）。 */
     initialTargetId: string;
-    /** 用户本次的选择（记入 prefs）。 */
-    saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean): void;
+    /** 知识点根文档预选（prefs 上次，多个 id 空格分隔的原始串）。 */
+    initialKnowRoots: string;
+    /** 用户本次的选择（记入 prefs；knowRoots 为原始输入串）。 */
+    saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean, knowRoots: string): void;
     /** 读取某源文档的未完成转换进度（无则 undefined）。 */
     getProgress(srcDocId: string): ConvertProgressRecord | undefined;
     /** 记录/清除未完成转换进度（prefs 持久化）。 */
@@ -112,6 +114,16 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                       `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
                       "data-act"
                   )
+              ) +
+              formRow(
+                  t("convertKnowLabel"),
+                  t("convertKnowHint"),
+                  formInput(
+                      "dlg-know",
+                      deps.initialKnowRoots,
+                      `spellcheck="false" placeholder="${esc(t("convertKnowPlaceholder"))}"`,
+                      "data-act"
+                  )
               )
       )}
       <div class="wengu-status" data-act="dlg-status" hidden></div>
@@ -134,6 +146,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const parallelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-parallel']");
     const targetSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-target']");
     const targetInput = root.querySelector<HTMLInputElement>("[data-act='dlg-targetid']");
+    const knowInput = root.querySelector<HTMLInputElement>("[data-act='dlg-know']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
     const cancelBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-cancel']");
     const stopBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-stop']");
@@ -174,7 +187,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (stopBtn) stopBtn.hidden = !running;
         if (cancelBtn) cancelBtn.disabled = running;
         if (resumeRow) resumeRow.hidden = running || resumeRow.dataset.has !== "1";
-        [input, modelSel, fillInput, stepsInput, parallelSel].forEach((el) => {
+        [input, modelSel, fillInput, stepsInput, parallelSel, knowInput].forEach((el) => {
             if (el) el.disabled = running;
         });
     };
@@ -287,7 +300,12 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             showDlgStatus(t("convertTargetMissing"), "err");
             return;
         }
-        deps.saveChoice(modelId, fill, bigSteps);
+        const knowRaw = (knowInput?.value ?? "").trim();
+        const knowRoots = knowRaw
+            .split(/[\s,;，；]+/)
+            .map((s) => extractBlockId(s))
+            .filter((s) => /^\d{14}-[a-z0-9]+$/i.test(s));
+        deps.saveChoice(modelId, fill, bigSteps, knowRaw);
         const controller = new AbortController();
         phase = "running";
         setBusy(true);
@@ -309,6 +327,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 signal: controller.signal,
                 resume: resumeRec ? { offset: resumeRec.offset, docId: resumeRec.docId } : undefined,
                 targetRaw: genTarget,
+                knowRoots,
                 onProgress: (p) => {
                     if (p.phase === "detect") {
                         showDlgStatus(t("convertDetecting"), "muted");

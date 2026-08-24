@@ -34,6 +34,44 @@ export interface StatsPanelDeps {
 
 let current: StatsPanel | undefined;
 
+export interface StatsViewAccess {
+    container(): HTMLElement;
+    t(key: string): string;
+    historyStore(): HistoryStore | undefined;
+    docsOf(): {
+        id: string;
+        title?: string;
+        hPath?: string;
+        total: number;
+        attempted: number;
+        rightCount: number;
+        totalTime: number;
+    }[];
+    docIdOf(): string;
+    fullListOf(): import("./types").WenguQuestion[];
+    switchDocSelect(id: string): void;
+    markReopenStats(tab: "overview" | "doc"): void;
+    aiModelId(): string;
+}
+
+/** 由视图能力组装 StatsPanelDeps 并打开（QuizView.openStatsPanelAt 的拆出体）。 */
+export function openStatsPanelFor(v: StatsViewAccess, tab: "overview" | "doc"): void {
+    openStatsPanel({
+        el: v.container(),
+        t: v.t,
+        history: v.historyStore(),
+        docs: v.docsOf(),
+        docId: v.docIdOf(),
+        fullList: v.fullListOf(),
+        switchDoc: (id) => {
+            v.markReopenStats("doc");
+            v.switchDocSelect(id);
+        },
+        aiModelId: v.aiModelId(),
+        tab,
+    });
+}
+
 export function openStatsPanel(deps: StatsPanelDeps): void {
     destroyStatsPanel();
     current = new StatsPanel(deps);

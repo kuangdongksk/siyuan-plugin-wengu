@@ -28,12 +28,12 @@ export interface AnswerHost {
     currentSession(): WenguSession | undefined;
     /** AI 判分/实时引导使用的模型 id（空=智能体默认）。 */
     aiModelId(): string;
-    /** 记入会话（含逐题秒数）并落库；extra 携带 brief 的 AI 三态与评语。 */
+    /** 记入会话（含逐题秒数）并落库；extra 携带 brief 的 AI 三态/评语/错因。 */
     recordAnswer(
         qid: string,
         submitted: string,
         ok: boolean,
-        extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string }
+        extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
     ): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
@@ -197,7 +197,7 @@ async function judgeBriefAnswer(
         card.dataset.aiJudged = "1";
         card.dataset.aiVerdict = v.verdict;
         await recordAttemptResult(q.id, submitted, v.ok);
-        host.recordAnswer(q.id, submitted, v.ok, { verdict: v.verdict, comment: v.comment });
+        host.recordAnswer(q.id, submitted, v.ok, { verdict: v.verdict, comment: v.comment, cause: v.cause });
         const commentEl = card.querySelector<HTMLElement>("[data-ai-comment]");
         if (commentEl && v.comment) commentEl.textContent = v.comment;
         if (batch) {

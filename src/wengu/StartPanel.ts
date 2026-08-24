@@ -1,5 +1,5 @@
 import { formGroup, formInput, formOption, formRow, formSelect } from "./FormHtml";
-import type { WenguSession } from "./HistoryStore";
+import type { HistoryStore, WenguSession } from "./HistoryStore";
 import { newSessionId } from "./HistoryStore";
 import type { TimerController } from "./TimerController";
 import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } from "./types";
@@ -284,4 +284,57 @@ export function roundDefaults(reveal: WenguRevealMode, timer: TimerController): 
         timing: timer.mode,
         countdownMin: timer.countdownMin,
     };
+}
+
+/** 开刷编排所需的视图能力（QuizView 用箭头属性实现，beginDrillFor 消费）。 */
+export interface DrillViewAccess {
+    t: (key: string) => string;
+    container(): HTMLElement;
+    currentRevealMode(): WenguRevealMode;
+    timerController(): TimerController;
+    allRounds(): WenguSession[];
+    questions(): WenguQuestion[];
+    fullListOf(): WenguQuestion[];
+    docIdOf(): string;
+    historyStore(): HistoryStore | undefined;
+    setQuizList(list: WenguQuestion[]): void;
+    setQuizRevealMode(mode: WenguRevealMode): void;
+    setActiveQIdx(idx: number): void;
+    setStartedFlag(v: boolean): void;
+    setFinishedSession(s: WenguSession | undefined): void;
+    setCurSession(s: WenguSession | undefined): void;
+    renderQuizList(): void;
+    updateTimerLabelNow(): void;
+    /** 开刷后的收尾（视图自实现：重渲染/恢复已答/计时标签）。 */
+    afterStartHook(): void;
+}
+
+/** 开刷面板模型（startPanelModel 的拆出体）。 */
+export function startPanelModelFor(v: DrillViewAccess): StartPanelModel {
+    return buildStartPanelModel({
+        t: v.t,
+        defaults: roundDefaults(v.currentRevealMode(), v.timerController()),
+        rounds: v.allRounds(),
+        list: v.questions(),
+    });
+}
+
+/** beginDrill（从 QuizView 拆出）：由视图能力组装 StartRoundCtx 开刷。 */
+export function beginDrillFor(v: DrillViewAccess): void {
+    startRound({
+        root: v.container(),
+        defaults: roundDefaults(v.currentRevealMode(), v.timerController()),
+        rounds: v.allRounds(),
+        fullList: v.fullListOf(),
+        docId: v.docIdOf(),
+        timer: v.timerController(),
+        history: v.historyStore(),
+        setList: (l) => v.setQuizList(l),
+        setRevealMode: (m) => v.setQuizRevealMode(m),
+        setActiveIdx: (i) => v.setActiveQIdx(i),
+        setStarted: (flag) => v.setStartedFlag(flag),
+        setFinished: (s) => v.setFinishedSession(s),
+        setSession: (s) => v.setCurSession(s),
+        afterStart: () => v.afterStartHook(),
+    });
 }

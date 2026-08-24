@@ -1,10 +1,16 @@
 import { agentChat } from "./AgentClient";
+import { attributeWrongCauses } from "./AiJudge";
+import type { CauseItem } from "./AiJudge";
 import { svgIcon } from "./FormHtml";
 import type { WenguSession } from "./HistoryStore";
 import type { TimerController } from "./TimerController";
 import type { WenguQuestion } from "./types";
 import { baseQid } from "./types";
 import { esc, fmt, mmss } from "./ui";
+import type { QuestionBank } from "./QuestionBank";
+import type { WeakCause, WeakTopRow, WeaknessStore } from "./WeaknessStore";
+import { openWeakDrill } from "./WeakDrill";
+import { roundAggByQid } from "./WeaknessStore";
 
 /**
  * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：
@@ -27,6 +33,8 @@ export interface RoundReportModel {
     totalSec: number;
     /** 倒计时超时段（秒，非倒计时报 0）。 */
     overtimeSec: number;
+    /** 薄弱沉淀 Top 行（WeaknessStore 同步快照，空=不渲染）。 */
+    weakRows: WeakTopRow[];
 }
 
 export function renderRoundReport(m: RoundReportModel): string {
@@ -94,11 +102,39 @@ export function renderRoundReport(m: RoundReportModel): string {
   </div>`
           : ""
   }
+  ${renderWeakSection(t, m.weakRows)}
   <div>
     <button class="b3-button b3-button--outline" data-act="ai-report">${esc(t("reportAiBtn"))}</button>
   </div>
   <div class="wengu-report-ai" data-ai hidden></div>
 </div>`;
+}
+
+/** 错因显示文案（存储是规范键，展示走 i18n）。 */
+function weakCauseLabel(t: (k: string) => string, cause: WeakCause): string {
+    const cap = cause[0].toUpperCase() + cause.slice(1);
+    return t(`weakCause${cap}`);
+}
+
+/** 薄弱沉淀区块：跨轮次累计的薄弱知识点（错数/题数/主要错因）。 */
+function renderWeakSection(t: (k: string) => string, rows: WeakTopRow[]): string {
+    if (rows.length === 0) return "";
+    const items = rows
+        .map(
+            (r) =>
+                `<div class="wengu-weak-row" title="${esc(r.title)}">
+    <span class="wengu-weak-title">${esc(r.title)}</span>
+    <span class="wengu-meta">${esc(fmt(t("weakStats"), { w: String(r.wrong), n: String(r.total) }))}</span>${
+        r.topCause ? `<span class="wengu-badge">${esc(weakCauseLabel(t, r.topCause))}</span>` : ""
+    }
+  </div>`
+        )
+        .join("");
+    return `<div class="wengu-report-chart">
+    <div class="wengu-report-label">${esc(t("weakTitle"))}</div>
+    <div class="wengu-weak-list">${items}</div>
+    <button class="b3-button b3-button--outline" data-act="weak-drill">${esc(t("drillTitle"))}</button>
+  </div>`;
 }
 
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
@@ -127,7 +163,7 @@ export function bindRoundReport(root: HTMLElement, m: RoundReportModel, modelId:
 
 async function run(btn: HTMLButtonElement, out: HTMLElement, m: RoundReportModel, modelId: string): Promise<void> {
     // 首选：在思源内置智能体里开新会话发分析（可追问、markdown 渲染）
-    if (await openAgentWithPrompt(buildAnalysisPrompt(m), "刷题分析助手")) return;
+    if (await openAgentWithPrompt(buildAnalysisPrompt(m))) return;
     // 降级：页内拉智能体回答（纯文本）
     btn.disabled = true;
     out.textContent = m.t("reportAiLoading");
@@ -145,10 +181,9 @@ async function run(btn: HTMLButtonElement, out: HTMLElement, m: RoundReportModel
 /**
  * 打开思源内置智能体面板、开新会话并填入 prompt 发送。DOM 自动化
  * （插件 API 无官方入口，选择器按 3.8.0 真机 dump 校准）；任何一步
- * 失配都返回 false，调用方降级页内分析。roleMarker 是 prompt 开头的
- * 角色名，用于校验粘贴是否成功（统计面板等复用，各自传角色名）。
+ * 失配都返回 false，调用方降级页内分析。
  */
-export async function openAgentWithPrompt(prompt: string, roleMarker: string): Promise<boolean> {
+export async function openAgentWithPrompt(prompt: string, marker = "刷题分析助手"): Promise<boolean> {
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const visible = (): HTMLElement | null => {
         for (const el of document.querySelectorAll<HTMLElement>(".agent-chat")) {
@@ -176,7 +211,7 @@ export async function openAgentWithPrompt(prompt: string, roleMarker: string): P
         dt.setData("text/plain", prompt);
         wysiwyg.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
         await sleep(150);
-        if (!wysiwyg.textContent?.includes(roleMarker)) return false; // 未粘上
+        if (!wysiwyg.textContent?.includes(marker)) return false; // 未粘上
         send.click();
         return true;
     } catch (_) {
@@ -246,6 +281,12 @@ export interface RoundFinishCtx {
     revealMode: "instant" | "after";
     /** AI 报告使用的模型 id（空=智能体默认）。 */
     aiModelId: string;
+    /** 薄弱画像（有则收卷计数 + 异步补错因 + 报告展示）。 */
+    weakness?: WeaknessStore;
+    /** 题库（针对性加练入库）。 */
+    bank?: QuestionBank;
+    /** 专题清单变化后刷新侧栏。 */
+    refreshCollections?(): void;
     /** 收卷：落库、置 finished、清 session（视图实现）。 */
     finishSession(): void;
     /** after 模式手动收卷时揭示已答部分。 */
@@ -276,11 +317,64 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
         rounds: roundsWithCurrent(ctx.rounds, s),
         totalSec,
         overtimeSec: overtime,
+        weakRows: ctx.weakness?.topSync(8) ?? [],
     };
     out.innerHTML = renderRoundReport(model);
     out.removeAttribute("hidden");
     bindRoundReport(out, model, ctx.aiModelId);
+    out.querySelector("[data-act='weak-drill']")?.addEventListener("click", () => {
+        if (ctx.weakness && ctx.bank)
+            openWeakDrill(
+                {
+                    t: ctx.t,
+                    bank: ctx.bank,
+                    weakness: ctx.weakness,
+                    modelId: ctx.aiModelId,
+                    onDone: () => ctx.refreshCollections?.(),
+                },
+                model.weakRows
+            );
+    });
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (ctx.weakness) void settleWeakness(ctx.weakness, s, ctx.list, ctx.aiModelId);
+}
+
+/** 收卷后异步沉淀错因：brief 判分自带的先入账，客观/steps 错题打包
+ *  一次 AI 归因（≤12 题、≤4000 字），任何失败静默降级（计数已在）。 */
+async function settleWeakness(
+    store: WeaknessStore,
+    s: WenguSession,
+    list: WenguQuestion[],
+    modelId: string
+): Promise<void> {
+    try {
+        const agg = roundAggByQid(s);
+        const causes = new Map<string, WeakCause>();
+        const notes = new Map<string, string>();
+        const mineByQid = new Map<string, string>();
+        for (const r of s.results) {
+            const b = baseQid(r.qid);
+            mineByQid.set(b, r.submitted);
+            if (!r.ok && r.cause) causes.set(b, r.cause as WeakCause);
+            if (!r.ok && r.comment) notes.set(b, r.comment);
+        }
+        const items: CauseItem[] = [];
+        let chars = 0;
+        for (const q of list) {
+            if (agg.get(q.id) !== false || causes.has(q.id) || items.length >= 12) continue;
+            const stem = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+            if (!stem) continue;
+            chars += stem.length;
+            if (chars > 4000) break;
+            items.push({ qid: q.id, stem, mine: mineByQid.get(q.id) ?? "", answer: q.answer ?? "" });
+        }
+        if (items.length > 0) {
+            for (const [qid, cause] of await attributeWrongCauses(items, modelId)) causes.set(qid, cause);
+        }
+        await store.applyCauses(s, list, causes, notes);
+    } catch (_) {
+        // 归因失败不影响报告（计数已本地落）
+    }
 }
 
 /** 手动收卷（倒计时归零选「结束本轮」）：after 模式先揭示已答，再报告。 */
@@ -302,6 +396,9 @@ export interface RoundFinishView {
     timerController(): TimerController;
     currentRevealMode(): "instant" | "after";
     aiModelId(): string;
+    weaknessStore(): WeaknessStore | undefined;
+    bankStore(): QuestionBank | undefined;
+    refreshCollections(): void;
     finishSession(): void;
     revealAnsweredNow(): void;
     stopRoundNow(): void;
@@ -320,6 +417,9 @@ export function roundFinishCtx(view: RoundFinishView): RoundFinishCtx {
         timer: view.timerController(),
         revealMode: view.currentRevealMode(),
         aiModelId: view.aiModelId(),
+        weakness: view.weaknessStore(),
+        bank: view.bankStore(),
+        refreshCollections: () => view.refreshCollections(),
         finishSession: () => view.finishSession(),
         revealAnswered: () => view.revealAnsweredNow(),
         stopRound: () => view.stopRoundNow(),

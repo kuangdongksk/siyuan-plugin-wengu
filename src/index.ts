@@ -1,9 +1,12 @@
 import { Plugin, openTab, getActiveEditor, type Custom, type MobileCustom } from "siyuan";
 import "./index.scss";
 import { HistoryStore } from "./wengu/HistoryStore";
+import { QuestionBank } from "./wengu/QuestionBank";
 import { QuizView } from "./wengu/QuizView";
+import { openRelatedDialog } from "./wengu/RelatedDialog";
 import { openWenguSetting } from "./wengu/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./wengu/types";
+import { WeaknessStore } from "./wengu/WeaknessStore";
 import { WordStore } from "./wengu/WordStore";
 import { WordView } from "./wengu/WordView";
 
@@ -74,6 +77,37 @@ export default class WenguPlugin extends Plugin {
     settings: WenguSettings = { showNums: true, showAttempts: true, showWrong: true };
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
     activeView: QuizView | undefined;
+    /** 刷题侧共享存储单例（多页签/右键反查共享同一份缓存与脏标记）。 */
+    private historyStore?: HistoryStore;
+    private weaknessStore?: WeaknessStore;
+    private bankStore?: QuestionBank;
+
+    /** i18n 取值（右键菜单/对话框用）。 */
+    readonly tKey = (key: string): string => this.i18n[key] || key;
+
+    history(): HistoryStore | undefined {
+        this.historyStore ??= new HistoryStore(
+            () => this.loadData("history"),
+            (h) => this.saveData("history", h)
+        );
+        return this.historyStore;
+    }
+
+    weakness(): WeaknessStore | undefined {
+        this.weaknessStore ??= new WeaknessStore(
+            () => this.loadData("weakness"),
+            (v) => this.saveData("weakness", v)
+        );
+        return this.weaknessStore;
+    }
+
+    bank(): QuestionBank | undefined {
+        this.bankStore ??= new QuestionBank(
+            () => this.loadData("bank"),
+            (v) => this.saveData("bank", v)
+        );
+        return this.bankStore;
+    }
 
     async onload() {
         WenguPlugin.instance = this;
@@ -142,6 +176,23 @@ export default class WenguPlugin extends Plugin {
             });
         }
 
+        // 知识文档右键「温故：查相关题目」（⑤）：映射在插件数据里，本地反查
+        this.eventBus.on("open-menu-content", (ev) => {
+            const detail = ev.detail as {
+                menu?: { addItem: (item: { icon: string; label: string; click: () => void }) => void };
+                blockElements?: Record<string, unknown>;
+            };
+            const ids = Object.keys(detail.blockElements ?? {});
+            if (!detail.menu || ids.length !== 1) return;
+            const bank = this.bank();
+            if (!bank) return;
+            detail.menu.addItem({
+                icon: "iconSearch",
+                label: this.tKey("relatedMenu"),
+                click: () => void openRelatedDialog(bank, this.tKey, ids[0]),
+            });
+        });
+
         this.addTab({
             type: TAB_RESULT,
             init(this: Custom | MobileCustom) {
@@ -160,13 +211,10 @@ export default class WenguPlugin extends Plugin {
                         : undefined,
                     // 共享设置对象：设置页开关后页签立即跟随
                     plugin?.settings,
-                    // N 刷会话历史（插件数据 history 文件）
-                    plugin
-                        ? new HistoryStore(
-                              () => plugin.loadData("history"),
-                              (h) => plugin.saveData("history", h)
-                          )
-                        : undefined,
+                    // 共享存储单例（历史/薄弱画像/题库，见 onload 字段）
+                    plugin?.history(),
+                    plugin?.weakness(),
+                    plugin?.bank(),
                     // 目录底部设置图标按钮 → 插件设置弹窗
                     plugin ? () => plugin.openSetting() : undefined,
                     // 背单词存储（生词标记 → 复习队列，与背单词面板共享单例）

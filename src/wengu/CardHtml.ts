@@ -51,12 +51,8 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
       <div class="wengu-ai-comment" data-ai-comment hidden></div>
       <div class="wengu-self" data-self hidden>
         <span>${esc(t("selfAssess"))}</span>
-        <button class="wengu-btn wengu-btn-success" data-act="self-right">${svgIcon("iconCheck")} ${esc(
-            t("selfRight")
-        )}</button>
-        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${svgIcon("iconClose")} ${esc(
-            t("selfWrong")
-        )}</button>
+        <button class="wengu-btn wengu-btn-success" data-act="self-right">${esc(t("selfRight"))}</button>
+        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${esc(t("selfWrong"))}</button>
       </div>
     </div>`;
 }
@@ -123,9 +119,7 @@ export function fillOneStep(stepEl: HTMLElement, step: WenguStep): void {
     for (const opt of stepEl.querySelectorAll<HTMLElement>(".wengu-step-opt")) {
         const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
         const text = opt.querySelector<HTMLElement>("[data-opt-text]");
-        if (text && step.optionMd[idx]) {
-            text.innerHTML = mdFragmentHtml(optionDisplayMd(step.optionMd[idx]));
-        }
+        if (text && step.optionMd[idx]) text.innerHTML = mdFragmentHtml(optionDisplayMd(step.optionMd[idx]));
     }
     renderMathIn(stepEl);
 }
@@ -166,16 +160,38 @@ export interface SideHtmlModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（按标题/路径包含匹配，空=全部）。 */
     filter: string;
+    /** 题库专题清单（空=不渲染专题区）。 */
+    collections: { id: string; title: string; count: number }[];
+    /** 当前选中的专题 id（题库模式）。 */
+    activeCollection: string;
 }
 
-/** 目录文档清单（hPath 分组 + 搜索过滤）。单独导出：搜索输入时只刷新这一块，输入框不重建。 */
+/** 目录文档清单（hPath 分组 + 搜索过滤）。单独导出：搜索输入时只刷新这一块，输入框不重建。
+ *  collections 非空时顶部先渲染「专题」区（题库入口）。 */
 export function renderSideBodyHtml(
     docs: WenguDoc[],
     docId: string,
     t: (key: string) => string,
-    filter: string
+    filter: string,
+    collections: { id: string; title: string; count: number }[] = [],
+    activeCollection = ""
 ): string {
     const q = filter.trim().toLowerCase();
+    const colSection =
+        collections.length > 0
+            ? `<div class="wengu-side-group">
+        <div class="wengu-side-label">${esc(t("collectionsTitle"))}</div>${collections
+            .map(
+                (c) =>
+                    `<div class="wengu-side-item${c.id === activeCollection ? " wengu-side-active" : ""}" data-colid="${esc(
+                        c.id
+                    )}" title="${esc(c.title)}">
+          <div class="wengu-side-title">${esc(c.title)}</div>
+          <div class="wengu-side-meta">${esc(fmt(t("collectionCount"), { n: String(c.count) }))}</div>
+        </div>`
+            )
+            .join("")}</div>`
+            : "";
     const groups = new Map<string, WenguDoc[]>();
     for (const d of docs) {
         if (q && !`${d.title}\n${d.hPath}`.toLowerCase().includes(q)) continue;
@@ -186,13 +202,15 @@ export function renderSideBodyHtml(
         arr.push(d);
         groups.set(key, arr);
     }
-    const items = [...groups.entries()]
-        .map(
-            ([group, gdocs]) =>
-                `<div class="wengu-side-group">
+    const items =
+        colSection +
+        [...groups.entries()]
+            .map(
+                ([group, gdocs]) =>
+                    `<div class="wengu-side-group">
         <div class="wengu-side-label">${esc(group)}</div>${gdocs
             .map((d) => {
-                const active = d.id === docId ? " wengu-side-active" : "";
+                const active = d.id === docId && !activeCollection ? " wengu-side-active" : "";
                 const meta = [
                     fmt(t("exerciseCount"), { n: String(d.total) }),
                     d.attempted > 0 ? fmt(t("drilledCount"), { a: String(d.attempted) }) : "",
@@ -208,8 +226,8 @@ export function renderSideBodyHtml(
         </div>`;
             })
             .join("")}</div>`
-        )
-        .join("");
+            )
+            .join("");
     if (items) return items;
     return `<div class="wengu-muted wengu-side-empty">${esc(
         docs.length === 0 ? t("noExerciseDocs") : t("sideNoMatch")
@@ -226,9 +244,6 @@ export function renderSideHtml(m: SideHtmlModel): string {
           <button class="wengu-side-iconbtn" data-act="refresh" title="${esc(t("quizRefresh"))}">${svgIcon(
               "iconRefresh"
           )}</button>
-          <button class="wengu-side-iconbtn" data-act="stats" title="${esc(t("statsTitle"))}">${svgIcon(
-              "iconInfo"
-          )}</button>
           ${
               m.hasSettingsButton
                   ? `<button class="wengu-side-iconbtn" data-act="settings" title="${esc(t("settingsBtn"))}">${svgIcon(
@@ -236,28 +251,35 @@ export function renderSideHtml(m: SideHtmlModel): string {
                     )}</button>`
                   : ""
           }
-          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">${svgIcon(
-              "iconLeft"
-          )}</button>
+          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">«</button>
         </span>
       </div>
       <div class="wengu-side-tools">
-        <input class="b3-text-field wengu-side-search" data-act="side-search" type="search" spellcheck="false"
+        <input class="wengu-side-search" data-act="side-search" type="search" spellcheck="false"
           placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
+        <button class="wengu-side-iconbtn" data-act="stats" title="${esc(t("statsTitle"))}">${svgIcon("iconInfo")}</button>
+        <button class="b3-button b3-button--outline wengu-side-convert" data-act="collections" title="${esc(
+            t("collectionsBtn")
+        )}">${svgIcon("iconList")}</button>
         <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${esc(
             t("convertBtn")
         )}">${svgIcon("iconSparkles")} <span data-convert-label>${esc(t("convertBtn"))}</span></button>
       </div>
-      <div class="wengu-side-body" data-side-body>${renderSideBodyHtml(m.docs, docId, t, m.filter)}</div>
+      <div class="wengu-side-body" data-side-body>${renderSideBodyHtml(
+          m.docs,
+          docId,
+          t,
+          m.filter,
+          m.collections,
+          m.activeCollection
+      )}</div>
     </div>`;
 }
 
 /** 头部：目录开关（收起时）+ 用时。 */
 export function renderHeadHtml(t: (k: string) => string, sideCollapsed: boolean): string {
     const toggle = sideCollapsed
-        ? `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">${svgIcon(
-              "iconRight"
-          )}</button>`
+        ? `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">»</button>`
         : "";
     return `${toggle}
       <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${svgIcon(
@@ -306,16 +328,10 @@ export function renderSubheadHtml(m: SubheadModel): string {
         info +
         `<span class="wengu-muted">${esc(fmt(t("drillRounds"), { n: String(rounds.length) }))}</span>` +
         `<span class="wengu-muted">${esc(
-            fmt(t("lastRound"), {
-                c: String(last.correct),
-                a: String(last.answered),
-            })
+            fmt(t("lastRound"), { c: String(last.correct), a: String(last.answered) })
         )}</span>` +
         `<span class="wengu-muted">${esc(
-            fmt(t("bestRound"), {
-                c: String(best.correct),
-                a: String(best.answered),
-            })
+            fmt(t("bestRound"), { c: String(best.correct), a: String(best.answered) })
         )}</span>`
     );
 }
@@ -329,6 +345,9 @@ export interface MainShellModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（透传给目录）。 */
     filter: string;
+    /** 题库专题清单与选中项（透传给目录）。 */
+    collections: { id: string; title: string; count: number }[];
+    activeCollection: string;
     loading: boolean;
     loadError: string;
     started: boolean;
@@ -353,6 +372,8 @@ export function renderMainShell(m: MainShellModel): string {
             sideCollapsed: m.sideCollapsed,
             hasSettingsButton: m.hasSettingsButton,
             filter: m.filter,
+            collections: m.collections,
+            activeCollection: m.activeCollection,
         })}<div class="wengu-main">
     <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed)}</div>
     ${body}
@@ -419,9 +440,11 @@ export function applySideFilter(
     el: HTMLElement,
     docs: WenguDoc[],
     docId: string,
-    t: (k: string) => string,
-    text: string
+    t: (key: string) => string,
+    text: string,
+    collections: { id: string; title: string; count: number }[] = [],
+    activeCollection = ""
 ): void {
     const body = el.querySelector("[data-side-body]");
-    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text);
+    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text, collections, activeCollection);
 }

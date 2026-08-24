@@ -2,6 +2,8 @@ import { agentChat } from "./AgentClient";
 import type { WenguQuestion } from "./types";
 import type { WenguStep } from "./types";
 import { LETTERS, optionDisplayMd, QuestionType } from "./types";
+import type { WeakCause } from "./WeaknessStore";
+import { normalizeCause } from "./WeaknessStore";
 
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
@@ -36,6 +38,8 @@ export interface BriefVerdict {
     ok: boolean;
     /** 一句话点评（判分后展示，提示用户可改判）。 */
     comment: string;
+    /** 错因规范键（weakness 画像用；答对时无）。 */
+    cause?: WeakCause;
 }
 
 /** 把用户的解题思路交给 AI 对照参考答案判定（串行）。
@@ -59,9 +63,10 @@ function buildBriefPrompt(q: WenguQuestion, mine: string, thought: string): stri
     const thoughtBlock = thought ? `\n【学生思路备注】\n${thought}` : "";
     return `你是刷题判分助手。对照参考答案判断学生的作答与思路。
 只看学科上的正确性：思路可行即 right；方向对但有明显缺口算 partial；方向错误算 wrong。
-输出严格两行，格式之外不要输出任何文字：
+输出严格三行，格式之外不要输出任何文字：
 VERDICT: right 或 partial 或 wrong
 COMMENT: 一句话点评（对在哪/偏在哪，不超过 60 字）
+CAUSE: 错因归类，只能从「概念不清/计算失误/方法选择错/公式记错/审题失误/其他」里选一个；verdict 为 right 时输出 无
 【题目】
 ${q.stemMd ?? ""}
 【参考答案】
@@ -85,7 +90,15 @@ function parseBriefVerdict(reply: string): BriefVerdict {
     // 作文判卷带 SCORE 行：并入评语展示（如「12/20 — 论证充分…」）
     const sm = /SCORE\s*[:：]\s*([^\n]+)/i.exec(reply);
     if (sm) comment = `${sm[1].trim()} — ${comment}`;
-    return { verdict, ok: verdict === "right", comment };
+    // brief 判分自带 CAUSE 行：错因零额外调用沉淀进薄弱画像
+    const cam = /CAUSE\s*[:：]\s*([^\n]+)/i.exec(reply);
+    const causeText = (cam?.[1] ?? "").trim();
+    return {
+        verdict,
+        ok: verdict === "right",
+        comment,
+        ...(verdict !== "right" && causeText && causeText !== "无" ? { cause: normalizeCause(causeText) } : {}),
+    };
 }
 
 /* ── 英语判卷（E3）：作文 rubric / 翻译采分点 ── */
@@ -162,6 +175,52 @@ ${q.stemMd ?? ""}
 ${submitted || "（未作答）"}
 【学生标注的线索】
 ${clues.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
+}
+
+/* ── 客观错题批量归因（薄弱画像用，每轮至多一次调用） ── */
+
+/** 归因输入：错题的判分原料（题干截断由调用方控制）。 */
+export interface CauseItem {
+    qid: string;
+    stem: string;
+    mine: string;
+    answer: string;
+}
+
+/** 客观题答错后没有判分调用可搭车——收卷时把错题打包一次归因（串行）。 */
+export function attributeWrongCauses(items: CauseItem[], modelId: string): Promise<Map<string, WeakCause>> {
+    return enqueue(async () => {
+        const lines = items
+            .map((it, i) => `${i + 1}|${it.stem}|我的答案：${it.mine}|正确答案：${it.answer}`)
+            .join("\n");
+        const reply = await agentChat(
+            `你是刷题错因分析器。下面是一轮刷题中答错的客观题（编号|题干|我的答案|正确答案）。逐题判断最可能的错因，只输出 JSON，格式之外不要输出任何文字：
+{"1":"概念不清","3":"计算失误"}
+错因只能从「概念不清/计算失误/方法选择错/公式记错/审题失误/其他」里选。
+题目：
+${lines}`,
+            modelId,
+            JUDGE_TIMEOUT_MS
+        );
+        const out = new Map<string, WeakCause>();
+        const jm = /\{[\s\S]*\}/.exec(reply);
+        let pairs: [string, string][] = [];
+        if (jm) {
+            try {
+                pairs = Object.entries(JSON.parse(jm[0]) as Record<string, string>);
+            } catch (_) {
+                pairs = [];
+            }
+        }
+        if (pairs.length === 0) {
+            pairs = [...reply.matchAll(/"?\s*(\d+)\s*"?\s*[:：]\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]);
+        }
+        for (const [no, cause] of pairs) {
+            const it = items[Number(no) - 1];
+            if (it && cause && cause !== "无") out.set(it.qid, normalizeCause(cause));
+        }
+        return out;
+    });
 }
 
 /* ── steps 方法步申诉 ── */

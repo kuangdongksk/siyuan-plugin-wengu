@@ -496,3 +496,23 @@
   pointer-events: none;
   opacity: 0.55;
 }
+
+/* ── 题库静态渲染（专题模式）：Lute 输出 + 判分显隐 ── */
+
+/* 解析/答案容器：作答前隐藏（与文档模式 part 显隐同语义），判分后随 wengu-graded 显现 */
+.wengu-card:not(.wengu-graded) .wengu-static-sol {
+  display: none;
+}
+
+.wengu-static-sol {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--b3-border-color);
+  font-size: 13px;
+}
+
+/* 静态块引用：可点击跳转（siyuan://blocks/id） */
+.wengu-qprotyle [data-type="block-ref"] {
+  color: var(--b3-theme-primary);
+  cursor: pointer;
+}

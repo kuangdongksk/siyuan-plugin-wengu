@@ -26,6 +26,37 @@ export interface TimerHost {
     finishNow(): void;
 }
 
+export interface TimerHostAccess {
+    container(): HTMLElement;
+    t(key: string): string;
+    timerController(): TimerController;
+    docIdOf(): string;
+    isStarted(): boolean;
+    activeQidOf(): string;
+    docTotalSecOf(): number;
+    syncSession(elapsed: number): void;
+    addDocTotal(add: number): void;
+    finishNow(): void;
+}
+
+/** 由视图能力组装 TimerHost（QuizView.timerHost 的拆出体）。 */
+export function timerHostFor(v: TimerHostAccess): TimerHost {
+    return {
+        el: v.container(),
+        t: v.t,
+        timer: v.timerController(),
+        tickState: () => ({
+            docId: v.docIdOf(),
+            started: v.isStarted(),
+            activeQid: v.activeQidOf(),
+            docTotalSec: v.docTotalSecOf(),
+        }),
+        syncSession: (elapsed) => v.syncSession(elapsed),
+        addDocTotal: (add) => v.addDocTotal(add),
+        finishNow: () => v.finishNow(),
+    };
+}
+
 export class TimerBinder {
     private int: number | undefined;
 
@@ -35,7 +66,7 @@ export class TimerBinder {
         if (this.int !== undefined) return;
         this.int = window.setInterval(() => {
             const s = this.host.tickState();
-            if (!s.docId || !s.started || this.host.timer.mode === "none") return;
+            if (!s.started || this.host.timer.mode === "none") return;
             const justTimeUp = this.host.timer.tick();
             this.host.syncSession(this.host.timer.elapsed());
             if (justTimeUp) this.showTimeUpBar();

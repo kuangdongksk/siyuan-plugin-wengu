@@ -125,18 +125,88 @@
 | 单题最新状态/累计 | 块属性（attempts/wrong-count/right…）       | 随文档走、SQL 可聚合、联动闪卡 |
 | 偏好/设置         | `saveData("quiz")` / `saveData("settings")` | 官方插件存储，小 JSON          |
 | **N 刷会话历史**  | `saveData("history")`（HistoryStore）       | 按轮次维度，官方存储足够       |
+| **薄弱画像**      | `saveData("weakness")`（WeaknessStore）     | 跨轮聚合的派生数据，2026-08-23 |
 
 会话（`WenguSession`）：`{id, docId, startedAt, endedAt, mode,
-plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok}],
+plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok,
+verdict?, comment?, cause?}],
 thoughts?{qid→思路文本}}`——开刷时创建、逐题作答时更新落盘、切文档/刷新/
 关页签时收卷。`thoughts` 是收卷时对各题卡「思路」输入区的一次性快照
 （未作答的题也保留）；总结报告的 AI 判卷 prompt 逐题带上思路，要求
 点评方向/卡点/改进。文档头部据此显示「已刷 N 轮 · 最近 c/a · 最佳 c/a」。
 
+### 薄弱画像（2026-08-23 起）
+
+AI 判卷把薄弱处沉淀为跨轮次结构化档案（`weakness` 文件）：
+
+* **聚合键**：题目解析里的知识点块引用（`kp:标题块id`，转换挂反链时
+  注入，多个引用全计入）→ 无引用退化 `kn:knowledge属性` → `ch:chapter
+  属性`；一条都不会落（无锚点的题不进画像）。
+* **条目**：`{key, title, wrong(错+半对), total, lastWrongAt,
+  causes{错因键→次数}, aiNote(最近评语)}`。
+* **错因键**（AI 输出规整为规范键，展示走 i18n）：concept/calc/
+  method/formula/misread/other。来源两路——brief 判分输出**第三行
+  `CAUSE:`**（不增加调用）；客观/steps 错题在收卷时**打包一次批量归因**
+  （≤12 题、≤4000 字，走 AiJudge 串行队列）。
+* **时序**：收卷即本地计数（applied 会话名单幂等，零 AI）；错因随后
+  异步补记（causeApplied 名单幂等）——归因失败只丢错因不丢计数。
+* **展示**：收卷报告「薄弱沉淀（累计）」区块 = Top 8（错数降序）。
+
+### 插件题库（bank）与专题（2026-08-23 起）
+
+题目以「容器超级块 kramdown 原文」为**主记录**存插件数据
+（`saveData("bank")`，QuestionBank），细粒度管理不再受文档结构锁死：
+
+* **记录**：`{qid(容器块id), kramdown 原文, type/knowledge/chapter/
+  difficulty, kpRefs(知识点反链目标), sourceDocId, hash(内容指纹),
+  stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
+  （块属性照写 + 题库镜像），防抖 2s 落盘。
+* **解析**：BankParse 把 kramdown 拆回 WenguQuestion（语义与
+  QuestionService.hydrate 一致；注意 IAL 是**尾随**行——part 属性行
+  之前的内容才是该 part 的块）。
+* **入库**：`refreshDoc(docId)` 幂等——listQuestions 拿容器 id/属性 +
+  getBlockKramdown 拿原文；migratedDocs 名单防重；**内容指纹跨卷去重**
+  （同一真题多卷收录只留第一条）；源卷自动落成 `doc:` 前缀的影子专题。
+  存量迁移 = 装载时对未迁移文档后台跑 refreshDoc；新转换的文档下次
+  装载时自动同步入库。
+* **专题**：`{id, title, qids[], origin}`；「按知识点收集」= 知识点
+  索引（kpRefs 优先，降级 knowledge/chapter）勾选后并集收集成新专题。
+* **题库模式渲染**：静态路径（Lute Md2BlockDOM + KaTeX），解析/
+  答案在 `.wengu-static-sol` 容器里随 `wengu-graded` 显隐（与文档
+  模式 part 显隐同语义）；块引用静态渲染、点击 `siyuan://blocks/id`
+  跳转。文档模式仍走内嵌 Protyle。
+
 **统计面板**（2026-08-24）：只读聚合视图，不写任何存储——总览页聚合
 上表两会话历史 + 文档榜 SQL（`listQuestionDocs`），详情页逐轮评分/
 错题清单直接读会话与已装载题目列表（块属性 wrong-count 等）。图表用
 插件自带按需 echarts（`echarts/core`），不依赖内核。
+
+### 题库增量化：对账 / 重生成 / 反查 / 针对性生成（2026-08-24 起）
+
+* **③ 悬空对账（BankReconcile）**：装载后台链固定为「对账 → 存量
+  迁移 → 补专题清单」。知识引用悬空（知识文档删除/重组；块 id 编辑
+  不变，只有删除才悬空）时按标题在**全库唯一命中**才重挂——bank 记录
+  kpRefs 与画像 `kp:` 键同步 remap（统计合并）；多命中/零命中保留
+  悬空（静态引用渲染为锚文本，无害）。全自动零 AI，失败静默下次再试。
+* **④ 题卡「重新生成」（RegenDialog）**：题库模式卡头刷新按钮。两种
+  模式——提供修正原文块链接（拉原文 kramdown，图片行原样保留进题干）
+  / 不提供（依首个知识点引用的小节正文 ≤3000 字：SQL 按 sort 取到
+  同级或更高级标题为止）。产物保留原容器 IAL（q/type/steps 等属性
+  不动，只换内容）、确定性注回原 kpRefs（AI 不写引用），题库主记录
+  替换（指纹更新、解析缓存失效）+ `updateBlock` 尽力同步源文档块
+  （失败不阻断——题库是主记录）。
+* **⑤ 思源右键「温故：查相关题目」（RelatedDialog）**：open-menu-content
+  单选块 → 定位根文档 → 命中 `sourceDocId` 或 kpRefs 落在该文档的
+  记录（kp 块 id → root 文档 id 分块 SQL 映射）→ 按错数降序列题
+  （≤50，含作答/错次）→ 点击 `siyuan://blocks/qid` 跳源块。纯本地
+  反查，零 AI。
+* **⑥ 针对性生成（WeakDrill）**：收卷报告薄弱区块「针对性加练」。
+  模式 A 错题变式（以该点错得最多的真题为模板改数字/换条件）/ 模式
+  B 概念辨析（依小节正文出概念题，避开计算大题）。每题生成后 AI
+  独立重做自检（`VERIFY: yes` 才收，不过丢弃重试，全程尝试上限
+  3×目标题数）；单次 ≤5 题、agentChat 串行。产物注回该知识点引用，
+  落《薄弱加练·月.日》专题（origin=manual），qid 为 `gen-` 前缀、
+  sourceDocId 空（无源文档，不参与迁移/指纹重建）。
 
 ## 三点六、多步引导题（steps）与 brief 的 AI 判分
 
@@ -342,6 +412,24 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
   块」通道——`updateBlock` 对文档根传多块会把内容并成单段、对普通块
   传多块只保留第一段（**后续段丢失**）、`/api/transactions` 的 insert
   操作返回 code 0 但静默无效。因此一切增量都靠「累积后整体重建文档」。
+* **知识点反链（KnowledgeLink，2026-08-23 起）**：转换弹窗可选填
+  「知识点文档」（书架/书/章节文档 id，多个空格分隔，prefs 记住上次
+  输入）。生效时每批生成前先做两级 AI 路由（输入只有批内容 + 标题
+  索引，不导出正文——真机数据：61 章 304 万字、章中位 4.7 万字，
+  正文挂载不可行）：
+  1. 路由①：全部叶子章节标题清单 → 本批涉及的章（≤4）；
+  2. 路由②：命中章的 h2~h4 标题清单（块 id 来自 SQL，清单字符预算
+     2200）→ 相关小节（≤10），以 K 别名编入生成 prompt（规则 9：
+     AI 在容器 IAL 追加临时属性 `custom-plugin-wengu-know="K1,K3"`，
+     只能用清单内编号）；
+  3. 后处理（入库前）：别名映射回真实标题块 id → 在解析引述块尾追加
+     一行 `> 相关知识点：((id "标题")) …`（并入 part="solution" 块，
+     作答前随解析隐藏防剧透；无解析块时补独立 solution 块）→ 剥掉
+     临时属性。**落盘题目格式与既有契约完全一致**，唯一新增是解析
+     尾部的块引用文本。
+     效果：知识点标题块的反链面板可见相关题目；题卡解析里点击引用跳转
+     （Protyle 原生渲染）。路由任一步失败降级为「该批不加链接」，不阻断
+     转换；完成消息里报告「N 题已挂知识点链接」。
 
 ## 七、英语材料组（E0-E4 已落地，2026-08-24；设计见 docs/english-question-review.md）
 

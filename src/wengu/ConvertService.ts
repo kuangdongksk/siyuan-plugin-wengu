@@ -72,8 +72,15 @@ export function extractBlockId(input: string): string {
     return m ? m[1] : input.trim();
 }
 
-/** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。 */
-export function buildPrompt(source: string, fillToChoice = false, bigToSteps = false): string {
+/** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。
+ *  knowRule/knowList 是知识点反链的追加插槽（KnowledgeLink 路由出小节时才有值）。 */
+export function buildPrompt(
+    source: string,
+    fillToChoice = false,
+    bigToSteps = false,
+    knowRuleBlock = "",
+    knowList = ""
+): string {
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
     const fillRule = fillToChoice
         ? `
@@ -162,10 +169,10 @@ ${stepsRule}
 5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
 6. 保留原文的公式与代码；一个选项块里可以写多个选项。
 7. 题量：若原文档本身是试卷/题库（已有现成题目），必须**逐题全部**转换——不得限量、不得合并、不得漏题，也不得自行新造题目；若是讲义/笔记，按知识点出题：内容少时至少 1 道，丰富时 5~12 道，覆盖主要知识点。
-8. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**到该题的题干里——单独成段、紧跟题干文字段之后，同样标记 part="stem"；路径与文件名一个字符都不能改，没有插图的题**不要**编造图片行。${fillRule}
+8. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**到该题的题干里——单独成段、紧跟题干文字段之后，同样标记 part="stem"；路径与文件名一个字符都不能改，没有插图的题**不要**编造图片行。${fillRule}${knowRuleBlock}
 
 文档内容：
-${source}`;
+${source}${knowList}`;
 }
 
 /** 解析 AI 的判定（CAN_CONVERT / REASON 行）。 */

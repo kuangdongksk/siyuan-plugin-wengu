@@ -93,6 +93,10 @@ instance"}`（20260823 真机验证）。
 - 插件 addDock 的 config **必须带 position 与 size**：缺 position 会在
   内核 dock 布局初始化里 `.startsWith` undefined 直接崩，且是 onload 级
   崩溃（整个插件不可用，20260823 真机踩坑）。
+- **SQL API 无 LIMIT 静默截断 64 行**（20260823 真机验证）：
+  `/api/query/sql` 不带 LIMIT 最多返回 64 行且 code=0 无异常（/MinerU
+  书架 94 篇文档只回 64 篇的假象）；子查询不支持（返回空）。批量/
+  全量查询必须显式 `LIMIT n OFFSET k` 分页（见 KnowledgeLink.sqlAll）。
 - Lute：自建实例必须 `SetInlineMath(true)`（编辑器默认关行级公式，
   否则 `$...$` 原样输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发
   getDoc 挂起）。
