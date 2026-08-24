@@ -3,7 +3,10 @@
  * 高亮当前题。当前题下标通过 onActive 回调上报——逐题计时的计时
  * 对象跟随它，即使题号栏被设置关闭也保持滚动跟踪。
  */
-export function bindNumRail(root: HTMLElement, opts: { onActive: (idx: number) => void }): void {
+export function bindNumRail(
+    root: HTMLElement,
+    opts: { onActive: (idx: number) => void; onFocus?: (idx: number) => void }
+): void {
     const nav = root.querySelector<HTMLElement>("[data-nums]");
     // 点击导航后的平滑滚动期间暂停滚动跟踪回写：末尾卡片到不了视口
     // 顶部，「顶端最近」规则会把点击的题号翻回前面的题（真机踩坑）。
@@ -20,10 +23,15 @@ export function bindNumRail(root: HTMLElement, opts: { onActive: (idx: number) =
             btn.addEventListener("click", () => {
                 const n = Number(btn.dataset.num);
                 lockUntil = performance.now() + 800;
-                root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]`)?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                });
+                if (opts.onFocus) {
+                    // 材料组一次一题：点击组内题号由视图切题并滚到组单元
+                    opts.onFocus(n - 1);
+                } else {
+                    root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`)?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                    });
+                }
                 setActive(n);
             });
         }
@@ -39,7 +47,8 @@ export function bindNumRail(root: HTMLElement, opts: { onActive: (idx: number) =
             window.requestAnimationFrame(() => {
                 pending = false;
                 if (performance.now() < lockUntil) return;
-                const cards = Array.from(root.querySelectorAll<HTMLElement>(".wengu-card"));
+                // 组内隐藏卡不参与「顶端最近」跟踪（rect 全零会误判）
+                const cards = Array.from(root.querySelectorAll<HTMLElement>(".wengu-card:not([hidden])"));
                 if (cards.length === 0) return;
                 const top = scroller.getBoundingClientRect().top + 24;
                 let best = 0;

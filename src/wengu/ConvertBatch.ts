@@ -7,6 +7,7 @@ import {
     extractBatchQuestions,
     extractBlockId,
     getDocInfo,
+    isMaterialKramdown,
     parseVerdict,
     resolveTarget,
 } from "./ConvertService";
@@ -118,9 +119,10 @@ export interface QuestionPreview {
     stem: string;
 }
 
-/** 从题目 kramdown 抽预览：题型属性 + 去标记后的题干开头（截 80 字）。 */
+/** 从题目 kramdown 抽预览：题型属性 + 去标记后的题干开头（截 80 字）。
+ *  材料块无 type 属性，type 记为 "material"（弹窗按 typeMaterial 标签展示）。 */
 export function questionPreview(kd: string, no: number): QuestionPreview {
-    const type = /custom-plugin-wengu-type="([a-z]+)"/.exec(kd)?.[1] ?? "";
+    const type = isMaterialKramdown(kd) ? "material" : (/custom-plugin-wengu-type="([a-z]+)"/.exec(kd)?.[1] ?? "");
     const stem = kd
         .split(/\r?\n/)
         .filter(
@@ -319,16 +321,18 @@ export async function convertDocBatched(
             ? agentChatConcurrent(prompt, AI_TIMEOUT_MS, internal.signal)
             : agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, internal.signal);
     };
-    /** 连续前缀推进：按文档序拼装、计数、渐进重建与进度上报。 */
+    /** 连续前缀推进：按文档序拼装、计数、渐进重建与进度上报。
+     *  材料块随题目一起落盘（group="prev" 依赖顺序），但不占题数与预览行号。 */
     const flushPrefix = async (): Promise<void> => {
         const newStems: QuestionPreview[] = [];
         while (contiguous < chunks.length && results[contiguous]) {
             const qs = results[contiguous]!;
             if (qs.length > 0) {
                 parts.push(qs.join("\n\n"));
-                count += qs.length;
-                lastBatch = qs.length;
-                qs.forEach((kd, j) => newStems.push(questionPreview(kd, count - qs.length + j + 1)));
+                const nq = qs.filter((kd) => !isMaterialKramdown(kd));
+                count += nq.length;
+                lastBatch = nq.length;
+                nq.forEach((kd, j) => newStems.push(questionPreview(kd, count - nq.length + j + 1)));
             }
             doneOffset = chunks[contiguous].offset + chunks[contiguous].text.length;
             contiguous++;

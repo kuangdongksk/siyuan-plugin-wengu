@@ -1,18 +1,16 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./AnswerFlow";
 import { bindCardEvents, restoreAnsweredCards, revealAll } from "./AnswerFlow";
-import {
-    applySideFilter,
-    collectCardThoughts,
-    renderCardsHtml,
-    renderMainShell,
-    renderNumsHtml,
-    renderSubheadHtml,
-} from "./CardHtml";
+import { applySideFilter, collectCardThoughts, renderMainShell, renderNumsHtml, renderSubheadHtml } from "./CardHtml";
+import type { CardHtmlModel } from "./CardParts";
 import type { ConvertProgressRecord } from "./ConvertBatch";
 import { convertDoneText, openWenguConvert, showStatus, updateConvertBtn } from "./ConvertHost";
 import type { HistoryStore, WenguSession } from "./HistoryStore";
 import { pushSessionAnswer } from "./HistoryStore";
+import { bindAnnotationLayer, hideBar, type AnnoCallbacks } from "./AnnoFlow";
+import { addClue, bindClueJudge, refreshClueRow } from "./ClueFlow";
+import { buildDrillUnits, renderUnitsHtml, type DrillUnit } from "./DrillUnits";
+import { bindGroupUnits, focusQuestion, restoreGroupScrolls } from "./MaterialFlow";
 import { bindNumRail } from "./NumRail";
 import { ProgressivePreview, showBatchPreview } from "./ProgressivePreview";
 import { ProtyleHost } from "./ProtyleHost";
@@ -22,19 +20,18 @@ import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } f
 import type { WenguSettingsShape as SettingsDialogShape } from "./SettingsDialog";
 import { bindStartPanel, buildStartPanelModel, renderStartPanel, roundDefaults, startRound } from "./StartPanel";
 import { destroyStatsPanel, openStatsPanel } from "./StatsPanel";
-import type { TimerHost } from "./TimerBinder";
-import { TimerBinder } from "./TimerBinder";
+import { TimerBinder, type TimerHost } from "./TimerBinder";
 import { bindViewEvents } from "./ViewBindings";
-
 import { TimerController } from "./TimerController";
-import type { WenguDoc, WenguQuestion, WenguRevealMode } from "./types";
+import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "./types";
 import { esc } from "./ui";
 
 /** 温故刷题页签视图（编排层），各模块见 docs/design-review.md。 */
 export class QuizView implements AnswerHost {
     /** i18n 取值（public：AnswerHost 接口按结构匹配）。 */
     readonly t: (key: string) => string;
-    private readonly el: HTMLElement;
+    /** 视图根元素（public：ClueHost 结构匹配）。 */
+    readonly el: HTMLElement;
     private readonly app?: App;
     private readonly storage?: {
         load: () => Promise<unknown>;
@@ -57,6 +54,14 @@ export class QuizView implements AnswerHost {
     private pendingDoc: { id: string; title: string } | undefined;
     private list: WenguQuestion[] = [];
     private fullList: WenguQuestion[] = [];
+    private materials: WenguMaterial[] = [];
+    /** 渲染单元（独立题/材料组），renderList 时由 buildDrillUnits 组装。 */
+    private units: DrillUnit[] = [];
+    /** M6 三模式开口：做题（现有）/复习/学习预留，主区渲染按它路由。 */
+    private mode: "quiz" | "review" | "study" = "quiz";
+    /** 标注层解绑与背单词存储（生词→复习队列，index.ts 注入共享单例）。 */
+    private annoCleanup?: () => void;
+    private wordStore?: AnnoCallbacks["wordStore"];
     private loading = false;
     private converting = false;
     private loadError = "";
@@ -84,7 +89,8 @@ export class QuizView implements AnswerHost {
         },
         settings?: SettingsDialogShape,
         history?: HistoryStore,
-        openSettings?: () => void
+        openSettings?: () => void,
+        wordStore?: AnnoCallbacks["wordStore"]
     ) {
         this.el = element;
         this.t = (key) => i18n[key] || key;
@@ -95,8 +101,16 @@ export class QuizView implements AnswerHost {
         this.settings = settings;
         this.history = history;
         this.openSettings = openSettings;
+        this.wordStore = wordStore;
         this.protyleHost = new ProtyleHost(app);
         this.timerBinder = new TimerBinder(this.timerHost());
+        // 标注层（线索/生词）与「AI 复核线索」委托：每视图绑一次
+        this.annoCleanup = bindAnnotationLayer(element, {
+            t: this.t,
+            onMarkClue: (text) => addClue(this, text),
+            wordStore,
+        });
+        bindClueJudge(this);
     }
 
     readonly container = (): HTMLElement => this.el;
@@ -106,6 +120,13 @@ export class QuizView implements AnswerHost {
     readonly currentSession = (): WenguSession | undefined => this.session ?? this.finished;
     readonly roundComplete = (): void => showRoundReportNow(roundFinishCtx(this));
     readonly flushTime = (): void => void this.timerBinder.flush();
+    /** ClueHost 结构匹配：当前题/材料定位/会话落库（线索标注用）。 */
+    readonly currentQuestion = (): WenguQuestion | undefined => this.list[this.activeQIdx];
+    readonly materialOf = (q: WenguQuestion): WenguMaterial | undefined => this.materials.find((m) => m.id === q.group);
+    readonly persist = (): void => {
+        const s = this.session ?? this.finished;
+        if (s) void this.history?.upsert(s);
+    };
     readonly recordAnswer = (
         qid: string,
         submitted: string,
@@ -140,7 +161,16 @@ export class QuizView implements AnswerHost {
         this.progressive.clear();
         this.finishSession();
         void this.timerBinder.flush();
+        this.annoCleanup?.();
+        hideBar();
         this.protyleHost.destroyAll();
+    }
+
+    /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */
+    private onActiveQ(idx: number): void {
+        this.activeQIdx = idx;
+        this.timer.setQuestion(this.list[idx]?.id ?? "");
+        refreshClueRow(this);
     }
 
     private selectDoc(docId: string): void {
@@ -201,17 +231,15 @@ export class QuizView implements AnswerHost {
         this.pendingDoc = r.pendingDoc;
         this.docId = r.docId;
         this.docTotalSec = r.docTotalSec;
-        this.fullList = r.fullList;
-        this.list = r.fullList;
+        this.list = this.fullList = r.fullList;
+        this.materials = r.materials;
         this.rounds = r.rounds;
         this.loadError = r.loadError;
         this.loading = false;
         this.renderList();
-        if (this.reopenStatsTab) {
-            const tab = this.reopenStatsTab;
-            this.reopenStatsTab = undefined;
-            this.openStatsPanelAt(tab);
-        }
+        const rt = this.reopenStatsTab;
+        this.reopenStatsTab = undefined;
+        if (rt) this.openStatsPanelAt(rt);
     }
 
     /** 计时编排宿主（TimerBinder 自本类外移，状态仍在视图侧）。 */
@@ -294,7 +322,15 @@ export class QuizView implements AnswerHost {
     private renderListInner(): void {
         this.protyleHost.destroyAll();
         destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
+        // M6 三模式开口：目前只有做题模式（quiz）实现，复习/学习预留
+        if (this.mode !== "quiz") return;
         const doc = this.docs.find((d) => d.id === this.docId);
+        this.units = buildDrillUnits(this.list, this.materials);
+        const cardModel: CardHtmlModel = {
+            t: this.t,
+            showAttempts: this.settings?.showAttempts !== false,
+            showWrongBadge: this.settings?.showWrong !== false && this.revealMode !== "after",
+        };
         this.el.innerHTML = renderMainShell({
             t: this.t,
             docs: this.docs,
@@ -309,17 +345,8 @@ export class QuizView implements AnswerHost {
             hasDoc: !!doc,
             listCount: this.list.length,
             startPanelHtml: renderStartPanel(this.startPanelModel()),
-            subheadHtml: renderSubheadHtml({
-                t: this.t,
-                doc,
-                listCount: this.list.length,
-                rounds: this.rounds,
-            }),
-            cardsHtml: renderCardsHtml(this.list, {
-                t: this.t,
-                showAttempts: this.settings?.showAttempts !== false,
-                showWrongBadge: this.settings?.showWrong !== false && this.revealMode !== "after",
-            }),
+            subheadHtml: renderSubheadHtml({ t: this.t, doc, listCount: this.list.length, rounds: this.rounds }),
+            cardsHtml: renderUnitsHtml(this.units, cardModel),
             numsHtml: renderNumsHtml(
                 this.list,
                 this.t,
@@ -328,15 +355,27 @@ export class QuizView implements AnswerHost {
             ),
         });
         this.bindAll();
-        void this.protyleHost.mount(this.el, this.list);
+        void this.protyleHost.mount(this.el, this.list, this.materials).then(() => restoreGroupScrolls(this.el));
         this.timerBinder.updateLabel();
     }
 
+    /** 视图级绑定：头部/题号/开刷面板/题卡/材料组单元。 */
     private bindAll(): void {
         this.bindHead();
-        this.bindNums();
+        bindNumRail(this.el, {
+            onActive: (idx) => this.onActiveQ(idx),
+            onFocus: (idx) => focusQuestion(this.el, this.units, this.list, idx),
+        });
         bindStartPanel(this.el, this.startPanelModel(), () => this.beginDrill());
-        this.bindCards();
+        bindGroupUnits(this.el, this.units, this, {
+            onActive: (idx) => this.onActiveQ(idx),
+            onShown: () => void this.protyleHost.mount(this.el, this.list, this.materials),
+        });
+        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
+        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
+            const q = this.list.find((x) => x.id === node.dataset.qid);
+            if (q) bindCardEvents(this, node, q);
+        }
     }
 
     private bindHead(): void {
@@ -385,23 +424,6 @@ export class QuizView implements AnswerHost {
             aiModelId: this.aiModelId(),
             tab,
         });
-    }
-
-    private bindNums(): void {
-        bindNumRail(this.el, {
-            onActive: (idx) => {
-                this.activeQIdx = idx;
-                this.timer.setQuestion(this.list[idx]?.id ?? "");
-            },
-        });
-    }
-
-    private bindCards(): void {
-        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
-        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
-            const q = this.list.find((x) => x.id === node.dataset.qid);
-            if (q) bindCardEvents(this, node, q);
-        }
     }
 
     private openConvert(): void {
@@ -468,9 +490,9 @@ export class QuizView implements AnswerHost {
                     });
                 }
             },
-            applyList: (list: WenguQuestion[]) => {
-                this.fullList = list;
-                this.list = list;
+            applyList: (list: WenguQuestion[], materials?: WenguMaterial[]) => {
+                this.list = this.fullList = list;
+                if (materials) this.materials = materials;
                 this.renderList();
             },
         };

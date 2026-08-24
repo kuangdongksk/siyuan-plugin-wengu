@@ -144,10 +144,20 @@ QUESTIONS:
 }}}
 {: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节"}
 ${stepsRule}
+9. **共享材料组（试卷中多篇小题共用的原文：阅读文章、完形语篇、翻译原文、新题型文章）**：先把材料输出成材料超级块，随后紧跟依附它的小题；这些小题的容器属性必须加 custom-plugin-wengu-group="prev"（表示材料=文中紧邻其前的材料块），独立成题（作文等无共享原文）不写 group。材料块格式（正文可多段，都用 part="body"；参考译文原文档有才写，用 part="trans"）：
+{{{row
+共享原文……
+{: custom-plugin-wengu-part="body"}
+
+参考译文全文（原文档没有就省略这一段）
+{: custom-plugin-wengu-part="trans"}
+}}}
+{: custom-plugin-wengu-material="1"}
+英语题型约定：完形填空用 type="cloze"（材料正文里保留空位编号如 __1__；题块内每空一组子块——slot-{k}-option-0 一块可含多个列表条目选项、slot-{k}-answer 写该空正确字母，k 从 0 递增，组内顺序即空号顺序）；新题型（七选五/排序/标题匹配/多项对应）用 type="match"（候选池写 option-0/option-1… 各一块，answer 写槽位顺序对应的字母串如 D|A|G|E|B）；作文（大小作文/应用文）用 type="essay"（题干=题目要求，图片随题走，answer 省略，solution 写范文）；翻译用 type="trans"（题干=原句/原段，answer=参考译文，solution 写采分点解析；逐句考查的每句一个题块、共用同一材料块并写 group="prev"）。分批转换时若本批只有材料没有题目、或只有题目没有材料，仍照常输出（题块 group="prev" 引用的是最终文档里其前的材料块）。
 硬性规则：
 1. 容器超级块以 {{{row 开始、}}} 结束；容器属性 {: ...} 必须另起一行紧跟在 }}} 之后，该行只包含 {: ...}。
-2. type 取 single/multiple/judge/fill/brief/steps（steps 见第 11 条格式）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
-3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 11 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
+2. type 取 single/multiple/judge/fill/brief/steps/cloze/match/essay/trans（steps 见第 11 条格式，材料组与英语题型见第 9 条）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
+3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 11 条；材料块另有 body/trans，cloze 题另有 slot-{k}-option-0/slot-{k}-answer，见第 9 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
 4. difficulty 为可选项：原文档/题目有明确难度线索才写（1~5），没有就整个省略，不要编造。
 5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
 6. 保留原文的公式与代码；一个选项块里可以写多个选项。
@@ -167,16 +177,18 @@ export function parseVerdict(reply: string): { can: boolean; reason: string } {
 }
 
 /**
- * 抽取回复里所有带 q 容器属性的题目超级块，并做几处规整
+ * 抽取回复里所有带 q 容器属性的题目超级块与材料超级块
+ * （custom-plugin-wengu-material="1"，材料组见第 9 条），并做几处规整
  * （真机实测 AI 的高频偏差）：
  * - q 属性自增（q="2"、q="3"…）→ 统一改回契约的 q="1"（SQL 按 '1' 检测）；
  * - 子块 part 属性漏右引号（part="solution}）→ 补上；
  * - 题干带「题干A：」前缀标签（及紧随的悬空 `**`）→ 入库前剥掉。
+ * 材料块与题目块按出现顺序混排（group="prev" 依赖「材料在前、题目紧随」）。
  */
 function extractQuestions(reply: string): string[] {
     const idx = reply.search(/QUESTIONS\s*[:：]/);
     const body = idx >= 0 ? reply.slice(idx) : reply;
-    const re = /\{\{\{row[\s\S]*?\}\}\}\s*\n\s*\{:[^\n]*custom-plugin-wengu-q="\d+"[^\n]*\}/g;
+    const re = /\{\{\{row[\s\S]*?\}\}\}\s*\n\s*\{:[^\n]*custom-plugin-wengu-(?:q|material)="[^"]+"[^\n]*\}/g;
     const out: string[] = [];
     for (const m of body.matchAll(re)) {
         out.push(m[0].trim());
@@ -189,9 +201,14 @@ function extractQuestions(reply: string): string[] {
     );
 }
 
-/** 抽取并规整一批回复里的题目块（AI 偏差规整见上）。 */
+/** 该块 kramdown 是否是材料超级块（不占题目数）。 */
+export function isMaterialKramdown(kd: string): boolean {
+    return kd.includes('custom-plugin-wengu-material="1"');
+}
+
+/** 抽取并规整一批回复里的题目块与材料块（AI 偏差规整见上）。 */
 export function extractBatchQuestions(reply: string): string[] {
-    return extractQuestions(reply).filter((q) => q.includes('part="stem"'));
+    return extractQuestions(reply).filter((q) => q.includes('part="stem"') || isMaterialKramdown(q));
 }
 
 /** "/a/b.sy" → "/a"；"/x.sy" → "/"。 */

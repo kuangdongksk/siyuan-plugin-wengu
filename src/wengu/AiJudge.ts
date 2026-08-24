@@ -1,7 +1,7 @@
 import { agentChat } from "./AgentClient";
 import type { WenguQuestion } from "./types";
 import type { WenguStep } from "./types";
-import { LETTERS, optionDisplayMd } from "./types";
+import { LETTERS, optionDisplayMd, QuestionType } from "./types";
 
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
@@ -39,10 +39,17 @@ export interface BriefVerdict {
 }
 
 /** 把用户的解题思路交给 AI 对照参考答案判定（串行）。
- *  thought 为「思路」折叠区里的推导备注（可选，判 partial 的素材）。 */
+ *  thought 为「思路」折叠区里的推导备注（可选，判 partial 的素材）。
+ *  essay/trans（英语）走各自的 rubric prompt（E3），SCORE 并入评语。 */
 export function judgeBrief(q: WenguQuestion, mine: string, modelId: string, thought = ""): Promise<BriefVerdict> {
     return enqueue(async () => {
-        const reply = await agentChat(buildBriefPrompt(q, mine, thought), modelId, JUDGE_TIMEOUT_MS);
+        const prompt =
+            q.type === QuestionType.Essay
+                ? buildEssayPrompt(q, mine)
+                : q.type === QuestionType.Trans
+                  ? buildTransPrompt(q, mine)
+                  : buildBriefPrompt(q, mine, thought);
+        const reply = await agentChat(prompt, modelId, JUDGE_TIMEOUT_MS);
         return parseBriefVerdict(reply);
     });
 }
@@ -74,7 +81,87 @@ function parseBriefVerdict(reply: string): BriefVerdict {
               ? "partial"
               : "wrong";
     const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
-    return { verdict, ok: verdict === "right", comment: (cm?.[1] ?? "").trim() };
+    let comment = (cm?.[1] ?? "").trim();
+    // 作文判卷带 SCORE 行：并入评语展示（如「12/20 — 论证充分…」）
+    const sm = /SCORE\s*[:：]\s*([^\n]+)/i.exec(reply);
+    if (sm) comment = `${sm[1].trim()} — ${comment}`;
+    return { verdict, ok: verdict === "right", comment };
+}
+
+/* ── 英语判卷（E3）：作文 rubric / 翻译采分点 ── */
+
+function buildEssayPrompt(q: WenguQuestion, mine: string): string {
+    const model = [q.solutionMd].filter(Boolean).join("\n\n") || "（无范文）";
+    return `你是考研英语作文阅卷助手。按考试评分标准给这篇学生作文判分。
+评分维度：内容是否切题、组织结构是否清晰、语言准确性与多样性、格式与语域是否得当。
+输出严格三行，格式之外不要输出任何文字：
+SCORE: 分数/满分（如 14/20；题目未标满分按 20 分制）
+VERDICT: right（达到该题平均分以上）或 partial（基本成型但有明显缺陷）或 wrong（严重偏题/错误密集）
+COMMENT: 两句以内点评（一个最突出的优点 + 一个最该改的问题）
+【题目】
+${q.stemMd ?? ""}
+【范文】
+${model}
+【学生作文】
+${mine}`;
+}
+
+function buildTransPrompt(q: WenguQuestion, mine: string): string {
+    const ref = [q.answer, q.solutionMd].filter(Boolean).join("\n\n") || "（无参考译文）";
+    return `你是考研英语翻译阅卷助手。对照参考译文与采分点给学生的译文判定。
+关注：关键采分点（词组/从句结构）是否译出、有无漏译错译、汉语是否通顺；整体大意对但个别点缺失算 partial。
+输出严格两行，格式之外不要输出任何文字：
+VERDICT: right 或 partial 或 wrong
+COMMENT: 一句话点评（缺失/译错的采分点，不超过 60 字）
+【原文】
+${q.stemMd ?? ""}
+【参考译文与采分点】
+${ref}
+【学生译文】
+${mine}`;
+}
+
+/* ── 线索复核（M5：定位能力训练）── */
+
+/** 线索复核结论：hit=定位句；near=相关段落但非定位句；miss=无关。 */
+export interface ClueVerdict {
+    clue: "hit" | "near" | "miss";
+    comment: string;
+}
+
+/** 复核学生为某题标注的线索段是否是该题的定位依据（串行）。 */
+export function judgeClue(
+    materialBody: string,
+    q: WenguQuestion,
+    submitted: string,
+    clues: string[],
+    modelId: string
+): Promise<ClueVerdict> {
+    return enqueue(async () => {
+        const reply = await agentChat(buildCluePrompt(materialBody, q, submitted, clues), modelId, JUDGE_TIMEOUT_MS);
+        const m = /CLUE\s*[:：]\s*(hit|near|miss|对|近似|错)/i.exec(reply);
+        if (!m) throw new Error("AI 未按格式返回线索复核");
+        const raw = m[1].toLowerCase();
+        const clue = raw === "hit" || raw === "对" ? "hit" : raw === "near" || raw === "近似" ? "near" : "miss";
+        const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
+        return { clue, comment: (cm?.[1] ?? "").trim() };
+    });
+}
+
+function buildCluePrompt(materialBody: string, q: WenguQuestion, submitted: string, clues: string[]): string {
+    return `你是考研英语阅读的定位复核助手。学生在阅读文章后做题时，为该题标注了他认为的「定位线索」文段；请判断这些线索是否真的是该题答案的定位依据。
+判定标准：hit=线索包含该题答案的出处句；near=线索落在相关段落但未覆盖定位句；miss=与该题无关。
+输出严格两行，格式之外不要输出任何文字：
+CLUE: hit 或 near 或 miss
+COMMENT: 一句话点评（定位对在哪/错在哪，可指出正确定位应在的方向）
+【文章】
+${materialBody}
+【题目】
+${q.stemMd ?? ""}
+【学生所选】
+${submitted || "（未作答）"}
+【学生标注的线索】
+${clues.map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
 }
 
 /* ── steps 方法步申诉 ── */

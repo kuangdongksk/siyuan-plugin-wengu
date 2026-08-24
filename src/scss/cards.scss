@@ -264,8 +264,18 @@
 }
 
 .wengu-card.wengu-graded [custom-plugin-wengu-part="answer"] {
-  border-left: 3px solid var(--b3-theme-success);
+  border-left: 3px solid var(--b3-theme-surface);
   padding-left: 6px;
+}
+
+/* cloze 题：逐空 slot 子块（选项与答案）判分前隐藏
+   （材料组分栏壳与译文揭示的样式在 english.scss） */
+.wengu-card [custom-plugin-wengu-part^="slot-"] {
+  display: none;
+}
+
+.wengu-card.wengu-graded [custom-plugin-wengu-part^="slot-"] {
+  display: block;
 }
 
 /* ── 选择题字母 chip ── */

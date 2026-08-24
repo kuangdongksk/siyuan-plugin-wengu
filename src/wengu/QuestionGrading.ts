@@ -121,3 +121,26 @@ export function stepOptionIsRight(step: WenguStep, idx: number): boolean {
     if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
     return step.optionMd[idx] !== undefined && optionComparable(step.optionMd[idx]) === ansNorm;
 }
+
+/** slots 题单空判分：比字母（cloze 的 slot answer 可能是内容，同 single 容错）。 */
+export function gradeSlot(slot: { optionMd: string[]; answer: string }, submitted: string): boolean {
+    const ansNorm = normAnswerText(slot.answer);
+    const subNorm = normAnswerText(submitted);
+    if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(subNorm);
+    const letters = submitted.toUpperCase().replace(/[^A-Z]/g, "");
+    if (letters.length === 1) {
+        const idx = LETTERS.indexOf(letters);
+        if (idx >= 0 && idx < slot.optionMd.length) {
+            return optionComparable(slot.optionMd[idx]) === ansNorm;
+        }
+    }
+    return subNorm === ansNorm;
+}
+
+/** slots 题某选项是否属于该空正确项（判分后描色用）。 */
+export function slotOptionIsRight(slot: { optionMd: string[]; answer: string }, idx: number): boolean {
+    const ansNorm = normAnswerText(slot.answer);
+    const letter = LETTERS[idx] ?? "";
+    if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
+    return slot.optionMd[idx] !== undefined && optionComparable(slot.optionMd[idx]) === ansNorm;
+}

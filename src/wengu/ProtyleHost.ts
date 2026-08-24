@@ -1,6 +1,6 @@
 import { Lute, Protyle, ProtyleMethod } from "siyuan";
 import type { App } from "siyuan";
-import type { WenguQuestion } from "./types";
+import type { WenguMaterial, WenguQuestion } from "./types";
 import { optionDisplayMd } from "./types";
 import { esc } from "./ui";
 
@@ -11,6 +11,7 @@ import { esc } from "./ui";
  * 12 张卡全部超时降级）；失败/超时（8s）退回 Lute HTML——降级路径
  * 必须显式 SetInlineMath(true)（编辑器默认关行级公式，不开则
  * `$...$` 原样输出），再 ProtyleMethod.mathRender 渲染 KaTeX。
+ * 材料面板（E0）同样走这里：data-mprotyle 挂材料块，降级用 bodyMd。
  */
 export class ProtyleHost {
     private readonly protyles = new Map<string, Protyle>();
@@ -19,30 +20,51 @@ export class ProtyleHost {
 
     constructor(private readonly app?: App) {}
 
-    /** 渲染完成后挂载所有卡片；app 不可用时整体走降级。 */
-    async mount(root: HTMLElement, list: WenguQuestion[]): Promise<void> {
+    /** 渲染完成后挂载所有卡片与材料面板；app 不可用时整体走降级。 */
+    async mount(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): Promise<void> {
         if (!this.app) {
-            this.fallbackAll(root, list);
+            this.fallbackAll(root, list, materials);
             return;
         }
         const gen = this.mountGen;
-        for (const node of Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle]"))) {
+        const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle], [data-mprotyle]"));
+        for (const node of nodes) {
             if (gen !== this.mountGen) return; // 重渲染已发生，放弃本轮
-            const card = node.closest<HTMLElement>(".wengu-card");
-            const q = list.find((x) => x.id === card?.dataset.qid);
-            if (!q) continue;
-            await this.mountOne(node, q, gen);
+            const blockId = this.nodeBlockId(node);
+            // 组内题一次一题：隐藏的题卡不挂载（MaterialFlow 切换显示后增量挂载）
+            if (node.closest(".wengu-card[hidden]")) continue;
+            // 组内题一次一题切换时增量挂载：已挂载的跳过（材料与当前题）
+            if (this.protyles.has(blockId)) continue;
+            const fallback = this.nodeFallback(node, list, materials);
+            if (fallback === undefined) continue;
+            await this.mountOne(node, blockId, fallback, gen);
         }
     }
 
-    private async mountOne(node: HTMLElement, q: WenguQuestion, gen: number): Promise<void> {
+    /** DOM 顺序里该占位对应哪个块、降级 HTML 是什么；不归属任何块返回 undefined。 */
+    private nodeFallback(node: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[]): string | undefined {
+        if (node.hasAttribute("data-mprotyle")) {
+            const mat = materials.find((x) => x.id === this.nodeBlockId(node));
+            return mat?.bodyMd ? safeLute(mat.bodyMd) : "";
+        }
+        const q = list.find((x) => x.id === this.nodeBlockId(node));
+        return q ? this.fallbackHtml(q) : undefined;
+    }
+
+    /** 占位所属块 id：材料面板（材料组单元）取 data-mid，题卡取 data-qid。 */
+    private nodeBlockId(node: HTMLElement): string {
+        const holder = node.closest<HTMLElement>(".wengu-material, .wengu-gunit, .wengu-card");
+        return holder?.dataset.mid || holder?.dataset.qid || "";
+    }
+
+    private async mountOne(node: HTMLElement, blockId: string, fallback: string, gen: number): Promise<void> {
         try {
             const protyle = new Protyle(this.app!, node, {
-                blockId: q.id,
+                blockId,
                 mode: "wysiwyg",
                 render: { title: false, gutter: false, scroll: false, breadcrumb: false },
             });
-            this.protyles.set(q.id, protyle);
+            this.protyles.set(blockId, protyle);
             const loaded = await waitForBlockNode(node, 8000);
             if (gen !== this.mountGen) {
                 try {
@@ -61,20 +83,19 @@ export class ProtyleHost {
             } catch (_) {
                 // 忽略
             }
-            this.protyles.delete(q.id);
-            node.innerHTML = this.fallbackHtml(q);
+            this.protyles.delete(blockId);
+            node.innerHTML = fallback;
             renderMath(node);
         } catch (_) {
-            node.innerHTML = this.fallbackHtml(q);
+            node.innerHTML = fallback;
             renderMath(node);
         }
     }
 
-    private fallbackAll(root: HTMLElement, list: WenguQuestion[]): void {
-        for (const node of root.querySelectorAll<HTMLElement>("[data-qprotyle]")) {
-            const card = node.closest<HTMLElement>(".wengu-card");
-            const q = list.find((x) => x.id === card?.dataset.qid);
-            if (q) node.innerHTML = this.fallbackHtml(q);
+    private fallbackAll(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[]): void {
+        for (const node of root.querySelectorAll<HTMLElement>("[data-qprotyle], [data-mprotyle]")) {
+            const fallback = this.nodeFallback(node, list, materials);
+            if (fallback !== undefined) node.innerHTML = fallback;
         }
         renderMath(root);
     }

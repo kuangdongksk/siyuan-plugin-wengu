@@ -15,10 +15,18 @@ export const ATTR_PREFIX = PREFIX;
 export const Attr = {
     /** 转换完成标记，值恒为 "1"；存在则该题进入刷题模式可抽取。 */
     q: `${PREFIX}q`,
-    /** 题型：single | multiple | judge | fill | brief | steps。 */
+    /** 题型：single/multiple/judge/fill/brief/steps/cloze/match/essay/trans。 */
     type: `${PREFIX}type`,
     /** steps 题：步骤类型声明，按序竖线分隔，如 "method|result|result"。 */
     steps: `${PREFIX}steps`,
+    /** 材料块标记（值恒为 "1"）：阅读/完形等共享原文的超级块。 */
+    material: `${PREFIX}material`,
+    /** 小题块：所属材料块 id（转换先写 "prev" 占位，装载时解析回写）。 */
+    group: `${PREFIX}group`,
+    /** 运行时（slots 题：cloze/match，E2 启用）：逐空最近正误。 */
+    slotRight: `${PREFIX}slot-right`,
+    /** 运行时（slots 题）：逐空最近作答（字母按空序竖线分隔）。 */
+    slotLast: `${PREFIX}slot-last`,
     /** 正确答案字符串（客观题自动判分依据；brief 留空走自评）。 */
     answer: `${PREFIX}answer`,
     /** 知识点/考点名，用于分组抽题与错题归类。 */
@@ -51,3 +59,10 @@ export const Attr = {
 
 /** 转换完成标记的固定值。 */
 export const Q_FLAG = "1";
+
+/** 材料块标记的固定值。 */
+export const MATERIAL_FLAG = "1";
+
+/** group 占位值：材料=文中紧邻其前的材料块（AI 写不出内核分配的
+ *  真实块 id，落盘后由 MaterialService 按文档序解析回写）。 */
+export const GROUP_PREV = "prev";

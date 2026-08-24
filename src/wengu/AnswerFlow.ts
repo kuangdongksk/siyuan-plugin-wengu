@@ -1,12 +1,14 @@
 import { judgeBrief } from "./AiJudge";
 import { isChoice, isObjective } from "./CardHtml";
 import { statusIcon } from "./FormHtml";
-import type { WenguSession } from "./HistoryStore";
+import type { WenguSession, WenguSessionResult } from "./HistoryStore";
+import { syncGroupReveal } from "./MaterialFlow";
 import { optionIsRight, overrideAttemptResult, recordAttempt, recordAttemptResult } from "./QuestionService";
+import { bindSlotsCard, restoreSlotsCard } from "./SlotFlow";
 import { bindStepsCard, restoreStepsCard } from "./StepsFlow";
 import type { TimerController } from "./TimerController";
 import type { WenguQuestion, WenguRevealMode } from "./types";
-import { hasSteps, LETTERS, QuestionType } from "./types";
+import { hasSlots, hasSteps, isBriefLike, LETTERS, QuestionType } from "./types";
 import { esc, fmt, mmss } from "./ui";
 
 /**
@@ -46,6 +48,19 @@ export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQues
     if (hasSteps(q)) {
         bindStepsCard(host, card, q);
         return;
+    }
+    if (hasSlots(q)) {
+        bindSlotsCard(host, card, q);
+        return;
+    }
+    // 作文：实时词数（E3）
+    const mine = card.querySelector<HTMLInputElement | HTMLTextAreaElement>("[data-field='mine']");
+    const wc = card.querySelector<HTMLElement>("[data-wordcount']");
+    if (mine && wc) {
+        mine.addEventListener("input", () => {
+            const words = mine.value.trim() ? mine.value.trim().split(/\s+/).length : 0;
+            wc.textContent = `${words} words`;
+        });
     }
     if (isChoice(q)) {
         for (const chip of card.querySelectorAll<HTMLElement>(".wengu-chip")) {
@@ -110,9 +125,11 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, card: H
     lockInputs(card);
     host.flushTime();
     if (!objective) {
-        // brief：AI 判分并计入（AI 不可用回落自评）；多步题在 StepsFlow，
-        // 缺题型/答案属性的题维持自评。after 模式判分照跑，揭示时只展示评语。
-        if (q.type === QuestionType.Brief && submitted) {
+        // brief（含英语 essay/trans）：AI 判分并计入（AI 不可用回落自评）；
+        // 多步题在 StepsFlow，缺题型/答案属性的题维持自评（cloze/match
+        // 的逐空作答是 E2，E0 先走这条自评降级）。after 模式判分照跑，
+        // 揭示时只展示评语。
+        if (isBriefLike(q) && submitted) {
             await judgeBriefAnswer(host, q, card, submitted, batch);
             return;
         }
@@ -153,8 +170,10 @@ export async function selfGrade(
     markNum(host, q, correct);
     host.recordAnswer(q.id, mine, correct);
     card.querySelector("[data-self]")?.setAttribute("hidden", "");
+    card.classList.add("wengu-graded");
     showResult(card, correct ? esc(host.t("correct")) : esc(host.t("wrong")), correct ? "right" : "wrong");
     showQTime(host, card, q.id);
+    syncGroupReveal(host.container(), host.questions());
     checkAllDone(host);
 }
 
@@ -256,7 +275,10 @@ export function restoreAnsweredCards(host: AnswerHost): void {
         list.every((q) =>
             hasSteps(q)
                 ? stepResultsOf(s.results, q.id).length >= (q.steps?.length ?? Number.POSITIVE_INFINITY)
-                : byQid.has(q.id)
+                : hasSlots(q)
+                  ? s.results.some((r) => r.qid.startsWith(`${q.id}#`)) &&
+                    slotResultsOf(s.results, q.id).length >= (q.slots?.length ?? 0)
+                  : byQid.has(q.id)
         );
     const revealNow = host.currentRevealMode() === "instant" || allDone;
     for (const node of host.container().querySelectorAll<HTMLElement>(".wengu-card")) {
@@ -265,6 +287,12 @@ export function restoreAnsweredCards(host: AnswerHost): void {
         if (hasSteps(q)) {
             // 多步卡按 qid#k 逐步还原（完整则锁定收口，部分则待续）
             restoreStepsCard(host, node, q, stepResultsOf(s.results, q.id));
+            continue;
+        }
+        if (hasSlots(q)) {
+            // slots 卡按 qid#k 逐空还原（整题口径在 restoreSlotsCard 内收口）
+            const slotResults = slotResultsOf(s.results, q.id);
+            if (slotResults.length > 0) restoreSlotsCard(host, node, q, slotResults);
             continue;
         }
         const r = byQid.get(q.id);
@@ -280,6 +308,12 @@ export function restoreAnsweredCards(host: AnswerHost): void {
         }
     }
     if (allDone) void revealAll(host);
+}
+
+/** 某 slots 题在会话里的逐空结果（原样传给 restoreSlotsCard）。 */
+function slotResultsOf(results: WenguSessionResult[], qid: string): WenguSessionResult[] {
+    const prefix = `${qid}#`;
+    return results.filter((r) => r.qid.startsWith(prefix) && /^\d+$/.test(r.qid.slice(prefix.length)));
 }
 
 /** 某多步题在会话里的逐步结果（按步序排列）。 */
@@ -358,6 +392,8 @@ function revealCard(
         showResult(card, briefResultHtml(host, verdict), verdictStatus(verdict));
         revealBriefExtras(host, card);
     }
+    // 材料组：组内题目全部判分后揭示共享材料的译文（E0 防剧透规则）
+    syncGroupReveal(host.container(), host.questions());
 }
 
 /** 全部作答后收口：after 模式先统一揭示（revealAll 会再触发总结），
