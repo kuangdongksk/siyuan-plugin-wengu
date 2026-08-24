@@ -93,6 +93,16 @@ export function isBriefLike(q: WenguQuestion): boolean {
     return q.type === QuestionType.Brief || q.type === QuestionType.Essay || q.type === QuestionType.Trans;
 }
 
+/** slots 题且聚合出了至少一空（否则按普通自评流程降级）。 */
+export function hasSlots(q: WenguQuestion): boolean {
+    return (q.type === QuestionType.Cloze || q.type === QuestionType.Match) && (q.slots?.length ?? 0) > 0;
+}
+
+/** slots 题第 k 空的会话 qid（块 id + "#" + 空号，同 stepsQid 语义）。 */
+export function slotQid(qid: string, k: number): string {
+    return `${qid}#${k}`;
+}
+
 /** 多步引导题的一步类型：method=选方法（可行集合任一即对），result=中间结果。 */
 export type WenguStepKind = "method" | "result";
 
@@ -106,6 +116,15 @@ export interface WenguStep {
     /** 本步选项 markdown，按序对应 A、B、C…。 */
     optionMd: string[];
     /** method 步=全部可行字母集合（如 "AC"）；result 步=正确字母（或内容答案）。 */
+    answer: string;
+}
+
+/** slots 题的一个空/槽（cloze=完形一空，match=新题型一槽）。
+ *  与 steps 的区别：并列空无解锁依赖、逐空独立判分（每空一条会话记录 qid#k）。 */
+export interface WenguSlot {
+    /** 该空的选项 markdown（match 的候选池在题级 optionMd，此处留空）。 */
+    optionMd: string[];
+    /** 该空正确字母（cloze 的 slot-k-answer；match 取题级 answer 的第 k 个字母）。 */
     answer: string;
 }
 
@@ -146,10 +165,16 @@ export interface WenguQuestion {
     solutionMd?: string;
     /** 多步步骤（type="steps"，由 part="step-{k}-*" 子块与 steps 属性聚合）。 */
     steps?: WenguStep[];
+    /** 一题多空（type="cloze"/"match"，由 slot-{k}-* 子块或题级 answer 聚合）。 */
+    slots?: WenguSlot[];
     /** 运行时：逐步最近正误（"1010"，与 steps 对齐）。 */
     stepRight?: string;
     /** 运行时：逐步最近作答（字母按步竖线分隔，如 "A|B"）。 */
     stepLast?: string;
+    /** 运行时（slots 题）：逐空最近正误（与 slots 对齐）。 */
+    slotRight?: string;
+    /** 运行时（slots 题）：逐空最近作答（字母按空竖线分隔）。 */
+    slotLast?: string;
 }
 
 /** 一个习题文档的聚合视图（已生成列表用，随文档持久存在）。 */

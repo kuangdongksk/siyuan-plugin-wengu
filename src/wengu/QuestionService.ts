@@ -1,8 +1,16 @@
 import { fetchSyncPost } from "siyuan";
 import { ATTR_PREFIX, Attr, Q_FLAG } from "./attrs";
 import { gradeQuestion } from "./QuestionGrading";
-import { cleanStemMd, normalizeAnswerMd, normalizeType, parseDifficulty, parseStepKinds, splitOptionMd } from "./types";
-import type { WenguDoc, WenguQuestion, WenguStep } from "./types";
+import {
+    cleanStemMd,
+    normalizeAnswerMd,
+    normalizeType,
+    parseDifficulty,
+    parseStepKinds,
+    QuestionType,
+    splitOptionMd,
+} from "./types";
+import type { WenguDoc, WenguQuestion, WenguSlot, WenguStep } from "./types";
 
 /**
  * 题目块读写服务（判分纯函数在 QuestionGrading、错题闪卡在 Flashcards，
@@ -15,7 +23,14 @@ import type { WenguDoc, WenguQuestion, WenguStep } from "./types";
  */
 
 export { addWrongFlashcard, removeWrongFlashcard } from "./Flashcards";
-export { gradeQuestion, gradeStep, optionIsRight, stepOptionIsRight } from "./QuestionGrading";
+export {
+    gradeQuestion,
+    gradeSlot,
+    gradeStep,
+    optionIsRight,
+    slotOptionIsRight,
+    stepOptionIsRight,
+} from "./QuestionGrading";
 
 interface AttrsRow {
     block_id: string;
@@ -41,6 +56,8 @@ const FIELD_BY_ATTR: Record<string, keyof WenguQuestion> = {
     [Attr.right]: "right",
     [Attr.stepRight]: "stepRight",
     [Attr.stepLast]: "stepLast",
+    [Attr.slotRight]: "slotRight",
+    [Attr.slotLast]: "slotLast",
 };
 
 /** 取出的裸属性转成结构化题目视图。 */
@@ -195,6 +212,16 @@ async function hydrate(q: WenguQuestion): Promise<void> {
         }
         return acc;
     };
+    // slots 题（cloze）：slot-{k}-option-{j} / slot-{k}-answer 按空聚合
+    const slotAcc = new Map<number, { options: { index: number; md: string }[]; answers: string[] }>();
+    const slotOf = (k: number) => {
+        let acc = slotAcc.get(k);
+        if (!acc) {
+            acc = { options: [], answers: [] };
+            slotAcc.set(k, acc);
+        }
+        return acc;
+    };
     for (const b of blocks) {
         const part = partById.get(b.id);
         if (!part) continue;
@@ -217,6 +244,16 @@ async function hydrate(q: WenguQuestion): Promise<void> {
                 acc.answers.push(md);
             } else {
                 acc.options.push({ index: stepMatch[3] !== undefined ? Number(stepMatch[3]) : acc.options.length, md });
+            }
+            continue;
+        }
+        const slotMatch = /^slot-(\d+)-(option(?:-(\d+))?|answer)$/.exec(part);
+        if (slotMatch) {
+            const acc = slotOf(Number(slotMatch[1]));
+            if (slotMatch[2] === "answer") {
+                acc.answers.push(md);
+            } else {
+                acc.options.push({ index: slotMatch[3] !== undefined ? Number(slotMatch[3]) : acc.options.length, md });
             }
             continue;
         }
@@ -252,6 +289,24 @@ async function hydrate(q: WenguQuestion): Promise<void> {
                 }) satisfies WenguStep
         );
     if (steps.length > 0) q.steps = steps;
+
+    // 空组装：cloze 的 slot-{k}-* 子块；match 用题级 answer 的字母序列
+    // （候选池=optionMd），槽位数=字母数——两种题型统一成逐空视图
+    const slotLetters: WenguSlot[] = [...slotAcc.entries()]
+        .sort((x, y) => x[0] - y[0])
+        .map(([, acc]) => ({
+            optionMd: acc.options.sort((x, y) => x.index - y.index).flatMap((o) => splitOptionMd(o.md)),
+            answer: normalizeAnswerMd(acc.answers.join("\n")),
+        }));
+    if (slotLetters.length > 0) {
+        q.slots = slotLetters;
+    } else if (q.type === QuestionType.Match && q.answer && (q.optionMd?.length ?? 0) > 0) {
+        const letters = q.answer
+            .toUpperCase()
+            .split(/[^A-Z]+/)
+            .filter(Boolean);
+        if (letters.length > 0) q.slots = letters.map((l): WenguSlot => ({ optionMd: [], answer: l }));
+    }
 }
 
 interface ChildBlock {
@@ -352,6 +407,26 @@ export async function recordStepsResult(
         payload[Attr.stepLast] = letters.join("|");
     }
     await setBlockAttrs(q.id, payload);
+    return allOk;
+}
+
+/**
+ * slots 题整题记账（完形/新题型一整轮做完时）：整题 right=全空对
+ * （同 steps「全步对」口径），逐空运行态写 slot-right/slot-last。
+ */
+export async function recordSlotsResult(q: WenguQuestion, letters: string[], oks: boolean[]): Promise<boolean> {
+    const allOk = oks.length > 0 && oks.every(Boolean);
+    const attrs = await getBlockAttrs(q.id);
+    const attempts = (Number(attrs[Attr.attempts]) || 0) + 1;
+    const wrongCount = (Number(attrs[Attr.wrongCount]) || 0) + (allOk ? 0 : 1);
+    await setBlockAttrs(q.id, {
+        [Attr.attempts]: String(attempts),
+        [Attr.wrongCount]: String(wrongCount),
+        [Attr.lastAnswer]: letters.join("|"),
+        [Attr.right]: allOk ? "1" : "0",
+        [Attr.slotRight]: oks.map((ok) => (ok ? "1" : "0")).join(""),
+        [Attr.slotLast]: letters.join("|"),
+    });
     return allOk;
 }
 

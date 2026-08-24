@@ -30,9 +30,14 @@ export class ProtyleHost {
         const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle], [data-mprotyle]"));
         for (const node of nodes) {
             if (gen !== this.mountGen) return; // 重渲染已发生，放弃本轮
+            const blockId = this.nodeBlockId(node);
+            // 组内题一次一题：隐藏的题卡不挂载（MaterialFlow 切换显示后增量挂载）
+            if (node.closest(".wengu-card[hidden]")) continue;
+            // 组内题一次一题切换时增量挂载：已挂载的跳过（材料与当前题）
+            if (this.protyles.has(blockId)) continue;
             const fallback = this.nodeFallback(node, list, materials);
             if (fallback === undefined) continue;
-            await this.mountOne(node, this.nodeBlockId(node), fallback, gen);
+            await this.mountOne(node, blockId, fallback, gen);
         }
     }
 
@@ -46,9 +51,9 @@ export class ProtyleHost {
         return q ? this.fallbackHtml(q) : undefined;
     }
 
-    /** 占位所属块 id：材料面板取 data-mid，题卡取 data-qid。 */
+    /** 占位所属块 id：材料面板（材料组单元）取 data-mid，题卡取 data-qid。 */
     private nodeBlockId(node: HTMLElement): string {
-        const holder = node.closest<HTMLElement>(".wengu-material, .wengu-card");
+        const holder = node.closest<HTMLElement>(".wengu-material, .wengu-gunit, .wengu-card");
         return holder?.dataset.mid || holder?.dataset.qid || "";
     }
 

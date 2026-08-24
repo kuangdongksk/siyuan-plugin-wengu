@@ -33,6 +33,8 @@ export interface WenguSession {
     results: WenguSessionResult[];
     /** 各题思路（qid→文本，收卷时从题卡「思路」输入区快照；AI 判卷用）。 */
     thoughts?: Record<string, string>;
+    /** 各题线索标注（qid→选段文本数组，M5 定位能力训练；纯会话数据不写块）。 */
+    clues?: Record<string, string[]>;
 }
 
 /** 插件存储（saveData("history")）里的会话历史。 */

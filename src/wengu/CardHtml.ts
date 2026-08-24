@@ -1,14 +1,18 @@
 import { svgIcon } from "./FormHtml";
+import { renderCardHead, renderThoughtArea } from "./CardParts";
+import type { CardHtmlModel } from "./CardParts";
 import { mdFragmentHtml, renderMathIn } from "./ProtyleHost";
+import { renderSlotsCardHtml } from "./SlotHtml";
 import type { WenguQuestion } from "./types";
 import type { WenguStep } from "./types";
-import { AUTO_GRADE_TYPES, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "./types";
+import { AUTO_GRADE_TYPES, hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "./types";
 import type { WenguDoc } from "./types";
 import { esc, fmt, mmss } from "./ui";
 
 /**
  * 纯 HTML 构建层（design-review 拆分）：题卡/作答位/目录/头部。
  * 只做字符串拼接与谓词判断，不持有状态；QuizView 消费这些函数。
+ * 共享部件（卡头/思路区）在 CardParts；slots 卡渲染在 SlotHtml。
  */
 
 /** 该题是否用字母 chip 作答（单选/多选且转换出了选项子块）。 */
@@ -21,11 +25,6 @@ export function isObjective(q: WenguQuestion): boolean {
     return q.type !== undefined && AUTO_GRADE_TYPES.includes(q.type) && !!q.answer;
 }
 
-/** 题型 → i18n 键：single → typeSingle。 */
-export function typeKey(type: QuestionType): string {
-    return `type${type[0].toUpperCase()}${type.slice(1)}`;
-}
-
 /** 题号初始状态类：上次答对绿、答错红（持久化属性）。showPast=false
  *  （统一展示模式 / 设置关闭）时一律中性，不透历史对错。 */
 export function numState(q: WenguQuestion, showPast: boolean): string {
@@ -35,32 +34,14 @@ export function numState(q: WenguQuestion, showPast: boolean): string {
     return "";
 }
 
-/** 题卡渲染入参（展示开关由 QuizView 按设置/模式算好传入）。 */
-export interface CardHtmlModel {
-    t: (key: string) => string;
-    showAttempts: boolean;
-    showWrongBadge: boolean;
-}
-
-/** 「思路」折叠输入区（收卷时快照进会话 thoughts，AI 判卷点评用）。 */
-function renderThoughtArea(t: (k: string) => string): string {
-    return `<button class="wengu-thought-toggle" data-act="thought-toggle">${svgIcon("iconEdit")} ${esc(
-        t("thoughtToggle")
-    )}</button>
-      <div class="wengu-thought" data-thought-wrap hidden>
-        <textarea class="wengu-input" data-field="thought" rows="3" placeholder="${esc(
-            t("thoughtPlaceholder")
-        )}"></textarea>
-      </div>`;
-}
-
 /** 一张题卡：头部元信息 + Protyle 占位（题目内容）+ 作答位。 */
 export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
     if (hasSteps(q)) return renderStepsCardHtml(q, idx, m);
+    if (hasSlots(q)) return renderSlotsCardHtml(q, idx, m);
     const objective = isObjective(q);
     const { t } = m;
     return `<div class="wengu-card" data-qid="${esc(q.id)}" data-idx="${idx}">
-      ${renderCardHead(q, idx, m, objective)}
+      ${renderCardHead(q, idx, m, objective, m.t)}
       <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
       ${renderAnswerArea(q, m.t)}
       ${renderThoughtArea(m.t)}
@@ -80,42 +61,12 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
     </div>`;
 }
 
-/** 卡片头部：题号 + 题型徽标 + 知识点标题 + 难度/来源/次数（两种题卡共用）。 */
-function renderCardHead(q: WenguQuestion, idx: number, m: CardHtmlModel, objective: boolean): string {
-    const { t } = m;
-    const label = q.knowledge || q.chapter;
-    return `<div class="wengu-card-head">
-        <span class="wengu-card-num">${idx + 1}</span>
-        ${q.type ? `<span class="wengu-badge">${esc(t(typeKey(q.type)))}</span>` : ""}
-        ${label ? `<span class="wengu-card-title">${esc(label)}</span>` : ""}
-        ${!objective ? `<span class="wengu-badge">${esc(t("selfBadge"))}</span>` : ""}
-        ${
-            q.difficulty
-                ? `<span class="wengu-meta">${svgIcon("iconStar", "wengu-star").repeat(q.difficulty)}</span>`
-                : ""
-        }
-        ${q.source ? `<span class="wengu-meta">${esc(q.source)}</span>` : ""}
-        ${
-            q.attempts > 0 && m.showAttempts
-                ? `<span class="wengu-meta">${esc(fmt(t("attempts"), { n: String(q.attempts) }))}</span>`
-                : ""
-        }
-        ${
-            q.wrongCount > 0 && m.showWrongBadge
-                ? `<span class="wengu-meta wengu-wrong-count">${esc(
-                      fmt(t("wrongCount"), { n: String(q.wrongCount) })
-                  )}</span>`
-                : ""
-        }
-      </div>`;
-}
-
 /** 一张多步引导卡：头部 + Protyle 题干 + 逐步解锁作答区。
  *  步骤引导语/选项内容由 StepsFlow 用 Lute 填充——step-* 子块在
  *  Protyle 渲染里被 CSS 隐藏（防剧透），选项只在解锁后出现。 */
 export function renderStepsCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
     return `<div class="wengu-card" data-qid="${esc(q.id)}" data-idx="${idx}">
-      ${renderCardHead(q, idx, m, false)}
+      ${renderCardHead(q, idx, m, false, m.t)}
       <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
       <div class="wengu-steps" data-steps>${renderStepsInnerHtml(q, m.t)}</div>
       ${renderThoughtArea(m.t)}
@@ -195,10 +146,13 @@ export function renderAnswerArea(q: WenguQuestion, t: (k: string) => string): st
       </div>`;
     }
     if (isBriefLike(q)) {
-        // 作文给更高的输入区（词数/判分 rubric 是 E3；E0 先多行输入）
-        return `<textarea class="wengu-input" data-field="mine" rows="${
+        // 作文给更高的输入区 + 实时词数（E3；AnswerFlow 绑定 input 更新）
+        const area = `<textarea class="wengu-input" data-field="mine" rows="${
             q.type === QuestionType.Essay ? 10 : 4
         }" placeholder="${ph}"></textarea>`;
+        return q.type === QuestionType.Essay
+            ? `${area}<div class="wengu-wordcount" data-wordcount>0 words</div>`
+            : area;
     }
     return `<input class="wengu-input" data-field="mine" placeholder="${ph}" />`;
 }

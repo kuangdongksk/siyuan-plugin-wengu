@@ -74,8 +74,6 @@ export default class WenguPlugin extends Plugin {
     settings: WenguSettings = { showNums: true, showAttempts: true, showWrong: true };
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
     activeView: QuizView | undefined;
-    /** 单词进度存储单例（Dock 面板与页签共享同一缓存）。 */
-    private wordStore: WordStore | undefined;
 
     async onload() {
         WenguPlugin.instance = this;
@@ -170,7 +168,9 @@ export default class WenguPlugin extends Plugin {
                           )
                         : undefined,
                     // 目录底部设置图标按钮 → 插件设置弹窗
-                    plugin ? () => plugin.openSetting() : undefined
+                    plugin ? () => plugin.openSetting() : undefined,
+                    // 背单词存储（生词标记 → 复习队列，与背单词面板共享单例）
+                    plugin?.getWordStore()
                 );
                 (this as any).wenguView = view;
                 if (plugin) plugin.activeView = view;
@@ -188,17 +188,25 @@ export default class WenguPlugin extends Plugin {
         });
     }
 
-    /** 单词视图挂载（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。 */
-    private mountWordView(custom: { element?: Element }): void {
-        const el = custom.element as HTMLElement | undefined;
-        if (!el || !WenguPlugin.instance) return;
+    /** 单词进度存储单例（Dock 面板/兜底页签/刷题生词标记共用同一缓存）。 */
+    private wordStore: WordStore | undefined;
+
+    /** 取共享 WordStore（刷题页签的生词标记也写入同一份进度）。 */
+    getWordStore(): WordStore {
         if (!this.wordStore) {
             this.wordStore = new WordStore(
                 () => this.loadData("words"),
                 (p) => this.saveData("words", p)
             );
         }
-        const view = new WordView(el, this.i18n ?? {}, this.wordStore);
+        return this.wordStore;
+    }
+
+    /** 单词视图挂载（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。 */
+    private mountWordView(custom: { element?: Element }): void {
+        const el = custom.element as HTMLElement | undefined;
+        if (!el || !WenguPlugin.instance) return;
+        const view = new WordView(el, this.i18n ?? {}, this.getWordStore());
         (custom as unknown as { wenguWordView?: WordView }).wenguWordView = view;
         view.bind();
         void view.render();
