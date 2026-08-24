@@ -83,14 +83,13 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   「累积内容后整体 createDocWithMd 重建」（原位替换 = 删旧 +
   同路径同标题重建，见 ConvertService.replaceDocInPlace）。
 
-* **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
+- **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
   fetch + `window.siyuan.config.api.token` 鉴权（见 PdfImport.putAsset）。
-* 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
-references:[], model?}`，model=设置里模型 id；`event:content` 的
-
-    `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
-    调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
-instance"}`（20260823 真机验证）。
+- 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
+  references:[], model?}`，model=设置里模型 id；`event:content` 的
+  `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
+  调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
+  instance"}`（20260823 真机验证）。
 
 - 旧直答端点 `/api/ai/chatGPT`（`{msg}` → `{code,data:回复全文}`）
   **支持并发**（真机验证），模型跟随设置默认、不可按次指定；插件要
@@ -136,3 +135,7 @@ instance"}`（20260823 真机验证）。
 - **CRLF 幻影脏**：pull 机器 B（Mac，LF）推的提交后，`git status` 报
   几十个 M 但 `git diff` 为空（换行符归一化假阳性，且会挡住 pull）——
   确认 `git diff --name-only` 无真实改动后 `git checkout -- .` 清掉再拉。
+  变体（20260824）：**`prettier --check .` 在 CRLF 工作副本上大面积报
+  warn、`prettier --write .` 改出几十个 M，其实全是行尾幻影**——
+  `git add -A` 归一后 diff 消失、nothing to commit。判断真假用
+  `git diff --ignore-all-space --numstat`（全 0 = 纯行尾噪音）。
