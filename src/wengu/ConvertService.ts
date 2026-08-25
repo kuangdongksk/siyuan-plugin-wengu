@@ -1,5 +1,6 @@
 import { fetchSyncPost } from "siyuan";
 import { Attr } from "./attrs";
+import { shuffleChoiceOptions } from "./OptionShuffle";
 
 /**
  * AI 转换服务：把一篇笔记文档交给思源内置智能体（AgentClient，
@@ -202,23 +203,25 @@ function extractQuestions(reply: string): string[] {
     for (const m of body.matchAll(re)) {
         out.push(m[0].trim());
     }
-    return out.map((q) =>
-        q
-            .replace(/custom-plugin-wengu-q="\d+"/, 'custom-plugin-wengu-q="1"')
-            .replace(/custom-plugin-wengu-part="([a-z0-9-]+)\}/g, 'custom-plugin-wengu-part="$1"}')
-            .replace(/^[ \t]*题干\s*[A-Za-z0-9]?[ \t]*[：:][ \t]*(?:\*\*[ \t]*)?/gm, "")
-            .replace(/^[ \t]*(?:>[ \t]*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm, (line) =>
-                /custom-plugin-wengu-/.test(line) ? line : ""
-            )
-            .split("\n")
-            .filter((line, i) => !/^[ \t]*(?:>[ \t]*)?\{\{\{/.test(line) || i === 0)
-            .filter((line, i, ls) => {
-                if (!/^[ \t]*(?:>[ \t]*)?\}\}\}/.test(line)) return true;
-                // 容器自身的收尾 }}}（其后紧跟容器 IAL）保留，嵌套的剥掉
-                return /^\s*\{:[^}]*custom-plugin-wengu-(?:q|material)=/.test(ls[i + 1] ?? "");
-            })
-            .join("\n")
-    );
+    return out
+        .map((q) =>
+            q
+                .replace(/custom-plugin-wengu-q="\d+"/, 'custom-plugin-wengu-q="1"')
+                .replace(/custom-plugin-wengu-part="([a-z0-9-]+)\}/g, 'custom-plugin-wengu-part="$1"}')
+                .replace(/^[ \t]*题干\s*[A-Za-z0-9]?[ \t]*[：:][ \t]*(?:\*\*[ \t]*)?/gm, "")
+                .replace(/^[ \t]*(?:>[ \t]*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm, (line) =>
+                    /custom-plugin-wengu-/.test(line) ? line : ""
+                )
+                .split("\n")
+                .filter((line, i) => !/^[ \t]*(?:>[ \t]*)?\{\{\{/.test(line) || i === 0)
+                .filter((line, i, ls) => {
+                    if (!/^[ \t]*(?:>[ \t]*)?\}\}\}/.test(line)) return true;
+                    // 容器自身的收尾 }}}（其后紧跟容器 IAL）保留，嵌套的剥掉
+                    return /^\s*\{:[^}]*custom-plugin-wengu-(?:q|material)=/.test(ls[i + 1] ?? "");
+                })
+                .join("\n")
+        )
+        .map(shuffleChoiceOptions);
 }
 
 /** 该块 kramdown 是否是材料超级块（不占题目数）。 */
