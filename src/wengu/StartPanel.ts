@@ -121,7 +121,7 @@ export function renderStartPanel(m: StartPanelModel): string {
     return `<div class="wengu-start">
   ${head}
   ${settings}
-  <div><button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button></div>
+  <div class="wengu-start-actions"><button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button></div>
 </div>`;
 }
 

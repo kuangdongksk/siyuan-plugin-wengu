@@ -518,3 +518,29 @@
   color: var(--b3-theme-primary);
   cursor: pointer;
 }
+
+/* 选择题选项序号与作答字母对齐（1234 → ABCD）：思源有序列表的序号
+   是 .protyle-action 里的 marker 文本，CSS 改不了文本——用计数器生成
+   字母绝对居中覆盖，原数字透明化（盒子尺寸/行高不动，垂直对齐不塌）。
+   只动有序列表（data-subtype=o）；无序圆点、材料面板不受影响。 */
+.wengu-card .protyle-wysiwyg .list {
+  counter-reset: wengu-opt;
+}
+
+.wengu-card .protyle-wysiwyg .li[data-subtype="o"] {
+  counter-increment: wengu-opt;
+}
+
+.wengu-card .protyle-wysiwyg .li[data-subtype="o"] > .protyle-action {
+  color: transparent;
+}
+
+.wengu-card .protyle-wysiwyg .li[data-subtype="o"] > .protyle-action::before {
+  content: counter(wengu-opt, upper-latin) ".";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--b3-theme-on-surface);
+}

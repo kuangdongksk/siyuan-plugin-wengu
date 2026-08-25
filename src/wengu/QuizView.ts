@@ -477,6 +477,8 @@ export class QuizView implements AnswerHost {
         this.pendingDoc = { id, title };
         this.docId = id;
         this.persistPrefs();
+        this.activeQIdx = 0;
+        this.finished = undefined; // 渐进呈现接管页签：旧轮次报告不让残留
         if (!this.docs.some((d) => d.id === id)) {
             this.docs.unshift({ id, title, hPath: "", total: count, attempted: 0, rightCount: 0, totalTime: 0 });
         }

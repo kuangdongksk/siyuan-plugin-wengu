@@ -23,7 +23,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     const dialog = new Dialog({
         title: t("collectionsTitle"),
         width: "560px",
-        content: `<div class="b3-dialog__content wengu-col-dialog">
+        content: `<div class="b3-dialog__content wengu-dialog wengu-col-dialog">
       <div class="wengu-muted">${esc(t("collectHint"))}</div>
       <div class="wengu-col-list" data-act="col-knowledge"><div class="wengu-muted">…</div></div>
       <div class="wengu-col-new">

@@ -15,8 +15,17 @@
   margin-bottom: 4px;
 }
 
+/* 开始刷题主操作居中 */
+.wengu-start-actions {
+  display: flex;
+  justify-content: center;
+}
+
+/* 单行头部（原 head+subhead 合并）：目录开关 + 文档信息 + 计时器；
+   wrap 让窄窗口下文档信息折行而非溢出 */
 .wengu-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
@@ -69,6 +78,63 @@
   fill: currentColor;
   margin-right: 4px;
   vertical-align: -2px;
+}
+
+/* 知识点文档勾选器：搜索框 + 可滚动勾选清单 */
+.wengu-knowpick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wengu-knowpick-search {
+  min-width: 0;
+  font-size: 13px;
+}
+
+.wengu-knowpick-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.wengu-knowpick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: var(--b3-border-radius);
+  cursor: pointer;
+}
+
+.wengu-knowpick-row:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-knowpick-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* 转换弹窗：次要选项折叠（原生 details），控制常驻高度 */
+.wengu-convert-more {
+  margin: 4px 0;
+}
+
+.wengu-convert-more summary {
+  padding: 4px 0;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wengu-convert-more[open] summary {
+  margin-bottom: 4px;
 }
 
 /* 转换弹窗：分批生成的渐进预览（题号 + 题型 + 题干片段，随批追加） */

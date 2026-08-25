@@ -51,8 +51,12 @@ export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel):
       <div class="wengu-ai-comment" data-ai-comment hidden></div>
       <div class="wengu-self" data-self hidden>
         <span>${esc(t("selfAssess"))}</span>
-        <button class="wengu-btn wengu-btn-success" data-act="self-right">${esc(t("selfRight"))}</button>
-        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${esc(t("selfWrong"))}</button>
+        <button class="wengu-btn wengu-btn-success" data-act="self-right">${svgIcon("iconCheck")} ${esc(
+            t("selfRight")
+        )}</button>
+        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${svgIcon("iconClose")} ${esc(
+            t("selfWrong")
+        )}</button>
       </div>
     </div>`;
 }
@@ -251,19 +255,23 @@ export function renderSideHtml(m: SideHtmlModel): string {
                     )}</button>`
                   : ""
           }
-          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">«</button>
+          <button class="wengu-side-iconbtn" data-act="side-fold" title="${esc(t("sideFold"))}">${svgIcon(
+              "iconLeft"
+          )}</button>
         </span>
       </div>
       <div class="wengu-side-tools">
-        <input class="wengu-side-search" data-act="side-search" type="search" spellcheck="false"
+        <input class="b3-text-field wengu-side-search" data-act="side-search" type="search" spellcheck="false"
           placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
-        <button class="wengu-side-iconbtn" data-act="stats" title="${esc(t("statsTitle"))}">${svgIcon("iconInfo")}</button>
-        <button class="b3-button b3-button--outline wengu-side-convert" data-act="collections" title="${esc(
-            t("collectionsBtn")
-        )}">${svgIcon("iconList")}</button>
-        <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${esc(
-            t("convertBtn")
-        )}">${svgIcon("iconSparkles")} <span data-convert-label>${esc(t("convertBtn"))}</span></button>
+        <div class="wengu-side-actions">
+          <button class="wengu-side-iconbtn" data-act="stats" title="${esc(t("statsTitle"))}">${svgIcon("iconInfo")}</button>
+          <button class="wengu-side-iconbtn" data-act="collections" title="${esc(
+              t("collectionsBtn")
+          )}">${svgIcon("iconList")}</button>
+          <button class="b3-button b3-button--outline wengu-side-convert" data-act="convert" title="${esc(
+              t("convertBtn")
+          )}">${svgIcon("iconSparkles")} <span data-convert-label>${esc(t("convertBtn"))}</span></button>
+        </div>
       </div>
       <div class="wengu-side-body" data-side-body>${renderSideBodyHtml(
           m.docs,
@@ -276,12 +284,14 @@ export function renderSideHtml(m: SideHtmlModel): string {
     </div>`;
 }
 
-/** 头部：目录开关（收起时）+ 用时。 */
-export function renderHeadHtml(t: (k: string) => string, sideCollapsed: boolean): string {
+/** 头部：目录开关（收起时）+ 文档信息/轮次成绩 + 用时（单行合并）。 */
+export function renderHeadHtml(t: (key: string) => string, sideCollapsed: boolean, subhead = ""): string {
     const toggle = sideCollapsed
-        ? `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">»</button>`
+        ? `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">${svgIcon(
+              "iconRight"
+          )}</button>`
         : "";
-    return `${toggle}
+    return `${toggle}${subhead}
       <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${svgIcon(
           "iconClock",
           "wengu-timer-icon"
@@ -375,7 +385,7 @@ export function renderMainShell(m: MainShellModel): string {
             collections: m.collections,
             activeCollection: m.activeCollection,
         })}<div class="wengu-main">
-    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed)}</div>
+    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.subheadHtml)}</div>
     ${body}
 </div>`;
     if (m.loading) {
@@ -386,12 +396,10 @@ export function renderMainShell(m: MainShellModel): string {
     }
     if (m.hasDoc && m.listCount > 0 && !m.started && !m.previewing) {
         return main(`
-    <div class="wengu-subhead">${m.subheadHtml}</div>
     <div class="wengu-status" data-status hidden></div>
     ${m.startPanelHtml ?? ""}`);
     }
     return main(`
-    <div class="wengu-subhead">${m.subheadHtml}</div>
     <div class="wengu-status" data-status hidden></div>
     <div data-timeup-slot></div>
     ${

@@ -82,6 +82,8 @@ export interface ConvertViewAccess {
     /** 渐进预览宿主（showBatchPreview 用）。 */
     progressiveOf(): ProgressivePreview;
     isStarted(): boolean;
+    /** 收卷（渐进呈现接管页签前调用）。 */
+    stopRoundNow(): void;
     currentDocId(): string;
     /** 渐进文档切换（pendingDoc 补位 + 选中）。 */
     switchPreviewDoc(id: string, title: string, count: number): void;
@@ -122,6 +124,7 @@ function previewHostOf(v: ConvertViewAccess): {
     t: (key: string) => string;
     el: HTMLElement;
     isStarted(): boolean;
+    stopRound(): void;
     currentDocId(): string;
     switchDoc(id: string, title: string, count: number): void;
     applyList(list: WenguQuestion[], materials?: WenguMaterial[]): void;
@@ -130,6 +133,7 @@ function previewHostOf(v: ConvertViewAccess): {
         t: v.t,
         el: v.container(),
         isStarted: () => v.isStarted(),
+        stopRound: () => v.stopRoundNow(),
         currentDocId: () => v.currentDocId(),
         switchDoc: (id, title, count) => v.switchPreviewDoc(id, title, count),
         applyList: (list, materials) => v.applyQuizList(list, materials),

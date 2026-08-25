@@ -190,7 +190,8 @@ export function parseVerdict(reply: string): { can: boolean; reason: string } {
  * （真机实测 AI 的高频偏差）：
  * - q 属性自增（q="2"、q="3"…）→ 统一改回契约的 q="1"（SQL 按 '1' 检测）；
  * - 子块 part 属性漏右引号（part="solution}）→ 补上；
- * - 题干带「题干A：」前缀标签（及紧随的悬空 `**`）→ 入库前剥掉。
+ * - 题干带「题干A：」前缀标签（及紧随的悬空 `**`）→ 入库前剥掉；
+ * - AI 从原文 kramdown 抄来的噪声行（块 id IAL、嵌套超级块定界）→ 剥掉。
  * 材料块与题目块按出现顺序混排（group="prev" 依赖「材料在前、题目紧随」）。
  */
 function extractQuestions(reply: string): string[] {
@@ -206,6 +207,17 @@ function extractQuestions(reply: string): string[] {
             .replace(/custom-plugin-wengu-q="\d+"/, 'custom-plugin-wengu-q="1"')
             .replace(/custom-plugin-wengu-part="([a-z0-9-]+)\}/g, 'custom-plugin-wengu-part="$1"}')
             .replace(/^[ \t]*题干\s*[A-Za-z0-9]?[ \t]*[：:][ \t]*(?:\*\*[ \t]*)?/gm, "")
+            .replace(/^[ \t]*(?:>[ \t]*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm, (line) =>
+                /custom-plugin-wengu-/.test(line) ? line : ""
+            )
+            .split("\n")
+            .filter((line, i) => !/^[ \t]*(?:>[ \t]*)?\{\{\{/.test(line) || i === 0)
+            .filter((line, i, ls) => {
+                if (!/^[ \t]*(?:>[ \t]*)?\}\}\}/.test(line)) return true;
+                // 容器自身的收尾 }}}（其后紧跟容器 IAL）保留，嵌套的剥掉
+                return /^\s*\{:[^}]*custom-plugin-wengu-(?:q|material)=/.test(ls[i + 1] ?? "");
+            })
+            .join("\n")
     );
 }
 

@@ -177,7 +177,12 @@ export async function convertDocBatched(
         };
     }
     const kd = await fetchSyncPost("/api/block/getBlockKramdown", { id: docId });
-    const kramdown = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "");
+    // 剥原文的块 id IAL 行（含引用前缀变体）：AI 出题用不到块 id，
+    // 留着会被原样抄进解析/题干落成裸文本（真机踩坑）
+    const kramdown = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
+        /^\s*(?:>\s*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm,
+        ""
+    );
     if (!kramdown.trim()) {
         return {
             status: "failed",

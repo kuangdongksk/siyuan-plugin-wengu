@@ -1,12 +1,12 @@
 import { Dialog } from "siyuan";
-import { modelOptionsHtml } from "./AgentClient";
 import { convertDocBatched } from "./ConvertBatch";
 import type { BatchedResult, ConvertProgressRecord } from "./ConvertBatch";
+import { convertDialogHtml } from "./ConvertDialogHtml";
 import { appendPreviewStems } from "./ConvertDetect";
 import { extractBlockId, getDocInfo, removeDoc, toConvertResult, writeExerciseDoc } from "./ConvertService";
-import { formGroup, formInput, formOption, formRow, formSelect, formSwitch, svgIcon } from "./FormHtml";
 import { bindPdfImportRow } from "./PdfImportRow";
 import { waitForDocInList } from "./QuestionService";
+import { openKnowPicker, parseKnowIds } from "./KnowPicker";
 import { esc, fmt } from "./ui";
 
 /**
@@ -60,108 +60,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const dialog = new Dialog({
         title: t("convertBtn"),
         width: "560px",
-        content: `<div class="b3-dialog__content wengu-convert-dialog">
-      <div class="wengu-muted">${esc(t("convertDialogHint"))}</div>
-
-      ${formGroup(
-          t("convertBtn"),
-          formRow(
-              t("modelLabel"),
-              t("setModelHint"),
-              formSelect("dlg-model", modelOptionsHtml(deps.initialModelId), "data-act")
-          ) +
-              formRow(
-                  t("fillToChoice"),
-                  t("fillToChoiceHint"),
-                  formSwitch("dlg-fill", deps.initialFillToChoice, "data-act")
-              ) +
-              formRow(
-                  t("bigToSteps"),
-                  t("bigToStepsHint"),
-                  formSwitch("dlg-steps", deps.initialBigToSteps, "data-act")
-              ) +
-              formRow(
-                  t("convertParallelLabel"),
-                  t("convertParallelHint"),
-                  formSelect(
-                      "dlg-parallel",
-                      formOption("1", t("convertParallel1"), deps.initialParallel <= 1) +
-                          formOption("2", fmt(t("convertParallelN"), { n: "2" }), deps.initialParallel === 2) +
-                          formOption("3", fmt(t("convertParallelN"), { n: "3" }), deps.initialParallel === 3) +
-                          formOption("4", fmt(t("convertParallelN"), { n: "4" }), deps.initialParallel === 4),
-                      "data-act"
-                  )
-              ) +
-              formRow(
-                  t("docIdLabel"),
-                  t("docIdPlaceholder"),
-                  formInput(
-                      "dlg-docid",
-                      deps.activeDocId,
-                      `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
-                      "data-act"
-                  )
-              ) +
-              formRow(
-                  t("pdfImportLabel"),
-                  t("pdfImportHint"),
-                  `<button class="b3-button b3-button--outline" data-act="dlg-pdf">${svgIcon("iconUpload")} ${esc(
-                      t("pdfImportBtn")
-                  )}</button>` + '<input type="file" accept="application/pdf" data-act="dlg-pdffile" hidden>'
-              ) +
-              formRow(
-                  t("convertModeLabel"),
-                  t("convertModeHint"),
-                  formSelect(
-                      "dlg-wmode",
-                      formOption("inplace", t("convertModeInplace"), true) +
-                          formOption("newdoc", t("convertModeNewdoc"), false),
-                      "data-act"
-                  )
-              ) +
-              formRow(
-                  t("convertTarget"),
-                  t("convertTargetHint"),
-                  formSelect(
-                      "dlg-target",
-                      formOption("same", t("convertTargetSame"), deps.initialTargetMode !== "custom") +
-                          formOption("custom", t("convertTargetCustom"), deps.initialTargetMode === "custom"),
-                      "data-act"
-                  )
-              ) +
-              formRow(
-                  t("convertTargetDoc"),
-                  t("convertTargetDocHint"),
-                  formInput(
-                      "dlg-targetid",
-                      deps.initialTargetId,
-                      `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
-                      "data-act"
-                  )
-              ) +
-              formRow(
-                  t("convertKnowLabel"),
-                  t("convertKnowHint"),
-                  formInput(
-                      "dlg-know",
-                      deps.initialKnowRoots,
-                      `spellcheck="false" placeholder="${esc(t("convertKnowPlaceholder"))}"`,
-                      "data-act"
-                  )
-              )
-      )}
-
-      <div class="wengu-status" data-act="dlg-status" hidden></div>
-      <div class="wengu-convert-preview" data-act="dlg-preview" hidden></div>
-      <div data-act="dlg-resume-row" hidden>
-        <button class="b3-button b3-button--text" data-act="dlg-resume">${esc(t("convertResumeBtn"))}</button>
-      </div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="dlg-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="dlg-stop" hidden>${esc(t("convertStop"))}</button>
-      <button class="b3-button b3-button--outline" data-act="dlg-ok">${esc(t("convertStart"))}</button>
-    </div>`,
+        content: convertDialogHtml(deps),
     });
     const root = dialog.element;
     const input = root.querySelector<HTMLInputElement>("[data-act='dlg-docid']");
@@ -174,6 +73,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const targetSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-target']");
     const targetInput = root.querySelector<HTMLInputElement>("[data-act='dlg-targetid']");
     const knowInput = root.querySelector<HTMLInputElement>("[data-act='dlg-know']");
+    const knowPickBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-knowpick']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
     const cancelBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-cancel']");
     const stopBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-stop']");
@@ -196,7 +96,19 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (stopBtn) stopBtn.hidden = !running;
         if (cancelBtn) cancelBtn.disabled = running;
         if (resumeRow) resumeRow.hidden = running || resumeRow.dataset.has !== "1";
-        [input, modelSel, fillInput, stepsInput, parallelSel, wmodeSel, pdfBtn, knowInput].forEach((el) => {
+        [
+            input,
+            modelSel,
+            fillInput,
+            stepsInput,
+            parallelSel,
+            wmodeSel,
+            targetSel,
+            targetInput,
+            pdfBtn,
+            knowInput,
+            knowPickBtn,
+        ].forEach((el) => {
             if (el) el.disabled = running;
         });
     };
@@ -227,6 +139,17 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     };
     input?.addEventListener("input", syncResumeHint);
     input?.addEventListener("focus", syncResumeHint);
+
+    // 知识点文档勾选器：回填 id 列表（勾选器内搜索/翻看工作区文档）
+    root.querySelector<HTMLButtonElement>("[data-act='dlg-knowpick']")?.addEventListener("click", () => {
+        openKnowPicker({
+            t,
+            current: parseKnowIds(knowInput?.value ?? ""),
+            onConfirm: (ids) => {
+                if (knowInput) knowInput.value = ids.join(" ");
+            },
+        });
+    });
 
     /** 转换收尾：等索引可见 → 关弹窗 → 通知宿主。 */
     const finish = async (r: BatchedResult) => {

@@ -33,7 +33,7 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
     const dialog = new Dialog({
         title: t("drillTitle"),
         width: "560px",
-        content: `<div class="b3-dialog__content wengu-col-dialog">
+        content: `<div class="b3-dialog__content wengu-dialog wengu-col-dialog">
       <div class="wengu-muted">${esc(t("drillHint"))}</div>
       <div class="wengu-col-list" data-act="drill-rows"><div class="wengu-muted">…</div></div>
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">

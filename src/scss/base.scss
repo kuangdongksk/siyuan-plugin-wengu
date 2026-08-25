@@ -66,7 +66,7 @@
   color: var(--b3-theme-on-background);
 }
 
-/* 顶部工具区：搜索 + AI 转习题（创建类入口放顶部） */
+/* 顶部工具区：搜索占一行；操作行 = 图标钮（统计/专题）+ AI 转习题弹性填充 */
 .wengu-side-tools {
   flex: none;
   display: flex;
@@ -83,9 +83,25 @@
   font-size: 13px;
 }
 
-.wengu-side-convert {
+/* stretch 让图标钮高度自动对齐 b3-button，跨主题不掉队 */
+.wengu-side-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.wengu-side-actions .wengu-side-iconbtn {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  width: 100%;
+  padding: 0 7px;
+}
+
+.wengu-side-convert {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 8px;
 }
 
 .wengu-side-empty {
@@ -144,11 +160,10 @@
   overflow-y: auto;
 }
 
-.wengu-subhead {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+/* 思源弹窗容器无 max-height，配置行多时弹窗撑破视口；内容区封顶后
+   b3-dialog__content 自带的 overflow:auto 才能生效（action 区在 content 外常驻底部） */
+.wengu-dialog {
+  max-height: calc(100vh - 200px);
 }
 
 .wengu-convert-dialog .wengu-status {

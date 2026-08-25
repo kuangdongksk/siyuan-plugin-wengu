@@ -42,7 +42,7 @@ export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => st
     const dialog = new Dialog({
         title: t("relatedTitle"),
         width: "560px",
-        content: `<div class="b3-dialog__content">
+        content: `<div class="b3-dialog__content wengu-dialog">
       <div class="wengu-muted">${svgIcon("iconSearch")} ${esc(t("relatedHint"))}</div>
       <div class="wengu-col-list" style="margin-top:8px">${items}</div>
     </div>

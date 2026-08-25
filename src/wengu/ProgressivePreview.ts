@@ -56,8 +56,9 @@ export class ProgressivePreview {
             apply(list, materials);
             return;
         }
-        // 新文档 id 刚建，索引未可见：1s 间隔重试（上限 10s，超时等下一批）
-        if (attempt < 10) {
+        // 新文档 id 刚建，索引未可见：1s 间隔重试（上限 30s——文档随批
+        // 长大、重建后重索引更慢；超时等下一批补上）
+        if (attempt < 30) {
             window.setTimeout((): void => void this.poll(docId, seq, apply, attempt + 1), 1000);
         }
     }
@@ -67,8 +68,10 @@ export class ProgressivePreview {
 export interface PreviewHost {
     t(key: string): string;
     el: HTMLElement;
-    /** 本轮刷题是否进行中（进行中不打扰）。 */
+    /** 本轮刷题是否进行中（进行中先收卷再切预览）。 */
     isStarted(): boolean;
+    /** 收卷（渐进呈现要接管页签；已答的逐题落库不受影响）。 */
+    stopRound(): void;
     currentDocId(): string;
     /** 切到渐进文档（持久化 + 目录补位）。 */
     switchDoc(id: string, title: string, count: number): void;
@@ -86,7 +89,8 @@ export function showBatchPreview(
     batch: number,
     total: number
 ): void {
-    if (host.isStarted()) return;
+    // 做着题时开始转换：收卷接管页签（用户点转换即以转换为当前焦点）
+    if (host.isStarted()) host.stopRound();
     if (host.currentDocId() !== docId) host.switchDoc(docId, title, count);
     const status = () =>
         showStatus(

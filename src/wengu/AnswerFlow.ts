@@ -55,7 +55,7 @@ export function bindCardEvents(host: AnswerHost, card: HTMLElement, q: WenguQues
     }
     // 作文：实时词数（E3）
     const mine = card.querySelector<HTMLInputElement | HTMLTextAreaElement>("[data-field='mine']");
-    const wc = card.querySelector<HTMLElement>("[data-wordcount']");
+    const wc = card.querySelector<HTMLElement>("[data-wordcount]");
     if (mine && wc) {
         mine.addEventListener("input", () => {
             const words = mine.value.trim() ? mine.value.trim().split(/\s+/).length : 0;

@@ -58,7 +58,7 @@ export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
     const dialog = new Dialog({
         title: t("regenTitle"),
         width: "560px",
-        content: `<div class="b3-dialog__content">
+        content: `<div class="b3-dialog__content wengu-dialog">
       <div class="wengu-muted">${esc(t("regenHint"))}</div>
       ${formGroup(
           t("regenTitle"),
