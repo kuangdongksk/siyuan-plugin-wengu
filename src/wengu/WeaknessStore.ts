@@ -1,3 +1,4 @@
+import { parseKpRefs } from "./BankParse";
 import type { WenguSession } from "./HistoryStore";
 import { baseQid } from "./types";
 import type { WenguQuestion } from "./types";
@@ -64,10 +65,7 @@ export interface WeakTopRow {
 
 /** 题目的聚合键列表（知识点引用优先，多个引用全计入）。 */
 export function weakKeys(q: WenguQuestion): { key: string; title: string }[] {
-    const out: { key: string; title: string }[] = [];
-    for (const m of (q.solutionMd ?? "").matchAll(/\(\((\d{14}-[a-z0-9]+)\s+"([^"]{1,80})"\)\)/g)) {
-        out.push({ key: `kp:${m[1]}`, title: m[2] });
-    }
+    const out = parseKpRefs(q.solutionMd ?? "").map((k) => ({ key: `kp:${k.id}`, title: k.title }));
     if (out.length === 0 && q.knowledge) out.push({ key: `kn:${q.knowledge}`, title: q.knowledge });
     if (out.length === 0 && q.chapter) out.push({ key: `ch:${q.chapter}`, title: q.chapter });
     const seen = new Set<string>();

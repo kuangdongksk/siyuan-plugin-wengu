@@ -137,14 +137,20 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
         );
     if (steps.length > 0) q.steps = steps;
 
-    const seen = new Set<string>();
-    for (const m of solution.matchAll(/\(\((\d{14}-[a-z0-9]+)\s+"([^"]{1,80})"\)\)/g)) {
-        if (!seen.has(m[1])) {
-            seen.add(m[1]);
-            q.kpRefs.push({ id: m[1], title: m[2] });
-        }
-    }
+    q.kpRefs.push(...parseKpRefs(solution));
     return q;
+}
+
+/** 从解析文本里抽知识点块引用 ((id "标题"))（按 id 去重；题库解析与薄弱画像共用）。 */
+export function parseKpRefs(text: string): { id: string; title: string }[] {
+    const out: { id: string; title: string }[] = [];
+    const seen = new Set<string>();
+    for (const m of text.matchAll(/\(\((\d{14}-[a-z0-9]+)\s+"([^"]{1,80})"\)\)/g)) {
+        if (seen.has(m[1])) continue;
+        seen.add(m[1]);
+        out.push({ id: m[1], title: m[2] });
+    }
+    return out;
 }
 
 /** 内容指纹：剥掉块 id/updated 属性后哈希（跨卷同题去重用）。 */

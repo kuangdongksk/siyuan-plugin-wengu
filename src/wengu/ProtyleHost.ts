@@ -59,8 +59,9 @@ export class ProtyleHost {
 
     /** 题库（专题）模式的静态挂载：Lute 渲染题干/选项 + 解析容器
      *  （作答前由 CSS 随 wengu-graded 显隐，防剧透与文档模式同机制），
-     *  块引用静态渲染为可点击跳转。不碰内核，无串行约束。 */
-    mountStatic(root: HTMLElement, list: WenguQuestion[]): void {
+     *  块引用静态渲染为可点击跳转。材料面板按来源文档并集静态渲染。
+     *  不碰内核，无串行约束。 */
+    mountStatic(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): void {
         for (const node of Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle]"))) {
             const card = node.closest<HTMLElement>(".wengu-card");
             const q = list.find((x) => x.id === card?.dataset.qid);
@@ -69,6 +70,12 @@ export class ProtyleHost {
             node.innerHTML =
                 this.fallbackHtml(q) +
                 (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
+            renderMath(node);
+        }
+        for (const node of Array.from(root.querySelectorAll<HTMLElement>("[data-mprotyle]"))) {
+            const mat = materials.find((x) => x.id === this.nodeBlockId(node));
+            if (!mat?.bodyMd) continue;
+            node.innerHTML = safeLute(mat.bodyMd);
             renderMath(node);
         }
     }

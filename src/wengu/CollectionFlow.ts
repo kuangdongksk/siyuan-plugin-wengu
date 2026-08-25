@@ -1,7 +1,10 @@
 import { applySideFilter } from "./CardHtml";
 import { openCollectionDialog } from "./CollectionDialog";
+import { GROUP_PREV } from "./attrs";
+import type { HistoryStore, WenguSession } from "./HistoryStore";
+import { listMaterials, resolveGroupPlaceholders } from "./MaterialService";
 import type { CollectionRow, QuestionBank } from "./QuestionBank";
-import type { WenguDoc, WenguQuestion } from "./types";
+import type { WenguDoc, WenguMaterial, WenguQuestion } from "./types";
 
 /**
  * 专题编排（从 QuizView 拆出）：持有当前选中的专题 id 与侧栏清单，
@@ -16,6 +19,8 @@ export interface CollectionViewAccess {
     docId(): string;
     /** 侧栏搜索过滤词（清单局部刷新用）。 */
     sideFilter(): string;
+    /** AI 模型 id（收集并补题用）。 */
+    modelId(): string;
     /** 模式切换收尾（结算旧上下文、置空文档选中并重载，视图实现）。 */
     reloadFromCollection(): void;
 }
@@ -54,6 +59,13 @@ export class CollectionFlow {
         this.collectionId = "";
     }
 
+    /** 从 prefs 恢复专题选中（不触发重载；失效 id 静默忽略回文档模式）。 */
+    async restore(id: string): Promise<void> {
+        const bank = this.v.bank();
+        const rows = bank ? await bank.collectionsView() : [];
+        if (rows.some((c) => c.id === id)) this.collectionId = id;
+    }
+
     /** 拉侧栏清单（load 尾部与迁移完成后调用）。 */
     async refresh(): Promise<void> {
         const bank = this.v.bank();
@@ -80,17 +92,64 @@ export class CollectionFlow {
         );
     }
 
-    /** 打开专题管理（按知识点收集/删除/切换）。 */
+    /** 打开专题管理（按知识点收集/补题/删除/切换）。 */
     openDialog(): void {
         const bank = this.v.bank();
         if (!bank) return;
         openCollectionDialog({
             t: this.v.t,
             bank,
+            modelId: () => this.v.modelId(),
+            docTitle: (docId) => this.v.docs().find((d) => d.id === docId)?.title ?? "",
             onChanged: () => {
                 void this.refresh().then(() => this.refreshSide());
+            },
+            onEdited: (id) => {
+                void this.refresh().then(() => {
+                    this.refreshSide();
+                    if (this.collectionId === id) {
+                        // 活跃专题被编辑（移题/删除）：删没了回文档模式，否则重载题目集
+                        if (!this.rows.some((c) => c.id === id)) this.reset();
+                        this.v.reloadFromCollection();
+                    }
+                });
             },
             onSelect: (id) => this.switchTo(id),
         });
     }
+}
+
+/** col 模式的会话域 id（history 里与文档 id 同场存放，前缀天然隔离）。 */
+export function colSessionId(colId: string): string {
+    return `col:${colId}`;
+}
+
+/** col 模式装载上下文：专题轮次（col:<id> 归档）+ 来源文档的材料并集。
+ *  group="prev" 占位按来源文档解析回写（同 QuizLoader 文档模式手法），
+ *  请求串行（fetchSyncPost 并发互吞，真机踩坑）。 */
+export async function colLoadContext(
+    history: HistoryStore | undefined,
+    bank: QuestionBank | undefined,
+    colId: string,
+    questions: WenguQuestion[]
+): Promise<{ rounds: WenguSession[]; materials: WenguMaterial[] }> {
+    const rounds = history ? await history.docSessions(colSessionId(colId)) : [];
+    const materials: WenguMaterial[] = [];
+    if (!bank) return { rounds, materials };
+    const pending = questions.filter((q) => q.group === GROUP_PREV);
+    for (const docId of await bank.collectionSourceDocs(colId)) {
+        try {
+            if (pending.length > 0) {
+                const patches = await resolveGroupPlaceholders(docId);
+                for (const q of pending) {
+                    const mid = patches.get(q.id);
+                    if (mid) q.group = mid;
+                }
+            }
+            materials.push(...(await listMaterials(docId)));
+        } catch (_) {
+            // 单文档失败按缺材料降级（该卷题按独立题渲染）
+        }
+    }
+    return { rounds, materials };
 }
