@@ -1,9 +1,11 @@
 /* 温故刷题页签样式：按模块拆分（每文件 <500 行）。 */
 @use "scss/base";
 @use "scss/cards";
+@use "scss/card-render";
 @use "scss/panels";
 @use "scss/report";
 @use "scss/stats";
 @use "scss/review";
 @use "scss/english";
 @use "scss/words";
+@use "scss/words-home";

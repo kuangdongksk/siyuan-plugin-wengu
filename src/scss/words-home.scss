@@ -1,0 +1,234 @@
+/* 单词首页/统计/查词（words.scss 拆分）：入口卡、统计页、星标角标、
+   「认成了」自述行、查词结果行。复习卡片流在 words.scss。 */
+/* 每日首页入口卡 */
+.wengu-word-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: auto 0;
+  max-width: 420px;
+  width: 100%;
+}
+
+.wengu-word-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+  cursor: pointer;
+  height: auto;
+  width: 100%;
+  text-align: left;
+}
+
+.wengu-word-entry:hover {
+  border-color: var(--b3-theme-primary);
+}
+
+.wengu-word-entry-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+}
+
+.wengu-word-entry-count {
+  font-size: 13px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-word-entry-muted {
+  cursor: default;
+  align-items: center;
+}
+
+/* 统计页 */
+.wengu-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: auto 0;
+  width: 100%;
+  max-width: 440px;
+}
+
+.wengu-stats-row {
+  display: flex;
+  gap: 8px;
+}
+
+.wengu-stats-cell {
+  flex: 1;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.wengu-stats-num {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.wengu-stats-label {
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  margin-top: 2px;
+}
+
+.wengu-stats-sub {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-stats-chart-title {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.wengu-stats-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 110px;
+}
+
+.wengu-stats-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 2px;
+}
+
+.wengu-stats-bar-col {
+  width: 100%;
+  max-width: 28px;
+  background: var(--b3-theme-primary);
+  opacity: 0.5;
+  border-radius: 3px 3px 0 0;
+}
+
+.wengu-stats-bar-today .wengu-stats-bar-col {
+  opacity: 0.9;
+}
+
+.wengu-stats-bar-count {
+  font-size: 10px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-stats-bar-label {
+  font-size: 10px;
+  color: var(--b3-theme-on-surface-light);
+  white-space: nowrap;
+}
+
+/* 星标角标(卡右上角) */
+.wengu-word-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0.4;
+}
+
+.wengu-word-star.is-starred {
+  opacity: 1;
+  color: var(--b3-theme-primary);
+}
+
+.wengu-word-card {
+  position: relative;
+}
+
+/* 「认成了…」自述行 + 曾认成 chip */
+.wengu-word-confess {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 440px;
+}
+
+.wengu-word-confess-label {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  white-space: nowrap;
+}
+
+.wengu-word-confess .wengu-word-spell {
+  flex: 1;
+  max-width: none;
+}
+
+.wengu-word-confused {
+  font-size: 12px;
+  color: var(--b3-card-warning-color);
+  margin-top: 4px;
+}
+
+.wengu-word-entry-star .wengu-word-entry-title {
+  color: var(--b3-theme-primary);
+}
+
+/* 查词:结果行(单词左,释义右) */
+.wengu-word-lk-word {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wengu-word-lk-meaning {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-left: 12px;
+  text-align: right;
+}
+
+.wengu-word-opt[data-act="lookuppick"] {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* 易混对照块与笔记编辑(卡片详情/查词详情共用) */
+.wengu-word-confuse {
+  font-size: 12px;
+  color: var(--b3-card-info-color);
+  margin-top: 4px;
+}
+
+.wengu-word-confuse-note {
+  margin-top: 2px;
+  color: var(--b3-theme-on-surface);
+  white-space: pre-wrap;
+}
+
+.wengu-word-confuse-edit {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.wengu-word-confuse-edit .b3-text-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 错选词条展示（你选的选项对应的中英文） */
+.wengu-word-wrongpick {
+  font-size: 13px;
+  color: var(--b3-card-warning-color);
+  text-align: center;
+  max-width: 440px;
+}

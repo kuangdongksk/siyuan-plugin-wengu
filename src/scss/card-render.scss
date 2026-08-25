@@ -1,0 +1,307 @@
+/* 卡片内容渲染（cards.scss 拆分）：内嵌 Protyle/答坑隐藏/steps 隐藏/
+   判断/自评/静态渲染（专题模式）。题号导航与作答位在 cards.scss。 */
+/* ── 卡片内嵌 Protyle：题目内容渲染 ── */
+.wengu-qprotyle {
+  margin-bottom: 8px;
+  border-radius: var(--b3-border-radius);
+}
+
+.wengu-qprotyle .protyle {
+  background: transparent;
+}
+
+/* 答坑隐藏：作答前藏 answer/solution（块 DOM 带 part 属性）；
+   mine（我的答案块）已废弃，永远不显示。 */
+.wengu-card [custom-plugin-wengu-part="mine"] {
+  display: none !important;
+}
+
+.wengu-card [custom-plugin-wengu-part="answer"],
+.wengu-card [custom-plugin-wengu-part="solution"] {
+  display: none;
+}
+
+.wengu-card.wengu-graded [custom-plugin-wengu-part="answer"],
+.wengu-card.wengu-graded [custom-plugin-wengu-part="solution"] {
+  display: block;
+}
+
+.wengu-card.wengu-graded [custom-plugin-wengu-part="answer"] {
+  border-left: 3px solid var(--b3-theme-surface);
+  padding-left: 6px;
+}
+
+/* cloze 题：逐空 slot 子块（选项与答案）判分前隐藏
+   （材料组分栏壳与译文揭示的样式在 english.scss） */
+.wengu-card [custom-plugin-wengu-part^="slot-"] {
+  display: none;
+}
+
+.wengu-card.wengu-graded [custom-plugin-wengu-part^="slot-"] {
+  display: block;
+}
+
+/* ── 选择题字母 chip ── */
+.wengu-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wengu-chip {
+  min-width: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: 16px;
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wengu-chip:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-chip-selected,
+.wengu-chip.wengu-chip-selected:hover {
+  border-color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-chip-right,
+.wengu-chip.wengu-chip-right:hover {
+  border-color: var(--b3-theme-success);
+  background: color-mix(in srgb, var(--b3-theme-success) 12%, transparent);
+  color: var(--b3-theme-success);
+}
+
+.wengu-chip-wrong,
+.wengu-chip.wengu-chip-wrong:hover {
+  border-color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 12%, transparent);
+  color: var(--b3-theme-error);
+}
+
+.wengu-chip:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+/* ── 多步引导题（type="steps"）── */
+/* 步骤子块在 Protyle 文档渲染里永远隐藏——引导语/选项由 StepsFlow
+   逐步呈现（解锁前不出现，防剧透）；answer/solution 仍是判分后揭示。 */
+.wengu-card [custom-plugin-wengu-part^="step-"] {
+  display: none !important;
+}
+
+.wengu-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wengu-step {
+  padding: 8px 10px;
+  border: 1px dashed var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wengu-step-stem {
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-step-stem p,
+.wengu-step-text p {
+  margin: 0;
+}
+
+.wengu-step-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.wengu-step-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wengu-step-opt:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-step-letter {
+  flex: none;
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+}
+
+.wengu-step-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-step-selected,
+.wengu-step-opt.wengu-step-selected:hover {
+  border-color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+}
+
+.wengu-step-right,
+.wengu-step-opt.wengu-step-right:hover {
+  border-color: var(--b3-theme-success);
+  background: color-mix(in srgb, var(--b3-theme-success) 10%, transparent);
+}
+
+.wengu-step-wrong,
+.wengu-step-opt.wengu-step-wrong:hover {
+  border-color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 10%, transparent);
+}
+
+.wengu-step-opt:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.wengu-step-result {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.wengu-step-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+/* brief 的 AI 判分评语 */
+.wengu-ai-comment {
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 3px solid var(--b3-theme-primary-light);
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+}
+
+/* Protyle 加载失败的降级渲染 */
+.wengu-option-fallback {
+  padding: 2px 8px;
+}
+
+/* ── 判断题按钮 ── */
+.wengu-judge {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wengu-judge .wengu-selected {
+  border: 1px solid var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+}
+
+/* ── 自评与按钮变体 ── */
+.wengu-self {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wengu-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wengu-btn-success {
+  background: var(--b3-theme-success);
+  color: var(--b3-theme-on-primary);
+}
+
+.wengu-btn-error {
+  background: var(--b3-theme-error);
+  color: var(--b3-theme-on-primary);
+}
+
+/* 转换渐进呈现：与做题同界面，生成完成前屏蔽作答位（文档每批重建） */
+.wengu-previewing .wengu-chips,
+.wengu-previewing .wengu-input,
+.wengu-previewing [data-judge],
+.wengu-previewing .wengu-card [data-act="submit"],
+.wengu-previewing .wengu-step-opts,
+.wengu-previewing .wengu-step-next {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+/* ── 题库静态渲染（专题模式）：Lute 输出 + 判分显隐 ── */
+
+/* 解析/答案容器：作答前隐藏（与文档模式 part 显隐同语义），判分后随 wengu-graded 显现 */
+.wengu-card:not(.wengu-graded) .wengu-static-sol {
+  display: none;
+}
+
+.wengu-static-sol {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--b3-border-color);
+  font-size: 13px;
+}
+
+/* 静态块引用：可点击跳转（siyuan://blocks/id） */
+.wengu-qprotyle [data-type="block-ref"] {
+  color: var(--b3-theme-primary);
+  cursor: pointer;
+}
+
+/* 选择题选项序号与作答字母对齐（1234 → ABCD）：思源有序列表的序号
+   是 .protyle-action 里的 marker 文本，CSS 改不了文本——用计数器生成
+   字母绝对居中覆盖，原数字透明化（盒子尺寸/行高不动，垂直对齐不塌）。
+   只动有序列表（data-subtype=o）；无序圆点、材料面板不受影响。 */
+.wengu-card .protyle-wysiwyg .list {
+  counter-reset: wengu-opt;
+}
+
+.wengu-card .protyle-wysiwyg .li[data-subtype="o"] {
+  counter-increment: wengu-opt;
+}
+
+.wengu-card .protyle-wysiwyg .li[data-subtype="o"] > .protyle-action {
+  color: transparent;
+}
+
+.wengu-card .protyle-wysiwyg .li[data-subtype="o"] > .protyle-action::before {
+  content: counter(wengu-opt, upper-latin) ".";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--b3-theme-on-surface);
+}
