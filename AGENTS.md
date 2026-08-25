@@ -85,6 +85,9 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
 
 - **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
   fetch + `window.siyuan.config.api.token` 鉴权（见 PdfImport.putAsset）。
+  **3.8.1 路由迁移**：端点变为 `POST /api/file/putFile`（旧 `/api/putFile`
+  返回 200+空 body 假成功），且 path 必须工作区相对（带前导 `/` 会拼出
+  `…\C::` 非法路径报 mkdir 错）（20260825 真机实测）。
 - 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
   references:[], model?}`，model=设置里模型 id；`event:content` 的
   `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个

@@ -48,7 +48,8 @@ async function putAsset(path: string, data: Uint8Array): Promise<void> {
     form.append("isDir", "false");
     // fflate 解出的 Uint8Array 均为独占 buffer，整体作为 Blob 安全
     form.append("file", new Blob([data.buffer as ArrayBuffer]));
-    const res = await fetch("/api/putfile", {
+    // 3.8.1 路由迁移：/api/putFile → /api/file/putFile（旧路由 404 空响应）
+    const res = await fetch("/api/file/putFile", {
         method: "POST",
         headers: token ? { Authorization: `Token ${token}` } : undefined,
         body: form,
@@ -112,7 +113,8 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
     let markdown = parsed.markdown;
     for (const img of parsed.images) {
         const target = `assets/wengu/${stamp}/${img.name}`;
-        await putAsset(`/data/${notebook}/assets/wengu/${stamp}/${img.name}`, img.data);
+        // putFile 路径必须工作区相对（带前导斜杠 3.8.1 会拼出非法盘符路径）
+        await putAsset(`data/${notebook}/assets/wengu/${stamp}/${img.name}`, img.data);
         markdown = markdown.replace(new RegExp(`images/${escRe(img.name)}`, "g"), target);
     }
 
