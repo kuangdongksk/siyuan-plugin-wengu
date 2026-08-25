@@ -284,14 +284,27 @@ export function renderSideHtml(m: SideHtmlModel): string {
     </div>`;
 }
 
-/** 头部：目录开关（收起时）+ 文档信息/轮次成绩 + 用时（单行合并）。 */
-export function renderHeadHtml(t: (key: string) => string, sideCollapsed: boolean, subhead = ""): string {
+/** 头部：目录开关（收起时）+ 模式切换器（做题/复习，M6）+ 文档信息/
+ *  轮次成绩 + 用时（单行合并）。 */
+export function renderHeadHtml(
+    t: (key: string) => string,
+    sideCollapsed: boolean,
+    mode: "quiz" | "review" | "study",
+    subhead = ""
+): string {
     const toggle = sideCollapsed
         ? `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">${svgIcon(
               "iconRight"
           )}</button>`
         : "";
-    return `${toggle}${subhead}
+    const modeBtn = (v: "quiz" | "review", label: string) =>
+        `<button class="wengu-mode-btn${mode === v ? " wengu-mode-cur" : ""}" data-mode="${v}" title="${esc(
+            label
+        )}">${esc(label)}</button>`;
+    return `${toggle}<div class="wengu-mode-seg" data-mode-seg>${modeBtn("quiz", t("modeQuiz"))}${modeBtn(
+        "review",
+        t("modeReview")
+    )}</div>${subhead}
       <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${svgIcon(
           "iconClock",
           "wengu-timer-icon"
@@ -353,6 +366,8 @@ export interface MainShellModel {
     docId: string;
     sideCollapsed: boolean;
     hasSettingsButton: boolean;
+    /** 当前模式（头部切换器高亮态；复习模式不走本壳）。 */
+    mode: "quiz" | "review" | "study";
     /** 目录搜索过滤词（透传给目录）。 */
     filter: string;
     /** 题库专题清单与选中项（透传给目录）。 */
@@ -385,7 +400,7 @@ export function renderMainShell(m: MainShellModel): string {
             collections: m.collections,
             activeCollection: m.activeCollection,
         })}<div class="wengu-main">
-    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.subheadHtml)}</div>
+    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.mode, m.subheadHtml)}</div>
     ${body}
 </div>`;
     if (m.loading) {

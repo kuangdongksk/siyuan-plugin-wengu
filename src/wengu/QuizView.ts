@@ -3,8 +3,8 @@ import type { AnswerHost } from "./AnswerFlow";
 import { bindCardEvents, restoreAnsweredCards, revealAll } from "./AnswerFlow";
 import { collectCardThoughts, renderMainShell, renderNumsHtml, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
-import type { ConvertProgressRecord } from "./ConvertBatch";
-import { convertDoneText, openConvertForView, showStatus, updateConvertBtn } from "./ConvertHost";
+import { openConvertForView } from "./ConvertHost";
+import { ConvertAccess, type ConvertAccessHost } from "./ConvertAccess";
 import { reconcileKnowledgeRefs } from "./BankReconcile";
 import { CollectionFlow } from "./CollectionFlow";
 import type { HistoryStore, WenguSession } from "./HistoryStore";
@@ -20,6 +20,7 @@ import type { QuestionBank } from "./QuestionBank";
 import type { WenguPrefsIo } from "./QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./QuizLoader";
 import { bindCardActions } from "./RegenDialog";
+import { filterReviewDocFor, renderReviewFor, selectReviewQid } from "./ReviewFlow";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./RoundReport";
 import type { WeaknessStore } from "./WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "./SettingsDialog";
@@ -32,16 +33,13 @@ import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "./
 import { esc } from "./ui";
 
 /** 温故刷题页签视图（编排层），各模块见 docs/design-review.md。 */
-export class QuizView implements AnswerHost {
+export class QuizView implements AnswerHost, ConvertAccessHost {
     /** i18n 取值（public：AnswerHost 接口按结构匹配）。 */
     readonly t: (key: string) => string;
     /** 视图根元素（public：ClueHost 结构匹配）。 */
     readonly el: HTMLElement;
     private readonly app?: App;
-    private readonly storage?: {
-        load: () => Promise<unknown>;
-        save: (v: WenguPrefsIo) => Promise<unknown>;
-    };
+    private readonly storage?: { load: () => Promise<unknown>; save: (v: WenguPrefsIo) => Promise<unknown> };
     private readonly settings?: SettingsDialogShape;
     private readonly history?: HistoryStore;
     private readonly weakness?: WeaknessStore;
@@ -71,17 +69,15 @@ export class QuizView implements AnswerHost {
     private annoCleanup?: () => void;
     private wordStore?: AnnoCallbacks["wordStore"];
     private loading = false;
-    private converting = false;
     private loadError = "";
     private docTotalSec = 0;
     private revealMode: WenguRevealMode = "instant";
     private activeQIdx = 0;
     private started = false;
-    private lastConvertModelId = "";
-    private lastConvertFill = false;
-    private lastConvertSteps = false;
-    private lastConvertKnow = "";
-    private convertProgress: Record<string, ConvertProgressRecord> = {};
+    /** 转换弹窗状态与收尾（ConvertViewAccess 实现体，拆出压行数）。 */
+    private readonly convertAccess: ConvertAccess;
+    /** 复习模式「重刷本文档」的待开轮范围（load 完成后消费并清空）。 */
+    private pendingDrillScope?: import("./HistoryStore").WenguRoundScope;
     private session?: WenguSession;
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
     private finished?: WenguSession;
@@ -116,6 +112,7 @@ export class QuizView implements AnswerHost {
         this.openSettings = openSettings;
         this.wordStore = wordStore;
         this.protyleHost = new ProtyleHost(app);
+        this.convertAccess = new ConvertAccess(this);
         this.timerBinder = new TimerBinder(timerHostFor(this));
         this.colFlow = new CollectionFlow({
             t: this.t,
@@ -212,6 +209,12 @@ export class QuizView implements AnswerHost {
 
     selectDoc(docId: string): void {
         if (!docId || docId === this.docId) return;
+        // 复习模式点侧栏文档 = 筛选错题本到该文档（不切做题上下文）
+        if (this.mode === "review") {
+            filterReviewDocFor(docId);
+            this.renderList();
+            return;
+        }
         this.colFlow.reset(); // 点文档=离开题库模式
         void this.timerBinder.flush();
         this.docId = docId;
@@ -219,15 +222,37 @@ export class QuizView implements AnswerHost {
         void this.load();
     }
 
-    private persistPrefs(): void {
+    /** 头部模式切换器（M6）：做题↔复习；切回时恢复已答锁定。 */
+    readonly switchMode = (mode: "quiz" | "review"): void => {
+        if (this.mode === mode) return;
+        this.mode = mode;
+        this.renderList();
+        if (mode === "quiz" && this.started) restoreAnsweredCards(this);
+    };
+
+    /** 复习模式统一入口：右键文档预筛 / 统计 qid 定位 / 直入（统计面板先关）。 */
+    readonly enterReviewMode = (opt: { docId?: string; qid?: string }): void => {
+        destroyStatsPanel();
+        if (opt.docId) filterReviewDocFor(opt.docId);
+        if (opt.qid) selectReviewQid(opt.qid);
+        this.switchMode("review");
+    };
+
+    /** 复习模式组头「重刷本文档」：切做题 + scope=wrongAll 直落开轮。 */
+    readonly startReviewDrill = (docId: string): void => {
+        this.switchMode("quiz");
+        if (docId === this.docId) beginDrillFor(this, { scope: "wrongAll" });
+        else {
+            this.pendingDrillScope = "wrongAll";
+            this.selectDoc(docId);
+        }
+    };
+
+    persistPrefs(): void {
         savePrefs(this.storage, {
             docId: this.docId,
             sideCollapsed: this.sideCollapsed,
-            lastConvertModelId: this.lastConvertModelId,
-            lastConvertFill: this.lastConvertFill,
-            lastConvertSteps: this.lastConvertSteps,
-            lastConvertKnow: this.lastConvertKnow,
-            convertProgress: this.convertProgress,
+            ...this.convertAccess.prefsSnapshot(),
         });
     }
 
@@ -261,11 +286,7 @@ export class QuizView implements AnswerHost {
             pendingDoc: this.pendingDoc,
         });
         this.sideCollapsed = r.sideCollapsed;
-        this.lastConvertModelId = r.lastConvertModelId;
-        this.lastConvertFill = r.lastConvertFill;
-        this.lastConvertSteps = r.lastConvertSteps;
-        this.lastConvertKnow = r.lastConvertKnow ?? "";
-        this.convertProgress = r.convertProgress;
+        this.convertAccess.restore(r);
         this.revealMode = r.revealMode;
         this.started = false;
         this.activeQIdx = 0;
@@ -297,20 +318,24 @@ export class QuizView implements AnswerHost {
             this.reopenStatsTab = undefined;
             this.openStatsPanelAt(tab);
         }
+        // 复习模式发起的「重刷本文档」：装载完成后按落定的范围直落开轮
+        if (this.pendingDrillScope && this.mode === "quiz" && !this.started && this.list.length > 0) {
+            const scope = this.pendingDrillScope;
+            this.pendingDrillScope = undefined;
+            beginDrillFor(this, { scope });
+        }
     }
 
     /* ── TimerHostAccess（timerHostFor 消费） ── */
     readonly activeQidOf = (): string => this.list[this.activeQIdx]?.id ?? "";
     readonly docTotalSecOf = (): number => this.docTotalSec;
-    readonly syncSession = (elapsed: number): void => {
-        if (this.session) this.session.elapsedSec = elapsed;
-    };
+    readonly syncSession = (elapsed: number): void => void (this.session && (this.session.elapsedSec = elapsed));
     readonly addDocTotal = (add: number) => (this.docTotalSec += add);
     readonly finishNow = (): void => manualFinishRound(roundFinishCtx(this));
 
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly finishedSession = (): WenguSession | undefined => this.finished;
-    readonly aiModelId = (): string => this.lastConvertModelId || this.settings?.convertModelId || "";
+    readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
     readonly revealAnsweredNow = (): void => void revealAll(this);
     readonly stopRoundNow = (): void => {
         this.started = false;
@@ -322,7 +347,7 @@ export class QuizView implements AnswerHost {
     readonly bankStore = (): QuestionBank | undefined => this.bank;
     readonly refreshCollections = (): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide());
     readonly colFlowOf = (): CollectionFlow => this.colFlow;
-    readonly convertingOf = (): boolean => this.converting;
+    readonly convertingOf = (): boolean => this.convertAccess.converting;
     readonly setSideFilter = (text: string): void => void (this.sideFilter = text);
     readonly setSideCollapsed = (collapsed: boolean): void => {
         this.sideCollapsed = collapsed;
@@ -373,7 +398,12 @@ export class QuizView implements AnswerHost {
     private renderListInner(): void {
         this.protyleHost.destroyAll();
         destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
-        // M6 三模式开口：目前只有做题模式（quiz）实现，复习/学习预留
+        // M6 三模式路由：复习模式（错题本）由 ReviewFlow 全权渲染；study 仍预留
+        if (this.mode === "review") {
+            renderReviewFor(this);
+            bindHeadFor(this);
+            return;
+        }
         if (this.mode !== "quiz") return;
         const colMode = this.colFlow.isActive();
         const doc = colMode ? undefined : this.docs.find((d) => d.id === this.docId);
@@ -385,6 +415,7 @@ export class QuizView implements AnswerHost {
         };
         this.el.innerHTML = renderMainShell({
             t: this.t,
+            mode: this.mode,
             docs: this.docs,
             docId: this.docId,
             sideCollapsed: this.sideCollapsed,
@@ -441,34 +472,9 @@ export class QuizView implements AnswerHost {
         openStatsPanelFor(this, tab);
     }
 
-    /* ── ConvertViewAccess（openConvertForView 消费） ── */
     readonly activeDocIdOf = (): string => this.activeDocId;
     readonly settingsOf = (): SettingsDialogShape | undefined => this.settings;
-    readonly lastConvert = (): { modelId: string; fill: boolean; steps: boolean; know: string } => ({
-        modelId: this.lastConvertModelId,
-        fill: this.lastConvertFill,
-        steps: this.lastConvertSteps,
-        know: this.lastConvertKnow,
-    });
     readonly convertParallelOf = (): number => this.settings?.convertParallel ?? 1;
-    readonly saveConvertChoice = (modelId: string, fill: boolean, steps: boolean, know: string): void => {
-        this.lastConvertModelId = modelId;
-        this.lastConvertFill = fill;
-        this.lastConvertSteps = steps;
-        this.lastConvertKnow = know;
-        this.persistPrefs();
-    };
-    readonly convertProgressOf = (srcDocId: string): ConvertProgressRecord | undefined =>
-        this.convertProgress[srcDocId];
-    readonly saveConvertProgress = (srcDocId: string, rec: ConvertProgressRecord | undefined): void => {
-        if (rec) this.convertProgress[srcDocId] = rec;
-        else delete this.convertProgress[srcDocId];
-        this.persistPrefs();
-    };
-    readonly setConvertingState = (v: boolean): void => {
-        this.converting = v;
-        updateConvertBtn(this.el, this.converting, this.t);
-    };
     readonly progressiveOf = (): ProgressivePreview => this.progressive;
     readonly isStarted = (): boolean => this.started;
     readonly currentDocId = (): string => this.docId;
@@ -488,15 +494,7 @@ export class QuizView implements AnswerHost {
         if (materials) this.materials = materials;
         this.renderList();
     };
-    readonly reloadView = (): void => void this.load();
-    readonly onConvertDone = (r: { docId: string; title: string; count: number; message?: string }): void => {
-        this.progressive.clear();
-        this.colFlow.reset();
-        this.pendingDoc = { id: r.docId, title: r.title };
-        this.docId = r.docId;
-        this.persistPrefs();
-        void this.load().then(() => showStatus(this.el, convertDoneText(this.t, r.title, r.count), "ok"));
-    };
+    readonly reloadView = (): Promise<void> => this.load();
 
-    readonly openConvert = () => openConvertForView(this);
+    readonly openConvert = () => openConvertForView(this.convertAccess);
 }

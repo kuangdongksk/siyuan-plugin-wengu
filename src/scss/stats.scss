@@ -139,3 +139,40 @@
   color: var(--b3-theme-on-surface-light);
   margin-top: 2px;
 }
+
+/* 总览扩展块：错因分布横向条形（CSS 条，不新增图表实例） */
+.wengu-stats-cause-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.wengu-stats-cause-label {
+  flex: none;
+  width: 84px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-stats-cause-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--b3-theme-surface);
+  overflow: hidden;
+}
+
+.wengu-stats-cause-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--b3-theme-primary-light);
+}
+
+.wengu-stats-cause-n {
+  flex: none;
+  min-width: 24px;
+  text-align: right;
+  color: var(--b3-theme-on-surface-light);
+}

@@ -118,6 +118,18 @@ export class WeaknessStore {
         return this.snapshot.slice(0, n);
     }
 
+    /** 错因分布（统计总览用：全部薄弱点 causes 按六键求和，降序）。 */
+    causeDistSync(): { cause: WeakCause; n: number }[] {
+        const sum = new Map<WeakCause, number>();
+        for (const e of Object.values(this.cache?.points ?? {})) {
+            for (const [c, n] of Object.entries(e.causes ?? {})) {
+                const key = c as WeakCause;
+                sum.set(key, (sum.get(key) ?? 0) + (n ?? 0));
+            }
+        }
+        return [...sum.entries()].map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n);
+    }
+
     /** 收卷即计数（本地聚合，零 AI；重复调用按会话 id 幂等）。 */
     async applyRound(s: WenguSession, list: WenguQuestion[]): Promise<void> {
         const data = await this.all();

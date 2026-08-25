@@ -31,7 +31,7 @@ export {
     stepOptionIsRight,
 } from "./QuestionGrading";
 
-interface AttrsRow {
+export interface AttrsRow {
     block_id: string;
     root_id: string;
     attrs: string;
@@ -59,8 +59,8 @@ const FIELD_BY_ATTR: Record<string, keyof WenguQuestion> = {
     [Attr.slotLast]: "slotLast",
 };
 
-/** 取出的裸属性转成结构化题目视图。 */
-function rowToQuestion(row: AttrsRow): WenguQuestion {
+/** 取出的裸属性转成结构化题目视图（复习模式错题清单也复用）。 */
+export function rowToQuestion(row: AttrsRow): WenguQuestion {
     let attrs: AttrsObject = {};
     try {
         attrs = JSON.parse(row.attrs);
@@ -193,8 +193,8 @@ export async function waitForDocInList(docId: string, timeoutMs: number): Promis
     }
 }
 
-/** 取某容器块的所有子块，按 part 属性归类到题目字段。 */
-async function hydrate(q: WenguQuestion): Promise<void> {
+/** 取某容器块的所有子块，按 part 属性归类到题目字段（复习模式回看详情复用）。 */
+export async function hydrate(q: WenguQuestion): Promise<void> {
     const { data: children } = await fetchSyncPost("/api/block/getChildBlocks", { id: q.id, length: 128 });
     const blocks = (children as ChildBlock[]) ?? [];
     if (blocks.length === 0) return;

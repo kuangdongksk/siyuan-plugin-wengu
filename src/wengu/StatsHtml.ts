@@ -1,5 +1,6 @@
 import { svgIcon } from "./FormHtml";
 import type { WenguQuizStats, WenguWrongItem } from "./StatsService";
+import type { WeakCause, WeakTopRow } from "./WeaknessStore";
 import type { WenguDoc } from "./types";
 import { esc, fmt, mmss } from "./ui";
 
@@ -10,6 +11,14 @@ import { esc, fmt, mmss } from "./ui";
  */
 
 type T = (k: string) => string;
+
+/** 总览扩展块数据（错题概况 + 薄弱知识点 + 错因分布，D6）。 */
+export interface OverviewExtra {
+    /** 错题概况（缓存未就绪时 undefined，显示占位）。 */
+    wrong?: { pending: number; mastered: number };
+    weakRows: WeakTopRow[];
+    causeDist: { cause: WeakCause; n: number }[];
+}
 
 function cell(t: T, key: string, value: string): string {
     return `<div class="wengu-stats-cell">
@@ -22,6 +31,54 @@ function dateLabel(ts: number): string {
     const d = new Date(ts);
     const p = (n: number) => String(n).padStart(2, "0");
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function weakCauseLabel(t: T, cause: WeakCause): string {
+    return t(`weakCause${cause[0].toUpperCase()}${cause.slice(1)}`);
+}
+
+/** 总览扩展块 HTML（D6：错题概况 / 薄弱 Top / 错因分布；wrong 未就绪显示占位）。 */
+function overviewExtraHtml(t: T, extra: OverviewExtra): string {
+    const num = (v: number | undefined) => (v === undefined ? "—" : String(v));
+    const wrongBlock = `<div class="wengu-stats-row wengu-stats-wrong-over">
+            ${cell(t, "reviewFilterPending", num(extra.wrong?.pending))}${cell(t, "reviewFilterMastered", num(extra.wrong?.mastered))}
+            <button class="b3-button b3-button--outline wengu-stats-enter-review" data-act="enter-review">
+                ${svgIcon("iconRight")} ${esc(t("statsEnterReview"))}
+            </button>
+        </div>`;
+    const weakItems = extra.weakRows
+        .map(
+            (r) =>
+                `<div class="wengu-weak-row" title="${esc(r.title)}">
+    <span class="wengu-weak-title">${esc(r.title)}</span>
+    <span class="wengu-meta">${esc(fmt(t("weakStats"), { w: String(r.wrong), n: String(r.total) }))}</span>${
+        r.topCause ? `<span class="wengu-badge">${esc(weakCauseLabel(t, r.topCause))}</span>` : ""
+    }
+  </div>`
+        )
+        .join("");
+    const weakBlock =
+        extra.weakRows.length > 0
+            ? `<div class="wengu-stats-chart-title">${esc(t("statsWeakTop"))}</div><div class="wengu-weak-list">${weakItems}</div>`
+            : "";
+    const max = Math.max(1, ...extra.causeDist.map((c) => c.n));
+    const causeRows = extra.causeDist
+        .map(
+            (c) =>
+                `<div class="wengu-stats-cause-row">
+    <span class="wengu-stats-cause-label">${esc(weakCauseLabel(t, c.cause))}</span>
+    <span class="wengu-stats-cause-track"><span class="wengu-stats-cause-fill" style="width:${Math.round(
+        (c.n / max) * 100
+    )}%"></span></span>
+    <span class="wengu-stats-cause-n">${c.n}</span>
+</div>`
+        )
+        .join("");
+    const causeBlock =
+        extra.causeDist.length > 0
+            ? `<div class="wengu-stats-chart-title">${esc(t("statsCauseDist"))}</div>${causeRows}`
+            : "";
+    return `<div class="wengu-stats-chart-title">${esc(t("statsOverviewWrong"))}</div>${wrongBlock}${weakBlock}${causeBlock}`;
 }
 
 /** 浮层外壳：sticky 头（tab + 关闭）+ 内容区（滚动）。 */
@@ -38,8 +95,14 @@ export function renderStatsShell(t: T, tabsHtml: string, bodyHtml: string): stri
     </div>`;
 }
 
-/** 总览页：数字卡 + 近 N 轮趋势 + 文档榜（行可点击下钻）。 */
-export function renderOverviewHtml(t: T, s: WenguQuizStats, docs: WenguDoc[], docId: string): string {
+/** 总览页：数字卡 + 总览扩展块 + 近 N 轮趋势 + 文档榜（行可点击下钻）。 */
+export function renderOverviewHtml(
+    t: T,
+    s: WenguQuizStats,
+    docs: WenguDoc[],
+    docId: string,
+    extra?: OverviewExtra
+): string {
     const rate = `${Math.round(s.rate * 100)}%`;
     const rows = docs
         .map((d) => {
@@ -68,6 +131,7 @@ export function renderOverviewHtml(t: T, s: WenguQuizStats, docs: WenguDoc[], do
         <div class="wengu-stats-row">
             ${cell(t, "statsTotalTime", mmss(s.totalSec))}${cell(t, "statsStreakN", String(s.streak))}
         </div>
+        ${extra ? overviewExtraHtml(t, extra) : ""}
         ${
             s.recent.length > 0
                 ? `<div class="wengu-stats-chart-title">${esc(t("statsRecentChart"))}</div>
@@ -107,7 +171,7 @@ function wrongHtml(t: T, w: WenguWrongItem): string {
     ]
         .filter(Boolean)
         .join(" · ");
-    return `<div class="wengu-stats-wrong" title="${esc(w.qid)}">
+    return `<div class="wengu-stats-wrong" title="${esc(w.qid)}" data-wrong-qid="${esc(w.qid)}">
         <span class="wengu-stats-wrong-idx">${w.index}</span>
         <div class="wengu-stats-wrong-body">
             <div class="wengu-stats-wrong-stem">${esc(w.stemSummary)}</div>

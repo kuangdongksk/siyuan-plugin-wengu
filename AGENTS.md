@@ -89,10 +89,10 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   返回 200+空 body 假成功），且 path 必须工作区相对（带前导 `/` 会拼出
   `…\C::` 非法路径报 mkdir 错）（20260825 真机实测）。
 - 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
-  references:[], model?}`，model=设置里模型 id；`event:content` 的
+references:[], model?}`，model=设置里模型 id；`event:content` 的
   `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
   调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
-  instance"}`（20260823 真机验证）。
+instance"}`（20260823 真机验证）。
 
 - 旧直答端点 `/api/ai/chatGPT`（`{msg}` → `{code,data:回复全文}`）
   **支持并发**（真机验证），模型跟随设置默认、不可按次指定；插件要

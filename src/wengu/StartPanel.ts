@@ -1,5 +1,5 @@
 import { formGroup, formInput, formOption, formRow, formSelect } from "./FormHtml";
-import type { HistoryStore, WenguSession } from "./HistoryStore";
+import type { HistoryStore, WenguRoundScope, WenguSession } from "./HistoryStore";
 import { newSessionId } from "./HistoryStore";
 import type { TimerController } from "./TimerController";
 import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } from "./types";
@@ -9,20 +9,20 @@ import { clampMinutes, esc, fmt } from "./ui";
 /**
  * 开刷面板（design-review P1-1）：四组选择收敛为一张表单——
  * ① 上次进度（继续上次/重新开始，有未完成轮才出现）
- * ② 刷题范围（全部/只刷上次错题，上轮有错题才出现）
+ * ② 刷题范围（全部/只刷上次错题/错题重刷=历史未掌握，有错题才出现）
  * ③ 答案展示 ④ 多步题模式（离线参考路径 / AI 实时跟随）
  * ⑤ 计时方式（含倒计时分钟）
  *
  * 行样式与插件设置页同款（config-group / config-title / config-item，
  * 标题说明在左、下拉在右）。**继续上次 = 原样恢复**：选中后其余选项
- * 锁定并回显该轮原配置（要换配置就选重新开始），不再出现「选了却被
+ * 锁定并回显该轮原配置（含刷题范围，P2-6），不再出现「选了却被
  * 静默忽略」或「继续却换了玩法」的歧义。
  */
 
 /** 开刷面板读出的完整轮次配置。 */
 export interface RoundConfig {
     progress: "continue" | "fresh";
-    scope: "all" | "wrong";
+    scope: WenguRoundScope;
     reveal: WenguRevealMode;
     stepsMode: WenguStepsMode;
     timing: WenguTimingMode;
@@ -43,10 +43,18 @@ export interface StartPanelModel {
     defaults: RoundDefaults;
     /** 未完成轮的已答题数（不传则不出现「上次进度」组）。 */
     unfinishedAnswered?: number;
-    /** 上轮错题数（0 则不出现「刷题范围」组）。 */
+    /** 上轮错题数（0 且无未掌握错题则不出现「刷题范围」组）。 */
     lastWrong: number;
-    /** 未完成轮的原配置（继续时锁定回显这些值）。 */
-    resume?: { timing: WenguTimingMode; reveal: WenguRevealMode; stepsMode: WenguStepsMode; countdownMin: number };
+    /** 历史未掌握错题数（scope=wrongAll 的清单长度）。 */
+    wrongAll: number;
+    /** 未完成轮的原配置（继续时锁定回显这些值，含范围）。 */
+    resume?: {
+        timing: WenguTimingMode;
+        reveal: WenguRevealMode;
+        stepsMode: WenguStepsMode;
+        countdownMin: number;
+        scope: WenguRoundScope;
+    };
 }
 
 export function renderStartPanel(m: StartPanelModel): string {
@@ -68,14 +76,19 @@ export function renderStartPanel(m: StartPanelModel): string {
               )
             : "";
     const scopeRow =
-        m.lastWrong > 0
+        m.lastWrong > 0 || m.wrongAll > 0
             ? formRow(
                   t("scopeTitle"),
                   t("scopeHint"),
                   formSelect(
                       "scope",
                       formOption("all", t("scopeAll"), !cont) +
-                          formOption("wrong", fmt(t("scopeWrongOnly"), { n: String(m.lastWrong) }), false)
+                          (m.lastWrong > 0
+                              ? formOption("wrong", fmt(t("scopeWrongOnly"), { n: String(m.lastWrong) }), false)
+                              : "") +
+                          (m.wrongAll > 0
+                              ? formOption("wrongAll", fmt(t("scopeWrongAll"), { n: String(m.wrongAll) }), false)
+                              : "")
                   )
               )
             : "";
@@ -125,7 +138,7 @@ export function renderStartPanel(m: StartPanelModel): string {
 </div>`;
 }
 
-/** 由轮次与题目列表推导面板模型（继续的 resume 原样恢复）。 */
+/** 由轮次与题目列表推导面板模型（继续的 resume 原样恢复，含范围）。 */
 export function buildStartPanelModel(args: {
     t: (key: string) => string;
     defaults: RoundDefaults;
@@ -142,6 +155,7 @@ export function buildStartPanelModel(args: {
         unfinishedAnswered: unfinished ? answered : undefined,
         // 多步题的会话记录是 qid#k 条目，按块 id 归并后才等于「题数」
         lastWrong: new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid))).size,
+        wrongAll: args.list.filter((q) => q.wrongCount > 0 && q.right === "0").length,
         resume: unfinished
             ? {
                   timing: unfinished.mode,
@@ -150,6 +164,7 @@ export function buildStartPanelModel(args: {
                   countdownMin: unfinished.plannedSec
                       ? clampMinutes(Math.ceil(unfinished.plannedSec / 60))
                       : args.defaults.countdownMin,
+                  scope: unfinished.scope ?? "all",
               }
             : undefined,
     };
@@ -166,7 +181,10 @@ export function readRoundConfig(root: ParentNode, defaults: RoundDefaults): Roun
     const minutes = root.querySelector<HTMLInputElement>("[data-field='minutes']");
     return {
         progress: val("progress") === "continue" ? "continue" : "fresh",
-        scope: val("scope") === "wrong" ? "wrong" : "all",
+        scope: (() => {
+            const v = val("scope");
+            return v === "wrong" || v === "wrongAll" ? v : "all";
+        })(),
         reveal: val("reveal") === "after" ? "after" : "instant",
         stepsMode: val("steps") === "ai" ? "ai" : "offline",
         timing: (() => {
@@ -197,7 +215,10 @@ export function bindStartPanel(root: ParentNode, m: StartPanelModel, onStart: ()
         const cont = progressSel.value === "continue";
         fields.forEach((el) => (el.disabled = cont));
         const cur = cont && m.resume ? m.resume : m.defaults;
-        setVal("scope", "all"); // 继续=原范围；重新开始默认全部
+        // 继续=回显该轮原范围（option 未渲染时 select 赋值无效，回退 all）；重新开始默认全部
+        const scopeSel = root.querySelector<HTMLSelectElement>("[data-field='scope']");
+        const scopeVal = cont && m.resume ? m.resume.scope : "all";
+        setVal("scope", scopeSel && ![...scopeSel.options].some((o) => o.value === scopeVal) ? "all" : scopeVal);
         setVal("reveal", cur.reveal);
         setVal("steps", cur.stepsMode);
         setVal("timing", cur.timing);
@@ -227,20 +248,22 @@ export interface StartRoundCtx {
     afterStart(): void;
 }
 
-/** 「开始刷题」：读 RoundConfig 开轮——继续上次原样恢复，否则新会话。 */
-export function startRound(ctx: StartRoundCtx): void {
+/** 「开始刷题」：读 RoundConfig 开轮——继续上次原样恢复（含范围），
+ * 否则新会话；scopeFilter 把 fullList 按范围裁剪（P2-6：中断轮继续不再展开为全量）。 */
+export function startRound(ctx: StartRoundCtx, override?: { scope?: WenguRoundScope }): void {
     const cfg = readRoundConfig(ctx.root, ctx.defaults);
+    if (override?.scope) cfg.scope = override.scope; // 复习模式「重刷本文档」直落范围
     ctx.setRevealMode(cfg.reveal);
     ctx.setActiveIdx(0);
     const last = ctx.rounds[ctx.rounds.length - 1];
-    const wrong = new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid)));
-    const useWrong = cfg.scope === "wrong" && wrong.size > 0;
-    ctx.setList(useWrong ? ctx.fullList.filter((q) => wrong.has(q.id)) : ctx.fullList);
     const lastAnswered = new Set((last?.results ?? []).map((r) => baseQid(r.qid))).size;
     const unfinished =
-        !useWrong && cfg.progress === "continue" && last && lastAnswered > 0 && lastAnswered < ctx.fullList.length
+        cfg.progress === "continue" && last && lastAnswered > 0 && lastAnswered < ctx.fullList.length
             ? last
             : undefined;
+    // 范围裁剪：进行中的轮按它落盘的 scope 恢复，新轮按面板选择
+    const scope = unfinished ? (unfinished.scope ?? "all") : cfg.scope;
+    ctx.setList(scopeFilter(ctx.fullList, scope, last));
     let session: WenguSession;
     if (unfinished) {
         // 继续上次 = 原样恢复该轮配置（面板上已锁定回显）
@@ -263,6 +286,7 @@ export function startRound(ctx: StartRoundCtx): void {
             plannedSec: cfg.timing === "countdown" ? cfg.countdownMin * 60 : undefined,
             revealMode: cfg.reveal,
             stepsMode: cfg.stepsMode,
+            scope,
             elapsedSec: 0,
             answered: 0,
             correct: 0,
@@ -274,6 +298,19 @@ export function startRound(ctx: StartRoundCtx): void {
     ctx.setSession(session);
     void ctx.history?.upsert(session);
     ctx.afterStart();
+}
+
+/** 范围裁剪：all=全量；wrong=上轮错题；wrongAll=历史未掌握（right=0 且错过）。 */
+function scopeFilter(fullList: WenguQuestion[], scope: WenguRoundScope, last?: WenguSession): WenguQuestion[] {
+    if (scope === "wrong") {
+        const wrong = new Set((last?.results ?? []).filter((r) => !r.ok).map((r) => baseQid(r.qid)));
+        return wrong.size > 0 ? fullList.filter((q) => wrong.has(q.id)) : fullList;
+    }
+    if (scope === "wrongAll") {
+        const pending = fullList.filter((q) => q.wrongCount > 0 && q.right === "0");
+        return pending.length > 0 ? pending : fullList;
+    }
+    return fullList;
 }
 
 /** 轮次默认值（开刷面板模型与开轮共用；stepsMode 默认离线）。 */
@@ -319,22 +356,26 @@ export function startPanelModelFor(v: DrillViewAccess): StartPanelModel {
     });
 }
 
-/** beginDrill（从 QuizView 拆出）：由视图能力组装 StartRoundCtx 开刷。 */
-export function beginDrillFor(v: DrillViewAccess): void {
-    startRound({
-        root: v.container(),
-        defaults: roundDefaults(v.currentRevealMode(), v.timerController()),
-        rounds: v.allRounds(),
-        fullList: v.fullListOf(),
-        docId: v.docIdOf(),
-        timer: v.timerController(),
-        history: v.historyStore(),
-        setList: (l) => v.setQuizList(l),
-        setRevealMode: (m) => v.setQuizRevealMode(m),
-        setActiveIdx: (i) => v.setActiveQIdx(i),
-        setStarted: (flag) => v.setStartedFlag(flag),
-        setFinished: (s) => v.setFinishedSession(s),
-        setSession: (s) => v.setCurSession(s),
-        afterStart: () => v.afterStartHook(),
-    });
+/** beginDrill（从 QuizView 拆出）：由视图能力组装 StartRoundCtx 开刷
+ *（override 供复习模式「重刷本文档」直落范围）。 */
+export function beginDrillFor(v: DrillViewAccess, override?: { scope?: WenguRoundScope }): void {
+    startRound(
+        {
+            root: v.container(),
+            defaults: roundDefaults(v.currentRevealMode(), v.timerController()),
+            rounds: v.allRounds(),
+            fullList: v.fullListOf(),
+            docId: v.docIdOf(),
+            timer: v.timerController(),
+            history: v.historyStore(),
+            setList: (l) => v.setQuizList(l),
+            setRevealMode: (m) => v.setQuizRevealMode(m),
+            setActiveIdx: (i) => v.setActiveQIdx(i),
+            setStarted: (flag) => v.setStartedFlag(flag),
+            setFinished: (s) => v.setFinishedSession(s),
+            setSession: (s) => v.setCurSession(s),
+            afterStart: () => v.afterStartHook(),
+        },
+        override
+    );
 }
