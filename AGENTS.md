@@ -85,6 +85,9 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
 
 - **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
   fetch + `window.siyuan.config.api.token` 鉴权（见 PdfImport.putAsset）。
+  **3.8.1 路由迁移**：端点变为 `POST /api/file/putFile`（旧 `/api/putFile`
+  返回 200+空 body 假成功），且 path 必须工作区相对（带前导 `/` 会拼出
+  `…\C::` 非法路径报 mkdir 错）（20260825 真机实测）。
 - 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
   references:[], model?}`，model=设置里模型 id；`event:content` 的
   `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
@@ -102,9 +105,14 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   `/api/query/sql` 不带 LIMIT 最多返回 64 行且 code=0 无异常（/MinerU
   书架 94 篇文档只回 64 篇的假象）；子查询不支持（返回空）。批量/
   全量查询必须显式 `LIMIT n OFFSET k` 分页（见 KnowledgeLink.sqlAll）。
-- Lute：自建实例必须 `SetInlineMath(true)`（编辑器默认关行级公式，
-  否则 `$...$` 原样输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发
-  getDoc 挂起）。
+- Lute：**只能用全局 `window.Lute`**——插件加载器给 `"siyuan"` 模块
+  注入的固定对象里没有 Lute（3.8.1 加载器实测：window.eval 包合成
+  require，模块表只有 fetch*/Protyle/ProtyleMethod/Dialog 等），
+  `import { Lute } from "siyuan"` 得 undefined，`New()` 抛异常被
+  safeLute 吞掉→整体退 `<pre>` 纯文本，公式显成裸 `$...$`
+  （20260825 踩坑，ProtyleHost.luteToHtml）。自建实例还必须
+  `SetInlineMath(true)`（编辑器默认关行级公式，否则 `$...$` 原样
+  输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发 getDoc 挂起）。
 
 ## 外部 API：MinerU（PDF 解析，20260823 接入）
 
