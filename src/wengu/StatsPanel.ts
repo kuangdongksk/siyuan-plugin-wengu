@@ -1,9 +1,11 @@
 import { agentChat } from "./AgentClient";
 import type { HistoryStore } from "./HistoryStore";
 import { openAgentWithPrompt } from "./RoundReport";
+import { wrongOverviewNow } from "./ReviewFlow";
 import { roundsOption, StatsChartHost, trendOption } from "./StatsCharts";
-import { renderDocStatsHtml, renderOverviewHtml, renderStatsShell } from "./StatsHtml";
+import { renderDocStatsHtml, renderOverviewHtml, renderStatsShell, type OverviewExtra } from "./StatsHtml";
 import { buildDocStats, buildQuizStats, buildStatsPrompt, modeLabel } from "./StatsService";
+import type { WeakCause, WeakTopRow } from "./WeaknessStore";
 import type { WenguDoc, WenguQuestion } from "./types";
 import { esc, fmt } from "./ui";
 
@@ -27,6 +29,10 @@ export interface StatsPanelDeps {
     fullList: WenguQuestion[];
     /** 文档榜行点击：切刷题文档（视图 load 完成后重开面板）。 */
     switchDoc(docId: string): void;
+    /** 薄弱画像（总览扩展块：Top 知识点 + 错因分布）。 */
+    weakness?: { topSync(n: number): WeakTopRow[]; causeDistSync(): { cause: WeakCause; n: number }[] };
+    /** 「进错题本」/错题行点击：关面板并定位复习模式（qid 定位单题回看）。 */
+    enterReview(qid?: string): void;
     aiModelId: string;
     /** 打开时直落的 tab（默认总览）。 */
     tab?: "overview" | "doc";
@@ -38,6 +44,8 @@ export interface StatsViewAccess {
     container(): HTMLElement;
     t(key: string): string;
     historyStore(): HistoryStore | undefined;
+    weaknessStore():
+        { topSync(n: number): WeakTopRow[]; causeDistSync(): { cause: WeakCause; n: number }[] } | undefined;
     docsOf(): {
         id: string;
         title?: string;
@@ -51,6 +59,7 @@ export interface StatsViewAccess {
     fullListOf(): import("./types").WenguQuestion[];
     switchDocSelect(id: string): void;
     markReopenStats(tab: "overview" | "doc"): void;
+    enterReviewMode(opt: { docId?: string; qid?: string }): void;
     aiModelId(): string;
 }
 
@@ -67,6 +76,8 @@ export function openStatsPanelFor(v: StatsViewAccess, tab: "overview" | "doc"): 
             v.markReopenStats("doc");
             v.switchDocSelect(id);
         },
+        weakness: v.weaknessStore(),
+        enterReview: (qid) => v.enterReviewMode(qid ? { qid } : {}),
         aiModelId: v.aiModelId(),
         tab,
     });
@@ -149,9 +160,15 @@ class StatsPanel {
         if (this.tab === "overview") {
             const sessions = (await this.d.history?.allSessions()) ?? [];
             const stats = buildQuizStats(sessions);
-            body.innerHTML = renderOverviewHtml(this.d.t, stats, this.d.docs, this.d.docId);
+            const extra: OverviewExtra = {
+                wrong: wrongOverviewNow(),
+                weakRows: this.d.weakness?.topSync(8) ?? [],
+                causeDist: this.d.weakness?.causeDistSync() ?? [],
+            };
+            body.innerHTML = renderOverviewHtml(this.d.t, stats, this.d.docs, this.d.docId, extra);
             this.mountChart(body, "trend", trendOption(stats.recent, this.d.t));
             this.bindDocRows(body);
+            this.bindReviewEntries(body);
         } else {
             const sessions = (await this.d.history?.docSessions(this.d.docId)) ?? [];
             const title = this.d.docs.find((x) => x.id === this.d.docId)?.title || this.d.docId;
@@ -171,6 +188,7 @@ class StatsPanel {
             });
             this.mountChart(body, "rounds", roundsOption(s.rounds, this.d.t));
             this.bindAi(body, s);
+            this.bindReviewEntries(body); // 错题清单行 → 错题本定位回看
         }
     }
 
@@ -185,6 +203,14 @@ class StatsPanel {
                 const id = row.dataset.docid ?? "";
                 if (id && id !== this.d.docId) this.d.switchDoc(id);
             })
+        );
+    }
+
+    /** 总览「进错题本」按钮 + 详情错题行 → 关面板进复习模式（D6 联动）。 */
+    private bindReviewEntries(body: HTMLElement): void {
+        body.querySelector("[data-act='enter-review']")?.addEventListener("click", () => this.d.enterReview());
+        body.querySelectorAll<HTMLElement>("[data-wrong-qid]").forEach((row) =>
+            row.addEventListener("click", () => this.d.enterReview(row.dataset.wrongQid ?? ""))
         );
     }
 

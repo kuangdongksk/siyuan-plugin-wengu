@@ -1,5 +1,8 @@
 import type { WenguRevealMode, WenguStepsMode, WenguTimingMode } from "./types";
 
+/** 一轮的刷题范围：全部 / 上轮错题 / 历史未掌握错题（复习模式 D5）。 */
+export type WenguRoundScope = "all" | "wrong" | "wrongAll";
+
 /** 一题在一轮里的作答记录。 */
 export interface WenguSessionResult {
     qid: string;
@@ -28,6 +31,8 @@ export interface WenguSession {
     revealMode?: WenguRevealMode;
     /** 多步题作答模式（旧记录缺省视为离线）。 */
     stepsMode?: WenguStepsMode;
+    /** 刷题范围（旧记录缺省视为 all；「继续上次」按它恢复清单，P2-6）。 */
+    scope?: WenguRoundScope;
     /** 实际用时（秒，到最近一次作答/收卷为止）。 */
     elapsedSec: number;
     answered: number;

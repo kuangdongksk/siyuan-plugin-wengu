@@ -6,11 +6,13 @@
 > 下一轮重构的依据。逐条执行，不做一次性大改。
 >
 > **进度**：P0 全部、P1 全部、P2-3/P2-5 已完成（2026-08-22）；模块化
-> 拆分完成且全仓单文件 ≤500 行（最大 QuizView 490），新增
+> 拆分完成且全仓单文件 ≤500 行（最大 QuizView 500），新增
 > CardHtml/ProtyleHost/AnswerFlow/StepsFlow/AiJudge/ConvertDialog/
 > RoundReport/QuizLoader/OrphanCleaner/QuestionGrading/
 > ConvertHost/ViewBindings/NumRail/AgentClient/FormHtml（Flashcards
-> 20260823 删除——错题闪卡废弃，见 question-block-contract.md）。
+> 20260823 删除——错题闪卡废弃，见 question-block-contract.md）；
+> 20260825 复习模式（错题本）新增 ReviewFlow/ReviewHtml + ConvertAccess
+> 拆出（见 docs/review-mode.md）。
 
 ## 〇、界面规范（2026-08-22 起硬性约定）
 
@@ -35,42 +37,45 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
 
 ## 一、现状全景
 
-| 模块                           | 行数 | 职责                                                            |
-| ------------------------------ | ---- | --------------------------------------------------------------- |
-| `src/wengu/QuizView.ts`        | 478  | 页签编排层：状态持有 + 各模块接线（统计入口/下钻重开）          |
-| `src/wengu/CardHtml.ts`        | 470  | 纯 HTML 构建：题卡/作答位/目录/头部/主区外壳                    |
-| `src/wengu/StepsFlow.ts`       | 453  | steps 多步引导题作答流程                                        |
-| `src/wengu/AnswerFlow.ts`      | 440  | 作答流程：判分/揭示/自评/恢复已答                               |
-| `src/wengu/ConvertDialog.ts`   | 425  | AI 转习题弹窗（原位/另存 + PDF 导入入口）                       |
-| `src/wengu/QuestionService.ts` | 393  | 块读写内核 API：SQL 聚合、hydrate、记账（判分/闪卡 re-export）  |
-| `src/wengu/RoundReport.ts`     | 337  | 一轮总结：图表 + AI 分析 + 收卷编排（openAgentWithPrompt 复用） |
-| `src/wengu/StartPanel.ts`      | 287  | 开刷面板：RoundConfig 表单渲染/读取/开轮                        |
-| `src/wengu/ConvertService.ts`  | 258  | 转换编排：文档定位 + prompt + 落盘 + 生成位置 + 配对属性        |
-| `src/wengu/SettingsDialog.ts`  | 255  | 仿原生设置页（左导航 + 分组）                                   |
-| `src/wengu/types.ts`           | 247  | 领域类型 + 清洗/比较纯函数                                      |
-| `src/index.ts`                 | 217  | 插件入口：topbar、页签注册、settings 装载、openSetting          |
-| `src/wengu/AiJudge.ts`         | 217  | steps 题 AI 实时判分                                            |
-| `src/wengu/AgentClient.ts`     | 179  | 智能体 SSE 客户端 + 模型清单/下拉选项                           |
-| `src/wengu/StatsService.ts`    | 176  | 统计聚合纯函数：总览/单文档/错题清单 + AI 建议 prompt           |
-| `src/wengu/StatsPanel.ts`      | 175  | 统计浮层编排：两 tab、数据拉取、下钻联动、AI 双路径             |
-| `src/wengu/StatsHtml.ts`       | 165  | 统计纯渲染：数字卡/文档榜/逐轮评分/错题清单                     |
-| `src/wengu/ProtyleHost.ts`     | 163  | 内嵌 Protyle 逐卡串行挂载                                       |
-| `src/wengu/StatsCharts.ts`     | 161  | echarts 按需注册与图表 option/生命周期（插件自带非 window）     |
-| `src/wengu/QuizLoader.ts`      | 147  | 一次装载：孤儿清理/文档/题目/轮次/prefs 恢复                    |
-| `src/wengu/TimerController.ts` | 146  | 计时状态机（4 模式 + 逐题秒数）                                 |
-| `src/wengu/HistoryStore.ts`    | 140  | N 刷会话历史（saveData("history")，allSessions 供统计）         |
-| `src/wengu/QuestionGrading.ts` | 123  | 判分纯函数：客观题/多步题自动判分与选项描色                     |
-| `src/wengu/Flashcards.ts`      | 92   | 「温故错题」闪卡卡组：懒创建与加/移卡片                         |
-| `src/wengu/TimerBinder.ts`     | 88   | 计时编排（自 QuizView 外移）：tick/落库/标签/超时条             |
-| `src/wengu/ConvertHost.ts`     | 82   | 转换编排：弹窗依赖组装/转换按钮/页内状态条                      |
-| `src/wengu/FormHtml.ts`        | 60   | 共享表单构件（§〇 规范落地）                                    |
-| `src/wengu/NumRail.ts`         | 60   | 题号导航渲染与绑定                                              |
-| `src/wengu/OrphanCleaner.ts`   | 55   | 孤儿习题文档清理（源删则习题随删，进回收站）                    |
-| `src/wengu/attrs.ts`           | 53   | 属性名常量                                                      |
-| `src/wengu/ui.ts`              | 40   | esc/fmt/mmss/clampMinutes                                       |
-| `src/wengu/MinerUClient.ts`    | 200  | MinerU 解析客户端（forwardProxy + OSS 直连 + fflate 解压）      |
-| `src/wengu/PdfImport.ts`       | 150  | PDF 导入编排：插图落 assets + 建原文档                          |
-| `src/wengu/ViewBindings.ts`    | 39   | 头部与目录事件绑定（搜索/委托点击/统计入口）                    |
+| 模块                           | 行数 | 职责                                                              |
+| ------------------------------ | ---- | ----------------------------------------------------------------- |
+| `src/wengu/QuizView.ts`        | 500  | 页签编排层：状态持有 + 各模块接线（模式切换/统计入口/下钻重开）   |
+| `src/wengu/ReviewFlow.ts`      | 342  | 复习模式（错题本）编排：全局错题 SQL 分页 + 时间线索引 + 惰性回看 |
+| `src/wengu/ReviewHtml.ts`      | 180  | 错题本纯渲染：分组清单 + 单题回看详情 + 历次时间线                |
+| `src/wengu/ConvertAccess.ts`   | 167  | QuizView 的 ConvertViewAccess 实现体（转换状态/收尾，拆出压红线） |
+| `src/wengu/CardHtml.ts`        | 470  | 纯 HTML 构建：题卡/作答位/目录/头部（模式切换器）/主区外壳        |
+| `src/wengu/StepsFlow.ts`       | 453  | steps 多步引导题作答流程                                          |
+| `src/wengu/AnswerFlow.ts`      | 440  | 作答流程：判分/揭示/自评/恢复已答                                 |
+| `src/wengu/ConvertDialog.ts`   | 425  | AI 转习题弹窗（原位/另存 + PDF 导入入口）                         |
+| `src/wengu/QuestionService.ts` | 393  | 块读写内核 API：SQL 聚合、hydrate、记账（判分/闪卡 re-export）    |
+| `src/wengu/RoundReport.ts`     | 337  | 一轮总结：图表 + AI 分析 + 收卷编排（openAgentWithPrompt 复用）   |
+| `src/wengu/StartPanel.ts`      | 287  | 开刷面板：RoundConfig 表单渲染/读取/开轮                          |
+| `src/wengu/ConvertService.ts`  | 258  | 转换编排：文档定位 + prompt + 落盘 + 生成位置 + 配对属性          |
+| `src/wengu/SettingsDialog.ts`  | 255  | 仿原生设置页（左导航 + 分组）                                     |
+| `src/wengu/types.ts`           | 247  | 领域类型 + 清洗/比较纯函数                                        |
+| `src/index.ts`                 | 217  | 插件入口：topbar、页签注册、settings 装载、openSetting            |
+| `src/wengu/AiJudge.ts`         | 217  | steps 题 AI 实时判分                                              |
+| `src/wengu/AgentClient.ts`     | 179  | 智能体 SSE 客户端 + 模型清单/下拉选项                             |
+| `src/wengu/StatsService.ts`    | 176  | 统计聚合纯函数：总览/单文档/错题清单 + AI 建议 prompt             |
+| `src/wengu/StatsPanel.ts`      | 175  | 统计浮层编排：两 tab、数据拉取、下钻联动、AI 双路径               |
+| `src/wengu/StatsHtml.ts`       | 165  | 统计纯渲染：数字卡/文档榜/逐轮评分/错题清单                       |
+| `src/wengu/ProtyleHost.ts`     | 163  | 内嵌 Protyle 逐卡串行挂载                                         |
+| `src/wengu/StatsCharts.ts`     | 161  | echarts 按需注册与图表 option/生命周期（插件自带非 window）       |
+| `src/wengu/QuizLoader.ts`      | 147  | 一次装载：孤儿清理/文档/题目/轮次/prefs 恢复                      |
+| `src/wengu/TimerController.ts` | 146  | 计时状态机（4 模式 + 逐题秒数）                                   |
+| `src/wengu/HistoryStore.ts`    | 140  | N 刷会话历史（saveData("history")，allSessions 供统计）           |
+| `src/wengu/QuestionGrading.ts` | 123  | 判分纯函数：客观题/多步题自动判分与选项描色                       |
+| `src/wengu/Flashcards.ts`      | 92   | 「温故错题」闪卡卡组：懒创建与加/移卡片                           |
+| `src/wengu/TimerBinder.ts`     | 88   | 计时编排（自 QuizView 外移）：tick/落库/标签/超时条               |
+| `src/wengu/ConvertHost.ts`     | 82   | 转换编排：弹窗依赖组装/转换按钮/页内状态条                        |
+| `src/wengu/FormHtml.ts`        | 60   | 共享表单构件（§〇 规范落地）                                      |
+| `src/wengu/NumRail.ts`         | 60   | 题号导航渲染与绑定                                                |
+| `src/wengu/OrphanCleaner.ts`   | 55   | 孤儿习题文档清理（源删则习题随删，进回收站）                      |
+| `src/wengu/attrs.ts`           | 53   | 属性名常量                                                        |
+| `src/wengu/ui.ts`              | 40   | esc/fmt/mmss/clampMinutes                                         |
+| `src/wengu/MinerUClient.ts`    | 200  | MinerU 解析客户端（forwardProxy + OSS 直连 + fflate 解压）        |
+| `src/wengu/PdfImport.ts`       | 150  | PDF 导入编排：插图落 assets + 建原文档                            |
+| `src/wengu/ViewBindings.ts`    | 39   | 头部与目录事件绑定（搜索/委托点击/统计入口）                      |
 
 分层：**内核 API（QuestionService/ConvertService/AgentClient）→
 领域纯函数（types）→ 视图（QuizView 编排 + 各渲染/流程模块）→ 存储

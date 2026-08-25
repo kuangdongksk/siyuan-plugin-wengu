@@ -1,3 +1,4 @@
+import { Menu } from "siyuan";
 import { applySideFilter } from "./CardHtml";
 import type { CollectionFlow } from "./CollectionFlow";
 import { updateConvertBtn } from "./ConvertHost";
@@ -5,7 +6,8 @@ import type { WenguDoc } from "./types";
 
 /**
  * 视图通用事件绑定（从 QuizView 拆出）：头部按钮（刷新/转换/设置/
- * 目录开合）、目录搜索与文档项点击。题号、开刷面板、卡片事件在各自模块。
+ * 目录开合/模式切换）、目录搜索、文档项点击与右键（错题复习入口）、
+ * 题号/开刷面板/卡片事件在各自模块。
  */
 export interface ViewBindCtx {
     el: HTMLElement;
@@ -26,6 +28,12 @@ export interface ViewBindCtx {
     switchCollection(collectionId: string): void;
     /** 打开专题管理（按知识点收集/删除专题）。 */
     openCollections(): void;
+    /** 头部模式切换器：做题 ↔ 复习（M6）。 */
+    switchMode(mode: "quiz" | "review"): void;
+    /** 目录文档右键「错题复习」：进复习模式并预筛该文档。 */
+    enterReviewMode(opt: { docId?: string; qid?: string }): void;
+    /** 右键菜单项文案（i18n）。 */
+    reviewMenuLabel: string;
 }
 
 export function bindViewEvents(ctx: ViewBindCtx): void {
@@ -38,6 +46,11 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
     q("[data-act='settings']")?.addEventListener("click", () => ctx.openSettings?.());
     q("[data-act='side-toggle']")?.addEventListener("click", () => ctx.toggleSide(false));
     q("[data-act='side-fold']")?.addEventListener("click", () => ctx.toggleSide(true));
+    q("[data-mode-seg]")
+        ?.querySelectorAll<HTMLElement>("[data-mode]")
+        .forEach((btn) =>
+            btn.addEventListener("click", () => ctx.switchMode(btn.dataset.mode === "review" ? "review" : "quiz"))
+        );
     q("[data-act='side-search']")?.addEventListener("input", (ev) => {
         ctx.filterDocs((ev.target as HTMLInputElement).value);
     });
@@ -50,6 +63,18 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
         }
         const col = (ev.target as HTMLElement).closest<HTMLElement>("[data-colid]");
         if (col) ctx.switchCollection(col.dataset.colid ?? "");
+    });
+    // 目录文档右键：错题复习快捷入口（D1 v2）
+    q("[data-side-body]")?.addEventListener("contextmenu", (ev) => {
+        const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid]");
+        const docId = node?.dataset.docid;
+        if (!docId) return;
+        const pos = ev as MouseEvent;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const menu = new Menu("wengu-doc-review");
+        menu.addItem({ icon: "iconInfo", label: ctx.reviewMenuLabel, click: () => ctx.enterReviewMode({ docId }) });
+        menu.open({ x: pos.clientX, y: pos.clientY });
     });
 }
 
@@ -68,6 +93,8 @@ export interface HeadAccess {
     setSideFilter(text: string): void;
     setSideCollapsed(collapsed: boolean): void;
     selectDoc(docId: string): void;
+    switchMode(mode: "quiz" | "review"): void;
+    enterReviewMode(opt: { docId?: string; qid?: string }): void;
 }
 
 /** 头部/目录接线（QuizView.bindHead 的拆出体，闭包集中在这里）。 */
@@ -87,5 +114,8 @@ export function bindHeadFor(v: HeadAccess): void {
         toggleSide: (collapsed) => v.setSideCollapsed(collapsed),
         updateConvertBtn: () => updateConvertBtn(v.el, v.convertingOf(), v.t),
         switchDoc: (id) => v.selectDoc(id),
+        switchMode: (mode) => v.switchMode(mode),
+        enterReviewMode: (opt) => v.enterReviewMode(opt),
+        reviewMenuLabel: v.t("reviewMenuLabel"),
     });
 }

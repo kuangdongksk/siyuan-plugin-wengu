@@ -27,3 +27,10 @@ export function mmss(sec: number): string {
 export function clampMinutes(n: number): number {
     return Number.isFinite(n) && n >= 1 ? Math.min(600, Math.floor(n)) : 20;
 }
+
+/** 时间戳 → 「MM-DD HH:mm」（错题本清单/时间线用）。 */
+export function fmtDateTime(ts: number): string {
+    const d = new Date(ts);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
