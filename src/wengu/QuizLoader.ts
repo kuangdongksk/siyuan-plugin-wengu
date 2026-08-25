@@ -140,6 +140,8 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
 /** 插件数据（saveData("quiz")）读写：会话状态（设置默认值另在设置页）。 */
 export interface WenguPrefsIo {
     docId?: string;
+    /** 上次选中的专题 id（重开页签恢复专题模式）。 */
+    colId?: string;
     sideCollapsed?: boolean;
     lastConvertModelId?: string;
     lastConvertFill?: boolean;

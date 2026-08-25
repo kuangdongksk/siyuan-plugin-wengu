@@ -1,7 +1,6 @@
 import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import { getBlockKramdown, listQuestions } from "./QuestionService";
-import type { WenguQuestion } from "./types";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -320,6 +319,29 @@ export class QuestionBank {
         this.markDirty();
     }
 
+    /** 把题目挂进指定 id 的专题（补题生成用，按 id 免受同名干扰）。 */
+    async appendQidToCollection(collectionId: string, qid: string): Promise<void> {
+        const data = await this.all();
+        const col = data.collections.find((c) => c.id === collectionId);
+        if (col && !col.qids.includes(qid)) {
+            col.qids.push(qid);
+            this.markDirty();
+        }
+    }
+
+    /** 专题题目涉及的来源文档集合（gen- 无来源除外；col 模式材料并集装载用）。 */
+    async collectionSourceDocs(collectionId: string): Promise<string[]> {
+        const data = await this.all();
+        const col = data.collections.find((c) => c.id === collectionId);
+        if (!col) return [];
+        const docs = new Set<string>();
+        for (const qid of col.qids) {
+            const d = data.records[qid]?.sourceDocId;
+            if (d) docs.add(d);
+        }
+        return [...docs];
+    }
+
     /* ── 重新生成 / 对账 / 反查 / 生成入库（③④⑤⑥ 用） ── */
 
     /** 取一条记录（重新生成读原文/知识点引用）。 */
@@ -466,9 +488,4 @@ function overlayStats(p: ParsedQuestion, r: BankRecord): ParsedQuestion {
     p.right = r.stats.right;
     p.lastAnswer = r.stats.lastAnswer;
     return p;
-}
-
-/** 题库模式渲染也要的题面（不含统计）。 */
-export function questionFromRecord(r: BankRecord): WenguQuestion | undefined {
-    return parseQuestionKramdown(r.kramdown, r.qid);
 }

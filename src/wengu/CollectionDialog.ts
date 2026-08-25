@@ -1,22 +1,34 @@
 import { Dialog } from "siyuan";
-import { svgIcon } from "./FormHtml";
+import { formOption, svgIcon } from "./FormHtml";
+import { generateQuestion } from "./GenQuestion";
+import { injectKnowledgeRefs } from "./KnowledgeLink";
 import type { CollectionRow, KnowledgeRow, QuestionBank } from "./QuestionBank";
 import { esc } from "./ui";
 
 /**
  * 专题管理对话框：上半=按知识点收集（勾选知识点键 → 并集收集成新
- * 专题），下半=已有专题（点击切换、删除）。知识点索引来自题库记录
+ * 专题，或「收集并补题」按缺口 AI 生成补入），下半=已有专题（点击
+ * 切换、展开移除单题、两击确认删除）。知识点索引来自题库记录
  * （kp 引用优先，降级 knowledge/chapter），迁移完成前可能为空。
  */
 
 export interface CollectionDialogDeps {
     t: (key: string) => string;
     bank: QuestionBank;
-    /** 专题变化（新建/删除）后刷新侧栏。 */
+    /** AI 模型 id（收集并补题用）。 */
+    modelId(): string;
+    /** 来源文档 id → 标题（展开题目列表的来源卷名尾注）。 */
+    docTitle(docId: string): string;
+    /** 专题变化（新建/删除/移题）后刷新侧栏。 */
     onChanged(): void;
-    /** 创建后直接切过去开刷。 */
+    /** 已有专题内容被编辑后（活跃专题需重载视图）。 */
+    onEdited(collectionId: string): void;
+    /** 创建/点击后直接切过去开刷。 */
     onSelect(collectionId: string): void;
 }
+
+/** 单次补题上限（串行 AI 调用，防 token/时长失控）。 */
+const GEN_MAX_PER_RUN = 10;
 
 export function openCollectionDialog(deps: CollectionDialogDeps): void {
     const { t, bank } = deps;
@@ -31,6 +43,18 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
           placeholder="${esc(t("collectTitlePlaceholder"))}">
         <button class="b3-button b3-button--outline" data-act="col-create">${esc(t("collectCreate"))}</button>
       </div>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        <span class="wengu-side-label">${esc(t("drillModeLabel"))}</span>
+        <select class="b3-select" data-act="col-gen-mode">${
+            formOption("variant", t("drillModeVariant"), true) + formOption("concept", t("drillModeConcept"), false)
+        }</select>
+        <span class="wengu-side-label">${esc(t("drillCountLabel"))}</span>
+        <select class="b3-select" data-act="col-gen-count">${Array.from({ length: GEN_MAX_PER_RUN }, (_, i) =>
+            formOption(String(i + 1), String(i + 1), i === 4)
+        ).join("")}</select>
+        <button class="b3-button b3-button--outline" data-act="col-gen">${esc(t("collectGenBtn"))}</button>
+      </div>
+      <div class="wengu-status" data-act="col-gen-status" hidden></div>
       <div class="wengu-side-label" style="margin-top:12px">${esc(t("collectExisting"))}</div>
       <div class="wengu-col-list" data-act="col-existing"><div class="wengu-muted">…</div></div>
     </div>
@@ -43,10 +67,20 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     const existingBox = root.querySelector<HTMLElement>("[data-act='col-existing']");
     const titleInput = root.querySelector<HTMLInputElement>("[data-act='col-title']");
     const createBtn = root.querySelector<HTMLButtonElement>("[data-act='col-create']");
+    const genBtn = root.querySelector<HTMLButtonElement>("[data-act='col-gen']");
+    const genStatus = root.querySelector<HTMLElement>("[data-act='col-gen-status']");
 
     const selected = new Set<string>();
     /** 默认标题 = 第一个勾选的知识点标题（可改）。 */
     let defaultTitle = "";
+    /** 生成进行中锁（防重复触发）。 */
+    let generating = false;
+    const show = (text: string, kind: "ok" | "err" | "muted") => {
+        if (!genStatus) return;
+        genStatus.textContent = text;
+        genStatus.className = `wengu-status wengu-status-${kind}`;
+        genStatus.removeAttribute("hidden");
+    };
 
     const renderKnowledge = (rows: KnowledgeRow[]) => {
         if (!knowledgeBox) return;
@@ -82,6 +116,45 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         }
     };
 
+    /** 展开区：专题题目清单（stem 60 字 + 来源卷名尾注，可逐题移除）。 */
+    const renderColQuestions = async (box: HTMLElement, colId: string) => {
+        const parsed = await bank.questionsOf(colId);
+        const rows = await Promise.all(
+            parsed.map(async (p) => {
+                const src = (await bank.recordOf(p.id))?.sourceDocId ?? "";
+                const srcTitle = src ? deps.docTitle(src) : "";
+                return { qid: p.id, stem: (p.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 60), srcTitle };
+            })
+        );
+        box.innerHTML =
+            rows.length === 0
+                ? `<div class="wengu-muted" style="padding:2px 0 2px 24px">${esc(t("collectEmptyQuestions"))}</div>`
+                : rows
+                      .map(
+                          (r) =>
+                              `<div class="wengu-col-row wengu-col-qrow" data-qid="${esc(r.qid)}">
+        <span class="wengu-col-row-title" title="${esc(r.stem)}">${esc(r.stem || r.qid)}${
+            r.srcTitle ? `<span class="wengu-muted"> · ${esc(r.srcTitle)}</span>` : ""
+        }</span>
+        <button class="b3-button b3-button--cancel wengu-col-del" data-rmcol="${esc(colId)}" data-rmq="${esc(
+            r.qid
+        )}" title="${esc(t("collectRemoveQ"))}">×</button>
+      </div>`
+                      )
+                      .join("");
+        for (const btn of box.querySelectorAll<HTMLButtonElement>("[data-rmq]")) {
+            const cid = btn.dataset.rmcol ?? "";
+            const qid = btn.dataset.rmq ?? "";
+            armConfirm(btn, t("collectConfirm"), async () => {
+                await bank.removeFromCollection(cid, qid);
+                await bank.flush();
+                deps.onChanged();
+                deps.onEdited(cid);
+                await refresh();
+            });
+        }
+    };
+
     const renderExisting = (rows: CollectionRow[]) => {
         if (!existingBox) return;
         if (rows.length === 0) {
@@ -92,26 +165,49 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
             .map(
                 (c) =>
                     `<div class="wengu-col-row" data-colid="${esc(c.id)}">
+        <button class="b3-button b3-button--outline wengu-col-exp" data-exp="${esc(c.id)}" title="${esc(
+            t("collectExpand")
+        )}">${svgIcon("iconRight")}</button>
         <span class="wengu-col-row-title">${svgIcon("iconList")} ${esc(c.title)}</span>
         <span class="wengu-meta">${esc(String(c.count))}</span>
         <button class="b3-button b3-button--cancel wengu-col-del" data-del="${esc(c.id)}" title="${esc(
             t("collectDelete")
         )}">×</button>
-      </div>`
+      </div>
+      <div class="wengu-col-qs" data-colqs="${esc(c.id)}" hidden></div>`
             )
             .join("");
         existingBox.querySelectorAll<HTMLElement>("[data-colid]").forEach((row) => {
             row.addEventListener("click", (ev) => {
-                const del = (ev.target as HTMLElement).closest("[data-del]");
-                if (del) return; // 删除按钮单独处理
+                if (
+                    (ev.target as HTMLElement).closest("[data-del]") ||
+                    (ev.target as HTMLElement).closest("[data-exp]")
+                )
+                    return; // 删除/展开按钮单独处理
                 const id = row.dataset.colid ?? "";
                 dialog.destroy();
                 deps.onSelect(id);
             });
         });
+        existingBox.querySelectorAll<HTMLButtonElement>("[data-exp]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+                const id = btn.dataset.exp ?? "";
+                const box = existingBox.querySelector<HTMLElement>(`[data-colqs='${id}']`);
+                if (!box) return;
+                const open = !box.hidden;
+                box.hidden = open;
+                btn.classList.toggle("wengu-col-exp-open", !open); // 展开态图标旋转 90°
+                if (!open) await renderColQuestions(box, id);
+            });
+        });
         existingBox.querySelectorAll<HTMLButtonElement>("[data-del]").forEach((btn) => {
-            btn.addEventListener("click", () => {
-                void bank.deleteCollection(btn.dataset.del ?? "").then((): void => void refresh());
+            armConfirm(btn, t("collectConfirm"), async () => {
+                const id = btn.dataset.del ?? "";
+                await bank.deleteCollection(id);
+                await bank.flush();
+                deps.onChanged();
+                deps.onEdited(id);
+                await refresh();
             });
         });
     };
@@ -121,18 +217,120 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         renderExisting(await bank.collectionsView());
     };
 
+    /** 纯收集（不生成）：建专题后即切过去。 */
     createBtn?.addEventListener("click", () => {
-        if (selected.size === 0) return;
+        if (selected.size === 0 || generating) return;
         const title = (titleInput?.value ?? "").trim() || defaultTitle || t("collectDefaultTitle");
         void bank.collectQids([...selected]).then((qids) =>
-            bank.createCollection(title, qids, "knowledge").then(() => {
+            bank.createCollection(title, qids, "knowledge").then((row) => {
                 void bank.flush();
-                void refresh();
                 deps.onChanged();
-                if (titleInput) titleInput.value = "";
+                dialog.destroy();
+                deps.onSelect(row.id);
             })
         );
     });
+
+    /** 收集并补题：先收已有题建专题，再按勾选点的缺口逐点生成补入。 */
+    genBtn?.addEventListener("click", () => {
+        if (selected.size === 0 || generating) return;
+        const mode = (root.querySelector<HTMLSelectElement>("[data-act='col-gen-mode']")?.value ?? "variant") as
+            "variant" | "concept";
+        const count = Math.min(
+            GEN_MAX_PER_RUN,
+            Number(root.querySelector<HTMLSelectElement>("[data-act='col-gen-count']")?.value ?? 5) || 5
+        );
+        void runCollectGen(
+            deps,
+            [...selected],
+            (root.querySelector<HTMLInputElement>("[data-act='col-title']")?.value ?? "").trim() ||
+                defaultTitle ||
+                t("collectDefaultTitle"),
+            mode,
+            count,
+            show,
+            () => (generating = false),
+            dialog
+        );
+        generating = true;
+    });
     root.querySelector("[data-act='col-close']")?.addEventListener("click", () => dialog.destroy());
     void refresh();
+}
+
+/** 收集并补题主流程（与薄弱加练同款生成核，逐点按缺口补足）。 */
+async function runCollectGen(
+    deps: CollectionDialogDeps,
+    keys: string[],
+    title: string,
+    mode: "variant" | "concept",
+    count: number,
+    show: (text: string, kind: "ok" | "err" | "muted") => void,
+    done: () => void,
+    dialog: Dialog
+): Promise<void> {
+    const { t, bank } = deps;
+    const modelId = deps.modelId();
+    try {
+        const points = (await bank.knowledgeIndex()).filter((r) => keys.includes(r.key));
+        const qids = await bank.collectQids(keys);
+        const row = await bank.createCollection(title, qids, "knowledge");
+        const perPoint = points.length > 0 ? Math.max(1, Math.ceil(count / points.length)) : 0;
+        let made = 0;
+        let attempt = 0;
+        let degraded = false;
+        for (const p of points) {
+            let madeHere = 0;
+            while (madeHere < perPoint && made < count && attempt < count * 3) {
+                attempt++;
+                let m = mode;
+                if (m === "concept" && !p.key.startsWith("kp:")) {
+                    m = "variant"; // 概念辨析要小节块 id，kn:/ch: 键降级变式
+                    degraded = true;
+                }
+                show(`${t("drillRunning")} ${made}/${count} · ${p.title}`, "muted");
+                const kd = await generateQuestion(bank, p, m, modelId);
+                if (!kd) continue;
+                const kpId = p.key.startsWith("kp:") ? p.key.slice(3) : "";
+                const refs = kpId ? [{ id: kpId, title: p.title }] : [];
+                const qid = await bank.addGenerated(injectKnowledgeRefs(kd, refs), refs, title);
+                await bank.appendQidToCollection(row.id, qid);
+                madeHere++;
+                made++;
+            }
+            if (made >= count) break;
+        }
+        await bank.flush();
+        show(`${made} ${t("collectGenDone")}${degraded ? t("collectDegraded") : ""}`, "ok");
+        deps.onChanged();
+        window.setTimeout(() => {
+            dialog.destroy();
+            deps.onSelect(row.id);
+        }, 800);
+    } catch (e) {
+        show(`${t("convertAiFailed")}${String((e as Error)?.message ?? e)}`, "err");
+    }
+    done();
+}
+
+/** 两击确认：首次点击变确认态（3s 复原），复击执行——不引入新弹窗。 */
+function armConfirm(btn: HTMLButtonElement, confirmText: string, act: () => void): void {
+    let armed = false;
+    let timer = 0;
+    btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (armed) {
+            window.clearTimeout(timer);
+            act();
+            return;
+        }
+        armed = true;
+        btn.classList.add("wengu-col-armed");
+        btn.textContent = confirmText;
+        timer = window.setTimeout(() => {
+            armed = false;
+            btn.classList.remove("wengu-col-armed");
+            btn.textContent = "×";
+        }, 3000);
+    });
 }

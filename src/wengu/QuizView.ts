@@ -6,7 +6,7 @@ import type { CardHtmlModel } from "./CardParts";
 import { openConvertForView } from "./ConvertHost";
 import { ConvertAccess, type ConvertAccessHost } from "./ConvertAccess";
 import { reconcileKnowledgeRefs } from "./BankReconcile";
-import { CollectionFlow } from "./CollectionFlow";
+import { CollectionFlow, colLoadContext } from "./CollectionFlow";
 import type { HistoryStore, WenguSession } from "./HistoryStore";
 import { pushSessionAnswer } from "./HistoryStore";
 import { bindAnnotationLayer, hideBar, type AnnoCallbacks } from "./AnnoFlow";
@@ -121,12 +121,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             docs: () => this.docs,
             docId: () => this.docId,
             sideFilter: () => this.sideFilter,
-            reloadFromCollection: () => {
-                void this.timerBinder.flush();
-                this.docId = "";
-                this.persistPrefs();
-                void this.load();
-            },
+            modelId: () => this.aiModelId(),
+            reloadFromCollection: () => this.reloadDocs(""),
         });
         // 一次性事件委托（重渲染不重复绑定）：块引用跳转 + 题卡「重新生成」
         bindCardActions(this.el, {
@@ -216,6 +212,11 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             return;
         }
         this.colFlow.reset(); // 点文档=离开题库模式
+        this.reloadDocs(docId);
+    }
+
+    /** 切换上下文的公共收尾：结算计时、记 prefs、重载。 */
+    private reloadDocs(docId: string): void {
         void this.timerBinder.flush();
         this.docId = docId;
         this.persistPrefs();
@@ -251,6 +252,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     persistPrefs(): void {
         savePrefs(this.storage, {
             docId: this.docId,
+            colId: this.colFlow.id(),
             sideCollapsed: this.sideCollapsed,
             ...this.convertAccess.prefsSnapshot(),
         });
@@ -275,6 +277,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         const prefs = await loadPrefs(this.storage);
         await this.weakness?.preload();
         await this.bank?.preload();
+        if (prefs.colId && !this.colFlow.isActive()) await this.colFlow.restore(prefs.colId); // 重开恢复专题模式
         const colQuestions = await this.colFlow.questions();
         const r = await loadQuizState({
             prefs,
@@ -299,9 +302,12 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.materials = r.materials;
         this.rounds = r.rounds;
         if (colQuestions) {
-            this.fullList = colQuestions;
-            this.list = colQuestions;
-            this.rounds = []; // 专题暂不挂历史轮次（会话按 docId 记）
+            // 专题上下文：会话独立归档（col:<id>）轮次可续，材料按来源文档并集
+            const col = await colLoadContext(this.history, this.bank, this.colFlow.id(), colQuestions);
+            this.list = this.fullList = colQuestions;
+            this.rounds = col.rounds;
+            this.materials = col.materials;
+            this.docTotalSec = 0;
         }
         this.loadError = r.loadError;
         this.loading = false;
@@ -332,7 +338,6 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly syncSession = (elapsed: number): void => void (this.session && (this.session.elapsedSec = elapsed));
     readonly addDocTotal = (add: number) => (this.docTotalSec += add);
     readonly finishNow = (): void => manualFinishRound(roundFinishCtx(this));
-
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly finishedSession = (): WenguSession | undefined => this.finished;
     readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
@@ -354,18 +359,17 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.persistPrefs();
         this.renderList();
     };
-    /* ── StatsViewAccess（openStatsPanelFor 消费） ── */
+    /* ── StatsViewAccess（openStatsPanelFor 消费）；ConvertViewAccess 在下 ── */
     readonly docsOf = (): WenguDoc[] => this.docs;
     readonly markReopenStats = (tab: "overview" | "doc") => (this.reopenStatsTab = tab);
     readonly switchDocSelect = (id: string): void => this.selectDoc(id);
 
     private startPanelModel = () => startPanelModelFor(this);
-
     private beginDrill = () => beginDrillFor(this);
 
-    /* ── DrillViewAccess（beginDrillFor/startPanelModelFor 消费） ── */
+    /* ── DrillViewAccess（beginDrillFor 消费）；专题模式会话记 col:<id> ── */
     readonly fullListOf = (): WenguQuestion[] => this.fullList;
-    readonly docIdOf = (): string => this.docId;
+    readonly docIdOf = (): string => (this.colFlow.isActive() ? `col:${this.colFlow.id()}` : this.docId);
     readonly historyStore = (): HistoryStore | undefined => this.history;
     readonly setQuizList = (l: WenguQuestion[]) => (this.list = l);
     readonly setQuizRevealMode = (m: WenguRevealMode) => (this.revealMode = m);
@@ -443,7 +447,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         });
         this.bindAll();
         if (colMode)
-            this.protyleHost.mountStatic(this.el, this.list); // 题库静态渲染（Lute）
+            this.protyleHost.mountStatic(this.el, this.list, this.materials); // 题库静态渲染（Lute，材料并集）
         else void this.protyleHost.mount(this.el, this.list, this.materials).then(() => restoreGroupScrolls(this.el));
         this.timerBinder.updateLabel();
     }
@@ -468,9 +472,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     }
 
     /** 打开统计面板（tab 直落；下钻后 load 完成时也走这里重开）。 */
-    openStatsPanelAt(tab: "overview" | "doc"): void {
-        openStatsPanelFor(this, tab);
-    }
+    readonly openStatsPanelAt = (tab: "overview" | "doc"): void => openStatsPanelFor(this, tab);
 
     readonly activeDocIdOf = (): string => this.activeDocId;
     readonly settingsOf = (): SettingsDialogShape | undefined => this.settings;

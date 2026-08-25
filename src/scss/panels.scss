@@ -227,3 +227,38 @@
   padding: 0 8px;
   min-width: auto;
 }
+
+/* 两击确认的武装态（首击变红文字「确认」，3s 复原） */
+.wengu-col-del.wengu-col-armed {
+  color: var(--b3-card-error-color);
+  border-color: var(--b3-card-error-color);
+}
+
+/* 已有专题的展开钮与题目行（stem + 来源卷名尾注 + 移除） */
+.wengu-col-exp {
+  padding: 0 4px;
+  min-width: auto;
+  flex-shrink: 0;
+}
+
+/* 展开态：图标旋转 90°（不赌思源 iconDown symbol 存在） */
+.wengu-col-exp-open svg {
+  transform: rotate(90deg);
+}
+
+.wengu-col-qs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 24px;
+}
+
+/* display:flex 会盖掉 hidden 属性的 UA 样式，须显式关掉 */
+.wengu-col-qs[hidden] {
+  display: none;
+}
+
+.wengu-col-qrow {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface);
+}
