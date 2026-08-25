@@ -30,6 +30,8 @@ export interface ViewBindCtx {
     openCollections(): void;
     /** 头部模式切换器：做题 ↔ 复习（M6）。 */
     switchMode(mode: "quiz" | "review"): void;
+    /** 「结束本次做题」：批改已答部分并出本轮报告（下次可继续）。 */
+    endRound(): void;
     /** 目录文档右键「错题复习」：进复习模式并预筛该文档。 */
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
     /** 右键菜单项文案（i18n）。 */
@@ -51,6 +53,7 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
         .forEach((btn) =>
             btn.addEventListener("click", () => ctx.switchMode(btn.dataset.mode === "review" ? "review" : "quiz"))
         );
+    q("[data-act='end-round']")?.addEventListener("click", () => ctx.endRound());
     q("[data-act='side-search']")?.addEventListener("input", (ev) => {
         ctx.filterDocs((ev.target as HTMLInputElement).value);
     });
@@ -94,6 +97,7 @@ export interface HeadAccess {
     setSideCollapsed(collapsed: boolean): void;
     selectDoc(docId: string): void;
     switchMode(mode: "quiz" | "review"): void;
+    endRound(): void;
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
 }
 
@@ -115,6 +119,7 @@ export function bindHeadFor(v: HeadAccess): void {
         updateConvertBtn: () => updateConvertBtn(v.el, v.convertingOf(), v.t),
         switchDoc: (id) => v.selectDoc(id),
         switchMode: (mode) => v.switchMode(mode),
+        endRound: () => v.endRound(),
         enterReviewMode: (opt) => v.enterReviewMode(opt),
         reviewMenuLabel: v.t("reviewMenuLabel"),
     });

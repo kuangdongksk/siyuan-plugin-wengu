@@ -243,6 +243,8 @@
   "rtFallback": "切离线继续",
   "continueAnswer": "继续作答",
   "finishRound": "结束本轮",
+  "endRoundBtn": "结束本次",
+  "endRoundHint": "批改已答部分并出本轮报告；下次可从「继续上次」接着做",
   "reportTitle": "本轮总结",
   "reportScore": "得分 {c}/{a}",
   "reportOvertime": "超时",

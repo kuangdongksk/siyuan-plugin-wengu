@@ -82,6 +82,22 @@ export function roundAggByQid(s: WenguSession): Map<string, boolean> {
     return out;
 }
 
+/** 水位标记：`${会话id}#${已计结果条数}`——「结束本次做题」后同会话
+ *  续刷再收卷，只把新增结果计入画像/错因；旧版纯 id 条目视为全量已计。 */
+function watermarkOf(ids: string[], id: string, total: number): number {
+    const hit = ids.find((x) => x === id || x.startsWith(`${id}#`));
+    if (!hit) return 0;
+    return hit === id ? total : Number(hit.slice(id.length + 1)) || 0;
+}
+
+function markApplied(ids: string[], id: string, count: number): void {
+    const mark = `${id}#${count}`;
+    const i = ids.findIndex((x) => x === id || x.startsWith(`${id}#`));
+    if (i >= 0) ids[i] = mark;
+    else ids.push(mark);
+    if (ids.length > 300) ids.splice(0, ids.length - 300);
+}
+
 export class WeaknessStore {
     private cache?: WeaknessData;
     private snapshot: WeakTopRow[] = [];
@@ -128,13 +144,12 @@ export class WeaknessStore {
         return [...sum.entries()].map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n);
     }
 
-    /** 收卷即计数（本地聚合，零 AI；重复调用按会话 id 幂等）。 */
+    /** 收卷即计数（本地聚合，零 AI；同会话按结果水位增量幂等）。 */
     async applyRound(s: WenguSession, list: WenguQuestion[]): Promise<void> {
         const data = await this.all();
-        if (data.applied.includes(s.id)) return;
-        data.applied.push(s.id);
-        if (data.applied.length > 300) data.applied = data.applied.slice(-300);
-        const agg = roundAggByQid(s);
+        const from = watermarkOf(data.applied, s.id, s.results.length);
+        if (from >= s.results.length) return;
+        const agg = roundAggByQid({ ...s, results: s.results.slice(from) });
         const qById = new Map(list.map((q) => [q.id, q]));
         for (const [qid, ok] of agg) {
             const q = qById.get(qid);
@@ -156,10 +171,11 @@ export class WeaknessStore {
                 }
             }
         }
+        markApplied(data.applied, s.id, s.results.length);
         await this.save(data);
     }
 
-    /** 错因异步补记（brief 判分自带 + 客观错题批量归因；幂等）。 */
+    /** 错因异步补记（brief 判分自带 + 客观错题批量归因；同会话按水位增量幂等）。 */
     async applyCauses(
         s: WenguSession,
         list: WenguQuestion[],
@@ -167,11 +183,12 @@ export class WeaknessStore {
         noteByQid?: Map<string, string>
     ): Promise<void> {
         const data = await this.all();
-        if (data.causeApplied.includes(s.id) || causeByQid.size === 0) return;
-        data.causeApplied.push(s.id);
-        if (data.causeApplied.length > 300) data.causeApplied = data.causeApplied.slice(-300);
+        const from = watermarkOf(data.causeApplied, s.id, s.results.length);
+        if (from >= s.results.length || causeByQid.size === 0) return;
+        const inDelta = new Set(s.results.slice(from).map((r) => baseQid(r.qid)));
         const qById = new Map(list.map((q) => [q.id, q]));
         for (const [qid, cause] of causeByQid) {
+            if (!inDelta.has(qid)) continue;
             const q = qById.get(qid);
             if (!q) continue;
             const note = noteByQid?.get(qid);
@@ -188,6 +205,7 @@ export class WeaknessStore {
                 if (note) e.aiNote = note.slice(0, 80);
             }
         }
+        markApplied(data.causeApplied, s.id, s.results.length);
         await this.save(data);
     }
 

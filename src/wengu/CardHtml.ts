@@ -285,12 +285,13 @@ export function renderSideHtml(m: SideHtmlModel): string {
 }
 
 /** 头部：目录开关（收起时）+ 模式切换器（做题/复习，M6）+ 文档信息/
- *  轮次成绩 + 用时（单行合并）。 */
+ *  轮次成绩 + 「结束本次」（做题中）+ 用时（单行合并）。 */
 export function renderHeadHtml(
     t: (key: string) => string,
     sideCollapsed: boolean,
     mode: "quiz" | "review" | "study",
-    subhead = ""
+    subhead = "",
+    canEndRound = false
 ): string {
     const toggle = sideCollapsed
         ? `<button class="wengu-btn" data-act="side-toggle" title="${esc(t("sideTitle"))}">${svgIcon(
@@ -301,10 +302,15 @@ export function renderHeadHtml(
         `<button class="wengu-mode-btn${mode === v ? " wengu-mode-cur" : ""}" data-mode="${v}" title="${esc(
             label
         )}">${esc(label)}</button>`;
+    const endBtn = canEndRound
+        ? `<button class="b3-button b3-button--outline wengu-end-round" data-act="end-round" title="${esc(
+              t("endRoundHint")
+          )}">${esc(t("endRoundBtn"))}</button>`
+        : "";
     return `${toggle}<div class="wengu-mode-seg" data-mode-seg>${modeBtn("quiz", t("modeQuiz"))}${modeBtn(
         "review",
         t("modeReview")
-    )}</div>${subhead}
+    )}</div>${subhead}${endBtn}
       <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${svgIcon(
           "iconClock",
           "wengu-timer-icon"
@@ -400,7 +406,7 @@ export function renderMainShell(m: MainShellModel): string {
             collections: m.collections,
             activeCollection: m.activeCollection,
         })}<div class="wengu-main">
-    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.mode, m.subheadHtml)}</div>
+    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.mode, m.subheadHtml, m.started)}</div>
     ${body}
 </div>`;
     if (m.loading) {

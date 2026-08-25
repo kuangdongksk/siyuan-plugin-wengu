@@ -239,14 +239,14 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.switchMode("review");
     };
 
+    /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。 */
+    readonly endRound = (): void => void ((this.session?.answered ?? 0) > 0 && manualFinishRound(roundFinishCtx(this)));
+
     /** 复习模式组头「重刷本文档」：切做题 + scope=wrongAll 直落开轮。 */
     readonly startReviewDrill = (docId: string): void => {
         this.switchMode("quiz");
         if (docId === this.docId) beginDrillFor(this, { scope: "wrongAll" });
-        else {
-            this.pendingDrillScope = "wrongAll";
-            this.selectDoc(docId);
-        }
+        else void ((this.pendingDrillScope = "wrongAll"), this.selectDoc(docId));
     };
 
     persistPrefs(): void {

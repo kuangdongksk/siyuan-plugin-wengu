@@ -243,6 +243,8 @@
   "rtFallback": "Switch to offline",
   "continueAnswer": "Keep answering",
   "finishRound": "Finish round",
+  "endRoundBtn": "End sitting",
+  "endRoundHint": "Grade what you answered and show this round report; continue next time via Resume",
   "reportTitle": "Round summary",
   "reportScore": "Score {c}/{a}",
   "reportOvertime": "overtime",
