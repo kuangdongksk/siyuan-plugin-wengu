@@ -363,9 +363,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly docsOf = (): WenguDoc[] => this.docs;
     readonly markReopenStats = (tab: "overview" | "doc") => (this.reopenStatsTab = tab);
     readonly switchDocSelect = (id: string): void => this.selectDoc(id);
-
     private startPanelModel = () => startPanelModelFor(this);
-    private beginDrill = () => beginDrillFor(this);
 
     /* ── DrillViewAccess（beginDrillFor 消费）；专题模式会话记 col:<id> ── */
     readonly fullListOf = (): WenguQuestion[] => this.fullList;
@@ -459,7 +457,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             onActive: (idx) => this.onActiveQ(idx),
             onFocus: (idx) => focusQuestion(this.el, this.units, this.list, idx),
         });
-        bindStartPanel(this.el, this.startPanelModel(), () => this.beginDrill());
+        bindStartPanel(this.el, this.startPanelModel(), () => beginDrillFor(this));
         bindGroupUnits(this.el, this.units, this, {
             onActive: (idx) => this.onActiveQ(idx),
             onShown: () => void this.protyleHost.mount(this.el, this.list, this.materials),
