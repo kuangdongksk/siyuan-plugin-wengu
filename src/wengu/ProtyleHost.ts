@@ -1,4 +1,4 @@
-import { Lute, Protyle, ProtyleMethod } from "siyuan";
+import { Protyle, ProtyleMethod } from "siyuan";
 import type { App } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "./types";
 import { optionDisplayMd } from "./types";
@@ -159,9 +159,13 @@ function waitForBlockNode(node: HTMLElement, timeoutMs: number): Promise<boolean
     });
 }
 
-/** 把 kramdown 交给思源 Lute 渲染为块 DOM HTML。 */
+/** 把 kramdown 交给思源 Lute 渲染为块 DOM HTML。
+ *  Lute 是 window 全局（app 逐窗口加载 lute.min.js），插件 API 模块
+ *  「siyuan」并不导出它——import { Lute } from "siyuan" 拿到 undefined，
+ *  New() 抛异常被 safeLute 吞掉后整体退成 <pre> 纯文本，公式显示为
+ *  裸 $...$（20260825 真机踩坑，3.8.1 加载器实测确认）。 */
 function luteToHtml(md: string): string {
-    const lute = Lute.New();
+    const lute = window.Lute.New();
     lute.SetKramdownIAL(true);
     // 行级/块级公式必须显式开启（编辑器配置默认关，不开 $...$ 原样输出）
     lute.SetInlineMath(true);
