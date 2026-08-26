@@ -1,6 +1,7 @@
 import { fetchSyncPost } from "siyuan";
 import { ATTR_PREFIX, Attr, Q_FLAG } from "../siyuan/attrs";
 import { gradeQuestion } from "./QuestionGrading";
+import { hydrateAll } from "./QuestionBatch";
 import {
     cleanStemMd,
     normalizeAnswerMd,
@@ -122,16 +123,10 @@ export async function listQuestions(docId?: string): Promise<WenguQuestion[]> {
     const { data } = await fetchSyncPost("/api/query/sql", { stmt });
     const rows = (data as AttrsRow[]) ?? [];
     const questions = rows.filter((r) => typeof r.attrs === "string").map(rowToQuestion);
-    // 块优先：取子块(题干/选项/答案/解析)。注意必须串行——思源的
-    // fetchSyncPost 并发调用会互相吞响应挂起（真机实测 12 题 Promise.all
-    // 卡死在加载态）；单题失败降级为不完整题目，不拖垮整列表。
-    for (const q of questions) {
-        try {
-            await hydrate(q);
-        } catch (_) {
-            // 保留块定位信息，缺题干/答案的题在页签里走自评流程
-        }
-    }
+    // 批量组装：整卷子块一次分页 JOIN 拉全（QuestionBatch.hydrateAll）。
+    // 逐题 getChildBlocks+SQL 在长卷（193 题 ≈ 390 次串行往返）是真机
+    // 卡顿主源之一；单题失败降级为不完整题目，不拖垮整列表。
+    await hydrateAll(questions);
     return questions;
 }
 
@@ -208,7 +203,24 @@ export async function hydrate(q: WenguQuestion): Promise<void> {
     for (const r of partRows as { block_id: string; value: string }[]) {
         partById.set(r.block_id, r.value);
     }
+    await flushStemRewrites(assembleQuestion(q, blocks, partById));
+}
 
+/** 题干清洗回写对（历史「题干A：」标签残留；批量路径统一串行回写）。 */
+export interface StemRewrite {
+    id: string;
+    md: string;
+}
+
+/** 串行执行题干回写（fetchSyncPost 并发互吞，必须逐个 await）。 */
+export async function flushStemRewrites(rewrites: StemRewrite[]): Promise<void> {
+    for (const r of rewrites) await rewriteStemBlock(r.id, r.md);
+}
+
+/** 子块 × part → 题目字段（同步纯装配，hydrate 单题与 QuestionBatch
+ *  批量共用）；返回需回写块的题干清洗对。 */
+export function assembleQuestion(q: WenguQuestion, blocks: ChildBlock[], partById: Map<string, string>): StemRewrite[] {
+    const rewrites: StemRewrite[] = [];
     const partMd = new Map<string, string[]>();
     // 契约规定选项 part 为 option-0 / option-1 …（也容忍不带序号的 option）
     const options: { index: number; md: string }[] = [];
@@ -239,10 +251,9 @@ export async function hydrate(q: WenguQuestion): Promise<void> {
         if (!md) continue;
         if (part === "stem") {
             // 历史转换残留的「题干A：」标签：页签展示清洗后的文本，
-            // 同时回写块本身，让文档/闪卡侧一并干净。
-            // 这里必须 await——fetchSyncPost 并发会互相吞响应（真机踩坑）
+            // 同时回写块本身（批量路径收集后统一串行回写）
             const cleaned = cleanStemMd(md);
-            if (cleaned && cleaned !== md) await rewriteStemBlock(b.id, cleaned);
+            if (cleaned && cleaned !== md) rewrites.push({ id: b.id, md: cleaned });
             md = cleaned;
         }
         const stepMatch = /^step-(\d+)-(stem|option(?:-(\d+))?|answer)$/.exec(part);
@@ -317,11 +328,13 @@ export async function hydrate(q: WenguQuestion): Promise<void> {
             .filter(Boolean);
         if (letters.length > 0) q.slots = letters.map((l): WenguSlot => ({ optionMd: [], answer: l }));
     }
+    return rewrites;
 }
 
-interface ChildBlock {
+/** 容器子块（getChildBlocks / 批量 SQL 共用形态）。 */
+export interface ChildBlock {
     id: string;
-    type: string;
+    type?: string;
     content?: string;
     markdown?: string;
 }

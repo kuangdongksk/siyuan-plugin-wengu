@@ -13,13 +13,17 @@ import { esc } from "../ui/shared";
  * `$...$` 原样输出），再 ProtyleMethod.mathRender 渲染 KaTeX。
  * 材料面板（E0）同样走这里：data-mprotyle 挂材料块，降级用 bodyMd。
  */
+/** 内嵌 Protyle 逐卡串行挂载的题量上限：超过改走静态渲染
+ *  （mountStatic，题库模式同路径 Lute+KaTeX）——长卷（193 题）
+ *  串行挂 N 个 Protyle 实例是真机卡死主源（每个还有 8s 等待上限）。 */
+export const PROTYLE_INLINE_MAX = 50;
+
 export class ProtyleHost {
     private readonly protyles = new Map<string, Protyle>();
     /** 挂载代数：destroy 时自增，让在途的异步挂载自动放弃。 */
     private mountGen = 0;
 
     constructor(private readonly app?: App) {}
-
     /** 渲染完成后挂载所有卡片与材料面板；app 不可用时整体走降级。 */
     async mount(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): Promise<void> {
         if (!this.app) {

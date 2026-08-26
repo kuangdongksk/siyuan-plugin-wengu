@@ -8,6 +8,7 @@ import { buildDrillUnits, renderUnitsHtml } from "./DrillUnits";
 import { bindGroupUnits, focusQuestion, restoreGroupScrolls } from "./MaterialFlow";
 import { bindNumRail } from "./NumRail";
 import { decoratePreview } from "./PreviewFlow";
+import { PROTYLE_INLINE_MAX } from "./ProtyleHost";
 import { beginDrillFor, bindStartPanel, renderStartPanel } from "./StartPanel";
 import { bindHeadFor } from "./ViewBindings";
 import { esc } from "../ui/shared";
@@ -69,9 +70,14 @@ export function renderQuizShellFor(v: QuizView): void {
         ),
     });
     bindQuizFor(v);
-    if (colMode)
-        v.protyleHost.mountStatic(v.el, v.list, v.materials); // 题库静态渲染（Lute，材料并集）
-    else void v.protyleHost.mount(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
+    // 渲染路径分流：题库模式/长卷走静态 Lute（无内核请求、无 N 个
+    // Protyle 实例）；常规卷走内嵌 Protyle（块级还原最完整）
+    if (colMode || v.list.length > PROTYLE_INLINE_MAX) {
+        v.protyleHost.mountStatic(v.el, v.list, v.materials);
+        restoreGroupScrolls(v.el);
+    } else {
+        void v.protyleHost.mount(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
+    }
     if (pv) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz")); // 预览装饰：揭示答案/快捷复制/模糊开关/退出预览
     v.timerBinder.updateLabel();
 }

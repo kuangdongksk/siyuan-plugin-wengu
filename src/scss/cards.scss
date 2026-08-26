@@ -22,7 +22,10 @@
   align-items: center;
   gap: 4px;
   padding: 4px 0;
-  max-height: 100%;
+  /* 滚动容器是 .wengu-main；父级 .wengu-body 高度随内容自适应，
+     100% 解析不动等于没约束（193 题栏底不可达）——用视口近似封顶：
+     页签可视高约 100vh-140px，留出头部再扣一点，宁短勿溢 */
+  max-height: calc(100vh - 200px);
   box-sizing: border-box;
   overflow-y: auto;
 }

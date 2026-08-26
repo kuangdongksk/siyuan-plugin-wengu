@@ -175,6 +175,18 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   答案在 `.wengu-static-sol` 容器里随 `wengu-graded` 显隐（与文档
   模式 part 显隐同语义）；块引用静态渲染、点击 `siyuan://blocks/id`
   跳转。文档模式仍走内嵌 Protyle。
+- **长卷性能（2026-08-26，193 题真机触发）**：①装载——listQuestions
+  改走 QuestionBatch.hydrateAll：整卷子块×part 一条 JOIN SQL 显式
+  LIMIT 512 分页拉全（~每 512 行一次请求），替代逐题
+  getChildBlocks+SQL 的 2×N 次串行往返（193 题 ≈390 次 → ~4 次；
+  fetchSyncPost 仍全程串行）；子块序=容器内 id 字典序≈写入序，
+  手工重排的小概率乱序不追求，单题 hydrate（复习详情）仍走
+  getChildBlocks 保序；题干清洗回写（StemRewrite）收集后统一串行
+  flush。②渲染——题量 > `PROTYLE_INLINE_MAX`（50）的卷与题库模式
+  同走 mountStatic 静态 Lute+KaTeX，不再逐卡挂内嵌 Protyle（N 个
+  实例 × 8s 挂载等待是长卷卡死主源）。③题号栏 max-height 用视口
+  近似 `calc(100vh - 200px)`（父级 .wengu-body 高度自适应，原 100%
+  无约束，长卷题号底端不可达）。
 - **预览模式**（mode="preview"，2026-08-26 起）：开刷面板「预览」
   入口（预览 | 开始刷题 | 错题回顾）。复用做题壳渲染题卡后由
   PreviewFlow 装饰成只读态——作答位/提交/自评/思路摘除，正确项
