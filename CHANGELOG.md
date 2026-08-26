@@ -2,9 +2,18 @@
 
 ## v0.1.1 unreleased
 
+- 图标定稿：手绘 SVG 换成思源官方图标集原始 path（温故=iconRiffCard
+  卡牌堆、背单词=iconLanguage 地球），仍以自有稳定 id 经 addIcons 注册
+  ——直接引用内置 sprite id 会被 uiLayout 持久化的旧 dock 图标引用
+  打穿渲染空白（iconLanguage 也非核心图标，部分环境 sprite 未收录）
+- UI 标准落地（design-review §〇 新增 6/7/8 条）：弹窗底部操作行按钮
+  统一 8px 间距（原生 b3-dialog__action 无间距规则，多按钮贴死）；模型
+  选择从原生 select（几百项不可搜）改为模仿官方 commonMenu 的带搜索
+  浮层（`src/ui/ModelPicker.ts`，b3-menu__filter + b3-list，转换弹窗与
+  设置页共用）
 - 顶栏/温故页签与背单词 dock 图标改用思源内置 sprite（iconRiffCard /
   iconLanguage），删除 addIcons 手绘 symbol——与界面内 FormHtml.svgIcon
-  只用内置图标的约定对齐
+  只用内置图标的约定对齐（后被上一条修正：稳定 id + 官方 path）
 - 源码按功能分域重构（组织方式借鉴 sy-lively）：`src/siyuan`（内核 API
   工厂：EApi 路径枚举 + KernelBlock/KernelDoc/KernelNotebook，迁自
   sy-lively 构建工厂）+ quiz/convert/review/word/stats/bank/ui 六域，

@@ -6,6 +6,7 @@ import { bindDocLink, echoKnowTitles } from "./ConvertPick";
 import { extractBlockId } from "./ConvertService";
 import { bindPdfImportRow } from "./PdfImportRow";
 import { openKnowPicker, parseKnowIds } from "../ui/KnowPicker";
+import { bindModelPicker } from "../ui/ModelPicker";
 import { esc, fmt } from "../ui/shared";
 
 /**
@@ -62,7 +63,8 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     });
     const root = dialog.element;
     const input = root.querySelector<HTMLInputElement>("[data-act='dlg-docid']");
-    const modelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-model']");
+    const modelBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-model']");
+    bindModelPicker(modelBtn, { t });
     const fillInput = root.querySelector<HTMLInputElement>("[data-act='dlg-fill']");
     const stepsInput = root.querySelector<HTMLInputElement>("[data-act='dlg-steps']");
     const parallelSel = root.querySelector<HTMLSelectElement>("[data-act='dlg-parallel']");
@@ -98,7 +100,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (resumeRow) resumeRow.hidden = running || resumeRow.dataset.has !== "1";
         [
             input,
-            modelSel,
+            modelBtn,
             fillInput,
             stepsInput,
             parallelSel,
@@ -184,7 +186,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const start = (resumeRec?: ConvertProgressRecord) => {
         const target = (input?.value ?? "").trim();
         if (!target) return;
-        const modelId = modelSel?.value ?? "";
+        const modelId = modelBtn?.dataset.value ?? "";
         const fill = fillInput?.checked ?? false;
         const bigSteps = stepsInput?.checked ?? false;
         const parallel = Math.max(1, Math.min(4, Number(parallelSel?.value ?? 1) || 1));

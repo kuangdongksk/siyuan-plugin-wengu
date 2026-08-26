@@ -34,6 +34,24 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
 5. **AI 分析报告打开思源内置智能体**：DOM 自动化（dock `agentChat` →
    新会话 → 合成 paste 喂 prompt → 发送，选择器按 3.8.0 dump 校准），
    失配降级页内纯文本分析。
+6. **间距体系（2026-08-26 起）**：基数 4px——弹窗底部操作行按钮间
+   **8px**（`.wengu-dialog .b3-dialog__action { gap: 8px }` 兜底，原生
+   无间距规则）；图标与相邻文字 4px；卡片内块间 8px；分组标题与条目
+   8px。容器内边距/行高沿用思源原生（b3-dialog__action 7px 24px、
+   config__item 原生 padding），不自造。
+7. **长列表选择控件（2026-08-26 起）**：候选 >20 的下拉不用原生
+   `<select>`（模型列表几百项不可搜），统一走「触发按钮 + 官方风格
+   可搜索浮层」——类名照抄官方 commonMenu（`b3-menu__filter` +
+   `b3-text-field` 搜索 + `b3-list--background` + `b3-list-item--narrow`，
+   见 `src/ui/ModelPicker.ts`）；浮层挂 body 用 fixed 定位，点外部/Esc
+   关闭。20 项以内短列表仍用 formSelect。
+8. **插件级图标（顶栏/dock/页签，2026-08-26 定论）**：经
+   `addIcons` 以**自有稳定 id**（iconWengu/iconWenguWords）注册，
+   **形状抄思源官方图标集原始 path**（当前：iconRiffCard 卡牌堆 /
+   iconLanguage 地球）。不直接引用内置 sprite id：①非核心图标
+   （iconLanguage）在运行环境 sprite 里不存在会渲染空白；②conf.json
+   uiLayout 持久化 dock 图标 id，启动恢复用存量数据不走插件新
+   config——**id 永不改**，换图标只换 path。
 
 ## 一、现状全景
 

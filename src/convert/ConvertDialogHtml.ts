@@ -1,6 +1,6 @@
-import { modelOptionsHtml } from "./AgentClient";
 import type { ConvertDialogDeps } from "./ConvertDialog";
 import { formGroup, formInput, formOption, formRow, formSelect, formSwitch, svgIcon } from "../ui/FormHtml";
+import { modelPickHtml } from "../ui/ModelPicker";
 import { esc, fmt } from "../ui/shared";
 
 /**
@@ -15,11 +15,7 @@ export function convertDialogHtml(deps: ConvertDialogDeps): string {
 
       ${formGroup(
           t("convertBtn"),
-          formRow(
-              t("modelLabel"),
-              t("setModelHint"),
-              formSelect("dlg-model", modelOptionsHtml(deps.initialModelId), "data-act")
-          ) +
+          formRow(t("modelLabel"), t("setModelHint"), modelPickHtml("dlg-model", deps.initialModelId)) +
               formRow(
                   t("docIdLabel"),
                   "",

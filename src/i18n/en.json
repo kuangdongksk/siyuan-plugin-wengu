@@ -117,6 +117,8 @@
   "targetPickTitle": "Pick parent document",
   "sourcePickTitle": "Pick source document",
   "convertTargetMissing": "Target parent doc not found — check the doc id",
+  "modelSearch": "Search models…",
+  "modelEmpty": "No matching models",
   "convertBusy": "A conversion is already running — see the conversion manager",
   "convertDialogManage": "View running conversion",
   "convertPanelTitle": "Conversion Manager",

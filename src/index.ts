@@ -125,10 +125,20 @@ export default class WenguPlugin extends Plugin {
             delete rest.save;
             void this.saveData("settings", rest);
         };
-        // 图标直接引用思源内置 sprite（温故=iconRiffCard，背单词=iconLanguage），
-        // 不再 addIcons 手绘 symbol；界面内小图标同见 FormHtml.svgIcon 约定
+        // 插件图标：形状取自思源官方图标集（litheness 包 iconRiffCard /
+        // iconLanguage 的原始 path），以自有稳定 id 注册——不依赖运行环境
+        // sprite 是否收录该图标（iconLanguage 非核心图标，dock 里会渲染成
+        // 空白）；id 保持不变，conf.json uiLayout 持久化的旧 dock 图标引用
+        // 才能继续命中 symbol（换图标只换形状不改 id，20260826 定论）
+        this
+            .addIcons(`<symbol id="iconWengu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
+</symbol>
+<symbol id="iconWenguWords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+</symbol>`);
         this.addTopBar({
-            icon: "iconRiffCard",
+            icon: "iconWengu",
             title: this.i18n.pluginName,
             position: "right",
             callback: async () => {
@@ -138,7 +148,7 @@ export default class WenguPlugin extends Plugin {
                 const tab = await openTab({
                     app: this.app,
                     custom: {
-                        icon: "iconRiffCard",
+                        icon: "iconWengu",
                         title: this.i18n.pluginName,
                         id: this.name + TAB_RESULT,
                     },
@@ -158,7 +168,7 @@ export default class WenguPlugin extends Plugin {
                 type: TAB_WORDS,
                 config: {
                     title: this.i18n.wordBtn || "背单词",
-                    icon: "iconLanguage",
+                    icon: "iconWenguWords",
                     index: 1000,
                     hotkey: "",
                     position: "RightBottom",
