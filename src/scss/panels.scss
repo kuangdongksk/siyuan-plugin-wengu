@@ -108,21 +108,42 @@
   margin-top: 8px;
 }
 
-/* 转换弹窗：次要选项折叠（原生 details），控制常驻高度 */
+/* 转换弹窗：次要选项折叠（原生 details），控制常驻高度。
+   箭头用内置 iconRight 随开合旋转（UI 标准：禁原生三角 marker） */
 .wengu-convert-more {
-  margin: 4px 0;
+  margin: 8px 0;
 }
 
 .wengu-convert-more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 0;
   color: var(--b3-theme-on-surface-light);
   font-size: 12px;
   cursor: pointer;
   user-select: none;
+  list-style: none;
 }
 
-.wengu-convert-more[open] summary {
-  margin-bottom: 4px;
+.wengu-convert-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.wengu-convert-more summary:hover {
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-convert-more-arrow {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: currentColor;
+  transition: transform 0.1s ease-out;
+}
+
+.wengu-convert-more[open] .wengu-convert-more-arrow {
+  transform: rotate(90deg);
 }
 
 /* 转换弹窗：分批生成的渐进预览（题号 + 题型 + 题干片段，随批追加） */

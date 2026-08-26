@@ -42,7 +42,10 @@ export function convertDialogHtml(deps: ConvertDialogDeps): string {
                       t("pdfImportBtn")
                   )}</button>` + '<input type="file" accept="application/pdf" data-act="dlg-pdffile" hidden>'
               ) +
-              `<details class="wengu-convert-more"><summary>${esc(t("convertMore"))}</summary>` +
+              `<details class="wengu-convert-more"><summary>${svgIcon(
+                  "iconRight",
+                  "wengu-convert-more-arrow"
+              )}${esc(t("convertMore"))}</summary>` +
               formRow(
                   t("fillToChoice"),
                   t("fillToChoiceHint"),
