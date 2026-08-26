@@ -1,6 +1,6 @@
 import { Dialog } from "siyuan";
-import { modelOptionsHtml } from "../convert/AgentClient";
 import { formInput, formOption, formRow, formSelect, formSwitch, svgIcon } from "./FormHtml";
+import { bindModelPicker, modelPickHtml } from "./ModelPicker";
 import type { WenguRevealMode, WenguTimingMode } from "../types";
 import { clampMinutes, esc, fmt } from "./shared";
 
@@ -139,7 +139,7 @@ export function openWenguSetting(opts: {
       <div class="config-group">
         <div class="config-title">${esc(t("setGroupConvert"))}</div>
         <div class="config-items">
-          ${formRow(t("setModelLabel"), t("setModelHint"), formSelect("model", modelOptionsHtml(saved), "data-set"))}
+          ${formRow(t("setModelLabel"), t("setModelHint"), modelPickHtml("model", saved, "data-set"))}
           ${formRow(
               t("fillToChoice"),
               t("fillToChoiceDesc"),
@@ -253,9 +253,12 @@ export function openWenguSetting(opts: {
         opts.settings.defaultCountdownMin = clampMinutes(Number((ev.target as HTMLInputElement).value));
         opts.settings.save?.();
     });
-    root.querySelector<HTMLSelectElement>("[data-set='model']")?.addEventListener("change", (ev) => {
-        opts.settings.convertModelId = (ev.target as HTMLSelectElement).value;
-        opts.settings.save?.();
+    bindModelPicker(root.querySelector<HTMLButtonElement>("[data-set='model']"), {
+        t,
+        onPick: (value) => {
+            opts.settings.convertModelId = value;
+            opts.settings.save?.();
+        },
     });
     root.querySelector<HTMLSelectElement>("[data-set='targetmode']")?.addEventListener("change", (ev) => {
         opts.settings.convertTargetMode = (ev.target as HTMLSelectElement).value === "custom" ? "custom" : "same";

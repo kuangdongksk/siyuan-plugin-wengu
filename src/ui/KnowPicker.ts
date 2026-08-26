@@ -1,9 +1,12 @@
-import { Dialog, fetchSyncPost } from "siyuan";
+import { fetchSyncPost } from "siyuan";
 import { esc } from "./shared";
+import { svgIcon } from "./FormHtml";
 
 /**
- * 知识点文档勾选器（转换弹窗「选择…」）：按标题/路径搜索工作区文档，
- * 勾选回填 id 列表。SQL 恒带 LIMIT（内核无 LIMIT 静默截断 64 行的坑），
+ * 文档选择器（UI 标准第 7 条：长列表选择用官方风格可搜索浮层）：
+ * 挂 body 的 b3-menu 下拉（b3-menu__filter + b3-list），替代旧版大
+ * Dialog（20260826 按用户意见改版）。单选即点即回；多选行内勾选 +
+ * 底部「清空/确定」。SQL 恒带 LIMIT（内核无 LIMIT 静默截断 64 行的坑），
  * 关键词过滤引号/通配符防 SQL 串坏。
  */
 
@@ -15,14 +18,14 @@ interface PickerDoc {
 
 export interface KnowPickerOpts {
     t: (key: string) => string;
-    /** 已选中的文档 id（输入框现值解析）。 */
+    /** 触发按钮（浮层定位在其下方）。 */
+    anchor: HTMLElement;
+    /** 已选中的文档 id。 */
     current: string[];
-    /** 确认：回传勾选的全部 id。 */
+    /** 确认：回传勾选的全部 id（单选只回第一个）。 */
     onConfirm(ids: string[]): void;
-    /** 单选模式（父文档等场景）：标题用 targetPickTitle，确定只回传第一个。 */
+    /** 单选模式（源文档/父文档）：点击即确认关闭。 */
     single?: boolean;
-    /** 自定义标题 i18n 键（优先于单/多选默认）。 */
-    titleKey?: string;
 }
 
 /** 输入框里的原始串 → 合法块 id 列表（与转换侧同规则）。 */
@@ -47,61 +50,110 @@ async function queryDocs(kw: string): Promise<PickerDoc[]> {
     return (data as PickerDoc[] | null) ?? [];
 }
 
+let menuEl: HTMLElement | null = null;
+
+function closePickerMenu(): void {
+    menuEl?.remove();
+    menuEl = null;
+    document.removeEventListener("pointerdown", onDocPointer, true);
+    document.removeEventListener("keydown", onDocKey, true);
+}
+
+function onDocPointer(ev: Event): void {
+    if (menuEl && ev.target instanceof Node && !menuEl.contains(ev.target)) closePickerMenu();
+}
+
+function onDocKey(ev: KeyboardEvent): void {
+    if (ev.key === "Escape") closePickerMenu();
+}
+
 export function openKnowPicker(opts: KnowPickerOpts): void {
     const { t } = opts;
-    const dialog = new Dialog({
-        title: t(opts.titleKey ?? (opts.single ? "targetPickTitle" : "knowPickTitle")),
-        width: "480px",
-        content: `<div class="b3-dialog__content wengu-dialog wengu-knowpick">
-      <input class="b3-text-field wengu-knowpick-search" data-act="kp-search" type="search" spellcheck="false"
-        placeholder="${esc(t("knowPickSearchPh"))}">
-      <div class="wengu-knowpick-list" data-act="kp-list"><div class="wengu-muted">…</div></div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="kp-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="kp-ok">${esc(t("knowPickConfirm"))}</button>
-    </div>`,
-    });
-    const root = dialog.element;
-    const search = root.querySelector<HTMLInputElement>("[data-act='kp-search']");
-    const list = root.querySelector<HTMLElement>("[data-act='kp-list']");
+    closePickerMenu();
+    const selected = new Set(opts.current);
+    const single = opts.single === true;
 
-    const render = (docs: PickerDoc[]): void => {
-        if (!list) return;
-        if (!docs.length) {
-            list.innerHTML = `<div class="wengu-muted">${esc(t("knowPickEmpty"))}</div>`;
-            return;
+    const wrap = document.createElement("div");
+    wrap.className = "b3-menu wengu-doc-menu";
+    wrap.innerHTML = `<div class="b3-menu__items" style="overflow: initial"><div>
+  <div class="fn__flex-column b3-menu__filter">
+    <input class="b3-text-field fn__block" type="search" spellcheck="false" placeholder="${esc(t("knowPickSearchPh"))}">
+    <div class="fn__hr"></div>
+    <div class="b3-list fn__flex-1 b3-list--background" data-act="kp-list"><div class="wengu-muted">…</div></div>
+    ${
+        single
+            ? ""
+            : `<div class="wengu-doc-menu-foot">
+      <button type="button" class="b3-button b3-button--cancel" data-act="kp-clear">${esc(t("knowPickClear"))}</button>
+      <button type="button" class="b3-button b3-button--outline" data-act="kp-ok">${esc(t("knowPickConfirm"))}</button>
+    </div>`
+    }
+  </div>
+</div></div>`;
+    const rect = opts.anchor.getBoundingClientRect();
+    wrap.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 400))}px`;
+    wrap.style.top = `${Math.min(rect.bottom + 4, window.innerHeight - 80)}px`;
+
+    const list = wrap.querySelector<HTMLElement>("[data-act='kp-list']")!;
+    const rowOf = (d: PickerDoc): string => {
+        const on = single ? opts.current[0] === d.id : selected.has(d.id);
+        const label = d.hpath || d.content || d.id;
+        return `<div class="b3-list-item b3-list-item--narrow${single && on ? " b3-list-item--focus" : ""}" data-id="${
+            d.id
+        }" title="${esc(label)}"><span class="b3-list-item__text">${esc(label)}</span>${
+            single ? "" : `<span class="b3-list-item__action fn__none">${svgIcon("iconCheck")}</span>`
+        }</div>`;
+    };
+    const syncTicks = (): void => {
+        for (const row of Array.from(list.querySelectorAll<HTMLElement>("[data-id]"))) {
+            const tick = row.querySelector<HTMLElement>(".b3-list-item__action");
+            if (tick) tick.classList.toggle("fn__none", !selected.has(row.dataset.id ?? ""));
         }
-        list.innerHTML = docs
-            .map(
-                (d) => `<label class="wengu-knowpick-row">
-  <input type="${opts.single ? "radio" : "checkbox"}" name="kp-one" data-kid="${d.id}"${
-      opts.current.includes(d.id) ? " checked" : ""
-  }>
-  <span class="wengu-knowpick-path" title="${esc(d.hpath)}">${esc(d.hpath || d.content || d.id)}</span>
-</label>`
-            )
-            .join("");
+    };
+    const render = (docs: PickerDoc[]): void => {
+        list.innerHTML = docs.length
+            ? docs.map(rowOf).join("")
+            : `<div class="b3-list--empty">${esc(t("knowPickEmpty"))}</div>`;
+        syncTicks();
     };
 
     let timer = 0;
     const reload = (): void => {
         window.clearTimeout(timer);
         timer = window.setTimeout(() => {
-            void queryDocs(search?.value ?? "")
+            void queryDocs(wrap.querySelector("input")?.value ?? "")
                 .then(render)
                 .catch(() => render([]));
         }, 300);
     };
-    search?.addEventListener("input", reload);
-    reload();
+    wrap.querySelector("input")!.addEventListener("input", reload);
 
-    root.querySelector<HTMLButtonElement>("[data-act='kp-cancel']")?.addEventListener("click", () => dialog.destroy());
-    root.querySelector<HTMLButtonElement>("[data-act='kp-ok']")?.addEventListener("click", () => {
-        const ids = Array.from(root.querySelectorAll<HTMLInputElement>("[data-kid]:checked")).map(
-            (el) => el.dataset.kid ?? ""
-        );
-        opts.onConfirm(opts.single ? ids.slice(0, 1) : ids);
-        dialog.destroy();
+    list.addEventListener("click", (ev) => {
+        const row = (ev.target as HTMLElement).closest<HTMLElement>("[data-id]");
+        const id = row?.dataset.id ?? "";
+        if (!id) return;
+        if (single) {
+            closePickerMenu();
+            opts.onConfirm([id]);
+            return;
+        }
+        if (selected.has(id)) selected.delete(id);
+        else selected.add(id);
+        syncTicks();
     });
+    wrap.querySelector<HTMLButtonElement>("[data-act='kp-clear']")?.addEventListener("click", () => {
+        selected.clear();
+        syncTicks();
+    });
+    wrap.querySelector<HTMLButtonElement>("[data-act='kp-ok']")?.addEventListener("click", () => {
+        closePickerMenu();
+        opts.onConfirm(Array.from(selected));
+    });
+
+    document.body.appendChild(wrap);
+    menuEl = wrap;
+    document.addEventListener("pointerdown", onDocPointer, true);
+    document.addEventListener("keydown", onDocKey, true);
+    reload();
+    wrap.querySelector<HTMLInputElement>("input")!.focus();
 }

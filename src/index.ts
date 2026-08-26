@@ -128,17 +128,18 @@ export default class WenguPlugin extends Plugin {
             delete rest.save;
             void this.saveData("settings", rest);
         };
-        this.addIcons(`<symbol id="iconWengu" viewBox="0 0 32 32">
-  <path d="M4 6h10a4 4 0 0 1 4 4v16a3 3 0 0 0-3-3H4z" fill="currentColor"/>
-  <path d="M28 6H18a4 4 0 0 0-4 4v16a3 3 0 0 1 3-3h11z" fill="currentColor" opacity="0.55"/>
-  <path d="M13 15.5l2.2 2.2 4.3-4.6" fill="none" stroke="var(--b3-theme-background)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        // 插件图标：形状取自思源官方图标集（litheness 包 iconRiffCard /
+        // iconLanguage 的原始 path），以自有稳定 id 注册——不依赖运行环境
+        // sprite 是否收录该图标（iconLanguage 非核心图标，dock 里会渲染成
+        // 空白）；id 保持不变，conf.json uiLayout 持久化的旧 dock 图标引用
+        // 才能继续命中 symbol（换图标只换形状不改 id，20260826 定论）
+        this
+            .addIcons(`<symbol id="iconWengu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
 </symbol>
-<symbol id="iconWenguWords" viewBox="0 0 32 32">
-  <path d="M6 5h9c1.7 0 3 1.3 3 3v19c0-1.7-1.3-3-3-3H6z" fill="currentColor"/>
-  <path d="M26 5h-9c-1.7 0-3 1.3-3 3v19c0-1.7 1.3-3 3-3h9z" fill="currentColor" opacity="0.55"/>
-  <path d="M11 11.5h3M11 15h3M18 11.5h3M18 15h3" stroke="var(--b3-theme-background)" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
+<symbol id="iconWenguWords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
 </symbol>`);
-
         this.addTopBar({
             icon: "iconWengu",
             title: this.i18n.pluginName,

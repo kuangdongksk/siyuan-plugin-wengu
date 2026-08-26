@@ -28,8 +28,6 @@ export interface DocLinkOpts {
     echo: HTMLElement | null;
     /** 回显条件（父文档仅「指定」时显示）。 */
     active?: () => boolean;
-    /** 选择器标题 i18n 键（缺省按单/多选取默认）。 */
-    titleKey?: string;
     /** 选择器回填后回调。 */
     onPick?: () => void;
 }
@@ -55,11 +53,11 @@ export function bindDocLink(o: DocLinkOpts): () => void {
         window.clearTimeout(timer);
         timer = window.setTimeout(resolve, 300);
     });
-    o.btn?.addEventListener("click", () => {
+    o.btn?.addEventListener("click", (ev) => {
         openKnowPicker({
             t: o.t,
+            anchor: ev.currentTarget as HTMLElement,
             single: true,
-            ...(o.titleKey ? { titleKey: o.titleKey } : {}),
             current: [extractBlockId((o.input?.value ?? "").trim())].filter(Boolean),
             onConfirm: (ids) => {
                 if (o.input && ids[0]) {

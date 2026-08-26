@@ -11,7 +11,24 @@
   svelte-loader（Svelte 5 编译器原生支持组件内 TS，无需预处理），
   prettier 加 prettier-plugin-svelte、eslint ignore `*.svelte`；
   插件 Dock destroy 补卸载（旧版空置会泄漏监听）
-
+- 图标定稿：手绘 SVG 换成思源官方图标集原始 path（温故=iconRiffCard
+  卡牌堆、背单词=iconLanguage 地球），仍以自有稳定 id 经 addIcons 注册
+  ——直接引用内置 sprite id 会被 uiLayout 持久化的旧 dock 图标引用
+  打穿渲染空白（iconLanguage 也非核心图标，部分环境 sprite 未收录）
+- UI 标准落地（design-review §〇 新增 6/7/8 条）：弹窗底部操作行按钮
+  统一 8px 间距（原生 b3-dialog__action 无间距规则，多按钮贴死）；模型
+  选择从原生 select（几百项不可搜）改为模仿官方 commonMenu 的带搜索
+  浮层（`src/ui/ModelPicker.ts`，b3-menu__filter + b3-list，转换弹窗与
+  设置页共用）
+- 文档选择器（源文档/父文档/知识点「选择…」）从大 Dialog 改为官方
+  风格可搜索下拉浮层（b3-menu__filter + b3-list，同 ModelPicker 交互）：
+  单选点击即回填，多选行内勾选+底部「清空/确定」，Esc/点外部取消
+- 「更多选项」折叠行：内置 iconRight 箭头随开合旋转、隐藏原生三角
+  marker、悬停变色、间距入 8px 体系
+- 删除页签头部「做题 | 复习」切换器（样式不达标且头部信息行拥挤；
+  开刷面板三按钮「预览 | 开始刷题 | 错题回顾」为统一模式入口，另保留
+  侧栏文档右键「错题复习」）；switchMode/会话恢复机制保留，契约见
+  docs/review-mode.md §二 D1 v3
 - 源码按功能分域重构（组织方式借鉴 sy-lively）：`src/siyuan`（内核 API
   工厂：EApi 路径枚举 + KernelBlock/KernelDoc/KernelNotebook，迁自
   sy-lively 构建工厂）+ quiz/convert/review/word/stats/bank/ui 六域，
