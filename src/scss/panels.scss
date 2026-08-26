@@ -118,6 +118,23 @@
   margin-top: 8px;
 }
 
+/* 文档选择器树行（variant-and-doctree §二 T2）：行壳 b3-list-item 紧凑风，
+   toggle 箭头/子级缩进复用 base.scss 的 wengu-tree 全局类 */
+.wengu-doc-menu .wengu-kp-doc,
+.wengu-doc-menu .wengu-kp-branch {
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
+.wengu-doc-menu .wengu-kp-branch:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-doc-menu .wengu-kp-branch .b3-list-item__text {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
 /* 转换弹窗：次要选项折叠（原生 details），控制常驻高度。
    箭头用内置 iconRight 随开合旋转（UI 标准：禁原生三角 marker） */
 .wengu-convert-more {

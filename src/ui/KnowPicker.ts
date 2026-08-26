@@ -1,6 +1,7 @@
 import { esc } from "./shared";
 import { svgIcon } from "./FormHtml";
 import { KernelQuery } from "../siyuan/query";
+import { buildPickerTree, renderPickerTree, PickerTreeNode } from "./PickerTree";
 
 /**
  * 文档选择器（UI 标准第 7 条：长列表选择用官方风格可搜索浮层）：
@@ -8,6 +9,10 @@ import { KernelQuery } from "../siyuan/query";
  * Dialog（20260826 按用户意见改版）。单选即点即回；多选行内勾选 +
  * 底部「清空/确定」。SQL 恒带 LIMIT（内核无 LIMIT 静默截断 64 行的坑），
  * 关键词过滤引号/通配符防 SQL 串坏。
+ *
+ * 20260827 树化（variant-and-doctree §二 T1~T3）：空搜索默认展示
+ * hPath 树（分支折叠、仅文档行可点），输入关键词切平铺结果、清空回树
+ * （思源文档树同款模式）。树数据分页串行拉全量，60s 内缓存复用。
  */
 
 interface PickerDoc {
@@ -47,6 +52,25 @@ async function queryDocs(kw: string): Promise<PickerDoc[]> {
     return KernelQuery.rows<PickerDoc>(
         `SELECT id, hpath, content FROM blocks WHERE type='d' ${like}ORDER BY updated DESC LIMIT 100`
     );
+}
+
+/** 树数据缓存（浮层生命周期外也复用，60s 过期防陈旧；fetchSyncPost
+ * 必须串行——分页逐页 await，ORDER BY hpath 保证 OFFSET 分页稳定）。 */
+let treeCache: { at: number; docs: { id: string; hpath: string }[] } | null = null;
+const TREE_TTL = 60000;
+
+async function fetchTreeDocs(): Promise<{ id: string; hpath: string }[]> {
+    if (treeCache && Date.now() - treeCache.at < TREE_TTL) return treeCache.docs;
+    const all: { id: string; hpath: string }[] = [];
+    for (let off = 0; off < 10000; off += 100) {
+        const page = await KernelQuery.rows<{ id: string; hpath: string }>(
+            `SELECT id, hpath FROM blocks WHERE type='d' ORDER BY hpath LIMIT 100 OFFSET ${off}`
+        );
+        all.push(...page);
+        if (page.length < 100) break;
+    }
+    treeCache = { at: Date.now(), docs: all };
+    return all;
 }
 
 let menuEl: HTMLElement | null = null;
@@ -117,17 +141,64 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
     };
 
     let timer = 0;
+    let seq = 0;
+    // 树态：节点首拉后常驻本次浮层；展开集合默认第一层（笔记本级）
+    let treeNodes: PickerTreeNode[] | null = null;
+    const openPaths = new Set<string>();
+    const renderTree = (): void => {
+        list.innerHTML = treeNodes?.length
+            ? renderPickerTree(treeNodes, { selected, current: opts.current[0] ?? "", openPaths }, single)
+            : `<div class="b3-list--empty">${esc(t("knowPickEmpty"))}</div>`;
+    };
+    const showTree = (): void => {
+        const cur = ++seq;
+        if (treeNodes) {
+            renderTree();
+            return;
+        }
+        list.innerHTML = "<div class='wengu-muted'>…</div>";
+        fetchTreeDocs()
+            .then((docs) => {
+                if (cur !== seq) return;
+                treeNodes = buildPickerTree(docs);
+                for (const n of treeNodes) if (n.children.length > 0) openPaths.add(n.path);
+                renderTree();
+            })
+            .catch(() => {
+                if (cur !== seq) return;
+                renderTree();
+            });
+    };
     const reload = (): void => {
         window.clearTimeout(timer);
         timer = window.setTimeout(() => {
-            void queryDocs(wrap.querySelector("input")?.value ?? "")
-                .then(render)
-                .catch(() => render([]));
+            const kw = wrap.querySelector("input")?.value.trim() ?? "";
+            if (!kw) {
+                showTree();
+                return;
+            }
+            const cur = ++seq;
+            void queryDocs(kw)
+                .then((docs) => {
+                    if (cur === seq) render(docs);
+                })
+                .catch(() => {
+                    if (cur === seq) render([]);
+                });
         }, 300);
     };
     wrap.querySelector("input")!.addEventListener("input", reload);
 
     list.addEventListener("click", (ev) => {
+        // 折叠箭头优先于文档行选中（箭头在文档行内，closest 先命中）
+        const toggle = (ev.target as HTMLElement).closest<HTMLElement>("[data-tree-path]");
+        if (toggle) {
+            const p = toggle.dataset.treePath ?? "";
+            if (openPaths.has(p)) openPaths.delete(p);
+            else openPaths.add(p);
+            renderTree();
+            return;
+        }
         const row = (ev.target as HTMLElement).closest<HTMLElement>("[data-id]");
         const id = row?.dataset.id ?? "";
         if (!id) return;
@@ -153,6 +224,6 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
     menuEl = wrap;
     document.addEventListener("pointerdown", onDocPointer, true);
     document.addEventListener("keydown", onDocKey, true);
-    reload();
+    showTree(); // 默认树；输入关键词由 input 事件切平铺
     wrap.querySelector<HTMLInputElement>("input")!.focus();
 }
