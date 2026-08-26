@@ -8,13 +8,16 @@ import { openWenguSetting } from "./ui/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/WeaknessStore";
 import { WordStore } from "./word/WordStore";
-import { WordView } from "./word";
+import { mountWordView, type WordView } from "./word";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
 
 /** 单词复习页签 type（Dock 面板与兜底页签共用）。 */
 const TAB_WORDS = "wengu-words";
+
+/** 单词面板的 Svelte 卸载函数（Dock 单例，模块级传递给 destroy 回调）。 */
+let wordUnmount: (() => void) | undefined;
 
 /** 3.8.0 运行时的插件 Dock 注册入参（类型包 1.2.x 未收录，按运行时形状声明）。 */
 interface WordDockConfig {
@@ -174,7 +177,11 @@ export default class WenguPlugin extends Plugin {
                     size: { width: 360, height: 0 },
                 },
                 init: (custom) => this.mountWordView(custom),
-                destroy: () => undefined,
+                // 卸载 Svelte 应用与计时器监听（旧版此处空置会泄漏）
+                destroy: () => {
+                    wordUnmount?.();
+                    wordUnmount = undefined;
+                },
             });
         }
 
@@ -256,10 +263,9 @@ export default class WenguPlugin extends Plugin {
     private mountWordView(custom: { element?: Element }): void {
         const el = custom.element as HTMLElement | undefined;
         if (!el || !WenguPlugin.instance) return;
-        const view = new WordView(el, this.i18n ?? {}, this.getWordStore());
-        (custom as unknown as { wenguWordView?: WordView }).wenguWordView = view;
-        view.bind();
-        void view.render();
+        const m = mountWordView(el, this.i18n ?? {}, this.getWordStore());
+        (custom as unknown as { wenguWordView?: WordView }).wenguWordView = m.view;
+        wordUnmount = m.unmount;
     }
 
     /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */

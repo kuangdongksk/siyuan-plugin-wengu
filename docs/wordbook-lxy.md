@@ -90,7 +90,8 @@ iconSparkles 按钮把**未分析的误认词**批量(≤20/批,串行队列)交
 - 复习与新学是两条独立队列(入口决定 queueKind);完成页按队列给文案,
   含生词重过与回首页;刷题卡头部加回首页按钮(iconList)。
 - 拆件:WordHome(首页/确认层/完成页/头部)、WordAi.runner(AI 视图胶水),
-  WordView 468 行守住红线。
+  WordView 468 行守住红线。(2026-08-26 Svelte 化:渲染拆件改 word/comp/
+  组件,WordHome 已删,控制器在 WordView.ts)
 
 ## 统计页与时间健壮性(2026-08-23 六改)
 
@@ -139,5 +140,7 @@ iconSparkles 按钮把**未分析的误认词**批量(≤20/批,串行队列)交
   结果行「单词 | 释义首行」点击进详情。
 - 详情:完整释义 + 学习状态(未学/档位/熟/太简单)+ 曾认成 chip + AI 辨析,
   可星标、标熟;「返回搜索」回列表。
-- 结构:WordLookup(渲染+检索)、WordActs(data-act 分发整体迁出,
+- 结构:WordLookup(检索+笔记控制器)、WordActs(data-act 分发整体迁出,
   视图成员公开给 WordViewApi 接口),WordView 479 行守线。
+  (2026-08-26 Svelte 化:渲染并入 comp/LookupScreen,WordActs 已删,
+  data-act 改组件直调控制器方法)

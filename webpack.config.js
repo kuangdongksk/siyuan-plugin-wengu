@@ -102,6 +102,23 @@ module.exports = (env, argv) => {
                         },
                     ],
                 },
+                {
+                    // Svelte 5 组件（word 域 UI）：编译器原生支持 script lang="ts"，
+                    // 组件样式仍在全局 scss，css:"injected" 只是兜底策略
+                    test: /\.svelte$/,
+                    include: [path.resolve(__dirname, "src")],
+                    use: [
+                        {
+                            loader: "svelte-loader",
+                            options: {
+                                compilerOptions: {
+                                    css: "injected",
+                                    dev: !production,
+                                },
+                            },
+                        },
+                    ],
+                },
             ],
         },
         plugins,

@@ -2,6 +2,16 @@
 
 ## v0.1.1 unreleased
 
+- 背单词 UI 层 Svelte 化：word 域渲染从 innerHTML 全量 paint 换成
+  Svelte 5 组件（`word/comp/`，WordApp 根组件 + 各屏幕/卡片组件），
+  控制器拆 `WordView.ts`（会话状态机与语义动作）、响应态形状
+  `WordUi.ts`（$state 深代理，组件细粒度更新）；旧字符串渲染层
+  （WordHome/WordStats/WordActs 与各 renderXxx）删除，WordBind 只留
+  键盘分发；样式类名不变（仍走全局 scss）。构建链接入
+  svelte-loader（Svelte 5 编译器原生支持组件内 TS，无需预处理），
+  prettier 加 prettier-plugin-svelte、eslint ignore `*.svelte`；
+  插件 Dock destroy 补卸载（旧版空置会泄漏监听）
+
 - 源码按功能分域重构（组织方式借鉴 sy-lively）：`src/siyuan`（内核 API
   工厂：EApi 路径枚举 + KernelBlock/KernelDoc/KernelNotebook，迁自
   sy-lively 构建工厂）+ quiz/convert/review/word/stats/bank/ui 六域，

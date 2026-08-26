@@ -1,4 +1,9 @@
 /* 单词复习页签：卡片 + 起点设置。b3 体系为主，这里只补布局。 */
+/* Svelte 根容器（挂载层与业务布局解耦，撑满 Dock 面板） */
+.wengu-word-root {
+  height: 100%;
+}
+
 .wengu-word {
   display: flex;
   flex-direction: column;
