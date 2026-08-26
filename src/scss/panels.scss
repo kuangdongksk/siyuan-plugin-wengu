@@ -15,10 +15,11 @@
   margin-bottom: 4px;
 }
 
-/* 开始刷题主操作居中 */
+/* 开始刷题主操作居中（§〇6：横向按钮行一律 8px） */
 .wengu-start-actions {
   display: flex;
   justify-content: center;
+  gap: 8px;
 }
 
 /* 单行头部（原 head+subhead 合并）：目录开关 + 文档信息 + 计时器；

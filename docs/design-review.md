@@ -27,6 +27,10 @@
 2. **全项目表单统一 FormHtml 行样式**：`formGroup`（分组+标题）+
    `formRow`（标题说明在左、控件在右）+ `formSelect/formSwitch/
 formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自写布局。
+   行容器带 `wengu-formrow` **垂直居中**（2026-08-26）：`fn__flex`
+   默认 stretch，左侧说明两三行时按钮类控件会被拉成竖长条（模型钮
+   200×64、PDF 钮 126×64 实测），行上显式 `align-items:center`
+   一次治好，新控件不必逐个带 `fn__flex-center` 逃逸。
 3. 图标型入口（如目录底部「设置」）只放图标本体，文字放 title 提示。
 4. **按钮分级与用色（2026-08-26 补全）**：
     - 主/普通操作：`b3-button--outline`（主题色边框+文字，开始刷题/
@@ -41,14 +45,24 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
    新会话 → 合成 paste 喂 prompt → 发送，选择器按 3.8.0 dump 校准），
    失配降级页内纯文本分析。
 6. **间距体系（2026-08-26 起，基数 4px）**：
+   **总则：凡横向并排 ≥2 个按钮的行（面板操作行/弹窗底部操作行/浮层
+   底行/卡片操作行/工具行）一律 `gap: 8px`**——flex 行不写 gap 按钮
+   就贴死（wengu-start-actions 20260826 实例），新建按钮行直接带
+   gap:8px，别等补救。
 
-    | 位置                            | 间距 | 落点                                                                                                                                                                                                                                                                       |
-    | ------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    | 弹窗底部操作行按钮间            | 8px  | `.wengu-dialog ~ .b3-dialog__action { gap: 8px }`（3.8.1 结构 container>body>(content.wengu-dialog+action)，action 是内容区**兄弟**节点；两次踩坑：后代选择器不命中、从 container :has(>…) 下探也不命中——wengu-dialog 不是 container 直接子节点，20260826 网页版复现定论） |
-    | 下拉浮层底部操作行（清空/确定） | 8px  | `wengu-doc-menu-foot`                                                                                                                                                                                                                                                      |
-    | 图标与相邻文字                  | 4px  | wengu-timer 等                                                                                                                                                                                                                                                             |
-    | 头部行元素间 / 卡片内块间       | 8px  | `wengu-head` gap                                                                                                                                                                                                                                                           |
-    | 分组标题与条目                  | 原生 | config__item 自带                                                                                                                                                                                                                                                          |
+    | 位置                              | 间距 | 落点                                                                                                                                                                                                                                                                       |
+    | --------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | 开刷面板操作行（预览/开始/回顾）  | 8px  | `wengu-start-actions`                                                                                                                                                                                                                                                      |
+    | 侧栏操作行（统计/专题/AI 转习题） | 8px  | `wengu-side-actions`（原 6px，20260826 归一）                                                                                                                                                                                                                              |
+    | 弹窗底部操作行按钮间              | 8px  | `.wengu-dialog ~ .b3-dialog__action { gap: 8px }`（3.8.1 结构 container>body>(content.wengu-dialog+action)，action 是内容区**兄弟**节点；两次踩坑：后代选择器不命中、从 container :has(>…) 下探也不命中——wengu-dialog 不是 container 直接子节点，20260826 网页版复现定论） |
+    | 下拉浮层底部操作行（清空/确定）   | 8px  | `wengu-doc-menu-foot`                                                                                                                                                                                                                                                      |
+    | 复习详情操作行 / 单词表单操作行   | 8px  | `wengu-review-detail-actions` / `wengu-word-form-actions`                                                                                                                                                                                                                  |
+    | 预览工具行 / 时间到条             | 8px  | `wengu-pv-tools` / `wengu-timeup`                                                                                                                                                                                                                                          |
+    | 图标与相邻文字                    | 4px  | wengu-timer 等                                                                                                                                                                                                                                                             |
+    | 头部行元素间 / 卡片内块间         | 8px  | `wengu-head` gap                                                                                                                                                                                                                                                           |
+    | 分组标题与条目                    | 原生 | config__item 自带                                                                                                                                                                                                                                                          |
+    | **特例**：纯图标微工具行          | 2px  | `wengu-side-headbtns`（目录头部 刷新/设置/收起）                                                                                                                                                                                                                           |
+    | **特例**：单词卡主操作区          | 12px | `wengu-word-actions`（大按钮触区，居中）                                                                                                                                                                                                                                   |
 
     容器内边距/行高沿用思源原生（b3-dialog__action 7px 24px），不自造。
 
@@ -58,7 +72,10 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
    `b3-text-field` 搜索 + `b3-list--background` + `b3-list-item--narrow`，
    见 `src/ui/ModelPicker.ts` 模型单选、`src/ui/KnowPicker.ts` 文档
    单/多选）；浮层挂 body 用 fixed 定位，点外部/Esc 关闭。20 项以内
-   短列表仍用 formSelect。
+   短列表仍用 formSelect。触发按钮统一 `fn__size200 wengu-pick`
+   （与 formSelect 同宽，**当前值入按钮**、长值省略号 + title 全量、
+   空值还原占位「选择…」，模型/源文档/知识点共用；回显辅助见
+   ConvertPick.setPickValue）——别用裸 outline 小钮 + 左侧灰字回显。
 8. **插件级图标（顶栏/dock/页签，2026-08-26 定论）**：经
    `addIcons` 以**自有稳定 id**（iconWengu/iconWenguWords）注册，
    **形状抄思源官方图标集原始 path**（当前：iconRiffCard 卡牌堆 /

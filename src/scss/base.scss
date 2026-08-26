@@ -87,11 +87,11 @@
   font-size: 13px;
 }
 
-/* stretch 让图标钮高度自动对齐 b3-button，跨主题不掉队 */
+/* stretch 让图标钮高度自动对齐 b3-button，跨主题不掉队（间距 8px 入 §〇6 总则） */
 .wengu-side-actions {
   display: flex;
   align-items: stretch;
-  gap: 6px;
+  gap: 8px;
 }
 
 .wengu-side-actions .wengu-side-iconbtn {
