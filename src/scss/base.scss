@@ -167,8 +167,10 @@
 }
 
 /* UI 标准第 6 条：弹窗底部操作行按钮间统一 8px（原生 b3-dialog__action
-   无间距规则，多按钮贴死，20260826 起 gap 兜底） */
-.wengu-dialog .b3-dialog__action {
+   无间距规则，多按钮贴死）。注意 action 是 wengu-dialog 内容区的**兄弟**
+   节点，须从 .b3-dialog__container 用 :has() 下探（20260826 首版选择器
+   写成后代组合器不命中，真机复贴后修正） */
+.b3-dialog__container:has(> .wengu-dialog) .b3-dialog__action {
   gap: 8px;
 }
 

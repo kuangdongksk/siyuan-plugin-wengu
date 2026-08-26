@@ -28,17 +28,30 @@
    `formRow`（标题说明在左、控件在右）+ `formSelect/formSwitch/
 formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自写布局。
 3. 图标型入口（如目录底部「设置」）只放图标本体，文字放 title 提示。
-4. **带文字的按钮一律 `b3-button--outline` 带边框**（开始刷题/AI 转习题/
-   开始转换/继续作答/AI 分析报告）；只有纯图标按钮可以无框
-   （b3-button--text/icon）；取消类沿用 b3-button--cancel。
+4. **按钮分级与用色（2026-08-26 补全）**：
+    - 主/普通操作：`b3-button--outline`（主题色边框+文字，开始刷题/
+      AI 转习题/开始转换/AI 分析报告）
+    - 取消：`b3-button--cancel`
+    - 次级轻操作（弹窗内文字链类，如「继续生成」）：`b3-button--text`
+    - 纯图标按钮：无框（`wengu-btn` / b3-button--text），文字进 title
+    - 危险操作（删除专题等）：默认同 outline，**两击确认**——首击加
+      `wengu-col-armed` 变红（`var(--b3-card-error-color)`，3s 复原）
+    - 状态反馈不改按钮颜色，走 `wengu-status-ok/err` 条带
 5. **AI 分析报告打开思源内置智能体**：DOM 自动化（dock `agentChat` →
    新会话 → 合成 paste 喂 prompt → 发送，选择器按 3.8.0 dump 校准），
    失配降级页内纯文本分析。
-6. **间距体系（2026-08-26 起）**：基数 4px——弹窗底部操作行按钮间
-   **8px**（`.wengu-dialog .b3-dialog__action { gap: 8px }` 兜底，原生
-   无间距规则）；图标与相邻文字 4px；卡片内块间 8px；分组标题与条目
-   8px。容器内边距/行高沿用思源原生（b3-dialog__action 7px 24px、
-   config__item 原生 padding），不自造。
+6. **间距体系（2026-08-26 起，基数 4px）**：
+
+    | 位置                            | 间距 | 落点                                                                                                                                             |
+    | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+    | 弹窗底部操作行按钮间            | 8px  | `.b3-dialog__container:has(> .wengu-dialog) .b3-dialog__action { gap: 8px }`（action 是内容区**兄弟**节点，后代选择器不命中——20260826 首版踩坑） |
+    | 下拉浮层底部操作行（清空/确定） | 8px  | `wengu-doc-menu-foot`                                                                                                                            |
+    | 图标与相邻文字                  | 4px  | wengu-timer 等                                                                                                                                   |
+    | 头部行元素间 / 卡片内块间       | 8px  | `wengu-head` gap                                                                                                                                 |
+    | 分组标题与条目                  | 原生 | config__item 自带                                                                                                                                |
+
+    容器内边距/行高沿用思源原生（b3-dialog__action 7px 24px），不自造。
+
 7. **长列表选择控件（2026-08-26 起）**：候选 >20 的下拉不用原生
    `<select>`（模型列表几百项不可搜），统一走「触发按钮 + 官方风格
    可搜索浮层」——类名照抄官方 commonMenu（`b3-menu__filter` +
