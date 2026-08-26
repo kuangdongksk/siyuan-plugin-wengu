@@ -2,6 +2,9 @@
 
 ## v0.1.1 unreleased
 
+- 顶栏/温故页签与背单词 dock 图标改用思源内置 sprite（iconRiffCard /
+  iconLanguage），删除 addIcons 手绘 symbol——与界面内 FormHtml.svgIcon
+  只用内置图标的约定对齐
 - 源码按功能分域重构（组织方式借鉴 sy-lively）：`src/siyuan`（内核 API
   工厂：EApi 路径枚举 + KernelBlock/KernelDoc/KernelNotebook，迁自
   sy-lively 构建工厂）+ quiz/convert/review/word/stats/bank/ui 六域，

@@ -125,19 +125,10 @@ export default class WenguPlugin extends Plugin {
             delete rest.save;
             void this.saveData("settings", rest);
         };
-        this.addIcons(`<symbol id="iconWengu" viewBox="0 0 32 32">
-  <path d="M4 6h10a4 4 0 0 1 4 4v16a3 3 0 0 0-3-3H4z" fill="currentColor"/>
-  <path d="M28 6H18a4 4 0 0 0-4 4v16a3 3 0 0 1 3-3h11z" fill="currentColor" opacity="0.55"/>
-  <path d="M13 15.5l2.2 2.2 4.3-4.6" fill="none" stroke="var(--b3-theme-background)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-</symbol>
-<symbol id="iconWenguWords" viewBox="0 0 32 32">
-  <path d="M6 5h9c1.7 0 3 1.3 3 3v19c0-1.7-1.3-3-3-3H6z" fill="currentColor"/>
-  <path d="M26 5h-9c-1.7 0-3 1.3-3 3v19c0-1.7 1.3-3 3-3h9z" fill="currentColor" opacity="0.55"/>
-  <path d="M11 11.5h3M11 15h3M18 11.5h3M18 15h3" stroke="var(--b3-theme-background)" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
-</symbol>`);
-
+        // 图标直接引用思源内置 sprite（温故=iconRiffCard，背单词=iconLanguage），
+        // 不再 addIcons 手绘 symbol；界面内小图标同见 FormHtml.svgIcon 约定
         this.addTopBar({
-            icon: "iconWengu",
+            icon: "iconRiffCard",
             title: this.i18n.pluginName,
             position: "right",
             callback: async () => {
@@ -147,7 +138,7 @@ export default class WenguPlugin extends Plugin {
                 const tab = await openTab({
                     app: this.app,
                     custom: {
-                        icon: "iconWengu",
+                        icon: "iconRiffCard",
                         title: this.i18n.pluginName,
                         id: this.name + TAB_RESULT,
                     },
@@ -167,7 +158,7 @@ export default class WenguPlugin extends Plugin {
                 type: TAB_WORDS,
                 config: {
                     title: this.i18n.wordBtn || "背单词",
-                    icon: "iconWenguWords",
+                    icon: "iconLanguage",
                     index: 1000,
                     hotkey: "",
                     position: "RightBottom",
