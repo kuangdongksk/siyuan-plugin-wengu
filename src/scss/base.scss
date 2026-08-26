@@ -192,6 +192,19 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* 页内转换条：进度文案 + 停止/保留进度/全部丢弃按钮同行排布 */
+.wengu-convert-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  .wengu-convert-bar-text {
+    flex: 1;
+    min-width: 200px;
+  }
+}
+
 .wengu-title {
   font-weight: 600;
 }

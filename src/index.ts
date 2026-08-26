@@ -1,14 +1,14 @@
 import { Plugin, openTab, getActiveEditor, type Custom, type MobileCustom } from "siyuan";
 import "./index.scss";
-import { HistoryStore } from "./wengu/HistoryStore";
-import { QuestionBank } from "./wengu/QuestionBank";
-import { QuizView } from "./wengu/QuizView";
-import { openRelatedDialog } from "./wengu/RelatedDialog";
-import { openWenguSetting } from "./wengu/SettingsDialog";
-import type { WenguRevealMode, WenguTimingMode } from "./wengu/types";
-import { WeaknessStore } from "./wengu/WeaknessStore";
-import { WordStore } from "./wengu/WordStore";
-import { WordView } from "./wengu/WordView";
+import { HistoryStore } from "./quiz/HistoryStore";
+import { QuestionBank } from "./bank/QuestionBank";
+import { QuizView } from "./quiz";
+import { openRelatedDialog } from "./bank/RelatedDialog";
+import { openWenguSetting } from "./ui/SettingsDialog";
+import type { WenguRevealMode, WenguTimingMode } from "./types";
+import { WeaknessStore } from "./bank/WeaknessStore";
+import { WordStore } from "./word/WordStore";
+import { WordView } from "./word";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";

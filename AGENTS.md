@@ -6,7 +6,17 @@
 ## 项目速览
 
 - SiYuan 插件「温故（wengu）」：笔记文档 → AI 转习题 → 页签刷题。
-- 源码 `src/`（入口 `src/index.ts`，模块在 `src/wengu/`，样式 `src/scss/` 分片）。
+- 源码 `src/` **按功能分域**（2026-08-26 重构，组织方式借鉴 sy-lively）：
+    - `src/siyuan/`——内核 API 工厂（`api.ts` 路径枚举 EApi + `KernelBlock`
+      /`KernelDoc`/`KernelNotebook` 薄封装，迁自 sy-lively 构建工厂）+ 题目
+      契约属性常量 `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
+    - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
+      （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、
+      `src/word/`（单词域，`index.ts`=WordView，词库数据在 `word/data/`）、
+      `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱）、`src/ui/`
+      （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具）。
+    - **各域 `index.ts` 必须是该域的入口编排代码，禁止纯 re-export barrel**；
+      共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
 - **硬性约束：仓库内单文件 ≤500 行**；界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
 - 改行为必须同步 `docs/question-block-contract.md`。
@@ -76,12 +86,23 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
 - `insertBlock/appendBlock` 在 3.8.0 不可用，写 kramdown 用
   `/api/filetree/createDocWithMd`；改块内容用 `/api/block/updateBlock`
   （markdown 里带 `{: id="…" 属性}` 可保留 IAL）。
-- **没有可靠的「向已有文档追加内容」通道**（20260822 真机验证）：
-  `updateBlock` 打文档根传多块 → 全部并成**一个段落**；打普通子块传
-  多块 → **只保留第一段、后续段丢失**（危险）；`/api/transactions`
-  的 `insert` 操作返回 code 0 但**静默无效**。增量写入只能
-  「累积内容后整体 createDocWithMd 重建」（原位替换 = 删旧 +
-  同路径同标题重建，见 ConvertService.replaceDocInPlace）。
+- **「向已有文档追加内容」通道（20260826 在 3.8.1 八轮真机探针定论，
+  修正 20260822 旧结论——旧探针的锚点误用了文档根块）**：
+    - **`/api/block/appendBlock`（markdown dataType）+ `parentID=文档id`
+      可用**——sy-lively 同款方式：一次**追加单块**到文档末尾，串行逐块
+      即可增量成文；**IAL 独立成行则块属性直接落盘**（超级块容器 IAL
+      同理，属性表 ~2s 可查），无需 setBlockAttrs 补。温故渐进落盘已改走
+      此通道（KernelBlock.append / ConvertService.appendBlockToDoc）。
+    - `/api/block/insertBlock`（previousID 锚定）同样可用，但**锚点必须是
+      真实子块**——previousID 传文档根块（type='d'）会**假成功**：code 0
+      且回显 doOperations，内容根本不落盘（两轮探针假阴性的根因）。
+    - **一次只能一块**：单次调用传多块 markdown 会散落错位（首块进锚点、
+      其余乱序落尾）；IAL 写在行内会变成正文，必须独立成行。
+    - `/api/transactions` + DOM 数据（前端同款）也可用（多顶层块、超级块
+      完整落盘），但 **`data-custom-*` 被内核剥离**且 `data-node-id` 可能
+      被重生成——不如 markdown 通道，留作后备。
+    - `updateBlock` 仍不可用：文档根传多块 → 并成**一个段落**；普通子块传
+      多块 → **只保留第一段**（危险）。
 
 - **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
   fetch + `window.siyuan.config.api.token` 鉴权（见 PdfImport.putAsset）。
