@@ -134,7 +134,11 @@ export function renderStartPanel(m: StartPanelModel): string {
     return `<div class="wengu-start">
   ${head}
   ${settings}
-  <div class="wengu-start-actions"><button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button></div>
+  <div class="wengu-start-actions">
+    <button class="b3-button b3-button--outline" data-act="preview">${esc(t("previewEntry"))}</button>
+    <button class="b3-button b3-button--outline" data-act="start">${esc(t("startDrill"))}</button>
+    <button class="b3-button b3-button--outline" data-act="review">${esc(t("reviewEntry"))}</button>
+  </div>
 </div>`;
 }
 
@@ -195,13 +199,26 @@ export function readRoundConfig(root: ParentNode, defaults: RoundDefaults): Roun
     };
 }
 
+/** 开刷面板附属入口：预览（左）/错题回顾（右），与开始刷题并排。 */
+export interface StartPanelEntries {
+    onPreview?: () => void;
+    onReview?: () => void;
+}
+
 /**
- * 绑定：开始按钮 + 「继续上次 = 原样恢复」。选中继续时锁定
+ * 绑定：开始按钮 + 预览/错题回顾入口 + 「继续上次 = 原样恢复」。选中继续时锁定
  * 范围/展示/计时/分钟并回显该轮原配置；切回重新开始则解锁并恢复
  * 设置页默认值。任何选项都不会出现「能选但不生效」。
  */
-export function bindStartPanel(root: ParentNode, m: StartPanelModel, onStart: () => void): void {
+export function bindStartPanel(
+    root: ParentNode,
+    m: StartPanelModel,
+    onStart: () => void,
+    entries?: StartPanelEntries
+): void {
     root.querySelector("[data-act='start']")?.addEventListener("click", () => onStart());
+    root.querySelector("[data-act='preview']")?.addEventListener("click", () => entries?.onPreview?.());
+    root.querySelector("[data-act='review']")?.addEventListener("click", () => entries?.onReview?.());
     const progressSel = root.querySelector<HTMLSelectElement>("[data-field='progress']");
     if (!progressSel) return;
     const fields = ["scope", "reveal", "steps", "timing", "minutes"]

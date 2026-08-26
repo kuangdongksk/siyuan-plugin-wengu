@@ -1,8 +1,7 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./AnswerFlow";
-import { bindCardEvents, restoreAnsweredCards, revealAll } from "./AnswerFlow";
-import { collectCardThoughts, renderMainShell, renderNumsHtml, renderSubheadHtml } from "./CardHtml";
-import type { CardHtmlModel } from "./CardParts";
+import { restoreAnsweredCards, revealAll } from "./AnswerFlow";
+import { collectCardThoughts } from "./CardHtml";
 import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/BankReconcile";
@@ -11,20 +10,19 @@ import type { HistoryStore, WenguSession } from "./HistoryStore";
 import { pushSessionAnswer } from "./HistoryStore";
 import { bindAnnotationLayer, hideBar, type AnnoCallbacks } from "./AnnoFlow";
 import { addClue, bindClueJudge, refreshClueRow } from "./ClueFlow";
-import { buildDrillUnits, renderUnitsHtml, type DrillUnit } from "./DrillUnits";
-import { bindGroupUnits, focusQuestion, restoreGroupScrolls } from "./MaterialFlow";
-import { bindNumRail } from "./NumRail";
+import type { DrillUnit } from "./DrillUnits";
 import { ProgressivePreview } from "./ProgressivePreview";
 import { ProtyleHost } from "./ProtyleHost";
+import { renderQuizShellFor } from "./QuizShell";
 import type { QuestionBank } from "../bank/QuestionBank";
 import type { WenguPrefsIo } from "./QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./QuizLoader";
 import { bindCardActions } from "../bank/RegenDialog";
-import { filterReviewDocFor, renderReviewFor, selectReviewQid } from "../review";
+import { filterReviewDocFor, selectReviewQid } from "../review";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./RoundReport";
 import type { WeaknessStore } from "../bank/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
-import { beginDrillFor, bindStartPanel, renderStartPanel, startPanelModelFor } from "./StartPanel";
+import { beginDrillFor, startPanelModelFor } from "./StartPanel";
 import { destroyStatsPanel, openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./TimerBinder";
 import { bindHeadFor } from "./ViewBindings";
@@ -40,40 +38,40 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly el: HTMLElement;
     private readonly app?: App;
     private readonly storage?: { load: () => Promise<unknown>; save: (v: WenguPrefsIo) => Promise<unknown> };
-    private readonly settings?: SettingsDialogShape;
+    readonly settings?: SettingsDialogShape;
     private readonly history?: HistoryStore;
     private readonly weakness?: WeaknessStore;
     private readonly bank?: QuestionBank;
     readonly openSettings?: () => void;
-    private readonly colFlow: CollectionFlow;
+    readonly colFlow: CollectionFlow;
     private readonly timer = new TimerController(() => this.timerBinder.updateLabel());
-    private readonly timerBinder: TimerBinder;
+    readonly timerBinder: TimerBinder;
     /** 统计面板下钻意图：load 完成后重开面板并直落该 tab。 */
     private reopenStatsTab?: "overview" | "doc";
-    private readonly protyleHost: ProtyleHost;
-    private readonly progressive = new ProgressivePreview();
-    private docId: string;
+    readonly protyleHost: ProtyleHost;
+    readonly progressive = new ProgressivePreview();
+    docId: string;
     private activeDocId: string;
-    private docs: WenguDoc[] = [];
-    private sideCollapsed = false;
-    private sideFilter = "";
+    docs: WenguDoc[] = [];
+    sideCollapsed = false;
+    sideFilter = "";
     private pendingDoc: { id: string; title: string } | undefined;
-    private list: WenguQuestion[] = [];
+    list: WenguQuestion[] = [];
     private fullList: WenguQuestion[] = [];
-    private materials: WenguMaterial[] = [];
+    materials: WenguMaterial[] = [];
     /** 渲染单元（独立题/材料组），renderList 时由 buildDrillUnits 组装。 */
-    private units: DrillUnit[] = [];
-    /** M6 三模式开口：做题（现有）/复习/学习预留，主区渲染按它路由。 */
-    private mode: "quiz" | "review" | "study" = "quiz";
+    units: DrillUnit[] = [];
+    /** M6 多模式开口：做题（现有）/复习/预览/学习预留，主区渲染按它路由。 */
+    mode: "quiz" | "review" | "study" | "preview" = "quiz";
     /** 标注层解绑与背单词存储（生词→复习队列，index.ts 注入共享单例）。 */
     private annoCleanup?: () => void;
     private wordStore?: AnnoCallbacks["wordStore"];
-    private loading = false;
-    private loadError = "";
+    loading = false;
+    loadError = "";
     private docTotalSec = 0;
-    private revealMode: WenguRevealMode = "instant";
+    revealMode: WenguRevealMode = "instant";
     private activeQIdx = 0;
-    private started = false;
+    started = false;
     /** 转换弹窗状态与收尾（ConvertViewAccess 实现体，拆出压行数）。 */
     private readonly convertAccess: ConvertAccess;
     /** 复习模式「重刷本文档」的待开轮范围（load 完成后消费并清空）。 */
@@ -81,7 +79,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     private session?: WenguSession;
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
     private finished?: WenguSession;
-    private rounds: WenguSession[] = [];
+    rounds: WenguSession[] = [];
 
     constructor(
         element: HTMLElement,
@@ -197,7 +195,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */
-    private onActiveQ(idx: number): void {
+    onActiveQ(idx: number): void {
         this.activeQIdx = idx;
         this.timer.setQuestion(this.list[idx]?.id ?? "");
         refreshClueRow(this);
@@ -223,12 +221,19 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         void this.load();
     }
 
-    /** 头部模式切换器（M6）：做题↔复习；切回时恢复已答锁定。 */
-    readonly switchMode = (mode: "quiz" | "review"): void => {
+    /** 模式切换统一入口（头部切换器已删 2026-08-26）：开刷面板三按钮/
+     *  右键错题复习/预览工具行「退出预览」都汇到这里；切回做题恢复已答锁定。 */
+    readonly switchMode = (mode: "quiz" | "review" | "preview"): void => {
         if (this.mode === mode) return;
         this.mode = mode;
         this.renderList();
         if (mode === "quiz" && this.started) restoreAnsweredCards(this);
+    };
+
+    /** 预览模式入口：开刷面板「预览」按钮（只读浏览，不作答不计轮次）。 */
+    readonly enterPreviewMode = (): void => {
+        destroyStatsPanel();
+        this.switchMode("preview");
     };
 
     /** 复习模式统一入口：右键文档预筛 / 统计 qid 定位 / 直入（统计面板先关）。 */
@@ -363,7 +368,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly docsOf = (): WenguDoc[] => this.docs;
     readonly markReopenStats = (tab: "overview" | "doc") => (this.reopenStatsTab = tab);
     readonly switchDocSelect = (id: string): void => this.selectDoc(id);
-    private startPanelModel = () => startPanelModelFor(this);
+    startPanelModel = () => startPanelModelFor(this);
 
     /* ── DrillViewAccess（beginDrillFor 消费）；专题模式会话记 col:<id> ── */
     readonly fullListOf = (): WenguQuestion[] => this.fullList;
@@ -399,75 +404,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     }
 
     private renderListInner(): void {
-        this.protyleHost.destroyAll();
-        destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
-        // M6 三模式路由：复习模式（错题本）由 ReviewFlow 全权渲染；study 仍预留
-        if (this.mode === "review") {
-            renderReviewFor(this);
-            bindHeadFor(this);
-            return;
-        }
-        if (this.mode !== "quiz") return;
-        const colMode = this.colFlow.isActive();
-        const doc = colMode ? undefined : this.docs.find((d) => d.id === this.docId);
-        this.units = buildDrillUnits(this.list, this.materials);
-        const cardModel: CardHtmlModel = {
-            t: this.t,
-            showAttempts: this.settings?.showAttempts !== false,
-            showWrongBadge: this.settings?.showWrong !== false && this.revealMode !== "after",
-        };
-        this.el.innerHTML = renderMainShell({
-            t: this.t,
-            mode: this.mode,
-            docs: this.docs,
-            docId: this.docId,
-            sideCollapsed: this.sideCollapsed,
-            filter: this.sideFilter,
-            hasSettingsButton: !!this.openSettings,
-            collections: this.colFlow.rowsView(),
-            activeCollection: this.colFlow.id(),
-            loading: this.loading,
-            loadError: this.loadError,
-            started: this.started,
-            previewing: this.progressive.active,
-            hasDoc: !!doc,
-            listCount: this.list.length,
-            startPanelHtml: renderStartPanel(this.startPanelModel()),
-            subheadHtml: colMode
-                ? `<span class="wengu-muted">${esc(this.colFlow.activeTitle() ?? "")} · ${esc(String(this.list.length))}</span>`
-                : renderSubheadHtml({ t: this.t, doc, listCount: this.list.length, rounds: this.rounds }),
-            cardsHtml: renderUnitsHtml(this.units, cardModel),
-            numsHtml: renderNumsHtml(
-                this.list,
-                this.t,
-                this.settings?.showNums !== false,
-                this.settings?.showWrong !== false && this.revealMode === "instant"
-            ),
-        });
-        this.bindAll();
-        if (colMode)
-            this.protyleHost.mountStatic(this.el, this.list, this.materials); // 题库静态渲染（Lute，材料并集）
-        else void this.protyleHost.mount(this.el, this.list, this.materials).then(() => restoreGroupScrolls(this.el));
-        this.timerBinder.updateLabel();
-    }
-
-    /** 视图级绑定：头部/题号/开刷面板/题卡/材料组单元。 */
-    private bindAll(): void {
-        bindHeadFor(this);
-        bindNumRail(this.el, {
-            onActive: (idx) => this.onActiveQ(idx),
-            onFocus: (idx) => focusQuestion(this.el, this.units, this.list, idx),
-        });
-        bindStartPanel(this.el, this.startPanelModel(), () => beginDrillFor(this));
-        bindGroupUnits(this.el, this.units, this, {
-            onActive: (idx) => this.onActiveQ(idx),
-            onShown: () => void this.protyleHost.mount(this.el, this.list, this.materials),
-        });
-        if (this.progressive.active) return; // 渐进呈现期不绑作答（文档每批重建）
-        for (const node of this.el.querySelectorAll<HTMLElement>(".wengu-card")) {
-            const q = this.list.find((x) => x.id === node.dataset.qid);
-            if (q) bindCardEvents(this, node, q);
-        }
+        renderQuizShellFor(this);
     }
 
     /** 打开统计面板（tab 直落；下钻后 load 完成时也走这里重开）。 */

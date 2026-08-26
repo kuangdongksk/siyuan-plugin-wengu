@@ -150,6 +150,9 @@ export function renderReviewDetailHtml(t: T, d: ReviewDetailModel): string {
   ${section(t("reviewSecAnswer"), d.answerHtml, " wengu-review-sec-answer")}
   ${section(t("reviewSecSolution"), d.solutionHtml)}
   <div class="wengu-review-detail-actions">
+    <button class="b3-button b3-button--outline" data-review-copy title="${esc(t("pvCopyTitle"))}">
+      ${svgIcon("iconCopy")} ${esc(t("pvCopyTitle"))}
+    </button>
     <button class="b3-button b3-button--outline" data-goto-block="${esc(d.qid)}">
       ${svgIcon("iconRight")} ${esc(t("reviewGotoBlock"))}
     </button>

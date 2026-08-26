@@ -2,6 +2,7 @@ import { fetchSyncPost } from "siyuan";
 import { ATTR_PREFIX, Attr } from "../siyuan/attrs";
 import type { HistoryStore, WenguSession } from "../quiz/HistoryStore";
 import { mdFragmentHtml, renderMathIn } from "../quiz/ProtyleHost";
+import { copyQuestionText } from "../quiz/PreviewFlow";
 import { renderHeadHtml, renderSideHtml } from "../quiz/CardHtml";
 import {
     renderDetailLoadingHtml,
@@ -92,7 +93,7 @@ export function renderReviewFor(v: ReviewViewAccess): void {
             activeCollection: "",
         }) +
         `<div class="wengu-main wengu-review-main">
-  <div class="wengu-head">${renderHeadHtml(t, false, "review", esc(summary))}</div>
+  <div class="wengu-head">${renderHeadHtml(t, false, esc(summary))}</div>
   ${renderReviewMainHtml(m)}
 </div>`;
     bindReviewEvents(v);
@@ -130,6 +131,10 @@ function bindReviewEvents(v: ReviewViewAccess): void {
         }
     });
     root.querySelector("[data-review-detail]")?.addEventListener("click", (ev) => {
+        if ((ev.target as HTMLElement).closest("[data-review-copy]")) {
+            if (detailQ) void copyQuestionText(detailQ, v.t);
+            return;
+        }
         const goto = (ev.target as HTMLElement).closest<HTMLElement>("[data-goto-block]");
         if (goto?.dataset.gotoBlock) window.open(`siyuan://blocks/${goto.dataset.gotoBlock}`);
     });
@@ -285,7 +290,8 @@ function plainSummary(text: string): string {
 }
 
 /** 详情渲染：选中题惰性 hydrate（fetchSyncPost 串行约束天然满足），
- *  重渲染代际变化则放弃填充。 */
+ *  重渲染代际变化则放弃填充；hydrated 题存模块级供「复制题目」用。 */
+let detailQ: WenguQuestion | undefined;
 async function renderDetailFor(v: ReviewViewAccess, qid: string): Promise<void> {
     const box = v.el.querySelector<HTMLElement>("[data-review-detail]");
     if (!box) return;
@@ -302,6 +308,7 @@ async function renderDetailFor(v: ReviewViewAccess, qid: string): Promise<void> 
     const q: WenguQuestion = { id: item.qid, attempts: 0, wrongCount: item.wrongCount, type: item.type };
     try {
         await hydrate(q);
+        detailQ = q; // 快捷复制的原料（题干/选项/答案/解析已齐）
     } catch (_) {
         // 保留已知信息（时间线/摘要），题目正文缺省
     }
