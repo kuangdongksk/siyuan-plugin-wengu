@@ -7,12 +7,14 @@ import WORD_BOOK from "./WordBook";
  * - choiceZh 看释义选单词（四选一，选项是英文单词）
  * - spell    看释义拼单词（输入提交，即对错）
  * - recallEn/recallZh 回想自评（翻面后三档）
+ * - listen   听音选义（念单词选释义，新词梯第③步）
+ * - readalong 听音跟读（词+发音，出声读后自评，新词梯第④步）
  *
  * 客观题点选/提交后的题面标色由 QuizCard 组件按作答态渲染，
  * 选项组合与判定共用本文件的确定性构造（同词每次一致）。
  */
 
-export type WordCardMode = "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh";
+export type WordCardMode = "choiceEn" | "choiceZh" | "spell" | "recallEn" | "recallZh" | "listen" | "readalong";
 
 /** 题面左上角题型标签的 i18n key。 */
 export const MODE_KEY: Record<WordCardMode, string> = {
@@ -21,10 +23,23 @@ export const MODE_KEY: Record<WordCardMode, string> = {
     spell: "wordModeSpell",
     recallEn: "wordModeRecallEn",
     recallZh: "wordModeRecallZh",
+    listen: "wordModeListen",
+    readalong: "wordModeReadalong",
 };
 
 /** 题型轮换（首题按流分流在 WordView.enterPrompt，不在轮换内）。 */
 const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell", "recallZh"];
+
+/** 新词会话内四步梯（仿参考流）：①choiceEn 学习 → ②recallEn 回想
+ *  → ③listen 听音 → ④readalong 跟读；过关(know)才前进，之后进常规轮换。 */
+export const NEW_LADDER: WordCardMode[] = ["choiceEn", "recallEn", "listen", "readalong"];
+
+/** 按梯步选型（干扰项不足时听音/选择题降级回想）。 */
+export function ladderMode(done: number, idx: number, confIds: readonly number[]): WordCardMode {
+    const m = NEW_LADDER[Math.min(done, NEW_LADDER.length - 1)];
+    if ((m === "choiceEn" || m === "listen") && buildMeaningOptions(idx, confIds).length < 4) return "recallEn";
+    return m;
+}
 
 /** 会话题型轮换：按 seq 取模；干扰项不足或空格/超长词降级到
  * 回想（confIds 须与本卡判定同源）。新词首题不走轮换（视图直接
@@ -54,6 +69,8 @@ export interface AnsweredState {
     pick?: number;
     /** 错选时所选选项的来源词条（错选展示/误认实证用）。 */
     pickFrom?: number;
+    /** 「看答案」直接翻底（按答错计，无错选来源）。 */
+    peek?: boolean;
 }
 
 /** 释义首行（多行释义取第一行，选择题选项用）。 */
@@ -136,16 +153,16 @@ export function spellMatches(input: string, word: string): boolean {
     return n(input).length > 0 && n(input) === n(word);
 }
 
-/** 选择题判定（mode ∈ choiceEn/choiceZh）：返回作答态，选项不存在
- * 返回 undefined。confIds 必须与渲染时同源（同一快照）。 */
+/** 选择题判定（mode ∈ choiceEn/choiceZh/listen，listen 与 choiceEn 同用释义选项）：
+ * 返回作答态，选项不存在返回 undefined。confIds 必须与渲染时同源（同一快照）。 */
 export function checkOption(
-    mode: "choiceEn" | "choiceZh",
+    mode: "choiceEn" | "choiceZh" | "listen",
     idx: number,
     no: number,
     confIds: readonly number[] = []
 ): AnsweredState | undefined {
-    const choices = mode === "choiceEn" ? buildMeaningOptions(idx, confIds) : buildWordOptions(idx, confIds);
+    const choices = mode === "choiceZh" ? buildWordOptions(idx, confIds) : buildMeaningOptions(idx, confIds);
     if (choices[no] === undefined) return undefined;
-    const correct = mode === "choiceEn" ? meaningLine(idx) : WORD_BOOK.words[idx].w;
+    const correct = mode === "choiceZh" ? WORD_BOOK.words[idx].w : meaningLine(idx);
     return { correct: choices[no].text === correct, pick: no, pickFrom: choices[no].from };
 }

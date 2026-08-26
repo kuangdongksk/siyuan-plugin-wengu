@@ -140,7 +140,7 @@
         {#if answered}
             {@render detail()}
             {@render resultTail()}
-            <div class="wengu-word-actions">
+            <div class="wengu-word-actions wengu-word-grades">
                 <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
                     >{t("wordNext")}</button
                 >
@@ -160,7 +160,7 @@
             </div>
             {@render detail()}
             {@render resultTail()}
-            <div class="wengu-word-actions">
+            <div class="wengu-word-actions wengu-word-grades">
                 <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
                     >{t("wordNext")}</button
                 >
@@ -193,14 +193,14 @@
         {@render detail()}
         {@render resultTail()}
         {#if ui.selfGrade}
-            <div class="wengu-word-actions">
+            <div class="wengu-word-actions wengu-word-grades">
                 <button class="b3-button b3-button--outline" onclick={() => view.nextGraded()}>{t("wordNext")}</button>
                 <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
                     >{t("wordMarkWrong")}</button
                 >
             </div>
         {:else}
-            <div class="wengu-word-actions">
+            <div class="wengu-word-actions wengu-word-grades">
                 <button class="b3-button b3-button--outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</button
                 >
                 <button class="b3-button b3-button--outline" onclick={() => view.grade("fuzzy")}
@@ -217,7 +217,7 @@
             {mode === "recallEn" ? entry.w : meaningLine(idx)}
         </div>
         <div class="wengu-word-hint">{t("wordRecallHint")}</div>
-        <div class="wengu-word-actions">
+        <div class="wengu-word-actions wengu-word-grades">
             <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("know")}
                 >{t("wordGradeKnow")}</button
             >

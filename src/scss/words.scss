@@ -93,9 +93,8 @@
   line-height: 1.2;
 }
 
-/* 未翻面时藏释义/按钮（视觉隐藏，键盘可达性由翻面交互保证） */
-.wengu-word-card:not(.wengu-word-revealed) .wengu-word-meaning,
-.wengu-word-card:not(.wengu-word-revealed) .wengu-word-actions {
+/* 未翻面时藏释义（正面操作区不藏：20260826 起正面就是三档大底条） */
+.wengu-word-card:not(.wengu-word-revealed) .wengu-word-meaning {
   display: none;
 }
 
@@ -125,6 +124,18 @@
   margin-top: auto;
   padding-top: 12px;
   background: var(--b3-theme-surface);
+}
+
+/* 三档/收尾大底条：整宽均分、大触区——底部任意一点都命中其中一个按钮 */
+.wengu-word-grades {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.wengu-word-grades .b3-button {
+  flex: 1;
+  min-height: 56px;
+  font-size: 15px;
 }
 
 /* ── 不背单词式两段流：选项/中文题面/反馈 ── */
