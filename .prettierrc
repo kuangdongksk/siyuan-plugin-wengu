@@ -6,6 +6,7 @@
     "singleQuote": false,
     "trailingComma": "es5",
     "endOfLine": "lf",
+    "plugins": ["prettier-plugin-svelte"],
     "overrides": [
         {
             "files": ["*.json", "*.scss", "*.yaml", "*.yml"],

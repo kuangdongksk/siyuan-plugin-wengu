@@ -1,6 +1,5 @@
 import { agentChat, defaultAgentModelId } from "../convert/AgentClient";
-import { svgIcon } from "../ui/FormHtml";
-import { esc, fmt } from "../ui/shared";
+import { fmt } from "../ui/shared";
 import WORD_BOOK from "./WordBook";
 import { addPair } from "./WordConfusables";
 import { applyAiReview, type WenguTimingRec, type WenguWordProgress } from "./WordStore";
@@ -9,6 +8,7 @@ import { applyAiReview, type WenguTimingRec, type WenguWordProgress } from "./Wo
  * AI 复盘（docs/word-timing.md）：误认词手动分析 + 组完成自动触发
  * 共用一条管线。走 AgentClient 同一智能体端点、过串行队列——内核
  * 侧并发请求会互相吞响应（真机坑）。每批 ≤20 词，多批顺序执行。
+ * 运行态（running/msg）由 WordView.syncAi 镜像进响应态供按钮/消息渲染。
  *
  * 回复协议（锚定规则，不凭空给天数）：
  *   W: 单词 / L: up|keep|down（Leitner 档位动作）/ C: 混淆对象
@@ -161,11 +161,12 @@ export function parseReply(reply: string): ParsedItem[] {
     return out;
 }
 
-/* ── 视图接线：按钮/消息/运行（WordView 委托，含状态位） ── */
+/* ── 视图接线：状态位 + 运行（渲染镜像见 WordView.syncAi） ── */
 
-/** AI 复盘的视图胶水：手动按钮 + 组完成自动触发。 */
+/** AI 复盘的运行器：手动按钮 + 组完成自动触发。 */
 export class WordAiRunner {
     running = false;
+    /** 结果文案（"!" 前缀 = 失败，渲染层剥掉前缀标红）。 */
     msg = "";
 
     constructor(private readonly t: (k: string) => string) {}
@@ -184,44 +185,23 @@ export class WordAiRunner {
         return out;
     }
 
-    buttonHtml(p: WenguWordProgress): string {
-        const n = this.pending(p).length;
-        const title = this.running
-            ? this.t("wordAiRunning")
-            : n > 0
-              ? fmt(this.t("wordAiPending"), { n: String(n) })
-              : this.t("wordAiNone");
-        return `<button class="b3-button b3-button--icon${
-            n === 0 && !this.running ? " fn__none" : ""
-        }" data-act="aianalyze" title="${esc(title)}"${this.running ? " disabled" : ""}>${svgIcon(
-            "iconSparkles"
-        )}</button>`;
-    }
-
-    msgHtml(): string {
-        if (!this.running && !this.msg) return "";
-        const text = this.running ? this.t("wordAiRunning") : this.msg;
-        const err = this.msg && !this.running && this.msg.startsWith("!") ? " wengu-word-ai-err" : "";
-        return `<div class="wengu-word-aimsg${err}">${esc(text.replace(/^!/, ""))}</div>`;
-    }
-
-    /** 手动跑一次分析（按钮路径）：写进度、结果回填由调用方 repaint。 */
+    /** 手动跑一次分析（按钮路径）：写进度、状态变化经 syncHook 回调。 */
     async run(
         p: WenguWordProgress,
         save: () => Promise<unknown>,
         onApplied: () => void,
-        repaint: () => void
+        syncHook: () => void
     ): Promise<void> {
         if (this.running) return;
         const pending = this.pending(p);
         if (pending.length === 0) {
             this.msg = this.t("wordAiNone");
-            repaint();
+            syncHook();
             return;
         }
         this.running = true;
         this.msg = "";
-        repaint();
+        syncHook();
         try {
             const n = await analyzeAll(pending, p, save);
             this.msg =
@@ -231,11 +211,11 @@ export class WordAiRunner {
             this.msg = "!" + this.t("wordAiFailed") + String((e as Error)?.message ?? e).slice(0, 120);
         }
         this.running = false;
-        repaint();
+        syncHook();
     }
 
     /** 组完成自动触发（决策 6）：异步一步继续，不阻塞刷卡；
-     * 失败静默记 msg（下次自然重绘带出），onDirty 通知重排队列。 */
+     * 失败静默记 msg（下次 syncAi 带出），onDirty 通知重排队列。 */
     async runGroup(
         inputs: WordAiInput[],
         p: WenguWordProgress,
