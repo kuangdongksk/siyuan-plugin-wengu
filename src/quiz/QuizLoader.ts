@@ -19,6 +19,7 @@ export interface QuizLoadDeps {
     prefs: {
         docId?: string;
         sideCollapsed?: boolean;
+        sideTreeOpen?: string[];
         lastConvertModelId?: string;
         lastConvertFill?: boolean;
         lastConvertSteps?: boolean;
@@ -40,6 +41,8 @@ export interface QuizLoadDeps {
 export interface QuizLoadResult {
     docs: WenguDoc[];
     docId: string;
+    /** 侧栏树展开集合（undefined=首次，QuizView 落默认第一层并持久化）。 */
+    sideTreeOpen: string[] | undefined;
     /** pendingDoc 是否仍需保留（未进列表）。 */
     pendingDoc: { id: string; title: string } | undefined;
     fullList: WenguQuestion[];
@@ -68,6 +71,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         materials: [],
         rounds: [],
         sideCollapsed: !!deps.prefs.sideCollapsed,
+        sideTreeOpen: deps.prefs.sideTreeOpen,
         lastConvertModelId: deps.prefs.lastConvertModelId ?? "",
         lastConvertFill: deps.prefs.lastConvertFill ?? deps.settings?.fillToChoice === true,
         lastConvertSteps: deps.prefs.lastConvertSteps ?? deps.settings?.bigToSteps === true,
@@ -143,6 +147,8 @@ export interface WenguPrefsIo {
     /** 上次选中的专题 id（重开页签恢复专题模式）。 */
     colId?: string;
     sideCollapsed?: boolean;
+    /** 侧栏树展开的路径集合（undefined=未初始化，load 时落默认第一层）。 */
+    sideTreeOpen?: string[];
     lastConvertModelId?: string;
     lastConvertFill?: boolean;
     lastConvertSteps?: boolean;

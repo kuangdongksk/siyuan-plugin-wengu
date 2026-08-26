@@ -1,7 +1,8 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./AnswerFlow";
 import { restoreAnsweredCards, revealAll } from "./AnswerFlow";
-import { collectCardThoughts } from "./CardHtml";
+import { applySideFilter, collectCardThoughts } from "./CardHtml";
+import { buildSideTree } from "./SideTree";
 import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/BankReconcile";
@@ -18,7 +19,9 @@ import type { QuestionBank } from "../bank/QuestionBank";
 import type { WenguPrefsIo } from "./QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./QuizLoader";
 import { bindCardActions } from "../bank/RegenDialog";
+import { openVariantDrillDialog } from "../bank/VariantDrill";
 import { filterReviewDocFor, selectReviewQid } from "../review";
+import { KernelDoc } from "../siyuan/doc";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./RoundReport";
 import type { WeaknessStore } from "../bank/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
@@ -55,6 +58,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     docs: WenguDoc[] = [];
     sideCollapsed = false;
     sideFilter = "";
+    /** 侧栏树展开的路径集合（S2：默认第一层，prefs 持久化）。 */
+    sideTreeOpen: string[] = [];
     private pendingDoc: { id: string; title: string } | undefined;
     list: WenguQuestion[] = [];
     private fullList: WenguQuestion[] = [];
@@ -119,6 +124,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             docs: () => this.docs,
             docId: () => this.docId,
             sideFilter: () => this.sideFilter,
+            sideTreeOpen: () => this.sideTreeOpen,
             modelId: () => this.aiModelId(),
             reloadFromCollection: () => this.reloadDocs(""),
         });
@@ -254,14 +260,69 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         else void ((this.pendingDrillScope = "wrongAll"), this.selectDoc(docId));
     };
 
+    /** 目录文档右键「删除文档」：文档本体删入回收站（可在思源找回），
+     *  插件侧联动清记录/影子专题/会话历史后重载——load 的选中回退链
+     *  （当前>记住>活动>第一个）自动切离被删文档。内核调用串行。 */
+    readonly deleteDocOf = (docId: string): void => {
+        void (async () => {
+            try {
+                const { code } = await KernelDoc.remove(docId);
+                if (code !== 0) return;
+            } catch (_) {
+                return; // 删除失败不动插件数据，下次再试
+            }
+            await this.bank?.removeDocData(docId);
+            await this.bank?.flush();
+            await this.history?.removeDocs([docId]);
+            await this.load();
+        })();
+    };
+
     persistPrefs(): void {
         savePrefs(this.storage, {
             docId: this.docId,
             colId: this.colFlow.id(),
             sideCollapsed: this.sideCollapsed,
+            sideTreeOpen: this.sideTreeOpen,
             ...this.convertAccess.prefsSnapshot(),
         });
     }
+
+    /** 侧栏树分支折叠/展开（S1）：改集合持久化后局部重绘清单块。 */
+    readonly toggleSideTreeOf = (path: string): void => {
+        const set = new Set(this.sideTreeOpen);
+        if (set.has(path)) set.delete(path);
+        else set.add(path);
+        this.sideTreeOpen = [...set];
+        this.persistPrefs();
+        applySideFilter(
+            this.el,
+            this.docs,
+            this.docId,
+            this.t,
+            this.sideFilter,
+            this.colFlow.rowsView(),
+            this.colFlow.id(),
+            this.sideTreeOpen
+        );
+    };
+
+    /** 目录文档右键「变式重练」（V2）：整卷/仅错题按题生成变式专题。 */
+    readonly variantDrillOf = (docId: string): void => {
+        const doc = this.docs.find((d) => d.id === docId);
+        if (!doc || !this.bank) return;
+        openVariantDrillDialog(
+            {
+                t: this.t,
+                bank: this.bank,
+                modelId: () => this.aiModelId(),
+                onChanged: () => void this.colFlow.refresh().then(() => this.colFlow.refreshSide()),
+                onSelect: (id) => this.colFlow.switchTo(id),
+            },
+            docId,
+            doc.title
+        );
+    };
 
     finishSession(): void {
         const s = this.session;
@@ -302,6 +363,13 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.docs = r.docs;
         this.pendingDoc = r.pendingDoc;
         this.docId = r.docId;
+        // S2 树展开态：首次（prefs 无记录）默认展开第一层并持久化
+        if (r.sideTreeOpen === undefined) {
+            this.sideTreeOpen = buildSideTree(r.docs).map((n) => n.path);
+            this.persistPrefs();
+        } else {
+            this.sideTreeOpen = r.sideTreeOpen;
+        }
         this.docTotalSec = r.docTotalSec;
         this.list = this.fullList = r.fullList;
         this.materials = r.materials;
@@ -366,6 +434,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
     /* ── StatsViewAccess（openStatsPanelFor 消费）；ConvertViewAccess 在下 ── */
     readonly docsOf = (): WenguDoc[] => this.docs;
+    readonly sideTreeOpenOf = (): string[] => this.sideTreeOpen;
     readonly markReopenStats = (tab: "overview" | "doc") => (this.reopenStatsTab = tab);
     readonly switchDocSelect = (id: string): void => this.selectDoc(id);
     startPanelModel = () => startPanelModelFor(this);

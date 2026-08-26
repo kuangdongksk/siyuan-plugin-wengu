@@ -47,6 +47,7 @@ export function renderQuizShellFor(v: QuizView): void {
         docId: v.docId,
         sideCollapsed: v.sideCollapsed,
         filter: v.sideFilter,
+        sideTreeOpen: v.sideTreeOpen,
         hasSettingsButton: !!v.openSettings,
         collections: v.colFlow.rowsView(),
         activeCollection: v.colFlow.id(),

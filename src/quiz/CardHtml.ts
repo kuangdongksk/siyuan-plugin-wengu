@@ -8,6 +8,7 @@ import type { WenguStep } from "../types";
 import { AUTO_GRADE_TYPES, hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../types";
 import type { WenguDoc } from "../types";
 import { esc, fmt, mmss } from "../ui/shared";
+import { buildSideTree, renderSideTree } from "./SideTree";
 
 /**
  * 纯 HTML 构建层（design-review 拆分）：题卡/作答位/目录/头部。
@@ -164,27 +165,32 @@ export interface SideHtmlModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（按标题/路径包含匹配，空=全部）。 */
     filter: string;
-    /** 题库专题清单（空=不渲染专题区）。 */
+    /** 题库专题清单（空=不渲染专题区；doc: 源卷影子不在此显示，S3 消双显）。 */
     collections: { id: string; title: string; count: number }[];
     /** 当前选中的专题 id（题库模式）。 */
     activeCollection: string;
+    /** 展开的树路径集合（搜索态走平铺不用它）。 */
+    sideTreeOpen: string[];
 }
 
-/** 目录文档清单（hPath 分组 + 搜索过滤）。单独导出：搜索输入时只刷新这一块，输入框不重建。
- *  collections 非空时顶部先渲染「专题」区（题库入口）。 */
+/** 目录文档清单（空搜索=树形渲染，S1~S3；有搜索词=临时平铺分组便于扫结果）。
+ *  单独导出：搜索输入时只刷新这一块，输入框不重建。collections 非空时顶部
+ *  先渲染「专题」区（doc: 源卷影子过滤掉——文档树本体已在眼前）。 */
 export function renderSideBodyHtml(
     docs: WenguDoc[],
     docId: string,
     t: (key: string) => string,
     filter: string,
     collections: { id: string; title: string; count: number }[] = [],
-    activeCollection = ""
+    activeCollection = "",
+    sideTreeOpen: string[] = []
 ): string {
     const q = filter.trim().toLowerCase();
+    const cols = collections.filter((c) => !c.id.startsWith("doc:"));
     const colSection =
-        collections.length > 0
+        cols.length > 0
             ? `<div class="wengu-side-group">
-        <div class="wengu-side-label">${esc(t("collectionsTitle"))}</div>${collections
+        <div class="wengu-side-label">${esc(t("collectionsTitle"))}</div>${cols
             .map(
                 (c) =>
                     `<div class="wengu-side-item${c.id === activeCollection ? " wengu-side-active" : ""}" data-colid="${esc(
@@ -196,6 +202,20 @@ export function renderSideBodyHtml(
             )
             .join("")}</div>`
             : "";
+    if (!q) {
+        // 树形（默认视图）：hPath 建树，展开集合由调用方持有持久化
+        if (docs.length === 0)
+            return colSection + `<div class="wengu-muted wengu-side-empty">${esc(t("noExerciseDocs"))}</div>`;
+        return (
+            colSection +
+            renderSideTree(buildSideTree(docs), {
+                t,
+                docId,
+                activeCollection,
+                openPaths: new Set(sideTreeOpen),
+            })
+        );
+    }
     const groups = new Map<string, WenguDoc[]>();
     for (const d of docs) {
         if (q && !`${d.title}\n${d.hPath}`.toLowerCase().includes(q)) continue;
@@ -279,7 +299,8 @@ export function renderSideHtml(m: SideHtmlModel): string {
           t,
           m.filter,
           m.collections,
-          m.activeCollection
+          m.activeCollection,
+          m.sideTreeOpen
       )}</div>
     </div>`;
 }
@@ -366,6 +387,8 @@ export interface MainShellModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（透传给目录）。 */
     filter: string;
+    /** 侧栏树展开集合（透传给目录）。 */
+    sideTreeOpen: string[];
     /** 题库专题清单与选中项（透传给目录）。 */
     collections: { id: string; title: string; count: number }[];
     activeCollection: string;
@@ -395,6 +418,7 @@ export function renderMainShell(m: MainShellModel): string {
             filter: m.filter,
             collections: m.collections,
             activeCollection: m.activeCollection,
+            sideTreeOpen: m.sideTreeOpen,
         })}<div class="wengu-main">
     <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.subheadHtml, m.started)}</div>
     ${body}
@@ -462,8 +486,9 @@ export function applySideFilter(
     t: (key: string) => string,
     text: string,
     collections: { id: string; title: string; count: number }[] = [],
-    activeCollection = ""
+    activeCollection = "",
+    sideTreeOpen: string[] = []
 ): void {
     const body = el.querySelector("[data-side-body]");
-    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text, collections, activeCollection);
+    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text, collections, activeCollection, sideTreeOpen);
 }

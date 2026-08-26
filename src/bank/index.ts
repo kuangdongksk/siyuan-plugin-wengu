@@ -19,6 +19,8 @@ export interface CollectionViewAccess {
     docId(): string;
     /** 侧栏搜索过滤词（清单局部刷新用）。 */
     sideFilter(): string;
+    /** 侧栏树展开集合（树形渲染用）。 */
+    sideTreeOpen(): string[];
     /** AI 模型 id（收集并补题用）。 */
     modelId(): string;
     /** 模式切换收尾（结算旧上下文、置空文档选中并重载，视图实现）。 */
@@ -88,7 +90,8 @@ export class CollectionFlow {
             (key) => this.v.t(key),
             this.v.sideFilter(),
             this.rows,
-            this.collectionId
+            this.collectionId,
+            this.v.sideTreeOpen()
         );
     }
 

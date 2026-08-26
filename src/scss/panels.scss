@@ -51,11 +51,18 @@
 .wengu-timer svg,
 .wengu-timeup svg,
 .wengu-report-summary svg,
-.wengu-review-tl-mark svg {
+.wengu-review-tl-mark svg,
+.wengu-col-row-title svg {
   width: 14px;
   height: 14px;
   flex: none;
   fill: currentColor;
+}
+
+/* 行内图标与标题文字基线对齐（专题行 iconList 等） */
+.wengu-col-row-title svg {
+  margin-right: 4px;
+  vertical-align: -2px;
 }
 
 /* 设置弹窗（wengu-setting）：Neo 等第三方主题把 config__side 改成

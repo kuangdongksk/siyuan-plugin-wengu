@@ -33,8 +33,16 @@ export interface ViewBindCtx {
     endRound(): void;
     /** 目录文档右键「错题复习」：进复习模式并预筛该文档。 */
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
+    /** 目录文档右键「删除文档」：删入回收站并清插件侧数据后重载。 */
+    deleteDoc(docId: string): void;
+    /** 目录文档右键「变式重练」：按题生成变式专题并切换开刷。 */
+    variantDrill(docId: string): void;
+    /** 侧栏树分支折叠/展开（S1）。 */
+    toggleTree(path: string): void;
     /** 右键菜单项文案（i18n）。 */
     reviewMenuLabel: string;
+    deleteDocMenuLabel: string;
+    variantDrillMenuLabel: string;
 }
 
 export function bindViewEvents(ctx: ViewBindCtx): void {
@@ -53,15 +61,23 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
     });
     // 事件委托：搜索过滤只重绘清单 innerHTML，点击绑定挂在容器上不失效
     q("[data-side-body]")?.addEventListener("click", (ev) => {
-        const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid]");
+        const target = ev.target as HTMLElement;
+        // 树分支折叠/展开：分支行/带子级文档行的 toggle 带 data-tree-path
+        // （带子级的文档行本身不带，点其标题仍走开刷）
+        const toggle = target.closest<HTMLElement>("[data-tree-path]");
+        if (toggle) {
+            ctx.toggleTree(toggle.dataset.treePath ?? "");
+            return;
+        }
+        const node = target.closest<HTMLElement>("[data-docid]");
         if (node) {
             ctx.switchDoc(node.dataset.docid ?? "");
             return;
         }
-        const col = (ev.target as HTMLElement).closest<HTMLElement>("[data-colid]");
+        const col = target.closest<HTMLElement>("[data-colid]");
         if (col) ctx.switchCollection(col.dataset.colid ?? "");
     });
-    // 目录文档右键：错题复习快捷入口（D1 v2）
+    // 目录文档右键：错题复习快捷入口（D1 v2）+ 删除文档（回收站可找回）
     q("[data-side-body]")?.addEventListener("contextmenu", (ev) => {
         const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid]");
         const docId = node?.dataset.docid;
@@ -71,6 +87,8 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
         ev.stopPropagation();
         const menu = new Menu("wengu-doc-review");
         menu.addItem({ icon: "iconInfo", label: ctx.reviewMenuLabel, click: () => ctx.enterReviewMode({ docId }) });
+        menu.addItem({ icon: "iconTrashcan", label: ctx.deleteDocMenuLabel, click: () => ctx.deleteDoc(docId) });
+        menu.addItem({ icon: "iconSparkles", label: ctx.variantDrillMenuLabel, click: () => ctx.variantDrill(docId) });
         menu.open({ x: pos.clientX, y: pos.clientY });
     });
 }
@@ -92,6 +110,10 @@ export interface HeadAccess {
     selectDoc(docId: string): void;
     endRound(): void;
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
+    deleteDocOf(docId: string): void;
+    variantDrillOf(docId: string): void;
+    toggleSideTreeOf(path: string): void;
+    sideTreeOpenOf(): string[];
 }
 
 /** 头部/目录接线（QuizView.bindHead 的拆出体，闭包集中在这里）。 */
@@ -106,13 +128,27 @@ export function bindHeadFor(v: HeadAccess): void {
         openSettings: () => v.openSettings?.(),
         filterDocs: (text) => {
             v.setSideFilter(text);
-            applySideFilter(v.el, v.docsOf(), v.docIdOf(), v.t, text, v.colFlowOf().rowsView(), v.colFlowOf().id());
+            applySideFilter(
+                v.el,
+                v.docsOf(),
+                v.docIdOf(),
+                v.t,
+                text,
+                v.colFlowOf().rowsView(),
+                v.colFlowOf().id(),
+                v.sideTreeOpenOf()
+            );
         },
         toggleSide: (collapsed) => v.setSideCollapsed(collapsed),
         updateConvertBtn: () => updateConvertBtn(v.el, v.convertingOf(), v.t),
         switchDoc: (id) => v.selectDoc(id),
         endRound: () => v.endRound(),
         enterReviewMode: (opt) => v.enterReviewMode(opt),
+        deleteDoc: (id) => v.deleteDocOf(id),
+        variantDrill: (id) => v.variantDrillOf(id),
+        toggleTree: (path) => v.toggleSideTreeOf(path),
         reviewMenuLabel: v.t("reviewMenuLabel"),
+        deleteDocMenuLabel: v.t("deleteDocMenuLabel"),
+        variantDrillMenuLabel: v.t("variantDrillMenuLabel"),
     });
 }

@@ -164,6 +164,80 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* ── 侧栏文档树（S1~S3，结构借思源文档树）── */
+.wengu-tree-doc,
+.wengu-tree-branch {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 4px 8px 4px 4px;
+  min-width: 0;
+}
+
+.wengu-tree-doc {
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.wengu-tree-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-tree-toggle {
+  margin-top: 2px;
+}
+
+.wengu-tree-doc:hover,
+.wengu-tree-branch:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-tree-doc.wengu-side-active,
+.wengu-tree-doc.wengu-side-active:hover {
+  border-left-color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+}
+
+.wengu-tree-branch {
+  cursor: pointer;
+}
+
+.wengu-tree-branch .wengu-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-tree-toggle {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-tree-toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  transition: transform 0.1s ease-out;
+}
+
+.wengu-tree-open > .wengu-tree-toggle svg,
+.wengu-tree-toggle.wengu-tree-open svg {
+  transform: rotate(90deg);
+}
+
+.wengu-tree-children {
+  margin-left: 16px;
+  border-left: 1px solid var(--b3-border-color);
+}
+
 /* ── 主区 ── */
 .wengu-main {
   flex: 1;

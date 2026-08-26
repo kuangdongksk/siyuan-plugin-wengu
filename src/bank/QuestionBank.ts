@@ -310,6 +310,29 @@ export class QuestionBank {
         this.markDirty();
     }
 
+    /** 删除文档侧插件数据：该卷全部记录、内容哈希索引、doc: 影子专题、
+     *  各专题对这批 qid 的引用、迁移标记（文档本体由调用方先删入回收站；
+     *  gen- 生成题不挂 sourceDocId，不受影响）。 */
+    async removeDocData(docId: string): Promise<void> {
+        const data = await this.all();
+        const dead = new Set(
+            Object.values(data.records)
+                .filter((r) => r.sourceDocId === docId)
+                .map((r) => r.qid)
+        );
+        for (const qid of dead) delete data.records[qid];
+        for (const hash of Object.keys(data.hashed)) {
+            if (dead.has(data.hashed[hash])) delete data.hashed[hash];
+        }
+        data.collections = data.collections
+            .filter((c) => c.id !== `doc:${docId}`)
+            .map((c) =>
+                c.qids.some((qid) => dead.has(qid)) ? { ...c, qids: c.qids.filter((qid) => !dead.has(qid)) } : c
+            );
+        data.migratedDocs = data.migratedDocs.filter((d) => d !== docId);
+        this.markDirty();
+    }
+
     /** 从专题移除一题（记录保留，源卷/其他专题不受影响）。 */
     async removeFromCollection(collectionId: string, qid: string): Promise<void> {
         const data = await this.all();
@@ -425,6 +448,14 @@ export class QuestionBank {
                 (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
                 (r.chapter && set.has(`ch:${r.chapter}`))
         );
+    }
+
+    /** 某源卷的全部题记录（变式重练取模板用，按 qid 稳定序）。 */
+    async recordsOfDoc(docId: string): Promise<BankRecord[]> {
+        const data = await this.all();
+        return Object.values(data.records)
+            .filter((r) => r.sourceDocId === docId)
+            .sort((a, b) => a.qid.localeCompare(b.qid));
     }
 
     /** 生成的新题入库（针对性练习；qid 自分配，来源标记 gen）。 */

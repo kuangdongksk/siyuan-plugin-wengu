@@ -54,6 +54,8 @@ export interface ReviewViewAccess {
     t(key: string): string;
     historyStore(): HistoryStore | undefined;
     docsOf(): WenguDoc[];
+    /** 侧栏树展开集合（树形渲染与做题模式共用）。 */
+    sideTreeOpenOf(): string[];
     /** 组头「重刷本文档」：切做题模式 + scope=wrongAll 开轮。 */
     startReviewDrill(docId: string): void;
     /** 完整重渲染（含头部重绑——renderReviewFor 只重绘不绑头部，直接调会丢切换器事件）。 */
@@ -91,6 +93,7 @@ export function renderReviewFor(v: ReviewViewAccess): void {
             filter: "",
             collections: [],
             activeCollection: "",
+            sideTreeOpen: v.sideTreeOpenOf(),
         }) +
         `<div class="wengu-main wengu-review-main">
   <div class="wengu-head">${renderHeadHtml(t, false, esc(summary))}</div>
