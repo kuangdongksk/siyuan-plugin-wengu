@@ -43,8 +43,9 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
    `<select>`（模型列表几百项不可搜），统一走「触发按钮 + 官方风格
    可搜索浮层」——类名照抄官方 commonMenu（`b3-menu__filter` +
    `b3-text-field` 搜索 + `b3-list--background` + `b3-list-item--narrow`，
-   见 `src/ui/ModelPicker.ts`）；浮层挂 body 用 fixed 定位，点外部/Esc
-   关闭。20 项以内短列表仍用 formSelect。
+   见 `src/ui/ModelPicker.ts` 模型单选、`src/ui/KnowPicker.ts` 文档
+   单/多选）；浮层挂 body 用 fixed 定位，点外部/Esc 关闭。20 项以内
+   短列表仍用 formSelect。
 8. **插件级图标（顶栏/dock/页签，2026-08-26 定论）**：经
    `addIcons` 以**自有稳定 id**（iconWengu/iconWenguWords）注册，
    **形状抄思源官方图标集原始 path**（当前：iconRiffCard 卡牌堆 /

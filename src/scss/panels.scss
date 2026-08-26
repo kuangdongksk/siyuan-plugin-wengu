@@ -80,44 +80,32 @@
   vertical-align: -2px;
 }
 
-/* 知识点文档勾选器：搜索框 + 可滚动勾选清单 */
-.wengu-knowpick {
+/* 文档选择下拉（KnowPicker，官方 b3-menu 风格）：挂 body 用 fixed，
+   类名照抄 commonMenu；多选勾选图标与底部操作行 */
+.wengu-doc-menu {
+  position: fixed;
+  z-index: 999;
+  width: 380px;
+  padding: 8px;
+
+  .b3-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .b3-list-item__action svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    color: var(--b3-theme-primary);
+  }
+}
+
+.wengu-doc-menu-foot {
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
-}
-
-.wengu-knowpick-search {
-  min-width: 0;
-  font-size: 13px;
-}
-
-.wengu-knowpick-list {
-  max-height: 320px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.wengu-knowpick-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  border-radius: var(--b3-border-radius);
-  cursor: pointer;
-}
-
-.wengu-knowpick-row:hover {
-  background: var(--b3-theme-background-light);
-}
-
-.wengu-knowpick-path {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
+  margin-top: 8px;
 }
 
 /* 转换弹窗：次要选项折叠（原生 details），控制常驻高度 */

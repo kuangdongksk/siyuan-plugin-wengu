@@ -145,9 +145,10 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     input?.addEventListener("focus", syncResumeHint);
 
     // 知识点文档：纯选择器（无输入框），已选以标题路径回显
-    root.querySelector<HTMLButtonElement>("[data-act='dlg-knowpick']")?.addEventListener("click", () => {
+    root.querySelector<HTMLButtonElement>("[data-act='dlg-knowpick']")?.addEventListener("click", (ev) => {
         openKnowPicker({
             t,
+            anchor: ev.currentTarget as HTMLElement,
             current: parseKnowIds(knowInput?.value ?? ""),
             onConfirm: (ids) => {
                 if (knowInput) knowInput.value = ids.join(" ");
@@ -170,7 +171,6 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         input,
         btn: docPickBtn,
         echo: docEcho,
-        titleKey: "sourcePickTitle",
         onPick: syncResumeHint,
     });
     const echoTarget = bindDocLink({
