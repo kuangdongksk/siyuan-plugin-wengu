@@ -54,6 +54,8 @@
   font-weight: 400;
 }
 
+/* 纯图标钮通用类（规范§〇4：无框、文字进 title）；wengu-side-iconbtn 是侧栏旧名，样式共用 */
+.wengu-iconbtn,
 .wengu-side-iconbtn {
   padding: 3px 4px;
   border: 0;
@@ -65,9 +67,15 @@
   cursor: pointer;
 }
 
+.wengu-iconbtn:hover:not(:disabled),
 .wengu-side-iconbtn:hover {
   background: var(--b3-theme-background-light);
   color: var(--b3-theme-on-background);
+}
+
+.wengu-iconbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* 顶部工具区：搜索占一行；操作行 = 图标钮（统计/专题）+ AI 转习题弹性填充 */

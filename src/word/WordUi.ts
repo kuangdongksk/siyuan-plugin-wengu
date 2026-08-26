@@ -1,5 +1,5 @@
 import type { AnsweredState, WordCardMode } from "./WordQuiz";
-import type { WenguWordProgress } from "./WordStore";
+import type { WenguWordProgress, WordGrade } from "./WordStore";
 
 /** Svelte context 键：WordView 控制器经 context 注入子组件（静态依赖，
  *  避免作为 prop 传递触发 state_referenced_locally 警告）。 */
@@ -22,6 +22,10 @@ export interface WordUi {
     phase: "prompt" | "result";
     cardMode: WordCardMode;
     answered: AnsweredState | undefined;
+    /** 回想题正面已选档位（认识/模糊/忘记）；空翻（点卡/空格）未选为 undefined。 */
+    selfGrade: WordGrade | undefined;
+    /** 「记错了」已点：收尾强制按不认识批改，并常驻自述框。 */
+    mistakeClaimed: boolean;
     /** 进度（深代理：逻辑层就地改，模板直接读）。 */
     progress: WenguWordProgress | undefined;
     /** 当前卡镜像（队列本体在控制器，换卡时同步）。 */
@@ -55,6 +59,8 @@ export function initialWordUi(): WordUi {
         phase: "prompt",
         cardMode: "choiceEn",
         answered: undefined,
+        selfGrade: undefined,
+        mistakeClaimed: false,
         progress: undefined,
         idx: 0,
         confIds: [],

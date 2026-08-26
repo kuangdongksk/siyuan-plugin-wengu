@@ -31,12 +31,12 @@
     <span class="fn__flex-1"></span>
     {@render extra?.()}
     {#if showHome}
-        <button class="b3-button b3-button--icon" title={t("wordBackHome")} onclick={() => view.goHome()}
+        <button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
             >{@html svgIcon("iconList")}</button
         >
     {/if}
     {#if showSet}
-        <button class="b3-button b3-button--icon" title={t("wordSetStart")} onclick={() => view.setStart()}
+        <button class="wengu-iconbtn" title={t("wordSetStart")} onclick={() => view.setStart()}
             >{@html svgIcon("iconSettings")}</button
         >
     {/if}

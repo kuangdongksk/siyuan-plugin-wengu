@@ -10,10 +10,10 @@
     const t = view.t;
 </script>
 
-<button class="b3-button b3-button--icon" title={t("wordStatsTitle")} onclick={() => view.showStats()}
+<button class="wengu-iconbtn" title={t("wordStatsTitle")} onclick={() => view.showStats()}
     >{@html svgIcon("iconInfo")}</button
 >
-<button class="b3-button b3-button--icon" title={t("wordLookup")} onclick={() => view.enterLookup()}
+<button class="wengu-iconbtn" title={t("wordLookup")} onclick={() => view.enterLookup()}
     >{@html svgIcon("iconSearch")}</button
 >
 <AiButton />

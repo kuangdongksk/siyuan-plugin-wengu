@@ -30,15 +30,15 @@
 <div class="wengu-word">
     <WordHead showSet>
         {#snippet extra()}
-            <button class="b3-button b3-button--icon" title={t("wordStatsTitle")} onclick={() => view.showStats()}
+            <button class="wengu-iconbtn" title={t("wordStatsTitle")} onclick={() => view.showStats()}
                 >{@html svgIcon("iconInfo")}</button
             >
             {#if ui.fromCard}
-                <button class="b3-button b3-button--icon" title={t("wordResumeCard")} onclick={() => view.resumeCard()}
+                <button class="wengu-iconbtn" title={t("wordResumeCard")} onclick={() => view.resumeCard()}
                     >{@html svgIcon("iconBack")}</button
                 >
             {:else}
-                <button class="b3-button b3-button--icon" title={t("wordBackHome")} onclick={() => view.goHome()}
+                <button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
                     >{@html svgIcon("iconList")}</button
                 >
             {/if}

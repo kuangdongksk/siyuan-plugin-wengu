@@ -130,11 +130,18 @@
   white-space: nowrap;
 }
 
-/* 星标角标(卡右上角) */
-.wengu-word-star {
+/* 卡右上角工具组：星标常驻 + 熟（答错/翻面后出现，20260826 从结果流挪入） */
+.wengu-word-tools {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 星标角标(工具组内) */
+.wengu-word-star {
   opacity: 0.4;
 }
 

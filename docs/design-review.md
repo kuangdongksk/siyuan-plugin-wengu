@@ -37,7 +37,9 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
       AI 转习题/开始转换/AI 分析报告）
     - 取消：`b3-button--cancel`
     - 次级轻操作（弹窗内文字链类，如「继续生成」）：`b3-button--text`
-    - 纯图标按钮：无框（`wengu-btn` / b3-button--text），文字进 title
+    - 纯图标按钮：无框（`wengu-iconbtn`，20260826 起通用类），文字进
+      title——**别用 `b3-button b3-button--icon`**（Neo 等主题下带边框，
+      单词域头部实例）；侧栏旧类 `wengu-side-iconbtn` 样式与其共用
     - 危险操作（删除专题等）：默认同 outline，**两击确认**——首击加
       `wengu-col-armed` 变红（`var(--b3-card-error-color)`，3s 复原）
     - 状态反馈不改按钮颜色，走 `wengu-status-ok/err` 条带

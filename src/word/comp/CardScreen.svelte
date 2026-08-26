@@ -37,7 +37,7 @@
         {#snippet extra()}
             <!-- 查词入口仅非答题态（已翻面/已作答）给 -->
             {#if ui.phase === "result" || ui.answered}
-                <button class="b3-button b3-button--icon" title={t("wordLookup")} onclick={() => view.enterLookup()}
+                <button class="wengu-iconbtn" title={t("wordLookup")} onclick={() => view.enterLookup()}
                     >{@html svgIcon("iconSearch")}</button
                 >
             {/if}

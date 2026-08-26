@@ -4,8 +4,9 @@ import type { WordView } from "./WordView";
 /**
  * 单词面板键盘分发（WordView 拆件，Svelte 化后只保留按键约定）：
  * 鼠标/输入事件已由组件直调控制器，这里只剩挂在容器上的 keydown
- * 分发。按键约定：空格=翻面/继续；选择题 1-4；回想三档 1-3；
- * 拼写框回车=提交；「认成了…」框回车=记录并判不认识。
+ * 分发。按键约定：空格=翻面/继续；选择题 1-4；回想正面 1-3=选档
+ * （选完翻面）、已选档后 1-3 改档、Space/Enter=下一个；拼写框回车=
+ * 提交；「认成了…」框回车=记录并判不认识。
  */
 export function wordKeydown(v: WordView, ev: KeyboardEvent): void {
     const ui = v.ui;
@@ -35,6 +36,12 @@ export function wordKeydown(v: WordView, ev: KeyboardEvent): void {
         if ((ui.cardMode === "choiceEn" || ui.cardMode === "choiceZh") && /^Digit[1-4]$/.test(ev.code)) {
             ev.preventDefault();
             v.option(parseInt(ev.code.slice(5), 10) - 1);
+        } else if (ui.cardMode === "recallEn" || ui.cardMode === "recallZh") {
+            const g: Record<string, WordGrade> = { Digit1: "no", Digit2: "fuzzy", Digit3: "know" };
+            if (g[ev.code]) {
+                ev.preventDefault();
+                v.pickSelfGrade(g[ev.code]);
+            }
         }
         return;
     }
@@ -44,9 +51,14 @@ export function wordKeydown(v: WordView, ev: KeyboardEvent): void {
     const g = map[ev.code];
     if (g) {
         ev.preventDefault();
-        v.grade(g);
+        // 回想已选档：数字改档；其余（含客观题旧路）按原语义直接收尾
+        if (!answered && ui.selfGrade !== undefined) v.pickSelfGrade(g);
+        else v.grade(g);
     } else if ((ev.code === "Space" || ev.code === "Enter") && answered) {
         ev.preventDefault();
         v.continueObjective();
+    } else if ((ev.code === "Space" || ev.code === "Enter") && !answered && ui.selfGrade !== undefined) {
+        ev.preventDefault();
+        v.nextGraded();
     }
 }

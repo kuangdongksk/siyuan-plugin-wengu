@@ -19,7 +19,7 @@
 </script>
 
 {#if ui.aiPending > 0 || ui.aiRunning}
-    <button class="b3-button b3-button--icon" {title} disabled={ui.aiRunning} onclick={() => view.aiAnalyze()}
+    <button class="wengu-iconbtn" {title} disabled={ui.aiRunning} onclick={() => view.aiAnalyze()}
         >{@html svgIcon("iconSparkles")}</button
     >
 {/if}

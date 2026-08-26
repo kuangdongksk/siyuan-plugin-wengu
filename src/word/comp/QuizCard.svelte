@@ -41,6 +41,8 @@
     const starred = $derived(!!p.starred[String(idx)]);
     const wrongPending = $derived(reveal || (answered !== undefined && !answered.correct));
     const revealedCls = $derived(reveal || answered !== undefined ? " wengu-word-revealed" : "");
+    // 自述框出现条件：「记错了」已点 / 正面选了「忘记」（对应参考流三态）
+    const confessPending = $derived(ui.mistakeClaimed || ui.selfGrade === "no");
 
     function optCls(i: number): string {
         if (!answered) return "";
@@ -54,17 +56,29 @@
 <!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_noninteractive_tabindex,a11y_no_static_element_interactions -->
 <div class="wengu-word-card{revealedCls}" tabindex="0" bind:this={cardEl} onclick={() => view.reveal()}>
     <div class="wengu-word-unit">{t(MODE_KEY[mode])}</div>
-    <button
-        class="b3-button b3-button--icon wengu-word-star"
-        class:is-starred={starred}
-        title={t("wordStar")}
-        onclick={(e) => {
-            e.stopPropagation();
-            view.toggleStarCard();
-        }}
-    >
-        <svg><use xlink:href="#iconStar"></use></svg>
-    </button>
+    <div class="wengu-word-tools">
+        <button
+            class="wengu-iconbtn wengu-word-star"
+            class:is-starred={starred}
+            title={t("wordStar")}
+            onclick={(e) => {
+                e.stopPropagation();
+                view.toggleStarCard();
+            }}
+        >
+            <svg><use xlink:href="#iconStar"></use></svg>
+        </button>
+        {#if wrongPending}
+            <button
+                class="wengu-iconbtn"
+                title={t("wordFamiliarTip")}
+                onclick={(e) => {
+                    e.stopPropagation();
+                    view.finishMastered();
+                }}>{t("wordFamiliar")}</button
+            >
+        {/if}
+    </div>
 
     {#snippet detail()}
         <div class="wengu-word-detail">
@@ -80,9 +94,9 @@
         </div>
     {/snippet}
 
-    <!-- 结果视图公共件：自述输入（答错时）+ 熟按钮 -->
+    <!-- 结果视图公共件：自述输入（客观题答错/记错了/选了忘记）；熟按钮在右上角工具组 -->
     {#snippet resultTail()}
-        {#if wrongPending}
+        {#if confessPending}
             <div class="wengu-word-confess">
                 <span class="wengu-word-confess-label">{fmt(t("wordConfusedHint"), { w: entry.w })}</span>
                 <input
@@ -93,11 +107,6 @@
                     bind:value={ui.confessedDraft}
                 />
             </div>
-            <button
-                class="b3-button b3-button--outline"
-                title={t("wordFamiliarTip")}
-                onclick={() => view.finishMastered()}>{t("wordFamiliar")}</button
-            >
         {/if}
     {/snippet}
 
@@ -135,6 +144,11 @@
                 <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
                     >{t("wordNext")}</button
                 >
+                {#if !answered.correct}
+                    <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
+                        >{t("wordMarkWrong")}</button
+                    >
+                {/if}
             </div>
         {/if}
     {:else if mode === "spell"}
@@ -150,6 +164,11 @@
                 <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
                     >{t("wordNext")}</button
                 >
+                {#if !answered.correct}
+                    <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
+                        >{t("wordMarkWrong")}</button
+                    >
+                {/if}
             </div>
         {:else}
             <input
@@ -169,25 +188,44 @@
             </div>
         {/if}
     {:else if reveal}
-        <!-- recallEn / recallZh 翻面结果：自评 + 详情 + 三档 -->
+        <!-- recallEn/recallZh 翻面结果：正面已选档 → 下一个 + 记错了；空翻（点卡/空格）仍给三档兜底 -->
         <div class="wengu-word-feedback">{t(mode === "recallEn" ? "wordSelfEn" : "wordSelfZh")}</div>
         {@render detail()}
         {@render resultTail()}
-        <div class="wengu-word-actions">
-            <button class="b3-button b3-button--outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</button>
-            <button class="b3-button b3-button--outline" onclick={() => view.grade("fuzzy")}
-                >{t("wordGradeFuzzy")}</button
-            >
-            <button class="b3-button b3-button--outline" onclick={() => view.grade("know")}>{t("wordGradeKnow")}</button
-            >
-        </div>
+        {#if ui.selfGrade}
+            <div class="wengu-word-actions">
+                <button class="b3-button b3-button--outline" onclick={() => view.nextGraded()}>{t("wordNext")}</button>
+                <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
+                    >{t("wordMarkWrong")}</button
+                >
+            </div>
+        {:else}
+            <div class="wengu-word-actions">
+                <button class="b3-button b3-button--outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</button
+                >
+                <button class="b3-button b3-button--outline" onclick={() => view.grade("fuzzy")}
+                    >{t("wordGradeFuzzy")}</button
+                >
+                <button class="b3-button b3-button--outline" onclick={() => view.grade("know")}
+                    >{t("wordGradeKnow")}</button
+                >
+            </div>
+        {/if}
     {:else}
+        <!-- 回想正面：直接选档（选完翻面看详情），点卡/空格仍可静默翻面 -->
         <div class={mode === "recallEn" ? "wengu-word-text" : "wengu-word-zh"}>
             {mode === "recallEn" ? entry.w : meaningLine(idx)}
         </div>
         <div class="wengu-word-hint">{t("wordRecallHint")}</div>
         <div class="wengu-word-actions">
-            <button class="b3-button b3-button--outline" onclick={() => view.showAnswer()}>{t("wordShowAnswer")}</button
+            <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("know")}
+                >{t("wordGradeKnow")}</button
+            >
+            <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("fuzzy")}
+                >{t("wordGradeFuzzy")}</button
+            >
+            <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("no")}
+                >{t("wordGradeNo")}</button
             >
         </div>
     {/if}

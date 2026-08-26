@@ -124,6 +124,8 @@ export class WordView {
     private enterPrompt(): void {
         this.ui.phase = "prompt";
         this.ui.answered = undefined;
+        this.ui.selfGrade = undefined;
+        this.ui.mistakeClaimed = false;
         this.curTiming = undefined;
         this.spellTyped = undefined;
         this.ui.spellLive = "";
@@ -159,9 +161,10 @@ export class WordView {
         this.busy = true;
         const p = this.ui.progress;
         const idx = this.currentIdx;
-        // 自述「认成了什么」：填了即没记住（决策 7，不论点什么档位）
+        // 自述「认成了什么」：填了即没记住（决策 7，不论点什么档位）；
+        // 「记错了」同路——点了即按不认识批改，填没填自述都算
         const v = this.ui.confessedDraft.trim();
-        if (v) grade = "no";
+        if (v || this.ui.mistakeClaimed) grade = "no";
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
         applyGrade(p, idx, grade, this.sessionNew.has(idx));
@@ -297,6 +300,24 @@ export class WordView {
         this.finishCard(g);
     }
 
+    /** 回想题正面选档（认识/模糊/忘记）：翻面挂档，收尾走「下一个」。 */
+    pickSelfGrade(g: WordGrade): void {
+        if (this.ui.cardMode !== "recallEn" && this.ui.cardMode !== "recallZh") return;
+        this.reveal();
+        this.ui.selfGrade = g;
+    }
+
+    /** 「记错了」：挂错标，收尾强制按不认识批改并常驻自述框。 */
+    claimMistake(): void {
+        this.ui.mistakeClaimed = true;
+    }
+
+    /** 已选档后的「下一个」：按正面所选档位收尾。 */
+    nextGraded(): void {
+        if (this.ui.selfGrade === undefined) return;
+        this.finishCard(this.ui.selfGrade);
+    }
+
     reveal(): void {
         if (
             this.ui.phase === "prompt" &&
@@ -394,10 +415,6 @@ export class WordView {
 
     cancelSet(): void {
         this.ui.mode = "home";
-    }
-
-    showAnswer(): void {
-        this.reveal();
     }
 
     enterLookup(): void {
