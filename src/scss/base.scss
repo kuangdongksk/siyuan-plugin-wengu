@@ -1,13 +1,17 @@
 /* 温故刷题页签样式。 */
 
 /* 类上的 display 样式会盖过 hidden 属性的 UA display:none，显式关掉，
-   否则自评按钮/答案揭示会在未作答时露出（真机踩坑）。 */
+   否则自评按钮/答案揭示会在未作答时露出（真机踩坑）。b3-button 的
+   inline-flex 同理压过 UA hidden（转换弹窗「终止生成/查看进行中的转换」
+   常驻 hidden 却露出，20260826 网页版复现实锤）。 */
 .wengu-self[hidden],
 .wengu-judge[hidden],
 .wengu-result[hidden],
 .wengu-note[hidden],
 .wengu-reveal[hidden],
-.wengu-status[hidden] {
+.wengu-status[hidden],
+.wengu-dialog .b3-button[hidden],
+.b3-dialog__action .b3-button[hidden] {
   display: none;
 }
 
@@ -167,10 +171,12 @@
 }
 
 /* UI 标准第 6 条：弹窗底部操作行按钮间统一 8px（原生 b3-dialog__action
-   无间距规则，多按钮贴死）。注意 action 是 wengu-dialog 内容区的**兄弟**
-   节点，须从 .b3-dialog__container 用 :has() 下探（20260826 首版选择器
-   写成后代组合器不命中，真机复贴后修正） */
-.b3-dialog__container:has(> .wengu-dialog) .b3-dialog__action {
+   无间距规则，多按钮贴死）。3.8.1 实际结构是
+   container > body > (content.wengu-dialog + action)：action 是 wengu-dialog
+   的**兄弟**节点，从 container 用 :has(> .wengu-dialog) 下探不命中
+   （wengu-dialog 不是 container 直接子节点）——20260826 网页版复现修正，
+   改兄弟组合器，不再依赖包裹层级与 :has() 支持 */
+.wengu-dialog ~ .b3-dialog__action {
   gap: 8px;
 }
 
