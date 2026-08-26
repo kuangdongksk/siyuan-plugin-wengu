@@ -195,8 +195,6 @@
   "scopeAll": "All questions",
   "scopeWrongOnly": "Only last round's wrong ({n})",
   "scopeWrongAll": "Redo unmastered wrong ({n})",
-  "modeQuiz": "Quiz",
-  "modeReview": "Review",
   "reviewTitle": "Wrong-question book",
   "reviewHeadSummary": "Review · Pending {p} / Mastered {m}",
   "reviewMenuLabel": "Review wrong questions",

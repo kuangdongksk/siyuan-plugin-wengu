@@ -61,7 +61,7 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
 | `src/wengu/ReviewFlow.ts`      | 342  | 复习模式（错题本）编排：全局错题 SQL 分页 + 时间线索引 + 惰性回看 |
 | `src/wengu/ReviewHtml.ts`      | 180  | 错题本纯渲染：分组清单 + 单题回看详情 + 历次时间线                |
 | `src/wengu/ConvertAccess.ts`   | 167  | QuizView 的 ConvertViewAccess 实现体（转换状态/收尾，拆出压红线） |
-| `src/wengu/CardHtml.ts`        | 470  | 纯 HTML 构建：题卡/作答位/目录/头部（模式切换器）/主区外壳        |
+| `src/wengu/CardHtml.ts`        | 470  | 纯 HTML 构建：题卡/作答位/目录/头部（信息行+计时）/主区外壳       |
 | `src/wengu/StepsFlow.ts`       | 453  | steps 多步引导题作答流程                                          |
 | `src/wengu/AnswerFlow.ts`      | 440  | 作答流程：判分/揭示/自评/恢复已答                                 |
 | `src/wengu/ConvertDialog.ts`   | 425  | AI 转习题弹窗（原位/另存 + PDF 导入入口）                         |

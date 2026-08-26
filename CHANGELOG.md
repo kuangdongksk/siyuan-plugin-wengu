@@ -2,6 +2,9 @@
 
 ## v0.1.1 unreleased
 
+- 删除页签头部「做题 | 复习」切换器（样式不达标且头部信息行拥挤）：
+  复习模式入口只剩侧栏文档右键「错题复习」；switchMode/会话恢复机制
+  保留，契约见 docs/review-mode.md §二 D1 v3
 - 图标定稿：手绘 SVG 换成思源官方图标集原始 path（温故=iconRiffCard
   卡牌堆、背单词=iconLanguage 地球），仍以自有稳定 id 经 addIcons 注册
   ——直接引用内置 sprite id 会被 uiLayout 持久化的旧 dock 图标引用

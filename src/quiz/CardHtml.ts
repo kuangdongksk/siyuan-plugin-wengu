@@ -284,12 +284,12 @@ export function renderSideHtml(m: SideHtmlModel): string {
     </div>`;
 }
 
-/** 头部：目录开关（收起时）+ 模式切换器（做题/复习，M6）+ 文档信息/
- *  轮次成绩 + 「结束本次」（做题中）+ 用时（单行合并）。 */
+/** 头部：目录开关（收起时）+ 文档信息/轮次成绩 + 「结束本次」（做题中）
+ *  + 用时（单行合并）。做题|复习头部切换器已删（20260826，复习入口只剩
+ *  侧栏文档右键「错题复习」，见 review-mode.md）。 */
 export function renderHeadHtml(
     t: (key: string) => string,
     sideCollapsed: boolean,
-    mode: "quiz" | "review" | "study",
     subhead = "",
     canEndRound = false
 ): string {
@@ -298,19 +298,12 @@ export function renderHeadHtml(
               "iconRight"
           )}</button>`
         : "";
-    const modeBtn = (v: "quiz" | "review", label: string) =>
-        `<button class="wengu-mode-btn${mode === v ? " wengu-mode-cur" : ""}" data-mode="${v}" title="${esc(
-            label
-        )}">${esc(label)}</button>`;
     const endBtn = canEndRound
         ? `<button class="b3-button b3-button--outline wengu-end-round" data-act="end-round" title="${esc(
               t("endRoundHint")
           )}">${esc(t("endRoundBtn"))}</button>`
         : "";
-    return `${toggle}<div class="wengu-mode-seg" data-mode-seg>${modeBtn("quiz", t("modeQuiz"))}${modeBtn(
-        "review",
-        t("modeReview")
-    )}</div>${subhead}${endBtn}
+    return `${toggle}${subhead}${endBtn}
       <span class="wengu-timer" data-timer title="${esc(t("totalTimeHint"))}">${svgIcon(
           "iconClock",
           "wengu-timer-icon"
@@ -372,8 +365,6 @@ export interface MainShellModel {
     docId: string;
     sideCollapsed: boolean;
     hasSettingsButton: boolean;
-    /** 当前模式（头部切换器高亮态；复习模式不走本壳）。 */
-    mode: "quiz" | "review" | "study";
     /** 目录搜索过滤词（透传给目录）。 */
     filter: string;
     /** 题库专题清单与选中项（透传给目录）。 */
@@ -406,7 +397,7 @@ export function renderMainShell(m: MainShellModel): string {
             collections: m.collections,
             activeCollection: m.activeCollection,
         })}<div class="wengu-main">
-    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.mode, m.subheadHtml, m.started)}</div>
+    <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.subheadHtml, m.started)}</div>
     ${body}
 </div>`;
     if (m.loading) {

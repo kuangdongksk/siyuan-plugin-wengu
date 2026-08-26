@@ -92,7 +92,7 @@ export function renderReviewFor(v: ReviewViewAccess): void {
             activeCollection: "",
         }) +
         `<div class="wengu-main wengu-review-main">
-  <div class="wengu-head">${renderHeadHtml(t, false, "review", esc(summary))}</div>
+  <div class="wengu-head">${renderHeadHtml(t, false, esc(summary))}</div>
   ${renderReviewMainHtml(m)}
 </div>`;
     bindReviewEvents(v);

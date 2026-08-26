@@ -418,7 +418,6 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         };
         this.el.innerHTML = renderMainShell({
             t: this.t,
-            mode: this.mode,
             docs: this.docs,
             docId: this.docId,
             sideCollapsed: this.sideCollapsed,

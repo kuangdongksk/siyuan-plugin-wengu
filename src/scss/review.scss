@@ -1,35 +1,6 @@
-/* 错题本（复习模式 M6）：头部模式切换器 + 左清单右详情两栏。
-   数据与编排见 ReviewFlow/ReviewHtml；Neo 主题下须复查无横向滚动条。 */
-
-/* 头部模式切换器（做题|复习，b3-segmented 风格） */
-.wengu-mode-seg {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--b3-border-color);
-  border-radius: var(--b3-border-radius-b, 6px);
-  background: var(--b3-theme-surface);
-}
-
-.wengu-mode-btn {
-  border: none;
-  background: transparent;
-  padding: 2px 12px;
-  font-size: 12px;
-  line-height: 18px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--b3-theme-on-surface);
-}
-
-.wengu-mode-btn:hover {
-  background: var(--b3-theme-background);
-}
-
-.wengu-mode-cur {
-  background: var(--b3-theme-primary);
-  color: var(--b3-theme-on-primary);
-}
+/* 错题本（复习模式 M6）：左清单右详情两栏。头部「做题|复习」切换器
+   已删（20260826，入口只剩侧栏文档右键）；数据与编排见
+   ReviewFlow/ReviewHtml；Neo 主题下须复查无横向滚动条。 */
 
 /* 复习模式接管主区：main 不滚，两栏各自滚 */
 .wengu-review-main {
