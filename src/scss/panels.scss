@@ -269,3 +269,17 @@
   padding: 2px 10px;
   font-size: 12px;
 }
+
+/* ── 转换管理面板（ConvertPanel）：进行中进度 + 未完成进度记录 ── */
+.wengu-convert-panel {
+  min-width: 420px;
+
+  .config-group {
+    margin-bottom: 8px;
+  }
+
+  /* 记录行右侧「继续生成 / 丢弃进度」两钮排布 */
+  .config__item .b3-button + .b3-button {
+    margin-left: 4px;
+  }
+}

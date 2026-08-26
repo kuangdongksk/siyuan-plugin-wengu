@@ -14,6 +14,8 @@ import { esc, fmt } from "../ui/shared";
  * 弹窗只收集参数——点「开始转换」即关窗，批次循环交给 ConvertRun
  * 单例运行器：温故页签渐进呈现做题界面，页内转换条展示进度并支持
  * 停止/保留进度/全部丢弃；有保留进度时弹窗内出现「继续生成」入口。
+ * 已有转换在跑时不再一句报错打发：弹窗提示 + 底部「查看进行中的
+ * 转换」直达转换管理面板，点开始被拒也直接转进面板。
  */
 
 /** 对话框依赖的宿主能力（QuizView 提供）。 */
@@ -45,6 +47,10 @@ export interface ConvertDialogDeps {
     setConverting(v: boolean): void;
     /** 启动转换运行器（false=已有转换在跑）。 */
     startRun(cfg: ConvertRunCfg): boolean;
+    /** 是否已有转换在跑（弹窗打开时的面板入口提示）。 */
+    isRunning(): boolean;
+    /** 打开转换管理面板（被拒/点「查看进行中的转换」时）。 */
+    openPanel(): void;
 }
 
 export function openConvertDialog(deps: ConvertDialogDeps): void {
@@ -207,7 +213,9 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
                 : undefined,
         });
         if (!started) {
-            showDlgStatus(t("convertBusy"), "err");
+            // 已有转换在跑：不再报错——直接转进转换管理面板单独管理
+            dialog.destroy();
+            deps.openPanel();
             return;
         }
         dialog.destroy();
@@ -215,6 +223,12 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
 
     if (okBtn) okBtn.onclick = () => start();
     if (cancelBtn) cancelBtn.onclick = () => dialog.destroy();
+    // 已有转换在跑：提示 + 底部直达面板（选同一文档再点开始也会转进面板）
+    const manageBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-manage']");
+    manageBtn?.addEventListener("click", () => {
+        dialog.destroy();
+        deps.openPanel();
+    });
 
     // 从 PDF 导入（MinerU）：位置=custom 指定父文档，否则当前文档旁边
     bindPdfImportRow(root, {
@@ -245,4 +259,10 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         if (rec) start(rec);
     });
     syncResumeHint();
+    // 打开即有转换在跑：提示并露出「查看进行中的转换」（在 resume 提示
+    // 之后判，避免被 syncResumeHint 的 muted 清除逻辑抹掉）
+    if (deps.isRunning()) {
+        if (manageBtn) manageBtn.hidden = false;
+        showDlgStatus(t("convertBusy"), "muted");
+    }
 }

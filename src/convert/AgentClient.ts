@@ -75,6 +75,9 @@ export function modelOptionsHtml(selectedId: string): string {
  * 真机 3.8.0 验证：model 传模型 id（与智能体面板同源）；event:content
  * 的 token 拼接为回答，event:error 抛错；非 SSE 响应是普通 JSON 错误。
  * 可选 signal 供调用方中途终止（分批转换的「终止生成」）。
+ * 超时按**空闲**计：每收到一段流数据即续期——慢模型长批次只要还在
+ * 出字就不掐，只有长时间无响应才断（总时长超时会误杀 5 分钟以上的
+ * 正常生成，真机踩坑）。
  */
 export async function agentChat(
     message: string,
@@ -83,9 +86,14 @@ export async function agentChat(
     signal?: AbortSignal
 ): Promise<string> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const armTimer = (): void => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => controller.abort(), timeoutMs);
+    };
     const onAbort = () => controller.abort();
     signal?.addEventListener("abort", onAbort);
+    armTimer();
     try {
         const lang = (window as unknown as SiyuanWindow).siyuan?.config?.lang ?? "zh_CN";
         const resp = await fetch("/api/ai/agent/chat", {
@@ -118,6 +126,7 @@ export async function agentChat(
         let out = "";
         for (;;) {
             const { done, value } = await reader.read();
+            armTimer(); // 有流数据到达即续期（空闲超时）
             if (done) break;
             buf += decoder.decode(value, { stream: true });
             const lines = buf.split("\n");
@@ -145,7 +154,7 @@ export async function agentChat(
         }
         return out;
     } finally {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
     }
 }

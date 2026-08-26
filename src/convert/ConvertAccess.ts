@@ -1,6 +1,7 @@
 import type { ConvertProgressRecord } from "./ConvertBatch";
 import type { ConvertViewAccess } from "./";
 import { convertDoneText, showStatus, updateConvertBtn } from "./";
+import { removeDoc } from "./ConvertService";
 import type { ProgressivePreview } from "../quiz/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import type { WenguMaterial, WenguQuestion } from "../types";
@@ -87,6 +88,18 @@ export class ConvertAccess implements ConvertViewAccess {
         if (rec) this.progress[docId] = rec;
         else delete this.progress[docId];
         this.host.persistPrefs();
+    }
+
+    listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[] {
+        return Object.entries(this.progress).map(([srcDocId, rec]) => ({ srcDocId, rec }));
+    }
+
+    discardProgress(srcDocId: string, rec: ConvertProgressRecord): void {
+        this.saveConvertProgress(srcDocId, undefined);
+        // 丢弃=清内部记录 + 删转换新建的文档（带 docId 的记录：非原位
+        // 模式/原位已建临时文档）；原位只存 kramdown 的记录没有新建
+        // 文档，仅清内部数据（已确认语义）
+        if (rec.docId) void removeDoc(rec.docId);
     }
 
     setConvertingState(v: boolean): void {

@@ -1,6 +1,7 @@
 import type { ConvertProgressRecord } from "./ConvertBatch";
 import { openConvertDialog } from "./ConvertDialog";
-import { discardConvertRun, keepConvertRun, startConvertRun, stopConvertRun } from "./ConvertRun";
+import { openConvertPanel } from "./ConvertPanel";
+import { convertRunActive, discardConvertRun, keepConvertRun, startConvertRun, stopConvertRun } from "./ConvertRun";
 import type { ProgressivePreview } from "../quiz/ProgressivePreview";
 import { showBatchPreview } from "../quiz/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
@@ -41,6 +42,22 @@ export interface ConvertHostCtx {
     onCancel?(): void;
     /** 成功收尾：切到新文档、重载、报状态（视图实现）。 */
     onDone(r: { docId: string; title: string; count: number }): void;
+    /** 未完成进度记录（转换管理面板用）。 */
+    listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[];
+    /** 丢弃一条进度记录（面板用：清 prefs + 删保留的渐进文档）。 */
+    discardProgress(srcDocId: string, rec: ConvertProgressRecord): void;
+    /** 面板「继续生成」：重开转换弹窗并预填该源文档。 */
+    reopenWithDoc(srcDocId: string): void;
+}
+
+/** 组装并打开转换管理面板（弹窗被拒/「查看进行中的转换」入口）。 */
+function openConvertPanelForView(ctx: ConvertHostCtx): void {
+    openConvertPanel({
+        t: ctx.t,
+        listProgress: () => ctx.listProgress(),
+        discardProgress: (srcDocId, rec) => ctx.discardProgress(srcDocId, rec),
+        resumeProgress: (srcDocId) => ctx.reopenWithDoc(srcDocId),
+    });
 }
 
 /** 打开 AI 转习题弹窗（预选值：prefs 上次 > 设置默认）。 */
@@ -59,6 +76,8 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         saveChoice: ctx.saveChoice,
         getProgress: ctx.getProgress,
         setConverting: ctx.setConverting,
+        isRunning: () => convertRunActive(),
+        openPanel: () => openConvertPanelForView(ctx),
         /** 点「开始转换」：关窗启动运行器，状态/停止/抉择全部转页内转换条。 */
         startRun: (cfg) =>
             startConvertRun(cfg, {
@@ -103,6 +122,10 @@ export interface ConvertViewAccess {
     saveConvertChoice(modelId: string, fill: boolean, steps: boolean, know: string): void;
     convertProgressOf(docId: string): ConvertProgressRecord | undefined;
     saveConvertProgress(docId: string, rec: ConvertProgressRecord | undefined): void;
+    /** 未完成进度记录清单（转换管理面板）。 */
+    listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[];
+    /** 丢弃一条进度记录：清 prefs + 删保留的渐进文档。 */
+    discardProgress(srcDocId: string, rec: ConvertProgressRecord): void;
     setConvertingState(v: boolean): void;
     /** 渐进预览宿主（showBatchPreview 用）。 */
     progressiveOf(): ProgressivePreview;
@@ -118,12 +141,13 @@ export interface ConvertViewAccess {
     onConvertDone(r: { docId: string; title: string; count: number; message?: string }): void;
 }
 
-/** 由视图能力组装 ConvertHostCtx 并打开弹窗（openConvert 的拆出体）。 */
-export function openConvertForView(v: ConvertViewAccess): void {
+/** 由视图能力组装 ConvertHostCtx 并打开弹窗（openConvert 的拆出体）。
+ *  prefillDocId：面板「继续生成」回弹窗时预填的源文档 id。 */
+export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string): void {
     openWenguConvert({
         t: v.t,
         el: v.container(),
-        activeDocId: v.activeDocIdOf(),
+        activeDocId: prefillDocId || v.activeDocIdOf(),
         settings: v.settingsOf(),
         lastConvertModelId: v.lastConvert().modelId,
         lastConvertFill: v.lastConvert().fill,
@@ -141,6 +165,9 @@ export function openConvertForView(v: ConvertViewAccess): void {
             v.reloadView();
         },
         onDone: (r) => v.onConvertDone(r),
+        listProgress: () => v.listProgress(),
+        discardProgress: (srcDocId, rec) => v.discardProgress(srcDocId, rec),
+        reopenWithDoc: (srcDocId) => openConvertForView(v, srcDocId),
     });
 }
 

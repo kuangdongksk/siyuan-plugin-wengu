@@ -115,6 +115,7 @@ export function convertDialogHtml(deps: ConvertDialogDeps): string {
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="dlg-cancel">${esc(t("cancel"))}</button>
       <button class="b3-button b3-button--outline" data-act="dlg-stop" hidden>${esc(t("convertStop"))}</button>
+      <button class="b3-button b3-button--outline" data-act="dlg-manage" hidden>${esc(t("convertDialogManage"))}</button>
       <button class="b3-button b3-button--outline" data-act="dlg-ok">${esc(t("convertStart"))}</button>
     </div>`;
 }

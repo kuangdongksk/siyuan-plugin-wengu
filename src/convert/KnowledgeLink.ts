@@ -1,6 +1,6 @@
 import { fetchSyncPost } from "siyuan";
 import { agentChat, agentChatConcurrent } from "./AgentClient";
-import { AI_TIMEOUT_MS } from "./ConvertService";
+import { AI_CONCURRENT_TIMEOUT_MS, AI_TIMEOUT_MS } from "./ConvertService";
 
 /**
  * 知识点反链（从 ConvertBatch 拆出的独立关注点）：
@@ -275,7 +275,7 @@ export function makeKnowAwareAi(opts: {
             : agentChat(message, opts.modelId, KNOW_ROUTE_TIMEOUT_MS, opts.signal);
     const generate = (prompt: string): Promise<string> =>
         opts.parallel > 1
-            ? agentChatConcurrent(prompt, AI_TIMEOUT_MS, opts.signal)
+            ? agentChatConcurrent(prompt, AI_CONCURRENT_TIMEOUT_MS, opts.signal)
             : agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, opts.signal);
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }
