@@ -1,4 +1,3 @@
-import { fetchSyncPost } from "siyuan";
 import { detectQuestions, questionPreview } from "./ConvertDetect";
 import type { QuestionPreview } from "./ConvertDetect";
 import {
@@ -17,6 +16,7 @@ import {
 } from "./ConvertService";
 import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
+import { KernelBlock } from "../siyuan/block";
 import { fmt } from "../ui/shared";
 
 /**
@@ -59,6 +59,25 @@ export function chunkKramdown(md: string, maxChars = CHUNK_CHARS): SourceChunk[]
         start = end;
     }
     return out;
+}
+
+/** 插图自检：源文档的图片行没被带进生成结果的条数（0=无缺，真机
+ *  案例：AI 读不了图、把带图题整题跳过）。 */
+function countMissingImages(srcMd: string, outMd: string): number {
+    const srcImgs = new Set(srcMd.match(/!\[\]\([^)\s]+\)/g) ?? []);
+    const outImgs = new Set(outMd.match(/!\[\]\([^)\s]+\)/g) ?? []);
+    let n = 0;
+    for (const img of srcImgs) {
+        if (!outImgs.has(img)) n++;
+    }
+    return n;
+}
+
+/** 检测数的展示文案（"检测共 N 题"，前缀检测只覆盖部分时带 +）。 */
+function detectedText(detected: number | undefined, truncated: boolean, t: (key: string) => string): string {
+    return detected !== undefined && detected > 0
+        ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (truncated ? "+" : "")
+        : "";
 }
 
 /** 转换进度回调（弹窗状态行展示）。 */
@@ -154,48 +173,28 @@ export async function convertDocBatched(
     const { t } = opts;
     const inplace = opts.writeMode === "inplace";
     const docId = extractBlockId(docIdRaw);
+    /** 零进度早退（各前置拦截的清一色形态；kramdown 供终止续跑带出）。 */
+    const zero = (status: BatchedResult["status"], message: string, total = 0, kramdown = ""): BatchedResult => ({
+        status,
+        message,
+        count: 0,
+        batches: 0,
+        total,
+        doneOffset: 0,
+        kramdown,
+    });
     const info = await getDocInfo(docId);
-    if (!info?.notebook) {
-        return {
-            status: "failed",
-            message: t("convertNoDoc"),
-            count: 0,
-            batches: 0,
-            total: 0,
-            doneOffset: 0,
-            kramdown: "",
-        };
-    }
+    if (!info?.notebook) return zero("failed", t("convertNoDoc"));
     // 原位替换会连子文档一起删——开始即拦（写盘时刻 replaceDocInPlace 还会重查）
-    if (inplace && (await hasChildDocs(docId))) {
-        return {
-            status: "failed",
-            message: t("convertInplaceChildren"),
-            count: 0,
-            batches: 0,
-            total: 0,
-            doneOffset: 0,
-            kramdown: "",
-        };
-    }
-    const kd = await fetchSyncPost("/api/block/getBlockKramdown", { id: docId });
+    if (inplace && (await hasChildDocs(docId))) return zero("failed", t("convertInplaceChildren"));
+    const kd = await KernelBlock.kramdown(docId);
     // 剥原文的块 id IAL 行（含引用前缀变体）：AI 出题用不到块 id，
     // 留着会被原样抄进解析/题干落成裸文本（真机踩坑）
     const kramdown = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
         /^\s*(?:>\s*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm,
         ""
     );
-    if (!kramdown.trim()) {
-        return {
-            status: "failed",
-            message: t("convertEmptyDoc"),
-            count: 0,
-            batches: 0,
-            total: 0,
-            doneOffset: 0,
-            kramdown: "",
-        };
-    }
+    if (!kramdown.trim()) return zero("failed", t("convertEmptyDoc"));
 
     // 继续生成：上次保留内容并入累积（渐进/另存=旧部分文档 kramdown，
     // 原位=记录里的 kramdown），只跑剩余批
@@ -204,7 +203,7 @@ export async function convertDocBatched(
         if (opts.resume.kramdown) {
             existing = opts.resume.kramdown;
         } else if (opts.resume.docId) {
-            const old = await fetchSyncPost("/api/block/getBlockKramdown", { id: opts.resume.docId });
+            const old = await KernelBlock.kramdown(opts.resume.docId);
             existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
         }
     }
@@ -224,30 +223,12 @@ export async function convertDocBatched(
         opts.onProgress({ phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0 });
         try {
             const d = await detectQuestions(kramdown, opts.modelId, opts.signal);
-            if (!d.can) {
-                return {
-                    status: "failed",
-                    message: d.reason || t("convertRefused"),
-                    count: 0,
-                    batches: 0,
-                    total: chunks.length,
-                    doneOffset: 0,
-                    kramdown: "",
-                };
-            }
+            if (!d.can) return zero("failed", d.reason || t("convertRefused"), chunks.length);
             detected = d.count;
             detectedTruncated = !!d.truncated;
         } catch (e) {
             if ((e as Error)?.name === "AbortError") {
-                return {
-                    status: "aborted",
-                    message: "",
-                    count: 0,
-                    batches: 0,
-                    total: chunks.length,
-                    doneOffset: 0,
-                    kramdown: existing.trim() ? existing : "",
-                };
+                return zero("aborted", "", chunks.length, existing.trim() ? existing : "");
             }
             // 检测失败不阻断：继续逐批生成（批内仍有 CAN_CONVERT 兜底）
         }
@@ -257,20 +238,12 @@ export async function convertDocBatched(
     let doneOffset = opts.resume?.offset ?? 0;
     let count = 0;
     let lastBatch = 0;
+    /** 累积 kramdown（旧保留 + 已完成批，落盘/续跑共用一份拼装口径）。 */
+    const joined = (): string => [existing, ...parts].filter(Boolean).join("\n\n");
     // 渐进落盘目标（两模式共用）：另存按生成位置解析；原位=原文档同目录
     // 的临时《·习题》文档（每批重建流式展示，终态替换原文档后删除）
     const loc = await resolveTarget(info, inplace ? "" : (opts.targetRaw ?? ""), t);
-    if (loc && !loc.ok) {
-        return {
-            status: "failed",
-            message: loc.message,
-            count: 0,
-            batches: 0,
-            total: chunks.length,
-            doneOffset: 0,
-            kramdown: "",
-        };
-    }
+    if (loc && !loc.ok) return zero("failed", loc.message, chunks.length);
     // 渐进式落盘（两模式共用）：首批 createExerciseDoc 建文档（IAL 整体
     // 解析），之后每题一次 appendBlock 尾插（块 id 稳定、无删旧重建；
     // 原位模式这份是临时文档，原文档始终不动，终态一次性替换后删除）。
@@ -329,7 +302,7 @@ export async function convertDocBatched(
             contiguous++;
         }
         if (newStems.length === 0) return;
-        const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
+        const markdown = joined();
         if (created) {
             // 续批：逐块尾插（失败抛出按批次失败收口，已落盘部分保留）
             for (const unit of newUnits) await appendBlockToDoc(created.id, unit);
@@ -403,35 +376,28 @@ export async function convertDocBatched(
             doneOffset,
             docId: created?.id,
             title: created?.title,
-            kramdown: [existing, ...parts].filter(Boolean).join("\n\n"),
+            kramdown: joined(),
         };
     }
 
-    const markdown = [existing, ...parts].filter(Boolean).join("\n\n");
-    if (!markdown.trim()) {
-        return {
-            status: "failed",
-            message: t("convertNoQuestions"),
-            count: 0,
-            batches: 0,
-            total: 0,
-            doneOffset: 0,
-            kramdown: "",
-        };
-    }
-    // 插图自检：源文档的图片行没被带进生成结果（真机案例：AI 读不了
-    // 图、把带图题整题跳过），完成消息里附警告提示重新转换
-    const srcImgs = new Set(kramdown.match(/!\[\]\([^)\s]+\)/g) ?? []);
-    const outImgs = new Set(markdown.match(/!\[\]\([^)\s]+\)/g) ?? []);
-    let missingImgs = 0;
-    for (const img of srcImgs) {
-        if (!outImgs.has(img)) missingImgs++;
-    }
+    const markdown = joined();
+    if (!markdown.trim()) return zero("failed", t("convertNoQuestions"));
+    // 插图自检：完成消息里附警告提示重新转换
+    const missingImgs = countMissingImages(kramdown, markdown);
     const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), { n: String(missingImgs) })}` : "";
-    const detectedMsg =
-        detected !== undefined && detected > 0
-            ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : "")
-            : "";
+    const detectedMsg = detectedText(detected, detectedTruncated, t);
+    /** done 终态结果（两落盘模式共用形态）。 */
+    const done = (message: string, doc: { id: string; title: string }): BatchedResult => ({
+        status: "done",
+        message,
+        docId: doc.id,
+        title: doc.title,
+        count,
+        batches: chunks.length,
+        total: chunks.length,
+        doneOffset: kramdown.length,
+        kramdown: markdown,
+    });
     // 落盘：原位=写盘时刻重查后删旧同路径同标题重建（不加 source-doc
     // 配对——源即本文档；旧配对改指新 id 见 replaceDocInPlace）；
     // 另存=渐进重建已落盘则直接用，中途失败过才在这里兜底创建
@@ -462,35 +428,13 @@ export async function convertDocBatched(
         // 临时文档在终态替换后删除
         if (opts.resume?.docId && opts.resume.docId !== created?.id) await removeDoc(opts.resume.docId);
         if (created) await removeDoc(created.id);
-        return {
-            status: "done",
-            message: detectedMsg + imgWarn,
-            docId: replaced.id,
-            title: replaced.title,
-            count,
-            batches: chunks.length,
-            total: chunks.length,
-            doneOffset: kramdown.length,
-            kramdown: markdown,
-        };
+        return done(detectedMsg + imgWarn, replaced);
     }
     if (!created) {
         created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
     }
     const doneMsg: string[] = [];
-    if (detected !== undefined && detected > 0) {
-        doneMsg.push(fmt(t("convertDetectedCount"), { n: String(detected) }) + (detectedTruncated ? "+" : ""));
-    }
+    if (detectedMsg) doneMsg.push(detectedMsg);
     if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
-    return {
-        status: "done",
-        message: doneMsg.join(" · ") + imgWarn,
-        docId: created.id,
-        title: created.title,
-        count,
-        batches: chunks.length,
-        total: chunks.length,
-        doneOffset: kramdown.length,
-        kramdown: markdown,
-    };
+    return done(doneMsg.join(" · ") + imgWarn, created);
 }

@@ -1,5 +1,6 @@
-import { fetchSyncPost } from "siyuan";
 import { Attr } from "../siyuan/attrs";
+import { KernelBlock } from "../siyuan/block";
+import { KernelQuery } from "../siyuan/query";
 import type { WenguQuestion } from "../types";
 import { assembleQuestion, type ChildBlock, type StemRewrite } from "./QuestionService";
 import { flushStemRewrites } from "./QuestionService";
@@ -8,7 +9,7 @@ import { flushStemRewrites } from "./QuestionService";
  * 批量题目装载（长卷性能，2026-08-26）：整卷子块+part 属性用一条
  * JOIN SQL 分页拉全（~每 512 行一次请求），替代逐题
  * getChildBlocks+SQL 的 2×N 次串行往返——193 题的卷子从 ~390 次
- * 降到 ~4 次。fetchSyncPost 仍全程串行（内核并发互吞，真机约束）。
+ * 降到 ~4 次。请求仍全程串行（内核并发互吞，真机约束）。
  *
  * 排序口径：子块按 id 字典序——生成文档顺序追加写入，同容器内
  * id 序 == 文档序（手工重排块的小概率乱序不追求，单题 hydrate
@@ -25,6 +26,22 @@ interface ChildRow {
     bid: string;
     markdown?: string;
     part?: string;
+}
+
+/** 单容器 hydrate 共用步：取子块（文档序）+ 其 part 属性 Map。题目
+ *  hydrate（QuestionService）与材料 hydrate（MaterialService）原本
+ *  各写一份 getChildBlocks+part SQL 样板，抽到这里合一。 */
+export async function fetchChildParts(id: string): Promise<{ blocks: ChildBlock[]; partById: Map<string, string> }> {
+    const { data: children } = await KernelBlock.children(id, 128);
+    const blocks = (children as ChildBlock[]) ?? [];
+    const partById = new Map<string, string>();
+    if (blocks.length === 0) return { blocks, partById };
+    const ids = blocks.map((b) => b.id).join("','");
+    const rows = await KernelQuery.rows<{ block_id: string; value: string }>(
+        `SELECT block_id, value FROM attributes WHERE name = '${Attr.part}' AND block_id IN ('${ids}')`
+    );
+    for (const r of rows) partById.set(r.block_id, r.value);
+    return { blocks, partById };
 }
 
 /** 整卷批量 hydrate：逐题失败降级为不完整题目，不拖垮整列表。 */
@@ -45,8 +62,7 @@ export async function hydrateAll(questions: WenguQuestion[]): Promise<void> {
                 WHERE b.parent_id IN ('${inList}')
                 ORDER BY b.parent_id, b.id
                 LIMIT ${SQL_PAGE} OFFSET ${page * SQL_PAGE};`;
-            const { data } = await fetchSyncPost("/api/query/sql", { stmt });
-            const rows = (data ?? []) as ChildRow[];
+            const rows = await KernelQuery.rows<ChildRow>(stmt);
             for (const r of rows) {
                 const arr = blocksByPid.get(r.pid) ?? [];
                 arr.push({ id: r.bid, markdown: r.markdown });

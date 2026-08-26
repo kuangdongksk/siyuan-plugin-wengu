@@ -1,7 +1,6 @@
 import { Dialog } from "siyuan";
 import { formOption, svgIcon } from "../ui/FormHtml";
-import { generateQuestion } from "./GenQuestion";
-import { injectKnowledgeRefs } from "../convert/KnowledgeLink";
+import { genIntoCollection } from "./GenCore";
 import type { CollectionRow, KnowledgeRow, QuestionBank } from "./QuestionBank";
 import { esc } from "../ui/shared";
 
@@ -138,7 +137,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         }</span>
         <button class="b3-button b3-button--cancel wengu-col-del" data-rmcol="${esc(colId)}" data-rmq="${esc(
             r.qid
-        )}" title="${esc(t("collectRemoveQ"))}">×</button>
+        )}" title="${esc(t("collectRemoveQ"))}">${svgIcon("iconClose")}</button>
       </div>`
                       )
                       .join("");
@@ -172,7 +171,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         <span class="wengu-meta">${esc(String(c.count))}</span>
         <button class="b3-button b3-button--cancel wengu-col-del" data-del="${esc(c.id)}" title="${esc(
             t("collectDelete")
-        )}">×</button>
+        )}">${svgIcon("iconClose")}</button>
       </div>
       <div class="wengu-col-qs" data-colqs="${esc(c.id)}" hidden></div>`
             )
@@ -258,7 +257,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     void refresh();
 }
 
-/** 收集并补题主流程（与薄弱加练同款生成核，逐点按缺口补足）。 */
+/** 收集并补题主流程（生成核在 GenCore，与薄弱加练共用）。 */
 async function runCollectGen(
     deps: CollectionDialogDeps,
     keys: string[],
@@ -275,31 +274,15 @@ async function runCollectGen(
         const points = (await bank.knowledgeIndex()).filter((r) => keys.includes(r.key));
         const qids = await bank.collectQids(keys);
         const row = await bank.createCollection(title, qids, "knowledge");
-        const perPoint = points.length > 0 ? Math.max(1, Math.ceil(count / points.length)) : 0;
-        let made = 0;
-        let attempt = 0;
-        let degraded = false;
-        for (const p of points) {
-            let madeHere = 0;
-            while (madeHere < perPoint && made < count && attempt < count * 3) {
-                attempt++;
-                let m = mode;
-                if (m === "concept" && !p.key.startsWith("kp:")) {
-                    m = "variant"; // 概念辨析要小节块 id，kn:/ch: 键降级变式
-                    degraded = true;
-                }
-                show(`${t("drillRunning")} ${made}/${count} · ${p.title}`, "muted");
-                const kd = await generateQuestion(bank, p, m, modelId);
-                if (!kd) continue;
-                const kpId = p.key.startsWith("kp:") ? p.key.slice(3) : "";
-                const refs = kpId ? [{ id: kpId, title: p.title }] : [];
-                const qid = await bank.addGenerated(injectKnowledgeRefs(kd, refs), refs, title);
-                await bank.appendQidToCollection(row.id, qid);
-                madeHere++;
-                made++;
-            }
-            if (made >= count) break;
-        }
+        const { made, degraded } = await genIntoCollection(bank, points, {
+            title,
+            mode,
+            count,
+            modelId,
+            append: (qid) => bank.appendQidToCollection(row.id, qid),
+            progress: (n, pointTitle) => show(`${t("drillRunning")} ${n}/${count} · ${pointTitle}`, "muted"),
+            t,
+        });
         await bank.flush();
         show(`${made} ${t("collectGenDone")}${degraded ? t("collectDegraded") : ""}`, "ok");
         deps.onChanged();
@@ -330,7 +313,7 @@ function armConfirm(btn: HTMLButtonElement, confirmText: string, act: () => void
         timer = window.setTimeout(() => {
             armed = false;
             btn.classList.remove("wengu-col-armed");
-            btn.textContent = "×";
+            btn.innerHTML = svgIcon("iconClose");
         }, 3000);
     });
 }

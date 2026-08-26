@@ -6,7 +6,7 @@ import { injectKnowledgeRefs, sectionKramdown } from "../convert/KnowledgeLink";
 import type { QuestionBank } from "./QuestionBank";
 import type { WenguQuestion } from "../types";
 import { esc } from "../ui/shared";
-import { fetchSyncPost } from "siyuan";
+import { KernelBlock } from "../siyuan/block";
 
 /**
  * 题卡「重新生成」（④）：题错了/OCR 坏了时按题重出。
@@ -130,7 +130,7 @@ async function runRegen(
         const srcId = extractBlockId(srcRaw);
         if (srcId) {
             try {
-                const r = await fetchSyncPost("/api/block/getBlockKramdown", { id: srcId });
+                const r = await KernelBlock.kramdown(srcId);
                 sourceBlock = String((r.data as { kramdown?: string } | null)?.kramdown ?? "");
             } catch (_) {
                 // 原文块拉不到：按无链接模式继续
@@ -155,7 +155,7 @@ async function runRegen(
         await bank.flush();
         // 源文档块尽力同步（updateBlock 单块；失败不阻断，题库为主记录）
         try {
-            await fetchSyncPost("/api/block/updateBlock", { id: q.id, dataType: "markdown", data: kd });
+            await KernelBlock.update({ id: q.id, dataType: "markdown", data: kd });
         } catch (_) {
             // 文档块同步失败：题库已是新内容
         }

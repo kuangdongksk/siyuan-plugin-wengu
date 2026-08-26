@@ -27,8 +27,6 @@ export const Attr = {
     slotRight: `${PREFIX}slot-right`,
     /** 运行时（slots 题）：逐空最近作答（字母按空序竖线分隔）。 */
     slotLast: `${PREFIX}slot-last`,
-    /** 正确答案字符串（客观题自动判分依据；brief 留空走自评）。 */
-    answer: `${PREFIX}answer`,
     /** 知识点/考点名，用于分组抽题与错题归类。 */
     knowledge: `${PREFIX}knowledge`,
     /** 章节名，用于分组抽题。 */

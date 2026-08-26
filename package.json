@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-wengu",
   "version": "0.1.1",
   "description": "温故 (Wengu) — question drilling, wrong-answer review, and spaced repetition for SiYuan",
-  "main": ".src/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",

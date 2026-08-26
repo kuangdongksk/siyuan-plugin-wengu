@@ -1,4 +1,4 @@
-import { fetchSyncPost } from "siyuan";
+import { KernelDoc } from "../siyuan/doc";
 import { extractBlockId, getDocInfo, parentOf } from "./ConvertService";
 import { mineruParsePdf } from "./MinerUClient";
 
@@ -124,7 +124,7 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
     let docId = "";
     let lastMsg = "";
     for (const p of [path, fallback]) {
-        const res = await fetchSyncPost("/api/filetree/createDocWithMd", { notebook, path: p, markdown });
+        const res = await KernelDoc.createByMd(notebook, p, markdown);
         if (res.code === 0 && res.data) {
             docId = String(res.data);
             break;

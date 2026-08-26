@@ -1,7 +1,6 @@
 import { Dialog } from "siyuan";
 import { formOption } from "../ui/FormHtml";
-import { generateQuestion } from "./GenQuestion";
-import { injectKnowledgeRefs } from "../convert/KnowledgeLink";
+import { genIntoCollection } from "./GenCore";
 import type { QuestionBank } from "./QuestionBank";
 import type { WeakTopRow, WeaknessStore } from "./WeaknessStore";
 import { esc, fmt } from "../ui/shared";
@@ -110,27 +109,16 @@ async function runDrill(
     const now = new Date();
     const title = fmt(t("drillColTitle"), { m: String(now.getMonth() + 1), d: String(now.getDate()) });
     await bank.ensureCollection(title);
-    const perPoint = Math.max(1, Math.ceil(count / rows.length));
-    let made = 0;
-    let attempt = 0;
     try {
-        for (const row of rows) {
-            let madeHere = 0;
-            while (madeHere < perPoint && made < count && attempt < count * 3) {
-                attempt++;
-                show(`${t("drillRunning")} ${made}/${count} · ${row.title}`, "muted");
-                const kd = await generateQuestion(bank, row, mode, modelId);
-                if (!kd) continue;
-                const kpId = row.key.startsWith("kp:") ? row.key.slice(3) : "";
-                const refs = kpId ? [{ id: kpId, title: row.title }] : [];
-                const final = injectKnowledgeRefs(kd, refs);
-                const qid = await bank.addGenerated(final, refs, title);
-                await bank.appendToCollection(title, qid);
-                madeHere++;
-                made++;
-            }
-            if (made >= count) break;
-        }
+        const { made } = await genIntoCollection(bank, rows, {
+            title,
+            mode,
+            count,
+            modelId,
+            append: (qid) => bank.appendToCollection(title, qid),
+            progress: (n, pointTitle) => show(`${t("drillRunning")} ${n}/${count} · ${pointTitle}`, "muted"),
+            t,
+        });
         await bank.flush();
         show(`${made} ${fmt(t("drillDone"), { t: title })}`, "ok");
         deps.onDone();

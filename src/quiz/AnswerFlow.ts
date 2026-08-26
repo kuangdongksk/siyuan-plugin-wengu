@@ -4,11 +4,12 @@ import { statusIcon } from "../ui/FormHtml";
 import type { WenguSession, WenguSessionResult } from "./HistoryStore";
 import { syncGroupReveal } from "./MaterialFlow";
 import { optionIsRight, overrideAttemptResult, recordAttempt, recordAttemptResult } from "./QuestionService";
+import { markNum, paintOptions, showNote } from "./FlowDom";
 import { bindSlotsCard, restoreSlotsCard } from "./SlotFlow";
 import { bindStepsCard, restoreStepsCard } from "./StepsFlow";
 import type { TimerController } from "./TimerController";
 import type { WenguQuestion, WenguRevealMode } from "../types";
-import { hasSlots, hasSteps, isBriefLike, LETTERS, QuestionType } from "../types";
+import { hasSlots, hasSteps, isBriefLike, QuestionType } from "../types";
 import { esc, fmt, mmss } from "../ui/shared";
 
 /**
@@ -406,15 +407,6 @@ export function checkAllDone(host: AnswerHost): void {
 }
 
 /** 判分/自评后同步题号导航的对错标记。 */
-export function markNum(host: AnswerHost, q: WenguQuestion, ok: boolean): void {
-    const n = host.questions().indexOf(q) + 1;
-    const btn = host.container().querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
-    if (!btn) return;
-    btn.classList.remove("wengu-num-answered");
-    btn.classList.toggle("wengu-num-right", ok);
-    btn.classList.toggle("wengu-num-wrong", !ok);
-}
-
 /** after 模式：已作答但尚未揭示的题，题号只标「已答」不透对错。 */
 function markNumAnswered(host: AnswerHost, q: WenguQuestion): void {
     const n = host.questions().indexOf(q) + 1;
@@ -427,15 +419,14 @@ function markNumAnswered(host: AnswerHost, q: WenguQuestion): void {
 /** 判分后标记字母 chip：答案项描绿，误选项描红。 */
 function markChips(q: WenguQuestion, card: HTMLElement, submitted: string): void {
     if (!isChoice(q)) return;
-    for (const chip of card.querySelectorAll<HTMLElement>(".wengu-chip")) {
-        const idx = LETTERS.indexOf(chip.dataset.letter ?? "");
-        if (idx < 0) continue;
-        if (optionIsRight(q, idx)) {
-            chip.classList.add("wengu-chip-right");
-        } else if (submitted.includes(LETTERS[idx])) {
-            chip.classList.add("wengu-chip-wrong");
-        }
-    }
+    paintOptions(
+        card,
+        ".wengu-chip",
+        (idx) => optionIsRight(q, idx),
+        submitted,
+        "wengu-chip-right",
+        "wengu-chip-wrong"
+    );
 }
 
 /** 结果行状态：partial=brief 方向对但有缺口（统计记错，展示单列）。 */
@@ -459,13 +450,6 @@ function showResult(card: HTMLElement, html: string, status: ResultStatus): void
     result.removeAttribute("hidden");
     result.classList.remove("wengu-right", "wengu-wrong", "wengu-muted", "wengu-partial");
     result.classList.add(status === "warn" ? "wengu-muted" : `wengu-${status}`);
-}
-
-function showNote(card: HTMLElement, text: string): void {
-    const note = card.querySelector<HTMLElement>("[data-note]");
-    if (!note) return;
-    note.textContent = text;
-    note.removeAttribute("hidden");
 }
 
 /** 判分后锁定作答位（chip/输入靠 dataset.graded 拦截点击）。 */

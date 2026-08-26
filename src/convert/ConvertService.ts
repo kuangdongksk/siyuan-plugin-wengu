@@ -1,6 +1,7 @@
-import { fetchSyncPost } from "siyuan";
 import { Attr } from "../siyuan/attrs";
 import { KernelBlock } from "../siyuan/block";
+import { KernelDoc } from "../siyuan/doc";
+import { KernelQuery } from "../siyuan/query";
 import { shuffleChoiceOptions } from "./OptionShuffle";
 
 /**
@@ -58,13 +59,14 @@ export const AI_CONCURRENT_TIMEOUT_MS = 600_000;
 
 /** 取文档定位信息（标题/笔记本/标题路径）。 */
 export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT id, box, content FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`,
-    });
-    const row = (data as { id: string; box: string; content: string }[] | null)?.[0];
+    const row = (
+        await KernelQuery.rows<{ id: string; box: string; content: string }>(
+            `SELECT id, box, content FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`
+        )
+    )[0];
     if (!row) return undefined;
     const info: DocInfo = { id: row.id, notebook: row.box, title: row.content || "未命名" };
-    const loc = await fetchSyncPost("/api/filetree/getHPathByID", { id: docId });
+    const loc = await KernelDoc.hPath(docId);
     const hp = loc.data;
     info.hPath = typeof hp === "string" && hp.trim() ? hp : undefined;
     return info;
@@ -293,7 +295,7 @@ export async function createExerciseDoc(
         markdown
     );
     if (srcDocId) {
-        await fetchSyncPost("/api/attr/setBlockAttrs", { id: created.id, attrs: { [Attr.sourceDoc]: srcDocId } });
+        await KernelBlock.setAttrs(created.id, { [Attr.sourceDoc]: srcDocId });
     }
     return created;
 }
@@ -315,7 +317,7 @@ async function createDocWithTitles(
     let lastMsg = "";
     for (const title of titles) {
         const path = `${parentPath === "/" ? "" : parentPath}/${title}.sy`;
-        const res = await fetchSyncPost("/api/filetree/createDocWithMd", { notebook, path, markdown });
+        const res = await KernelDoc.createByMd(notebook, path, markdown);
         if (res.code === 0 && res.data) {
             return { id: String(res.data), title };
         }
@@ -326,16 +328,15 @@ async function createDocWithTitles(
 
 /** 文档是否有子文档（任一后代层级）。原位替换会连子文档一起删，必须先拦。 */
 export async function hasChildDocs(docId: string): Promise<boolean> {
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT box, path FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`,
-    });
-    const row = (data as { box?: string; path?: string }[] | null)?.[0];
+    const row = (
+        await KernelQuery.rows<{ box?: string; path?: string }>(
+            `SELECT box, path FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`
+        )
+    )[0];
     if (!row?.box || !row.path) return false;
-    const { data: children } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT COUNT(*) AS n FROM blocks
-            WHERE type = 'd' AND box = '${row.box}' AND path LIKE '${row.path}/%' LIMIT 1`,
-    });
-    return Number((children as { n?: number }[] | null)?.[0]?.n ?? 0) > 0;
+    const children = await KernelQuery.rows<{ n?: number }>(`SELECT COUNT(*) AS n FROM blocks
+            WHERE type = 'd' AND box = '${row.box}' AND path LIKE '${row.path}/%' LIMIT 1`);
+    return Number(children[0]?.n ?? 0) > 0;
 }
 
 /** 原位替换失败原因：原文档已删 / 写盘时刻发现有子文档。 */
@@ -364,7 +365,7 @@ export async function replaceDocInPlace(oldInfo: DocInfo, markdown: string): Pro
     if (!fresh?.notebook) throw new ReplaceInplaceError("noDoc");
     if (await hasChildDocs(fresh.id)) throw new ReplaceInplaceError("hasChildren");
     const safe = fresh.title.replace(/[\\/:*?"<>|]/g, "-").trim() || "习题";
-    await fetchSyncPost("/api/filetree/removeDocByID", { id: fresh.id });
+    await KernelDoc.remove(fresh.id);
     const created = await createDocWithTitles(
         fresh.notebook,
         parentOf(fresh.hPath ?? "/"),
@@ -377,12 +378,12 @@ export async function replaceDocInPlace(oldInfo: DocInfo, markdown: string): Pro
 
 /** 旧「另存」习题文档的配对源改指到原位重建后的新文档。 */
 async function repointSourcePairs(oldDocId: string, newDocId: string): Promise<void> {
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT block_id AS id FROM attributes WHERE name = '${Attr.sourceDoc}' AND value = '${oldDocId}'`,
-    });
-    for (const row of (data ?? []) as { id?: string }[]) {
+    const rows = await KernelQuery.rows<{ id?: string }>(
+        `SELECT block_id AS id FROM attributes WHERE name = '${Attr.sourceDoc}' AND value = '${oldDocId}'`
+    );
+    for (const row of rows) {
         if (row.id) {
-            await fetchSyncPost("/api/attr/setBlockAttrs", { id: row.id, attrs: { [Attr.sourceDoc]: newDocId } });
+            await KernelBlock.setAttrs(row.id, { [Attr.sourceDoc]: newDocId });
         }
     }
 }
@@ -403,7 +404,7 @@ export async function writeExerciseDoc(
 /** 继续生成完成后删掉上次终止保留的旧文档（换成完整新文档）。 */
 export async function removeDoc(docId: string): Promise<void> {
     try {
-        await fetchSyncPost("/api/filetree/removeDocByID", { id: docId });
+        await KernelDoc.remove(docId);
     } catch (_) {
         // 删除失败不影响主流程（旧文档保留）
     }

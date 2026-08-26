@@ -1,5 +1,6 @@
 import { unzipSync } from "fflate";
 import { fetchSyncPost } from "siyuan";
+import { EApi } from "../siyuan/api";
 
 /**
  * MinerU 文档解析客户端（PDF → markdown + 插图）。
@@ -58,7 +59,7 @@ const POLL_TIMEOUT_MS = 20 * 60 * 1000;
 
 /** 经内核代理转发 JSON 请求，返回上游 body 解析结果（上游错误转 MinerUError）。 */
 async function proxyJson(url: string, token: string, method: string, body?: string): Promise<Record<string, unknown>> {
-    const res = await fetchSyncPost("/api/network/forwardProxy", {
+    const res = await fetchSyncPost(EApi.ForwardProxy, {
         url,
         method,
         headers: {

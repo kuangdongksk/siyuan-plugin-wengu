@@ -1,6 +1,6 @@
-import { fetchSyncPost } from "siyuan";
 import { agentChat, agentChatConcurrent } from "./AgentClient";
 import { AI_CONCURRENT_TIMEOUT_MS, AI_TIMEOUT_MS } from "./ConvertService";
+import { KernelQuery } from "../siyuan/query";
 
 /**
  * 知识点反链（从 ConvertBatch 拆出的独立关注点）：
@@ -45,16 +45,8 @@ export interface KnowRouteDeps {
     call(message: string): Promise<string>;
 }
 
-/** SQL 查询（fetchSyncPost 包装，失败抛错由调用方降级）。 */
-async function sql(stmt: string): Promise<Map<string, string>[]> {
-    const r = await fetchSyncPost("/api/query/sql", { stmt });
-    if (r.code !== 0) throw new Error(r.msg || "sql failed");
-    return ((r.data ?? []) as { [k: string]: unknown }[]).map((row) => {
-        const m = new Map<string, string>();
-        for (const [k, v] of Object.entries(row)) m.set(k, typeof v === "string" ? v : String(v ?? ""));
-        return m;
-    });
-}
+/** SQL 查询（工厂 rowsMap：code!==0 抛错由调用方降级）。 */
+const sql = KernelQuery.rowsMap;
 
 /** 分页拉全量：内核 SQL API 对无 LIMIT 的查询静默截断到 64 行
  *  （真机 20260823 验证），子查询不支持（返回空），必须显式分页。 */

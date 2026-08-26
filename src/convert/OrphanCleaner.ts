@@ -1,5 +1,6 @@
-import { fetchSyncPost } from "siyuan";
 import { Attr } from "../siyuan/attrs";
+import { KernelDoc } from "../siyuan/doc";
+import { KernelQuery } from "../siyuan/query";
 
 /**
  * 孤儿习题文档清理（契约见 docs/question-block-contract.md「转换配对」）：
@@ -15,18 +16,15 @@ const ID_RE = /^[\w-]+$/;
 
 /** 找出源讲义已不存在的习题文档 id（attributes 表配对 + 存在性核对）。 */
 async function findOrphanDocIds(): Promise<string[]> {
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT block_id AS docId, value AS srcId FROM attributes WHERE name = '${Attr.sourceDoc}'`,
-    });
-    const pairs = ((data ?? []) as { docId?: string; srcId?: string }[]).filter(
-        (p) => !!p.docId && !!p.srcId && p.docId !== p.srcId && ID_RE.test(p.srcId)
-    );
+    const pairs = (
+        await KernelQuery.rows<{ docId?: string; srcId?: string }>(
+            `SELECT block_id AS docId, value AS srcId FROM attributes WHERE name = '${Attr.sourceDoc}'`
+        )
+    ).filter((p) => !!p.docId && !!p.srcId && p.docId !== p.srcId && ID_RE.test(p.srcId));
     if (pairs.length === 0) return [];
     const ids = pairs.map((p) => `'${p.srcId}'`).join(",");
-    const { data: alive } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT id FROM blocks WHERE type = 'd' AND id IN (${ids})`,
-    });
-    const living = new Set(((alive ?? []) as { id?: string }[]).map((x) => String(x.id ?? "")));
+    const alive = await KernelQuery.rows<{ id?: string }>(`SELECT id FROM blocks WHERE type = 'd' AND id IN (${ids})`);
+    const living = new Set(alive.map((x) => String(x.id ?? "")));
     return pairs.filter((p) => !living.has(String(p.srcId))).map((p) => String(p.docId));
 }
 
@@ -45,7 +43,7 @@ export async function cleanOrphanExerciseDocs(): Promise<string[]> {
     const removed: string[] = [];
     for (const id of orphans) {
         try {
-            const { code } = await fetchSyncPost("/api/filetree/removeDocByID", { id });
+            const { code } = await KernelDoc.remove(id);
             if (code === 0) removed.push(id);
         } catch (_) {
             // 单个失败跳过，下次装载重试

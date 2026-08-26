@@ -1,5 +1,7 @@
-import { fetchSyncPost } from "siyuan";
 import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../siyuan/attrs";
+import { KernelBlock } from "../siyuan/block";
+import { KernelQuery } from "../siyuan/query";
+import { fetchChildParts } from "./QuestionBatch";
 import type { WenguMaterial } from "../types";
 
 /**
@@ -11,23 +13,21 @@ import type { WenguMaterial } from "../types";
  * 输出 group="prev" 占位（材料=文中紧邻其前的材料块）；装载时
  * resolveGroupPlaceholders 按文档序解析并回写真实 id。
  *
- * 请求一律串行（fetchSyncPost 并发会互相吞响应，真机踩坑）。
+ * 请求一律串行（内核并发会互相吞响应，真机踩坑）。
  */
 
 /** 解析 group="prev" 占位为真实材料块 id（按文档序：材料在前、
  *  小题紧随）。返回被改写题块 → 材料块 id 的映射，供内存视图同步。 */
 export async function resolveGroupPlaceholders(docId: string): Promise<Map<string, string>> {
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `
+    const rows = await KernelQuery.rows<{ id: string; name: string; value: string }>(`
             SELECT a.block_id AS id, a.name AS name, a.value AS value
             FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
             WHERE b.root_id = '${docId}'
               AND (a.name = '${Attr.material}' OR a.name = '${Attr.group}')
-            ORDER BY b.sort, b.created, a.block_id`,
-    });
+            ORDER BY b.sort, b.created, a.block_id`);
     const patches = new Map<string, string>();
     let lastMaterial = "";
-    for (const row of (data ?? []) as { id: string; name: string; value: string }[]) {
+    for (const row of rows) {
         if (row.name === Attr.material) {
             lastMaterial = row.id;
         } else if (row.value === GROUP_PREV && lastMaterial) {
@@ -37,7 +37,7 @@ export async function resolveGroupPlaceholders(docId: string): Promise<Map<strin
     }
     for (const [qid, mid] of patches) {
         try {
-            await fetchSyncPost("/api/attr/setBlockAttrs", { id: qid, attrs: { [Attr.group]: mid } });
+            await KernelBlock.setAttrs(qid, { [Attr.group]: mid });
         } catch (_) {
             // 回写失败只影响持久化，内存映射仍生效（下次装载再解析）
         }
@@ -47,16 +47,14 @@ export async function resolveGroupPlaceholders(docId: string): Promise<Map<strin
 
 /** 拉取一篇习题文档的全部材料块（正文/译文，供组头渲染与降级 HTML）。 */
 export async function listMaterials(docId: string): Promise<WenguMaterial[]> {
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `
+    const rows = await KernelQuery.rows<{ id: string }>(`
             SELECT a.block_id AS id
             FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
             WHERE a.name = '${Attr.material}' AND a.value = '${MATERIAL_FLAG}'
               AND b.root_id = '${docId}'
-            ORDER BY b.sort, b.created`,
-    });
+            ORDER BY b.sort, b.created`);
     const out: WenguMaterial[] = [];
-    for (const row of (data ?? []) as { id: string }[]) {
+    for (const row of rows) {
         try {
             out.push(await hydrateMaterial(row.id, docId));
         } catch (_) {
@@ -66,20 +64,12 @@ export async function listMaterials(docId: string): Promise<WenguMaterial[]> {
     return out;
 }
 
-/** 取材料块的 body/trans 子块文本（与题目 hydrate 同一套子块模式）。 */
+/** 取材料块的 body/trans 子块文本（子块+part 拉取走 QuestionBatch
+ *  的 fetchChildParts，与题目 hydrate 同一套模式）。 */
 async function hydrateMaterial(id: string, rootId: string): Promise<WenguMaterial> {
-    const { data: children } = await fetchSyncPost("/api/block/getChildBlocks", { id, length: 128 });
-    const blocks = (children as { id: string; markdown?: string }[]) ?? [];
+    const { blocks, partById } = await fetchChildParts(id);
     const mat: WenguMaterial = { id, rootId };
     if (blocks.length === 0) return mat;
-    const ids = blocks.map((b) => b.id).join("','");
-    const { data: partRows } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT block_id, value FROM attributes WHERE name = '${Attr.part}' AND block_id IN ('${ids}')`,
-    });
-    const partById = new Map<string, string>();
-    for (const r of partRows as { block_id: string; value: string }[]) {
-        partById.set(r.block_id, r.value);
-    }
     const body: string[] = [];
     const trans: string[] = [];
     for (const b of blocks) {

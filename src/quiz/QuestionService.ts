@@ -1,7 +1,8 @@
-import { fetchSyncPost } from "siyuan";
 import { ATTR_PREFIX, Attr, Q_FLAG } from "../siyuan/attrs";
+import { KernelBlock } from "../siyuan/block";
+import { KernelQuery } from "../siyuan/query";
 import { gradeQuestion } from "./QuestionGrading";
-import { hydrateAll } from "./QuestionBatch";
+import { fetchChildParts, hydrateAll } from "./QuestionBatch";
 import {
     cleanStemMd,
     normalizeAnswerMd,
@@ -120,8 +121,7 @@ export async function listQuestions(docId?: string): Promise<WenguQuestion[]> {
         GROUP BY
             b.id
         LIMIT 1024 OFFSET 0;`;
-    const { data } = await fetchSyncPost("/api/query/sql", { stmt });
-    const rows = (data as AttrsRow[]) ?? [];
+    const rows = await KernelQuery.rows<AttrsRow>(stmt);
     const questions = rows.filter((r) => typeof r.attrs === "string").map(rowToQuestion);
     // 批量组装：整卷子块一次分页 JOIN 拉全（QuestionBatch.hydrateAll）。
     // 逐题 getChildBlocks+SQL 在长卷（193 题 ≈ 390 次串行往返）是真机
@@ -157,8 +157,7 @@ export async function listQuestionDocs(): Promise<WenguDoc[]> {
         GROUP BY q.root_id, d.content, d.hpath
         ORDER BY total DESC
         LIMIT 256;`;
-    const { data } = await fetchSyncPost("/api/query/sql", { stmt });
-    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    return (await KernelQuery.rows<Record<string, unknown>>(stmt)).map((row) => ({
         id: String(row.docId ?? ""),
         title: String(row.title ?? ""),
         hPath: String(row.hPath ?? ""),
@@ -190,19 +189,8 @@ export async function waitForDocInList(docId: string, timeoutMs: number): Promis
 
 /** 取某容器块的所有子块，按 part 属性归类到题目字段（复习模式回看详情复用）。 */
 export async function hydrate(q: WenguQuestion): Promise<void> {
-    const { data: children } = await fetchSyncPost("/api/block/getChildBlocks", { id: q.id, length: 128 });
-    const blocks = (children as ChildBlock[]) ?? [];
+    const { blocks, partById } = await fetchChildParts(q.id);
     if (blocks.length === 0) return;
-
-    // 取这些子块的 part 属性
-    const ids = blocks.map((b) => b.id).join("','");
-    const { data: partRows } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT block_id, value FROM attributes WHERE name = '${Attr.part}' AND block_id IN ('${ids}')`,
-    });
-    const partById = new Map<string, string>();
-    for (const r of partRows as { block_id: string; value: string }[]) {
-        partById.set(r.block_id, r.value);
-    }
     await flushStemRewrites(assembleQuestion(q, blocks, partById));
 }
 
@@ -351,7 +339,7 @@ async function rewriteStemBlock(id: string, cleaned: string): Promise<void> {
             .filter(([k]) => k !== "id" && k !== "updated")
             .map(([k, v]) => `${k}="${String(v).replace(/"/g, "&quot;")}"`)
             .join(" ");
-        await fetchSyncPost("/api/block/updateBlock", {
+        await KernelBlock.update({
             id,
             dataType: "markdown",
             data: `${cleaned}\n{: id="${id}"${ial ? ` ${ial}` : ""}}`,
@@ -363,19 +351,21 @@ async function rewriteStemBlock(id: string, cleaned: string): Promise<void> {
 
 /** 读取单块的原始属性对象。 */
 export async function getBlockAttrs(id: string): Promise<AttrsObject> {
-    const { data } = await fetchSyncPost("/api/attr/getBlockAttrs", { id });
+    const { data } = await KernelBlock.getAttrs(id);
     return (data ?? {}) as AttrsObject;
 }
 
-/** 取容器块的 kramdown 源码（含子块，用于题干/选项/解析展示）。 */
+/** 取容器块的 kramdown 源码（含子块，用于题干/选项/解析展示）。内核
+ *  返回 data 是 {id, kramdown} 对象——真机 3.8.1 验证，直接 as string
+ *  会把对象当串返回（题库 refreshDoc 静默解析失败的根因）。 */
 export async function getBlockKramdown(id: string): Promise<string> {
-    const { data } = await fetchSyncPost("/api/block/getBlockKramdown", { id });
-    return (data ?? "") as string;
+    const { data } = await KernelBlock.kramdown(id);
+    return String((data as { kramdown?: string } | null)?.kramdown ?? "");
 }
 
 /** 写入单块的若干属性（合并到现有属性上）。 */
 export async function setBlockAttrs(id: string, attrs: AttrsObject): Promise<void> {
-    await fetchSyncPost("/api/attr/setBlockAttrs", { id, attrs });
+    await KernelBlock.setAttrs(id, attrs);
 }
 
 /**

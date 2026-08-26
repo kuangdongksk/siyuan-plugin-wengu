@@ -8,8 +8,11 @@
 - SiYuan 插件「温故（wengu）」：笔记文档 → AI 转习题 → 页签刷题。
 - 源码 `src/` **按功能分域**（2026-08-26 重构，组织方式借鉴 sy-lively）：
     - `src/siyuan/`——内核 API 工厂（`api.ts` 路径枚举 EApi + `KernelBlock`
-      /`KernelDoc`/`KernelNotebook` 薄封装，迁自 sy-lively 构建工厂）+ 题目
-      契约属性常量 `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
+      /`KernelDoc`/`KernelNotebook`/`KernelQuery`（SQL，rows 泛型收窄/
+      rowsMap）薄封装，迁自 sy-lively 构建工厂；2026-08-26 已把全仓
+      ~33 处散落内核调用收拢进来，SSE/putFile multipart/forwardProxy
+      三类特殊通道例外）+ 题目契约属性常量 `attrs.ts`。新增内核调用
+      先走工厂，别散落 fetchSyncPost。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、
       `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器

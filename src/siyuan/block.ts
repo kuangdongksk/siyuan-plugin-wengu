@@ -50,9 +50,10 @@ export class KernelBlock {
         return fetchSyncPost(EApi.GetBlockKramdown, { id });
     }
 
-    /** 取子块列表（标题下方块也算子块）。 */
-    static children(id: string): Promise<IWebSocketData> {
-        return fetchSyncPost(EApi.GetChildBlocks, { id });
+    /** 取子块列表（标题下方块也算子块；length 为分页大小，题目/材料
+     *  hydrate 用 128 防长块截断）。 */
+    static children(id: string, length?: number): Promise<IWebSocketData> {
+        return fetchSyncPost(EApi.GetChildBlocks, { id, ...(length !== undefined ? { length } : {}) });
     }
 
     /** 写块属性（合并写，键为 custom-* 全名）。 */

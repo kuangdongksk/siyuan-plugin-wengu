@@ -1,5 +1,5 @@
-import { fetchSyncPost } from "siyuan";
 import { ATTR_PREFIX, Attr } from "../siyuan/attrs";
+import { KernelQuery } from "../siyuan/query";
 import type { HistoryStore, WenguSession } from "../quiz/HistoryStore";
 import { mdFragmentHtml, renderMathIn } from "../quiz/ProtyleHost";
 import { copyQuestionText } from "../quiz/PreviewFlow";
@@ -235,8 +235,9 @@ async function listWrongRows(): Promise<(AttrsRow & { content?: string })[]> {
               )
             GROUP BY b.id
             LIMIT ${SQL_PAGE} OFFSET ${offset};`;
-        const { data } = await fetchSyncPost("/api/query/sql", { stmt });
-        const rows = ((data ?? []) as (AttrsRow & { content?: string })[]).filter((r) => typeof r.attrs === "string");
+        const rows = (await KernelQuery.rows<AttrsRow & { content?: string }>(stmt)).filter(
+            (r) => typeof r.attrs === "string"
+        );
         out.push(...rows);
         if (rows.length < SQL_PAGE) break;
     }

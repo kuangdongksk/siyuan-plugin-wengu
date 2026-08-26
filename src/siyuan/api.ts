@@ -35,4 +35,11 @@ export enum EApi {
 
     // ── 事务（闪卡/DOM 插入等前端同款通道）──
     Transactions = "/api/transactions",
+
+    // ── AI（agent/chat 是 SSE、chatGPT 是普通 JSON——见 AgentClient）──
+    AgentChat = "/api/ai/agent/chat",
+    AiChatGpt = "/api/ai/chatGPT",
+
+    // ── 网络（外网 JSON 经内核转发，见 MinerUClient）──
+    ForwardProxy = "/api/network/forwardProxy",
 }

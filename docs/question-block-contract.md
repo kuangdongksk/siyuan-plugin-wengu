@@ -128,12 +128,14 @@
 | **薄弱画像**      | `saveData("weakness")`（WeaknessStore）     | 跨轮聚合的派生数据，2026-08-23 |
 
 会话（`WenguSession`）：`{id, docId, startedAt, endedAt, mode,
-plannedSec?, elapsedSec, stepsMode?, answered, correct, results[{qid, submitted, ok,
-verdict?, comment?, cause?}],
-thoughts?{qid→思路文本}}`——开刷时创建、逐题作答时更新落盘、切文档/刷新/
+plannedSec?, elapsedSec, stepsMode?, scope?, answered, correct, results[{qid, submitted, ok,
+verdict?, comment?, cause?}], thoughts?{qid→思路文本}, clues?{qid→选段文本数组}}`
+——开刷时创建、逐题作答时更新落盘、切文档/刷新/
 关页签时收卷。`thoughts` 是收卷时对各题卡「思路」输入区的一次性快照
 （未作答的题也保留）；总结报告的 AI 判卷 prompt 逐题带上思路，要求
 点评方向/卡点/改进。文档头部据此显示「已刷 N 轮 · 最近 c/a · 最佳 c/a」。
+`scope` 是复习模式的抽取范围（错题/未掌握等口径），`clues` 是线索
+标注（M5）存的选段锚点（纯文本，不写块）。
 
 ### 薄弱画像（2026-08-23 起）
 
@@ -622,6 +624,9 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
   生词」→ 词书检索（searchWords + 词形归一 lemmaForms：屈折后缀剥离
   回退）→ 弹释义卡 → 「加入生词本」写入共享 WordStore（words 状态
   置为今天到期进复习队列 + starred 星标），与背单词面板同一单例。
-- **三模式开口（M6）**：QuizView.mode 枚举（quiz/review/study），
-  主区渲染按它路由——目前只有 quiz，复习/学习预留（设计上复习模式
-  的点句翻译/语法骑在材料组+文本锚定+按需 AI 上，到时不动分栏壳）。
+- **四模式开口（M6）**：QuizView.mode 枚举（quiz/review/study/preview），
+  主区渲染按它路由——quiz=做题（默认）、review=错题复习（2026-08-25
+  落地，见 docs/review-mode.md，侧栏右键进入）、preview=只读预览
+  （2026-08-26 落地，PreviewFlow 装饰题卡：作答位摘除/正确项描绿/
+  解析全展开，含「模糊答案」与快捷复制），study 仍预留（设计上复习
+  模式的点句翻译/语法骑在材料组+文本锚定+按需 AI 上，到时不动分栏壳）。

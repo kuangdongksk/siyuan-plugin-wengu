@@ -1,6 +1,6 @@
-import { fetchSyncPost } from "siyuan";
 import { esc } from "./shared";
 import { svgIcon } from "./FormHtml";
+import { KernelQuery } from "../siyuan/query";
 
 /**
  * 文档选择器（UI 标准第 7 条：长列表选择用官方风格可搜索浮层）：
@@ -44,10 +44,9 @@ function safeKeyword(kw: string): string {
 async function queryDocs(kw: string): Promise<PickerDoc[]> {
     const key = safeKeyword(kw);
     const like = key ? `AND (hpath LIKE '%${key}%' OR content LIKE '%${key}%') ` : "";
-    const { data } = await fetchSyncPost("/api/query/sql", {
-        stmt: `SELECT id, hpath, content FROM blocks WHERE type='d' ${like}ORDER BY updated DESC LIMIT 100`,
-    });
-    return (data as PickerDoc[] | null) ?? [];
+    return KernelQuery.rows<PickerDoc>(
+        `SELECT id, hpath, content FROM blocks WHERE type='d' ${like}ORDER BY updated DESC LIMIT 100`
+    );
 }
 
 let menuEl: HTMLElement | null = null;

@@ -1,4 +1,4 @@
-import { fetchSyncPost } from "siyuan";
+import { KernelQuery } from "../siyuan/query";
 import type { QuestionBank } from "./QuestionBank";
 import type { WeaknessStore } from "./WeaknessStore";
 
@@ -9,16 +9,8 @@ import type { WeaknessStore } from "./WeaknessStore";
  * 保留原样（静态引用渲染为锚文本，无害）。检测全自动、零 AI。
  */
 
-/** SQL 帮手（沿用 KnowledgeLink 的约束：无 LIMIT 截 64 行）。 */
-async function sql(stmt: string): Promise<Map<string, string>[]> {
-    const r = await fetchSyncPost("/api/query/sql", { stmt });
-    if (r.code !== 0) throw new Error(r.msg || "sql failed");
-    return ((r.data ?? []) as { [k: string]: unknown }[]).map((row) => {
-        const m = new Map<string, string>();
-        for (const [k, v] of Object.entries(row)) m.set(k, typeof v === "string" ? v : String(v ?? ""));
-        return m;
-    });
-}
+/** SQL 帮手（工厂 rowsMap；无 LIMIT 截 64 行的约束见 KernelQuery）。 */
+const sql = KernelQuery.rowsMap;
 
 /** kp 块 id → 所在文档 id（分块 IN；⑤反查也用）。 */
 export async function kpRootMap(ids: string[]): Promise<Map<string, string>> {

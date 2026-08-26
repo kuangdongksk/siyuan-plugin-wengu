@@ -3,6 +3,7 @@
  * 模型清单。转换与 AI 分析报告共用，ConvertService 不再持有这层。
  */
 import { esc } from "../ui/shared";
+import { EApi } from "../siyuan/api";
 
 /** 用户在 设置→AI 配置的可选模型（提供商 × 模型）。 */
 export interface WenguAiModel {
@@ -96,7 +97,7 @@ export async function agentChat(
     armTimer();
     try {
         const lang = (window as unknown as SiyuanWindow).siyuan?.config?.lang ?? "zh_CN";
-        const resp = await fetch("/api/ai/agent/chat", {
+        const resp = await fetch(EApi.AgentChat, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -172,7 +173,7 @@ export async function agentChatConcurrent(message: string, timeoutMs: number, si
     const onAbort = (): void => controller.abort();
     signal?.addEventListener("abort", onAbort);
     try {
-        const resp = await fetch("/api/ai/chatGPT", {
+        const resp = await fetch(EApi.AiChatGpt, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ msg: message }),

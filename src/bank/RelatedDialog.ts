@@ -1,5 +1,6 @@
 import { Dialog } from "siyuan";
 import { svgIcon } from "../ui/FormHtml";
+import { KernelQuery } from "../siyuan/query";
 import { kpRootMap } from "./BankReconcile";
 import type { QuestionBank } from "./QuestionBank";
 import { esc, fmt } from "../ui/shared";
@@ -11,13 +12,12 @@ import { esc, fmt } from "../ui/shared";
  */
 export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => string, blockId: string): Promise<void> {
     // 点击的可能是文档/标题/任意块：定位其根文档
-    const { fetchSyncPost } = await import("siyuan");
     let docId = blockId;
     try {
-        const r = await fetchSyncPost("/api/query/sql", {
-            stmt: `SELECT root_id FROM blocks WHERE id = '${blockId}' LIMIT 1`,
-        });
-        const root = (r.data as { root_id?: string }[] | null)?.[0]?.root_id;
+        const rows = await KernelQuery.rows<{ root_id?: string }>(
+            `SELECT root_id FROM blocks WHERE id = '${blockId}' LIMIT 1`
+        );
+        const root = rows[0]?.root_id;
         if (root) docId = root;
     } catch (_) {
         // 查不到就按原 id 试

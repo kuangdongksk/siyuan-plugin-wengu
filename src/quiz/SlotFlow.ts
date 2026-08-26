@@ -2,6 +2,7 @@ import type { AnswerHost } from "./AnswerFlow";
 import { statusIcon } from "../ui/FormHtml";
 import { mdFragmentHtml, renderMathIn } from "./ProtyleHost";
 import { checkAllDone } from "./AnswerFlow";
+import { markNum, paintOptions, showNote as showSlotNote } from "./FlowDom";
 import { gradeSlot, recordSlotsResult, slotOptionIsRight } from "./QuestionService";
 import type { WenguSessionResult } from "./HistoryStore";
 import type { WenguQuestion } from "../types";
@@ -105,12 +106,15 @@ function markClozeOptions(
 ): void {
     if (!optRow) return;
     optRow.dataset.locked = "1";
-    for (const opt of optRow.querySelectorAll<HTMLElement>(".wengu-slot-opt")) {
-        const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
-        if (slotOptionIsRight(slot, idx)) opt.classList.add("wengu-slot-right");
-        else if (opt.dataset.letter === letter) opt.classList.add("wengu-slot-wrong");
-        (opt as HTMLButtonElement).disabled = true;
-    }
+    paintOptions(
+        optRow,
+        ".wengu-slot-opt",
+        (idx) => slotOptionIsRight(slot, idx),
+        letter,
+        "wengu-slot-right",
+        "wengu-slot-wrong"
+    );
+    optRow.querySelectorAll(".wengu-slot-opt").forEach((o) => ((o as HTMLButtonElement).disabled = true));
 }
 
 /* ── 新题型：候选池只读 + 每槽一行（下拉选字母提交） ── */
@@ -229,20 +233,4 @@ function slotsDone(card: HTMLElement, total: number): number {
 function firstUnanswered(card: HTMLElement, total: number): number {
     for (let k = 0; k < total; k++) if (card.dataset[`slot${k}`] === undefined) return k;
     return Math.max(0, total - 1);
-}
-
-function showSlotNote(card: HTMLElement, text: string): void {
-    const note = card.querySelector<HTMLElement>("[data-note]");
-    if (!note) return;
-    note.textContent = text;
-    note.removeAttribute("hidden");
-}
-
-function markNum(host: AnswerHost, q: WenguQuestion, ok: boolean): void {
-    const n = host.questions().indexOf(q) + 1;
-    const btn = host.container().querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
-    if (!btn) return;
-    btn.classList.remove("wengu-num-answered");
-    btn.classList.toggle("wengu-num-right", ok);
-    btn.classList.toggle("wengu-num-wrong", !ok);
 }

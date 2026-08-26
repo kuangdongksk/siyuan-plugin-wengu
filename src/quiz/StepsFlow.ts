@@ -1,7 +1,8 @@
 import { appealMethodStep, nextRealtimeStep } from "./AiJudge";
 import type { RealtimeHistoryItem } from "./AiJudge";
 import type { AnswerHost } from "./AnswerFlow";
-import { appealSessionResult, checkAllDone, markNum } from "./AnswerFlow";
+import { appealSessionResult, checkAllDone } from "./AnswerFlow";
+import { hideNote as hideCardNote, markNum, paintOptions, showNote as showCardNote } from "./FlowDom";
 import { fillOneStep, renderOneStepHtml, renderStepsInnerHtml } from "./CardHtml";
 import { statusIcon } from "../ui/FormHtml";
 import { gradeStep, overrideStepsResult, recordStepsResult, stepOptionIsRight } from "./QuestionService";
@@ -250,15 +251,14 @@ function stepAnswerLabel(host: AnswerHost, step: WenguStep): string {
 
 /** 选项行描色：正确（可行）项绿、误选红。 */
 function markStepOptions(step: WenguStep, stepEl: HTMLElement, submitted: string): void {
-    for (const opt of stepEl.querySelectorAll<HTMLElement>(".wengu-step-opt")) {
-        const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
-        if (idx < 0) continue;
-        if (stepOptionIsRight(step, idx)) {
-            opt.classList.add("wengu-step-right");
-        } else if (submitted.includes(LETTERS[idx])) {
-            opt.classList.add("wengu-step-wrong");
-        }
-    }
+    paintOptions(
+        stepEl,
+        ".wengu-step-opt",
+        (idx) => stepOptionIsRight(step, idx),
+        submitted,
+        "wengu-step-right",
+        "wengu-step-wrong"
+    );
 }
 
 /** 步结果行（data-step-result）。 */
@@ -277,17 +277,6 @@ function showCardResult(card: HTMLElement, html: string, ok: boolean): void {
     el.innerHTML = statusIcon(ok ? "right" : "wrong") + html;
     el.removeAttribute("hidden");
     el.className = `wengu-result ${ok ? "wengu-right" : "wengu-wrong"}`;
-}
-
-function showCardNote(card: HTMLElement, text: string): void {
-    const el = card.querySelector<HTMLElement>("[data-note]");
-    if (!el) return;
-    el.textContent = text;
-    el.removeAttribute("hidden");
-}
-
-function hideCardNote(card: HTMLElement): void {
-    card.querySelector<HTMLElement>("[data-note]")?.setAttribute("hidden", "");
 }
 
 /* ── AI 实时模式 ── */
