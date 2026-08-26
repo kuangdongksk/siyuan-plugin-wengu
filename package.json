@@ -7,6 +7,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --fix --cache",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "run-p dev:kernel dev:app",
     "dev:app": "webpack --config webpack.config.js --mode development",
     "dev:kernel": "webpack --config webpack.kernel.config.js --mode development",
@@ -47,6 +49,7 @@
     "svelte-loader": "^3.2.4",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
+    "vitest": "^4.1.11",
     "webpack": "^5.107.2",
     "webpack-cli": "^7.0.3",
     "zip-webpack-plugin": "^4.0.3"

@@ -3,9 +3,10 @@ import { openKnowPicker, parseKnowIds } from "../ui/KnowPicker";
 
 /**
  * 转换弹窗的文档动态联动（从 ConvertDialog 拆出保 ≤500 行）：
- * 单选选择器按钮 + 选中文档回显到行的 hint 槽（源文档/父文档共用），
- * 以及知识点多选的已选回显（fetchSyncPost 须串行——逐个 await）。
- * hint 槽显示选中值，清空还原行原有的说明文字。
+ * 选择器按钮（源文档/父文档共用）与知识点多选回显。wengu-pick 值按钮
+ * 形态（§〇7）选中值直接进按钮文字（省略号+title 全量），空值还原
+ * 占位「选择…」；父文档行仍是输入框+hint 槽回显。
+ * fetchSyncPost 须串行——逐个 await。
  */
 
 /** hint 槽写入：text 非空显示之；空则还原初始提示（无提示则隐藏）。 */
@@ -21,11 +22,21 @@ function setHint(el: HTMLElement | null, text: string): void {
     if (!el.dataset.orig) el.setAttribute("hidden", "");
 }
 
+/** wengu-pick 触发按钮值回显：text 非空显示（title 同步全量），空还原占位。 */
+export function setPickValue(btn: HTMLButtonElement | null, text: string, placeholder: string): void {
+    if (!btn) return;
+    btn.textContent = text || placeholder;
+    btn.title = text || placeholder;
+}
+
 export interface DocLinkOpts {
     t: (key: string) => string;
     input: HTMLInputElement | null;
     btn: HTMLButtonElement | null;
-    echo: HTMLElement | null;
+    /** hint 槽回显（父文档行输入框形态用）。 */
+    echo?: HTMLElement | null;
+    /** 传了则选中值写进按钮自身（wengu-pick 值按钮形态），优先于 echo。 */
+    placeholder?: string;
     /** 回显条件（父文档仅「指定」时显示）。 */
     active?: () => boolean;
     /** 选择器回填后回调。 */
@@ -36,17 +47,20 @@ export interface DocLinkOpts {
 export function bindDocLink(o: DocLinkOpts): () => void {
     let seq = 0;
     let timer = 0;
+    const show = (text: string): void => {
+        if (o.placeholder !== undefined) setPickValue(o.btn, text, o.placeholder);
+        else setHint(o.echo ?? null, text);
+    };
     const resolve = (): void => {
         const raw = extractBlockId((o.input?.value ?? "").trim());
         const cur = ++seq;
-        if (!o.echo) return;
         if (!raw || (o.active && !o.active())) {
-            setHint(o.echo, "");
+            show("");
             return;
         }
         void getDocInfo(raw).then((info) => {
-            if (cur !== seq || !o.echo) return; // 输入又变了/已重渲染
-            setHint(o.echo, info?.hPath || o.t("convertTargetNotFound"));
+            if (cur !== seq) return; // 输入又变了/已重渲染
+            show(info?.hPath || o.t("convertTargetNotFound"));
         });
     };
     o.input?.addEventListener("input", () => {
@@ -72,17 +86,18 @@ export function bindDocLink(o: DocLinkOpts): () => void {
     return resolve;
 }
 
-/** 知识点已选文档 → 标题路径串回显到 hint 槽（空=还原/隐藏）。 */
+/** 知识点已选文档 → 标题路径串回显到触发按钮（空=占位「选择…」）。 */
 export async function echoKnowTitles(
     t: (key: string) => string,
     input: HTMLInputElement | null,
-    echo: HTMLElement | null
+    btn: HTMLButtonElement | null,
+    placeholder: string
 ): Promise<void> {
-    if (!echo) return;
+    if (!btn) return;
     const rawVal = input?.value ?? "";
     const ids = parseKnowIds(rawVal);
     if (!ids.length) {
-        setHint(echo, "");
+        setPickValue(btn, "", placeholder);
         return;
     }
     const titles: string[] = [];
@@ -91,5 +106,5 @@ export async function echoKnowTitles(
         titles.push(info?.hPath || info?.title || id);
     }
     if ((input?.value ?? "") !== rawVal) return; // 选择又变了
-    setHint(echo, titles.join("　"));
+    setPickValue(btn, titles.join("　"), placeholder);
 }

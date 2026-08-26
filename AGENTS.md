@@ -30,9 +30,11 @@
 
 ## 通用调试流程（两台机器一致）
 
-1. `pnpm exec tsc --noEmit && pnpm exec eslint src --ext .ts && pnpm exec prettier --write . && pnpm run build`
+1. `pnpm exec tsc --noEmit && pnpm exec eslint src --ext .ts && pnpm exec prettier --write . && pnpm test && pnpm run build`
    （**一律 pnpm，禁 npm/npx**；格式化用 Prettier 紧凑规则 `.prettierrc`
-   120 列/4 空格——2026-08-24 起从 dprint 切换，dprint 已移除）
+   120 列/4 空格——2026-08-24 起从 dprint 切换，dprint 已移除；
+   `pnpm test`=vitest 纯逻辑单测，内核 IO 不进单测——真机行为坑见
+   下文「内核坑」，测试配置见 `vitest.config.ts` 与 `tests/siyuan-stub.ts`）
 2. 安装：把 `dist/index.js`、`dist/index.css`、`src/i18n/{zh-CN,en}.json`
    复制到**本机工作区的插件目录**（见下）——i18n 忘拷会显示原始键名
    （看起来像「英文」）。

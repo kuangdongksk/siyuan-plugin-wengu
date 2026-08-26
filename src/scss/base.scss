@@ -180,11 +180,21 @@
   gap: 8px;
 }
 
-/* 模型选择触发按钮（ModelPicker）：与 formSelect 同宽，长名称省略号 */
-.wengu-model-pick {
+/* 长列表选择触发按钮（UI 标准第 7 条，模型/源文档/知识点共用）：
+   与 formSelect 同宽（fn__size200），当前值入按钮、长名省略号；
+   align-self 兜底防行容器 stretch 拉高（200×64 大方块踩坑） */
+.wengu-pick {
+  align-self: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* FormHtml.formRow 行容器垂直居中：fn__flex 默认 stretch，左侧说明
+   多行时按钮类控件会被纵向拉高（20260826 网页版实测模型钮 200×64、
+   PDF 钮 126×64），行上显式居中一次治好 */
+.wengu-formrow {
+  align-items: center;
 }
 
 /* 模型选择浮层：类名照抄官方 commonMenu（b3-menu__filter + b3-list），

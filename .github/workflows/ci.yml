@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm 版本读 package.json 的 packageManager 字段
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # 与 AGENTS.md「通用调试流程」同一条全链（顺序一致）
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec eslint src --ext .ts
+      - run: pnpm exec prettier --check .
+      - run: pnpm test
+      - run: pnpm run build

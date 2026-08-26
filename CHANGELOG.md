@@ -2,6 +2,20 @@
 
 ## v0.1.1 unreleased
 
+- 测试兜底接入：vitest（node 环境，`siyuan` 别名到 tests/siyuan-stub，
+  内核 IO 不进单测）+ GitHub Actions CI（tsc/eslint/prettier/test/build
+  与 AGENTS.md 调试链同序）；首批 7 个测试文件 67 例锁纯逻辑回归面
+  ——判分矩阵、选项洗牌不变量、分批切块确定性、AI 回复规整
+  （extractBatchQuestions）、题库/文档双路 kramdown 装配、契约归一化
+- 修小数选项误判（测试首跑挖出）：optionDisplayMd 的有序列表标记
+  剥除改为「标记后须有空白」（与 splitOptionMd 同约定）——旧正则会把
+  「0.5」「1.5」的 `1.` 当列表标记吃掉，数学题内容比对必错判
+- 内核调用全量收拢进 src/siyuan 工厂（新增 KernelQuery，EApi 补
+  agent/chat·chatGPT·forwardProxy；13 文件 33 处散落直调清零）；
+  修 getBlockKramdown 把 `{id,kramdown}` 对象当串返回的 bug
+  （真机探针实锤，题库 refreshDoc 静默失败根因）；ConvertBatch
+  496→440 行；生成核/Flow DOM 件/hydrate 样板三处复制粘贴收敛
+  （GenCore/FlowDom/fetchChildParts）
 - 背单词 UI 层 Svelte 化：word 域渲染从 innerHTML 全量 paint 换成
   Svelte 5 组件（`word/comp/`，WordApp 根组件 + 各屏幕/卡片组件），
   控制器拆 `WordView.ts`（会话状态机与语义动作）、响应态形状

@@ -18,7 +18,7 @@ export function modelPickHtml(field: string, selectedId: string, act = "data-act
     const sel = selectedId && models.some((m) => m.id === selectedId) ? selectedId : defaultAgentModelId();
     const cur = models.find((m) => m.id === sel);
     const text = cur ? labelOf(cur) : "-";
-    return `<button type="button" class="b3-button b3-button--outline fn__size200 wengu-model-pick" ${act}="${field}" data-value="${esc(
+    return `<button type="button" class="b3-button b3-button--outline fn__size200 wengu-pick" ${act}="${field}" data-value="${esc(
         sel
     )}" title="${esc(text)}">${esc(text)}</button>`;
 }

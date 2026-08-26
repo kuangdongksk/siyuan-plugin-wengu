@@ -282,9 +282,12 @@ export function splitOptionMd(md: string): string[] {
     return out.length ? out : [md];
 }
 
-/** 选项展示用：去列表标记与字母标签（字母由页签自己画角标）。 */
+/** 选项展示用：去列表标记与字母标签（字母由页签自己画角标）。
+ *  有序标记后须有空白（与 splitOptionMd 同约定）——否则小数选项
+ *  「0.5」「1.5」的 «1.» 会被当列表标记剥掉（真机数学选项踩坑，
+ *  内容比对必错判）。 */
 export function optionDisplayMd(md: string): string {
-    return stripOptionLabel(md.replace(/^\s*(?:[-*+]|\d+[.)])\s*/, "")).trimStart();
+    return stripOptionLabel(md.replace(/^\s*(?:[-*+]|\d+[.)])\s+/, "")).trimStart();
 }
 
 /** 选项判分用可比文本：去标记/标签后规整。 */

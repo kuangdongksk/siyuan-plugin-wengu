@@ -20,10 +20,9 @@ export function convertDialogHtml(deps: ConvertDialogDeps): string {
                   t("docIdLabel"),
                   "",
                   `<input type="text" data-act="dlg-docid" value="${esc(deps.activeDocId)}" hidden>` +
-                      `<button class="b3-button b3-button--outline" data-act="dlg-docpick">${esc(
+                      `<button class="b3-button b3-button--outline fn__size200 wengu-pick" data-act="dlg-docpick">${esc(
                           t("knowPickBtn")
-                      )}</button>`,
-                  "dlg-doc-echo"
+                      )}</button>`
               ) +
               formRow(
                   t("convertModeLabel"),
@@ -98,10 +97,9 @@ export function convertDialogHtml(deps: ConvertDialogDeps): string {
                   t("convertKnowLabel"),
                   "",
                   '<input type="text" data-act="dlg-know" hidden>' +
-                      `<button class="b3-button b3-button--outline" data-act="dlg-knowpick">${esc(
+                      `<button class="b3-button b3-button--outline fn__size200 wengu-pick" data-act="dlg-knowpick">${esc(
                           t("knowPickBtn")
-                      )}</button>`,
-                  "dlg-know-echo"
+                      )}</button>`
               ) +
               "</details>"
       )}

@@ -78,8 +78,6 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     const targetPickBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-targetpick']");
     const targetEcho = root.querySelector<HTMLElement>("[data-act='dlg-target-echo']");
     const docPickBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-docpick']");
-    const docEcho = root.querySelector<HTMLElement>("[data-act='dlg-doc-echo']");
-    const knowEcho = root.querySelector<HTMLElement>("[data-act='dlg-know-echo']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-ok']");
     const cancelBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-cancel']");
     const stopBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-stop']");
@@ -152,11 +150,11 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
             current: parseKnowIds(knowInput?.value ?? ""),
             onConfirm: (ids) => {
                 if (knowInput) knowInput.value = ids.join(" ");
-                void echoKnowTitles(t, knowInput, knowEcho);
+                void echoKnowTitles(t, knowInput, knowPickBtn, t("knowPickBtn"));
             },
         });
     });
-    void echoKnowTitles(t, knowInput, knowEcho); // prefs 预选初始回显
+    void echoKnowTitles(t, knowInput, knowPickBtn, t("knowPickBtn")); // prefs 预选初始回显
 
     // 原位替换用不到生成位置——收起两行（值保留在控件里，PDF 导入的落点仍可读）
     const syncTargetRows = () => {
@@ -165,12 +163,13 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     wmodeSel?.addEventListener("change", syncTargetRows);
     syncTargetRows();
 
-    // 源文档/父文档动态联动：选择器按钮 + id→标题路径回显（父文档仅 custom 时显示）
+    // 源文档/父文档动态联动：源文档值入 wengu-pick 按钮（占位「选择…」），
+    // 父文档仍是输入框 + hint 槽回显（仅 custom 时显示）
     const echoDoc = bindDocLink({
         t,
         input,
         btn: docPickBtn,
-        echo: docEcho,
+        placeholder: t("knowPickBtn"),
         onPick: syncResumeHint,
     });
     const echoTarget = bindDocLink({

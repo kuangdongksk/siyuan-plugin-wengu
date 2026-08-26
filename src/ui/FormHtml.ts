@@ -28,7 +28,10 @@ export function formGroup(title: string, rows: string): string {
 
 /** 行：标题+说明在左，控件在右（control 为已渲染的 HTML 片段；
  *  desc 空则不渲染说明行；echoAct 把说明行开放为动态回显槽
- *  ——选中值直接显示在 hint 里，清空还原原提示）。 */
+ *  ——选中值直接显示在 hint 里，清空还原原提示）。
+ *  wengu-formrow 垂直居中：fn__flex 行默认 stretch，左侧说明两三行时
+ *  会把控件拉成竖长条（模型钮曾被拉成 200×64），官方控件靠自带
+ *  fn__flex-center 逃过，统一在行上显式居中）。 */
 export function formRow(title: string, desc = "", control: string, echoAct = ""): string {
     const hint =
         desc || echoAct
@@ -36,7 +39,7 @@ export function formRow(title: string, desc = "", control: string, echoAct = "")
                   desc
               )}</div>`
             : "";
-    return `<div class="fn__flex b3-label config__item">
+    return `<div class="fn__flex b3-label config__item wengu-formrow">
   <div class="fn__flex-1 fn__flex-center">${esc(title)}
     ${hint}
   </div>
