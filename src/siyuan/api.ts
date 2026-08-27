@@ -38,6 +38,8 @@ export enum EApi {
 
     // ── AI（agent/chat 是 SSE、chatGPT 是普通 JSON——见 AgentClient）──
     AgentChat = "/api/ai/agent/chat",
+    AgentSaveSession = "/api/ai/agent/saveSession",
+    AgentRemoveSession = "/api/ai/agent/removeSession",
     AiChatGpt = "/api/ai/chatGPT",
 
     // ── 网络（外网 JSON 经内核转发，见 MinerUClient）──

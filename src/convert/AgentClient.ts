@@ -84,7 +84,10 @@ export async function agentChat(
     message: string,
     modelId: string,
     timeoutMs: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    /** 独立会话 id（见 agentChatOnce）：传了即带 sessionID/userEntryID，
+     *  并发锁按 sessionID 键控，不同会话互不 busy。 */
+    sessionId = ""
 ): Promise<string> {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -105,6 +108,7 @@ export async function agentChat(
                 language: lang,
                 references: [],
                 ...(modelId ? { model: modelId } : {}),
+                ...(sessionId ? { sessionID: sessionId, userEntryID: "" } : {}),
             }),
             signal: controller.signal,
         });
@@ -185,5 +189,55 @@ export async function agentChatConcurrent(message: string, timeoutMs: number, si
     } finally {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
+    }
+}
+
+/** 一次性会话 id：{14位时间戳}-{7位字母数字}（内核 isValidSessionID 校验格式）。 */
+export function newSessionId(now = new Date()): string {
+    const p = (n: number): string => String(n).padStart(2, "0");
+    const stamp =
+        `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}` +
+        `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+    const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let rand = "";
+    for (let i = 0; i < 7; i++) rand += abc[Math.floor(Math.random() * abc.length)];
+    return `${stamp}-${rand}`;
+}
+
+/**
+ * 一次性智能体会话（独立 sessionID 并发通道）：saveSession 落盘一条
+ * user 条目 → chat（并发锁按 sessionID 键控，不同会话互不 busy）→
+ * removeSession 清理防落盘堆积。20260827 真机验证双路并发零 busy；
+ * 高频独立任务（看板娘反应/聊天/讲题）直接用它，无需模块级串行队列。
+ */
+export async function agentChatOnce(
+    message: string,
+    modelId: string,
+    timeoutMs: number,
+    signal?: AbortSignal
+): Promise<string> {
+    const sid = newSessionId();
+    try {
+        const resp = await fetch(EApi.AgentSaveSession, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: sid,
+                revision: 0,
+                title: message.replace(/\s+/g, " ").trim().slice(0, 24) || "温故",
+                entries: [{ id: "u1", type: "user", content: message }],
+            }),
+            signal,
+        });
+        const j = (await resp.json()) as { code?: number; msg?: string };
+        if (j.code !== 0) throw new Error(j.msg || `saveSession ${j.code}`);
+        return await agentChat(message, modelId, timeoutMs, signal, sid);
+    } finally {
+        // 会话清仓（失败静默——堆积文件无功能影响）
+        void fetch(EApi.AgentRemoveSession, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: sid }),
+        }).catch((): void => undefined);
     }
 }

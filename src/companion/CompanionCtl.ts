@@ -1,4 +1,4 @@
-import { agentChat } from "../convert/AgentClient";
+import { agentChatOnce } from "../convert/AgentClient";
 import type { WenguSession } from "../quiz/HistoryStore";
 import { buildQuizStats } from "../stats/StatsService";
 import type { WenguWordProgress } from "../word/WordStore";
@@ -21,11 +21,12 @@ import type { CompanionUi } from "./CompanionUi";
 
 /**
  * 看板娘控制器：规则层（即时表情+兜底台词）+ AI 增强层（里程碑节点
- * 节流生成台词，失败静默保规则层）+ 聊天/错题讲解（串行队列）。
+ * 节流生成台词，失败静默保规则层）+ 聊天/错题讲解。
  *
- * AI 统一走智能体 agentChat（可按次指定模型）；agent/chat 单会话互斥，
- * 所有调用过本模块串行队列，与文档转换并发时可能撞 session is busy
- * ——反应层静默兜底，聊天层把错误气泡出来。
+ * AI 统一走 agentChatOnce（智能体一次性会话：独立 sessionID 天然
+ * 并发，反应与聊天互不阻塞；每次仍可按学伴配置指定模型）。与文档
+ * 转换（直答端点）无会话冲突；聊天层把内核错误气泡出来，反应层静默
+ * 兜底规则台词。
  */
 
 const REACT_TIMEOUT_MS = 30_000;
@@ -36,18 +37,6 @@ const ENRICH_MIN_GAP_MS = 45_000;
 const USER_TTL_MS = 5 * 60_000;
 /** 久无事件的打盹提示。 */
 const DOZE_AFTER_MS = 5 * 60_000;
-
-/** 串行队列：同一时刻只放一个 AI 调用进内核（agent/chat 互斥）。 */
-let queue: Promise<unknown> = Promise.resolve();
-
-function enqueue<T>(job: () => Promise<T>): Promise<T> {
-    const run = queue.then(job, job);
-    queue = run.then(
-        (): void => undefined,
-        (): void => undefined
-    );
-    return run;
-}
 
 /** 学习事件（index.ts 的构造帮手装配，控制器消费）。 */
 export type CompanionEvent =
@@ -254,10 +243,10 @@ export class CompanionCtl {
         this.enrichBusy = true;
         this.lastEnrichAt = now;
         const desc = this.eventDesc(e);
-        void enqueue(async () => {
+        void (async () => {
             try {
                 const u = await this.userProfile();
-                const reply = await agentChat(
+                const reply = await agentChatOnce(
                     buildReactPrompt(this.personaDesc(), desc, this.session, u),
                     this.modelId(),
                     REACT_TIMEOUT_MS
@@ -269,7 +258,7 @@ export class CompanionCtl {
             } finally {
                 this.enrichBusy = false;
             }
-        });
+        })();
     }
 
     private eventDesc(e: CompanionEvent): string {
@@ -363,7 +352,7 @@ export class CompanionCtl {
         ui.chatBusy = true;
         try {
             const u = await this.userProfile();
-            const reply = await enqueue(() => agentChat(build(u), this.modelId(), CHAT_TIMEOUT_MS));
+            const reply = await agentChatOnce(build(u), this.modelId(), CHAT_TIMEOUT_MS);
             this.pushMsg("ai", clampText(reply, 400));
         } catch (err) {
             const why = err instanceof Error && err.message ? `：${err.message.slice(0, 80)}` : "";
