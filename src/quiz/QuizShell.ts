@@ -9,7 +9,7 @@ import { bindGroupUnits, focusQuestion, restoreGroupScrolls } from "./MaterialFl
 import { bindNumRail } from "./NumRail";
 import { decoratePreview } from "./PreviewFlow";
 import { PROTYLE_INLINE_MAX } from "./ProtyleHost";
-import { bindRailFor } from "./RailHtml";
+import { bindRailFor, renderRailHtml } from "./RailHtml";
 import { beginDrillFor, bindStartPanel, renderStartPanel } from "./StartPanel";
 import { bindHeadFor } from "./ViewBindings";
 import { renderWorkspaceFor } from "./WorkspaceShell";
@@ -49,7 +49,9 @@ export function renderQuizShellFor(v: QuizView): void {
         // 预览不透历史对错（题号/徽标/描色全中性，保密）
         showWrongBadge: !pv && v.settings?.showWrong !== false && v.revealMode !== "after",
     };
-    v.el.innerHTML = renderMainShell({
+    v.el.innerHTML =
+        renderRailHtml(v.t, v.workspace) +
+        renderMainShell({
         t: v.t,
         docs: v.docs,
         docId: v.docId,

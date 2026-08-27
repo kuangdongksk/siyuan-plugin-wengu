@@ -109,8 +109,8 @@ export function renderCompanionPanelInto(v: QuizView, root: HTMLElement): void {
     const ctx: PanelCtx = { t: v.t, settings: settings ?? {} };
     root.innerHTML = `<div class="wengu-ws-page">
   <div class="wengu-ws-title">${esc(v.t("companionPanelTitle"))}</div>
-  <div class="wengu-ws-cols">${listHtml(ctx)}${editorHtml(ctx)}</div>
   ${footHtml(ctx)}
+  <div class="wengu-ws-cols">${listHtml(ctx)}${editorHtml(ctx)}</div>
 </div>`;
     bindCompanionPanel(v, root, ctx);
 }
