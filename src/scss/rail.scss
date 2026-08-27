@@ -56,7 +56,8 @@
 }
 
 .wengu-ws-page {
-  max-width: 860px;
+  /* 不设 max-width：宽窗口下面板要占满主区（860 上限曾造成
+     「行没撑满」的观感），可读性靠编辑器分栏与控件宽度保证 */
 }
 
 .wengu-ws-title {
@@ -135,7 +136,6 @@
 .wengu-ws-editor {
   flex: 1;
   min-width: 0;
-  max-width: 560px;
 }
 
 .wengu-ws-foot {

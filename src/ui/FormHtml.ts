@@ -65,9 +65,10 @@ export function formInput(field: string, value: string, attrs = "", act = "data-
     } value="${esc(value)}">`;
 }
 
-/** 多行文本控件（长文本如自定义 prompt；attrs 透传 rows/placeholder 等）。 */
+/** 多行文本控件（长文本如自定义 prompt；attrs 透传 rows/placeholder 等；
+ *  宽度占满控制位——工作区面板编辑器已放开宽度，固定 200px 会显空）。 */
 export function formTextarea(field: string, value: string, attrs = "", act = "data-field"): string {
-    return `<textarea class="b3-text-field fn__flex-center" style="width:200px" ${act}="${field}"${
+    return `<textarea class="b3-text-field fn__flex-center" style="width:100%;box-sizing:border-box" ${act}="${field}"${
         attrs ? ` ${attrs}` : ""
     }>${esc(value)}</textarea>`;
 }
