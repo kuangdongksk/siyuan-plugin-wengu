@@ -76,6 +76,12 @@ export function pickMode(seq: number, idx: number, confIds: readonly number[]): 
     return mode;
 }
 
+/** 队列剩余词数（去重）：四步梯流水线/错词重现都会让同一词多位
+ * 出镜，头部统计「剩」按词计（20260827 前老语义），不按队列位数计。 */
+export function remainingWordCount(queue: readonly number[], pos: number): number {
+    return new Set(queue.slice(pos)).size;
+}
+
 /** 选择题选项：文本 + 来源词条（正确项=本题，干扰=易混组/同单元；
  * 错选展示与误认实证都靠 from 找到「你选的是哪个词」）。 */
 export interface WenguOpt {

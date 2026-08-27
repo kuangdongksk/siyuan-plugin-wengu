@@ -11,6 +11,7 @@ import {
     NEW_LADDER,
     pickMode,
     pipelineLadder,
+    remainingWordCount,
     spellMatches,
     type AnsweredState,
 } from "../flow/WordQuiz";
@@ -150,6 +151,7 @@ export class WordView {
         this.ui.confIds = confOthers(this.ui.progress!, idx);
         this.ui.pos = this.pos;
         this.ui.queueLen = this.queue.length;
+        this.ui.remainWords = remainingWordCount(this.queue, this.pos);
         if (this.sessionNew.has(idx)) {
             this.ui.cardMode = ladderMode(this.ladderDone.get(idx) ?? 0, idx, this.ui.confIds);
         } else {
@@ -257,6 +259,7 @@ export class WordView {
         if (this.pos >= this.queue.length) {
             this.ui.pos = this.pos;
             this.ui.queueLen = this.queue.length;
+            this.ui.remainWords = remainingWordCount(this.queue, this.pos);
             this.ui.mode = "done";
             flushGroupFor(this);
             notifyWordDone(this.hardList.length, this.finishCount);

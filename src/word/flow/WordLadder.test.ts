@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ladderMode, NEW_LADDER, pipelineLadder } from "./WordQuiz";
+import { ladderMode, NEW_LADDER, pipelineLadder, remainingWordCount } from "./WordQuiz";
 
 /** 四步梯定稿（20260827 口述版）：英选中→中选英→听音→英文回想。 */
 describe("NEW_LADDER 梯序", () => {
@@ -49,5 +49,32 @@ describe("pipelineLadder", () => {
         // 组1：[0,1,2,3]×4；组2：[4]×1
         expect(out.slice(16)).toEqual([4]);
         expect(out[15]).toBe(3);
+    });
+});
+
+/** 头部统计「剩」按词计：梯流水线/错词重现的多位出镜只算一个词。 */
+describe("remainingWordCount", () => {
+    it("四步梯队列去重计数（×4 展开不虚增「剩」）", () => {
+        const q = pipelineLadder([10, 11, 12, 13], () => 4);
+        expect(q).toHaveLength(16);
+        expect(remainingWordCount(q, 0)).toBe(4);
+    });
+
+    it("进行中的会话只数 pos 之后的词", () => {
+        // 轮转出镜 [10,11,12,13]×4 轮：中途四位都仍在梯里；末位只数 1 词
+        const q = pipelineLadder([10, 11, 12, 13], () => 4);
+        expect(remainingWordCount(q, 8)).toBe(4);
+        expect(remainingWordCount(q, 15)).toBe(1);
+        expect(remainingWordCount(q, 16)).toBe(0);
+    });
+
+    it("错词重现（同词再插队）不重复计数", () => {
+        expect(remainingWordCount([5, 6, 5, 7], 0)).toBe(3);
+        expect(remainingWordCount([5, 6, 5, 7], 1)).toBe(3);
+        expect(remainingWordCount([5, 6, 5, 7], 4)).toBe(0);
+    });
+
+    it("复习/星标队列（每词一位）与老语义 queueLen-pos 等价", () => {
+        expect(remainingWordCount([3, 4, 5], 1)).toBe(2);
     });
 });

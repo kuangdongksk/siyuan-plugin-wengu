@@ -20,7 +20,7 @@
         fmt(t("wordTodayStats"), {
             a: String(p.today.newCount),
             b: String(p.today.revCount),
-            c: String(ui.queueLen - ui.pos),
+            c: String(ui.remainWords),
             d: String(dueTomorrowCount(p)),
         })
     );

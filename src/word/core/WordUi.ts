@@ -34,6 +34,8 @@ export interface WordUi {
     cardSeq: number;
     pos: number;
     queueLen: number;
+    /** 队列剩余词数（去重——四步梯队列每词多位出镜，「剩」按词计不按步计）。 */
+    remainWords: number;
     queueKind: "review" | "fresh" | "star";
     hardN: number;
     /** 查词态。 */
@@ -67,6 +69,7 @@ export function initialWordUi(): WordUi {
         cardSeq: 0,
         pos: 0,
         queueLen: 0,
+        remainWords: 0,
         queueKind: "fresh",
         hardN: 0,
         lookupQuery: "",
