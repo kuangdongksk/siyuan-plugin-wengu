@@ -1,13 +1,13 @@
 import { Plugin, openTab, getActiveEditor, type Custom, type MobileCustom } from "siyuan";
 import "./index.scss";
-import { HistoryStore } from "./quiz/HistoryStore";
-import { QuestionBank } from "./bank/QuestionBank";
+import { HistoryStore } from "./quiz/service/HistoryStore";
+import { QuestionBank } from "./bank/data/QuestionBank";
 import { QuizView } from "./quiz";
-import { openRelatedDialog } from "./bank/RelatedDialog";
+import { openRelatedDialog } from "./bank/ui/RelatedDialog";
 import { openWenguSetting } from "./ui/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./types";
-import { WeaknessStore } from "./bank/WeaknessStore";
-import { WordStore } from "./word/WordStore";
+import { WeaknessStore } from "./bank/data/WeaknessStore";
+import { WordStore } from "./word/core/WordStore";
 import { mountWordView, type WordView } from "./word";
 import { initCompanion } from "./companion";
 
@@ -69,7 +69,7 @@ interface WenguSettings {
     companionEnabled?: boolean;
     companionPersona?: string;
     companionAi?: boolean;
-    companionProfiles?: import("./companion/CompanionCtl").CompanionProfile[];
+    companionProfiles?: import("./companion/core/CompanionCtl").CompanionProfile[];
     companionActiveId?: string;
     /** 由插件注入的落盘回调。 */
     save?: () => void;

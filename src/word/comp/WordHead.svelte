@@ -1,9 +1,9 @@
 <script lang="ts">
     import { getContext, type Snippet } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
-    import WORD_BOOK from "../WordBook";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import WORD_BOOK from "../service/WordBook";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
 
     let {
         stats = "",

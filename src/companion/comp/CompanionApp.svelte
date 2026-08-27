@@ -1,7 +1,7 @@
 <script lang="ts">
     import { companionCtl } from "../index";
-    import { EXPR_FACES } from "../Expressions";
-    import { initialCompanionUi, type CompanionUi } from "../CompanionUi";
+    import { EXPR_FACES } from "../rules/Expressions";
+    import { initialCompanionUi, type CompanionUi } from "../core/CompanionUi";
     import ChatPanel from "./ChatPanel.svelte";
 
     // 双宿主共享单例：mount 传入的 host 仅作挂载辨识，不参与渲染

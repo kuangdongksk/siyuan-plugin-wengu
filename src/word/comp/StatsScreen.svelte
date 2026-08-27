@@ -2,9 +2,9 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import { buildStats } from "../WordStore";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import { buildStats } from "../core/WordStore";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
     import NavExtras from "./NavExtras.svelte";
     import WordHead from "./WordHead.svelte";
 

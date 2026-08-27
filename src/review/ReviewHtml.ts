@@ -1,5 +1,5 @@
 import { svgIcon } from "../ui/FormHtml";
-import type { ReviewAttempt } from "./";
+import type { ReviewAttempt } from "./index";
 import { esc, fmt, fmtDateTime } from "../ui/shared";
 
 /**

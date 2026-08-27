@@ -1,4 +1,4 @@
-import type { WenguSession } from "../quiz/HistoryStore";
+import type { WenguSession } from "../quiz/service/HistoryStore";
 import type { WenguQuestion, WenguTimingMode } from "../types";
 
 /**

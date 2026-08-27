@@ -1,4 +1,4 @@
-import { defaultAgentModelId, listAiModels, type WenguAiModel } from "../convert/AgentClient";
+import { defaultAgentModelId, listAiModels, type WenguAiModel } from "../convert/service/AgentClient";
 import { esc } from "./shared";
 
 /**

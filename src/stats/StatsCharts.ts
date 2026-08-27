@@ -3,7 +3,7 @@ import { GridComponent, LegendComponent, TooltipComponent } from "echarts/compon
 import * as echarts from "echarts/core";
 import type { EChartsCoreOption, EChartsType } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import type { WenguSession } from "../quiz/HistoryStore";
+import type { WenguSession } from "../quiz/service/HistoryStore";
 import type { RoundTrendItem } from "./StatsService";
 import { mmss } from "../ui/shared";
 

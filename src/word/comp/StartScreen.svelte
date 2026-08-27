@@ -1,10 +1,10 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { fmt } from "../../ui/shared";
-    import WORD_BOOK from "../WordBook";
-    import { groupSizeOf } from "../WordStore";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import WORD_BOOK from "../service/WordBook";
+    import { groupSizeOf } from "../core/WordStore";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
 
     /** 起点设置面板：每组单词数（即时生效）+ 不背单词进度导入。
      *  行样式沿 FormHtml 规范（config-group/config__item，见

@@ -2,11 +2,11 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import WORD_BOOK from "../WordBook";
-    import { confusableHtml, groupsOf, wordNoteHtml } from "../WordConfusables";
-    import { searchWords, statusLine } from "../WordLookup";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import WORD_BOOK from "../service/WordBook";
+    import { confusableHtml, groupsOf, wordNoteHtml } from "../service/WordConfusables";
+    import { searchWords, statusLine } from "../flow/WordLookup";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiButton from "./AiButton.svelte";
     import WordHead from "./WordHead.svelte";
 

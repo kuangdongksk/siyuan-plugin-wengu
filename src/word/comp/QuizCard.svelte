@@ -2,11 +2,11 @@
     import { getContext } from "svelte";
     import { statusIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import WORD_BOOK from "../WordBook";
-    import { confusableHtml, wordNoteHtml } from "../WordConfusables";
-    import { buildMeaningOptions, buildWordOptions, meaningLine, MODE_KEY } from "../WordQuiz";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import WORD_BOOK from "../service/WordBook";
+    import { confusableHtml, wordNoteHtml } from "../service/WordConfusables";
+    import { buildMeaningOptions, buildWordOptions, meaningLine, MODE_KEY } from "../flow/WordQuiz";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
 
     /** 一张答题卡（五题型；题面标色/详情/自述输入按作答态切换）。 */
     const view = getContext<WordView>(WORD_VIEW_CTX)!;

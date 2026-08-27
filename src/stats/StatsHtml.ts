@@ -1,6 +1,6 @@
 import { svgIcon } from "../ui/FormHtml";
 import type { WenguQuizStats, WenguWrongItem } from "./StatsService";
-import type { WeakCause, WeakTopRow } from "../bank/WeaknessStore";
+import type { WeakCause, WeakTopRow } from "../bank/data/WeaknessStore";
 import type { WenguDoc } from "../types";
 import { esc, fmt, mmss } from "../ui/shared";
 

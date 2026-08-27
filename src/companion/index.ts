@@ -1,10 +1,10 @@
 import { mount, unmount } from "svelte";
-import WORD_BOOK from "../word/WordBook";
-import type { WordGrade } from "../word/WordStore";
+import WORD_BOOK from "../word/service/WordBook";
+import type { WordGrade } from "../word/core/WordStore";
 import type { WenguQuestion } from "../types";
 import CompanionApp from "./comp/CompanionApp.svelte";
-import { CompanionCtl, type CompanionDeps, type CompanionEvent } from "./CompanionCtl";
-import { plainOf, type ExplainCtx } from "./Prompt";
+import { CompanionCtl, type CompanionDeps, type CompanionEvent } from "./core/CompanionCtl";
+import { plainOf, type ExplainCtx } from "./rules/Prompt";
 
 /**
  * 伴学看板娘域入口：单例控制器 + 双宿主挂载（刷题页签/单词 dock）+

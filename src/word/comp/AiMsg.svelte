@@ -1,7 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
 
     /** AI 状态/结果条（卡片页/首页/完成页头部下方；"!" 前缀=失败标红）。 */
     const view = getContext<WordView>(WORD_VIEW_CTX)!;

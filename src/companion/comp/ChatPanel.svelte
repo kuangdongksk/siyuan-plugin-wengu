@@ -1,6 +1,6 @@
 <script lang="ts">
-    import type { CompanionCtl } from "../CompanionCtl";
-    import type { CompanionUi } from "../CompanionUi";
+    import type { CompanionCtl } from "../core/CompanionCtl";
+    import type { CompanionUi } from "../core/CompanionUi";
 
     let { ctl, ui }: { ctl: CompanionCtl; ui: CompanionUi } = $props();
 

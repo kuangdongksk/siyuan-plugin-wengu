@@ -1,9 +1,9 @@
-import { applySideFilter } from "../quiz/CardHtml";
-import { openCollectionDialog } from "./CollectionDialog";
+import { applySideFilter } from "../quiz/render/CardHtml";
+import { openCollectionDialog } from "./ui/CollectionDialog";
 import { GROUP_PREV } from "../siyuan/attrs";
-import type { HistoryStore, WenguSession } from "../quiz/HistoryStore";
-import { listMaterials, resolveGroupPlaceholders } from "../quiz/MaterialService";
-import type { CollectionRow, QuestionBank } from "./QuestionBank";
+import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
+import { listMaterials, resolveGroupPlaceholders } from "../quiz/service/MaterialService";
+import type { CollectionRow, QuestionBank } from "./data/QuestionBank";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
 
 /**

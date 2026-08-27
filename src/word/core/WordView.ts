@@ -1,0 +1,499 @@
+import { WordAiRunner, wordAiInput, type WordAiInput } from "../service/WordAi";
+import WORD_BOOK from "../service/WordBook";
+import { addPair, confOthers, groupsOf } from "../service/WordConfusables";
+import { LookupConfCtl } from "../flow/WordLookup";
+import { redoHardFor } from "../flow/CardOps";
+import { flushGroupFor, settleGroupBoundary } from "../flow/GroupFlow";
+import { notifyWordDone, notifyWordGrade } from "../../companion";
+import {
+    checkOption,
+    ladderMode,
+    NEW_LADDER,
+    pickMode,
+    pipelineLadder,
+    spellMatches,
+    type AnsweredState,
+} from "../flow/WordQuiz";
+import { speakWord } from "../service/WordSpeak";
+import { WordStartCtl, makeStartCtl } from "../flow/WordStart";
+import {
+    applyGrade,
+    buildQueue,
+    markFamiliar,
+    pushTiming,
+    rollToday,
+    starredList,
+    toggleStar,
+    WordStore,
+    confKey,
+    type WenguTimingRec,
+    type WordGrade,
+} from "./WordStore";
+import { REINSERT_GAP, WordTimer } from "./WordTiming";
+import type { WordUi } from "./WordUi";
+
+/**
+ * 单词复习控制器（Svelte 化改造）：会话状态机与全部语义动作在此，
+ * 渲染交给 src/word/comp/ 下的 Svelte 组件（读 ui 深代理细粒度更新）。
+ * 旧 WordActs 的 data-act 分发改为组件直调公开方法；WordBind 的
+ * 键盘分发保留在同名模块。计时与组机制见 docs/word-timing.md
+ * （计时只累计可见且非输入的时间，组完成异步触发 AI 复盘不阻塞）。
+ */
+export class WordView {
+    readonly t: (key: string) => string;
+    readonly store: WordStore;
+    readonly ui: WordUi;
+    /** 本会话队列（扁平下标）。以下会话字段对 GroupFlow 友元开放。 */
+    queue: number[] = [];
+    pos = 0;
+    /** 本会话已作答过的词（新词首答后，重现走题型轮换）。 */
+    private learned = new Set<number>();
+    /** 构队时标记的新词（首次作答计入今日新词数）。 */
+    sessionNew = new Set<number>();
+    /** 新词梯进度（会话内已完成步数；仅「认识」收尾才前进）。 */
+    ladderDone = new Map<number, number>();
+    /** 本会话答错过的词（去重），完成后可一键重过。 */
+    hardList: number[] = [];
+    readonly doneSet = new Set<number>();
+    /** 当前卡计时结算（reveal/作答时存，finishCard 消费）。 */
+    private curTiming: WenguTimingRec | undefined;
+    /** spell 错拼原文（作答瞬间抓取）。 */
+    private spellTyped: string | undefined;
+    private busy = false;
+    /** 误认词 AI 视图胶水。 */
+    readonly ai: WordAiRunner;
+    private timer?: WordTimer;
+    /** 本组作答画像（组完成时交 AI，一步继续不等待）。 */
+    groupLog: WordAiInput[] = [];
+    finishCount = 0;
+    /** AI 复盘已落盘待消费（下个组边界重排队列余量）。 */
+    aiDirty = false;
+    /** 查词详情的易混笔记控制器。 */
+    readonly confCtl: LookupConfCtl;
+    private startCtlCache?: WordStartCtl;
+
+    constructor(ui: WordUi, i18n: Record<string, string>, store: WordStore) {
+        this.ui = ui;
+        this.t = (k) => i18n[k] ?? k;
+        this.store = store;
+        this.ai = new WordAiRunner(this.t);
+        this.confCtl = new LookupConfCtl(
+            () => this.ui.progress!,
+            (p) => this.store.save(p),
+            () => this.syncAi()
+        );
+    }
+
+    /** 挂载计时宿主容器（WordApp onMount 后调用一次）。 */
+    attach(hostEl: HTMLElement): void {
+        this.timer ??= new WordTimer(hostEl);
+    }
+
+    async render(): Promise<void> {
+        const p = await this.store.get();
+        // 存进 ui 才会被 $state 深代理包裹（此后所有读写都走代理）
+        this.ui.progress = p;
+        const started = p.cursor > 0 || Object.keys(p.words).length > 0;
+        this.ui.mode = started ? "home" : "setstart";
+        this.syncAi();
+    }
+
+    destroy(): void {
+        this.timer?.dispose();
+    }
+
+    get currentIdx(): number {
+        return this.queue[this.pos] ?? 0;
+    }
+
+    /** 隔夜翻转（进入 home/stats/组队等边界时调用，对齐旧 paint 首行行为）。 */
+    private roll(): void {
+        if (this.ui.progress) rollToday(this.ui.progress);
+    }
+
+    /** 按入口建队列：review=到期复习 / fresh=新学（四步梯流水线） / star=星标。 */
+    rebuildQueue(kind: "review" | "fresh" | "star"): void {
+        const p = this.ui.progress;
+        if (!p) return;
+        if (kind === "star") {
+            this.queue = starredList(p);
+            this.sessionNew = new Set<number>();
+        } else {
+            const { review, fresh } = buildQueue(p);
+            this.queue = kind === "review" ? [...review] : pipelineLadder(fresh, () => NEW_LADDER.length);
+            this.sessionNew = kind === "review" ? new Set<number>() : new Set(fresh);
+        }
+        this.ladderDone.clear();
+        this.ui.queueKind = kind;
+        this.pos = 0;
+        this.hardList = [];
+        this.ui.hardN = 0;
+        this.doneSet.clear();
+        this.groupLog = [];
+        this.finishCount = 0;
+        this.enterPrompt();
+    }
+
+    /** 进入当前位置的卡：新词走四步梯按进度选型 / 已学词题型轮换；
+     * 队列外首见（review 入口）回想开始。（CardOps 友元可达） */
+    enterPrompt(): void {
+        this.ui.phase = "prompt";
+        this.ui.answered = undefined;
+        this.ui.selfGrade = undefined;
+        this.ui.mistakeClaimed = false;
+        this.curTiming = undefined;
+        this.spellTyped = undefined;
+        this.ui.spellLive = "";
+        this.ui.confessedDraft = "";
+        const idx = this.currentIdx;
+        this.ui.idx = idx;
+        this.ui.confIds = confOthers(this.ui.progress!, idx);
+        this.ui.pos = this.pos;
+        this.ui.queueLen = this.queue.length;
+        if (this.sessionNew.has(idx)) {
+            this.ui.cardMode = ladderMode(this.ladderDone.get(idx) ?? 0, idx, this.ui.confIds);
+        } else {
+            this.ui.cardMode = this.learned.has(idx) ? pickMode(this.ui.cardSeq, idx, this.ui.confIds) : "recallEn";
+        }
+        this.timer?.begin(this.ui.cardMode);
+    }
+
+    /** 选择题作答(点击/数字键共用)；听音题同用释义选项。 */
+    private answerByOption(no: number): void {
+        if (this.ui.cardMode !== "choiceEn" && this.ui.cardMode !== "choiceZh" && this.ui.cardMode !== "listen") return;
+        this.applyAnswered(checkOption(this.ui.cardMode, this.currentIdx, no, this.ui.confIds));
+    }
+
+    /** 客观题作答落位：题面内标色 + 详情 + 继续按钮（评分延迟到收尾）。 */
+    private applyAnswered(a: AnsweredState | undefined): void {
+        if (!a || this.ui.phase !== "prompt" || this.ui.answered) return;
+        const s = this.timer?.settle();
+        if (s) this.curTiming = s;
+        this.ui.answered = a;
+    }
+
+    /** 收尾：应用档位并进下一张；答错的词隔 3 张重现直到当场过关。 */
+    finishCard(grade: WordGrade): void {
+        const awaitingGrade = this.ui.phase === "result" || this.ui.answered;
+        if (!awaitingGrade || this.busy || !this.ui.progress) return;
+        this.busy = true;
+        const p = this.ui.progress;
+        const idx = this.currentIdx;
+        // 自述「认成了什么」：填了即没记住（决策 7，不论点什么档位）；
+        // 「记错了」同路——点了即按不认识批改，填没填自述都算
+        const v = this.ui.confessedDraft.trim();
+        if (v || this.ui.mistakeClaimed) grade = "no";
+        // 停留超时（走神）按「忘记」处理（决策 2）
+        if (this.curTiming?.over) grade = "no";
+        // 新词梯前进判定（20260828 加严：仅「认识」进下一步，错一次整梯
+        // 归零从头再来）——归零词的后续出镜位数不足时按需补插（见
+        // advanceAfterFinish），插队位以 REINSERT_GAP 起隔卡散布
+        if (this.sessionNew.has(idx)) {
+            const done = grade === "know" ? (this.ladderDone.get(idx) ?? 0) + 1 : 0;
+            this.ladderDone.set(idx, done);
+            if (done >= NEW_LADDER.length) this.learned.add(idx);
+        }
+        applyGrade(p, idx, grade, this.sessionNew.has(idx));
+        if (v) p.mistakes[String(idx)].confused = v;
+        // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
+        const pf = this.ui.answered && !this.ui.answered.correct ? this.ui.answered.pickFrom : undefined;
+        if (v) addPair(p, idx, v, "evidence");
+        else if (pf !== undefined && pf !== idx) addPair(p, idx, WORD_BOOK.words[pf].w, "evidence");
+        if (this.curTiming) {
+            this.curTiming.typed = this.spellTyped;
+            pushTiming(p, idx, this.curTiming);
+        }
+        this.groupLog.push(wordAiInput(p, idx, grade, this.ui.answered?.correct, this.curTiming, this.spellTyped, v));
+        this.curTiming = undefined;
+        this.spellTyped = undefined;
+        notifyWordGrade(this, grade, idx);
+        this.advanceAfterFinish(grade, idx);
+    }
+
+    /** 标「熟」收尾：退出复习循环，不进误认/重现。 */
+    finishMastered(): void {
+        const awaiting = this.ui.phase === "result" || this.ui.answered;
+        if (!awaiting || this.busy || !this.ui.progress) return;
+        this.busy = true;
+        const idx = this.currentIdx;
+        markFamiliar(this.ui.progress, idx, this.sessionNew.has(idx));
+        this.advanceAfterFinish("know", idx);
+    }
+
+    /** 星标开关（任意卡、任意阶段可点）。 */
+    toggleStarCard(): void {
+        if (!this.ui.progress || this.ui.mode !== "card") return;
+        toggleStar(this.ui.progress, this.currentIdx);
+        void this.store.save(this.ui.progress);
+    }
+
+    /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
+    private advanceAfterFinish(grade: WordGrade, idx: number): void {
+        const p = this.ui.progress!;
+        if (grade === "no") {
+            if (!this.hardList.includes(idx)) this.hardList.push(idx);
+            // 会话内重现：插到 3 张卡之后（到末尾则接着出）
+            if (!this.sessionNew.has(idx)) {
+                this.queue.splice(Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length), 0, idx);
+            }
+        }
+        // 新词梯错即归零：静态流水线按「满 4 次」预排的后续位不够重走
+        // 全梯时，把缺口补插到 REINSERT_GAP 之后的邻域（连插=完整重来）
+        if (this.sessionNew.has(idx) && (this.ladderDone.get(idx) ?? 0) < NEW_LADDER.length) {
+            const rest = this.queue.slice(this.pos + 1).filter((i) => i === idx).length;
+            const need = NEW_LADDER.length - rest;
+            if (need > 0) {
+                const at = Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length);
+                this.queue.splice(at, 0, ...Array<number>(need).fill(idx));
+            }
+        }
+        void this.store.save(p);
+        this.doneSet.add(idx);
+        this.pos++;
+        this.ui.cardSeq++;
+        this.finishCount++;
+        this.ui.hardN = this.hardList.length;
+        settleGroupBoundary(this, p);
+        if (this.pos >= this.queue.length) {
+            this.ui.pos = this.pos;
+            this.ui.queueLen = this.queue.length;
+            this.ui.mode = "done";
+            flushGroupFor(this);
+            notifyWordDone(this.hardList.length, this.finishCount);
+        } else {
+            this.enterPrompt();
+        }
+        this.busy = false;
+        this.syncAi();
+    }
+
+    redoHard(): void {
+        redoHardFor(this);
+    }
+
+    // ---------- 起点设置（操作在 WordStartCtl） ----------
+
+    startCtl(): WordStartCtl {
+        return (this.startCtlCache ??= makeStartCtl(this));
+    }
+
+    // ---------- 键盘分发与作答入口（WordBind/组件共用） ----------
+
+    option(no: number): void {
+        if (!this.ui.answered) this.answerByOption(no);
+    }
+
+    /** 「看答案」：选择题/听音题正面直接翻底，按答错计（redesign §二.1）。 */
+    peekAnswer(): void {
+        const m = this.ui.cardMode;
+        if (this.ui.phase !== "prompt" || this.ui.answered) return;
+        if (m !== "choiceEn" && m !== "choiceZh" && m !== "listen") return;
+        const s = this.timer?.settle();
+        if (s) this.curTiming = s;
+        this.ui.answered = { correct: false, peek: true };
+    }
+
+    /** 念当前词（speechSynthesis，WordSpeak 模块；不可用环境静默）。 */
+    playCurrentWord(): void {
+        speakWord(WORD_BOOK.words[this.currentIdx].w);
+    }
+
+    /** 新词梯进度点（仿不背单词词尾四点）：不在梯内（已出师/复习词）
+     * 返回 undefined，UI 不渲染。 */
+    ladderOf(idx: number): { done: number; total: number } | undefined {
+        if (!this.sessionNew.has(idx)) return undefined;
+        const done = this.ladderDone.get(idx) ?? 0;
+        if (done >= NEW_LADDER.length) return undefined;
+        return { done, total: NEW_LADDER.length };
+    }
+
+    grade(g: WordGrade): void {
+        this.finishCard(g);
+    }
+
+    /** 回想题正面选档（认识/模糊/忘记）：翻面挂档，收尾走「下一个」。 */
+    pickSelfGrade(g: WordGrade): void {
+        if (this.ui.cardMode !== "recallEn" && this.ui.cardMode !== "recallZh") return;
+        this.reveal();
+        this.ui.selfGrade = g;
+    }
+
+    /** 「记错了」：挂错标，收尾强制按不认识批改并常驻自述框。 */
+    claimMistake(): void {
+        this.ui.mistakeClaimed = true;
+    }
+
+    /** 已选档后的「下一个」：按正面所选档位收尾。 */
+    nextGraded(): void {
+        if (this.ui.selfGrade === undefined) return;
+        this.finishCard(this.ui.selfGrade);
+    }
+
+    reveal(): void {
+        if (
+            this.ui.phase === "prompt" &&
+            this.ui.cardMode !== "choiceEn" &&
+            this.ui.cardMode !== "choiceZh" &&
+            this.ui.cardMode !== "spell"
+        ) {
+            const s = this.timer?.settle();
+            if (s) this.curTiming = s;
+            this.ui.phase = "result";
+        }
+    }
+
+    submitSpell(): void {
+        if (this.ui.cardMode === "spell") {
+            this.spellTyped = this.ui.spellLive.trim() || undefined;
+            this.applyAnswered({ correct: spellMatches(this.ui.spellLive, WORD_BOOK.words[this.currentIdx].w) });
+        }
+    }
+
+    confessEnter(): void {
+        this.finishCard("no");
+    }
+
+    continueObjective(): void {
+        this.finishCard(this.ui.answered?.correct ? "know" : "no");
+    }
+
+    importFile(file: File, input: HTMLInputElement): void {
+        void this.startCtl().importFile(file, input);
+    }
+
+    lookupInput(value: string): void {
+        this.ui.lookupQuery = value;
+        this.ui.lookupSel = undefined;
+    }
+
+    /** 笔记草稿输入（confnote=组辨析 / wordnote=词级，不重绘）。 */
+    noteInput(field: string, value: string): void {
+        if (field === "confnote") this.confCtl.draft = value;
+        else this.confCtl.wordDraft = value;
+    }
+
+    // ---------- 页面动作（旧 WordActs 的 data-act 分发改直调） ----------
+
+    goReview(): void {
+        this.roll();
+        this.ui.mode = "card";
+        this.rebuildQueue("review");
+    }
+
+    goFresh(): void {
+        this.roll();
+        const { review } = buildQueue(this.ui.progress!);
+        if (review.length > 0) {
+            this.ui.mode = "askreview"; // 有到期复习 → 先弹「先复习」
+        } else {
+            this.ui.mode = "card";
+            this.rebuildQueue("fresh");
+        }
+    }
+
+    goFreshAnyway(): void {
+        this.ui.mode = "card";
+        this.rebuildQueue("fresh");
+    }
+
+    goStar(): void {
+        this.roll();
+        this.ui.mode = "card";
+        this.rebuildQueue("star");
+    }
+
+    showStats(): void {
+        this.roll();
+        this.ui.mode = "stats";
+        this.syncAi();
+    }
+
+    goHome(): void {
+        this.roll();
+        this.ui.mode = "home";
+        this.syncAi();
+    }
+
+    setStart(): void {
+        this.ui.mode = "setstart";
+    }
+
+    applyStart(): void {
+        this.startCtl().apply();
+        this.ui.mode = "home";
+        this.syncAi();
+    }
+
+    cancelSet(): void {
+        this.ui.mode = "home";
+    }
+
+    enterLookup(): void {
+        this.ui.lookupSel = undefined;
+        this.ui.fromCard = this.ui.mode === "card";
+        this.ui.mode = "lookup";
+    }
+
+    lookupPick(idx: number): void {
+        const p = this.ui.progress!;
+        const g = groupsOf(p, idx)[0];
+        this.confCtl.draft = g ? (p.confNotes?.[confKey(g.ids)] ?? "") : "";
+        this.confCtl.wordDraft = p.notes?.[String(idx)] ?? "";
+        this.ui.lookupSel = idx;
+    }
+
+    lookupStar(idx: number): void {
+        toggleStar(this.ui.progress!, idx);
+        void this.store.save(this.ui.progress!);
+    }
+
+    lookupFamiliar(idx: number): void {
+        markFamiliar(this.ui.progress!, idx, false);
+        void this.store.save(this.ui.progress!);
+        this.syncAi();
+    }
+
+    aiAnalyze(): void {
+        const p = this.ui.progress;
+        if (p) {
+            void this.ai.run(
+                p,
+                () => this.store.save(p),
+                () => {
+                    this.ui.mode = "home";
+                },
+                () => this.syncAi()
+            );
+        }
+    }
+
+    resumeCard(): void {
+        this.ui.mode = "card";
+    }
+
+    confAsk(idx: number): void {
+        this.confCtl.ask(idx);
+    }
+
+    wordNoteSave(idx: number): void {
+        this.confCtl.saveWordNote(idx);
+    }
+
+    confSave(idx: number): void {
+        this.confCtl.saveNote(idx);
+    }
+
+    setGroupSize(n: number): void {
+        if (n >= 5 && n <= 20 && this.ui.progress) {
+            this.ui.progress.groupSize = n;
+            void this.store.save(this.ui.progress);
+        }
+    }
+
+    /** 把 AI runner 的普通字段镜像进响应态（按钮/消息渲染读镜像）。 */
+    syncAi(): void {
+        this.ui.aiRunning = this.ai.running;
+        this.ui.aiMsg = this.ai.msg;
+        this.ui.aiPending = this.ui.progress ? this.ai.pending(this.ui.progress).length : 0;
+    }
+}

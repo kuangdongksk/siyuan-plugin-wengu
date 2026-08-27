@@ -1,9 +1,9 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { fmt } from "../../ui/shared";
-    import { buildQueue, starredList } from "../WordStore";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import { buildQueue, starredList } from "../core/WordStore";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiMsg from "./AiMsg.svelte";
     import NavExtras from "./NavExtras.svelte";
     import WordHead from "./WordHead.svelte";

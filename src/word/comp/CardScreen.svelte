@@ -2,9 +2,9 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import { dueTomorrowCount } from "../WordStore";
-    import type { WordView } from "../WordView";
-    import { WORD_VIEW_CTX } from "../WordUi";
+    import { dueTomorrowCount } from "../core/WordStore";
+    import type { WordView } from "../core/WordView";
+    import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiButton from "./AiButton.svelte";
     import AiMsg from "./AiMsg.svelte";
     import QuizCard from "./QuizCard.svelte";

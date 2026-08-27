@@ -1,11 +1,11 @@
-import { agentChat } from "../convert/AgentClient";
-import type { HistoryStore } from "../quiz/HistoryStore";
-import { openAgentWithPrompt } from "../quiz/RoundReport";
+import { agentChat } from "../convert/service/AgentClient";
+import type { HistoryStore } from "../quiz/service/HistoryStore";
+import { openAgentWithPrompt } from "../quiz/render/RoundReport";
 import { wrongOverviewNow } from "../review";
 import { roundsOption, StatsChartHost, trendOption } from "./StatsCharts";
 import { renderDocStatsHtml, renderOverviewHtml, renderStatsShell, type OverviewExtra } from "./StatsHtml";
 import { buildDocStats, buildQuizStats, buildStatsPrompt, modeLabel } from "./StatsService";
-import type { WeakCause, WeakTopRow } from "../bank/WeaknessStore";
+import type { WeakCause, WeakTopRow } from "../bank/data/WeaknessStore";
 import type { WenguDoc, WenguQuestion } from "../types";
 import { esc, fmt } from "../ui/shared";
 

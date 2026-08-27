@@ -1,8 +1,8 @@
 import { mount, unmount } from "svelte";
 import WordApp from "./comp/WordApp.svelte";
-import { initialWordUi } from "./WordUi";
-import type { WordStore } from "./WordStore";
-import { WordView } from "./WordView";
+import { initialWordUi } from "./core/WordUi";
+import type { WordStore } from "./core/WordStore";
+import { WordView } from "./core/WordView";
 
 /**
  * 单词域入口：Dock/页签的挂载编排（Svelte 化改造）。控制器本体在
@@ -40,5 +40,5 @@ export function mountWordView(el: HTMLElement, i18n: Record<string, string>, sto
 }
 
 export { initialWordUi };
-export type { WordUi } from "./WordUi";
+export type { WordUi } from "./core/WordUi";
 export { WordView };

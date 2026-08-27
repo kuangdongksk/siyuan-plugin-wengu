@@ -37,7 +37,7 @@ export interface WenguSettingsShape {
     companionEnabled?: boolean;
     companionPersona?: string;
     companionAi?: boolean;
-    companionProfiles?: import("../companion/CompanionCtl").CompanionProfile[];
+    companionProfiles?: import("../companion/core/CompanionCtl").CompanionProfile[];
     companionActiveId?: string;
     save?: () => void;
 }

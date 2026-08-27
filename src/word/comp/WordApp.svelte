@@ -1,10 +1,10 @@
 <script lang="ts">
     import { onMount, setContext } from "svelte";
     import CompanionApp from "../../companion/comp/CompanionApp.svelte";
-    import { wordKeydown } from "../WordBind";
-    import type { WordStore } from "../WordStore";
-    import { WordView } from "../WordView";
-    import { initialWordUi, WORD_VIEW_CTX, type WordUi } from "../WordUi";
+    import { wordKeydown } from "../core/WordBind";
+    import type { WordStore } from "../core/WordStore";
+    import { WordView } from "../core/WordView";
+    import { initialWordUi, WORD_VIEW_CTX, type WordUi } from "../core/WordUi";
     import CardScreen from "./CardScreen.svelte";
     import DoneScreen from "./DoneScreen.svelte";
     import HomeScreen from "./HomeScreen.svelte";

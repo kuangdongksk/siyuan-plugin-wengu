@@ -1,9 +1,15 @@
-import type { ConvertProgressRecord } from "./ConvertBatch";
-import { openConvertDialog } from "./ConvertDialog";
-import { openConvertPanel } from "./ConvertPanel";
-import { convertRunActive, discardConvertRun, keepConvertRun, startConvertRun, stopConvertRun } from "./ConvertRun";
-import type { ProgressivePreview } from "../quiz/ProgressivePreview";
-import { showBatchPreview } from "../quiz/ProgressivePreview";
+import type { ConvertProgressRecord } from "./service/ConvertBatch";
+import { openConvertDialog } from "./ui/ConvertDialog";
+import { openConvertPanel } from "./ui/ConvertPanel";
+import {
+    convertRunActive,
+    discardConvertRun,
+    keepConvertRun,
+    startConvertRun,
+    stopConvertRun,
+} from "./service/ConvertRun";
+import type { ProgressivePreview } from "../quiz/service/ProgressivePreview";
+import { showBatchPreview } from "../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import type { WenguMaterial, WenguQuestion } from "../types";
 import { esc, fmt } from "../ui/shared";

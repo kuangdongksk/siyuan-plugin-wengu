@@ -1,10 +1,10 @@
 import { ATTR_PREFIX, Attr } from "../siyuan/attrs";
 import { KernelQuery } from "../siyuan/query";
-import type { HistoryStore, WenguSession } from "../quiz/HistoryStore";
-import { mdFragmentHtml, renderMathIn } from "../quiz/ProtyleHost";
-import { copyQuestionText } from "../quiz/PreviewFlow";
-import { renderHeadHtml, renderSideHtml } from "../quiz/CardHtml";
-import { renderRailHtml } from "../quiz/RailHtml";
+import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
+import { mdFragmentHtml, renderMathIn } from "../quiz/service/ProtyleHost";
+import { copyQuestionText } from "../quiz/flow/PreviewFlow";
+import { renderHeadHtml, renderSideHtml } from "../quiz/render/CardHtml";
+import { renderRailHtml } from "../quiz/render/RailHtml";
 import {
     renderDetailLoadingHtml,
     renderGroupsHtml,
@@ -15,7 +15,7 @@ import {
     type ReviewGroupModel,
     type ReviewItemModel,
 } from "./ReviewHtml";
-import { hydrate, rowToQuestion, type AttrsRow } from "../quiz/QuestionService";
+import { hydrate, rowToQuestion, type AttrsRow } from "../quiz/service/QuestionService";
 import type { WenguDoc, WenguQuestion } from "../types";
 import { optionDisplayMd } from "../types";
 import { esc, fmt } from "../ui/shared";
