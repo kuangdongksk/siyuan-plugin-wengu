@@ -272,15 +272,14 @@
   white-space: nowrap;
 }
 
-/* FormHtml.formRow 行容器垂直居中：fn__flex 默认 stretch，左侧说明
-   多行时按钮类控件会被纵向拉高（20260826 网页版实测模型钮 200×64、
-   PDF 钮 126×64），行上显式居中一次治好 */
-.wengu-formrow {
+/* FormHtml.formRow 行容器：垂直居中 + 强制撑满父宽。
+   思源主程序运行时注入的 .b3-label / .config__item 规则会覆盖单类
+   选择器，加 .b3-label.wengu-formrow 抬高特异性到 0,2,0，胜过
+   主题里单类 0,1,0 的硬定义。 */
+.wengu-formrow,
+.b3-label.wengu-formrow {
   align-items: center;
-  /* 思源原生 .config__item 在设置弹窗 .config__items 内会自动 width:100%，
-     但工作区面板（.wengu-ws-page）没有 .config__items 父容器，行会按
-     内容宽度堆在左上——统一强制撑满父行，行内标题/控件靠两侧 */
-  display: flex;
+  display: flex !important;
   width: 100%;
 }
 
