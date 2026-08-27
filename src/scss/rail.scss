@@ -138,6 +138,24 @@
   min-width: 0;
 }
 
+/* 大文本域堆叠块（标签在上、控件占满在下）：
+   formRow 的横排里 fn__flex-1 是零基宽，挤不过 width:100% 的兄弟 */
+.wengu-cp-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 16px;
+}
+
+.wengu-cp-lab {
+  display: flex;
+  flex-direction: column;
+
+  > span {
+    font-weight: 400;
+  }
+}
+
 .wengu-ws-foot {
   margin-bottom: 12px;
   padding: 4px 0;

@@ -62,11 +62,18 @@ function editorHtml(ctx: PanelCtx): string {
     if (!cur) return `<div class="wengu-ws-editor wengu-muted">${esc(t("companionDefaultHint"))}</div>`;
     return `<div class="wengu-ws-editor">
   ${formRow(t("companionNameLabel"), "", formInput("cpname", cur.name, "", "data-cp"))}
-  ${formRow(
-      t("companionPromptLabel"),
-      t("companionPromptDesc"),
-      formTextarea("cpprompt", cur.prompt, 'rows="4" spellcheck="false"', "data-cp")
-  )}
+  <!-- 大文本域不走 formRow：主题 .fn__flex-1 零基宽的标题格会被
+       width:100% 的 textarea 挤成 0×674 竖条（20260827 实测），
+       改标签在上、文本域占满在下的堆叠布局 -->
+  <div class="wengu-cp-stack">
+    <div class="wengu-cp-lab">
+      <span>${esc(t("companionPromptLabel"))}</span>
+      <div class="b3-label__text">${esc(t("companionPromptDesc"))}</div>
+    </div>
+    <textarea class="b3-text-field" style="width:100%;box-sizing:border-box;height:auto;resize:vertical" rows="5" spellcheck="false" data-cp="cpprompt">${esc(
+        cur.prompt
+    )}</textarea>
+  </div>
   ${formRow(
       t("companionImageDirLabel"),
       t("companionImageDirDesc"),

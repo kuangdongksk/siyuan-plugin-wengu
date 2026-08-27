@@ -275,10 +275,13 @@
 /* FormHtml.formRow 行容器：垂直居中 + 强制撑满父宽。
    思源主程序运行时注入的 .b3-label / .config__item 规则会覆盖单类
    选择器，加 .b3-label.wengu-formrow 抬高特异性到 0,2,0，胜过
-   主题里单类 0,1,0 的硬定义。 */
+   主题里单类 0,1,0 的硬定义。
+   ⚠️ 必须 border-box：主题 .b3-label 有 24px 水平内边距，content-box
+   下 width:100% 会向右溢出 48px（工作区面板实测 20260827）。 */
 .wengu-formrow,
 .b3-label.wengu-formrow {
   align-items: center;
+  box-sizing: border-box;
   display: flex !important;
   width: 100%;
 }
