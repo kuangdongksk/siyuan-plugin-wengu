@@ -327,9 +327,6 @@
   align-items: center;
 }
 
-/* 详情态内容垂直居中：作答/翻面后内容通常不满一屏，feedback 顶部
-   加 auto margin 与 actions 的 auto margin 上下平分空隙——信息块
-   居中、按钮仍贴底，避免中段一大块空白（20260827 用户反馈） */
-.wengu-word-card.wengu-word-revealed .wengu-word-feedback {
-  margin-top: auto;
-}
+/* 详情态（作答/翻面）内容从头部自然下排——20260828 用户定稿：
+   单词释义必须紧贴顶部；曾经试过的垂直居中已删（会在词与头部间
+   留大块空白）；剩余空间自然聚在 sticky 按钮行上方 */

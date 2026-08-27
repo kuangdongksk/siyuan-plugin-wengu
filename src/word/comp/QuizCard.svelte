@@ -50,6 +50,8 @@
     const starred = $derived(!!p.starred[String(idx)]);
     const wrongPending = $derived(reveal || (answered !== undefined && !answered.correct));
     const revealedCls = $derived(reveal || answered !== undefined ? " wengu-word-revealed" : "");
+    // 客观题详情序（词条在上、反馈在下）：居中锚点挂词条而非反馈行
+    const detailFirst = $derived(answered !== undefined && !reveal ? " wengu-word-detail-first" : "");
     // 自述框出现条件：「记错了」已点 / 正面选了「忘记」（对应参考流三态）
     const confessPending = $derived(ui.mistakeClaimed || ui.selfGrade === "no");
 
@@ -65,7 +67,7 @@
 <!-- 推进类按钮（下一个/档位）点完同步换卡后、同一次点击仍会冒泡到卡根把新卡误翻面——交互元素不触发翻面 -->
 <!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_noninteractive_tabindex,a11y_no_static_element_interactions -->
 <div
-    class="wengu-word-card{revealedCls}"
+    class="wengu-word-card{revealedCls}{detailFirst}"
     tabindex="0"
     bind:this={cardEl}
     onclick={(e) => {
@@ -149,8 +151,9 @@
     {/snippet}
 
     {#if isPick}
-        <!-- 作答后直接切详情视图（20260827）：题面/选项不滞留，与回想翻面同构 -->
+        <!-- 作答后直接切详情视图（20260827）：词条在上，对错反馈/错选提示随后，与回想翻面同构 -->
         {#if answered}
+            {@render detail()}
             <div class="wengu-word-feedback">
                 {@html statusIcon(answered.correct ? "right" : "wrong")}
                 {answered.peek ? t("wordPeeked") : answered.correct ? t("wordCorrectPick") : t("wordWrongPick2")}
@@ -161,7 +164,6 @@
                     {WORD_BOOK.words[answered.pickFrom].m.split("\n")[0]}
                 </div>
             {/if}
-            {@render detail()}
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
                 <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
@@ -207,11 +209,11 @@
         {/if}
     {:else if mode === "spell"}
         {#if answered}
+            {@render detail()}
             <div class="wengu-word-feedback">
                 {@html statusIcon(answered.correct ? "right" : "wrong")}
                 {answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), { w: entry.w })}
             </div>
-            {@render detail()}
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
                 <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
