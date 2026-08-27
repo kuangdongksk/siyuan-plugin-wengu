@@ -52,6 +52,8 @@
     const revealedCls = $derived(reveal || answered !== undefined ? " wengu-word-revealed" : "");
     // 客观题详情序（词条在上、反馈在下）：居中锚点挂词条而非反馈行
     const detailFirst = $derived(answered !== undefined && !reveal ? " wengu-word-detail-first" : "");
+    // 新词梯进度点（仿不背单词词尾四点）：非梯内词为 undefined 不渲染
+    const ladder = $derived(view.ladderOf(idx));
     // 自述框出现条件：「记错了」已点 / 正面选了「忘记」（对应参考流三态）
     const confessPending = $derived(ui.mistakeClaimed || ui.selfGrade === "no");
 
@@ -62,6 +64,16 @@
         return " is-dim";
     }
 </script>
+
+{#snippet ladderDots()}
+    {#if ladder}
+        <span class="wengu-word-ladder" aria-hidden="true">
+            {#each { length: ladder.total } as _, di (di)}
+                <i class:is-done={di < ladder.done} class:is-cur={di === ladder.done}></i>
+            {/each}
+        </span>
+    {/if}
+{/snippet}
 
 <!-- 键盘可达性由根容器统一分发（空格=翻面），卡片 div 只承接点击翻面与焦点 -->
 <!-- 推进类按钮（下一个/档位）点完同步换卡后、同一次点击仍会冒泡到卡根把新卡误翻面——交互元素不触发翻面 -->
@@ -115,6 +127,7 @@
         <div class="wengu-word-detail">
             <div class="wengu-word-detail-word">
                 {entry.w}
+                {@render ladderDots()}
                 <button
                     class="wengu-iconbtn wengu-word-say"
                     title={t("wordSpeakTip")}
@@ -191,6 +204,7 @@
             {:else}
                 <div class={mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh"}>
                     {mode === "choiceEn" ? entry.w : meaningLine(idx)}
+                    {@render ladderDots()}
                 </div>
             {/if}
             <div class="wengu-word-hint">{t("wordPickHint")}</div>
@@ -271,6 +285,7 @@
         <!-- 回想正面：直接选档（选完翻面看详情），点卡/空格仍可静默翻面 -->
         <div class={mode === "recallEn" ? "wengu-word-text" : "wengu-word-zh"}>
             {mode === "recallEn" ? entry.w : meaningLine(idx)}
+            {@render ladderDots()}
         </div>
         <div class="wengu-word-hint">{t("wordRecallHint")}</div>
         <div class="wengu-word-actions wengu-word-grades">

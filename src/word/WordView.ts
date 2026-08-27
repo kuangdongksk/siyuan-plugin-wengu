@@ -337,6 +337,15 @@ export class WordView {
         speakWord(WORD_BOOK.words[this.currentIdx].w);
     }
 
+    /** 新词梯进度点（仿不背单词词尾四点）：不在梯内（已出师/复习词）
+     * 返回 undefined，UI 不渲染。 */
+    ladderOf(idx: number): { done: number; total: number } | undefined {
+        if (!this.sessionNew.has(idx)) return undefined;
+        const done = this.ladderDone.get(idx) ?? 0;
+        if (done >= NEW_LADDER.length) return undefined;
+        return { done, total: NEW_LADDER.length };
+    }
+
     grade(g: WordGrade): void {
         this.finishCard(g);
     }

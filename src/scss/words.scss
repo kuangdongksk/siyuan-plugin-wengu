@@ -330,3 +330,32 @@
 /* 详情态（作答/翻面）内容从头部自然下排——20260828 用户定稿：
    单词释义必须紧贴顶部；曾经试过的垂直居中已删（会在词与头部间
    留大块空白）；剩余空间自然聚在 sticky 按钮行上方 */
+
+/* 新词梯进度点（仿不背单词词尾四点）：已过步实心、当前步主色放大、
+   未到步浅灰；listen 步词面隐藏时随题面一起隐去 */
+.wengu-word-ladder {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.wengu-word-ladder i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--b3-border-color);
+}
+
+.wengu-word-ladder i.is-done {
+  background: var(--b3-theme-primary-lighter);
+}
+
+.wengu-word-ladder i.is-cur {
+  background: var(--b3-theme-primary);
+  transform: scale(1.35);
+}
+
+.wengu-word-detail-word .wengu-word-ladder {
+  align-self: center;
+}
