@@ -221,6 +221,11 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* 可点折叠箭头给手型（侧栏树/知识面板树共用） */
+.wengu-tree-toggle-btn {
+  cursor: pointer;
+}
+
 .wengu-tree-toggle svg {
   width: 12px;
   height: 12px;
