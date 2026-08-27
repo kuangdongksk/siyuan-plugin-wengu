@@ -1,32 +1,51 @@
 import { WordAiRunner, wordAiInput, type WordAiInput } from "../service/WordAi";
 import WORD_BOOK from "../service/WordBook";
-import { addPair, confOthers, groupsOf } from "../service/WordConfusables";
+import { addPair, confOthers } from "../service/WordConfusables";
 import { LookupConfCtl } from "../flow/WordLookup";
 import { redoHardFor } from "../flow/CardOps";
+import { bookLeftFor, pickNextFresh, settleFreshFor, startFreshFor, syncLadderFor } from "../flow/FreshFlow";
 import { flushGroupFor, settleGroupBoundary } from "../flow/GroupFlow";
 import { notifyWordDone, notifyWordGrade } from "../../companion";
+import {
+    enterLookupFor,
+    lookupFamiliarFor,
+    lookupInputFor,
+    lookupPickFor,
+    lookupStarFor,
+    noteInputFor,
+    resumeCardFor,
+} from "../flow/LookupOps";
+import {
+    applyStartFor,
+    cancelSetFor,
+    goFreshAnywayFor,
+    goFreshFor,
+    goHomeFor,
+    goReviewFor,
+    goStarFor,
+    setStartFor,
+    showStatsFor,
+} from "../flow/PageOps";
 import {
     checkOption,
     ladderMode,
     NEW_LADDER,
     pickMode,
-    pipelineLadder,
     remainingWordCount,
     spellMatches,
     type AnsweredState,
 } from "../flow/WordQuiz";
+import type { WinEntry } from "../flow/WindowSched";
+import { reviewWord } from "./WordFsrs";
 import { speakWord } from "../service/WordSpeak";
 import { WordStartCtl, makeStartCtl } from "../flow/WordStart";
 import {
-    applyGrade,
     buildQueue,
     markFamiliar,
     pushTiming,
-    rollToday,
     starredList,
     toggleStar,
     WordStore,
-    confKey,
     type WenguTimingRec,
     type WordGrade,
 } from "./WordStore";
@@ -36,23 +55,27 @@ import type { WordUi } from "./WordUi";
 /**
  * 单词复习控制器（Svelte 化改造）：会话状态机与全部语义动作在此，
  * 渲染交给 src/word/comp/ 下的 Svelte 组件（读 ui 深代理细粒度更新）。
- * 旧 WordActs 的 data-act 分发改为组件直调公开方法；WordBind 的
- * 键盘分发保留在同名模块。计时与组机制见 docs/word-timing.md
- * （计时只累计可见且非输入的时间，组完成异步触发 AI 复盘不阻塞）。
+ *
+ * 会话双轨（redesign §二/§三，20260828）：fresh=新学滚动窗口（freshWin/
+ * seq/cur，编排见 FreshFlow，决策见 WindowSched，进度持久 ladder）；
+ * review/star=到期/星标队列（queue+pos，答错隔卡重现）。计时与组机制
+ * 见 docs/word-timing.md（组边界 fresh 按毕业数、队列会话按卡数触发）。
  */
 export class WordView {
     readonly t: (key: string) => string;
     readonly store: WordStore;
     readonly ui: WordUi;
-    /** 本会话队列（扁平下标）。以下会话字段对 GroupFlow 友元开放。 */
+    /** 队列会话（review/star）的队列与位置（fresh 轨不走，恒空）。 */
     queue: number[] = [];
     pos = 0;
-    /** 本会话已作答过的词（新词首答后，重现走题型轮换）。 */
+    /** 滚动窗口轨（fresh）：在学词 → 步进/出镜/重来（FreshFlow 友元）。 */
+    freshWin = new Map<number, WinEntry>();
+    seq = 0;
+    cur = 0;
+    /** 本会话已作答过的词（队列轨重现词走题型轮换）。 */
     private learned = new Set<number>();
-    /** 构队时标记的新词（首次作答计入今日新词数）。 */
+    /** 构队时标记的新词（fresh=窗口在学词；队列轨恒空）。 */
     sessionNew = new Set<number>();
-    /** 新词梯进度（会话内已完成步数；仅「认识」收尾才前进）。 */
-    ladderDone = new Map<number, number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     hardList: number[] = [];
     readonly doneSet = new Set<number>();
@@ -66,8 +89,9 @@ export class WordView {
     private timer?: WordTimer;
     /** 本组作答画像（组完成时交 AI，一步继续不等待）。 */
     groupLog: WordAiInput[] = [];
+    /** fresh=毕业数 / 队列轨=卡数（AI 组边界与完成屏口径）。 */
     finishCount = 0;
-    /** AI 复盘已落盘待消费（下个组边界重排队列余量）。 */
+    /** AI 复盘已落盘待消费（队列轨组边界重排余量用）。 */
     aiDirty = false;
     /** 查词详情的易混笔记控制器。 */
     readonly confCtl: LookupConfCtl;
@@ -104,27 +128,19 @@ export class WordView {
     }
 
     get currentIdx(): number {
-        return this.queue[this.pos] ?? 0;
+        return this.ui.queueKind === "fresh" ? this.cur : (this.queue[this.pos] ?? 0);
     }
 
-    /** 隔夜翻转（进入 home/stats/组队等边界时调用，对齐旧 paint 首行行为）。 */
-    private roll(): void {
-        if (this.ui.progress) rollToday(this.ui.progress);
-    }
-
-    /** 按入口建队列：review=到期复习 / fresh=新学（四步梯流水线） / star=星标。 */
+    /** 按入口建会话：review=到期复习 / fresh=新学滚动窗口 / star=星标。 */
     rebuildQueue(kind: "review" | "fresh" | "star"): void {
-        const p = this.ui.progress;
-        if (!p) return;
-        if (kind === "star") {
-            this.queue = starredList(p);
-            this.sessionNew = new Set<number>();
-        } else {
-            const { review, fresh } = buildQueue(p);
-            this.queue = kind === "review" ? [...review] : pipelineLadder(fresh, () => NEW_LADDER.length);
-            this.sessionNew = kind === "review" ? new Set<number>() : new Set(fresh);
+        if (!this.ui.progress) return;
+        if (kind === "fresh") {
+            startFreshFor(this);
+            return;
         }
-        this.ladderDone.clear();
+        this.queue = kind === "star" ? starredList(this.ui.progress) : [...buildQueue(this.ui.progress).review];
+        this.sessionNew = new Set<number>();
+        this.freshWin = new Map();
         this.ui.queueKind = kind;
         this.pos = 0;
         this.hardList = [];
@@ -135,7 +151,7 @@ export class WordView {
         this.enterPrompt();
     }
 
-    /** 进入当前位置的卡：新词走四步梯按进度选型 / 已学词题型轮换；
+    /** 进入当前卡的题面：fresh 按窗口步数选梯型 / 队列轨题型轮换、
      * 队列外首见（review 入口）回想开始。（CardOps 友元可达） */
     enterPrompt(): void {
         this.ui.phase = "prompt";
@@ -149,12 +165,16 @@ export class WordView {
         const idx = this.currentIdx;
         this.ui.idx = idx;
         this.ui.confIds = confOthers(this.ui.progress!, idx);
-        this.ui.pos = this.pos;
-        this.ui.queueLen = this.queue.length;
-        this.ui.remainWords = remainingWordCount(this.queue, this.pos);
-        if (this.sessionNew.has(idx)) {
-            this.ui.cardMode = ladderMode(this.ladderDone.get(idx) ?? 0, idx, this.ui.confIds);
+        if (this.ui.queueKind === "fresh") {
+            this.ui.pos = 0;
+            this.ui.queueLen = 0;
+            this.ui.remainWords = bookLeftFor(this);
+            const e = this.freshWin.get(idx);
+            this.ui.cardMode = e ? ladderMode(e.step, idx, this.ui.confIds) : "recallEn";
         } else {
+            this.ui.pos = this.pos;
+            this.ui.queueLen = this.queue.length;
+            this.ui.remainWords = remainingWordCount(this.queue, this.pos);
             this.ui.cardMode = this.learned.has(idx) ? pickMode(this.ui.cardSeq, idx, this.ui.confIds) : "recallEn";
         }
         this.timer?.begin(this.ui.cardMode);
@@ -174,7 +194,8 @@ export class WordView {
         this.ui.answered = a;
     }
 
-    /** 收尾：应用档位并进下一张；答错的词隔 3 张重现直到当场过关。 */
+    /** 收尾：批改并进下一张。fresh=滚动梯步进（know 前进、错即整梯
+     * 清零、④毕业进 FSRS）；队列轨=FSRS 复习步进 + 答错隔卡重现。 */
     finishCard(grade: WordGrade): void {
         const awaitingGrade = this.ui.phase === "result" || this.ui.answered;
         if (!awaitingGrade || this.busy || !this.ui.progress) return;
@@ -187,15 +208,11 @@ export class WordView {
         if (v || this.ui.mistakeClaimed) grade = "no";
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
-        // 新词梯前进判定（20260828 加严：仅「认识」进下一步，错一次整梯
-        // 归零从头再来）——归零词的后续出镜位数不足时按需补插（见
-        // advanceAfterFinish），插队位以 REINSERT_GAP 起隔卡散布
-        if (this.sessionNew.has(idx)) {
-            const done = grade === "know" ? (this.ladderDone.get(idx) ?? 0) + 1 : 0;
-            this.ladderDone.set(idx, done);
-            if (done >= NEW_LADDER.length) this.learned.add(idx);
+        if (this.ui.queueKind === "fresh" && this.freshWin.has(idx)) {
+            settleFreshFor(this, grade);
+        } else {
+            reviewWord(p, idx, grade);
         }
-        applyGrade(p, idx, grade, this.sessionNew.has(idx));
         if (v) p.mistakes[String(idx)].confused = v;
         // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
         const pf = this.ui.answered && !this.ui.answered.correct ? this.ui.answered.pickFrom : undefined;
@@ -212,13 +229,18 @@ export class WordView {
         this.advanceAfterFinish(grade, idx);
     }
 
-    /** 标「熟」收尾：退出复习循环，不进误认/重现。 */
+    /** 标「熟」收尾：退出复习循环，不进误认/重现（fresh 同样出窗毕业）。 */
     finishMastered(): void {
         const awaiting = this.ui.phase === "result" || this.ui.answered;
         if (!awaiting || this.busy || !this.ui.progress) return;
         this.busy = true;
         const idx = this.currentIdx;
-        markFamiliar(this.ui.progress, idx, this.sessionNew.has(idx));
+        const fresh = this.ui.queueKind === "fresh" && this.freshWin.has(idx);
+        markFamiliar(this.ui.progress!, idx, fresh);
+        if (fresh) {
+            this.freshWin.delete(idx);
+            this.finishCount++;
+        }
         this.advanceAfterFinish("know", idx);
     }
 
@@ -232,39 +254,37 @@ export class WordView {
     /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
     private advanceAfterFinish(grade: WordGrade, idx: number): void {
         const p = this.ui.progress!;
-        if (grade === "no") {
-            if (!this.hardList.includes(idx)) this.hardList.push(idx);
+        if (grade === "no" && !this.hardList.includes(idx)) this.hardList.push(idx);
+        if (this.ui.queueKind === "fresh") {
+            syncLadderFor(this);
+            void this.store.save(p);
+            this.doneSet.add(idx);
+            this.ui.cardSeq++;
+            this.ui.hardN = this.hardList.length;
+            settleGroupBoundary(this, p);
+            pickNextFresh(this);
+        } else {
             // 会话内重现：插到 3 张卡之后（到末尾则接着出）
-            if (!this.sessionNew.has(idx)) {
+            if (grade === "no") {
                 this.queue.splice(Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length), 0, idx);
             }
-        }
-        // 新词梯错即归零：静态流水线按「满 4 次」预排的后续位不够重走
-        // 全梯时，把缺口补插到 REINSERT_GAP 之后的邻域（连插=完整重来）
-        if (this.sessionNew.has(idx) && (this.ladderDone.get(idx) ?? 0) < NEW_LADDER.length) {
-            const rest = this.queue.slice(this.pos + 1).filter((i) => i === idx).length;
-            const need = NEW_LADDER.length - rest;
-            if (need > 0) {
-                const at = Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length);
-                this.queue.splice(at, 0, ...Array<number>(need).fill(idx));
+            void this.store.save(p);
+            this.doneSet.add(idx);
+            this.pos++;
+            this.ui.cardSeq++;
+            this.finishCount++;
+            this.ui.hardN = this.hardList.length;
+            settleGroupBoundary(this, p);
+            if (this.pos >= this.queue.length) {
+                this.ui.pos = this.pos;
+                this.ui.queueLen = this.queue.length;
+                this.ui.remainWords = remainingWordCount(this.queue, this.pos);
+                this.ui.mode = "done";
+                flushGroupFor(this);
+                notifyWordDone(this.hardList.length, this.finishCount);
+            } else {
+                this.enterPrompt();
             }
-        }
-        void this.store.save(p);
-        this.doneSet.add(idx);
-        this.pos++;
-        this.ui.cardSeq++;
-        this.finishCount++;
-        this.ui.hardN = this.hardList.length;
-        settleGroupBoundary(this, p);
-        if (this.pos >= this.queue.length) {
-            this.ui.pos = this.pos;
-            this.ui.queueLen = this.queue.length;
-            this.ui.remainWords = remainingWordCount(this.queue, this.pos);
-            this.ui.mode = "done";
-            flushGroupFor(this);
-            notifyWordDone(this.hardList.length, this.finishCount);
-        } else {
-            this.enterPrompt();
         }
         this.busy = false;
         this.syncAi();
@@ -301,13 +321,12 @@ export class WordView {
         speakWord(WORD_BOOK.words[this.currentIdx].w);
     }
 
-    /** 新词梯进度点（仿不背单词词尾四点）：不在梯内（已出师/复习词）
+    /** 新词梯进度点（仿不背单词词尾四点）：不在梯内（已毕业/队列轨）
      * 返回 undefined，UI 不渲染。 */
     ladderOf(idx: number): { done: number; total: number } | undefined {
-        if (!this.sessionNew.has(idx)) return undefined;
-        const done = this.ladderDone.get(idx) ?? 0;
-        if (done >= NEW_LADDER.length) return undefined;
-        return { done, total: NEW_LADDER.length };
+        const e = this.freshWin.get(idx);
+        if (this.ui.queueKind !== "fresh" || !e || e.step >= NEW_LADDER.length) return undefined;
+        return { done: e.step, total: NEW_LADDER.length };
     }
 
     grade(g: WordGrade): void {
@@ -365,95 +384,65 @@ export class WordView {
     }
 
     lookupInput(value: string): void {
-        this.ui.lookupQuery = value;
-        this.ui.lookupSel = undefined;
+        lookupInputFor(this, value);
     }
 
-    /** 笔记草稿输入（confnote=组辨析 / wordnote=词级，不重绘）。 */
     noteInput(field: string, value: string): void {
-        if (field === "confnote") this.confCtl.draft = value;
-        else this.confCtl.wordDraft = value;
+        noteInputFor(this, field, value);
     }
 
-    // ---------- 页面动作（旧 WordActs 的 data-act 分发改直调） ----------
+    // ---------- 页面动作（实现在 flow/PageOps，组件经薄委托调） ----------
 
     goReview(): void {
-        this.roll();
-        this.ui.mode = "card";
-        this.rebuildQueue("review");
+        goReviewFor(this);
     }
 
     goFresh(): void {
-        this.roll();
-        const { review } = buildQueue(this.ui.progress!);
-        if (review.length > 0) {
-            this.ui.mode = "askreview"; // 有到期复习 → 先弹「先复习」
-        } else {
-            this.ui.mode = "card";
-            this.rebuildQueue("fresh");
-        }
+        goFreshFor(this);
     }
 
     goFreshAnyway(): void {
-        this.ui.mode = "card";
-        this.rebuildQueue("fresh");
+        goFreshAnywayFor(this);
     }
 
     goStar(): void {
-        this.roll();
-        this.ui.mode = "card";
-        this.rebuildQueue("star");
+        goStarFor(this);
     }
 
     showStats(): void {
-        this.roll();
-        this.ui.mode = "stats";
-        this.syncAi();
+        showStatsFor(this);
     }
 
     goHome(): void {
-        this.roll();
-        this.ui.mode = "home";
-        this.syncAi();
+        goHomeFor(this);
     }
 
     setStart(): void {
-        this.ui.mode = "setstart";
+        setStartFor(this);
     }
 
     applyStart(): void {
-        this.startCtl().apply();
-        this.ui.mode = "home";
-        this.syncAi();
+        applyStartFor(this);
     }
 
     cancelSet(): void {
-        this.ui.mode = "home";
+        cancelSetFor(this);
     }
 
     enterLookup(): void {
-        this.ui.lookupSel = undefined;
-        this.ui.fromCard = this.ui.mode === "card";
-        this.ui.mode = "lookup";
+        enterLookupFor(this);
     }
 
     lookupPick(idx: number): void {
-        const p = this.ui.progress!;
-        const g = groupsOf(p, idx)[0];
-        this.confCtl.draft = g ? (p.confNotes?.[confKey(g.ids)] ?? "") : "";
-        this.confCtl.wordDraft = p.notes?.[String(idx)] ?? "";
-        this.ui.lookupSel = idx;
+        lookupPickFor(this, idx);
     }
 
     lookupStar(idx: number): void {
-        toggleStar(this.ui.progress!, idx);
-        void this.store.save(this.ui.progress!);
+        lookupStarFor(this, idx);
     }
 
     lookupFamiliar(idx: number): void {
-        markFamiliar(this.ui.progress!, idx, false);
-        void this.store.save(this.ui.progress!);
-        this.syncAi();
+        lookupFamiliarFor(this, idx);
     }
 
     aiAnalyze(): void {
@@ -471,7 +460,7 @@ export class WordView {
     }
 
     resumeCard(): void {
-        this.ui.mode = "card";
+        resumeCardFor(this);
     }
 
     confAsk(idx: number): void {
@@ -489,6 +478,14 @@ export class WordView {
     setGroupSize(n: number): void {
         if (n >= 5 && n <= 20 && this.ui.progress) {
             this.ui.progress.groupSize = n;
+            void this.store.save(this.ui.progress);
+        }
+    }
+
+    /** 新学窗口容量（3~10，redesign §二.3；下一张选卡即生效）。 */
+    setWindowCap(n: number): void {
+        if (n >= 3 && n <= 10 && this.ui.progress) {
+            this.ui.progress.windowCap = n;
             void this.store.save(this.ui.progress);
         }
     }

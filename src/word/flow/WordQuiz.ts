@@ -45,23 +45,6 @@ export function ladderMode(done: number, idx: number, confIds: readonly number[]
     return m;
 }
 
-/** 新词流水线：组宽 ≤4（20260827 定稿「四个词分别占四个阶段」），
- * 同组词按轮转出镜、每轮整体推进一梯——任意时刻相邻四张卡是四个
- * 不同词。每词出镜 remain(idx) 次（初始全为 4 步；AI 组边界重排时按
- * 梯进度折算剩余次数）。不足四个自动成小组——「没有会慢慢安排」。 */
-export function pipelineLadder(fresh: readonly number[], remain: (idx: number) => number): number[] {
-    const out: number[] = [];
-    for (let b = 0; b < fresh.length; b += NEW_LADDER.length) {
-        const g = fresh.slice(b, b + NEW_LADDER.length);
-        for (let r = 0; r < NEW_LADDER.length; r++) {
-            for (const i of g) {
-                if (remain(i) > r) out.push(i);
-            }
-        }
-    }
-    return out;
-}
-
 /** 会话题型轮换：按 seq 取模；干扰项不足或空格/超长词降级到
  * 回想（confIds 须与本卡判定同源）。新词首题不走轮换（视图直接
  * 给 choiceEn 先测后学，错词重现才进轮换）。 */

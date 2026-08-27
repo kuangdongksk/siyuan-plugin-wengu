@@ -422,6 +422,8 @@
   "wordStLevel": "Level {n} · reviewing",
   "wordGroupSize": "Words per group",
   "wordGroupSizeDesc": "AI reviews each finished group and adjusts review scheduling (5-20)",
+  "wordWindowCap": "New-word window",
+  "wordWindowCapDesc": "Max words kept in rotation at once (3-10): graduate one, admit the next",
   "wordGroupOpt": "{n} words",
   "wordConfusePair": "Confusable",
   "wordConfuseAsk": "Copy prompt",

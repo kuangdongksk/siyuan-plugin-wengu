@@ -2,6 +2,7 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
+    import WORD_BOOK from "../service/WordBook";
     import { dueTomorrowCount } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
@@ -10,7 +11,8 @@
     import QuizCard from "./QuizCard.svelte";
     import WordHead from "./WordHead.svelte";
 
-    /** 刷卡屏：头部（今日统计+误认徽标+查词入口）+ AI 条 + 卡片 + 进度条。 */
+    /** 刷卡屏：头部（今日统计+误认徽标+查词入口）+ AI 条 + 卡片 + 进度条。
+     * 进度条双口径：fresh=全书进度（随毕业递增），队列轨=会话内进度。 */
     const view = getContext<WordView>(WORD_VIEW_CTX)!;
     const ui = view.ui;
     const t = view.t;
@@ -24,7 +26,13 @@
             d: String(dueTomorrowCount(p)),
         })
     );
-    const pct = $derived(ui.queueLen > 0 ? Math.round((ui.pos / ui.queueLen) * 100) : 0);
+    const pct = $derived(
+        ui.queueKind === "fresh"
+            ? Math.round(((WORD_BOOK.words.length - ui.remainWords) / WORD_BOOK.words.length) * 100)
+            : ui.queueLen > 0
+              ? Math.round((ui.pos / ui.queueLen) * 100)
+              : 0
+    );
 </script>
 
 <div class="wengu-word">

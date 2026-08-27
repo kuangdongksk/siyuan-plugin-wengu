@@ -1,7 +1,7 @@
 import { fmt } from "../../ui/shared";
 import WORD_BOOK from "../service/WordBook";
 import { groupsOf, setNote, askPrompt } from "../service/WordConfusables";
-import type { WenguWordProgress } from "../core/WordStore";
+import { pseudoLevelOf, type WenguWordProgress } from "../core/WordStore";
 
 /**
  * 查词支持层（WordView 拆件，Svelte 化后渲染在 comp/LookupScreen）：
@@ -26,13 +26,13 @@ export function searchWords(query: string): number[] {
     return [...starts, ...includes, ...meaning].slice(0, LIMIT);
 }
 
-/** 学习状态描述（详情行）。 */
+/** 学习状态描述（详情行；FSRS 稳定度折算伪档位展示）。 */
 export function statusLine(p: WenguWordProgress, idx: number, t: (k: string) => string): string {
     if (p.simple[String(idx)]) return t("wordStSimple");
     if (p.familiar[String(idx)]) return t("wordStFamiliar");
     const st = p.words[String(idx)];
     if (!st) return t("wordStNew");
-    return fmt(t("wordStLevel"), { n: String(st[0]) });
+    return fmt(t("wordStLevel"), { n: String(pseudoLevelOf(st.s)) });
 }
 
 /** 查词详情的易混笔记控制器（草稿跟踪 + 保存/复制提问）。

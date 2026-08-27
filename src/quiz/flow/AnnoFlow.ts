@@ -1,6 +1,7 @@
 import { searchWords } from "../../word/flow/WordLookup";
 import WORD_BOOK from "../../word/service/WordBook";
 import type { WenguWordProgress } from "../../word/core/WordStore";
+import { seedWord } from "../../word/core/WordFsrs";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc } from "../../ui/shared";
 
@@ -148,8 +149,7 @@ async function showWordPopup(raw: string, cb: AnnoCallbacks): Promise<void> {
             const store = cb.wordStore;
             if (!store) return;
             const p = await store.get();
-            if (!p.words[String(idx)]) p.words[String(idx)] = [1, Date.now()];
-            else p.words[String(idx)] = [p.words[String(idx)][0], Date.now()];
+            seedWord(p, idx, 1, 1); // 加入词本=按已学处理（明天首复）
             p.starred[String(idx)] = 1;
             await store.save(p);
             popup?.remove();

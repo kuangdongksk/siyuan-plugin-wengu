@@ -1,5 +1,6 @@
 import WORD_BOOK from "./WordBook";
 import { rollToday, todayKey, type WenguWordProgress } from "../core/WordStore";
+import { seedWord } from "../core/WordFsrs";
 
 /**
  * 不背单词进度导入（PDF 文字层 / txt）。
@@ -257,9 +258,9 @@ export async function runWordImport(
     if (hits.size === 0)
         return { hit: 0, miss: miss.length, missSample: miss.slice(0, 5), autoStatus, error: "noMatch" };
     applyStatus(p, hits, apply);
-    // cursor = 书序上第一个未学词
+    // cursor = 书序上第一个未学词（在学梯内的词不算未学）
     for (let i = 0; i < WORD_BOOK.words.length; i++) {
-        if (!p.words[String(i)]) {
+        if (!p.words[String(i)] && !p.ladder[String(i)]) {
             p.cursor = i;
             break;
         }
@@ -267,25 +268,26 @@ export async function runWordImport(
     return { hit: hits.size, miss: miss.length, missSample: miss.slice(0, 5), autoStatus };
 }
 
-/** 按状态写进度（不触碰误认本）。 */
+/** 按状态写进度（FSRS 种子态，redesign §三；不触碰误认本）。 */
 function applyStatus(p: WenguWordProgress, idxs: Set<number>, apply: WordImportStatus): void {
     const now = Date.now();
     for (const i of idxs) {
         const key = String(i);
         if (apply === "unlearned") {
             delete p.words[key];
+            delete p.ladder[key];
             delete p.simple[key];
             delete p.familiar[key];
         } else if (apply === "reviewing") {
-            p.words[key] = [2, now + 86400_000];
+            seedWord(p, i, 1, 1, now); // 旧档2≈1~2 天
             delete p.familiar[key];
             delete p.simple[key];
         } else if (apply === "done") {
-            p.words[key] = [5, now + 8 * 86400_000];
+            seedWord(p, i, 8, 8, now); // 旧档5=8 天
             delete p.familiar[key];
             delete p.simple[key];
         } else {
-            p.words[key] = [6, now + 32 * 86400_000];
+            seedWord(p, i, 32, 32, now); // 旧档6=32 天
             p.familiar[key] = 1;
         }
     }

@@ -32,9 +32,10 @@ export interface WordUi {
     idx: number;
     confIds: number[];
     cardSeq: number;
+    /** 队列会话（review/star）的位置/长度；fresh 恒 0（滚动窗口无队列）。 */
     pos: number;
     queueLen: number;
-    /** 队列剩余词数（去重——四步梯队列每词多位出镜，「剩」按词计不按步计）。 */
+    /** 「剩」：fresh=书级剩余未学（随毕业递减）/ 队列轨=会话剩余词数（去重）。 */
     remainWords: number;
     queueKind: "review" | "fresh" | "star";
     hardN: number;

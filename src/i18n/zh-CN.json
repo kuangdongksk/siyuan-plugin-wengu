@@ -422,6 +422,8 @@
   "wordStLevel": "档位 {n} · 复习中",
   "wordGroupSize": "每组单词数",
   "wordGroupSizeDesc": "每组完成后 AI 复盘作答表现并调整复习安排（5~20）",
+  "wordWindowCap": "新学窗口",
+  "wordWindowCapDesc": "同时在学的词数上限（3~10）：毕业一个补一个，循环渐进",
   "wordGroupOpt": "{n} 词",
   "wordConfusePair": "易混淆",
   "wordConfuseAsk": "复制提问",

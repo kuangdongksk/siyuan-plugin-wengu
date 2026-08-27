@@ -2,11 +2,11 @@
     import { getContext } from "svelte";
     import { fmt } from "../../ui/shared";
     import WORD_BOOK from "../service/WordBook";
-    import { groupSizeOf } from "../core/WordStore";
+    import { groupSizeOf, windowCapOf } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
 
-    /** 起点设置面板：每组单词数（即时生效）+ 不背单词进度导入。
+    /** 起点设置面板：每组单词数/新学窗口（即时生效）+ 不背单词进度导入。
      *  行样式沿 FormHtml 规范（config-group/config__item，见
      *  docs/design-review.md §〇），控件值走响应态。 */
     const view = getContext<WordView>(WORD_VIEW_CTX)!;
@@ -14,6 +14,7 @@
     const t = view.t;
     const p = $derived(ui.progress!);
     const gs = $derived(groupSizeOf(p));
+    const wc = $derived(windowCapOf(p));
     const hasProgress = $derived(p.cursor > 0 || Object.keys(p.words).length > 0);
 </script>
 
@@ -38,6 +39,23 @@
                         onchange={(e) => view.setGroupSize(Number(e.currentTarget.value))}
                     >
                         {#each [5, 10, 15, 20] as n}
+                            <option value={n}>{fmt(t("wordGroupOpt"), { n: String(n) })}</option>
+                        {/each}
+                    </select>
+                </div>
+                <div class="fn__flex b3-label config__item">
+                    <div class="fn__flex-1 fn__flex-center">
+                        {t("wordWindowCap")}
+                        <div class="b3-label__text">{t("wordWindowCapDesc")}</div>
+                    </div>
+                    <div class="fn__space"></div>
+                    <select
+                        class="b3-select fn__flex-center fn__size200"
+                        data-field="windowcap"
+                        value={wc}
+                        onchange={(e) => view.setWindowCap(Number(e.currentTarget.value))}
+                    >
+                        {#each [3, 4, 5, 6, 8, 10] as n}
                             <option value={n}>{fmt(t("wordGroupOpt"), { n: String(n) })}</option>
                         {/each}
                     </select>

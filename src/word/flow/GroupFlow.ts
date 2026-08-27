@@ -1,14 +1,17 @@
 import type { WenguWordProgress } from "../core/WordStore";
 import { groupSizeOf } from "../core/WordStore";
-import { NEW_LADDER } from "./WordQuiz";
 import { rebuildTail } from "../core/WordTiming";
 import type { WordView } from "../core/WordView";
 
 /**
  * 组机制编排（自 WordView.advanceAfterFinish 拆出，压 500 行红线）。
- * 友元函数直接读写 WordView 的会话字段（queue/pos/sessionNew 等对
- * 本模块开放可见性），语义与拆出前一致——组满交 AI 复盘、AI 落盘后
- * 本地重排余量、会话收尾冲不满的尾组。
+ * 友元函数直接读写 WordView 的会话字段，语义与拆出前一致——组满交
+ * AI 复盘、AI 落盘后本地重排余量、会话收尾冲不满的尾组。
+ *
+ * 触发口径按会话轨区分（redesign §二.3）：fresh=毕业数（每毕业
+ * groupSize 个词触发一次）、队列轨（review/star）=卡数。AI 落盘重排
+ * 只对队列轨有意义（fresh 的在学词不消费队列，FSRS 态变化由复习会话
+ * 自然吃到）。
  */
 
 /** 组边界收尾：每组满时把本组作答画像交 AI；上组 AI 已落盘则先重排队列余量。 */
@@ -16,14 +19,10 @@ export function settleGroupBoundary(v: WordView, p: WenguWordProgress): void {
     if (v.finishCount % groupSizeOf(p) !== 0) return;
     const batch = v.groupLog;
     v.groupLog = [];
-    if (v.aiDirty) {
+    if (v.aiDirty && v.ui.queueKind !== "fresh") {
         // AI 已落盘：本地即时重排余量，下一组吃到（不等待）
         v.aiDirty = false;
-        const r = rebuildTail(p, v.ui.queueKind, v.queue, v.pos, v.hardList, v.doneSet, v.sessionNew, (i) =>
-            v.sessionNew.has(i) ? Math.max(1, NEW_LADDER.length - (v.ladderDone.get(i) ?? 0)) : 1
-        );
-        v.queue = r.queue;
-        for (const i of r.newcomers) v.sessionNew.add(i);
+        v.queue = rebuildTail(p, v.ui.queueKind === "star" ? "star" : "review", v.queue, v.pos, v.hardList, v.doneSet);
     }
     void v.ai.runGroup(
         batch,

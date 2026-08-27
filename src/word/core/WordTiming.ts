@@ -1,5 +1,4 @@
 import { buildQueue, type WenguWordProgress } from "./WordStore";
-import { pipelineLadder } from "../flow/WordQuiz";
 
 /**
  * 作答计时与组边界调度（docs/word-timing.md 决策 2/3/6）。
@@ -101,48 +100,35 @@ export class WordTimer {
 
 /* ── 组边界：重排未消费队列（决策 3/6，本地算法即时，不等 AI） ── */
 
-/** 组边界重排队列余量：已刷过（doneSet）剔除、错词重现卡按
- * REINSERT_GAP 间隔散布进新 tail（贴队首会让同一词连出两张，
- * 20260824 真机踩坑）、其余按 buildQueue 书序重排——AI 已落盘的
- * due 变化由此吃到。star 队列原样返回。
- * remainOf：每词在余量中的出镜次数（新词梯按剩余步数折算，缺省 1），
- * fresh 分支经 pipelineLadder 保持四词错峰节奏。
- * newcomers：fresh 会话重排新进、尚未计入 sessionNew 的词。 */
+/** 组边界重排队列余量（队列轨 review/star 用；fresh 滚动窗口不消费
+ * 队列，不走这里）：已刷过（doneSet）剔除、错词重现卡按 REINSERT_GAP
+ * 间隔散布进新 tail（贴队首会让同一词连出两张，20260824 真机踩坑）、
+ * review 其余按到期书序重排——AI 已落盘的 due 变化由此吃到；star
+ * 队列原样返回。 */
 export const REINSERT_GAP = 3;
 
 export function rebuildTail(
     p: WenguWordProgress,
-    kind: "review" | "fresh" | "star",
+    kind: "review" | "star",
     queue: number[],
     pos: number,
     hardList: number[],
-    doneSet: Set<number>,
-    sessionNew: Set<number>,
-    remainOf: (idx: number) => number = () => 1
-): { queue: number[]; newcomers: number[] } {
-    if (kind === "star") return { queue, newcomers: [] };
+    doneSet: Set<number>
+): number[] {
+    if (kind === "star") return queue;
     const hardPending: number[] = [];
     for (const i of queue.slice(pos)) {
         if (hardList.includes(i) && !hardPending.includes(i)) hardPending.push(i);
     }
-    const { review, fresh } = buildQueue(p);
-    const src = kind === "review" ? review : fresh;
-    const pend: number[] = [];
-    const newcomers: number[] = [];
-    for (const i of src) {
-        if (doneSet.has(i) || hardPending.includes(i)) continue;
-        pend.push(i);
-        if (kind === "fresh" && !sessionNew.has(i)) newcomers.push(i);
-    }
-    const tail = kind === "fresh" ? pipelineLadder(pend, remainOf) : pend;
+    const pend = buildQueue(p).review.filter((i) => !doneSet.has(i) && !hardPending.includes(i));
     const merged: number[] = [];
     let h = 0;
-    for (const i of tail) {
+    for (const i of pend) {
         if (h < hardPending.length && merged.length >= (h + 1) * REINSERT_GAP) {
             merged.push(hardPending[h++]);
         }
         merged.push(i);
     }
     merged.push(...hardPending.slice(h));
-    return { queue: [...queue.slice(0, pos), ...merged], newcomers };
+    return [...queue.slice(0, pos), ...merged];
 }
