@@ -12,11 +12,11 @@
   padding-bottom: 48vh;
 }
 
-/* 题号竖列：跟随滚动吸顶，题多时自身可滚 */
+/* 题号竖列：跟随滚动吸顶（让位到吸顶头部之下，高度由 NumRail 实测写入），题多时自身可滚 */
 .wengu-nums {
   flex: none;
   position: sticky;
-  top: 0;
+  top: var(--wengu-head-h, 0);
   display: flex;
   flex-direction: column;
   align-items: center;

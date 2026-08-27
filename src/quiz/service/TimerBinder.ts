@@ -67,6 +67,9 @@ export class TimerBinder {
         this.int = window.setInterval(() => {
             const s = this.host.tickState();
             if (!s.started || this.host.timer.mode === "none") return;
+            // 页签被切走（fn__none）或窗口最小化时不计时：「累计刷题
+            // 用时」只反映真实面对题目的时间，挂后台的墙钟时间不计
+            if (document.hidden || this.host.el.getClientRects().length === 0) return;
             const justTimeUp = this.host.timer.tick();
             this.host.syncSession(this.host.timer.elapsed());
             if (justTimeUp) this.showTimeUpBar();

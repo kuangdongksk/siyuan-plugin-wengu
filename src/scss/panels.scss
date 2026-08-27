@@ -32,6 +32,21 @@
   margin-bottom: 8px;
 }
 
+/* 长卷滚动时统计/计时行常驻顶部（复习模式容器不滚动且无 padding、
+   工作区面板无头部，均不参与）：负 margin 抵消 .wengu-main 的 8px
+   padding 再自带同额内衬——吸顶行整宽不透明压住滚过的卡片，未吸顶
+   时布局与原先完全一致 */
+.wengu-main:not(.wengu-review-main):not(.wengu-ws-main) > .wengu-head:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: -8px -8px 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  background: var(--b3-theme-background);
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
 /* 计时标签：SVG 图标 + 文本 */
 .wengu-timer {
   display: inline-flex;

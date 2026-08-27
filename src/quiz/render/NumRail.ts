@@ -38,6 +38,10 @@ export function bindNumRail(
     }
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (!scroller) return;
+    // 头部吸顶后题号栏让位到头下：实测头部实际高度（窄窗折行会更高），
+    // 每次渲染后刷新到滚动容器上
+    const head = root.querySelector<HTMLElement>(".wengu-head");
+    if (head) scroller.style.setProperty("--wengu-head-h", `${head.offsetHeight + 8}px`);
     let pending = false;
     scroller.addEventListener(
         "scroll",
