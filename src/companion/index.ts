@@ -1,5 +1,4 @@
-import { mount, unmount } from "svelte";
-import WORD_BOOK from "../word/service/WordBook";
+import { wordLib } from "../word/service/WordLib";
 import type { WordGrade } from "../word/core/WordStore";
 import type { WenguQuestion } from "../types";
 import type { QuizView } from "../quiz";
@@ -11,15 +10,17 @@ import { plainOf, type ExplainCtx } from "./rules/Prompt";
 import { mountSvelteApp } from "../ui/mountApp";
 
 /**
- * 伴学看板娘域入口：单例控制器 + 双宿主挂载（刷题页签/单词 dock）+
- * 各域一行接入的事件构造帮手 + 学伴管理工作区面板的 Svelte 挂载编排。
+ * 伴学看板娘域入口：单例控制器 + 全局悬浮层（挂 body，fixed 可拖动，
+ * 20260828 用户定稿）+ 各域一行接入的事件构造帮手 + 学伴管理工作区
+ * 面板的 Svelte 挂载编排。
  *
- * 看板娘宿主沿用统计浮层的「重渲染重挂」舞步：刷题页签 renderList 会
- * innerHTML 全量覆盖（挂载层被断开），每次渲染后重调 attachCompanion
- * ——层还连在目标元素上则跳过，避免 Svelte 反复 mount；单词 dock 是
- * Svelte 树，由 WordApp.svelte 直接内嵌 CompanionApp，不走本挂载层。
- * 管理面板同受重灌影响：renderQuizShellFor 开头 detachCompanionPanel
- * 先卸，WorkspaceShell 再重挂（模式见 docs/svelte-migration.md）。
+ * 全局层随插件 onload/onunload 生灭，与页签渲染解耦——刷题页签
+ * renderList 随便 innerHTML 重灌都不影响它（旧双宿主「重渲染重挂」
+ * 舞步随之消灭）；单词 dock 的内嵌份已摘除（全局层全覆盖）。挂件
+ * 本体拖动换位（松手落盘、视口钳制），右键菜单可关闭（面板/设置
+ * 开关重开）。管理面板仍在页签内：renderQuizShellFor 开头
+ * detachCompanionPanel 先卸，WorkspaceShell 再重挂（模式见
+ * docs/svelte-migration.md）。
  */
 
 let ctlRef: CompanionCtl | undefined;
@@ -33,30 +34,19 @@ export function companionCtl(): CompanionCtl | undefined {
     return ctlRef;
 }
 
-export type CompanionHostKind = "quiz" | "word";
+let globalApp: ReturnType<typeof mountSvelteApp> | undefined;
 
-const mounted = new Map<CompanionHostKind, { layer: HTMLDivElement; stop: () => void }>();
-
-/** 把看板娘层挂到宿主元素右下角（enabled=false 时不挂/卸已有）。 */
-export function attachCompanion(el: HTMLElement, host: CompanionHostKind): void {
-    const prev = mounted.get(host);
-    if (ctlRef?.enabled() && prev && prev.layer.isConnected && prev.layer.parentElement === el) return;
-    detachCompanion(host);
-    if (!ctlRef || !ctlRef.enabled()) return;
-    const layer = document.createElement("div");
-    layer.className = "wengu-companion";
-    el.appendChild(layer);
-    const app = mount(CompanionApp, { target: layer });
-    mounted.set(host, { layer, stop: () => unmount(app) });
-    ctlRef.loadImages(); // 设置里换了图片目录时随重挂重探（word 内嵌路径由 acquireUi 兜）
+/** 全局悬浮层：组件根即 fixed 容器，mount 到 body（幂等）。 */
+export function mountCompanionGlobal(): void {
+    if (globalApp || !ctlRef) return;
+    globalApp = mountSvelteApp(CompanionApp, document.body);
+    ctlRef.loadImages();
 }
 
-export function detachCompanion(host: CompanionHostKind): void {
-    const m = mounted.get(host);
-    if (!m) return;
-    m.stop();
-    m.layer.remove();
-    mounted.delete(host);
+/** 卸全局层（插件 onunload）。 */
+export function unmountCompanionGlobal(): void {
+    globalApp?.unmount();
+    globalApp = undefined;
 }
 
 /* ── 学伴管理工作区面板（Svelte 四件套，模式见 docs/svelte-migration.md） ── */
@@ -72,6 +62,9 @@ export function mountCompanionPanel(v: QuizView, root: HTMLElement): void {
         settings,
         applySettings: () => v.applySettings(),
         reloadImages: () => ctlRef?.loadImages(),
+        onActiveChange: () => ctlRef?.reloadActive(),
+        onProfileRemoved: (id) => ctlRef?.dropChat(id),
+        onCompanionToggle: () => ctlRef?.syncEnabled(),
     };
     panelApp = mountSvelteApp(CompanionPanelApp, root, { t: v.t, deps });
 }
@@ -124,7 +117,7 @@ export function notifyWordGrade(
     grade: WordGrade,
     idx: number
 ): void {
-    const w = WORD_BOOK.words[idx];
+    const w = wordLib().curBook().words[idx];
     const wrong = v.ui.answered?.correct === false;
     const pf = wrong ? v.ui.answered?.pickFrom : undefined;
     let explain: ExplainCtx | undefined;
@@ -136,7 +129,10 @@ export function notifyWordGrade(
                 .split("\n")[0]
                 .trim()
                 .slice(0, 80),
-            confused: pf !== undefined && pf !== idx ? WORD_BOOK.words[pf]?.w : v.ui.confessedDraft.trim() || undefined,
+            confused:
+                pf !== undefined && pf !== idx
+                    ? wordLib().curBook().words[pf]?.w
+                    : v.ui.confessedDraft.trim() || undefined,
         };
     }
     notifyCompanion({ kind: "word-grade", grade, correct: v.ui.answered?.correct, hardN: v.hardList.length, explain });

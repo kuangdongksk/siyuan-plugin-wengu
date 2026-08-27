@@ -1,6 +1,6 @@
 import { searchWords } from "../../word/flow/WordLookup";
-import WORD_BOOK from "../../word/service/WordBook";
-import type { WenguWordProgress } from "../../word/core/WordStore";
+import { wordLib } from "../../word/service/WordLib";
+import { keyOf, type WenguWordProgress } from "../../word/core/WordStore";
 import { seedWord } from "../../word/core/WordFsrs";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc } from "../../ui/shared";
@@ -121,11 +121,12 @@ export function lemmaForms(raw: string): string[] {
 /** 词书检索：精确 > 前缀 > 归一形；返回扁平下标。 */
 export function lookupWord(raw: string): number {
     const direct = searchWords(raw.trim())[0];
-    if (direct !== undefined && WORD_BOOK.words[direct].w.toLowerCase() === raw.trim().toLowerCase()) return direct;
+    if (direct !== undefined && wordLib().curBook().words[direct].w.toLowerCase() === raw.trim().toLowerCase())
+        return direct;
     for (const form of lemmaForms(raw)) {
         const hits = searchWords(form);
         for (const h of hits) {
-            if (WORD_BOOK.words[h].w.toLowerCase() === form) return h;
+            if (wordLib().curBook().words[h].w.toLowerCase() === form) return h;
         }
         if (hits[0] !== undefined) return hits[0];
     }
@@ -141,7 +142,7 @@ async function showWordPopup(raw: string, cb: AnnoCallbacks): Promise<void> {
     if (idx < 0) {
         popup.innerHTML = `<div class="wengu-wordpop-row">${esc(cb.t("wordNotInBook").replace("{w}", raw))}</div>`;
     } else {
-        const e = WORD_BOOK.words[idx];
+        const e = wordLib().curBook().words[idx];
         popup.innerHTML = `<div class="wengu-wordpop-word">${esc(e.w)}</div>
       <div class="wengu-wordpop-meaning">${esc(e.m)}</div>
       <button class="b3-button b3-button--outline" data-word-add>${svgIcon("iconStar")} ${esc(cb.t("wordAdd"))}</button>`;
@@ -150,7 +151,7 @@ async function showWordPopup(raw: string, cb: AnnoCallbacks): Promise<void> {
             if (!store) return;
             const p = await store.get();
             seedWord(p, idx, 1, 1); // 加入词本=按已学处理（明天首复）
-            p.starred[String(idx)] = 1;
+            p.starred[keyOf(idx)] = 1;
             await store.save(p);
             popup?.remove();
             popup = undefined;

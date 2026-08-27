@@ -33,7 +33,9 @@
             {/each}
         {/if}
         {#if ui.chatBusy}
-            <div class="wengu-comp-msg wengu-comp-msg-ai">{ctl.t("companionThinking")}</div>
+            <div class="wengu-comp-msg wengu-comp-msg-ai">
+                {ctl.t("companionThinking").replace("{name}", ctl.profileName())}
+            </div>
         {/if}
     </div>
     {#if ui.explainKind}
@@ -44,7 +46,7 @@
     <div class="wengu-comp-input">
         <input
             class="b3-text-field"
-            placeholder={ctl.t("companionChatPlaceholder")}
+            placeholder={ctl.t("companionChatPlaceholder").replace("{name}", ctl.profileName())}
             bind:value={ui.draft}
             onkeydown={onKey}
             disabled={ui.chatBusy}

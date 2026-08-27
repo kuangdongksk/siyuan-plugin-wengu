@@ -11,15 +11,17 @@ import type { CompanionProfile } from "./CompanionCtl";
 
 /** 控制器写、组件读的响应态。 */
 export interface CompanionPanelUi {
-    /** 当前编辑中的配置 id（空串=内置团子）。 */
+    /** 当前编辑中的配置 id（物化后恒为有效条目 id）。 */
     activeId: string;
     /** 配置列表镜像（字段变更后整体重赋值触发列表重绘）。 */
     profiles: CompanionProfile[];
     /** 删除按钮已进入两击确认态（3s 自动复位，控制器持定时器）。 */
     delArmed: boolean;
+    /** 保存按钮反馈态（saveNow 置位，1.5s 自动复位）。 */
+    savedFlash: boolean;
 }
 
 /** 初始态（$state 包装在 CompanionPanelApp 内完成）。 */
 export function initialCompanionPanelUi(): CompanionPanelUi {
-    return { activeId: "", profiles: [], delArmed: false };
+    return { activeId: "", profiles: [], delArmed: false, savedFlash: false };
 }

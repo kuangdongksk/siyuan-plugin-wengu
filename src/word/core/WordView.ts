@@ -1,8 +1,9 @@
 import { WordAiRunner, wordAiInput, type WordAiInput } from "../service/WordAi";
-import WORD_BOOK from "../service/WordBook";
+import { wordLib } from "../service/WordLib";
 import { addPair, confOthers } from "../service/WordConfusables";
 import { LookupConfCtl } from "../flow/WordLookup";
 import { redoHardFor } from "../flow/CardOps";
+import { switchBookFor, removeBookFor, importBookFor } from "../flow/BookOps";
 import { bookLeftFor, pickNextFresh, settleFreshFor, startFreshFor, syncLadderFor } from "../flow/FreshFlow";
 import { flushGroupFor, settleGroupBoundary } from "../flow/GroupFlow";
 import { notifyWordDone, notifyWordGrade } from "../../companion";
@@ -29,7 +30,6 @@ import {
 import {
     checkOption,
     ladderMode,
-    NEW_LADDER,
     pickMode,
     remainingWordCount,
     spellMatches,
@@ -41,6 +41,7 @@ import { speakWord } from "../service/WordSpeak";
 import { WordStartCtl, makeStartCtl } from "../flow/WordStart";
 import {
     buildQueue,
+    keyOf,
     markFamiliar,
     pushTiming,
     starredList,
@@ -115,10 +116,15 @@ export class WordView {
     }
 
     async render(): Promise<void> {
+        // 词书房先就绪（首次启动落盘内置书），当前书镜像进响应态供组件读
+        const lib = wordLib();
+        await lib.ensure();
+        this.ui.book = lib.curBook();
+        this.ui.books = lib.listBooks();
         const p = await this.store.get();
         // 存进 ui 才会被 $state 深代理包裹（此后所有读写都走代理）
         this.ui.progress = p;
-        const started = p.cursor > 0 || Object.keys(p.words).length > 0;
+        const started = Object.keys(p.words).length > 0 || Object.keys(p.ladder).length > 0;
         this.ui.mode = started ? "home" : "setstart";
         this.syncAi();
     }
@@ -213,11 +219,14 @@ export class WordView {
         } else {
             reviewWord(p, idx, grade);
         }
-        if (v) p.mistakes[String(idx)].confused = v;
+        if (v) {
+            const mk = p.mistakes[keyOf(idx)];
+            if (mk) mk.confused = v;
+        }
         // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
         const pf = this.ui.answered && !this.ui.answered.correct ? this.ui.answered.pickFrom : undefined;
         if (v) addPair(p, idx, v, "evidence");
-        else if (pf !== undefined && pf !== idx) addPair(p, idx, WORD_BOOK.words[pf].w, "evidence");
+        else if (pf !== undefined && pf !== idx) addPair(p, idx, wordLib().curBook().words[pf].w, "evidence");
         if (this.curTiming) {
             this.curTiming.typed = this.spellTyped;
             pushTiming(p, idx, this.curTiming);
@@ -318,15 +327,7 @@ export class WordView {
 
     /** 念当前词（speechSynthesis，WordSpeak 模块；不可用环境静默）。 */
     playCurrentWord(): void {
-        speakWord(WORD_BOOK.words[this.currentIdx].w);
-    }
-
-    /** 新词梯进度点（仿不背单词词尾四点）：不在梯内（已毕业/队列轨）
-     * 返回 undefined，UI 不渲染。 */
-    ladderOf(idx: number): { done: number; total: number } | undefined {
-        const e = this.freshWin.get(idx);
-        if (this.ui.queueKind !== "fresh" || !e || e.step >= NEW_LADDER.length) return undefined;
-        return { done: e.step, total: NEW_LADDER.length };
+        speakWord(wordLib().curBook().words[this.currentIdx].w);
     }
 
     grade(g: WordGrade): void {
@@ -367,7 +368,9 @@ export class WordView {
     submitSpell(): void {
         if (this.ui.cardMode === "spell") {
             this.spellTyped = this.ui.spellLive.trim() || undefined;
-            this.applyAnswered({ correct: spellMatches(this.ui.spellLive, WORD_BOOK.words[this.currentIdx].w) });
+            this.applyAnswered({
+                correct: spellMatches(this.ui.spellLive, wordLib().curBook().words[this.currentIdx].w),
+            });
         }
     }
 
@@ -447,16 +450,13 @@ export class WordView {
 
     aiAnalyze(): void {
         const p = this.ui.progress;
-        if (p) {
-            void this.ai.run(
-                p,
-                () => this.store.save(p),
-                () => {
-                    this.ui.mode = "home";
-                },
-                () => this.syncAi()
-            );
-        }
+        if (!p) return;
+        void this.ai.run(
+            p,
+            () => this.store.save(p),
+            () => (this.ui.mode = "home"),
+            () => this.syncAi()
+        );
     }
 
     resumeCard(): void {
@@ -475,19 +475,18 @@ export class WordView {
         this.confCtl.saveNote(idx);
     }
 
-    setGroupSize(n: number): void {
-        if (n >= 5 && n <= 20 && this.ui.progress) {
-            this.ui.progress.groupSize = n;
-            void this.store.save(this.ui.progress);
-        }
+    /* ── 词书管理（多词书，redesign §五；操作在 flow/BookOps） ── */
+
+    switchBook(id: string): void {
+        void switchBookFor(this, id);
     }
 
-    /** 新学窗口容量（3~10，redesign §二.3；下一张选卡即生效）。 */
-    setWindowCap(n: number): void {
-        if (n >= 3 && n <= 10 && this.ui.progress) {
-            this.ui.progress.windowCap = n;
-            void this.store.save(this.ui.progress);
-        }
+    removeBook(id: string): void {
+        void removeBookFor(this, id);
+    }
+
+    importBook(file: File, input: HTMLInputElement): void {
+        void importBookFor(this, file, input);
     }
 
     /** 把 AI runner 的普通字段镜像进响应态（按钮/消息渲染读镜像）。 */

@@ -12,7 +12,9 @@
       rowsMap，**rowsAll/rowsMapAll 自动 LIMIT/OFFSET 分页——全量查询
       一律走它，别手写循环**）薄封装，迁自 sy-lively 构建工厂；
       2026-08-26 已把全仓 ~33 处散落内核调用收拢进来，SSE/putFile
-      multipart/forwardProxy 三类特殊通道例外）+ 题目契约属性常量
+      multipart/forwardProxy 三类特殊通道例外（工作区文件读写/删在
+      `files.ts`：getFile 裸内容/putFile multipart/removeFile 信封，词书
+      等非块文件走它））+ 题目契约属性常量
       `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
     - `src/ai/`——**AI 基础设施域**（2026-08-27 从 convert/AgentClient
       抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` 三通道
@@ -28,7 +30,11 @@
       在 `WordView.ts`，**UI 是 Svelte 组件**（`word/comp/`，2026-08-26
       起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
       Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess；
-      词库数据在 `word/data/`）、
+      词库数据在 `word/data/`；**多词书**（2026-08-28 redesign §五）：
+      词书=`data/wengu/wordbooks/{id}.json`+manifest（service/WordLib，
+      内置书首启动落盘与导入同权），**进度 key=归一化词头**（schema v3，
+      同词跨书共享；v2 下标 key 由 core/WordMigrate 一次性迁移）、队列
+      统计一律当前书口径）、
       `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题标题含
       「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath
       规范化、CollectionPanel buildColTree 树形展示）；知识文档可手动
@@ -36,10 +42,13 @@
       KnowledgePanel 合并推导行与导入行）；专题/知识文档管理面板
       CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
       `src/companion/`
-      （伴学看板娘「团子」：规则层表情+台词/AI 增强与聊天走智能体
+      （伴学看板娘「小书童」：规则层表情+台词/AI 增强与聊天走智能体
       agentChatOnce 独立会话并发，双宿主=刷题页签挂载层+单词 dock
       内嵌，各域收口一行 `notify*` 接入事件，管理工作区面板已 Svelte
-      四件套化（2026-08-27，comp/CompanionPanelApp））、
+      四件套化（2026-08-27，comp/CompanionPanelApp）；聊天历史按学伴
+      id 分份持久 saveData("companion-chat")，core/ChatStore 串行写；
+      默认学伴物化为 id=default 的正式条目——可删可改与自定义同权，
+      列表至少保留一个）、
       `src/ui/`
       （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具/Svelte 迁移
       公共积木：`mountApp.ts` 挂载帮手 + `FormRow.svelte` 表单行）。

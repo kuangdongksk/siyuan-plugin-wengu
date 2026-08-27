@@ -1,5 +1,5 @@
-import WORD_BOOK from "./WordBook";
-import { rollToday, todayKey, type WenguWordProgress } from "../core/WordStore";
+import { wordLib, type WordLib } from "./WordLib";
+import { keyOf, rollToday, todayKey, type WenguWordProgress } from "../core/WordStore";
 import { seedWord } from "../core/WordFsrs";
 
 /**
@@ -176,20 +176,20 @@ function extractWords(text: string): string[] {
     return words;
 }
 
-/** 词书字母桶索引（懒建，模糊匹配用）。 */
-let letterBuckets: Map<string, { i: number; w: string }[]> | undefined;
-function buildBuckets(): Map<string, { i: number; w: string }[]> {
-    const lb = new Map<string, { i: number; w: string }[]>();
-    WORD_BOOK.words.forEach((e, i) => {
-        const k = e.w[0].toLowerCase();
-        if (!lb.has(k)) lb.set(k, []);
-        lb.get(k)!.push({ i, w: e.w.toLowerCase() });
-    });
-    return lb;
-}
-function bucketOf(w: string): { i: number; w: string }[] {
-    letterBuckets ??= buildBuckets();
-    return letterBuckets!.get(w[0]) ?? [];
+/** 词书字母桶索引（按当前书懒建，随换书失效；模糊匹配用）。 */
+let letterBuckets: { stamp: number; map: Map<string, { i: number; w: string }[]> } | undefined;
+function bucketOf(lib: WordLib, w: string): { i: number; w: string }[] {
+    const stamp = lib.bookStamp();
+    if (!letterBuckets || letterBuckets.stamp !== stamp) {
+        const lb = new Map<string, { i: number; w: string }[]>();
+        lib.curBook().words.forEach((e, i) => {
+            const k = e.w[0].toLowerCase();
+            if (!lb.has(k)) lb.set(k, []);
+            lb.get(k)!.push({ i, w: e.w.toLowerCase() });
+        });
+        letterBuckets = { stamp, map: lb };
+    }
+    return letterBuckets.map.get(w[0]) ?? [];
 }
 
 function lev1(a: string, b: string): boolean {
@@ -243,14 +243,15 @@ export async function runWordImport(
         }
     }
     const apply = status === "auto" ? (autoStatus ?? "unlearned") : status;
-    // 匹配词书（精确优先，lev≤1 兜底）
+    // 匹配词书（精确优先，lev≤1 兜底；按当前书）
+    const lib = wordLib();
     const hits = new Set<number>();
     const miss: string[] = [];
     for (const w of extractWords(text)) {
         const lw = w.toLowerCase();
-        let idx = WORD_BOOK.words.findIndex((e) => e.w.toLowerCase() === lw);
+        let idx = lib.curBook().words.findIndex((e) => e.w.toLowerCase() === lw);
         if (idx < 0) {
-            idx = bucketOf(lw).find((b) => lev1(b.w, lw))?.i ?? -1;
+            idx = bucketOf(lib, lw).find((b) => lev1(b.w, lw))?.i ?? -1;
         }
         if (idx >= 0) hits.add(idx);
         else if (miss.length < 50) miss.push(w);
@@ -258,13 +259,6 @@ export async function runWordImport(
     if (hits.size === 0)
         return { hit: 0, miss: miss.length, missSample: miss.slice(0, 5), autoStatus, error: "noMatch" };
     applyStatus(p, hits, apply);
-    // cursor = 书序上第一个未学词（在学梯内的词不算未学）
-    for (let i = 0; i < WORD_BOOK.words.length; i++) {
-        if (!p.words[String(i)] && !p.ladder[String(i)]) {
-            p.cursor = i;
-            break;
-        }
-    }
     return { hit: hits.size, miss: miss.length, missSample: miss.slice(0, 5), autoStatus };
 }
 
@@ -272,7 +266,8 @@ export async function runWordImport(
 function applyStatus(p: WenguWordProgress, idxs: Set<number>, apply: WordImportStatus): void {
     const now = Date.now();
     for (const i of idxs) {
-        const key = String(i);
+        const key = keyOf(i);
+        if (!key) continue;
         if (apply === "unlearned") {
             delete p.words[key];
             delete p.ladder[key];

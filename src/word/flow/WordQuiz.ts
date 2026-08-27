@@ -1,4 +1,4 @@
-import WORD_BOOK from "../service/WordBook";
+import { wordLib } from "../service/WordLib";
 
 /**
  * 单词出题逻辑（WordView 的出题层，Svelte 化后只留纯函数）：
@@ -53,7 +53,7 @@ export function pickMode(seq: number, idx: number, confIds: readonly number[]): 
     if (mode === "choiceEn" && buildMeaningOptions(idx, confIds).length < 4) mode = "recallEn";
     else if (mode === "choiceZh" && buildWordOptions(idx, confIds).length < 4) mode = "recallZh";
     else if (mode === "spell") {
-        const w = WORD_BOOK.words[idx].w;
+        const w = wordLib().curBook().words[idx].w;
         if (w.includes(" ") || w.length > 14) mode = "recallZh";
     }
     return mode;
@@ -85,13 +85,15 @@ export interface AnsweredState {
 
 /** 释义首行（多行释义取第一行，选择题选项用）。 */
 export function meaningLine(idx: number): string {
-    const m = WORD_BOOK.words[idx]?.m ?? "";
+    const m = wordLib().curBook().words[idx]?.m ?? "";
     return m.split("\n")[0].trim();
 }
 
+/** 单元区间：干扰项池（同单元）；导入书无单元时回落全书。 */
 function unitRange(idx: number): { start: number; count: number } {
-    const u = WORD_BOOK.units.find((v) => idx >= v.start && idx < v.start + v.count) ?? WORD_BOOK.units[0];
-    return { start: u.start, count: u.count };
+    const bk = wordLib().curBook();
+    const u = bk.units?.find((v) => idx >= v.start && idx < v.start + v.count);
+    return u ? { start: u.start, count: u.count } : { start: 0, count: bk.words.length };
 }
 
 /** 稳定伪随机（按词下标作种子，同一词每次选项组合一致）。 */
@@ -133,10 +135,10 @@ export function buildMeaningOptions(idx: number, confIds: readonly number[] = []
 
 /** 看义选词：干扰 = 易混组词优先，同单元其它单词补足。 */
 export function buildWordOptions(idx: number, confIds: readonly number[] = []): WenguOpt[] {
-    const correct = WORD_BOOK.words[idx].w;
+    const correct = wordLib().curBook().words[idx].w;
     const pool: WenguOpt[] = [];
     const push = (i: number): void => {
-        const w = WORD_BOOK.words[i].w;
+        const w = wordLib().curBook().words[i].w;
         if (w && w !== correct && !pool.some((o) => o.text === w)) pool.push({ text: w, from: i });
     };
     for (const i of confIds) {
@@ -173,6 +175,6 @@ export function checkOption(
 ): AnsweredState | undefined {
     const choices = mode === "choiceZh" ? buildWordOptions(idx, confIds) : buildMeaningOptions(idx, confIds);
     if (choices[no] === undefined) return undefined;
-    const correct = mode === "choiceZh" ? WORD_BOOK.words[idx].w : meaningLine(idx);
+    const correct = mode === "choiceZh" ? wordLib().curBook().words[idx].w : meaningLine(idx);
     return { correct: choices[no].text === correct, pick: no, pickFrom: choices[no].from };
 }

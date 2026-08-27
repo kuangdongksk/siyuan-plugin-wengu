@@ -29,9 +29,9 @@ const u: UserProfile = {
 };
 
 describe("buildReactPrompt", () => {
-    it("包含人设描述、两层画像数字、事件句与两行协议", () => {
-        const p = buildReactPrompt("温柔鼓励的学伴，语气轻柔", "连错 3 题（刚又错了一道）", s, u);
-        expect(p).toContain("团子");
+    it("包含学伴名、人设描述、两层画像数字、事件句与两行协议", () => {
+        const p = buildReactPrompt("团子", "温柔鼓励的学伴，语气轻柔", "连错 3 题（刚又错了一道）", s, u);
+        expect(p).toContain("学伴「团子」");
         expect(p).toContain("温柔鼓励的学伴，语气轻柔");
         expect(p).toContain("843");
         expect(p).toContain("76%");
@@ -43,8 +43,14 @@ describe("buildReactPrompt", () => {
         expect(p).toContain("idle|happy|proud|cheer|think|sad|push|doze|surprise");
     });
 
+    it("自定义学伴名替换默认学伴", () => {
+        const p = buildReactPrompt("语文老师", "一位语文老师", "连错 3 题", s, u);
+        expect(p).toContain("学伴「语文老师」");
+        expect(p).not.toContain("团子");
+    });
+
     it("自定义人设（如「语文老师」）原样进入 prompt", () => {
-        const p = buildReactPrompt("一位语文老师，擅长古诗文与阅读理解，讲解时爱引用典故", "连错 3 题", s, u);
+        const p = buildReactPrompt("团子", "一位语文老师，擅长古诗文与阅读理解，讲解时爱引用典故", "连错 3 题", s, u);
         expect(p).toContain("一位语文老师，擅长古诗文与阅读理解");
     });
 });
@@ -82,15 +88,22 @@ describe("buildChatPrompt / buildExplainPrompt", () => {
     ];
 
     it("聊天 prompt 含画像、近期对话与用户输入", () => {
-        const p = buildChatPrompt("毒舌鞭策型学伴", s, u, history, undefined, "这章怎么学");
+        const p = buildChatPrompt("团子", "毒舌鞭策型学伴", s, u, history, undefined, "这章怎么学");
         expect(p).toContain("用户：今天状态不好");
         expect(p).toContain("团子：没事，慢慢来");
         expect(p).toContain("用户说：这章怎么学");
         expect(p).toContain("不超过120字");
     });
 
+    it("近期对话轮的学伴名跟随当前配置", () => {
+        const p = buildChatPrompt("阿圆", "温柔鼓励", s, u, history, undefined, "在吗");
+        expect(p).toContain("阿圆：没事，慢慢来");
+        expect(p).not.toContain("团子：");
+    });
+
     it("带错题上下文时拼入题面/作答/正确答案", () => {
         const p = buildChatPrompt(
+            "团子",
             "温柔鼓励",
             s,
             u,
@@ -104,7 +117,7 @@ describe("buildChatPrompt / buildExplainPrompt", () => {
     });
 
     it("讲解 prompt 含词头/释义/误认词与讲解要求", () => {
-        const p = buildExplainPrompt("温柔鼓励", u, {
+        const p = buildExplainPrompt("团子", "温柔鼓励", u, {
             kind: "word",
             word: "adapt",
             meaning: "v. 适应",

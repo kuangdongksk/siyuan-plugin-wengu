@@ -1,17 +1,23 @@
-import WORD_BOOK, { type WenguWordUnitMeta } from "../service/WordBook";
+import { BUILTIN_BOOK, type WenguWordUnitMeta } from "../service/WordBook";
+import { wordLib } from "../service/WordLib";
+import { migrateV2 } from "./WordMigrate";
 
 /**
- * 单词复习的词表与进度存储（schema v2，20260828 redesign §三）：
- * 排期层换 FSRS（每词 d/s/due，步进在 WordFsrs），新学滚动梯的在学
- * 进度持久化在 ladder（词→[step,errs]）。
+ * 单词复习的进度存储（schema v3，20260828 redesign §五）：**进度 key 从
+ * 书内扁平下标改为归一化词头**（小写、去空格/连字符/撇号，见
+ * WordBook.wordKey）——同词跨书共享进度；书本身的清单/切换在
+ * service/WordLib（工作区 data/wengu/wordbooks/）。排期层 FSRS（每词
+ * d/s/due，步进在 WordFsrs），新学滚动梯的在学进度持久化在 ladder。
  *
- * 词表数据是构建期内置的（src/wengu/data/words-p*.ts 分片，来源见
+ * 词表数据是构建期内置的（data/words-p*.ts 分片，来源见
  * docs/wordbook-lxy.md），不落思源文档块；复习进度走插件数据
  * （saveData("words")，workspace data/storage/petal/<plugin>/words.json），
- * 与 HistoryStore 同一套整文件读写思路。
+ * 与 HistoryStore 同一套整文件读写思路。队列/统计按**当前书**口径：
+ * 不在当前书的 key 跳过（keyIndex undefined），「下一个新词」从全书
+ * 扫描第一个无进度词（v2 的 cursor 字段随 key 词头化废除）。
  */
 
-/** 进度里一个词条的 FSRS 记忆状态（v2；步进见 WordFsrs）。 */
+/** 进度里一个词条的 FSRS 记忆状态（v3；步进见 WordFsrs）。 */
 export interface WenguWordFsrs {
     /** Difficulty 1~10（越大越难）。 */
     d: number;
@@ -51,45 +57,43 @@ export interface WenguTimingRec {
     typed?: string;
 }
 
-/** 易混组：一组互相易混的词（docs/confusable-words.md，不分形近/音近）。 */
+/** 易混组：一组互相易混的词（docs/confusable-words.md，不分形近/音近）。
+ *  ids 为归一化词头（跨书有效）；组内词不在当前书时展示侧跳过。 */
 export interface WenguConfusableGroup {
-    /** 组内词条（扁平下标升序；evidence 的 B 不在词书时可仅 1 个 + raw）。 */
-    ids: number[];
+    ids: string[];
     src: "preset" | "ai" | "evidence";
     /** 混淆对象不在词书时的原文（小写）。 */
     raw?: string;
 }
 
-/** 插件存储（saveData("words")）里的单词进度。 */
+/** 插件存储（saveData("words")）里的单词进度（key 一律归一化词头）。 */
 export interface WenguWordProgress {
-    version: 2;
-    /** 下一个新词的扁平下标（开词即前移）。 */
-    cursor: number;
-    /** 词条 FSRS 状态，key 为扁平下标字符串。 */
+    version: 3;
+    /** 词条 FSRS 状态。 */
     words: Record<string, WenguWordFsrs>;
-    /** 新学滚动梯的在学词（key → [已完成步数, 整梯重来次数]，存在即在窗口）。 */
+    /** 新学滚动梯的在学词（词头 → [已完成步数, 整梯重来次数]，存在即在窗口）。 */
     ladder: Record<string, [number, number]>;
     /** 逐词复习流水（为将来 FSRS 参数优化留料）。 */
     reviews: Record<string, WenguReviewRec[]>;
-    /** 误认词记录，key 为扁平下标字符串。 */
+    /** 误认词记录。 */
     mistakes: Record<string, WenguWordMistake>;
-    /** 「太简单」集合（不再进复习），key 为扁平下标字符串。 */
+    /** 「太简单」集合（不再进复习）。 */
     simple: Record<string, 1>;
-    /** 「熟」集合（用户判定已掌握，不再复习），key 为扁平下标字符串。 */
+    /** 「熟」集合（用户判定已掌握，不再复习）。 */
     familiar: Record<string, 1>;
-    /** 星标集合（重点词，可单独刷），key 为扁平下标字符串。 */
+    /** 星标集合（重点词，可单独刷）。 */
     starred: Record<string, 1>;
     /** 打卡日志：日期 key → [当日新学数, 当日复习数]。 */
     log: Record<string, [number, number]>;
     /** 今日打卡统计（跨天重置）。 */
     today: { key: string; newCount: number; revCount: number };
-    /** 每词最近作答计时（key 扁平下标，保留最近 5 条）。 */
+    /** 每词最近作答计时（保留最近 5 条）。 */
     timing?: Record<string, WenguTimingRec[]>;
     /** 实证/AI 判定的易混组（预置组在 data/confusables.ts，不在此）。 */
     confusables?: WenguConfusableGroup[];
-    /** 易混组辨析笔记（用户手写），key = 组 ids 升序逗号串。 */
+    /** 易混组辨析笔记（用户手写），key = 组 ids 排序逗号串。 */
     confNotes?: Record<string, string>;
-    /** 词级笔记（用户手写，任何词可写），key 为扁平下标字符串。 */
+    /** 词级笔记（用户手写，任何词可写）。 */
     notes?: Record<string, string>;
     /** 每组单词数（AI 复盘粒度，5~20）。 */
     groupSize?: number;
@@ -105,6 +109,18 @@ const DEFAULT_GROUP_SIZE = 10;
 /** 默认新学窗口容量。 */
 export const DEFAULT_WINDOW_CAP = 5;
 
+/* ── key 帮手（当前书口径；词头归一化在 WordBook.wordKey） ── */
+
+/** 当前书下标 → 词头 key（越界返回空串=永无进度，调用方安全）。 */
+export function keyOf(index: number): string {
+    return wordLib().keyOf(index);
+}
+
+/** 词头 key → 当前书下标（不在书内 undefined）。 */
+export function keyIndex(key: string): number | undefined {
+    return wordLib().keyIndex(key);
+}
+
 export function todayKey(ts = Date.now()): string {
     const d = new Date(ts);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -112,8 +128,7 @@ export function todayKey(ts = Date.now()): string {
 
 export function defaultProgress(): WenguWordProgress {
     return {
-        version: 2,
-        cursor: 0,
+        version: 3,
         words: {},
         ladder: {},
         reviews: {},
@@ -145,15 +160,16 @@ export function windowCapOf(p: WenguWordProgress): number {
 
 /** 记一条作答计时（每词保留最近 5 条）。 */
 export function pushTiming(p: WenguWordProgress, index: number, rec: WenguTimingRec): void {
-    const key = String(index);
+    const key = keyOf(index);
+    if (!key) return;
     const arr = p.timing![key] ?? [];
     arr.push(rec);
     p.timing![key] = arr.slice(-5);
 }
 
-/** 易混组笔记 key：ids 升序逗号串。 */
-export function confKey(ids: number[]): string {
-    return [...ids].sort((a, b) => a - b).join(",");
+/** 易混组笔记 key：ids 排序逗号串（字符串序，确定性）。 */
+export function confKey(ids: string[]): string {
+    return [...ids].sort().join(",");
 }
 
 /** 跨天翻转：面板隔夜不关也正确（paint/批改前调用，翻过返回 true）。 */
@@ -164,22 +180,26 @@ export function rollToday(progress: WenguWordProgress, now = Date.now()): boolea
     return true;
 }
 
-/** 组会话队列：到期复习词（书序）+ 剩余新词数（新学走滚动窗口，不在此）。 */
+/** 词是否已占用（有任一进度态——开词/在学/太简单/熟）。 */
+function claimed(p: WenguWordProgress, key: string): boolean {
+    return Boolean(p.words[key] || p.ladder[key] || p.simple[key] || p.familiar[key]);
+}
+
+/** 组会话队列：到期复习词（当前书书序）+ 剩余新词数（新学走滚动窗口，
+ * 不在此）。到期/剩余都只算当前书的词（跨书共享进度，他书词不串场）。 */
 export function buildQueue(progress: WenguWordProgress, now = Date.now()): { review: number[]; freshLeft: number } {
     const review: number[] = [];
     for (const key of Object.keys(progress.words)) {
         if (progress.simple[key] || progress.familiar[key]) continue;
-        if (progress.words[key].due <= now) review.push(Number(key));
+        const i = keyIndex(key);
+        if (i === undefined) continue;
+        if (progress.words[key].due <= now) review.push(i);
     }
     review.sort((a, b) => a - b);
-    let freshLeft = 0;
-    for (let i = progress.cursor; i < WORD_BOOK.words.length; i++) {
-        if (!progress.words[String(i)] && !progress.ladder[String(i)]) freshLeft++;
-    }
-    return { review, freshLeft };
+    return { review, freshLeft: bookLeftOf(progress) };
 }
 
-/** 明天要复习多少个：到期时间落在 (现在, 明天结束] 的词（随批改实时变）。 */
+/** 明天要复习多少个：到期时间落在 (现在, 明天结束] 的词（当前书口径）。 */
 export function dueTomorrowCount(progress: WenguWordProgress, now = Date.now()): number {
     const endToday = new Date(now);
     endToday.setHours(23, 59, 59, 999);
@@ -187,21 +207,30 @@ export function dueTomorrowCount(progress: WenguWordProgress, now = Date.now()):
     let count = 0;
     for (const key of Object.keys(progress.words)) {
         if (progress.simple[key] || progress.familiar[key]) continue;
+        if (keyIndex(key) === undefined) continue;
         const due = progress.words[key].due;
         if (due > now && due <= end) count++;
     }
     return count;
 }
 
-/** 书级剩余未学（头部「剩」的书口径，redesign §二.6）。 */
+/** 书级剩余未学（头部「剩」的书口径，redesign §二.6；按当前书词扫）。 */
 export function bookLeftOf(progress: WenguWordProgress): number {
-    const known = new Set([
-        ...Object.keys(progress.words),
-        ...Object.keys(progress.simple),
-        ...Object.keys(progress.familiar),
-        ...Object.keys(progress.ladder),
-    ]);
-    return Math.max(0, WORD_BOOK.words.length - known.size);
+    const book = wordLib().curBook();
+    let left = 0;
+    for (let i = 0; i < book.words.length; i++) {
+        if (!claimed(progress, wordLib().keyOf(i))) left++;
+    }
+    return left;
+}
+
+/** 下一个新词下标（全书第一个无进度词；无返回 undefined）。 */
+export function firstFresh(progress: WenguWordProgress): number | undefined {
+    const book = wordLib().curBook();
+    for (let i = 0; i < book.words.length; i++) {
+        if (!claimed(progress, wordLib().keyOf(i))) return i;
+    }
+    return undefined;
 }
 
 /** 稳定度 → 伪档位（1~6，统计/AI 展示口径沿用旧阶梯的天数带）。 */
@@ -209,10 +238,20 @@ export function pseudoLevelOf(s: number): number {
     return s >= 32 ? 6 : s >= 16 ? 5 : s >= 8 ? 4 : s >= 4 ? 3 : s >= 2 ? 2 : 1;
 }
 
+/** 误认本记账（答「忘记/记错了」时；count 累计、重答错清旧 AI 辨析——
+ * 自述由调用方随后回填）。76657bf FSRS 重写时曾误丢，20260828 恢复。 */
+export function markMistake(progress: WenguWordProgress, index: number, now = Date.now()): void {
+    const key = keyOf(index);
+    if (!key) return;
+    const m = progress.mistakes[key];
+    progress.mistakes[key] = { count: (m?.count ?? 0) + 1, lastTs: now };
+}
+
 /** 标「熟」：退出复习循环（同太简单），今日计数与打卡照记。 */
 export function markFamiliar(progress: WenguWordProgress, index: number, wasNew: boolean, now = Date.now()): void {
-    progress.familiar[String(index)] = 1;
-    delete progress.ladder[String(index)];
+    const key = keyOf(index);
+    progress.familiar[key] = 1;
+    delete progress.ladder[key];
     if (wasNew) progress.today.newCount++;
     else progress.today.revCount++;
     rollToday(progress, now);
@@ -221,7 +260,7 @@ export function markFamiliar(progress: WenguWordProgress, index: number, wasNew:
 
 /** 星标开关，返回切换后是否已星标。 */
 export function toggleStar(progress: WenguWordProgress, index: number): boolean {
-    const key = String(index);
+    const key = keyOf(index);
     if (progress.starred[key]) {
         delete progress.starred[key];
         return false;
@@ -230,17 +269,19 @@ export function toggleStar(progress: WenguWordProgress, index: number): boolean 
     return true;
 }
 
-/** 星标词清单（书序；在学梯内的词排除——归滚动窗口管）。 */
+/** 星标词清单（当前书书序；在学梯内的词排除——归滚动窗口管）。 */
 export function starredList(progress: WenguWordProgress): number[] {
-    return Object.keys(progress.starred)
-        .map(Number)
-        .filter((i) => !progress.ladder[String(i)])
-        .sort((a, b) => a - b);
+    const out: number[] = [];
+    for (const key of Object.keys(progress.starred)) {
+        const i = keyIndex(key);
+        if (i !== undefined && !progress.ladder[key]) out.push(i);
+    }
+    return out.sort((a, b) => a - b);
 }
 
 /* ── 统计 ── */
 
-/** 统计页数据（buildStats 一次遍历算齐）。 */
+/** 统计页数据（buildStats 一次遍历算齐；全部当前书口径）。 */
 export interface WenguWordStats {
     total: number;
     learned: number;
@@ -264,6 +305,7 @@ export interface WenguWordStats {
 /** 汇总统计：多天未开时到期积压全部落在「今天剩余」里，如实呈现。 */
 export function buildStats(progress: WenguWordProgress, now = Date.now()): WenguWordStats {
     rollToday(progress, now);
+    const total = wordLib().curBook().words.length;
     const dayEnd = (offset: number) => {
         const d = new Date(now);
         d.setHours(23, 59, 59, 999);
@@ -271,7 +313,11 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
     };
     const next7 = new Array(8).fill(0);
     let mastered = 0;
+    let learned = 0;
+    const inBook = (key: string): boolean => keyIndex(key) !== undefined;
     for (const key of Object.keys(progress.words)) {
+        if (!inBook(key)) continue;
+        learned++;
         if (progress.simple[key] || progress.familiar[key]) continue;
         const { s, due } = progress.words[key];
         if (pseudoLevelOf(s) >= 5) mastered++;
@@ -285,8 +331,10 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
             }
         }
     }
+    const countBook = (m: Record<string, unknown>): number => Object.keys(m).filter(inBook).length;
     let mistakesPending = 0;
     for (const key of Object.keys(progress.mistakes)) {
+        if (!inBook(key)) continue;
         if (!progress.mistakes[key].note) mistakesPending++;
     }
     // 连续打卡：从今天往回数；今天没记录则从昨天起算
@@ -297,16 +345,15 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
         if (progress.log[dayKey(i)]) streak++;
         else break;
     }
-    const learned = Object.keys(progress.words).length;
     return {
-        total: WORD_BOOK.words.length,
+        total,
         learned,
-        left: WORD_BOOK.words.length - learned,
+        left: total - learned,
         mastered,
-        simple: Object.keys(progress.simple).length,
-        familiar: Object.keys(progress.familiar).length,
-        starred: Object.keys(progress.starred).length,
-        mistakes: Object.keys(progress.mistakes).length,
+        simple: countBook(progress.simple),
+        familiar: countBook(progress.familiar),
+        starred: countBook(progress.starred),
+        mistakes: countBook(progress.mistakes),
         mistakesPending,
         todayNew: progress.today.newCount,
         todayRev: progress.today.revCount,
@@ -325,7 +372,7 @@ export function applyAiReview(
     now = Date.now()
 ): void {
     for (const it of items) {
-        const key = String(it.index);
+        const key = keyOf(it.index);
         if (it.tip) {
             const m = progress.mistakes[key];
             if (m) m.note = it.tip;
@@ -344,9 +391,11 @@ export function applyAiReview(
     }
 }
 
-/** 词条所属单元（边界表小，线性找即可）。 */
+/** 词条所属单元（边界表小，线性找即可；导入书无单元返回 undefined）。 */
 export function unitOf(index: number): WenguWordUnitMeta | undefined {
-    return WORD_BOOK.units.find((u) => index >= u.start && index < u.start + u.count);
+    return wordLib()
+        .curBook()
+        .units?.find((u) => index >= u.start && index < u.start + u.count);
 }
 
 /** 进度存取：整文件读写 + 内存缓存（同 HistoryStore 模式）。 */
@@ -363,10 +412,11 @@ export class WordStore {
         try {
             const data = (await this.loadRaw()) as unknown;
             const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
-            // v1→v2 迁移已在 20260828 落盘后移除（用户确认存量已保存）；
-            // 认不出 v2 的文件按新进度起步（version 字段留给将来的 v3
-            // 多词书词头化迁移用）
-            this.cache = ver === 2 ? (data as WenguWordProgress) : defaultProgress();
+            // v2→v3（key 下标→归一化词头）一次性迁移：内置书是 v2 时代唯一
+            // 词书，索引按内置书换算；v1 更早文件无存量、按新进度起步。
+            // 迁移代码待用户确认存量落盘 v3 后移除（同 v1→v2 先例）。
+            this.cache =
+                ver === 3 ? (data as WenguWordProgress) : ver === 2 ? migrateV2(data, BUILTIN_BOOK) : defaultProgress();
         } catch (_) {
             this.cache = defaultProgress();
         }
@@ -376,7 +426,7 @@ export class WordStore {
         return this.cache;
     }
 
-    /** 旧文件缺字段回填（v1 早期文件只写到 mistakes）。 */
+    /** 旧文件缺字段回填。 */
     private backfill(p: WenguWordProgress): void {
         if (!p.mistakes) p.mistakes = {};
         if (!p.simple) p.simple = {};

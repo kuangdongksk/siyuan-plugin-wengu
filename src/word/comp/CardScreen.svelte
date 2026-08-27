@@ -2,8 +2,8 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import WORD_BOOK from "../service/WordBook";
-    import { dueTomorrowCount } from "../core/WordStore";
+
+    import { dueTomorrowCount, keyOf } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiButton from "./AiButton.svelte";
@@ -17,7 +17,7 @@
     const ui = view.ui;
     const t = view.t;
     const p = $derived(ui.progress!);
-    const mistake = $derived(p.mistakes[String(ui.idx)]);
+    const mistake = $derived(p.mistakes[keyOf(ui.idx)]);
     const stats = $derived(
         fmt(t("wordTodayStats"), {
             a: String(p.today.newCount),
@@ -28,7 +28,7 @@
     );
     const pct = $derived(
         ui.queueKind === "fresh"
-            ? Math.round(((WORD_BOOK.words.length - ui.remainWords) / WORD_BOOK.words.length) * 100)
+            ? Math.round(((ui.book.words.length - ui.remainWords) / ui.book.words.length) * 100)
             : ui.queueLen > 0
               ? Math.round((ui.pos / ui.queueLen) * 100)
               : 0

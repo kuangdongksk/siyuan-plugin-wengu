@@ -1,7 +1,7 @@
 import { fmt } from "../../ui/shared";
-import WORD_BOOK from "../service/WordBook";
+import { wordLib } from "../service/WordLib";
 import { groupsOf, setNote, askPrompt } from "../service/WordConfusables";
-import { pseudoLevelOf, type WenguWordProgress } from "../core/WordStore";
+import { keyOf, pseudoLevelOf, type WenguWordProgress } from "../core/WordStore";
 
 /**
  * 查词支持层（WordView 拆件，Svelte 化后渲染在 comp/LookupScreen）：
@@ -17,20 +17,22 @@ export function searchWords(query: string): number[] {
     const starts: number[] = [];
     const includes: number[] = [];
     const meaning: number[] = [];
-    WORD_BOOK.words.forEach((e, i) => {
-        const w = e.w.toLowerCase();
-        if (w.startsWith(q)) starts.push(i);
-        else if (w.includes(q)) includes.push(i);
-        else if (!/^[a-z'\- ]+$/.test(q) && e.m.toLowerCase().includes(q)) meaning.push(i);
-    });
+    wordLib()
+        .curBook()
+        .words.forEach((e, i) => {
+            const w = e.w.toLowerCase();
+            if (w.startsWith(q)) starts.push(i);
+            else if (w.includes(q)) includes.push(i);
+            else if (!/^[a-z'\- ]+$/.test(q) && e.m.toLowerCase().includes(q)) meaning.push(i);
+        });
     return [...starts, ...includes, ...meaning].slice(0, LIMIT);
 }
 
 /** 学习状态描述（详情行；FSRS 稳定度折算伪档位展示）。 */
 export function statusLine(p: WenguWordProgress, idx: number, t: (k: string) => string): string {
-    if (p.simple[String(idx)]) return t("wordStSimple");
-    if (p.familiar[String(idx)]) return t("wordStFamiliar");
-    const st = p.words[String(idx)];
+    if (p.simple[keyOf(idx)]) return t("wordStSimple");
+    if (p.familiar[keyOf(idx)]) return t("wordStFamiliar");
+    const st = p.words[keyOf(idx)];
     if (!st) return t("wordStNew");
     return fmt(t("wordStLevel"), { n: String(pseudoLevelOf(st.s)) });
 }
@@ -53,7 +55,7 @@ export class LookupConfCtl {
     /** 保存词级笔记（任何词，词根/助记/例句）。 */
     saveWordNote(idx: number): void {
         const p = this.getProgress();
-        (p.notes ??= {})[String(idx)] = this.wordDraft.trim();
+        (p.notes ??= {})[keyOf(idx)] = this.wordDraft.trim();
         void this.save(p);
         this.refresh();
     }
@@ -72,7 +74,8 @@ export class LookupConfCtl {
     /** 复制「辨析 A/B」提示词（去外部 AI 或思源内部对话生成）。 */
     ask(idx: number): void {
         const g = groupsOf(this.getProgress(), idx)[0];
-        const other = g && g.ids.some((i) => i !== idx) ? WORD_BOOK.words[g.ids.find((i) => i !== idx)!].w : g?.raw;
+        const me = keyOf(idx);
+        const other = g && g.ids.some((k) => k !== me) ? g.ids.find((k) => k !== me)! : g?.raw;
         if (other) void navigator.clipboard?.writeText(askPrompt(idx, other));
     }
 }

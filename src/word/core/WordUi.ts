@@ -1,3 +1,5 @@
+import { BUILTIN_BOOK, type WenguWordBookData } from "../service/WordBook";
+import type { WordBookMeta } from "../service/WordLib";
 import type { AnsweredState, WordCardMode } from "../flow/WordQuiz";
 import type { WenguWordProgress, WordGrade } from "./WordStore";
 
@@ -28,6 +30,10 @@ export interface WordUi {
     mistakeClaimed: boolean;
     /** 进度（深代理：逻辑层就地改，模板直接读）。 */
     progress: WenguWordProgress | undefined;
+    /** 当前词书（多词书，redesign §五；render/切书时镜像，组件读它不引单例）。 */
+    book: WenguWordBookData;
+    /** 书单镜像（导入/删除后随 manifest 同步；头部选择器与起点面板读）。 */
+    books: WordBookMeta[];
     /** 当前卡镜像（队列本体在控制器，换卡时同步）。 */
     idx: number;
     confIds: number[];
@@ -65,6 +71,8 @@ export function initialWordUi(): WordUi {
         selfGrade: undefined,
         mistakeClaimed: false,
         progress: undefined,
+        book: BUILTIN_BOOK,
+        books: [],
         idx: 0,
         confIds: [],
         cardSeq: 0,

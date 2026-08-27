@@ -1,6 +1,5 @@
 <script lang="ts">
     import { onMount, setContext } from "svelte";
-    import CompanionApp from "../../companion/comp/CompanionApp.svelte";
     import { wordKeydown } from "../core/WordBind";
     import type { WordStore } from "../core/WordStore";
     import { WordView } from "../core/WordView";
@@ -29,6 +28,7 @@
 </script>
 
 <!-- 键盘热键统一在此分发（wordKeydown），非交互容器不需要 ARIA 角色 -->
+<!-- 看板娘走全局悬浮层（companion/index.mountCompanionGlobal），此处不嵌 -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="wengu-word-root" bind:this={rootEl} onkeydown={(ev) => wordKeydown(view, ev)}>
     {#if ui.progress}
@@ -46,5 +46,4 @@
             <CardScreen />
         {/if}
     {/if}
-    <CompanionApp host="word" />
 </div>

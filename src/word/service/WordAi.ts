@@ -3,9 +3,9 @@ import { defaultAgentModelId } from "../../ai/models";
 import { enqueueAi } from "../../ai/queue";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { fmt } from "../../ui/shared";
-import WORD_BOOK from "./WordBook";
+import { wordLib } from "./WordLib";
 import { addPair } from "./WordConfusables";
-import { applyAiReview, type WenguTimingRec, type WenguWordProgress } from "../core/WordStore";
+import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProgress } from "../core/WordStore";
 
 /**
  * AI 复盘（docs/word-timing.md）：误认词手动分析 + 组完成自动触发
@@ -60,8 +60,8 @@ export function wordAiInput(
     typed: string | undefined,
     confessed: string | undefined
 ): WordAiInput {
-    const entry = WORD_BOOK.words[idx];
-    const m = p.mistakes[String(idx)];
+    const entry = wordLib().curBook().words[idx];
+    const m = p.mistakes[keyOf(idx)];
     return {
         index: idx,
         w: entry.w,
@@ -161,15 +161,16 @@ export class WordAiRunner {
 
     constructor(private readonly t: (k: string) => string) {}
 
-    /** 手动分析的待办（误认本中无 note 的词）。 */
+    /** 手动分析的待办（误认本中无 note 的词，限当前书）。 */
     pending(p: WenguWordProgress): WordAiInput[] {
         const out: WordAiInput[] = [];
         for (const key of Object.keys(p.mistakes)) {
             const m = p.mistakes[key];
             if (m.note) continue;
-            const entry = WORD_BOOK.words[Number(key)];
+            const i = keyIndex(key);
+            const entry = i === undefined ? undefined : wordLib().curBook().words[i];
             if (entry) {
-                out.push({ index: Number(key), w: entry.w, m: entry.m, count: m.count, confused: m.confused });
+                out.push({ index: i, w: entry.w, m: entry.m, count: m.count, confused: m.confused });
             }
         }
         return out;

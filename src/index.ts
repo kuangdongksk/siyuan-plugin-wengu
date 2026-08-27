@@ -9,7 +9,8 @@ import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/data/WeaknessStore";
 import { WordStore } from "./word/core/WordStore";
 import { mountWordView, type WordView } from "./word";
-import { initCompanion } from "./companion";
+import { initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
+import { initWordLib } from "./word/service/WordLib";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -135,13 +136,23 @@ export default class WenguPlugin extends Plugin {
             delete rest.save;
             void this.saveData("settings", rest);
         };
-        // 看板娘学伴（双宿主：刷题页签挂载层 + 单词 dock 内嵌；事件由各域收口一行接入）
+        // 词书房（多词书，redesign §五）：内核文件通道，onload 先于任何
+        // 单词面板挂载初始化
+        initWordLib();
+        // 看板娘学伴（全局悬浮层挂 body，与页签渲染解耦；事件由各域收口
+        // 一行接入，20260828 定稿）
         initCompanion({
             i18n: this.i18n ?? {},
             settings: this.settings,
             history: this.history(),
             word: this.getWordStore(),
+            chat: {
+                loadRaw: () => this.loadData("companion-chat"),
+                saveRaw: (v) => this.saveData("companion-chat", v),
+            },
         });
+        // 全局悬浮层（挂 body）：onload 尾声挂，onunload 卸——重载不叠影
+        mountCompanionGlobal();
         // 插件图标：形状取自思源官方图标集（litheness 包 iconRiffCard /
         // iconLanguage 的原始 path），以自有稳定 id 注册——不依赖运行环境
         // sprite 是否收录该图标（iconLanguage 非核心图标，dock 里会渲染成
@@ -261,6 +272,11 @@ export default class WenguPlugin extends Plugin {
                 if (plugin && plugin.activeView === view) plugin.activeView = undefined;
             },
         });
+    }
+
+    /** 卸载：全局悬浮层挂 body 不随页签回收，必须显式卸（重载不叠影）。 */
+    onunload(): void {
+        unmountCompanionGlobal();
     }
 
     /** 单词进度存储单例（Dock 面板/兜底页签/刷题生词标记共用同一缓存）。 */

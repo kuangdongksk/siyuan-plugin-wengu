@@ -29,6 +29,87 @@
   font-size: 12px;
 }
 
+/* ── 书名副位与切书浮层（redesign §四/§五）── */
+.wengu-word-bookpick {
+  position: relative;
+  min-width: 0;
+}
+
+.wengu-word-bookbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 0;
+
+  &:hover {
+    color: var(--b3-theme-primary);
+  }
+}
+
+.wengu-word-bookname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wengu-word-bookcaret svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+}
+
+.wengu-word-bookmenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 220;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 4px 0;
+}
+
+.wengu-word-bookmenu .wengu-word-bookcount {
+  margin-left: auto;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  padding-left: 8px;
+  flex: none;
+}
+
+/* 起点面板词书行：书名收窄省略 + 词数小字 + 删除钮图标 14px */
+.wengu-word-form .wengu-word-bookname {
+  min-width: 0;
+}
+
+.wengu-word-form .wengu-word-bookcount {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  margin-left: 6px;
+  flex: none;
+}
+
+.wengu-word-del svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+}
+
+.wengu-word-booksub {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wengu-word-card {
   flex: 1;
   min-height: 0;

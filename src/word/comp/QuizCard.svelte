@@ -2,8 +2,10 @@
     import { getContext } from "svelte";
     import { statusIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import WORD_BOOK from "../service/WordBook";
+
     import { confusableHtml, wordNoteHtml } from "../service/WordConfusables";
+    import { keyOf } from "../core/WordStore";
+    import { ladderOf } from "../flow/FreshFlow";
     import { buildMeaningOptions, buildWordOptions, meaningLine, MODE_KEY } from "../flow/WordQuiz";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
@@ -36,7 +38,7 @@
 
     const p = $derived(ui.progress!);
     const idx = $derived(ui.idx);
-    const entry = $derived(WORD_BOOK.words[idx]);
+    const entry = $derived(ui.book.words[idx]);
     const mode = $derived(ui.cardMode);
     const reveal = $derived(ui.phase === "result");
     const answered = $derived(ui.answered);
@@ -46,14 +48,14 @@
         isPick ? (mode === "choiceZh" ? buildWordOptions(idx, ui.confIds) : buildMeaningOptions(idx, ui.confIds)) : []
     );
     const correctText = $derived(mode === "choiceZh" ? entry.w : meaningLine(idx));
-    const mistake = $derived(p.mistakes[String(idx)]);
-    const starred = $derived(!!p.starred[String(idx)]);
+    const mistake = $derived(p.mistakes[keyOf(idx)]);
+    const starred = $derived(!!p.starred[keyOf(idx)]);
     const wrongPending = $derived(reveal || (answered !== undefined && !answered.correct));
     const revealedCls = $derived(reveal || answered !== undefined ? " wengu-word-revealed" : "");
     // 客观题详情序（词条在上、反馈在下）：居中锚点挂词条而非反馈行
     const detailFirst = $derived(answered !== undefined && !reveal ? " wengu-word-detail-first" : "");
     // 新词梯进度点（仿不背单词词尾四点）：非梯内词为 undefined 不渲染
-    const ladder = $derived(view.ladderOf(idx));
+    const ladder = $derived(ladderOf(view, idx));
     // 自述框出现条件：「记错了」已点 / 正面选了「忘记」（对应参考流三态）
     const confessPending = $derived(ui.mistakeClaimed || ui.selfGrade === "no");
 
@@ -173,8 +175,8 @@
             </div>
             {#if !answered.correct && answered.pickFrom !== undefined && answered.pickFrom !== idx}
                 <div class="wengu-word-wrongpick">
-                    {t("wordWrongPickEntry")}：{WORD_BOOK.words[answered.pickFrom].w}
-                    {WORD_BOOK.words[answered.pickFrom].m.split("\n")[0]}
+                    {t("wordWrongPickEntry")}：{ui.book.words[answered.pickFrom].w}
+                    {ui.book.words[answered.pickFrom].m.split("\n")[0]}
                 </div>
             {/if}
             {@render resultTail()}

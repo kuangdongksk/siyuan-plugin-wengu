@@ -15,6 +15,8 @@ export interface CompanionChatMsg {
 
 /** 控制器/组件共享的响应态（控制器写、组件读）。 */
 export interface CompanionUi {
+    /** 学伴总开关镜像（settings 非响应，开关变化经 syncEnabled 刷新）。 */
+    enabled: boolean;
     /** 当前表情。 */
     expr: WenguExpr;
     /** 气泡台词（空=不显示气泡）。 */
@@ -29,13 +31,14 @@ export interface CompanionUi {
     draft: string;
     /** 「讲讲这题/这个词」chip 的可用性（最近一次错题来源）。 */
     explainKind: "quiz" | "word" | undefined;
-    /** 自定义形象命中表（表情→资源 URL；空=内置团子 SVG 模式）。 */
+    /** 自定义形象命中表（表情→资源 URL；空=内置形象 SVG 模式）。 */
     imgExpr: Partial<Record<WenguExpr, string>>;
 }
 
 /** 初始态（$state 包装在 CompanionApp 内完成）。 */
 export function initialCompanionUi(): CompanionUi {
     return {
+        enabled: true,
         expr: WenguExpr.Idle,
         line: "",
         lineTs: 0,

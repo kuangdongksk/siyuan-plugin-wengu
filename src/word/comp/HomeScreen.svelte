@@ -15,7 +15,7 @@
     const p = $derived(ui.progress!);
     const queues = $derived(buildQueue(p));
     const starN = $derived(starredList(p).length);
-    const empty = $derived(queues.review.length === 0 && queues.fresh.length === 0 && starN === 0);
+    const empty = $derived(queues.review.length === 0 && queues.freshLeft === 0 && starN === 0);
 </script>
 
 <div class="wengu-word">
@@ -46,11 +46,11 @@
                     >
                 </button>
             {/if}
-            {#if queues.fresh.length > 0}
+            {#if queues.freshLeft > 0}
                 <button class="wengu-word-entry" onclick={() => view.goFresh()}>
                     <span class="wengu-word-entry-title">{t("wordHomeFreshTitle")}</span>
                     <span class="wengu-word-entry-count"
-                        >{fmt(t("wordHomeFreshCount"), { n: String(queues.fresh.length) })}</span
+                        >{fmt(t("wordHomeFreshCount"), { n: String(queues.freshLeft) })}</span
                     >
                 </button>
             {/if}

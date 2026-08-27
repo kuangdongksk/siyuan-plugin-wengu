@@ -1,5 +1,13 @@
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card } from "ts-fsrs";
-import { rollToday, todayKey, type WenguWordFsrs, type WenguWordProgress, type WordGrade } from "./WordStore";
+import {
+    keyOf,
+    markMistake,
+    rollToday,
+    todayKey,
+    type WenguWordFsrs,
+    type WenguWordProgress,
+    type WordGrade,
+} from "./WordStore";
 
 /**
  * FSRS 调度封装（redesign §三，20260828 定稿）：ts-fsrs 默认参数起步，
@@ -66,20 +74,21 @@ function countInto(p: WenguWordProgress, isNew: boolean, now: number): void {
 
 /** 复习批改（复习/星标/重过会话的每卡收口）：评分步进 FSRS 并记流水。 */
 export function reviewWord(p: WenguWordProgress, index: number, grade: WordGrade, now = Date.now()): void {
-    const key = String(index);
+    const key = keyOf(index);
     const rt = ratingOf(grade);
     const prev = p.words[key];
     const card = prev ? cardOf(prev, now) : createEmptyCard(now);
     const next = SCHED.repeat(card, now)[rt].card;
     p.words[key] = stateOf(next);
     logReview(p, key, rt, prev?.lr ? Math.round(((now - prev.lr) / 86_400_000) * 100) / 100 : 0, now);
+    if (grade === "no") markMistake(p, index, now);
     countInto(p, false, now);
 }
 
 /** 滚动梯毕业（redesign §二.3→§三）：0 错→Good、错过→Hard、重来≥2→Again
  * 起步；同日计数按毕业算一次，ladder 项清除。 */
 export function graduateWord(p: WenguWordProgress, index: number, errs: number, now = Date.now()): void {
-    const key = String(index);
+    const key = keyOf(index);
     const rt: 1 | 2 | 3 = errs <= 0 ? Rating.Good : errs === 1 ? Rating.Hard : Rating.Again;
     p.words[key] = stateOf(SCHED.repeat(createEmptyCard(now), now)[rt].card);
     logReview(p, key, rt, 0, now);
@@ -87,14 +96,16 @@ export function graduateWord(p: WenguWordProgress, index: number, errs: number, 
     countInto(p, true, now);
 }
 
-/** 开词入窗（滚动梯「引入新词」）：ladder 记 [step,errs]，cursor 前移。 */
+/** 开词入窗（滚动梯「引入新词」）：ladder 记 [step,errs]（进度按词头
+ * 共享，下一新词由书序扫描决定，v2 cursor 字段已废除）。 */
 export function openWord(p: WenguWordProgress, index: number): void {
-    const key = String(index);
+    const key = keyOf(index);
+    if (!key) return;
     if (!p.ladder[key]) p.ladder[key] = [0, 0];
-    if (index >= p.cursor) p.cursor = index + 1;
 }
 
 /** 进度导入种子（WordImport：中难度、给定稳定度与到期天数）。 */
 export function seedWord(p: WenguWordProgress, index: number, s: number, dueDays: number, now = Date.now()): void {
-    p.words[String(index)] = { d: 5, s, due: now + dueDays * 86_400_000, r: 1, l: 0 };
+    const key = keyOf(index);
+    if (key) p.words[key] = { d: 5, s, due: now + dueDays * 86_400_000, r: 1, l: 0 };
 }

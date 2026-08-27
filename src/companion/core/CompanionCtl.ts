@@ -1,3 +1,4 @@
+import { Menu } from "siyuan";
 import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
@@ -5,6 +6,7 @@ import { buildQuizStats } from "../../stats/StatsService";
 import type { WenguWordProgress } from "../../word/core/WordStore";
 import { buildStats as buildWordStats } from "../../word/core/WordStore";
 import { WenguExpr } from "../rules/Expressions";
+import { enrichGapMs, PACE_WINDOW } from "../rules/Enrich";
 import { probeExprImages } from "../rules/Images";
 import { normalizePersona, pickLine, PERSONA_PROMPTS, type PersonaKey } from "../rules/Lines";
 import {
@@ -19,19 +21,19 @@ import {
     type UserProfile,
 } from "../rules/Prompt";
 import type { CompanionUi } from "./CompanionUi";
+import { CHAT_MAX_TURNS, ChatStore, DEFAULT_CHAT_KEY } from "./ChatStore";
 
 /**
- * 看板娘控制器：规则层（即时表情+兜底台词）+ AI 增强层（里程碑节点
- * 节流生成台词，失败静默保规则层）+ 聊天/错题讲解。
+ * 看板娘控制器：规则层（即时表情+兜底台词）+ AI 增强层（答题事件
+ * 按节奏自适应节流、批次完成必触发；失败静默保规则层）+ 聊天/错题讲解。
  *
  * AI 统一走 agentChatOnce（智能体一次性会话：独立 sessionID 天然
  * 并发，反应与聊天互不阻塞；每次仍可按学伴配置指定模型）。与文档
  * 转换（直答端点）无会话冲突；聊天层把内核错误气泡出来，反应层静默
- * 兜底规则台词。
+ * 兜底规则台词。聊天历史按学伴分份持久（ChatStore → saveData
+ * "companion-chat")，切换学伴即换历史，插件重载不丢上下文。
  */
 
-/** AI 增强的最小间隔（丢策略：不排队）。 */
-const ENRICH_MIN_GAP_MS = 45_000;
 /** 用户级画像快照缓存时长。 */
 const USER_TTL_MS = 5 * 60_000;
 /** 久无事件的打盹提示。 */
@@ -50,7 +52,7 @@ export interface CompanionProfile {
     name: string;
     /** 自定义人设 prompt（空=按人设预设；仅影响 AI 口吻，表情协议锁定）。 */
     prompt: string;
-    /** 形象图片目录（工作区相对路径；空=内置团子 SVG）。 */
+    /** 形象图片目录（工作区相对路径；空=内置形象 SVG）。 */
     imageDir: string;
     /** AI 模型（空=智能体默认）。 */
     modelId: string;
@@ -64,11 +66,21 @@ export interface CompanionDeps {
         companionPersona?: string;
         companionAi?: boolean;
         companionProfiles?: CompanionProfile[];
-        /** 当前生效配置 id（空=内置团子）。 */
+        /** 当前生效配置 id（空=默认学伴）。 */
         companionActiveId?: string;
+        /** 悬浮位置（px；undefined=默认右下角，拖动后落盘）。 */
+        companionX?: number;
+        companionY?: number;
+        /** 设置落盘回调（插件 onload 注入在共享 settings 上，这里补类型）。 */
+        save?: () => void;
     };
     history?: { allSessions(): Promise<WenguSession[]> };
     word?: { get(): Promise<WenguWordProgress> };
+    /** 聊天历史持久化通道（缺省=内存态，不落盘）。 */
+    chat?: {
+        loadRaw(): Promise<unknown>;
+        saveRaw(v: Record<string, ChatTurn[]>): Promise<unknown>;
+    };
 }
 
 /** 本地日期 key（今日会话过滤，与 stats 域同规则）。 */
@@ -93,7 +105,13 @@ export class CompanionCtl {
     private lastWrong?: ExplainCtx;
     private lastEnrichAt = 0;
     private enrichBusy = false;
+    /** 最近答题时间戳（节奏窗口：均值 → 做题事件的 AI 触发间隔）。 */
+    private answerTs: number[] = [];
     private chatLog: ChatTurn[] = [];
+    private readonly chats: ChatStore;
+    /** 当前 chatLog 所属学伴 id（null=首次加载在途）。 */
+    private chatLoadedId: string | null = null;
+    private chatSeq = 0;
     private userCache?: { at: number; p: UserProfile };
     private dozeTimer?: ReturnType<typeof setTimeout>;
     /** 已探测过形象图片的目录（变化时重探；清空目录=回内置 SVG）。 */
@@ -101,11 +119,82 @@ export class CompanionCtl {
 
     constructor(private readonly d: CompanionDeps) {
         this.t = (key) => this.d.i18n[key] || key;
+        this.chats = new ChatStore(
+            this.d.chat?.loadRaw ?? (async (): Promise<undefined> => undefined),
+            this.d.chat?.saveRaw ?? (async (): Promise<undefined> => undefined)
+        );
+        this.loadChatOf(this.chatId());
     }
 
-    /** Svelte 侧创建 $state 深代理后挂上来（双宿主共享同一份）。 */
+    /** 聊天历史归属 key（当前学伴 id；默认学伴=固定 default）。 */
+    private chatId(): string {
+        return this.activeProfile()?.id ?? DEFAULT_CHAT_KEY;
+    }
+
+    /** 总开关镜像同步（settings 非响应，两处开关与右键关闭后调）。 */
+    syncEnabled(): void {
+        if (this.ui) this.ui.enabled = this.enabled();
+    }
+
+    /** 右键菜单「关闭」：关总开关（面板/设置弹窗的开关可重新打开）。 */
+    hide(): void {
+        this.d.settings.companionEnabled = false;
+        this.d.settings.save?.();
+        this.syncEnabled();
+    }
+
+    /** 悬浮位置（未拖过=undefined，组件用默认右下角）。 */
+    figurePos(): { x: number; y: number } | undefined {
+        const { companionX: x, companionY: y } = this.d.settings;
+        return typeof x === "number" && typeof y === "number" ? { x, y } : undefined;
+    }
+
+    /** 拖动结束落盘位置（钳在视口内，留 8px 不完全出界）。 */
+    setFigurePos(x: number, y: number): void {
+        const s = this.d.settings;
+        s.companionX = Math.max(8, Math.min(x, window.innerWidth - 72));
+        s.companionY = Math.max(8, Math.min(y, window.innerHeight - 72));
+        s.save?.();
+    }
+
+    /** 挂件右键菜单（关闭学伴；重开走面板/设置开关）。 */
+    openFigureMenu(x: number, y: number): void {
+        const menu = new Menu("wengu-companion");
+        menu.addItem({ icon: "iconClose", label: this.t("companionMenuHide"), click: () => this.hide() });
+        menu.open({ x, y });
+    }
+
+    /** 换学伴历史（启动/切换）：清空待载；加载窗口内的新消息由回调合并。 */
+    private loadChatOf(id: string): void {
+        const seq = ++this.chatSeq;
+        this.chatLoadedId = id;
+        this.chatLog = [];
+        void this.chats.turnsOf(id).then((turns) => {
+            if (seq !== this.chatSeq || this.chatLoadedId !== id) return;
+            this.chatLog = [...turns, ...this.chatLog].slice(-CHAT_MAX_TURNS);
+            if (this.ui) this.ui.messages = this.chatLog.map((t) => ({ role: t.role, text: t.text }));
+        });
+    }
+
+    /** 生效学伴变了（面板切换/新建/删除后经挂载编排调）：换历史重灌。 */
+    reloadActive(): void {
+        const id = this.chatId();
+        if (id !== this.chatLoadedId) this.loadChatOf(id);
+    }
+
+    /** 学伴被删除：清其聊天残留。 */
+    dropChat(id: string): void {
+        this.chats.drop(id);
+    }
+
+    /** Svelte 侧创建 $state 深代理后挂上来（全局悬浮层唯一实例）。 */
     acquireUi(make: () => CompanionUi): CompanionUi {
-        this.ui ??= make();
+        if (!this.ui) {
+            this.ui = make();
+            // 历史先于 UI 加载完成时补灌（加载在途则由 loadChatOf 回调覆盖）
+            if (this.chatLog.length > 0) this.ui.messages = this.chatLog.map((t) => ({ role: t.role, text: t.text }));
+            this.syncEnabled();
+        }
         if (!this.greeted) {
             this.greeted = true;
             this.showLine(pickLine(this.persona(), "greet"), WenguExpr.Idle);
@@ -127,12 +216,12 @@ export class CompanionCtl {
         return normalizePersona(this.d.settings.companionPersona);
     }
 
-    /** 当前生效的学伴配置（未选=内置团子，走人设预设/内置 SVG/默认模型）。 */
+    /** 当前生效的学伴配置（未选=默认学伴，走人设预设/内置 SVG/默认模型）。 */
     activeProfile(): CompanionProfile | undefined {
         return (this.d.settings.companionProfiles ?? []).find((p) => p.id === this.d.settings.companionActiveId);
     }
 
-    /** 学伴名（聊天头部显示；默认团子）。 */
+    /** 学伴名（聊天头部显示；默认学伴）。 */
     profileName(): string {
         return this.activeProfile()?.name.trim() || this.t("companionDefaultName");
     }
@@ -179,6 +268,8 @@ export class CompanionCtl {
         const s = this.session;
         if (e.kind === "quiz-answer") {
             s.answered++;
+            this.answerTs.push(Date.now());
+            if (this.answerTs.length > PACE_WINDOW) this.answerTs.shift();
             if (e.ok) s.correct++;
             s.rightStreak = e.ok ? s.rightStreak + 1 : 0;
             s.wrongStreak = e.ok ? 0 : s.wrongStreak + 1;
@@ -230,23 +321,20 @@ export class CompanionCtl {
         }, DOZE_AFTER_MS);
     }
 
-    /** AI 增强层：里程碑节点节流生成「表情+台词」，失败静默。 */
+    /** AI 增强层：单题事件按节奏自适应节流、批次完成必触发，生成
+     * 「表情+台词」，失败静默（丢策略：间隔内不排队，批次外不补发）。 */
     private maybeEnrich(e: CompanionEvent): void {
-        const notable =
-            (e.kind === "quiz-answer" && (this.session.wrongStreak === 3 || this.session.rightStreak === 5)) ||
-            e.kind === "quiz-round-done" ||
-            e.kind === "word-done";
-        if (!notable || this.enrichBusy) return;
-        const now = Date.now();
-        if (now - this.lastEnrichAt < ENRICH_MIN_GAP_MS) return;
+        const batchDone = e.kind === "quiz-round-done" || e.kind === "word-done";
+        if (!(e.kind === "quiz-answer" || batchDone) || this.enrichBusy) return;
+        if (!batchDone && Date.now() - this.lastEnrichAt < enrichGapMs(this.quizPaceMs())) return;
         this.enrichBusy = true;
-        this.lastEnrichAt = now;
+        this.lastEnrichAt = Date.now();
         const desc = this.eventDesc(e);
         void (async () => {
             try {
                 const u = await this.userProfile();
                 const reply = await agentChatOnce(
-                    buildReactPrompt(this.personaDesc(), desc, this.session, u),
+                    buildReactPrompt(this.profileName(), this.personaDesc(), desc, this.session, u),
                     this.modelId(),
                     AI_TIMEOUT.react
                 );
@@ -260,11 +348,25 @@ export class CompanionCtl {
         })();
     }
 
+    /** 平均答题间隔（节奏窗口相邻差均值；样本不足返回 undefined 按快节奏）。 */
+    private quizPaceMs(): number | undefined {
+        const ts = this.answerTs;
+        if (ts.length < 2) return undefined;
+        let sum = 0;
+        for (let i = 1; i < ts.length; i++) sum += ts[i] - ts[i - 1];
+        return sum / (ts.length - 1);
+    }
+
     private eventDesc(e: CompanionEvent): string {
-        if (e.kind === "quiz-answer")
-            return this.session.wrongStreak === 3
-                ? `连错 ${this.session.wrongStreak} 题（刚又错了一道）`
-                : `连对 ${this.session.rightStreak} 题（刚又秒对一道）`;
+        if (e.kind === "quiz-answer") {
+            if (!e.ok) {
+                const st = this.session.wrongStreak;
+                return st >= 2 ? `刚答错一道题，已连错 ${st} 题` : "刚答错一道题";
+            }
+            const sec = e.sec !== undefined && e.sec > 0 ? `，用时 ${Math.round(e.sec)} 秒` : "";
+            const st = this.session.rightStreak;
+            return `刚答对一道题${sec}${st >= 2 ? `，已连对 ${st} 题` : ""}`;
+        }
         if (e.kind === "quiz-round-done") return `完成一轮刷题：本轮答 ${e.answered} 题对 ${e.correct}`;
         if (e.kind === "word-grade") return `刚过完一个词（档位 ${e.grade}）`;
         return `背完一组单词：本次过 ${e.total} 个词，其中难词 ${e.hardN} 个`;
@@ -330,7 +432,9 @@ export class CompanionCtl {
         }
         this.pushMsg("user", q);
         ui.draft = "";
-        void this.runChat((u) => buildChatPrompt(this.personaDesc(), this.session, u, this.chatLog, this.lastWrong, q));
+        void this.runChat((u) =>
+            buildChatPrompt(this.profileName(), this.personaDesc(), this.session, u, this.chatLog, this.lastWrong, q)
+        );
     }
 
     /** 「讲讲这题/这个词」（ChatPanel chip；无错题上下文时不可达）。 */
@@ -343,7 +447,7 @@ export class CompanionCtl {
             return;
         }
         this.pushMsg("user", this.t(ctx.kind === "word" ? "companionExplainWord" : "companionExplainQuiz"));
-        void this.runChat((u) => buildExplainPrompt(this.personaDesc(), u, ctx));
+        void this.runChat((u) => buildExplainPrompt(this.profileName(), this.personaDesc(), u, ctx));
     }
 
     private async runChat(build: (u: UserProfile) => string): Promise<void> {
@@ -355,7 +459,7 @@ export class CompanionCtl {
             this.pushMsg("ai", clampText(reply, 400));
         } catch (err) {
             const why = err instanceof Error && err.message ? `：${err.message.slice(0, 80)}` : "";
-            this.pushMsg("ai", `${this.t("companionAiFail")}${why}`);
+            this.pushMsg("ai", `${this.t("companionAiFail").replace("{name}", this.profileName())}${why}`);
         } finally {
             ui.chatBusy = false;
         }
@@ -365,7 +469,9 @@ export class CompanionCtl {
         const ui = this.ui;
         if (!ui) return;
         ui.messages.push({ role, text });
+        if (ui.messages.length > CHAT_MAX_TURNS) ui.messages.splice(0, ui.messages.length - CHAT_MAX_TURNS);
         this.chatLog.push({ role, text });
-        if (this.chatLog.length > 24) this.chatLog.splice(0, this.chatLog.length - 24);
+        if (this.chatLog.length > CHAT_MAX_TURNS) this.chatLog.splice(0, this.chatLog.length - CHAT_MAX_TURNS);
+        this.chats.put(this.chatId(), this.chatLog);
     }
 }

@@ -86,13 +86,19 @@ function userBlock(u: UserProfile): string {
     )} 分钟；累计背词 ${u.wordLearned} 个（连续 ${u.wordStreak} 天），今日新词 ${u.wordTodayNew} + 复习 ${u.wordTodayRev}`;
 }
 
-function roleLine(personaDesc: string): string {
-    return `你是思源笔记插件「温故」里的桌面学伴「团子」。人设：${personaDesc}。`;
+function roleLine(name: string, personaDesc: string): string {
+    return `你是思源笔记插件「温故」里的桌面学伴「${name}」。人设：${personaDesc}。`;
 }
 
 /** 反应类 prompt：事件一句话 + 两层画像 → 表情枚举 + 一句台词。 */
-export function buildReactPrompt(personaDesc: string, eventDesc: string, s: SessionProfile, u: UserProfile): string {
-    return `${roleLine(personaDesc)}
+export function buildReactPrompt(
+    name: string,
+    personaDesc: string,
+    eventDesc: string,
+    s: SessionProfile,
+    u: UserProfile
+): string {
+    return `${roleLine(name, personaDesc)}
 根据学习动态选一个表情并说一句话。表情只能从这些里选：${EXPR_KEYS.join("|")}。
 ${userBlock(u)}
 ${sessionBlock(s)}
@@ -123,6 +129,7 @@ function explainBlock(e: ExplainCtx): string {
 
 /** 聊天 prompt：人设 + 两层画像 + 近期对话 + 可选错题上下文。 */
 export function buildChatPrompt(
+    name: string,
     personaDesc: string,
     s: SessionProfile,
     u: UserProfile,
@@ -132,9 +139,9 @@ export function buildChatPrompt(
 ): string {
     const turns = history
         .slice(-12)
-        .map((h) => (h.role === "user" ? `用户：${h.text}` : `团子：${h.text}`))
+        .map((h) => (h.role === "user" ? `用户：${h.text}` : `${name}：${h.text}`))
         .join("\n");
-    return `${roleLine(personaDesc)}
+    return `${roleLine(name, personaDesc)}
 ${userBlock(u)}
 ${sessionBlock(s)}
 ${explain ? explainBlock(explain) + "\n" : ""}最近对话：
@@ -144,8 +151,8 @@ ${turns || "（无）"}
 }
 
 /** 讲解 prompt（「讲讲这题/这个词」按钮）：错在哪 + 正确思路 + 记忆点。 */
-export function buildExplainPrompt(personaDesc: string, u: UserProfile, ctx: ExplainCtx): string {
-    return `${roleLine(personaDesc)}
+export function buildExplainPrompt(name: string, personaDesc: string, u: UserProfile, ctx: ExplainCtx): string {
+    return `${roleLine(name, personaDesc)}
 ${userBlock(u)}
 ${explainBlock(ctx)}
 请给用户讲解：这题（这个词）错在哪、正确的思路或辨析是什么、给一个好记的记忆点。口语化中文，不超过160字，不要列表和 markdown。`;

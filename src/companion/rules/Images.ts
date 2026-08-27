@@ -3,7 +3,7 @@ import { EXPR_KEYS, WenguExpr } from "./Expressions";
 /**
  * 自定义形象图片：用户把图片放进工作区某目录（设置里指定，如
  * assets/wengu/companion），**按文件名匹配表情**——happy.png、开心.jpg
- * 都认（英文名=枚举键，中文名=表情别名），未命中的表情回退内置团子 SVG。
+ * 都认（英文名=枚举键，中文名=表情别名），未命中的表情回退内置形象 SVG。
  *
  * 探测：对每个表情按候选名 × 扩展名 GET 工作区静态资源（内核同源
  * 直出 /assets/…），响应 ok 且 content-type 是图片即命中；结果挂到

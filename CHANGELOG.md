@@ -2,6 +2,89 @@
 
 ## v0.1.1 unreleased
 
+- 多词书 + 标题「温故单词」（20260828 redesign §四/§五 定稿实施）：
+  **进度 key 从书内下标换归一化词头**（小写、去空格/连字符/撇号，
+  WordBook.wordKey——同词跨书共享进度），words.json **schema v3**：
+  逐词映射（words/ladder/reviews/mistakes/simple/familiar/starred/
+  timing/notes）与易混组 ids/confNotes 全部词头化，v2 的 cursor 废除
+  （新词=全书扫第一个无进度词，太简单/熟的不再被当新词——与「剩」口径
+  统一）；**存量 v2→v3 一次性迁移**（core/WordMigrate，索引按内置书换算，
+  坏组员丢弃；待确认落盘后移除）。词书文件化 `data/wengu/wordbooks/
+{id}.json`（紧凑数组）+ manifest index.json，IO 走 siyuan/files.ts 内核
+  特殊通道（getFile 裸内容/putFile multipart/removeFile），内置书首次
+  启动落盘与导入书同权。UI：头部主标题固定「温故单词」、书名副位=切书
+  选择器（官方风格浮层）；起点面板「词书」组=导入（json/csv 双收、入库
+  即切当前）/设为当前/删除（不删进度、最后一本不可删、删当前自动切）；
+  切书会话复位回首页、队列统计全按当前书口径（他书词不串场）、他书
+  在学词 ladder 保留。易混组跨书有效（ids 即词头，不在当前书的组员标注
+  展示）；干扰项池导入书无单元时回落全书。WordView 拆 BookOps/
+  ladderOf/setGroupSize 迁 WordStartCtl 压 500 行红线。
+- 首页崩修复 + 误认本记账恢复（20260828）：76657bf 把 buildQueue 改成
+  {review, freshLeft} 但 HomeScreen 仍读 queues.fresh（undefined.length
+  首页即崩，svelte-check 三红一直可见）——本轮随 freshLeft 对齐修复；
+  同一提交还丢了「答错记误认本」的写入（旧 Leitner reviewWord 内联，
+  FSRS 重写未搬）——恢复 markMistake（复习轨 reviewWord 与新学梯
+  settleFreshFor 双入口，重答错清旧 AI 辨析、模糊不记）。
+- 看板娘全局悬浮层收尾（20260828，前批半成品收口）：quiz 页签旧
+  attachCompanion/detachCompanion API 清退、单词 WordApp 内嵌份摘除，
+  全局层由插件 onload mountCompanionGlobal（mount→unmountSvelteApp 修
+  类型）、onunload 显式卸（重载不叠影）。
+- 新学滚动窗口 + FSRS 复习排期（20260828 redesign §二/§三 定稿实施）：
+  新学会话弃静态流水线（pipelineLadder 删）改**每张卡现场决策**的滚动
+  窗口（flow/WindowSched 纯函数+7 例单测：窗口未满先进新词/满窗推进
+  最久未出镜的就绪词(隔≥3张)/垫场兜底/④认识毕业腾位补新词）——开词
+  即 ladder 落盘（[step,errs]，中途退出重进原样续背不回①），毕业按
+  0错→Good、1错→Hard、≥2重来→Again 起步；容量 3~10 默认 5（起点面板
+  可调）。复习排期换 **ts-fsrs**（默认参数、目标记忆率 0.9、
+  enable_short_term=false 纯天级）：words.json v2 每词 {d,s,due} +
+  reviews 逐词流水（将来参数优化留料，优化器挂账）+ 存量迁移（S=旧
+  阶梯天数、误认≥2 次 D=6.5）；新学梯步进不再碰长期排期（根治「十分
+  钟走完四步=8 天后再见」虚高）；AI 组复盘 fresh 改按毕业数触发、
+  队列轨(review/star)不变；头部「剩」fresh=书级剩余未学（进度条同口
+  径）；今日新学计数改按毕业一次计（原每步一计的虚增随流水线一并修
+  正）；WordView 拆 LookupOps/PageOps 友元压 500 行红线
+- 学伴编辑器加保存按钮 + 修复编辑不落盘（20260828 用户报障，网页版
+  真机三轮定位）：曾把输入改 bind:value 到 ui 镜像里的 settings
+  对象——违反迁移文档暗雷 §6/§9（settings 本体不进响应链），且
+  mutateActive 经 ui 的 $state 代理元素写入不落 settings 底层（真机
+  实证：点保存「已保存」亮起但存储文件纹丝不动）。修复：回退非受控
+  value+onchange；mutateActive 改为按 activeId 直接在 settings 数组
+  上找到条目写入（settings 直写是暗雷 §9 原文语义），保存按钮由组件
+  从 DOM 收当前输入（未失焦的编辑也能存）调 saveNow(fields) 规整
+  （trim/限长）后落盘，「已保存」反馈 1.5s；图片目录变化随保存重探
+  形象。端到端验证：fill→保存→存储文件 mtime 即时更新、内容为新值
+- 默认学伴改名「小书童」+物化为可删条目（20260828 用户定稿）：默认
+  学伴不再是左列特殊卡（不可编辑/删除），改为 companionProfiles 里
+  id=default 的正式条目（与聊天存储 DEFAULT_CHAT_KEY 同 id，历史
+  无缝衔接）——名字/人设/图片/模型与自定义同权可编辑，也可删除；
+  列表至少保留一个（仅剩一条时删除按钮禁用+控制器兜底拒绝，删当前
+  条目后自动切到剩余第一条并清其聊天残留）；老数据挂载面板时自动
+  迁移（无 default 条目则补、activeId 空/悬空则归位）。默认名
+  companionDefaultName「团子」→「小书童」（en: Dango→Shutong），
+  「默认团子」特殊卡与提示文案随死键清理，注释措辞同步
+- 学伴聊天历史分学伴持久化（20260828 用户提出）：chatLog 从控制器
+  单份内存改为按学伴 id 分份（内置团子=固定 default key，学伴 id 为
+  时间戳36-随机段格式不冲突；老版本空串 key 首次加载自动迁移）落插件存储
+  saveData("companion-chat")——新增 core/ChatStore（loadRaw/saveRaw
+  注入同 HistoryStore 惯例，写走串行链防内核并发互吞，每份截 24 轮，
+  坏数据按空处理），插件重载/思源重启后各学伴聊天上下文不再丢失；
+  管理面板切换/新建/删除学伴即时换历史重灌聊天面板（面板
+  onActiveChange/onProfileRemoved 回调穿透挂载编排到 ctl），删除学伴
+  清其聊天残留；prompt 近期对话轮随分份天然按学伴隔离，UI 消息列表
+  同步对齐 24 轮上限防超长会话 DOM 涨爆
+- 学伴 AI 反应做题侧改自适应节流（20260828 用户提出）：原固定 45s 间隔
+  且只在里程碑（连错 3/连对 5/轮完成）请求大模型，普通单题 AI 无感知；
+  现每道答题事件都是候选触发点，间隔随答题节奏自适应——最近窗口平均
+  ≥60s/题（做题慢）每题都触发，快节奏压到两分半一次（rules/Enrich.ts
+  纯函数+单测，样本不足按快节奏保守）；一轮完成/单词收工的批次事件
+  不设间隔仅互斥（「每批必点评」维持不变）；事件描述泛化到普通单题
+  （带用时与连对/连错计数），prompt 结构不变
+- 学伴名动态化（20260828 用户提出）：聊天的「想一想/输入占位/回话失败」
+  三条文案与 AI prompt 的角色行、近期对话轮标签不再写死「团子」，改随
+  当前学伴配置名——i18n 加 {name} 占位符、调用点 replace（同 slotNO
+  惯例），Prompt 三 builder 首参加 name；设置里「启用/AI 台词」两条描述
+  的「团子」改中性「看板娘」；默认名仍团子（companionDefaultName），
+  「默认团子/回退内置团子」等指向默认形象的文案不动
 - Svelte 渐进迁移首批落地（20260827，路线图见 docs/svelte-migration.md）：
   学伴管理工作区面板从字符串模板+逐控件绑定迁为 Svelte 四件套
   （CompanionPanelUi/Ctl + CompanionPanelApp.svelte，删旧

@@ -1,13 +1,7 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./flow/AnswerFlow";
 import { restoreAnsweredCards, revealAll } from "./flow/AnswerFlow";
-import {
-    attachCompanion,
-    detachCompanion,
-    detachCompanionPanel,
-    notifyQuizAnswer,
-    notifyRoundDone,
-} from "../companion";
+import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { collectCardThoughts } from "./render/CardHtml";
 import { deleteDocWithCleanup } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
@@ -214,7 +208,6 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         hideBar();
         void this.bank?.flush();
         this.protyleHost.destroyAll();
-        detachCompanion("quiz");
         detachCompanionPanel();
     }
 
@@ -460,7 +453,6 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     )}</div>`;
             bindHeadFor(this);
         }
-        attachCompanion(this.el, "quiz"); // innerHTML 全量覆盖后重挂（层未断开则跳过）
     }
 
     private renderListInner(): void {

@@ -1,4 +1,4 @@
-import { confKey, markFamiliar, toggleStar } from "../core/WordStore";
+import { confKey, keyOf, markFamiliar, toggleStar } from "../core/WordStore";
 import { groupsOf } from "../service/WordConfusables";
 import type { WordView } from "../core/WordView";
 
@@ -23,7 +23,7 @@ export function lookupPickFor(v: WordView, idx: number): void {
     const p = v.ui.progress!;
     const g = groupsOf(p, idx)[0];
     v.confCtl.draft = g ? (p.confNotes?.[confKey(g.ids)] ?? "") : "";
-    v.confCtl.wordDraft = p.notes?.[String(idx)] ?? "";
+    v.confCtl.wordDraft = p.notes?.[keyOf(idx)] ?? "";
     v.ui.lookupSel = idx;
 }
 

@@ -7,7 +7,7 @@
  * 因模型编造表情名而崩。
  *
  * 面部片段是 64×64 viewBox 下的 SVG 字符串（眼/嘴/附加物），在
- * CompanionApp.svelte 里以 {@html} 注入，团子身体由组件画。
+ * CompanionApp.svelte 里以 {@html} 注入，小书童身体由组件画。
  */
 
 /** 表情（规则层与 AI 增强层共用的有限枚举）。 */

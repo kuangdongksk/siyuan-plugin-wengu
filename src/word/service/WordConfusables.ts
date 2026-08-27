@@ -1,59 +1,88 @@
 import PRESET from "../data/confusables";
 import { esc } from "../../ui/shared";
-import WORD_BOOK from "./WordBook";
-import { confKey, type WenguConfusableGroup, type WenguWordProgress } from "../core/WordStore";
+import { BUILTIN_BOOK, keyOf as keyOfBook } from "./WordBook";
+import { wordLib, type WordLib } from "./WordLib";
+import { confKey, keyOf, type WenguConfusableGroup, type WenguWordProgress } from "../core/WordStore";
 
 /**
  * 易混组运行时（docs/confusable-words.md 定稿）：预置组（构建期
- * data/confusables.ts）与实证/AI 组（progress）只读并集、不合并写；
- * 辨析笔记为用户手写（复制词对去外部 AI / 思源内部对话生成后粘贴），
- * 存 progress.confNotes，不改组本体。
+ * data/confusables.ts，按内置书下标生成——运行时换算成词头）与实证/AI
+ * 组（progress，ids 即词头）只读并集、不合并写；辨析笔记为用户手写
+ * （复制词对去外部 AI / 思源内部对话生成后粘贴），存 progress.confNotes，
+ * 不改组本体。组内词不在当前书时，对照块展示词头原文并标注。
  */
 
-/** 词书单词 → 扁平下标（小写匹配，惰性一次构建）。 */
-let wordIdx: Map<string, number> | undefined;
-function indexOfWord(w: string): number | undefined {
-    wordIdx ??= new Map(WORD_BOOK.words.map((e, i) => [e.w.toLowerCase(), i]));
-    return wordIdx.get(w.trim().toLowerCase());
+/** 词书单词 → 扁平下标（小写匹配；缓存随换书失效）。 */
+let wordIdx: { stamp: number; map: Map<string, number> } | undefined;
+function indexOfWord(lib: WordLib, w: string): number | undefined {
+    const stamp = lib.bookStamp();
+    if (!wordIdx || wordIdx.stamp !== stamp) {
+        wordIdx = { stamp, map: new Map(lib.curBook().words.map((e, i) => [e.w.toLowerCase(), i])) };
+    }
+    return wordIdx.map.get(w.trim().toLowerCase());
 }
 
-/** 全量易混组（预置 + 实证/AI）。 */
+/** 全量易混组（预置 + 实证/AI；预置下标按内置书换算成词头）。 */
 export function allGroups(p: WenguWordProgress): WenguConfusableGroup[] {
-    return [...PRESET, ...(p.confusables ?? [])];
+    const preset: WenguConfusableGroup[] = PRESET.map((g) => ({
+        ids: g.ids.map((i) => keyOfBook(BUILTIN_BOOK, i)).filter(Boolean),
+        src: g.src,
+        raw: g.raw,
+    }));
+    return [...preset, ...(p.confusables ?? [])];
 }
 
-/** 含某词的全部易混组。 */
+/** 含某词的全部易混组（词头匹配）。 */
 export function groupsOf(p: WenguWordProgress, idx: number): WenguConfusableGroup[] {
-    return allGroups(p).filter((g) => g.ids.includes(idx));
+    const key = keyOf(idx);
+    return allGroups(p).filter((g) => g.ids.includes(key));
 }
 
-/** 某词易混组内其它词下标并集（本卡快照：渲染与判定同源，防 AI
- * 异步落盘改变组导致选项错位）。 */
+/** 某词易混组内其它词下标并集，限当前书（本卡快照：渲染与判定同源，
+ * 防 AI 异步落盘改变组导致选项错位）。 */
 export function confOthers(p: WenguWordProgress, idx: number): number[] {
-    return [...new Set(allGroups(p).flatMap((g) => (g.ids.includes(idx) ? g.ids : [])))].filter((i) => i !== idx);
+    const key = keyOf(idx);
+    const lib = wordLib();
+    const out = new Set<number>();
+    for (const g of allGroups(p)) {
+        if (!g.ids.includes(key)) continue;
+        for (const k of g.ids) {
+            const i = lib.keyIndex(k);
+            if (i !== undefined && i !== idx) out.add(i);
+        }
+    }
+    return [...out];
 }
 
-/** 记一对混淆（去重）：B 在词书 → [A,B] 组；不在 → [A] + raw。
+/** 记一对混淆（去重）：B 在当前书 → [A,B] 组；不在 → [A] + raw。
  * evidence=作答实证，ai=组复盘判定（docs/confusable-words.md §三）。 */
 export function addPair(p: WenguWordProgress, a: number, bRaw: string, src: "evidence" | "ai"): void {
+    const lib = wordLib();
     const raw = bRaw.trim().toLowerCase();
-    if (!raw || raw === WORD_BOOK.words[a]?.w.toLowerCase()) return;
-    const b = indexOfWord(raw);
+    const keyA = keyOf(a);
+    if (!raw || !keyA || raw === lib.curBook().words[a]?.w.toLowerCase()) return;
+    const b = indexOfWord(lib, raw);
     for (const g of p.confusables ?? []) {
-        if (!g.ids.includes(a)) continue;
-        if ((b !== undefined && g.ids.includes(b)) || (b === undefined && g.raw === raw)) return;
+        if (!g.ids.includes(keyA)) continue;
+        if ((b !== undefined && g.ids.includes(lib.keyOf(b))) || (b === undefined && g.raw === raw)) return;
     }
-    (p.confusables ??= []).push(b !== undefined ? { ids: [a, b], src } : { ids: [a], src, raw });
+    (p.confusables ??= []).push(b !== undefined ? { ids: [keyA, lib.keyOf(b)], src } : { ids: [keyA], src, raw });
 }
 
 /** 易混对照块 HTML（卡片/查词详情区共用）：同组其它词与笔记。 */
 export function confusableHtml(t: (k: string) => string, p: WenguWordProgress, idx: number): string {
+    const lib = wordLib();
+    const key = keyOf(idx);
     const rows: string[] = [];
     for (const g of groupsOf(p, idx)) {
         const note = p.confNotes?.[confKey(g.ids)];
         const others = g.ids
-            .filter((i) => i !== idx)
-            .map((i) => `${WORD_BOOK.words[i].w}：${WORD_BOOK.words[i].m.split("\n")[0]}`);
+            .filter((k) => k !== key)
+            .map((k) => {
+                const i = lib.keyIndex(k);
+                if (i === undefined) return `${k}（不在当前词书）`;
+                return `${lib.curBook().words[i].w}：${lib.curBook().words[i].m.split("\n")[0]}`;
+            });
         if (g.raw) others.push(`${g.raw}（不在词书）`);
         if (others.length === 0 && !note) continue;
         rows.push(
@@ -67,12 +96,12 @@ export function confusableHtml(t: (k: string) => string, p: WenguWordProgress, i
 
 /** 「复制提问」提示词：去外部 AI 或思源内部对话生成辨析，粘回笔记。 */
 export function askPrompt(idx: number, other: string): string {
-    return `请辨析这两个考研易混单词：${WORD_BOOK.words[idx].w} / ${other}。各给中文释义，再用一句话讲两者区别与记法。`;
+    return `请辨析这两个考研易混单词：${wordLib().curBook().words[idx].w} / ${other}。各给中文释义，再用一句话讲两者区别与记法。`;
 }
 
 /** 词级笔记的只读块（卡片/查词详情区：这个词怎么记，任何词可写）。 */
 export function wordNoteHtml(p: WenguWordProgress, idx: number): string {
-    const v = p.notes?.[String(idx)];
+    const v = p.notes?.[keyOf(idx)];
     return v ? `<div class="wengu-word-confuse-note">${esc(v)}</div>` : "";
 }
 

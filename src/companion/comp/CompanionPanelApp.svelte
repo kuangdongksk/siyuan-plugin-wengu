@@ -8,7 +8,9 @@
     /**
      * 学伴管理工作区面板（左列学伴卡片，右列编辑器，底部全局开关；
      * 类名与旧字符串模板逐字一致，样式全在全局 scss rail.scss）。
-     * 表单输入非受控（value 只作初值，change 直写），与旧版行为一致。
+     * 表单非受控（暗雷 §6/§9：value 只作初值，不 bind 到 ui 镜像里
+     * 的 settings 对象——bind 写不落底层）；change 与保存按钮（收
+     * DOM 当前值，未失焦的编辑也能存）两条路都直写 settings 后落盘。
      */
     let { t, deps }: { t: (key: string) => string; deps: CompanionPanelDeps } = $props();
 
@@ -24,6 +26,17 @@
         { id: "genki", key: "personaGenki" },
         { id: "calm", key: "personaCalm" },
     ] as const;
+
+    // 保存按钮从 DOM 收当前输入（非受控输入未失焦时 settings 里还没有）
+    let nameEl: HTMLInputElement | undefined;
+    let promptEl: HTMLTextAreaElement | undefined;
+    let dirEl: HTMLInputElement | undefined;
+    const save = (): void =>
+        ctl.saveNow({
+            name: nameEl?.value ?? "",
+            prompt: promptEl?.value ?? "",
+            imageDir: dirEl?.value ?? "",
+        });
 
     onMount(() => () => ctl.destroy());
 </script>
@@ -63,17 +76,6 @@
 
     <div class="wengu-ws-cols">
         <div class="wengu-ws-list">
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-                class="wengu-ws-card{ui.activeId === '' ? ' wengu-ws-card-active' : ''}"
-                onclick={() => ctl.activate("")}
-            >
-                <span class="wengu-ws-card-name">{t("companionDefaultOption")}</span>
-                {#if ui.activeId === ""}
-                    <span class="wengu-ws-card-badge">{t("companionUseBadge")}</span>
-                {/if}
-            </div>
             {#each ui.profiles as p (p.id)}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -98,6 +100,7 @@
                     <input
                         class="b3-text-field fn__flex-center fn__size200"
                         type="text"
+                        bind:this={nameEl}
                         value={cur.name}
                         onchange={(e) => ctl.setName(e.currentTarget.value)}
                     />
@@ -115,6 +118,7 @@
                         style="width:100%;box-sizing:border-box;height:auto;resize:vertical"
                         rows="5"
                         spellcheck="false"
+                        bind:this={promptEl}
                         onchange={(e) => ctl.setPrompt(e.currentTarget.value)}>{cur.prompt}</textarea
                     >
                 </div>
@@ -124,6 +128,7 @@
                         type="text"
                         spellcheck="false"
                         placeholder="assets/wengu/companion"
+                        bind:this={dirEl}
                         value={cur.imageDir}
                         onchange={(e) => ctl.setImageDir(e.currentTarget.value)}
                     />
@@ -138,13 +143,20 @@
                     >
                 </FormRow>
                 <div class="fn__flex" style="gap:8px;justify-content:flex-end;padding:8px 0">
-                    <button type="button" class="b3-button b3-button--text" onclick={() => ctl.delClick()}>
+                    <button type="button" class="b3-button b3-button--outline" onclick={() => save()}>
+                        {ui.savedFlash ? t("companionSaved") : t("companionSave")}
+                    </button>
+                    <button
+                        type="button"
+                        class="b3-button b3-button--text"
+                        disabled={ui.profiles.length <= 1}
+                        title={ui.profiles.length <= 1 ? t("companionKeepOneHint") : undefined}
+                        onclick={() => ctl.delClick()}
+                    >
                         {ui.delArmed ? t("collectConfirm") : t("companionDelete")}
                     </button>
                 </div>
             </div>
-        {:else}
-            <div class="wengu-ws-editor wengu-muted">{t("companionDefaultHint")}</div>
         {/if}
     </div>
 </div>

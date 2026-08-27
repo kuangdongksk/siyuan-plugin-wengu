@@ -2,7 +2,7 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import WORD_BOOK from "../service/WordBook";
+    import { keyOf } from "../core/WordStore";
     import { confusableHtml, groupsOf, wordNoteHtml } from "../service/WordConfusables";
     import { searchWords, statusLine } from "../flow/WordLookup";
     import type { WordView } from "../core/WordView";
@@ -17,8 +17,8 @@
     const p = $derived(ui.progress!);
     const sel = $derived(ui.lookupSel);
     const hits = $derived(searchWords(ui.lookupQuery));
-    const selEntry = $derived(sel !== undefined ? WORD_BOOK.words[sel] : undefined);
-    const selMistake = $derived(sel !== undefined ? p.mistakes[String(sel)] : undefined);
+    const selEntry = $derived(sel !== undefined ? ui.book.words[sel] : undefined);
+    const selMistake = $derived(sel !== undefined ? p.mistakes[keyOf(sel)] : undefined);
     const hasConfGroup = $derived(sel !== undefined && groupsOf(p, sel).length > 0);
 
     // 挂载即聚焦搜索框（输入框随列表态常驻，输入期间焦点自然保持）
@@ -117,8 +117,8 @@
                 {:else}
                     {#each hits as i}
                         <button class="wengu-word-opt wengu-word-lk" onclick={() => view.lookupPick(i)}>
-                            <span class="wengu-word-lk-word">{WORD_BOOK.words[i].w}</span>
-                            <span class="wengu-word-lk-meaning">{WORD_BOOK.words[i].m.split("\n")[0]}</span>
+                            <span class="wengu-word-lk-word">{ui.book.words[i].w}</span>
+                            <span class="wengu-word-lk-meaning">{ui.book.words[i].m.split("\n")[0]}</span>
                         </button>
                     {/each}
                 {/if}
