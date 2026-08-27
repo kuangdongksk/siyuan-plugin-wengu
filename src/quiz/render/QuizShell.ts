@@ -1,6 +1,7 @@
 import type { QuizView } from "../index";
 import { destroyStatsPanel } from "../../stats";
 import { renderReviewFor } from "../../review";
+import { detachCompanionPanel } from "../../companion";
 import { bindCardEvents } from "../flow/AnswerFlow";
 import { renderMainShell, renderNumsHtml, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
@@ -25,6 +26,7 @@ import { esc } from "../../ui/shared";
 export function renderQuizShellFor(v: QuizView): void {
     v.protyleHost.destroyAll();
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
+    detachCompanionPanel(); // Svelte 面板先卸再挂（防实例滞留，同 statsPanel 位）
     // 三栏格局：非刷题工作区（学伴/专题/知识文档）整体换内容后返回
     if (v.workspace !== "drill") {
         renderWorkspaceFor(v);

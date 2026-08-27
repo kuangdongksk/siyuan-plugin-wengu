@@ -1,7 +1,13 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./flow/AnswerFlow";
 import { restoreAnsweredCards, revealAll } from "./flow/AnswerFlow";
-import { attachCompanion, detachCompanion, notifyQuizAnswer, notifyRoundDone } from "../companion";
+import {
+    attachCompanion,
+    detachCompanion,
+    detachCompanionPanel,
+    notifyQuizAnswer,
+    notifyRoundDone,
+} from "../companion";
 import { collectCardThoughts } from "./render/CardHtml";
 import { deleteDocWithCleanup } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
@@ -209,6 +215,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         void this.bank?.flush();
         this.protyleHost.destroyAll();
         detachCompanion("quiz");
+        detachCompanionPanel();
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */

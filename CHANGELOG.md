@@ -2,6 +2,16 @@
 
 ## v0.1.1 unreleased
 
+- Svelte 渐进迁移首批落地（20260827，路线图见 docs/svelte-migration.md）：
+  学伴管理工作区面板从字符串模板+逐控件绑定迁为 Svelte 四件套
+  （CompanionPanelUi/Ctl + CompanionPanelApp.svelte，删旧
+  core/CompanionPanel.ts -218 行）——改任意配置不再「全量重灌面板」，
+  响应式就地更新；两击确认态不再因重灌丢失；改名后左列卡片名即时
+  刷新（旧版要等下次重灌）。配套地基：共享挂载帮手 ui/mountApp.ts、
+  表单行积木 ui/FormRow.svelte、ModelPicker 的 modelPickAction 桥 +
+  modelPickLabel；svelte-check 接入（tsconfig.svelte.json bundler 解析，
+  存量 14 组件零错误）；renderQuizShellFor 重灌前 detachCompanionPanel
+  先卸（同 statsPanel 位）+ QuizView.destroy 兜底
 - 梯进度点改竖排+错梯归零（20260828 用户定稿）：四点纵列贴词尾、
   总高与单词行同高（space-between+stretch，词行改 flex）；前进规则
   加严为「答错一次整梯重来」——归零词静态流水线后续位不足重走全梯

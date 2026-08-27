@@ -2,18 +2,24 @@ import { mount, unmount } from "svelte";
 import WORD_BOOK from "../word/service/WordBook";
 import type { WordGrade } from "../word/core/WordStore";
 import type { WenguQuestion } from "../types";
+import type { QuizView } from "../quiz";
 import CompanionApp from "./comp/CompanionApp.svelte";
+import CompanionPanelApp from "./comp/CompanionPanelApp.svelte";
 import { CompanionCtl, type CompanionDeps, type CompanionEvent } from "./core/CompanionCtl";
+import type { CompanionPanelDeps } from "./core/CompanionPanelCtl";
 import { plainOf, type ExplainCtx } from "./rules/Prompt";
+import { mountSvelteApp } from "../ui/mountApp";
 
 /**
  * 伴学看板娘域入口：单例控制器 + 双宿主挂载（刷题页签/单词 dock）+
- * 各域一行接入的事件构造帮手。
+ * 各域一行接入的事件构造帮手 + 学伴管理工作区面板的 Svelte 挂载编排。
  *
- * 宿主挂载沿用统计浮层的「重渲染重挂」舞步：刷题页签 renderList 会
+ * 看板娘宿主沿用统计浮层的「重渲染重挂」舞步：刷题页签 renderList 会
  * innerHTML 全量覆盖（挂载层被断开），每次渲染后重调 attachCompanion
  * ——层还连在目标元素上则跳过，避免 Svelte 反复 mount；单词 dock 是
  * Svelte 树，由 WordApp.svelte 直接内嵌 CompanionApp，不走本挂载层。
+ * 管理面板同受重灌影响：renderQuizShellFor 开头 detachCompanionPanel
+ * 先卸，WorkspaceShell 再重挂（模式见 docs/svelte-migration.md）。
  */
 
 let ctlRef: CompanionCtl | undefined;
@@ -51,6 +57,29 @@ export function detachCompanion(host: CompanionHostKind): void {
     m.stop();
     m.layer.remove();
     mounted.delete(host);
+}
+
+/* ── 学伴管理工作区面板（Svelte 四件套，模式见 docs/svelte-migration.md） ── */
+
+let panelApp: { unmount(): void } | undefined;
+
+/** 挂载学伴管理面板（WorkspaceShell 调；root=工作区主区，重挂前先卸旧）。 */
+export function mountCompanionPanel(v: QuizView, root: HTMLElement): void {
+    detachCompanionPanel();
+    const settings = v.settingsOf() ?? {};
+    const deps: CompanionPanelDeps = {
+        t: v.t,
+        settings,
+        applySettings: () => v.applySettings(),
+        reloadImages: () => ctlRef?.loadImages(),
+    };
+    panelApp = mountSvelteApp(CompanionPanelApp, root, { t: v.t, deps });
+}
+
+/** 卸载面板（renderQuizShellFor 全量重灌前 + QuizView.destroy 兜底调）。 */
+export function detachCompanionPanel(): void {
+    panelApp?.unmount();
+    panelApp = undefined;
 }
 
 function notifyCompanion(e: CompanionEvent): void {

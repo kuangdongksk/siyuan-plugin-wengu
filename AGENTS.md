@@ -9,10 +9,19 @@
 - 源码 `src/` **按功能分域**（2026-08-26 重构，组织方式借鉴 sy-lively）：
     - `src/siyuan/`——内核 API 工厂（`api.ts` 路径枚举 EApi + `KernelBlock`
       /`KernelDoc`/`KernelNotebook`/`KernelQuery`（SQL，rows 泛型收窄/
-      rowsMap）薄封装，迁自 sy-lively 构建工厂；2026-08-26 已把全仓
-      ~33 处散落内核调用收拢进来，SSE/putFile multipart/forwardProxy
-      三类特殊通道例外）+ 题目契约属性常量 `attrs.ts`。新增内核调用
-      先走工厂，别散落 fetchSyncPost。
+      rowsMap，**rowsAll/rowsMapAll 自动 LIMIT/OFFSET 分页——全量查询
+      一律走它，别手写循环**）薄封装，迁自 sy-lively 构建工厂；
+      2026-08-26 已把全仓 ~33 处散落内核调用收拢进来，SSE/putFile
+      multipart/forwardProxy 三类特殊通道例外）+ 题目契约属性常量
+      `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
+    - `src/ai/`——**AI 基础设施域**（2026-08-27 从 convert/AgentClient
+      抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` 三通道
+      （agentChat SSE 可指定模型/agentChatConcurrent chatGPT 直答可
+      并发/agentChatOnce 一次性独立会话天然并发）、`models.ts` 模型
+      清单与默认、`timeouts.ts` AI_TIMEOUT 档位（调用点禁自造超时
+      数字）、`queue.ts` enqueueAi（无 sessionID 的 agentChat 共用 ""
+      会话锁，判分/单词复盘一律过队列）、`agentPanel.ts` 智能体面板
+      DOM 自动化与「面板优先、页内降级」按钮帮手。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、
       `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器
@@ -20,16 +29,27 @@
       起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
       Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess；
       词库数据在 `word/data/`）、
-      `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题/知识文档
-      管理面板 CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
+      `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题标题含
+      「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath
+      规范化、CollectionPanel buildColTree 树形展示）；知识文档可手动
+      导入登记（BankData.knowRoots + data/KnowRoots.ts 友元模块，
+      KnowledgePanel 合并推导行与导入行）；专题/知识文档管理面板
+      CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
       `src/companion/`
       （伴学看板娘「团子」：规则层表情+台词/AI 增强与聊天走智能体
-      agentChat+串行队列，双宿主=刷题页签挂载层+单词 dock 内嵌，
-      各域收口一行 `notify*` 接入事件，管理在 CompanionPanel 工作区）、
+      agentChatOnce 独立会话并发，双宿主=刷题页签挂载层+单词 dock
+      内嵌，各域收口一行 `notify*` 接入事件，管理工作区面板已 Svelte
+      四件套化（2026-08-27，comp/CompanionPanelApp））、
       `src/ui/`
-      （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具）。
+      （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具/Svelte 迁移
+      公共积木：`mountApp.ts` 挂载帮手 + `FormRow.svelte` 表单行）。
     - **各域 `index.ts` 必须是该域的入口编排代码，禁止纯 re-export barrel**；
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
+- **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：
+  模式样板/暗雷清单/路线图见 `docs/svelte-migration.md`（各域开工前
+  必读）；已迁 word 域、companion 看板娘+管理面板，后续 bank 面板 →
+  review → stats → convert → quiz。组件零 `<style>`，类名与迁移前
+  逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
 - **硬性约束：仓库内单文件 ≤500 行**；界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器
@@ -43,8 +63,10 @@
 
 ## 通用调试流程（两台机器一致）
 
-1. `pnpm exec tsc --noEmit && pnpm exec eslint src --ext .ts && pnpm exec prettier --write . && pnpm test && pnpm run build`
-   （**一律 pnpm，禁 npm/npx**；格式化用 Prettier 紧凑规则 `.prettierrc`
+1. `pnpm exec tsc --noEmit && pnpm run check:svelte && pnpm exec eslint src --ext .ts && pnpm exec prettier --write . && pnpm test && pnpm run build`
+   （**一律 pnpm，禁 npm/npx**；`check:svelte`=svelte-check 检 .svelte
+   组件类型——tsc/eslint 都不覆盖 .svelte，它缺了组件错误只能在
+   构建/运行期暴露；格式化用 Prettier 紧凑规则 `.prettierrc`
    120 列/4 空格——2026-08-24 起从 dprint 切换，dprint 已移除；
    `pnpm test`=vitest 纯逻辑单测，内核 IO 不进单测——真机行为坑见
    下文「内核坑」，测试配置见 `vitest.config.ts` 与 `tests/siyuan-stub.ts`）
