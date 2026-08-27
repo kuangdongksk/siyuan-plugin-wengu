@@ -1,4 +1,7 @@
-import { agentChat, defaultAgentModelId } from "../../convert/service/AgentClient";
+import { agentChat } from "../../ai/client";
+import { defaultAgentModelId } from "../../ai/models";
+import { enqueueAi } from "../../ai/queue";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import { fmt } from "../../ui/shared";
 import WORD_BOOK from "./WordBook";
 import { addPair } from "./WordConfusables";
@@ -6,8 +9,9 @@ import { applyAiReview, type WenguTimingRec, type WenguWordProgress } from "../c
 
 /**
  * AI 复盘（docs/word-timing.md）：误认词手动分析 + 组完成自动触发
- * 共用一条管线。走 AgentClient 同一智能体端点、过串行队列——内核
- * 侧并发请求会互相吞响应（真机坑）。每批 ≤20 词，多批顺序执行。
+ * 共用一条管线。走 ai/client 同一智能体端点、过共享串行队列 enqueueAi
+ * ——无 sessionID 的 agentChat 在内核侧共用 "" 会话锁，并发互吞响应
+ * （真机坑）。每批 ≤20 词，多批顺序执行。
  * 运行态（running/msg）由 WordView.syncAi 镜像进响应态供按钮/消息渲染。
  *
  * 回复协议（锚定规则，不凭空给天数）：
@@ -15,22 +19,8 @@ import { applyAiReview, type WenguTimingRec, type WenguWordProgress } from "../c
  *   （可选，拼错成真词或自述推断）/ T: 辨析提示（仅误认词，≤60 字）。
  */
 
-/** 单次分析调用的超时（毫秒）。 */
-const ANALYZE_TIMEOUT_MS = 180_000;
 /** 单批词数上限（提示词长度与返回稳定性折中）。 */
 const BATCH_SIZE = 20;
-
-/** 串行队列：同一时刻只放一个 AI 调用进内核。 */
-let queue: Promise<unknown> = Promise.resolve();
-
-function enqueue<T>(job: () => Promise<T>): Promise<T> {
-    const run = queue.then(job, job);
-    queue = run.then(
-        (): void => undefined,
-        (): void => undefined
-    );
-    return run;
-}
 
 /** 待分析词的完整作答画像（手动误认分析只需前半，组复盘带全量）。 */
 export interface WordAiInput {
@@ -92,7 +82,7 @@ async function analyzeBatch(
     p: WenguWordProgress,
     save: () => Promise<unknown>
 ): Promise<number> {
-    const reply = await enqueue(() => agentChat(buildPrompt(inputs), defaultAgentModelId(), ANALYZE_TIMEOUT_MS));
+    const reply = await enqueueAi(() => agentChat(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid));
     const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
     const items: { index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];
     for (const it of parseReply(reply)) {

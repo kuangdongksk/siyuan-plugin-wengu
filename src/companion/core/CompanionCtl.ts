@@ -1,4 +1,5 @@
-import { agentChatOnce } from "../../convert/service/AgentClient";
+import { agentChatOnce } from "../../ai/client";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import { buildQuizStats } from "../../stats/StatsService";
 import type { WenguWordProgress } from "../../word/core/WordStore";
@@ -29,8 +30,6 @@ import type { CompanionUi } from "./CompanionUi";
  * 兜底规则台词。
  */
 
-const REACT_TIMEOUT_MS = 30_000;
-const CHAT_TIMEOUT_MS = 90_000;
 /** AI 增强的最小间隔（丢策略：不排队）。 */
 const ENRICH_MIN_GAP_MS = 45_000;
 /** 用户级画像快照缓存时长。 */
@@ -249,7 +248,7 @@ export class CompanionCtl {
                 const reply = await agentChatOnce(
                     buildReactPrompt(this.personaDesc(), desc, this.session, u),
                     this.modelId(),
-                    REACT_TIMEOUT_MS
+                    AI_TIMEOUT.react
                 );
                 const r = parseExprReply(reply);
                 if (r) this.showLine(r.line, r.expr);
@@ -352,7 +351,7 @@ export class CompanionCtl {
         ui.chatBusy = true;
         try {
             const u = await this.userProfile();
-            const reply = await agentChatOnce(build(u), this.modelId(), CHAT_TIMEOUT_MS);
+            const reply = await agentChatOnce(build(u), this.modelId(), AI_TIMEOUT.chat);
             this.pushMsg("ai", clampText(reply, 400));
         } catch (err) {
             const why = err instanceof Error && err.message ? `：${err.message.slice(0, 80)}` : "";

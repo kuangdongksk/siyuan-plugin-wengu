@@ -16,8 +16,6 @@ import { flushStemRewrites } from "./QuestionService";
  * 仍走 getChildBlocks 保序，复习详情等小场景不受影响）。
  */
 
-/** SQL 分页行宽（内核无 LIMIT 静默截断 64 行，必须显式分页）。 */
-const SQL_PAGE = 512;
 /** 题容器 id 分片（IN 列表长度上限，防语句过长）。 */
 const ID_CHUNK = 200;
 
@@ -54,22 +52,17 @@ export async function hydrateAll(questions: WenguQuestion[]): Promise<void> {
             .slice(off, off + ID_CHUNK)
             .map((q) => q.id)
             .join("','");
-        for (let page = 0; ; page++) {
-            const stmt = `
+        const rows = await KernelQuery.rowsAll<ChildRow>(`
                 SELECT b.parent_id AS pid, b.id AS bid, b.markdown AS markdown, a.value AS part
                 FROM blocks AS b
                 LEFT JOIN attributes AS a ON a.block_id = b.id AND a.name = '${Attr.part}'
                 WHERE b.parent_id IN ('${inList}')
-                ORDER BY b.parent_id, b.id
-                LIMIT ${SQL_PAGE} OFFSET ${page * SQL_PAGE};`;
-            const rows = await KernelQuery.rows<ChildRow>(stmt);
-            for (const r of rows) {
-                const arr = blocksByPid.get(r.pid) ?? [];
-                arr.push({ id: r.bid, markdown: r.markdown });
-                blocksByPid.set(r.pid, arr);
-                if (r.part) partById.set(r.bid, r.part);
-            }
-            if (rows.length < SQL_PAGE) break;
+                ORDER BY b.parent_id, b.id`);
+        for (const r of rows) {
+            const arr = blocksByPid.get(r.pid) ?? [];
+            arr.push({ id: r.bid, markdown: r.markdown });
+            blocksByPid.set(r.pid, arr);
+            if (r.part) partById.set(r.bid, r.part);
         }
     }
     const rewrites: StemRewrite[] = [];

@@ -1,4 +1,4 @@
-import { agentChat } from "../../convert/service/AgentClient";
+import { runAgentTextOrPanel } from "../../ai/agentPanel";
 import { attributeWrongCauses } from "../service/AiJudge";
 import type { CauseItem } from "../service/AiJudge";
 import { svgIcon } from "../../ui/FormHtml";
@@ -15,11 +15,8 @@ import { roundAggByQid } from "../../bank/data/WeaknessStore";
 /**
  * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：
  * 总用时/得分摘要 + 每题用时图 + 历史轮次得分图 + AI 分析报告
- * （走 AgentClient，同一智能体端点）。
+ * （走 ai 域客户端）。
  */
-
-/** AI 分析超时（毫秒）。 */
-const REPORT_TIMEOUT_MS = 120_000;
 
 export interface RoundReportModel {
     t: (key: string) => string;
@@ -162,61 +159,15 @@ export function bindRoundReport(root: HTMLElement, m: RoundReportModel, modelId:
 }
 
 async function run(btn: HTMLButtonElement, out: HTMLElement, m: RoundReportModel, modelId: string): Promise<void> {
-    // 首选：在思源内置智能体里开新会话发分析（可追问、markdown 渲染）
-    if (await openAgentWithPrompt(buildAnalysisPrompt(m))) return;
-    // 降级：页内拉智能体回答（纯文本）
-    btn.disabled = true;
-    out.textContent = m.t("reportAiLoading");
-    out.removeAttribute("hidden");
-    try {
-        const text = await agentChat(buildAnalysisPrompt(m), modelId, REPORT_TIMEOUT_MS);
-        out.textContent = text.trim() || m.t("convertEmptyReply");
-    } catch (e) {
-        out.textContent = `${m.t("convertAiFailed")}${String((e as Error)?.message ?? e)}`;
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-/**
- * 打开思源内置智能体面板、开新会话并填入 prompt 发送。DOM 自动化
- * （插件 API 无官方入口，选择器按 3.8.0 真机 dump 校准）；任何一步
- * 失配都返回 false，调用方降级页内分析。
- */
-export async function openAgentWithPrompt(prompt: string, marker = "刷题分析助手"): Promise<boolean> {
-    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-    const visible = (): HTMLElement | null => {
-        for (const el of document.querySelectorAll<HTMLElement>(".agent-chat")) {
-            if (el.offsetHeight > 0) return el;
-        }
-        return null;
-    };
-    try {
-        let panel = visible();
-        if (!panel) {
-            const dockItem = document.querySelector<HTMLElement>('.dock__item[data-type="agentChat"]');
-            if (!dockItem) return false;
-            dockItem.click(); // 单击展开（再点是最小化，仅在不可见时点）
-            await sleep(400);
-            panel = visible();
-        }
-        if (!panel) return false;
-        panel.querySelector<HTMLElement>('[data-type="new-session"]')?.click(); // 新会话
-        const wysiwyg = panel.querySelector<HTMLElement>(".agent-chat__composer-host .protyle-wysiwyg");
-        const send = panel.querySelector<HTMLButtonElement>(".agent-chat__send");
-        if (!wysiwyg || !send) return false;
-        wysiwyg.focus();
-        // 以纯文本粘贴喂给 Protyle（自带粘贴解析；execCommand 不处理多行）
-        const dt = new DataTransfer();
-        dt.setData("text/plain", prompt);
-        wysiwyg.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-        await sleep(150);
-        if (!wysiwyg.textContent?.includes(marker)) return false; // 未粘上
-        send.click();
-        return true;
-    } catch (_) {
-        return false;
-    }
+    await runAgentTextOrPanel({
+        prompt: buildAnalysisPrompt(m),
+        btn,
+        out,
+        modelId,
+        loadingText: m.t("reportAiLoading"),
+        emptyText: m.t("convertEmptyReply"),
+        failPrefix: m.t("convertAiFailed"),
+    });
 }
 
 /** 把一轮数据交给 AI 判卷（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。 */

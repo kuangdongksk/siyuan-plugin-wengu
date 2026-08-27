@@ -36,7 +36,7 @@ export enum EApi {
     // ── 事务（闪卡/DOM 插入等前端同款通道）──
     Transactions = "/api/transactions",
 
-    // ── AI（agent/chat 是 SSE、chatGPT 是普通 JSON——见 AgentClient）──
+    // ── AI（agent/chat 是 SSE、chatGPT 是普通 JSON——见 ai/client）──
     AgentChat = "/api/ai/agent/chat",
     AgentSaveSession = "/api/ai/agent/saveSession",
     AgentRemoveSession = "/api/ai/agent/removeSession",

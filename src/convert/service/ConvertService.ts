@@ -5,7 +5,7 @@ import { KernelQuery } from "../../siyuan/query";
 import { shuffleChoiceOptions } from "./OptionShuffle";
 
 /**
- * AI 转换服务：把一篇笔记文档交给思源内置智能体（AgentClient，
+ * AI 转换服务：把一篇笔记文档交给思源内置智能体（ai/client，
  * 可指定用户在 设置→AI 配置的任一模型），按 docs/question-block-contract.md
  * 的契约生成题目块，落成独立的《原标题·习题》文档。
  *
@@ -48,14 +48,6 @@ export interface ConvertResult {
  * 6k 字符约 22 秒稳定返回（12 题）。
  */
 export const MAX_SOURCE_CHARS = 6000;
-
-/** AI 调用超时（毫秒）：串行通道按空闲计（SSE 有 token 即续期），
- *  模型卡住时状态条报错，而不是永远「转换中」。 */
-export const AI_TIMEOUT_MS = 300_000;
-
-/** 并发直答通道（chatGPT 非流式）的总时长超时：慢模型大批次可能
- *  超过 5 分钟才整段返回（真机踩坑：总时长 5 分钟误杀长批次）。 */
-export const AI_CONCURRENT_TIMEOUT_MS = 600_000;
 
 /** 取文档定位信息（标题/笔记本/标题路径）。 */
 export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {

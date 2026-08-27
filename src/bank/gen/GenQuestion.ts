@@ -1,4 +1,5 @@
-import { agentChat } from "../../convert/service/AgentClient";
+import { agentChat } from "../../ai/client";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBatchQuestions } from "../../convert/service/ConvertService";
 import { sectionKramdown } from "../../convert/service/KnowledgeLink";
 import type { QuestionBank } from "../data/QuestionBank";
@@ -8,8 +9,6 @@ import type { QuestionBank } from "../data/QuestionBank";
  * 最多的优先）为模板改数字/换条件；概念=依知识点小节出概念/辨析题。
  * 每题生成后 AI 自检（独立重做校验答案），不过检丢弃返回空串。
  */
-
-const GEN_TIMEOUT_MS = 300_000;
 
 /** 生成点：薄弱行或知识点索引行，薄弱字段缺省时 prompt 相应行省略。 */
 export interface GenPoint {
@@ -76,7 +75,7 @@ ${template}`;
 
 /** 发 prompt 出题 + AI 自检（独立重做校验答案，不过检丢弃返回空串）。 */
 async function genWithVerify(prompt: string, modelId: string): Promise<string> {
-    const reply = await agentChat(prompt, modelId, GEN_TIMEOUT_MS);
+    const reply = await agentChat(prompt, modelId, AI_TIMEOUT.long);
     const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
     if (qs.length === 0) return "";
     const kd = qs[0];
@@ -86,7 +85,7 @@ VERIFY: yes 或 no（答案与解析自洽为 yes；算不平/矛盾为 no）
 
 ${kd}`,
         modelId,
-        180_000
+        AI_TIMEOUT.mid
     );
     if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) return "";
     return kd;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupKnowByDoc } from "./KnowledgePanel";
+import { groupKnowByDoc, mergeKnowDocs, type KnowDocView } from "./KnowledgePanel";
 
 describe("groupKnowByDoc", () => {
     const refs = new Map([
@@ -49,5 +49,59 @@ describe("groupKnowByDoc", () => {
 
     it("空题库 → 空清单", () => {
         expect(groupKnowByDoc(new Map(), new Map(), [], new Map())).toEqual([]);
+    });
+});
+
+describe("mergeKnowDocs", () => {
+    const derived: KnowDocView[] = [
+        {
+            docId: "docMath",
+            title: "数学讲义",
+            sections: [
+                { id: "kp1", title: "函数的单调性", count: 12 },
+                { id: "kp2", title: "导数与切线", count: 7 },
+            ],
+            total: 19,
+        },
+    ];
+
+    it("纯导入文档追加为 0 题行并沉底", () => {
+        const out = mergeKnowDocs(
+            derived,
+            [{ docId: "docPhys", title: "物理手册", sections: [{ id: "s1", title: "力学" }] }],
+            new Set(["docPhys"])
+        );
+        expect(out).toHaveLength(2);
+        expect(out[0].docId).toBe("docMath");
+        expect(out[1]).toMatchObject({ docId: "docPhys", total: 0, manual: true });
+        expect(out[1].sections[0]).toEqual({ id: "s1", title: "力学", count: 0 });
+    });
+
+    it("同文档合并：节并集去重、题数保留推导侧、manual 跟登记走", () => {
+        const out = mergeKnowDocs(
+            derived,
+            [
+                {
+                    docId: "docMath",
+                    title: "数学讲义",
+                    sections: [
+                        { id: "kp1", title: "函数的单调性" }, // 已有 → 去重
+                        { id: "kp9", title: "中值定理" }, // 新节 → 0 题并入
+                    ],
+                },
+            ],
+            new Set(["docMath"])
+        );
+        expect(out).toHaveLength(1);
+        expect(out[0].manual).toBe(true);
+        expect(out[0].total).toBe(19);
+        expect(out[0].sections.map((s) => s.id)).toEqual(["kp1", "kp2", "kp9"]);
+        expect(out[0].sections.find((s) => s.id === "kp1")?.count).toBe(12); // 推导题数不被 0 覆盖
+        expect(out[0].sections.find((s) => s.id === "kp9")?.count).toBe(0);
+    });
+
+    it("未登记的推导行不带 manual 标记", () => {
+        const out = mergeKnowDocs(derived, [], new Set(["docOther"]));
+        expect(out[0].manual).toBeUndefined();
     });
 });

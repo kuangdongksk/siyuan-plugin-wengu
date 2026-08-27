@@ -1,5 +1,5 @@
-import { agentChat, agentChatConcurrent } from "./AgentClient";
-import { AI_CONCURRENT_TIMEOUT_MS, AI_TIMEOUT_MS } from "./ConvertService";
+import { agentChat, agentChatConcurrent } from "../../ai/client";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
 
 /**
@@ -48,17 +48,6 @@ export interface KnowRouteDeps {
 /** SQL 查询（工厂 rowsMap：code!==0 抛错由调用方降级）。 */
 const sql = KernelQuery.rowsMap;
 
-/** 分页拉全量：内核 SQL API 对无 LIMIT 的查询静默截断到 64 行
- *  （真机 20260823 验证），子查询不支持（返回空），必须显式分页。 */
-async function sqlAll(stmt: string, pageSize = 512): Promise<Map<string, string>[]> {
-    const out: Map<string, string>[] = [];
-    for (let off = 0; ; off += pageSize) {
-        const page = await sql(`${stmt} LIMIT ${pageSize} OFFSET ${off}`);
-        out.push(...page);
-        if (page.length < pageSize) return out;
-    }
-}
-
 /**
  * 建知识点索引。rootIds 是用户填的知识点根文档（书架那层或直接一本
  * 书/一章）：取其下所有叶子文档为章节（书名空壳层自动排除），根自身
@@ -79,7 +68,7 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
         if (!root?.get("box")) continue;
         const rootPath = root.get("path");
         const dir = rootPath.replace(/\.sy$/, "");
-        const rows = await sqlAll(
+        const rows = await KernelQuery.rowsMapAll(
             `SELECT id, path, content, hpath FROM blocks WHERE type = 'd' AND box = '${root.get(
                 "box"
             )}' AND path LIKE '${dir}/%.sy' ORDER BY hpath`
@@ -96,7 +85,7 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
         // 一次性拉全部叶子章节的 h2~h4 标题块（按 sort 保序；分页后要按章重排）
         const ids = leaves.map((r) => `'${r.get("id")}'`).join(",");
         const heads = ids
-            ? await sqlAll(
+            ? await KernelQuery.rowsMapAll(
                   `SELECT root_id, id, content FROM blocks WHERE type = 'h' AND subtype IN ('h2','h3','h4') AND root_id IN (${ids}) ORDER BY root_id, sort`
               )
             : [];
@@ -249,11 +238,9 @@ async function knowAwareCall(
     return { reply, byAlias };
 }
 
-/** 知识点路由超时：输入短（批内容+索引）、输出一行 JSON。 */
-const KNOW_ROUTE_TIMEOUT_MS = 120_000;
-
 /** 组装「路由+生成」批调用：通道与生成本职一致（并发走 chatGPT 直答，
- *  串行走 agent/chat 可选模型），ConvertBatch 只提供 prompt 组装与信号。 */
+ *  串行走 agent/chat 可选模型；路由输出一行 JSON 用 quick 档），ConvertBatch
+ *  只提供 prompt 组装与信号。 */
 export function makeKnowAwareAi(opts: {
     modelId: string;
     parallel: number;
@@ -263,12 +250,12 @@ export function makeKnowAwareAi(opts: {
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     const call = (message: string): Promise<string> =>
         opts.parallel > 1
-            ? agentChatConcurrent(message, KNOW_ROUTE_TIMEOUT_MS, opts.signal)
-            : agentChat(message, opts.modelId, KNOW_ROUTE_TIMEOUT_MS, opts.signal);
+            ? agentChatConcurrent(message, AI_TIMEOUT.quick, opts.signal)
+            : agentChat(message, opts.modelId, AI_TIMEOUT.quick, opts.signal);
     const generate = (prompt: string): Promise<string> =>
         opts.parallel > 1
-            ? agentChatConcurrent(prompt, AI_CONCURRENT_TIMEOUT_MS, opts.signal)
-            : agentChat(prompt, opts.modelId, AI_TIMEOUT_MS, opts.signal);
+            ? agentChatConcurrent(prompt, AI_TIMEOUT.batch, opts.signal)
+            : agentChat(prompt, opts.modelId, AI_TIMEOUT.long, opts.signal);
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }
 
@@ -306,7 +293,7 @@ export async function sectionKramdown(headingId: string, maxChars = 3000): Promi
     const head = (await sql(`SELECT root_id, subtype FROM blocks WHERE id = '${headingId}' AND type = 'h' LIMIT 1`))[0];
     if (!head) return "";
     const myLevel = Number(head.get("subtype")?.replace("h", "")) || 2;
-    const rows = await sqlAll(
+    const rows = await KernelQuery.rowsMapAll(
         `SELECT id, subtype, type, content FROM blocks WHERE root_id = '${head.get("root_id")}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`
     );
     let started = false;

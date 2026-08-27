@@ -61,14 +61,10 @@ const TREE_TTL = 60000;
 
 async function fetchTreeDocs(): Promise<{ id: string; hpath: string }[]> {
     if (treeCache && Date.now() - treeCache.at < TREE_TTL) return treeCache.docs;
-    const all: { id: string; hpath: string }[] = [];
-    for (let off = 0; off < 10000; off += 100) {
-        const page = await KernelQuery.rows<{ id: string; hpath: string }>(
-            `SELECT id, hpath FROM blocks WHERE type='d' ORDER BY hpath LIMIT 100 OFFSET ${off}`
-        );
-        all.push(...page);
-        if (page.length < 100) break;
-    }
+    const all = await KernelQuery.rowsAll<{ id: string; hpath: string }>(
+        "SELECT id, hpath FROM blocks WHERE type='d' ORDER BY hpath",
+        100
+    );
     treeCache = { at: Date.now(), docs: all };
     return all;
 }

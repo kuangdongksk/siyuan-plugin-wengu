@@ -1,4 +1,6 @@
-import { agentChat } from "../../convert/service/AgentClient";
+import { agentChat } from "../../ai/client";
+import { enqueueAi } from "../../ai/queue";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import type { WenguQuestion } from "../../types";
 import type { WenguStep } from "../../types";
 import { LETTERS, optionDisplayMd, QuestionType } from "../../types";
@@ -8,24 +10,10 @@ import { normalizeCause } from "../../bank/data/WeaknessStore";
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
  *
- * 走 AgentClient 同一智能体端点；判分/引导调用一律过串行队列——
- * 内核侧并发请求会互相吞响应（同 fetchSyncPost 的真机坑）。
+ * 走 ai/client 同一智能体端点；判分/引导调用一律过共享串行队列
+ * enqueueAi——无 sessionID 的 agentChat 在内核侧共用 "" 会话锁，
+ * 并发互吞响应（真机坑）。
  */
-
-/** 单次判分/引导调用的超时（毫秒）。 */
-const JUDGE_TIMEOUT_MS = 120_000;
-
-/** 串行队列：同一时刻只放一个 AI 调用进内核。 */
-let queue: Promise<unknown> = Promise.resolve();
-
-function enqueue<T>(job: () => Promise<T>): Promise<T> {
-    const run = queue.then(job, job);
-    queue = run.then(
-        (): void => undefined,
-        (): void => undefined
-    );
-    return run;
-}
 
 /* ── brief 思路验证 ── */
 
@@ -46,14 +34,14 @@ export interface BriefVerdict {
  *  thought 为「思路」折叠区里的推导备注（可选，判 partial 的素材）。
  *  essay/trans（英语）走各自的 rubric prompt（E3），SCORE 并入评语。 */
 export function judgeBrief(q: WenguQuestion, mine: string, modelId: string, thought = ""): Promise<BriefVerdict> {
-    return enqueue(async () => {
+    return enqueueAi(async () => {
         const prompt =
             q.type === QuestionType.Essay
                 ? buildEssayPrompt(q, mine)
                 : q.type === QuestionType.Trans
                   ? buildTransPrompt(q, mine)
                   : buildBriefPrompt(q, mine, thought);
-        const reply = await agentChat(prompt, modelId, JUDGE_TIMEOUT_MS);
+        const reply = await agentChat(prompt, modelId, AI_TIMEOUT.quick);
         return parseBriefVerdict(reply);
     });
 }
@@ -150,8 +138,8 @@ export function judgeClue(
     clues: string[],
     modelId: string
 ): Promise<ClueVerdict> {
-    return enqueue(async () => {
-        const reply = await agentChat(buildCluePrompt(materialBody, q, submitted, clues), modelId, JUDGE_TIMEOUT_MS);
+    return enqueueAi(async () => {
+        const reply = await agentChat(buildCluePrompt(materialBody, q, submitted, clues), modelId, AI_TIMEOUT.quick);
         const m = /CLUE\s*[:：]\s*(hit|near|miss|对|近似|错)/i.exec(reply);
         if (!m) throw new Error("AI 未按格式返回线索复核");
         const raw = m[1].toLowerCase();
@@ -189,7 +177,7 @@ export interface CauseItem {
 
 /** 客观题答错后没有判分调用可搭车——收卷时把错题打包一次归因（串行）。 */
 export function attributeWrongCauses(items: CauseItem[], modelId: string): Promise<Map<string, WeakCause>> {
-    return enqueue(async () => {
+    return enqueueAi(async () => {
         const lines = items
             .map((it, i) => `${i + 1}|${it.stem}|我的答案：${it.mine}|正确答案：${it.answer}`)
             .join("\n");
@@ -200,7 +188,7 @@ export function attributeWrongCauses(items: CauseItem[], modelId: string): Promi
 题目：
 ${lines}`,
             modelId,
-            JUDGE_TIMEOUT_MS
+            AI_TIMEOUT.quick
         );
         const out = new Map<string, WeakCause>();
         const jm = /\{[\s\S]*\}/.exec(reply);
@@ -238,8 +226,8 @@ export function appealMethodStep(
     chosen: string,
     modelId: string
 ): Promise<MethodAppealVerdict> {
-    return enqueue(async () => {
-        const reply = await agentChat(buildAppealPrompt(q, step, chosen), modelId, JUDGE_TIMEOUT_MS);
+    return enqueueAi(async () => {
+        const reply = await agentChat(buildAppealPrompt(q, step, chosen), modelId, AI_TIMEOUT.quick);
         const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
         if (!m) throw new Error("AI 未按格式返回复核");
         const v = m[1].toLowerCase();
@@ -294,8 +282,8 @@ export function nextRealtimeStep(
     history: RealtimeHistoryItem[],
     modelId: string
 ): Promise<RealtimeStep> {
-    return enqueue(async () => {
-        const reply = await agentChat(buildRealtimePrompt(q, history), modelId, JUDGE_TIMEOUT_MS);
+    return enqueueAi(async () => {
+        const reply = await agentChat(buildRealtimePrompt(q, history), modelId, AI_TIMEOUT.quick);
         return parseRealtimeStep(reply);
     });
 }

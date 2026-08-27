@@ -1,75 +1,17 @@
+import { EApi } from "../siyuan/api";
+
 /**
- * 思源内置智能体客户端（design-review P2-5）：SSE 调用 + 用户配置的
- * 模型清单。转换与 AI 分析报告共用，ConvertService 不再持有这层。
+ * 思源内置 AI 的调用通道（2026-08-27 从 convert/AgentClient 抽离成
+ * 独立域——convert/bank/quiz/word/stats/companion 六域共用的基础设施，
+ * 不再隶属任何业务域）。三条通道按场景选：
+ *  - agentChat：智能体 SSE 流式，可按次指定 model；不传 sessionID 时
+ *    共用 "" 会话（内核并发锁键控，并发互斥，须过 enqueueAi 串行）。
+ *  - agentChatConcurrent：旧直答端点 chatGPT，支持并发、模型跟随
+ *    设置默认不可指定——转换并发池用。
+ *  - agentChatOnce：一次性独立会话（saveSession→chat→removeSession），
+ *    独立 sessionID 天然并发（20260827 真机验证），高频独立任务
+ *    （看板娘反应/聊天）用它，无需串行队列。
  */
-import { esc } from "../../ui/shared";
-import { EApi } from "../../siyuan/api";
-
-/** 用户在 设置→AI 配置的可选模型（提供商 × 模型）。 */
-export interface WenguAiModel {
-    /** 模型 id（agent/chat 的 model 参数）。 */
-    id: string;
-    name: string;
-    provider: string;
-}
-
-interface SiyuanAiModelConf {
-    id?: string;
-    name?: string;
-    displayName?: string;
-    enabled?: boolean;
-}
-interface SiyuanAiProviderConf {
-    id?: string;
-    displayName?: string;
-    enabled?: boolean;
-    models?: SiyuanAiModelConf[];
-}
-interface SiyuanAiConf {
-    agent?: { modelId?: string };
-    providers?: SiyuanAiProviderConf[];
-}
-interface SiyuanWindow {
-    siyuan?: { config?: { ai?: SiyuanAiConf; lang?: string } };
-}
-
-function aiConf(): SiyuanAiConf {
-    return (window as unknown as SiyuanWindow).siyuan?.config?.ai ?? {};
-}
-
-/** 列出用户配置的全部可用模型（启用的提供商 × 启用的模型）。 */
-export function listAiModels(): WenguAiModel[] {
-    const out: WenguAiModel[] = [];
-    for (const p of aiConf().providers ?? []) {
-        if (!p.enabled) continue;
-        for (const m of p.models ?? []) {
-            if (!m.enabled) continue;
-            const name = m.displayName || m.name;
-            if (name) out.push({ id: m.id || m.name, name, provider: p.displayName || p.id || "?" });
-        }
-    }
-    return out;
-}
-
-/** 智能体设置里的默认模型 id（空串表示未配置）。 */
-export function defaultAgentModelId(): string {
-    return aiConf().agent?.modelId ?? "";
-}
-
-/** 模型下拉的全部选项（各模型「提供商 · 名称」），设置页/转换弹窗共用。
- *  不单列「默认」项：selectedId 命中则选中，否则预选智能体设置的默认模型。 */
-export function modelOptionsHtml(selectedId: string): string {
-    const models = listAiModels();
-    const sel = selectedId && models.some((m) => m.id === selectedId) ? selectedId : defaultAgentModelId();
-    return models
-        .map(
-            (m) =>
-                `<option value="${esc(m.id)}"${sel === m.id ? " selected" : ""}>${esc(m.provider)} · ${esc(
-                    m.name
-                )}</option>`
-        )
-        .join("");
-}
 
 /**
  * 调思源内置智能体（/api/ai/agent/chat，SSE 流式）并收集完整回答。
@@ -86,7 +28,7 @@ export async function agentChat(
     timeoutMs: number,
     signal?: AbortSignal,
     /** 独立会话 id（见 agentChatOnce）：传了即带 sessionID/userEntryID，
-     *  并发锁按 sessionID 键控，不同会话互不 busy。 */
+     * 并发锁按 sessionID 键控，不同会话互不 busy。 */
     sessionId = ""
 ): Promise<string> {
     const controller = new AbortController();
@@ -240,4 +182,8 @@ export async function agentChatOnce(
             body: JSON.stringify({ id: sid }),
         }).catch((): void => undefined);
     }
+}
+
+interface SiyuanWindow {
+    siyuan?: { config?: { lang?: string } };
 }

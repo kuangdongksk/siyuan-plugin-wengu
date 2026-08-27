@@ -1,6 +1,5 @@
-import { agentChat } from "../convert/service/AgentClient";
+import { runAgentTextOrPanel } from "../ai/agentPanel";
 import type { HistoryStore } from "../quiz/service/HistoryStore";
-import { openAgentWithPrompt } from "../quiz/render/RoundReport";
 import { wrongOverviewNow } from "../review";
 import { roundsOption, StatsChartHost, trendOption } from "./StatsCharts";
 import { renderDocStatsHtml, renderOverviewHtml, renderStatsShell, type OverviewExtra } from "./StatsHtml";
@@ -18,7 +17,6 @@ import { esc, fmt } from "../ui/shared";
  */
 
 /** AI 建议超时（毫秒），与轮报告一致。 */
-const STATS_AI_TIMEOUT_MS = 120_000;
 
 export interface StatsPanelDeps {
     el: HTMLElement;
@@ -223,17 +221,14 @@ class StatsPanel {
 
     /** AI 学习建议：首选思源内置智能体（可追问），失配降级页内拉取。 */
     private async runAi(btn: HTMLButtonElement, out: HTMLElement, prompt: string): Promise<void> {
-        if (await openAgentWithPrompt(prompt, "刷题统计助手")) return;
-        btn.disabled = true;
-        out.textContent = this.d.t("statsAiLoading");
-        out.removeAttribute("hidden");
-        try {
-            const text = await agentChat(prompt, this.d.aiModelId, STATS_AI_TIMEOUT_MS);
-            out.textContent = text.trim() || this.d.t("convertEmptyReply");
-        } catch (e) {
-            out.textContent = `${this.d.t("convertAiFailed")}${String((e as Error)?.message ?? e)}`;
-        } finally {
-            btn.disabled = false;
-        }
+        await runAgentTextOrPanel({
+            prompt,
+            btn,
+            out,
+            modelId: this.d.aiModelId,
+            loadingText: this.d.t("statsAiLoading"),
+            emptyText: this.d.t("convertEmptyReply"),
+            failPrefix: this.d.t("convertAiFailed"),
+        });
     }
 }

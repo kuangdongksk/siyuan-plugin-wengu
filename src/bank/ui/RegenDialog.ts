@@ -1,5 +1,6 @@
 import { Dialog } from "siyuan";
-import { agentChat } from "../../convert/service/AgentClient";
+import { agentChat } from "../../ai/client";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBlockId, extractBatchQuestions } from "../../convert/service/ConvertService";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowledgeLink";
@@ -15,8 +16,6 @@ import { KernelBlock } from "../../siyuan/block";
  * 产物确定性注回原知识点引用；题库记录替换为主，源文档块尽力同步
  * （updateBlock 单块，失败不阻断——题库是主记录）。
  */
-
-const REGEN_TIMEOUT_MS = 300_000;
 
 export interface RegenDeps {
     t: (key: string) => string;
@@ -139,7 +138,7 @@ async function runRegen(
         const kp = record.kpRefs[0];
         const section = sourceBlock ? "" : kp ? await sectionKramdown(kp.id) : "";
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
-        const reply = await agentChat(prompt, modelId, REGEN_TIMEOUT_MS);
+        const reply = await agentChat(prompt, modelId, AI_TIMEOUT.long);
         const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
         if (qs.length === 0) throw new Error(t("convertEmptyReply"));
         let kd = qs[0];

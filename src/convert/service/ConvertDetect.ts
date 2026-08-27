@@ -1,4 +1,5 @@
-import { agentChat } from "./AgentClient";
+import { agentChat } from "../../ai/client";
+import { AI_TIMEOUT } from "../../ai/timeouts";
 import { isMaterialKramdown, parseVerdict } from "./ConvertService";
 import { esc } from "../../ui/shared";
 
@@ -12,9 +13,6 @@ import { esc } from "../../ui/shared";
 /** 检测窗口：检测调用只看前 N 字符（输入越长内核 AI 越易超时；
  *  超窗时 AI 只数可见部分并带 + 号（如 12+），UI 如实展示）。 */
 const DETECT_CHARS = 12000;
-
-/** 检测超时短一些：输出只有三行。 */
-const DETECT_TIMEOUT_MS = 120_000;
 
 /** 前置检测：能否出题 + 原文现成题目数（试卷题库才有意义）。
  *  truncated=文档超出检测窗口，count 是可见部分的下限（N+）。 */
@@ -39,7 +37,7 @@ REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不
 文档内容：
 ${head}`,
         modelId,
-        DETECT_TIMEOUT_MS,
+        AI_TIMEOUT.quick,
         signal
     );
     const verdict = parseVerdict(reply);

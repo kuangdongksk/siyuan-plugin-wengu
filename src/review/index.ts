@@ -75,7 +75,6 @@ let cacheSeq = 0; // 在途装载的代数：重渲染/刷新时旧结果放弃
 let docTitles = new Map<string, string>();
 
 const CACHE_TTL_MS = 60_000;
-const SQL_PAGE = 512;
 
 /** 复习模式主渲染入口（QuizView.renderListInner 的 review 分支调，
  *  头部/侧栏事件由调用方随后统一绑定）。 */
@@ -220,12 +219,10 @@ async function refreshReview(v: ReviewViewAccess): Promise<void> {
     v.rerenderView();
 }
 
-/** SQL 分页直查 wrong-count>0 的题块（仿 listQuestions 的聚合，
- *  附带 blocks.content 做摘要；不 hydrate——详情点开才取）。 */
+/** SQL 直查 wrong-count>0 的题块（仿 listQuestions 的聚合，附带
+ *  blocks.content 做摘要；不 hydrate——详情点开才取；rowsAll 自动分页）。 */
 async function listWrongRows(): Promise<(AttrsRow & { content?: string })[]> {
-    const out: (AttrsRow & { content?: string })[] = [];
-    for (let offset = 0; offset < 100 * SQL_PAGE; offset += SQL_PAGE) {
-        const stmt = `
+    const rows = await KernelQuery.rowsAll<AttrsRow & { content?: string }>(`
             SELECT
                 b.id AS block_id,
                 b.root_id,
@@ -238,15 +235,8 @@ async function listWrongRows(): Promise<(AttrsRow & { content?: string })[]> {
                   SELECT block_id FROM attributes
                   WHERE name = '${Attr.wrongCount}' AND CAST(value AS INTEGER) > 0
               )
-            GROUP BY b.id
-            LIMIT ${SQL_PAGE} OFFSET ${offset};`;
-        const rows = (await KernelQuery.rows<AttrsRow & { content?: string }>(stmt)).filter(
-            (r) => typeof r.attrs === "string"
-        );
-        out.push(...rows);
-        if (rows.length < SQL_PAGE) break;
-    }
-    return out;
+            GROUP BY b.id`);
+    return rows.filter((r) => typeof r.attrs === "string");
 }
 
 /** 块属性行 × 会话索引 → 清单条目（掌握口径 D4：最近一次对即掌握）。 */

@@ -1,4 +1,4 @@
-import { defaultAgentModelId, listAiModels, type WenguAiModel } from "../convert/service/AgentClient";
+import { defaultAgentModelId, listAiModels, type WenguAiModel } from "../ai/models";
 import { esc } from "./shared";
 
 /**
@@ -28,6 +28,7 @@ interface PickOptions {
     /** 选中后回调（设置页立即落盘用；转换弹窗不传、提交时读 data-value）。 */
     onPick?: (value: string) => void;
 }
+export type { PickOptions };
 
 /** 绑定触发按钮：点击弹官方风格搜索浮层，选中回填按钮文字与 data-value。 */
 export function bindModelPicker(btn: HTMLButtonElement | null, opts: PickOptions): void {
@@ -40,6 +41,19 @@ export function bindModelPicker(btn: HTMLButtonElement | null, opts: PickOptions
         document.body.appendChild(buildMenu(btn, opts));
         btn.classList.add("b3-button--focus");
     });
+}
+
+/** Svelte action 桥（Svelte 化面板用：`use:modelPick={{t, onPick}}`）。 */
+export function modelPickAction(btn: HTMLButtonElement, opts: PickOptions): void {
+    bindModelPicker(btn, opts);
+}
+
+/** 当前选中模型的显示文本（Svelte 组件渲染触发按钮内容用；无效选中回落默认）。 */
+export function modelPickLabel(selectedId: string): string {
+    const models = listAiModels();
+    const sel = selectedId && models.some((m) => m.id === selectedId) ? selectedId : defaultAgentModelId();
+    const cur = models.find((m) => m.id === sel);
+    return cur ? labelOf(cur) : "-";
 }
 
 let menuEl: HTMLElement | null = null;

@@ -57,6 +57,8 @@ export interface BankData {
     migratedDocs: string[];
     /** 内容指纹 → 已有 qid（跨卷去重）。 */
     hashed: Record<string, string>;
+    /** 手动导入的知识文档根（知识面板登记；旧数据缺省为 []）。 */
+    knowRoots: string[];
 }
 
 /** 侧栏专题行。 */
@@ -64,6 +66,21 @@ export interface CollectionRow {
     id: string;
     title: string;
     count: number;
+}
+
+/** 专题标题 → 目录路径规范化：按「/」分段 trim、去空段，总长超 60
+ *  从整段处截断（不切半段）；返回空串 = 无有效段（创建兜底未命名，
+ *  重命名按无效放弃）。无「/」即普通平铺标题（行为同旧版 trim）。 */
+export function normalizeCollectionPath(title: string): string {
+    const out: string[] = [];
+    for (const seg of title
+        .split("/")
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        if (out.join("/").length + (out.length ? 1 : 0) + seg.length > 60) break;
+        out.push(seg);
+    }
+    return out.join("/");
 }
 
 /** 知识点索引行（建专题对话框用）。 */
@@ -96,10 +113,11 @@ export class QuestionBank {
             this.cache =
                 data && typeof data === "object" && data.records
                     ? data
-                    : { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {} };
+                    : { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {}, knowRoots: [] };
         } catch (_) {
-            this.cache = { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {} };
+            this.cache = { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {}, knowRoots: [] };
         }
+        if (!Array.isArray(this.cache.knowRoots)) this.cache.knowRoots = []; // 旧数据补字段
         return this.cache;
     }
 
@@ -231,7 +249,7 @@ export class QuestionBank {
         const data = await this.all();
         const row: BankCollection = {
             id: `col-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-            title: title.trim() || "未命名专题",
+            title: normalizeCollectionPath(title) || "未命名专题",
             qids: [...new Set(qids)],
             origin,
             createdAt: Date.now(),
@@ -247,12 +265,13 @@ export class QuestionBank {
         this.markDirty();
     }
 
-    /** 重命名专题（专题管理工作区面板）。 */
+    /** 重命名专题（专题管理工作区面板；含 / 即改挂目录）。 */
     async renameCollection(id: string, title: string): Promise<void> {
         const data = await this.all();
         const col = data.collections.find((c) => c.id === id);
-        if (!col || !title.trim()) return;
-        col.title = title.trim();
+        const next = normalizeCollectionPath(title);
+        if (!col || !next || next === col.title) return;
+        col.title = next;
         this.markDirty();
     }
 

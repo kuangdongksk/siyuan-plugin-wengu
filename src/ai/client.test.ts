@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newSessionId } from "./AgentClient";
+import { newSessionId } from "./client";
 
 describe("newSessionId", () => {
     it("格式 = {14位时间戳}-{7位小写字母数字}（内核 isValidSessionID 校验格式）", () => {

@@ -28,4 +28,26 @@ export class KernelQuery {
             return m;
         });
     }
+
+    /** 全量分页执行（自动追加 LIMIT/OFFSET 翻页到取完）：无 LIMIT 截
+     *  64 行的坑见类注释，全量查询一律走这里；stmt 不要自带 LIMIT/
+     *  OFFSET（尾部分号会被剥掉）。 */
+    static async rowsAll<T = { [k: string]: unknown }>(stmt: string, pageSize = 512): Promise<T[]> {
+        const out: T[] = [];
+        for (let off = 0; ; off += pageSize) {
+            const rows = await KernelQuery.rows<T>(`${stmt.replace(/;\s*$/, "")} LIMIT ${pageSize} OFFSET ${off}`);
+            out.push(...rows);
+            if (rows.length < pageSize) return out;
+        }
+    }
+
+    /** rowsMap 的全量分页版（语义同 rowsAll，code!==0 抛错）。 */
+    static async rowsMapAll(stmt: string, pageSize = 512): Promise<Map<string, string>[]> {
+        const out: Map<string, string>[] = [];
+        for (let off = 0; ; off += pageSize) {
+            const rows = await KernelQuery.rowsMap(`${stmt.replace(/;\s*$/, "")} LIMIT ${pageSize} OFFSET ${off}`);
+            out.push(...rows);
+            if (rows.length < pageSize) return out;
+        }
+    }
 }

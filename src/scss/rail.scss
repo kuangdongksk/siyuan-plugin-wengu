@@ -202,6 +202,45 @@
   gap: 4px;
 }
 
+/* 专题目录分组（标题含 / 时树形展示；叶子专题行由内联 padding-left 缩进） */
+.wengu-col-group {
+  > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--b3-border-radius);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--b3-theme-on-surface);
+    list-style: none;
+    user-select: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      background: var(--b3-list-hover);
+    }
+
+    svg {
+      flex: none;
+      width: 14px;
+      height: 14px;
+      color: var(--b3-theme-on-surface-light);
+    }
+  }
+}
+
+.wengu-col-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wengu-kp-detail {
   padding: 0 10px 8px 26px;
 
