@@ -25,6 +25,14 @@
         if (ui.cardMode === "spell" && ui.phase === "prompt" && !ui.answered) spellEl?.focus();
         else cardEl?.focus();
     });
+    // 听音题进卡自动播一次（redesign §一：梯③；空格可重听）
+    $effect(() => {
+        void ui.idx;
+        void ui.cardMode;
+        void ui.phase;
+        void ui.answered;
+        if (ui.cardMode === "listen" && ui.phase === "prompt" && !ui.answered) view.playCurrentWord();
+    });
 
     const p = $derived(ui.progress!);
     const idx = $derived(ui.idx);
@@ -32,11 +40,12 @@
     const mode = $derived(ui.cardMode);
     const reveal = $derived(ui.phase === "result");
     const answered = $derived(ui.answered);
-    const isChoice = $derived(mode === "choiceEn" || mode === "choiceZh");
+    // 有选项托底的题型：两个选择 + 听音选义（梯③，共用释义选项）
+    const isPick = $derived(mode === "choiceEn" || mode === "choiceZh" || mode === "listen");
     const choices = $derived(
-        isChoice ? (mode === "choiceEn" ? buildMeaningOptions(idx, ui.confIds) : buildWordOptions(idx, ui.confIds)) : []
+        isPick ? (mode === "choiceZh" ? buildWordOptions(idx, ui.confIds) : buildMeaningOptions(idx, ui.confIds)) : []
     );
-    const correctText = $derived(mode === "choiceEn" ? meaningLine(idx) : entry.w);
+    const correctText = $derived(mode === "choiceZh" ? entry.w : meaningLine(idx));
     const mistake = $derived(p.mistakes[String(idx)]);
     const starred = $derived(!!p.starred[String(idx)]);
     const wrongPending = $derived(reveal || (answered !== undefined && !answered.correct));
@@ -53,8 +62,17 @@
 </script>
 
 <!-- 键盘可达性由根容器统一分发（空格=翻面），卡片 div 只承接点击翻面与焦点 -->
+<!-- 推进类按钮（下一个/档位）点完同步换卡后、同一次点击仍会冒泡到卡根把新卡误翻面——交互元素不触发翻面 -->
 <!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_noninteractive_tabindex,a11y_no_static_element_interactions -->
-<div class="wengu-word-card{revealedCls}" tabindex="0" bind:this={cardEl} onclick={() => view.reveal()}>
+<div
+    class="wengu-word-card{revealedCls}"
+    tabindex="0"
+    bind:this={cardEl}
+    onclick={(e) => {
+        if ((e.target as HTMLElement).closest("button, input")) return;
+        view.reveal();
+    }}
+>
     <div class="wengu-word-unit">{t(MODE_KEY[mode])}</div>
     <div class="wengu-word-tools">
         <button
@@ -78,11 +96,31 @@
                 }}>{t("wordFamiliar")}</button
             >
         {/if}
+        <!-- 回首页常驻工具组：头部图标不易被发现，刷卡中途随时可退出 -->
+        <button
+            class="wengu-iconbtn"
+            title={t("wordBackHome")}
+            onclick={(e) => {
+                e.stopPropagation();
+                view.goHome();
+            }}
+        >
+            <svg><use xlink:href="#iconList"></use></svg>
+        </button>
     </div>
 
     {#snippet detail()}
         <div class="wengu-word-detail">
-            <div class="wengu-word-detail-word">{entry.w}</div>
+            <div class="wengu-word-detail-word">
+                {entry.w}
+                <button
+                    class="wengu-iconbtn wengu-word-say"
+                    title={t("wordSpeakTip")}
+                    onclick={() => view.playCurrentWord()}
+                >
+                    <svg><use xlink:href="#iconVolume"></use></svg>
+                </button>
+            </div>
             <div class="wengu-word-detail-meaning">{entry.m}</div>
             {#if mistake?.confused}
                 <div class="wengu-word-confused">{fmt(t("wordConfusedChip"), { v: mistake.confused })}</div>
@@ -110,34 +148,19 @@
         {/if}
     {/snippet}
 
-    {#if isChoice}
-        <div class={mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh"}>
-            {mode === "choiceEn" ? entry.w : meaningLine(idx)}
-        </div>
+    {#if isPick}
+        <!-- 作答后直接切详情视图（20260827）：题面/选项不滞留，与回想翻面同构 -->
         {#if answered}
             <div class="wengu-word-feedback">
                 {@html statusIcon(answered.correct ? "right" : "wrong")}
-                {answered.correct ? t("wordCorrectPick") : t("wordWrongPick2")}
+                {answered.peek ? t("wordPeeked") : answered.correct ? t("wordCorrectPick") : t("wordWrongPick2")}
             </div>
-        {:else}
-            <div class="wengu-word-hint">{t("wordPickHint")}</div>
-        {/if}
-        <div class="wengu-word-opts">
-            {#each choices as o, i}
-                <button
-                    class="b3-button wengu-word-opt{optCls(i)}"
-                    disabled={answered !== undefined}
-                    onclick={() => view.option(i)}>{o.text}</button
-                >
-            {/each}
-        </div>
-        {#if answered && !answered.correct && answered.pickFrom !== undefined && answered.pickFrom !== idx}
-            <div class="wengu-word-wrongpick">
-                {t("wordWrongPickEntry")}：{WORD_BOOK.words[answered.pickFrom].w}
-                {WORD_BOOK.words[answered.pickFrom].m.split("\n")[0]}
-            </div>
-        {/if}
-        {#if answered}
+            {#if !answered.correct && answered.pickFrom !== undefined && answered.pickFrom !== idx}
+                <div class="wengu-word-wrongpick">
+                    {t("wordWrongPickEntry")}：{WORD_BOOK.words[answered.pickFrom].w}
+                    {WORD_BOOK.words[answered.pickFrom].m.split("\n")[0]}
+                </div>
+            {/if}
             {@render detail()}
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
@@ -150,9 +173,39 @@
                     >
                 {/if}
             </div>
+        {:else}
+            {#if mode === "listen"}
+                <!-- 梯③听音：词面隐藏，喇叭进卡自动播、点击重听（空格同） -->
+                <button
+                    class="wengu-iconbtn wengu-word-say"
+                    title={t("wordRelisten")}
+                    onclick={(e) => {
+                        e.stopPropagation();
+                        view.playCurrentWord();
+                    }}
+                >
+                    <svg><use xlink:href="#iconVolume"></use></svg>
+                </button>
+            {:else}
+                <div class={mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh"}>
+                    {mode === "choiceEn" ? entry.w : meaningLine(idx)}
+                </div>
+            {/if}
+            <div class="wengu-word-hint">{t("wordPickHint")}</div>
+            <button class="b3-button b3-button--outline wengu-word-peek" onclick={() => view.peekAnswer()}
+                >{t("wordPeekBtn")}</button
+            >
+            <div class="wengu-word-opts">
+                {#each choices as o, i}
+                    <button
+                        class="b3-button wengu-word-opt{optCls(i)}"
+                        disabled={answered !== undefined}
+                        onclick={() => view.option(i)}>{o.text}</button
+                    >
+                {/each}
+            </div>
         {/if}
     {:else if mode === "spell"}
-        <div class="wengu-word-zh">{meaningLine(idx)}</div>
         {#if answered}
             <div class="wengu-word-feedback">
                 {@html statusIcon(answered.correct ? "right" : "wrong")}
@@ -171,6 +224,7 @@
                 {/if}
             </div>
         {:else}
+            <div class="wengu-word-zh">{meaningLine(idx)}</div>
             <input
                 class="b3-text-field wengu-word-spell"
                 data-field="spell"
@@ -201,13 +255,13 @@
             </div>
         {:else}
             <div class="wengu-word-actions wengu-word-grades">
-                <button class="b3-button b3-button--outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</button
+                <button class="b3-button b3-button--outline" onclick={() => view.grade("know")}
+                    >{t("wordGradeKnow")}</button
                 >
                 <button class="b3-button b3-button--outline" onclick={() => view.grade("fuzzy")}
                     >{t("wordGradeFuzzy")}</button
                 >
-                <button class="b3-button b3-button--outline" onclick={() => view.grade("know")}
-                    >{t("wordGradeKnow")}</button
+                <button class="b3-button b3-button--outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</button
                 >
             </div>
         {/if}

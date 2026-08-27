@@ -184,7 +184,27 @@
   color: var(--b3-theme-primary);
 }
 
-/* 查词:结果行(单词左,释义右) */
+/* 查词:结果行(单词左,释义右)。行类挂 .wengu-word-lk——旧版用
+   data-act 属性选择器，Svelte 迁移后按钮无 data-act，flex 排版失效
+   释义 nowrap 撑破卡片出横向滚动条（20260827 真机实测）。
+   样式对齐思源文档树列表行：去原生按钮壳，ghost 悬停，零学习成本 */
+.wengu-word-opt.wengu-word-lk {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: none;
+  font-weight: normal;
+  text-align: left;
+}
+
+.wengu-word-opt.wengu-word-lk:hover {
+  background: var(--b3-theme-background-light);
+}
+
 .wengu-word-lk-word {
   font-weight: 600;
   white-space: nowrap;
@@ -197,14 +217,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  margin-left: 12px;
+  min-width: 0;
   text-align: right;
 }
 
-.wengu-word-opt[data-act="lookuppick"] {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+/* 结果列容器：比答题选项宽（列表不是考试），窄面板自然收敛 */
+.wengu-word-hits {
+  max-width: none;
 }
 
 /* 易混对照块与笔记编辑(卡片详情/查词详情共用) */

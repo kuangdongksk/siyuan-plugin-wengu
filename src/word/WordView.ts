@@ -2,7 +2,16 @@ import { WordAiRunner, wordAiInput, type WordAiInput } from "./WordAi";
 import WORD_BOOK from "./WordBook";
 import { addPair, confOthers, groupsOf } from "./WordConfusables";
 import { LookupConfCtl } from "./WordLookup";
-import { checkOption, pickMode, spellMatches, type AnsweredState } from "./WordQuiz";
+import {
+    checkOption,
+    ladderMode,
+    NEW_LADDER,
+    pickMode,
+    pipelineLadder,
+    spellMatches,
+    type AnsweredState,
+} from "./WordQuiz";
+import { speakWord } from "./WordSpeak";
 import { WordStartCtl } from "./WordStart";
 import {
     applyGrade,
@@ -39,6 +48,8 @@ export class WordView {
     private learned = new Set<number>();
     /** 构队时标记的新词（首次作答计入今日新词数）。 */
     private sessionNew = new Set<number>();
+    /** 新词梯进度（会话内已完成步数；仅「认识」收尾才前进）。 */
+    private ladderDone = new Map<number, number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     hardList: number[] = [];
     private readonly doneSet = new Set<number>();
@@ -98,7 +109,7 @@ export class WordView {
         if (this.ui.progress) rollToday(this.ui.progress);
     }
 
-    /** 按入口建队列：review=到期复习 / fresh=新学 / star=星标。 */
+    /** 按入口建队列：review=到期复习 / fresh=新学（四步梯流水线） / star=星标。 */
     rebuildQueue(kind: "review" | "fresh" | "star"): void {
         const p = this.ui.progress;
         if (!p) return;
@@ -107,9 +118,10 @@ export class WordView {
             this.sessionNew = new Set<number>();
         } else {
             const { review, fresh } = buildQueue(p);
-            this.queue = kind === "review" ? [...review] : [...fresh];
+            this.queue = kind === "review" ? [...review] : pipelineLadder(fresh, () => NEW_LADDER.length);
             this.sessionNew = kind === "review" ? new Set<number>() : new Set(fresh);
         }
+        this.ladderDone.clear();
         this.ui.queueKind = kind;
         this.pos = 0;
         this.hardList = [];
@@ -120,7 +132,8 @@ export class WordView {
         this.enterPrompt();
     }
 
-    /** 进入当前位置的卡：未答过 → 新学 choiceEn 先测后学 / 复习 recallEn 回想；答过 → 题型轮换。 */
+    /** 进入当前位置的卡：新词走四步梯按进度选型 / 已学词题型轮换；
+     * 队列外首见（review 入口）回想开始。 */
     private enterPrompt(): void {
         this.ui.phase = "prompt";
         this.ui.answered = undefined;
@@ -135,14 +148,17 @@ export class WordView {
         this.ui.confIds = confOthers(this.ui.progress!, idx);
         this.ui.pos = this.pos;
         this.ui.queueLen = this.queue.length;
-        const first = this.sessionNew.has(idx) ? "choiceEn" : "recallEn";
-        this.ui.cardMode = this.learned.has(idx) ? pickMode(this.ui.cardSeq, idx, this.ui.confIds) : first;
+        if (this.sessionNew.has(idx)) {
+            this.ui.cardMode = ladderMode(this.ladderDone.get(idx) ?? 0, idx, this.ui.confIds);
+        } else {
+            this.ui.cardMode = this.learned.has(idx) ? pickMode(this.ui.cardSeq, idx, this.ui.confIds) : "recallEn";
+        }
         this.timer?.begin(this.ui.cardMode);
     }
 
-    /** 选择题作答(点击/数字键共用)。 */
+    /** 选择题作答(点击/数字键共用)；听音题同用释义选项。 */
     private answerByOption(no: number): void {
-        if (this.ui.cardMode !== "choiceEn" && this.ui.cardMode !== "choiceZh") return;
+        if (this.ui.cardMode !== "choiceEn" && this.ui.cardMode !== "choiceZh" && this.ui.cardMode !== "listen") return;
         this.applyAnswered(checkOption(this.ui.cardMode, this.currentIdx, no, this.ui.confIds));
     }
 
@@ -167,6 +183,13 @@ export class WordView {
         if (v || this.ui.mistakeClaimed) grade = "no";
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
+        // 新词梯前进判定（§六决策 2：仅「认识」收尾才进下一步）；
+        // 未进的步靠流水线后位自然隔卡重现，不 splice 插队
+        if (this.sessionNew.has(idx) && grade === "know") {
+            const done = (this.ladderDone.get(idx) ?? 0) + 1;
+            this.ladderDone.set(idx, done);
+            if (done >= NEW_LADDER.length) this.learned.add(idx);
+        }
         applyGrade(p, idx, grade, this.sessionNew.has(idx));
         if (v) p.mistakes[String(idx)].confused = v;
         // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
@@ -203,11 +226,13 @@ export class WordView {
     /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
     private advanceAfterFinish(grade: WordGrade, idx: number): void {
         const p = this.ui.progress!;
-        this.learned.add(idx);
         if (grade === "no") {
             if (!this.hardList.includes(idx)) this.hardList.push(idx);
-            // 会话内重现：插到 3 张卡之后（到末尾则接着出）
-            this.queue.splice(Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length), 0, idx);
+            // 会话内重现：插到 3 张卡之后（到末尾则接着出）；新词梯词
+            // 不插队——流水线自身还有它的后续步位，插了会双重计卡
+            if (!this.sessionNew.has(idx)) {
+                this.queue.splice(Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length), 0, idx);
+            }
         }
         void this.store.save(p);
         this.doneSet.add(idx);
@@ -227,7 +252,8 @@ export class WordView {
                     this.pos,
                     this.hardList,
                     this.doneSet,
-                    this.sessionNew
+                    this.sessionNew,
+                    (i) => (this.sessionNew.has(i) ? Math.max(1, NEW_LADDER.length - (this.ladderDone.get(i) ?? 0)) : 1)
                 );
                 this.queue = r.queue;
                 for (const i of r.newcomers) this.sessionNew.add(i);
@@ -294,6 +320,21 @@ export class WordView {
 
     option(no: number): void {
         if (!this.ui.answered) this.answerByOption(no);
+    }
+
+    /** 「看答案」：选择题/听音题正面直接翻底，按答错计（redesign §二.1）。 */
+    peekAnswer(): void {
+        const m = this.ui.cardMode;
+        if (this.ui.phase !== "prompt" || this.ui.answered) return;
+        if (m !== "choiceEn" && m !== "choiceZh" && m !== "listen") return;
+        const s = this.timer?.settle();
+        if (s) this.curTiming = s;
+        this.ui.answered = { correct: false, peek: true };
+    }
+
+    /** 念当前词（speechSynthesis，WordSpeak 模块；不可用环境静默）。 */
+    playCurrentWord(): void {
+        speakWord(WORD_BOOK.words[this.currentIdx].w);
     }
 
     grade(g: WordGrade): void {

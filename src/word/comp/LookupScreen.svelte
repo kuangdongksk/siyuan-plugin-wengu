@@ -109,14 +109,14 @@
                 oninput={(e) => view.lookupInput(e.currentTarget.value)}
                 use:focusInput
             />
-            <div class="wengu-word-opts">
+            <div class="wengu-word-opts wengu-word-hits">
                 {#if ui.lookupQuery.trim() === ""}
                     <div class="wengu-word-hint">{t("wordLookupHint")}</div>
                 {:else if hits.length === 0}
                     <div class="wengu-word-hint">{t("wordLookupNone")}</div>
                 {:else}
                     {#each hits as i}
-                        <button class="wengu-word-opt" onclick={() => view.lookupPick(i)}>
+                        <button class="wengu-word-opt wengu-word-lk" onclick={() => view.lookupPick(i)}>
                             <span class="wengu-word-lk-word">{WORD_BOOK.words[i].w}</span>
                             <span class="wengu-word-lk-meaning">{WORD_BOOK.words[i].m.split("\n")[0]}</span>
                         </button>

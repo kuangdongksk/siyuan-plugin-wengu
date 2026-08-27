@@ -289,3 +289,47 @@
   text-align: center;
   font-size: 16px;
 }
+
+/* ── 听音题（梯③）/ 看答案 / 详情发音（20260827 四步梯接线） ── */
+
+/* 题面中央大喇叭与详情行小喇叭共用形状，尺寸分档 */
+.wengu-word-say {
+  width: 64px;
+  height: 64px;
+}
+
+.wengu-word-say svg {
+  width: 32px;
+  height: 32px;
+}
+
+.wengu-word-detail-word .wengu-word-say {
+  width: 24px;
+  height: 24px;
+}
+
+.wengu-word-detail-word .wengu-word-say svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 「看答案」低存在感小字钮：误点即按错计 */
+.wengu-word-peek {
+  min-height: 24px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-word-detail-word {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 详情态内容垂直居中：作答/翻面后内容通常不满一屏，feedback 顶部
+   加 auto margin 与 actions 的 auto margin 上下平分空隙——信息块
+   居中、按钮仍贴底，避免中段一大块空白（20260827 用户反馈） */
+.wengu-word-card.wengu-word-revealed .wengu-word-feedback {
+  margin-top: auto;
+}

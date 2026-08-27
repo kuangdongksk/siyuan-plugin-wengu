@@ -1,4 +1,5 @@
 import { buildQueue, type WenguWordProgress } from "./WordStore";
+import { pipelineLadder } from "./WordQuiz";
 
 /**
  * 作答计时与组边界调度（docs/word-timing.md 决策 2/3/6）。
@@ -17,6 +18,7 @@ const OVER_MS: Record<string, number> = {
     spell: 10_000,
     recallEn: 8_000,
     recallZh: 8_000,
+    listen: 12_000,
 };
 
 /** 一次作答的结算结果（over=1 即按「忘记」处理）。 */
@@ -103,6 +105,8 @@ export class WordTimer {
  * REINSERT_GAP 间隔散布进新 tail（贴队首会让同一词连出两张，
  * 20260824 真机踩坑）、其余按 buildQueue 书序重排——AI 已落盘的
  * due 变化由此吃到。star 队列原样返回。
+ * remainOf：每词在余量中的出镜次数（新词梯按剩余步数折算，缺省 1），
+ * fresh 分支经 pipelineLadder 保持四词错峰节奏。
  * newcomers：fresh 会话重排新进、尚未计入 sessionNew 的词。 */
 export const REINSERT_GAP = 3;
 
@@ -113,7 +117,8 @@ export function rebuildTail(
     pos: number,
     hardList: number[],
     doneSet: Set<number>,
-    sessionNew: Set<number>
+    sessionNew: Set<number>,
+    remainOf: (idx: number) => number = () => 1
 ): { queue: number[]; newcomers: number[] } {
     if (kind === "star") return { queue, newcomers: [] };
     const hardPending: number[] = [];
@@ -122,13 +127,14 @@ export function rebuildTail(
     }
     const { review, fresh } = buildQueue(p);
     const src = kind === "review" ? review : fresh;
-    const tail: number[] = [];
+    const pend: number[] = [];
     const newcomers: number[] = [];
     for (const i of src) {
         if (doneSet.has(i) || hardPending.includes(i)) continue;
-        tail.push(i);
+        pend.push(i);
         if (kind === "fresh" && !sessionNew.has(i)) newcomers.push(i);
     }
+    const tail = kind === "fresh" ? pipelineLadder(pend, remainOf) : pend;
     const merged: number[] = [];
     let h = 0;
     for (const i of tail) {

@@ -8,7 +8,7 @@ import WORD_BOOK from "./WordBook";
  * - spell    看释义拼单词（输入提交，即对错）
  * - recallEn/recallZh 回想自评（翻面后三档）
  * - listen   听音选义（念单词选释义，新词梯第③步）
- * - readalong 听音跟读（词+发音，出声读后自评，新词梯第④步）
+ * - readalong 听音跟读（已备未接线：20260827 定稿梯末步为英文回想）
  *
  * 客观题点选/提交后的题面标色由 QuizCard 组件按作答态渲染，
  * 选项组合与判定共用本文件的确定性构造（同词每次一致）。
@@ -30,15 +30,36 @@ export const MODE_KEY: Record<WordCardMode, string> = {
 /** 题型轮换（首题按流分流在 WordView.enterPrompt，不在轮换内）。 */
 const REVIEW_MODES: WordCardMode[] = ["choiceEn", "recallEn", "choiceZh", "spell", "recallZh"];
 
-/** 新词会话内四步梯（仿参考流）：①choiceEn 学习 → ②recallEn 回想
- *  → ③listen 听音 → ④readalong 跟读；过关(know)才前进，之后进常规轮换。 */
-export const NEW_LADDER: WordCardMode[] = ["choiceEn", "recallEn", "listen", "readalong"];
+/** 新词会话内四步梯（20260827 用户定稿口述版，替代参考流草案）：
+ * ①choiceEn 英选中 → ②choiceZh 中选英 → ③listen 听音选义 → ④recallEn
+ * 英文回想；每步都有选项托底、末步才纯回想（不跟读）。前进规则：
+ * 仅收尾档位为「认识」才进下一步（§六决策 2），模糊/忘记/答错原步
+ * 隔卡重出；四步全过后进常规轮换。 */
+export const NEW_LADDER: WordCardMode[] = ["choiceEn", "choiceZh", "listen", "recallEn"];
 
-/** 按梯步选型（干扰项不足时听音/选择题降级回想）。 */
+/** 按梯步选型（干扰项不足时选择题/听音降级回想；中选英退中文回想）。 */
 export function ladderMode(done: number, idx: number, confIds: readonly number[]): WordCardMode {
     const m = NEW_LADDER[Math.min(done, NEW_LADDER.length - 1)];
     if ((m === "choiceEn" || m === "listen") && buildMeaningOptions(idx, confIds).length < 4) return "recallEn";
+    if (m === "choiceZh" && buildWordOptions(idx, confIds).length < 4) return "recallZh";
     return m;
+}
+
+/** 新词流水线：组宽 ≤4（20260827 定稿「四个词分别占四个阶段」），
+ * 同组词按轮转出镜、每轮整体推进一梯——任意时刻相邻四张卡是四个
+ * 不同词。每词出镜 remain(idx) 次（初始全为 4 步；AI 组边界重排时按
+ * 梯进度折算剩余次数）。不足四个自动成小组——「没有会慢慢安排」。 */
+export function pipelineLadder(fresh: readonly number[], remain: (idx: number) => number): number[] {
+    const out: number[] = [];
+    for (let b = 0; b < fresh.length; b += NEW_LADDER.length) {
+        const g = fresh.slice(b, b + NEW_LADDER.length);
+        for (let r = 0; r < NEW_LADDER.length; r++) {
+            for (const i of g) {
+                if (remain(i) > r) out.push(i);
+            }
+        }
+    }
+    return out;
 }
 
 /** 会话题型轮换：按 seq 取模；干扰项不足或空格/超长词降级到
