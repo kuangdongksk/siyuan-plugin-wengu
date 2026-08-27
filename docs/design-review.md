@@ -95,6 +95,12 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
    兜底（见 base.scss 顶部 `.wengu-status[hidden]` 等与
    `.b3-dialog__action .b3-button[hidden]` 清单）；新增用 hidden 切换
    的元素须同步补进该清单。
+10. **判分反馈一律成功色/失败色成对使用（2026-08-28 起）**：答对=
+    `--b3-theme-success` 文本 + `color-mix(12%)` 同色透明底，答错=
+    `--b3-theme-error` 对（与 base.scss `wengu-status-ok/err` 同公式），
+    **不做中性灰文本**（词域 feedback 初版灰字绿勾混排即反例）；图标
+    统一 `FormHtml.statusIcon` 自带同色填充。非判分的状态行（引导语/
+    提示）仍走中性 `wengu-status-muted` 类配色。
 
 ## 一、现状全景
 

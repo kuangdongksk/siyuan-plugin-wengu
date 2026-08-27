@@ -169,7 +169,9 @@
   padding: 6px 12px;
 }
 
-/* 结果页对错反馈 */
+/* 结果页对错反馈（§〇10 判分反馈用色）：文本与底成对走思源成功/
+   失败色（12% mix 底，与 base.wengu-status-ok/err 同公式）；
+   回想引导语等非判分行保持中性 */
 .wengu-word-feedback {
   font-size: 13px;
   color: var(--b3-theme-on-surface-light);
@@ -178,6 +180,16 @@
   padding: 6px 12px;
   max-width: 440px;
   word-break: break-all;
+}
+
+.wengu-word-feedback.is-ok {
+  color: var(--b3-theme-success);
+  background: color-mix(in srgb, var(--b3-theme-success) 12%, transparent);
+}
+
+.wengu-word-feedback.is-bad {
+  color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 12%, transparent);
 }
 
 /* 反馈容器是中性色，状态图标单独着色 */

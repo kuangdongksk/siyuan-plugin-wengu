@@ -167,7 +167,7 @@
         <!-- 作答后直接切详情视图（20260827）：词条在上，对错反馈/错选提示随后，与回想翻面同构 -->
         {#if answered}
             {@render detail()}
-            <div class="wengu-word-feedback">
+            <div class="wengu-word-feedback" class:is-ok={answered.correct} class:is-bad={!answered.correct}>
                 {@html statusIcon(answered.correct ? "right" : "wrong")}
                 {answered.peek ? t("wordPeeked") : answered.correct ? t("wordCorrectPick") : t("wordWrongPick2")}
             </div>
@@ -224,7 +224,7 @@
     {:else if mode === "spell"}
         {#if answered}
             {@render detail()}
-            <div class="wengu-word-feedback">
+            <div class="wengu-word-feedback" class:is-ok={answered.correct} class:is-bad={!answered.correct}>
                 {@html statusIcon(answered.correct ? "right" : "wrong")}
                 {answered.correct ? t("wordSpellOk") : fmt(t("wordSpellWrong"), { w: entry.w })}
             </div>
