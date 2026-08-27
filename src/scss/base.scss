@@ -277,6 +277,11 @@
    PDF 钮 126×64），行上显式居中一次治好 */
 .wengu-formrow {
   align-items: center;
+  /* 思源原生 .config__item 在设置弹窗 .config__items 内会自动 width:100%，
+     但工作区面板（.wengu-ws-page）没有 .config__items 父容器，行会按
+     内容宽度堆在左上——统一强制撑满父行，行内标题/控件靠两侧 */
+  display: flex;
+  width: 100%;
 }
 
 /* 模型选择浮层：类名照抄官方 commonMenu（b3-menu__filter + b3-list），
