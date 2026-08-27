@@ -32,6 +32,13 @@
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
 - **硬性约束：仓库内单文件 ≤500 行**；界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
+- **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器
+  `class="fn__flex b3-label config__item wengu-formrow"`——思源运行
+  时主题注入的 `.b3-label` 单类选择器同特异性后定义会覆盖我们的
+  `.wengu-formrow { display:flex; width:100% }`。修复：复合选择器
+  `.b3-label.wengu-formrow { ... !important }` 把特异性抬到 0,2,0。
+  工作区面板（`.wengu-ws-page`）没有 `.config__items` 父容器作兜底，
+  所有 formRow 都需要这条复合规则。
 - 改行为必须同步 `docs/question-block-contract.md`。
 
 ## 通用调试流程（两台机器一致）
