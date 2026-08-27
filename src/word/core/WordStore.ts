@@ -100,9 +100,6 @@ export interface WenguWordProgress {
 /** 认识程度。 */
 export type WordGrade = "no" | "fuzzy" | "know";
 
-/** v1 Leitner 档位间隔（仅存量迁移用，运行时不再走）。 */
-const V1_INTERVAL_DAYS = [1, 2, 4, 8, 16, 32];
-
 /** 默认每组单词数（AI 复盘粒度）。 */
 const DEFAULT_GROUP_SIZE = 10;
 /** 默认新学窗口容量。 */
@@ -352,27 +349,6 @@ export function unitOf(index: number): WenguWordUnitMeta | undefined {
     return WORD_BOOK.units.find((u) => index >= u.start && index < u.start + u.count);
 }
 
-/** v1 进度（Leitner [档位,到期]），仅存量迁移用。 */
-type WenguWordProgressV1 = Omit<WenguWordProgress, "version" | "words" | "ladder" | "reviews"> & {
-    version: 1;
-    words: Record<string, [number, number]>;
-};
-
-/** v1（Leitner [档位,到期]）→ v2（FSRS）：S=旧阶梯天数、D 按误认偏难。 */
-function migrateV1(p: WenguWordProgressV1): void {
-    const words: Record<string, WenguWordFsrs> = {};
-    for (const [k, st] of Object.entries(p.words)) {
-        const lv = Math.min(6, Math.max(1, st[0] || 1));
-        const errs = p.mistakes[k]?.count ?? 0;
-        words[k] = { d: errs >= 2 ? 6.5 : 5, s: V1_INTERVAL_DAYS[lv - 1], due: st[1], r: 1, l: 0 };
-    }
-    const v2 = p as unknown as WenguWordProgress;
-    v2.words = words;
-    v2.ladder = {};
-    v2.reviews = {};
-    v2.version = 2;
-}
-
 /** 进度存取：整文件读写 + 内存缓存（同 HistoryStore 模式）。 */
 export class WordStore {
     private cache?: WenguWordProgress;
@@ -384,27 +360,19 @@ export class WordStore {
 
     async get(): Promise<WenguWordProgress> {
         if (this.cache) return this.cache;
-        let migrated = false;
         try {
             const data = (await this.loadRaw()) as unknown;
             const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
-            if (ver === 2) {
-                this.cache = data as WenguWordProgress;
-            } else if (ver === 1) {
-                this.cache = data as unknown as WenguWordProgress;
-                this.backfill(this.cache);
-                migrateV1(this.cache as unknown as WenguWordProgressV1);
-                migrated = true;
-            } else {
-                this.cache = defaultProgress();
-            }
+            // v1→v2 迁移已在 20260828 落盘后移除（用户确认存量已保存）；
+            // 认不出 v2 的文件按新进度起步（version 字段留给将来的 v3
+            // 多词书词头化迁移用）
+            this.cache = ver === 2 ? (data as WenguWordProgress) : defaultProgress();
         } catch (_) {
             this.cache = defaultProgress();
         }
         this.backfill(this.cache);
         const key = todayKey();
         if (this.cache.today.key !== key) this.cache.today = { key, newCount: 0, revCount: 0 };
-        if (migrated) void this.save(this.cache);
         return this.cache;
     }
 
