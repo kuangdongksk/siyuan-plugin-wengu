@@ -343,13 +343,24 @@
    单词释义必须紧贴顶部；曾经试过的垂直居中已删（会在词与头部间
    留大块空白）；剩余空间自然聚在 sticky 按钮行上方 */
 
-/* 新词梯进度点（仿不背单词词尾四点）：已过步实心、当前步主色放大、
-   未到步浅灰；listen 步词面隐藏时随题面一起隐去 */
+/* 新词梯进度点（仿不背单词词尾四点，20260828 用户定稿竖排）：
+   纵列贴词尾、总高与单词行同高（justify-content:space-between 撑满
+   align-self:stretch）；已过步实心浅色、当前步主色放大、未到步灰点。
+   listen 步词面隐藏时随题面一起隐去 */
+.wengu-word-text,
+.wengu-word-zh {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .wengu-word-ladder {
   display: inline-flex;
-  gap: 4px;
-  margin-left: 10px;
-  vertical-align: middle;
+  /* 从下往上变绿：DOM 序 ①→④，视觉反转后 ① 贴词底 */
+  flex-direction: column-reverse;
+  justify-content: space-between;
+  gap: 3px;
+  align-self: stretch;
 }
 
 .wengu-word-ladder i {
@@ -366,8 +377,4 @@
 .wengu-word-ladder i.is-cur {
   background: var(--b3-theme-primary);
   transform: scale(1.35);
-}
-
-.wengu-word-detail-word .wengu-word-ladder {
-  align-self: center;
 }

@@ -183,10 +183,11 @@ export class WordView {
         if (v || this.ui.mistakeClaimed) grade = "no";
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
-        // 新词梯前进判定（§六决策 2：仅「认识」收尾才进下一步）；
-        // 未进的步靠流水线后位自然隔卡重现，不 splice 插队
-        if (this.sessionNew.has(idx) && grade === "know") {
-            const done = (this.ladderDone.get(idx) ?? 0) + 1;
+        // 新词梯前进判定（20260828 加严：仅「认识」进下一步，错一次整梯
+        // 归零从头再来）——归零词的后续出镜位数不足时按需补插（见
+        // advanceAfterFinish），插队位以 REINSERT_GAP 起隔卡散布
+        if (this.sessionNew.has(idx)) {
+            const done = grade === "know" ? (this.ladderDone.get(idx) ?? 0) + 1 : 0;
             this.ladderDone.set(idx, done);
             if (done >= NEW_LADDER.length) this.learned.add(idx);
         }
@@ -228,10 +229,19 @@ export class WordView {
         const p = this.ui.progress!;
         if (grade === "no") {
             if (!this.hardList.includes(idx)) this.hardList.push(idx);
-            // 会话内重现：插到 3 张卡之后（到末尾则接着出）；新词梯词
-            // 不插队——流水线自身还有它的后续步位，插了会双重计卡
+            // 会话内重现：插到 3 张卡之后（到末尾则接着出）
             if (!this.sessionNew.has(idx)) {
                 this.queue.splice(Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length), 0, idx);
+            }
+        }
+        // 新词梯错即归零：静态流水线按「满 4 次」预排的后续位不够重走
+        // 全梯时，把缺口补插到 REINSERT_GAP 之后的邻域（连插=完整重来）
+        if (this.sessionNew.has(idx) && (this.ladderDone.get(idx) ?? 0) < NEW_LADDER.length) {
+            const rest = this.queue.slice(this.pos + 1).filter((i) => i === idx).length;
+            const need = NEW_LADDER.length - rest;
+            if (need > 0) {
+                const at = Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length);
+                this.queue.splice(at, 0, ...Array<number>(need).fill(idx));
             }
         }
         void this.store.save(p);
