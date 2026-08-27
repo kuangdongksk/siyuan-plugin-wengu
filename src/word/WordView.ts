@@ -2,6 +2,9 @@ import { WordAiRunner, wordAiInput, type WordAiInput } from "./WordAi";
 import WORD_BOOK from "./WordBook";
 import { addPair, confOthers, groupsOf } from "./WordConfusables";
 import { LookupConfCtl } from "./WordLookup";
+import { redoHardFor } from "./CardOps";
+import { flushGroupFor, settleGroupBoundary } from "./GroupFlow";
+import { notifyWordDone, notifyWordGrade } from "../companion";
 import {
     checkOption,
     ladderMode,
@@ -12,11 +15,10 @@ import {
     type AnsweredState,
 } from "./WordQuiz";
 import { speakWord } from "./WordSpeak";
-import { WordStartCtl } from "./WordStart";
+import { WordStartCtl, makeStartCtl } from "./WordStart";
 import {
     applyGrade,
     buildQueue,
-    groupSizeOf,
     markFamiliar,
     pushTiming,
     rollToday,
@@ -27,7 +29,7 @@ import {
     type WenguTimingRec,
     type WordGrade,
 } from "./WordStore";
-import { rebuildTail, REINSERT_GAP, WordTimer } from "./WordTiming";
+import { REINSERT_GAP, WordTimer } from "./WordTiming";
 import type { WordUi } from "./WordUi";
 
 /**
@@ -41,18 +43,18 @@ export class WordView {
     readonly t: (key: string) => string;
     readonly store: WordStore;
     readonly ui: WordUi;
-    /** 本会话队列（扁平下标）。 */
-    private queue: number[] = [];
-    private pos = 0;
+    /** 本会话队列（扁平下标）。以下会话字段对 GroupFlow 友元开放。 */
+    queue: number[] = [];
+    pos = 0;
     /** 本会话已作答过的词（新词首答后，重现走题型轮换）。 */
     private learned = new Set<number>();
     /** 构队时标记的新词（首次作答计入今日新词数）。 */
-    private sessionNew = new Set<number>();
+    sessionNew = new Set<number>();
     /** 新词梯进度（会话内已完成步数；仅「认识」收尾才前进）。 */
-    private ladderDone = new Map<number, number>();
+    ladderDone = new Map<number, number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     hardList: number[] = [];
-    private readonly doneSet = new Set<number>();
+    readonly doneSet = new Set<number>();
     /** 当前卡计时结算（reveal/作答时存，finishCard 消费）。 */
     private curTiming: WenguTimingRec | undefined;
     /** spell 错拼原文（作答瞬间抓取）。 */
@@ -62,10 +64,10 @@ export class WordView {
     readonly ai: WordAiRunner;
     private timer?: WordTimer;
     /** 本组作答画像（组完成时交 AI，一步继续不等待）。 */
-    private groupLog: WordAiInput[] = [];
-    private finishCount = 0;
+    groupLog: WordAiInput[] = [];
+    finishCount = 0;
     /** AI 复盘已落盘待消费（下个组边界重排队列余量）。 */
-    private aiDirty = false;
+    aiDirty = false;
     /** 查词详情的易混笔记控制器。 */
     readonly confCtl: LookupConfCtl;
     private startCtlCache?: WordStartCtl;
@@ -133,8 +135,8 @@ export class WordView {
     }
 
     /** 进入当前位置的卡：新词走四步梯按进度选型 / 已学词题型轮换；
-     * 队列外首见（review 入口）回想开始。 */
-    private enterPrompt(): void {
+     * 队列外首见（review 入口）回想开始。（CardOps 友元可达） */
+    enterPrompt(): void {
         this.ui.phase = "prompt";
         this.ui.answered = undefined;
         this.ui.selfGrade = undefined;
@@ -204,6 +206,7 @@ export class WordView {
         this.groupLog.push(wordAiInput(p, idx, grade, this.ui.answered?.correct, this.curTiming, this.spellTyped, v));
         this.curTiming = undefined;
         this.spellTyped = undefined;
+        notifyWordGrade(this, grade, idx);
         this.advanceAfterFinish(grade, idx);
     }
 
@@ -249,40 +252,14 @@ export class WordView {
         this.pos++;
         this.ui.cardSeq++;
         this.finishCount++;
-        if (this.finishCount % groupSizeOf(p) === 0) {
-            const batch = this.groupLog;
-            this.groupLog = [];
-            if (this.aiDirty) {
-                // AI 已落盘：本地即时重排余量，下一组吃到（不等待）
-                this.aiDirty = false;
-                const r = rebuildTail(
-                    p,
-                    this.ui.queueKind,
-                    this.queue,
-                    this.pos,
-                    this.hardList,
-                    this.doneSet,
-                    this.sessionNew,
-                    (i) => (this.sessionNew.has(i) ? Math.max(1, NEW_LADDER.length - (this.ladderDone.get(i) ?? 0)) : 1)
-                );
-                this.queue = r.queue;
-                for (const i of r.newcomers) this.sessionNew.add(i);
-            }
-            void this.ai.runGroup(
-                batch,
-                p,
-                () => this.store.save(p),
-                () => {
-                    this.aiDirty = true;
-                }
-            );
-        }
         this.ui.hardN = this.hardList.length;
+        settleGroupBoundary(this, p);
         if (this.pos >= this.queue.length) {
             this.ui.pos = this.pos;
             this.ui.queueLen = this.queue.length;
             this.ui.mode = "done";
-            this.flushGroup();
+            flushGroupFor(this);
+            notifyWordDone(this.hardList.length, this.finishCount);
         } else {
             this.enterPrompt();
         }
@@ -290,40 +267,14 @@ export class WordView {
         this.syncAi();
     }
 
-    /** 会话收尾：不满一组也把剩余画像交 AI（异步）。 */
-    private flushGroup(): void {
-        if (this.groupLog.length === 0 || !this.ui.progress) return;
-        const batch = this.groupLog;
-        this.groupLog = [];
-        void this.ai.runGroup(
-            batch,
-            this.ui.progress,
-            () => this.store.save(this.ui.progress!),
-            () => undefined
-        );
-    }
-
     redoHard(): void {
-        if (this.hardList.length === 0) return;
-        this.queue = [...this.hardList];
-        this.hardList = [];
-        this.ui.hardN = 0;
-        this.pos = 0;
-        this.sessionNew = new Set<number>();
-        this.ui.mode = "card";
-        this.enterPrompt();
+        redoHardFor(this);
     }
 
     // ---------- 起点设置（操作在 WordStartCtl） ----------
 
     startCtl(): WordStartCtl {
-        this.startCtlCache ??= new WordStartCtl(
-            this.ui,
-            this.t,
-            () => this.ui.progress!,
-            (p) => this.store.save(p)
-        );
-        return this.startCtlCache;
+        return (this.startCtlCache ??= makeStartCtl(this));
     }
 
     // ---------- 键盘分发与作答入口（WordBind/组件共用） ----------

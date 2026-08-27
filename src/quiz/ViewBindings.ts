@@ -2,6 +2,7 @@ import { Menu } from "siyuan";
 import { applySideFilter } from "./CardHtml";
 import type { CollectionFlow } from "../bank";
 import { updateConvertBtn } from "../convert";
+import type { QuizView } from "./index";
 import type { WenguDoc } from "../types";
 
 /**
@@ -151,4 +152,15 @@ export function bindHeadFor(v: HeadAccess): void {
         deleteDocMenuLabel: v.t("deleteDocMenuLabel"),
         variantDrillMenuLabel: v.t("variantDrillMenuLabel"),
     });
+}
+
+/** 侧栏树分支折叠/展开（S1）：改集合持久化后局部重绘清单块。
+ *  自 QuizView.toggleSideTreeOf 拆出压 500 行红线。 */
+export function toggleSideTreeFor(v: QuizView, path: string): void {
+    const set = new Set(v.sideTreeOpen);
+    if (set.has(path)) set.delete(path);
+    else set.add(path);
+    v.sideTreeOpen = [...set];
+    v.persistPrefs();
+    applySideFilter(v.el, v.docs, v.docId, v.t, v.sideFilter, v.colFlow.rowsView(), v.colFlow.id(), v.sideTreeOpen);
 }

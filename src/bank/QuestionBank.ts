@@ -1,6 +1,6 @@
 import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
-import { getBlockKramdown, listQuestions } from "../quiz/QuestionService";
+import { ensureMigratedFor, refreshDocFor } from "./BankMigrate";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -79,7 +79,8 @@ export class QuestionBank {
     private cache?: BankData;
     private dirty = false;
     private flushTimer?: number;
-    private migrating?: Promise<void>;
+    /** 供 BankMigrate 友元使用（迁移互斥闸）。 */
+    migrating?: Promise<void>;
     private readonly parsedCache = new Map<string, { hash: string; parsed: ParsedQuestion }>();
 
     constructor(
@@ -87,7 +88,8 @@ export class QuestionBank {
         private readonly saveRaw: (v: BankData) => Promise<unknown>
     ) {}
 
-    private async all(): Promise<BankData> {
+    /** 供 BankMigrate 友元使用（入库与迁移编排）。 */
+    async all(): Promise<BankData> {
         if (this.cache) return this.cache;
         try {
             const data = (await this.loadRaw()) as BankData | "" | null | undefined;
@@ -106,7 +108,8 @@ export class QuestionBank {
         await this.all();
     }
 
-    private markDirty(): void {
+    /** 供 BankMigrate 友元使用（入库与迁移编排）。 */
+    markDirty(): void {
         this.dirty = true;
         if (this.flushTimer) window.clearTimeout(this.flushTimer);
         this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
@@ -129,80 +132,14 @@ export class QuestionBank {
     }
 
     /** 把一个习题文档同步入库（迁移与转换后同步同一条路，幂等）。
-     *  返回新增记录数。串行内核调用，量大时由调用方放后台。 */
+     *  实现在 BankMigrate.refreshDocFor（拆出压 500 行红线）。 */
     async refreshDoc(docId: string, title = ""): Promise<number> {
-        const data = await this.all();
-        if (!docId) return 0;
-        let added = 0;
-        try {
-            const questions = await listQuestions(docId);
-            for (const q of questions) {
-                let kd = "";
-                try {
-                    kd = await getBlockKramdown(q.id);
-                } catch (_) {
-                    continue;
-                }
-                const parsed = parseQuestionKramdown(kd, q.id, docId);
-                if (!parsed) continue;
-                const hash = this.hashOf(kd);
-                const dup = data.hashed[hash];
-                if (dup && dup !== q.id) continue; // 跨卷同题：只留第一条
-                const exists = data.records[q.id];
-                data.records[q.id] = {
-                    qid: q.id,
-                    kramdown: kd,
-                    type: parsed.type ?? "brief",
-                    ...(parsed.knowledge ? { knowledge: parsed.knowledge } : {}),
-                    ...(parsed.chapter ? { chapter: parsed.chapter } : {}),
-                    ...(parsed.difficulty !== undefined ? { difficulty: parsed.difficulty } : {}),
-                    kpRefs: parsed.kpRefs,
-                    sourceDocId: docId,
-                    hash,
-                    stats: exists?.stats ?? { attempts: q.attempts, wrongCount: q.wrongCount, updatedAt: Date.now() },
-                };
-                data.hashed[hash] = q.id;
-                added++;
-            }
-        } catch (_) {
-            // 文档读取失败（已删/权限）：不入 migratedDocs，下次再试
-            return added;
-        }
-        if (!data.migratedDocs.includes(docId)) data.migratedDocs.push(docId);
-        if (title && !data.collections.some((c) => c.id === `doc:${docId}`)) {
-            // 源卷落成自动专题（文档模式的影子，专题入口统一）
-            data.collections.push({
-                id: `doc:${docId}`,
-                title: `${title}·源卷`,
-                qids: Object.values(data.records)
-                    .filter((r) => r.sourceDocId === docId)
-                    .map((r) => r.qid),
-                origin: "manual",
-                createdAt: Date.now(),
-            });
-        }
-        this.markDirty();
-        return added;
+        return refreshDocFor(this, docId, title);
     }
 
-    /** 存量迁移（后台一次）：listQuestionDocs 里有而未迁移过的文档。 */
+    /** 存量迁移（后台一次）：实现在 BankMigrate.ensureMigratedFor。 */
     async ensureMigrated(docs: { id: string; title?: string }[]): Promise<void> {
-        const data = await this.all();
-        const pending = docs.filter((d) => d.id && !data.migratedDocs.includes(d.id));
-        if (pending.length === 0) return;
-        if (this.migrating) return this.migrating;
-        this.migrating = (async () => {
-            for (const d of pending) {
-                await this.refreshDoc(d.id, d.title ?? "");
-            }
-            await this.flush();
-            this.migrating = undefined;
-        })();
-        return this.migrating;
-    }
-
-    private hashOf(kd: string): string {
-        return questionHash(kd);
+        return ensureMigratedFor(this, docs);
     }
 
     /** 作答镜像记账（全题型漏斗在 QuizView.recordAnswer；多步题 qid#k
@@ -307,6 +244,15 @@ export class QuestionBank {
     async deleteCollection(id: string): Promise<void> {
         const data = await this.all();
         data.collections = data.collections.filter((c) => c.id !== id);
+        this.markDirty();
+    }
+
+    /** 重命名专题（专题管理工作区面板）。 */
+    async renameCollection(id: string, title: string): Promise<void> {
+        const data = await this.all();
+        const col = data.collections.find((c) => c.id === id);
+        if (!col || !title.trim()) return;
+        col.title = title.trim();
         this.markDirty();
     }
 

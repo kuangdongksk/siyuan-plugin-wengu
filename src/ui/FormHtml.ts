@@ -65,6 +65,13 @@ export function formInput(field: string, value: string, attrs = "", act = "data-
     } value="${esc(value)}">`;
 }
 
+/** 多行文本控件（长文本如自定义 prompt；attrs 透传 rows/placeholder 等）。 */
+export function formTextarea(field: string, value: string, attrs = "", act = "data-field"): string {
+    return `<textarea class="b3-text-field fn__flex-center" style="width:200px" ${act}="${field}"${
+        attrs ? ` ${attrs}` : ""
+    }>${esc(value)}</textarea>`;
+}
+
 /** 选项。 */
 export function formOption(value: string, label: string, selected: boolean): string {
     return `<option value="${esc(value)}"${selected ? " selected" : ""}>${esc(label)}</option>`;

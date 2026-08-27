@@ -4,6 +4,7 @@ import type { HistoryStore, WenguSession } from "../quiz/HistoryStore";
 import { mdFragmentHtml, renderMathIn } from "../quiz/ProtyleHost";
 import { copyQuestionText } from "../quiz/PreviewFlow";
 import { renderHeadHtml, renderSideHtml } from "../quiz/CardHtml";
+import { renderRailHtml } from "../quiz/RailHtml";
 import {
     renderDetailLoadingHtml,
     renderGroupsHtml,
@@ -84,6 +85,7 @@ export function renderReviewFor(v: ReviewViewAccess): void {
     const o = wrongOverviewNow();
     const summary = o ? fmt(t("reviewHeadSummary"), { p: String(o.pending), m: String(o.mastered) }) : t("reviewTitle");
     v.el.innerHTML =
+        renderRailHtml(t, "drill") +
         renderSideHtml({
             t,
             docs: v.docsOf(),

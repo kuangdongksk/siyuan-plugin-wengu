@@ -1,0 +1,186 @@
+/* 伴学看板娘「团子」：右下角常驻（刷题页签 + 单词 dock 双宿主锚点）。
+   层容器 pointer-events:none，只有团子本体/气泡/面板回收事件——
+   不挡下层题卡点击。z-index 低于统计浮层（20），统计打开时被盖住。 */
+
+/* 双宿主定位锚（stats.scss 已给 .wengu-panel 设过 relative，这里补 word 根） */
+.wengu-panel,
+.wengu-word-root {
+  position: relative;
+}
+
+.wengu-companion {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.wengu-companion-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* ── 团子本体 ── */
+.wengu-comp-figure {
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+
+  svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    animation: wengu-comp-bob 3.2s ease-in-out infinite;
+  }
+}
+
+/* 自定义形象图片模式（ui.imgExpr 命中时替代内置 SVG） */
+.wengu-comp-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  user-select: none;
+  border-radius: 50%;
+}
+
+.wengu-comp-body {
+  fill: color-mix(in srgb, var(--b3-theme-primary) 16%, var(--b3-theme-background));
+  stroke: var(--b3-theme-primary-light);
+  stroke-width: 1.6;
+}
+
+.wengu-comp-face {
+  color: var(--b3-theme-on-surface);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: wengu-comp-face-in 0.25s ease-out;
+}
+
+@keyframes wengu-comp-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes wengu-comp-face-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 台词气泡 ── */
+.wengu-comp-bubble {
+  pointer-events: auto;
+  max-width: 240px;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  background: var(--b3-theme-background);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  box-shadow: var(--b3-dialog-shadow);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--b3-theme-on-surface);
+  animation: wengu-comp-face-in 0.2s ease-out;
+}
+
+/* ── 聊天面板 ── */
+.wengu-comp-chat {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: 272px;
+  max-height: 320px;
+  box-sizing: border-box;
+  background: var(--b3-theme-background);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  box-shadow: var(--b3-dialog-shadow);
+  overflow: hidden;
+  animation: wengu-comp-face-in 0.2s ease-out;
+}
+
+.wengu-comp-name {
+  padding: 8px 8px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--b3-theme-on-surface);
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.wengu-comp-msgs {
+  flex: 1;
+  min-height: 120px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wengu-comp-msg {
+  max-width: 88%;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.wengu-comp-msg-ai {
+  align-self: flex-start;
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-comp-msg-user {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--b3-theme-primary) 14%, var(--b3-theme-background));
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-comp-explain {
+  align-self: flex-start;
+  margin: 0 8px;
+  padding: 2px 6px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.wengu-comp-input {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--b3-border-color);
+
+  .b3-text-field {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .b3-button {
+    flex-shrink: 0;
+  }
+}

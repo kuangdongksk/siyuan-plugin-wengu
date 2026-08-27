@@ -33,6 +33,12 @@ export interface WenguSettingsShape {
     convertTargetId?: string;
     /** MinerU API Token（mineru.net 注册获取，PDF 导入用）。 */
     mineruToken?: string;
+    /** 看板娘学伴（伴学域 companion：开关/AI 台词与对话/多套学伴配置）。 */
+    companionEnabled?: boolean;
+    companionPersona?: string;
+    companionAi?: boolean;
+    companionProfiles?: import("../companion/CompanionCtl").CompanionProfile[];
+    companionActiveId?: string;
     save?: () => void;
 }
 
@@ -66,6 +72,7 @@ export function openWenguSetting(opts: {
     <ul class="config__tab-scroll">
       ${tabIcon("drill", "iconList", t("setTabDrill"), true)}
       ${tabIcon("convert", "iconSparkles", t("setTabConvert"))}
+      ${tabIcon("companion", "iconStar", t("setTabCompanion"))}
       ${tabIcon("about", "iconInfo", t("setTabAbout"))}
     </ul>
   </div>
@@ -198,6 +205,24 @@ export function openWenguSetting(opts: {
         </div>
       </div>
     </div>
+    <div class="config__tab-container fn__none" data-panel="companion">
+      <div class="config-group">
+        <div class="config-title">${esc(t("setGroupCompanion"))}</div>
+        <div class="config-items">
+          ${formRow(
+              t("companionEnableLabel"),
+              t("companionEnableDesc"),
+              formSwitch("companionenabled", opts.settings.companionEnabled !== false, "data-set")
+          )}
+          ${formRow(
+              t("companionAiLabel"),
+              t("companionAiDesc"),
+              formSwitch("companionai", opts.settings.companionAi !== false, "data-set")
+          )}
+        </div>
+      </div>
+      <div class="b3-label__text" style="padding:8px 4px">${esc(t("companionPanelHint"))}</div>
+    </div>
     <div class="config__tab-container fn__none" data-panel="about">
       <div class="b3-label">
         <div class="fn__block">${esc(opts.pluginName)} v${esc(opts.version)}
@@ -221,7 +246,7 @@ export function openWenguSetting(opts: {
         });
     }
     const bindSwitch = (
-        key: "shownums" | "showattempts" | "showwrong" | "fillchoice" | "bigsteps",
+        key: "shownums" | "showattempts" | "showwrong" | "fillchoice" | "bigsteps" | "companionenabled" | "companionai",
         apply: (v: boolean) => void
     ) => {
         root.querySelector<HTMLInputElement>(`[data-set='${key}']`)?.addEventListener("change", (ev) => {
@@ -235,6 +260,8 @@ export function openWenguSetting(opts: {
     bindSwitch("showwrong", (v) => (opts.settings.showWrong = v));
     bindSwitch("fillchoice", (v) => (opts.settings.fillToChoice = v));
     bindSwitch("bigsteps", (v) => (opts.settings.bigToSteps = v));
+    bindSwitch("companionenabled", (v) => (opts.settings.companionEnabled = v));
+    bindSwitch("companionai", (v) => (opts.settings.companionAi = v));
     root.querySelector<HTMLSelectElement>("[data-set='deftiming']")?.addEventListener("change", (ev) => {
         const v = (ev.target as HTMLSelectElement).value;
         opts.settings.defaultTiming = v === "countdown" || v === "perQuestion" || v === "none" ? v : "countUp";

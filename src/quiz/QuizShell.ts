@@ -9,8 +9,10 @@ import { bindGroupUnits, focusQuestion, restoreGroupScrolls } from "./MaterialFl
 import { bindNumRail } from "./NumRail";
 import { decoratePreview } from "./PreviewFlow";
 import { PROTYLE_INLINE_MAX } from "./ProtyleHost";
+import { bindRailFor } from "./RailHtml";
 import { beginDrillFor, bindStartPanel, renderStartPanel } from "./StartPanel";
 import { bindHeadFor } from "./ViewBindings";
+import { renderWorkspaceFor } from "./WorkspaceShell";
 import { esc } from "../ui/shared";
 
 /**
@@ -23,11 +25,17 @@ import { esc } from "../ui/shared";
 export function renderQuizShellFor(v: QuizView): void {
     v.protyleHost.destroyAll();
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
+    // 三栏格局：非刷题工作区（学伴/专题/知识文档）整体换内容后返回
+    if (v.workspace !== "drill") {
+        renderWorkspaceFor(v);
+        return;
+    }
     // M6 多模式路由：复习（错题本）由 ReviewFlow 全权渲染；预览复用做题
     // 壳（题卡全揭示、不作答）；study 仍预留
     if (v.mode === "review") {
         renderReviewFor(v);
         bindHeadFor(v);
+        bindRailFor(v);
         return;
     }
     if (v.mode !== "quiz" && v.mode !== "preview") return;
@@ -71,6 +79,7 @@ export function renderQuizShellFor(v: QuizView): void {
         ),
     });
     bindQuizFor(v);
+    bindRailFor(v);
     // 渲染路径分流：题库模式/长卷走静态 Lute（无内核请求、无 N 个
     // Protyle 实例）；常规卷走内嵌 Protyle（块级还原最完整）
     if (colMode || v.list.length > PROTYLE_INLINE_MAX) {

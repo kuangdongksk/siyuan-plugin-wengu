@@ -1,7 +1,11 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./AnswerFlow";
 import { restoreAnsweredCards, revealAll } from "./AnswerFlow";
-import { applySideFilter, collectCardThoughts } from "./CardHtml";
+import { attachCompanion, detachCompanion, notifyQuizAnswer, notifyRoundDone } from "../companion";
+import { collectCardThoughts } from "./CardHtml";
+import { deleteDocWithCleanup } from "./DocOps";
+import { enterPreviewFor, enterReviewFor } from "./ModeOps";
+import { normalizeWorkspace, renderRailHtml, type WenguWorkspace } from "./RailHtml";
 import { buildSideTree } from "./SideTree";
 import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/ConvertAccess";
@@ -20,15 +24,14 @@ import type { WenguPrefsIo } from "./QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./QuizLoader";
 import { bindCardActions } from "../bank/RegenDialog";
 import { openVariantDrillDialog } from "../bank/VariantDrill";
-import { filterReviewDocFor, selectReviewQid } from "../review";
-import { KernelDoc } from "../siyuan/doc";
+import { filterReviewDocFor } from "../review";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./RoundReport";
 import type { WeaknessStore } from "../bank/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import { beginDrillFor, startPanelModelFor } from "./StartPanel";
-import { destroyStatsPanel, openStatsPanelFor } from "../stats";
+import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./TimerBinder";
-import { bindHeadFor } from "./ViewBindings";
+import { bindHeadFor, toggleSideTreeFor } from "./ViewBindings";
 import { TimerController } from "./TimerController";
 import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "../types";
 import { esc } from "../ui/shared";
@@ -68,6 +71,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     units: DrillUnit[] = [];
     /** M6 多模式开口：做题（现有）/复习/预览/学习预留，主区渲染按它路由。 */
     mode: "quiz" | "review" | "study" | "preview" = "quiz";
+    /** 左栏工作区（rail 维度）：刷题=现有界面，其余三个是管理面板。 */
+    workspace: WenguWorkspace = "drill";
     /** 标注层解绑与背单词存储（生词→复习队列，index.ts 注入共享单例）。 */
     private annoCleanup?: () => void;
     private wordStore?: AnnoCallbacks["wordStore"];
@@ -150,7 +155,10 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly currentRevealMode = (): WenguRevealMode => this.revealMode;
     readonly timerController = (): TimerController => this.timer;
     readonly currentSession = (): WenguSession | undefined => this.session ?? this.finished;
-    readonly roundComplete = (): void => showRoundReportNow(roundFinishCtx(this));
+    readonly roundComplete = (): void => {
+        notifyRoundDone(this);
+        showRoundReportNow(roundFinishCtx(this));
+    };
     readonly flushTime = (): void => void this.timerBinder.flush();
     /** ClueHost 结构匹配：当前题/材料定位/会话落库（线索标注用）。 */
     readonly currentQuestion = (): WenguQuestion | undefined => this.list[this.activeQIdx];
@@ -167,9 +175,11 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     ): void => {
         const s = this.session;
         if (!s) return;
-        pushSessionAnswer(s, qid, submitted, ok, this.timer.takeQuestionSec(qid), this.timer.elapsed(), extra);
+        const sec = this.timer.takeQuestionSec(qid);
+        pushSessionAnswer(s, qid, submitted, ok, sec, this.timer.elapsed(), extra);
         void this.history?.upsert(s);
         if (!qid.includes("#")) void this.bank?.recordAnswer(qid, submitted, ok); // 题库统计镜像
+        notifyQuizAnswer(this, qid, submitted, ok, sec); // 看板娘事件（含错题讲解上下文）
     };
 
     /** 设置页开关变更后由插件调用：立即按新设置重渲染。 */
@@ -198,6 +208,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         hideBar();
         void this.bank?.flush();
         this.protyleHost.destroyAll();
+        detachCompanion("quiz");
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */
@@ -237,17 +248,17 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
 
     /** 预览模式入口：开刷面板「预览」按钮（只读浏览，不作答不计轮次）。 */
-    readonly enterPreviewMode = (): void => {
-        destroyStatsPanel();
-        this.switchMode("preview");
-    };
+    readonly enterPreviewMode = (): void => enterPreviewFor(this);
 
     /** 复习模式统一入口：右键文档预筛 / 统计 qid 定位 / 直入（统计面板先关）。 */
-    readonly enterReviewMode = (opt: { docId?: string; qid?: string }): void => {
-        destroyStatsPanel();
-        if (opt.docId) filterReviewDocFor(opt.docId);
-        if (opt.qid) selectReviewQid(opt.qid);
-        this.switchMode("review");
+    readonly enterReviewMode = (opt: { docId?: string; qid?: string }): void => enterReviewFor(this, opt);
+
+    /** 左栏工作区切换（刷题/学伴/专题/知识文档）；prefs 记住上次。 */
+    readonly switchWorkspace = (ws: WenguWorkspace): void => {
+        if (this.workspace === ws) return;
+        this.workspace = ws;
+        this.persistPrefs();
+        this.renderList();
     };
 
     /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。 */
@@ -260,23 +271,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         else void ((this.pendingDrillScope = "wrongAll"), this.selectDoc(docId));
     };
 
-    /** 目录文档右键「删除文档」：文档本体删入回收站（可在思源找回），
-     *  插件侧联动清记录/影子专题/会话历史后重载——load 的选中回退链
-     *  （当前>记住>活动>第一个）自动切离被删文档。内核调用串行。 */
-    readonly deleteDocOf = (docId: string): void => {
-        void (async () => {
-            try {
-                const { code } = await KernelDoc.remove(docId);
-                if (code !== 0) return;
-            } catch (_) {
-                return; // 删除失败不动插件数据，下次再试
-            }
-            await this.bank?.removeDocData(docId);
-            await this.bank?.flush();
-            await this.history?.removeDocs([docId]);
-            await this.load();
-        })();
-    };
+    /** 目录文档右键「删除文档」：实现见 DocOps（文档删入回收站 + 联动清理）。 */
+    readonly deleteDocOf = (docId: string): void => deleteDocWithCleanup(this, docId);
 
     persistPrefs(): void {
         savePrefs(this.storage, {
@@ -284,28 +280,14 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             colId: this.colFlow.id(),
             sideCollapsed: this.sideCollapsed,
             sideTreeOpen: this.sideTreeOpen,
+            workspace: this.workspace,
             ...this.convertAccess.prefsSnapshot(),
         });
     }
 
     /** 侧栏树分支折叠/展开（S1）：改集合持久化后局部重绘清单块。 */
-    readonly toggleSideTreeOf = (path: string): void => {
-        const set = new Set(this.sideTreeOpen);
-        if (set.has(path)) set.delete(path);
-        else set.add(path);
-        this.sideTreeOpen = [...set];
-        this.persistPrefs();
-        applySideFilter(
-            this.el,
-            this.docs,
-            this.docId,
-            this.t,
-            this.sideFilter,
-            this.colFlow.rowsView(),
-            this.colFlow.id(),
-            this.sideTreeOpen
-        );
-    };
+    /** 侧栏树分支折叠/展开（S1）：实现见 ViewBindings.toggleSideTreeFor。 */
+    readonly toggleSideTreeOf = (path: string): void => toggleSideTreeFor(this, path);
 
     /** 目录文档右键「变式重练」（V2）：整卷/仅错题按题生成变式专题。 */
     readonly variantDrillOf = (docId: string): void => {
@@ -355,6 +337,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             pendingDoc: this.pendingDoc,
         });
         this.sideCollapsed = r.sideCollapsed;
+        this.workspace = normalizeWorkspace(r.workspace);
         this.convertAccess.restore(r);
         this.revealMode = r.revealMode;
         this.started = false;
@@ -464,12 +447,13 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             this.renderListInner();
         } catch (e) {
             this.protyleHost.destroyAll();
-            this.el.innerHTML = `<div class="wengu-head"></div>
+            this.el.innerHTML = `${renderRailHtml(this.t, this.workspace)}<div class="wengu-head"></div>
     <div class="wengu-status wengu-status-err">${esc(this.t("loadFailed"))}${esc(
         String((e as Error)?.message ?? e)
     )}</div>`;
             bindHeadFor(this);
         }
+        attachCompanion(this.el, "quiz"); // innerHTML 全量覆盖后重挂（层未断开则跳过）
     }
 
     private renderListInner(): void {

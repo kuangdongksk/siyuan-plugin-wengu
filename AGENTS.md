@@ -20,7 +20,13 @@
       起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
       Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess；
       词库数据在 `word/data/`）、
-      `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱）、`src/ui/`
+      `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题/知识文档
+      管理面板 CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
+      `src/companion/`
+      （伴学看板娘「团子」：规则层表情+台词/AI 增强与聊天走智能体
+      agentChat+串行队列，双宿主=刷题页签挂载层+单词 dock 内嵌，
+      各域收口一行 `notify*` 接入事件，管理在 CompanionPanel 工作区）、
+      `src/ui/`
       （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具）。
     - **各域 `index.ts` 必须是该域的入口编排代码，禁止纯 re-export barrel**；
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
@@ -118,11 +124,34 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   **3.8.1 路由迁移**：端点变为 `POST /api/file/putFile`（旧 `/api/putFile`
   返回 200+空 body 假成功），且 path 必须工作区相对（带前导 `/` 会拼出
   `…\C::` 非法路径报 mkdir 错）（20260825 真机实测）。
-- 内置智能体：`/api/ai/agent/chat` SSE，body `{message, language,
-references:[], model?}`，model=设置里模型 id；`event:content` 的
-  `data.token` 是回答增量，`event:error` 报错。**并发互斥**：同时两个
-  调用，后到的直接返回 `{"code":-1,"msg":"session is busy in another
-instance"}`（20260823 真机验证）。
+- 内置智能体 `/api/ai/agent/chat`（SSE）：**并发锁按 sessionID 键控
+  （`runningSessions map[string]*runningSession`，非全局锁），不同
+  sessionID 可并发、且每次可指定 `model`——即「并发 + 每场景指定模型」
+  两个诉求一个接口全满足**（20260827 在 3.8.1 两轮真机验证：两个不同
+  sessionID 并发请求均 `event:done` 零 busy；传假 model id 被拒
+  「请先参考用户指南进行配置」证明 model 生效）。
+    - **老结论「并发互斥」是假象**：20260823 验证时没传 sessionID，
+      所有请求都撞在 `runningSessions[""]` 这一个 key 上 → 全局互斥。
+    - 调用前置（缺一即 409/「网络异常」假象）：
+        1. `sessionID` 必须是合法格式 `{14位时间戳}-{7位字母数字}`
+           （isValidSessionID 校验，如 `20260827063055-fk64l1s`；乱传
+           直接 `load agent session permission failed: invalid session id`）；
+        2. session 必须先落盘：`POST /api/ai/agent/saveSession` body
+           `{id, revision, title, entries:[{id, type:"user", content}]}`
+           ——**entries 至少一条 `type:"user"` 条目**，否则 chat 报
+           `begin agent runtime failed: agent runtime user entry not found`
+           （前端逻辑：先 push user 条目→saveSession→再 chat）；
+        3. chat body `{sessionID, userEntryID: <user 条目 id 或空串>,
+message, language, references, model?}`；`userEntryID` 是
+           **entries 里 user 条目的 id**（非文档 ID），空串=取最后一条
+           user 条目；`model` = `conf.json ai.providers[].models[].id`。
+    - 流结束 SSE 出 `event:turn`（带 turnID）；前端随后调 saveSession
+      `{...session, commitTurnID: turnID}` 提交；插件任务结束不保留
+      上下文就调 `POST /api/ai/agent/removeSession {id}` 清理，否则
+      每个随机 sessionID 会在 `data/storage/ai/agent/sessions/{id}/`
+      落盘两个文件堆积。agent chat 可能触发工具权限
+      `event:permission`/`event:confirm`（approvalPolicy=risk 时），
+      插件纯文本问答通常不触发，需自测。
 
 - 旧直答端点 `/api/ai/chatGPT`（`{msg}` → `{code,data:回复全文}`）
   **支持并发**（真机验证），模型跟随设置默认、不可按次指定；插件要

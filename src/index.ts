@@ -9,6 +9,7 @@ import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/WeaknessStore";
 import { WordStore } from "./word/WordStore";
 import { mountWordView, type WordView } from "./word";
+import { initCompanion } from "./companion";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -64,6 +65,12 @@ interface WenguSettings {
     convertTargetId?: string;
     /** MinerU API Token（mineru.net 注册获取，PDF 导入用）。 */
     mineruToken?: string;
+    /** 看板娘学伴：全局开关/兜底台词人设/AI 台词与对话/多套学伴配置。 */
+    companionEnabled?: boolean;
+    companionPersona?: string;
+    companionAi?: boolean;
+    companionProfiles?: import("./companion/CompanionCtl").CompanionProfile[];
+    companionActiveId?: string;
     /** 由插件注入的落盘回调。 */
     save?: () => void;
 }
@@ -128,6 +135,13 @@ export default class WenguPlugin extends Plugin {
             delete rest.save;
             void this.saveData("settings", rest);
         };
+        // 看板娘学伴（双宿主：刷题页签挂载层 + 单词 dock 内嵌；事件由各域收口一行接入）
+        initCompanion({
+            i18n: this.i18n ?? {},
+            settings: this.settings,
+            history: this.history(),
+            word: this.getWordStore(),
+        });
         // 插件图标：形状取自思源官方图标集（litheness 包 iconRiffCard /
         // iconLanguage 的原始 path），以自有稳定 id 注册——不依赖运行环境
         // sprite 是否收录该图标（iconLanguage 非核心图标，dock 里会渲染成

@@ -19,6 +19,7 @@ export interface QuizLoadDeps {
     prefs: {
         docId?: string;
         sideCollapsed?: boolean;
+        workspace?: string;
         sideTreeOpen?: string[];
         lastConvertModelId?: string;
         lastConvertFill?: boolean;
@@ -50,6 +51,8 @@ export interface QuizLoadResult {
     materials: WenguMaterial[];
     rounds: Awaited<ReturnType<HistoryStore["docSessions"]>>;
     sideCollapsed: boolean;
+    /** 上次停留的工作区（规整前原值，QuizView 自行 normalize）。 */
+    workspace: string | undefined;
     lastConvertModelId: string;
     lastConvertFill: boolean;
     lastConvertSteps: boolean;
@@ -71,6 +74,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         materials: [],
         rounds: [],
         sideCollapsed: !!deps.prefs.sideCollapsed,
+        workspace: deps.prefs.workspace,
         sideTreeOpen: deps.prefs.sideTreeOpen,
         lastConvertModelId: deps.prefs.lastConvertModelId ?? "",
         lastConvertFill: deps.prefs.lastConvertFill ?? deps.settings?.fillToChoice === true,
@@ -147,6 +151,8 @@ export interface WenguPrefsIo {
     /** 上次选中的专题 id（重开页签恢复专题模式）。 */
     colId?: string;
     sideCollapsed?: boolean;
+    /** 上次停留的左栏工作区（重开恢复）。 */
+    workspace?: string;
     /** 侧栏树展开的路径集合（undefined=未初始化，load 时落默认第一层）。 */
     sideTreeOpen?: string[];
     lastConvertModelId?: string;

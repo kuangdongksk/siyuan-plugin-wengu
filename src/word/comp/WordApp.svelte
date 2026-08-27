@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount, setContext } from "svelte";
+    import CompanionApp from "../../companion/comp/CompanionApp.svelte";
     import { wordKeydown } from "../WordBind";
     import type { WordStore } from "../WordStore";
     import { WordView } from "../WordView";
@@ -45,4 +46,5 @@
             <CardScreen />
         {/if}
     {/if}
+    <CompanionApp host="word" />
 </div>

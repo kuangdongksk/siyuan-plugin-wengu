@@ -42,3 +42,17 @@ export class WordStartCtl {
         input.value = "";
     }
 }
+
+/** 由视图依赖装配（WordView.startCtl 的拆出体，压 500 行红线）。 */
+export function makeStartCtl(v: {
+    ui: WordUi;
+    t: (k: string) => string;
+    store: { save(p: WenguWordProgress): Promise<unknown> };
+}): WordStartCtl {
+    return new WordStartCtl(
+        v.ui,
+        v.t,
+        () => v.ui.progress!,
+        (p) => v.store.save(p)
+    );
+}
