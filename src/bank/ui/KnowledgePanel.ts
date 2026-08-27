@@ -140,9 +140,10 @@ async function docInfoOf(docIds: string[]): Promise<Map<string, { title: string;
     return out;
 }
 
-/* ── hPath 树化（20260827 用户定稿：列表跟思源原生文档树同构）──
-   结构复用侧栏 wengu-tree 全局类（分支箭头旋转/子级缩进），分支默认
-   展开（文档全可见），文档的小节是缩进子行（默认折叠，点击跳块）。 */
+/* ── hPath 树化（20260827 用户定稿：跟思源原生文档树同款观感）──
+   行壳走 PickerTree 同款 b3-list-item 紧凑单行风（分支浅色小字/文档行
+   右缘题数计数/hover 才显操作钮），toggle 箭头与子级缩进复用侧栏
+   wengu-tree 全局类；文档的小节是缩进子行（默认折叠，点击跳块）。 */
 
 interface KnowTreeNode {
     /** 完整路径（分支折叠 key；文档行追加 docId 后缀防撞）。 */
@@ -152,8 +153,8 @@ interface KnowTreeNode {
     children: KnowTreeNode[];
 }
 
-/** 知识文档按 hPath 建树（算法同侧栏 buildSideTree；同路径撞名以
- *  docId 后缀子行挂载不丢）。 */
+/** 知识文档按 hPath 建树（算法同 PickerTree.buildPickerTree；同路径
+ *  撞名以 docId 后缀子行挂载不丢）。 */
 function buildKnowTree(docs: KnowDocView[], info: Map<string, { title: string; hPath: string }>): KnowTreeNode[] {
     const roots: KnowTreeNode[] = [];
     const byPath = new Map<string, KnowTreeNode>();
@@ -187,36 +188,42 @@ function buildKnowTree(docs: KnowDocView[], info: Map<string, { title: string; h
     return roots;
 }
 
+function toggleSlot(node: KnowTreeNode): string {
+    return node.children.length > 0
+        ? `<span class="wengu-tree-toggle wengu-tree-toggle-btn" data-tree-path="${esc(
+              node.path
+          )}">${svgIcon("iconRight")}</span>`
+        : '<span class="wengu-tree-toggle"></span>';
+}
+
 function sectionRowHtml(s: KnowSectionView, t: (key: string) => string): string {
-    return `<div class="wengu-tree-doc wengu-kp-sec-row" data-ksec="${esc(s.id)}" title="${esc(s.title)}">
-  <span class="wengu-tree-toggle"></span>
-  <span class="wengu-kp-sec-name">${esc(s.title)}</span>
-  <span class="wengu-cp-meta">${esc(fmt(t("knowQCount"), { n: String(s.count) }))}</span>
-</div>`;
+    return `<div class="b3-list-item b3-list-item--narrow wengu-kp-sec-row" data-ksec="${esc(s.id)}" title="${esc(
+        s.title
+    )}"><span class="wengu-tree-toggle"></span><span class="b3-list-item__text">${esc(
+        s.title
+    )}</span><span class="wengu-cp-meta">${esc(fmt(t("knowQCount"), { n: String(s.count) }))}</span></div>`;
 }
 
 function knowDocRowHtml(node: KnowTreeNode, t: (key: string) => string): string {
     const d = node.doc!;
-    const toggle = `<span class="wengu-tree-toggle wengu-tree-toggle-btn" data-tree-path="${esc(node.path)}">${svgIcon(
-        "iconRight"
-    )}</span>`;
+    const tag = d.manual ? ` · ${t("knowImportTag")}` : "";
+    const title = `${d.title}\n${fmt(t("knowSections"), { n: String(d.sections.length) })} · ${fmt(t("knowQCount"), {
+        n: String(d.total),
+    })}${tag}`;
+    const rm = d.manual
+        ? `<button type="button" class="b3-button b3-button--text" data-krm>${esc(t("knowRemoveBtn"))}</button>`
+        : "";
     const kids =
         d.sections.length > 0
             ? `<div class="wengu-tree-children" hidden>${d.sections.map((s) => sectionRowHtml(s, t)).join("")}</div>`
             : "";
-    const tag = d.manual ? ` · ${esc(t("knowImportTag"))}` : "";
-    const rm = d.manual
-        ? `<button type="button" class="b3-button b3-button--text" data-krm>${esc(t("knowRemoveBtn"))}</button>`
-        : "";
-    return `<div class="wengu-tree-doc wengu-kp-doc-row" data-kdoc="${esc(d.docId)}" title="${esc(d.title)}">
-  ${d.sections.length > 0 ? toggle : '<span class="wengu-tree-toggle"></span>'}
-  <div class="wengu-tree-main">
-    <div class="wengu-side-title">${esc(d.title)}</div>
-    <div class="wengu-side-meta">${esc(fmt(t("knowSections"), { n: String(d.sections.length) }))} · ${esc(
-        fmt(t("knowQCount"), { n: String(d.total) })
-    )}${tag}</div>
-  </div>
-  <span class="wengu-kp-ops">
+    return `<div class="b3-list-item b3-list-item--narrow b3-list-item--hide-action wengu-kp-doc" data-kdoc="${esc(
+        d.docId
+    )}" title="${esc(title)}">
+  ${toggleSlot(node)}
+  <span class="b3-list-item__text">${esc(d.title)}</span>
+  <span class="wengu-cp-meta">${esc(fmt(t("knowQCount"), { n: String(d.total) }))}</span>
+  <span class="b3-list-item__action">
     <button type="button" class="b3-button b3-button--text" data-krelated>${esc(t("knowRelated"))}</button>
     <button type="button" class="b3-button b3-button--text" data-kopen>${esc(t("knowOpen"))}</button>
     ${rm}
@@ -226,9 +233,11 @@ function knowDocRowHtml(node: KnowTreeNode, t: (key: string) => string): string 
 
 function knowNodeHtml(node: KnowTreeNode, t: (key: string) => string): string {
     if (node.doc) return knowDocRowHtml(node, t);
-    return `<div class="wengu-tree-branch wengu-tree-open" data-tree-path="${esc(node.path)}">
-  <span class="wengu-tree-toggle wengu-tree-toggle-btn wengu-tree-open">${svgIcon("iconRight")}</span>
-  <span class="wengu-tree-name">${esc(node.name)}</span>
+    return `<div class="b3-list-item b3-list-item--narrow wengu-kp-branch" data-tree-path="${esc(node.path)}" title="${esc(
+        node.path
+    )}">
+  ${toggleSlot(node)}
+  <span class="b3-list-item__text">${esc(node.name)}</span>
 </div>
 <div class="wengu-tree-children">${node.children.map((c) => knowNodeHtml(c, t)).join("")}</div>`;
 }

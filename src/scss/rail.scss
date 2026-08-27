@@ -241,29 +241,46 @@
   white-space: nowrap;
 }
 
-/* 知识文档面板树化（20260827）：行壳/缩进/箭头复用侧栏 wengu-tree 全局类，
-   这里只补小节子行与文档行操作钮；小节默认折叠由渲染端 hidden 控制 */
-.wengu-kp-ops {
-  flex: none;
-  margin-left: auto;
-  display: inline-flex;
-  gap: 2px;
+/* 知识文档面板树化（20260827，PickerTree 同款 b3-list-item 行壳 +
+   wengu-tree toggle/缩进全局类）：分支浅色小字、题数计数贴右、
+   操作钮 hover 才显（b3-list-item--hide-action 的自兜底版，防主题差异） */
+.wengu-cp-list .wengu-kp-branch {
   padding-left: 4px;
+  padding-right: 8px;
 }
 
-.wengu-kp-doc-row .wengu-kp-ops .b3-button {
+.wengu-cp-list .wengu-kp-branch:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-cp-list .wengu-kp-branch .b3-list-item__text {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.wengu-cp-list .wengu-kp-doc,
+.wengu-cp-list .wengu-kp-sec-row {
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
+.wengu-cp-list .wengu-kp-doc .wengu-cp-meta,
+.wengu-cp-list .wengu-kp-sec-row .wengu-cp-meta {
+  flex: none;
+}
+
+.wengu-cp-list .wengu-kp-doc .b3-list-item__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  visibility: hidden;
+}
+
+.wengu-cp-list .wengu-kp-doc:hover .b3-list-item__action {
+  visibility: visible;
+}
+
+.wengu-cp-list .wengu-kp-doc .b3-list-item__action .b3-button {
   padding: 0 4px;
   font-size: 12px;
-}
-
-.wengu-kp-sec-row {
-  font-size: 12px;
-}
-
-.wengu-kp-sec-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
