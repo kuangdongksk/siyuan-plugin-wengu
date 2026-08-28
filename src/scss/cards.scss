@@ -156,16 +156,17 @@
   margin-bottom: 8px;
 }
 
-/* 「思路」折叠输入：低调的文字开关 + 展开后的文本域 */
+/* 「思路」折叠输入：描边小开关（与 .wengu-num/.wengu-input 同族——ghost
+   无边框不显按钮，20260829 用户「思路没有边框」）+ 展开后的文本域 */
 .wengu-thought-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   margin: 4px 0;
   padding: 2px 6px;
-  border: 0;
+  border: 1px solid var(--b3-theme-border);
   border-radius: var(--b3-border-radius);
-  background: none;
+  background: var(--b3-theme-surface);
   color: var(--b3-theme-on-surface-light);
   font-size: 13px;
   cursor: pointer;
