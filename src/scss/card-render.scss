@@ -209,9 +209,24 @@
   color: var(--b3-theme-on-surface);
 }
 
-/* Protyle 加载失败的降级渲染 */
+/* Protyle 加载失败的降级渲染 / 题库·长卷静态渲染。
+   字母角标（wengu-opt-letter）按位补画——与作答 chip、文档模式
+   有序列表 CSS 计数器（1234→ABCD）三路显示一致。 */
 .wengu-option-fallback {
+  display: flex;
+  gap: 6px;
   padding: 2px 8px;
+}
+
+.wengu-opt-letter {
+  flex: none;
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+}
+
+.wengu-opt-body {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── 判断题按钮 ── */

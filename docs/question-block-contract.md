@@ -179,7 +179,12 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
 - **题库模式渲染**：静态路径（Lute Md2BlockDOM + KaTeX），解析/
   答案在 `.wengu-static-sol` 容器里随 `wengu-graded` 显隐（与文档
   模式 part 显隐同语义）；块引用静态渲染、点击 `siyuan://blocks/id`
-  跳转。文档模式仍走内嵌 Protyle。
+  跳转。文档模式仍走内嵌 Protyle。**选项字母三路一致**（2026-08-28
+  「ABCD 都没了」修复）：静态/降级路径选项文本经 `optionDisplayMd`
+  剥掉列表标记与字母标签后，字母由页签按位补画角标
+  （`optionRowHtml` → `.wengu-opt-letter`，与作答 chip 按位对齐）；
+  文档模式字母来自文档正文或有序列表 CSS 计数器（1234→ABCD）。
+  复习模式详情选项行同款角标。
 - **长卷性能（2026-08-26，193 题真机触发）**：①装载——listQuestions
   改走 QuestionBatch.hydrateAll：整卷子块×part 一条 JOIN SQL 显式
   LIMIT 512 分页拉全（~每 512 行一次请求），替代逐题

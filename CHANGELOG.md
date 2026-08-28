@@ -2,6 +2,13 @@
 
 ## v0.1.1 unreleased
 
+- 静态渲染选项字母角标（20260828，用户反馈「ABCD 都没了」）：>50 题
+  长卷与题库模式走 mountStatic、Protyle 挂载失败走降级——两路选项文本
+  被 optionDisplayMd 剥掉文档里的字母标签后无人补画，选项成无字母裸
+  行、与作答 chip 无从对应（steps/match/slot 均有角标，普通选择题漏）。
+  修复：选项行统一走 optionRowHtml 按位补画 `.wengu-opt-letter` 角标
+  （复习模式详情同款），与文档模式有序列表 CSS 计数器（1234→ABCD）
+  显示一致；补 ProtyleHost 纯函数单测锁角标回归面。
 - 知识文档×题库双向匹配（20260828）：知识面板文档行新增「匹配」「转
   习题」。匹配（MatchDialog）= 选已入库习题文档（存量/新建同权）→
   逐题走转换同款两级 AI 路由（过 enqueueAi 共享队列）→ strip+inject

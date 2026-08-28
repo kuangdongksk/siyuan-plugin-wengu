@@ -1,7 +1,7 @@
 import { Protyle, ProtyleMethod } from "siyuan";
 import type { App } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
-import { optionDisplayMd } from "../../types";
+import { optionDisplayMd, LETTERS } from "../../types";
 import { esc } from "../../ui/shared";
 
 /**
@@ -52,7 +52,7 @@ export class ProtyleHost {
             return mat?.bodyMd ? safeLute(mat.bodyMd) : "";
         }
         const q = list.find((x) => x.id === this.nodeBlockId(node));
-        return q ? this.fallbackHtml(q) : undefined;
+        return q ? fallbackQuestionHtml(q) : undefined;
     }
 
     /** 占位所属块 id：材料面板（材料组单元）取 data-mid，题卡取 data-qid。 */
@@ -72,7 +72,7 @@ export class ProtyleHost {
             if (!q) continue;
             const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
             node.innerHTML =
-                this.fallbackHtml(q) +
+                fallbackQuestionHtml(q) +
                 (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
             renderMath(node);
         }
@@ -127,16 +127,6 @@ export class ProtyleHost {
         renderMath(root);
     }
 
-    /** 降级渲染（题干+选项；选项去列表标记与字母标签）。 */
-    private fallbackHtml(q: WenguQuestion): string {
-        const parts: string[] = [];
-        if (q.stemMd) parts.push(safeLute(q.stemMd));
-        for (const md of q.optionMd ?? []) {
-            parts.push(`<div class="wengu-option-fallback">${safeLute(optionDisplayMd(md))}</div>`);
-        }
-        return parts.join("");
-    }
-
     /** 重渲染前调用：销毁全部 Protyle，代数自增。 */
     destroyAll(): void {
         this.mountGen++;
@@ -183,6 +173,24 @@ function luteToHtml(md: string): string {
     (lute as unknown as { SetMathBlock?: (b: boolean) => void }).SetMathBlock?.(true);
     lute.SetInlineMathAllowDigitAfterOpenMarker(true);
     return lute.Md2BlockDOM(md);
+}
+
+/** 选项行 HTML（静态/降级渲染共用；复习详情也走它）：字母角标按位
+ *  补画——选项文本经 optionDisplayMd 剥掉文档里的字母标签后，字母
+ *  只能由页签自己画（types.ts 约定），否则作答 chip 无从对应。 */
+export function optionRowHtml(i: number, md: string, rowClass = "wengu-option-fallback"): string {
+    return (
+        `<div class="${rowClass}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span>` +
+        `<div class="wengu-opt-body">${safeLute(optionDisplayMd(md))}</div></div>`
+    );
+}
+
+/** 降级渲染：题干 + 选项行（静态挂载与 Protyle 失败降级共用）。 */
+export function fallbackQuestionHtml(q: WenguQuestion): string {
+    const parts: string[] = [];
+    if (q.stemMd) parts.push(safeLute(q.stemMd));
+    for (const [i, md] of (q.optionMd ?? []).entries()) parts.push(optionRowHtml(i, md));
+    return parts.join("");
 }
 
 /** Lute 渲染降级：个别畸形 kramdown 会让 Lute 抛异常，退回纯文本。 */

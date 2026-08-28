@@ -1,7 +1,7 @@
 import { ATTR_PREFIX, Attr } from "../siyuan/attrs";
 import { KernelQuery } from "../siyuan/query";
 import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
-import { mdFragmentHtml, renderMathIn } from "../quiz/service/ProtyleHost";
+import { mdFragmentHtml, optionRowHtml, renderMathIn } from "../quiz/service/ProtyleHost";
 import { copyQuestionText } from "../quiz/flow/PreviewFlow";
 import { renderHeadHtml, renderSideHtml } from "../quiz/render/CardHtml";
 import { renderRailHtml } from "../quiz/render/RailHtml";
@@ -17,7 +17,6 @@ import {
 } from "./ReviewHtml";
 import { hydrate, rowToQuestion, type AttrsRow } from "../quiz/service/QuestionService";
 import type { WenguDoc, WenguQuestion } from "../types";
-import { optionDisplayMd } from "../types";
 import { esc, fmt } from "../ui/shared";
 
 /**
@@ -310,9 +309,7 @@ async function renderDetailFor(v: ReviewViewAccess, qid: string): Promise<void> 
     }
     if (v.el.querySelector("[data-review-detail]") !== box) return; // 已重渲染
     const t = v.t;
-    const optionsHtml = (q.optionMd ?? [])
-        .map((md) => `<div class="wengu-review-option">${mdFragmentHtml(optionDisplayMd(md))}</div>`)
-        .join("");
+    const optionsHtml = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
     const stepsHtml = (q.steps ?? [])
         .map(
             (s, i) =>
