@@ -55,11 +55,11 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 4px 0;
-  /* 滚动容器是 .wengu-main；父级 .wengu-body 高度随内容自适应，
-     100% 解析不动等于没约束（193 题栏底不可达）。封顶用 NumRail 实测
-     写入的 --wengu-nums-max（滚动可视区 − 吸顶头下缘 − 8px 底衬，
-     chrome 差异天然排除）；绑定前兜底走视口近似（含头高变量+余量） */
+  /* 内衬与主区同律 8px：首/末按钮不贴栏框边缘；列间距由 .wengu-body
+     的 gap 8px 表达。封顶=NumRail 实测的 --wengu-nums-max（滚动可视区
+     − 吸顶头下缘 − 主区 padding-bottom，间距全来自布局、JS 只读不猜），
+     绑定前兜底走视口近似 */
+  padding: 8px 0;
   max-height: var(--wengu-nums-max, calc(100vh - var(--wengu-head-h, 56px) - 40px));
   box-sizing: border-box;
   overflow-y: auto;
