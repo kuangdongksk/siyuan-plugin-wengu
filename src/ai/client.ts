@@ -1,5 +1,6 @@
 import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
+import { resolveModelId } from "./models";
 
 /**
  * 思源内置 AI 的调用通道（2026-08-27 从 convert/AgentClient 抽离成
@@ -32,6 +33,9 @@ export async function agentChat(
      * 并发锁按 sessionID 键控，不同会话互不 busy。 */
     sessionId = ""
 ): Promise<string> {
+    // 总闸口校正（20260829）：失效/存量 model id 内核一律报「请先参考
+    // 用户指南进行配置」——不在当前可用清单的回落默认，覆盖全部调用点
+    modelId = resolveModelId(modelId);
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const armTimer = (): void => {

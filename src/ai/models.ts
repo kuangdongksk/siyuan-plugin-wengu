@@ -54,3 +54,15 @@ export function listAiModels(): WenguAiModel[] {
 export function defaultAgentModelId(): string {
     return aiConf().agent?.modelId ?? "";
 }
+
+/** 校正模型 id 后再送内核：不在当前可用清单（被删/停用/旧格式存量）
+ *  回落默认，默认也无效则空串（省略 model 让内核用自己的默认）。
+ *  3.8.1 模型 id 是内核生成的时戳格式，删改配置后存量选择全部失效，
+ *  内核对未知 id 一律报「请先参考用户指南 [人工智能] 章节进行配置」
+ *  （20260829 用户「已配置好却一用 AI 就报」——学伴档案存了已删模型）。 */
+export function resolveModelId(preferred: string): string {
+    const models = listAiModels();
+    if (preferred && models.some((m) => m.id === preferred)) return preferred;
+    const def = defaultAgentModelId();
+    return models.some((m) => m.id === def) ? def : "";
+}
