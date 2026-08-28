@@ -149,13 +149,12 @@ export class CompanionCtl {
         return typeof x === "number" && typeof y === "number" ? { x, y } : undefined;
     }
 
-    /** 拖动结束落盘位置（钳在视口内，留 8px 不完全出界）。
-     *  水平余量按面板宽 272（气泡/聊天从团子向右对齐展开）——与组件
-     *  拖拽中的 clampPos 同口径，否则拖到右缘松手会被钳到不同位置。 */
+    /** 拖动结束落盘位置。拖拽中组件已按容器实际尺寸动态钳位，这里只做
+     *  最小钳（8px 不出界）——若再按固定余量钳，会与拖拽中看到的位置跳变。 */
     setFigurePos(x: number, y: number): void {
         const s = this.d.settings;
-        s.companionX = Math.max(8, Math.min(x, window.innerWidth - 272));
-        s.companionY = Math.max(8, Math.min(y, window.innerHeight - 72));
+        s.companionX = Math.max(8, Math.min(x, window.innerWidth - 8));
+        s.companionY = Math.max(8, Math.min(y, window.innerHeight - 8));
         s.save?.();
     }
 
