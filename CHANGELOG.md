@@ -2,6 +2,39 @@
 
 ## v0.1.1 unreleased
 
+- 三轮全仓审查五波修复（20260829，4 并行代理深读+逐 P1 亲核；A~E 五提交
+  fe5bfde/f50b438/0dfd7d1/8056ffc/647673f，均已部署机器 A）：
+  **A·quiz 渲染管线**（278e16a 壳分片化的回归）——题库/长卷静态路径材料组
+  题卡漏绑作答事件（组分支只 bindOneGroupUnit，组内 .wengu-gqs 题全点
+  不动）；纯独立题长卷进度胶囊恒「0/0」（nodesOf 只算组口径）；预览装饰
+  无 stale 守卫（放弃批次补挂新壳/非幂等追加翻倍）。已答锁定改逐单元就地
+  恢复（分片数秒窗口不再可重复提交）；收卷后在途分片不绑新卡+整卡上锁。
+  **B·存储+infra**——WordStore/QuestionBank/WeaknessStore 读异常上抛不落
+  空缓存（原一次落盘把全进度/全题库/全画像写没，HistoryStore 同坑补齐）；
+  HistoryStore 补串行落盘链；MaterialService 裸 SQL 改 rowsAll（>64 行静默
+  截断丢 group 材料）；ai/client 四处裸 fetch 补鉴权+已 abort signal 设防
+  +SSE error 掐流；kernelRemoveFile 吞错改上抛；死代码清扫（KernelNotebook
+  整类+9 工厂方法+6 路由）。**C·convert 续跑链 5 洞**——done 清进度记录
+  （残留使「丢弃」删完成整卷/「继续」复制整卷）；resume 文档跑批前接管
+  落盘目标（detect/首批期终止不再丢 docId）；落盘失败与 AI 失败同权重收口
+  （kramdown 落进度可续跑，原上抛即丢）；转换完成接 refreshDocFor 增量入库
+  （migratedDocs 只防重不刷新的洞）；replaceDocInPlace 先建备份再删旧。
+  另：PDF 导入/匹配/重生成挡 convertRunActive 门后；MinerU 轮询容忍 3 连败；
+  WeakDrill busy 锁；指纹 32→64 位；ws-main delete/move 防抖对账题库存活
+  （树里删文档不再悬空）。**D·word/review/stats**——redoHardFor 不复位
+  会话三件（重过撞组边界空尾吞词）；查词标熟当前卡双计 revCount；导入匹配
+  O(n²) 冻结改索引；detailQ 陈旧复制错题；统计错题总数封 50 失真；挂账
+  清偿：steps/slots 逐题秒数恒 0（#k 后缀查表恒空）、题号栏序数错位
+  （改包含规则）、专题边界计时错账（switchTo 先结算再改选中）、统计 tab
+  代际护栏、首页 derived 切书不刷、到期「今天稍后」算进明天、aiAnalyze
+  完成踢回首页、wordResumeCard i18n 双缺。**E·红线+P3**——quiz/index.ts
+  529→489、WordView 513→417（renderList/事件委托/收尾三兄弟迁出）；渲染
+  yield 换 MessageChannel（后台页签不被钳到 1s）；惰性数学观察器按视图根
+  分份（双页签不连坐）；看板娘 dozeTimer 卸载清理；KnowledgePanel 二击
+  确认定时器挂错对象；QuestionBank flush 失败重排+addGenerated 去重；
+  extractBlockId 透传消毒；PDF 插图替换防 $ 序列。未修遗留：书尾在学窗口
+  搁浅（原始发现细节缺失，未能定位）、decoratePreview 全卷同步 Lute（预览
+  大卷仍有一次冻结）、rows/rowsAll 吞错双口径（统一需逐调用点评审）。
 - 失效 model id 总闸口校正（20260829，用户「已配置好却一用 AI 就报『请先
   参考用户指南 [人工智能] 章节进行配置』」）：真机排查——内核/默认模型
   探针全通，激活学伴档案存了已删模型的存量 id（3.8.1 模型 id 为内核
