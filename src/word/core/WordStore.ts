@@ -412,17 +412,17 @@ export class WordStore {
 
     async get(): Promise<WenguWordProgress> {
         if (this.cache) return this.cache;
-        try {
-            const data = (await this.loadRaw()) as unknown;
-            const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
-            // 仅认 v3（词头 key）。v2→v3 一次性迁移代码已于 20260829 确认
-            // 存量落盘 v3 后移除（core/WordMigrate，同 v1→v2 先例）；再遇
-            // 旧版本文件按空进度起步并告警（真机确认无 v2 存量）。
-            if (data && ver !== 3) console.warn(`[wengu] words 进度版本非 v3（${String(ver)}），按空进度起步`);
-            this.cache = ver === 3 ? (data as WenguWordProgress) : defaultProgress();
-        } catch (_) {
-            this.cache = defaultProgress();
-        }
+        // 只把「读到的东西不是 v3」当空起步；**读异常上抛不落缓存**——
+        // 原归空后任意一次 save 把空进度覆写 words.json、全部进度清零
+        // （HistoryStore 同坑 20260828 已修，20260829 三轮审查补齐本店；
+        // loadRaw「文件不存在」约定返回空串/undefined，走 warn 分支不受影响）
+        const data = (await this.loadRaw()) as unknown;
+        const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
+        // 仅认 v3（词头 key）。v2→v3 一次性迁移代码已于 20260829 确认
+        // 存量落盘 v3 后移除（core/WordMigrate，同 v1→v2 先例）；再遇
+        // 旧版本文件按空进度起步并告警（真机确认无 v2 存量）。
+        if (data && ver !== 3) console.warn(`[wengu] words 进度版本非 v3（${String(ver)}），按空进度起步`);
+        this.cache = ver === 3 ? (data as WenguWordProgress) : defaultProgress();
         this.backfill(this.cache);
         const key = todayKey();
         if (this.cache.today.key !== key) this.cache.today = { key, newCount: 0, revCount: 0 };

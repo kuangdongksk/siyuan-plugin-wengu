@@ -1,27 +1,19 @@
 /**
  * 思源内核 API 路径枚举（组织方式迁自 sy-lively 的 constant/API路径.ts，
  * 路径基于内核 openapi）。文件层统一从本枚举取路径，禁内联字符串散落。
+ * 20260829 三轮审查：清掉零调用方的路由（笔记本组/rename·move·listDocs/
+ * insert·prepend·delete·moveBlock/exportMdContent/transactions），并把
+ * files.ts 特殊通道的 file 组路由收进来（原内联字符串违反本文件约定）。
  */
 export enum EApi {
-    // ── 笔记本 ──
-    ListNotebooks = "/api/notebook/lsNotebooks",
-    GetNotebookConf = "/api/notebook/getNotebookConf",
-
     // ── 文档（filetree）──
     CreateDocWithMd = "/api/filetree/createDocWithMd",
     RemoveDocById = "/api/filetree/removeDocByID",
-    RenameDoc = "/api/filetree/renameDoc",
-    MoveDocsById = "/api/filetree/moveDocsById",
-    ListDocsByPath = "/api/filetree/listDocsByPath",
     GetHPathById = "/api/filetree/getHPathByID",
 
     // ── 块 ──
-    InsertBlock = "/api/block/insertBlock",
-    PrependBlock = "/api/block/prependBlock",
     AppendBlock = "/api/block/appendBlock",
     UpdateBlock = "/api/block/updateBlock",
-    DeleteBlock = "/api/block/deleteBlock",
-    MoveBlock = "/api/block/moveBlock",
     GetBlockKramdown = "/api/block/getBlockKramdown",
     GetChildBlocks = "/api/block/getChildBlocks",
 
@@ -29,12 +21,8 @@ export enum EApi {
     SetBlockAttrs = "/api/attr/setBlockAttrs",
     GetBlockAttrs = "/api/attr/getBlockAttrs",
 
-    // ── 查询 / 导出 ──
+    // ── 查询 ──
     QuerySql = "/api/query/sql",
-    ExportMdContent = "/api/export/exportMdContent",
-
-    // ── 事务（闪卡/DOM 插入等前端同款通道）──
-    Transactions = "/api/transactions",
 
     // ── AI（agent/chat 是 SSE、chatGPT 是普通 JSON——见 ai/client）──
     AgentChat = "/api/ai/agent/chat",
@@ -44,4 +32,9 @@ export enum EApi {
 
     // ── 网络（外网 JSON 经内核转发，见 MinerUClient）──
     ForwardProxy = "/api/network/forwardProxy",
+
+    // ── 文件（工作区文件特殊通道：multipart/裸内容/信封混合，见 files.ts）──
+    FileGet = "/api/file/getFile",
+    FilePut = "/api/file/putFile",
+    FileRemove = "/api/file/removeFile",
 }

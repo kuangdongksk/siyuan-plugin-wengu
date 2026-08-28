@@ -1,4 +1,5 @@
 import { EApi } from "../siyuan/api";
+import { authHeaders } from "../siyuan/files";
 
 /**
  * 思源内置 AI 的调用通道（2026-08-27 从 convert/AgentClient 抽离成
@@ -39,12 +40,13 @@ export async function agentChat(
     };
     const onAbort = () => controller.abort();
     signal?.addEventListener("abort", onAbort);
+    if (signal?.aborted) controller.abort(); // 已终止的 signal 不再触发 abort 事件，显式设防（挂账清偿）
     armTimer();
     try {
         const lang = (window as unknown as SiyuanWindow).siyuan?.config?.lang ?? "zh_CN";
         const resp = await fetch(EApi.AgentChat, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({
                 message,
                 language: lang,
@@ -95,6 +97,9 @@ export async function agentChat(
                 if (evt === "content" && typeof data.token === "string") {
                     out += data.token;
                 } else if (evt === "error") {
+                    // 服务端报错也要掐掉底层流：只 throw 不 cancel 的话
+                    // 连接半开到服务端自行关闭，错误多发时堆积
+                    void reader.cancel().catch((): void => undefined);
                     throw new Error(String(data.message ?? data.msg ?? "agent error"));
                 }
             }
@@ -118,14 +123,23 @@ export async function agentChatConcurrent(message: string, timeoutMs: number, si
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const onAbort = (): void => controller.abort();
     signal?.addEventListener("abort", onAbort);
+    if (signal?.aborted) controller.abort(); // 已终止的 signal 显式设防（挂账清偿）
     try {
         const resp = await fetch(EApi.AiChatGpt, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({ msg: message }),
             signal: controller.signal,
         });
-        const j = (await resp.json()) as { code?: number; msg?: string; data?: unknown };
+        // 先取文本再解析：鉴权 401 等回 HTML 页时 resp.json() 抛裸
+        // SyntaxError（无上下文），这里给出可读的状态码错误
+        const text = await resp.text();
+        let j: { code?: number; msg?: string; data?: unknown };
+        try {
+            j = JSON.parse(text) as { code?: number; msg?: string; data?: unknown };
+        } catch (e) {
+            throw new Error(`chatGPT HTTP ${resp.status}`, { cause: e });
+        }
         if (j.code !== 0) throw new Error(j.msg || `chatGPT ${j.code}`);
         return String(j.data ?? "");
     } finally {
@@ -161,9 +175,10 @@ export async function agentChatOnce(
 ): Promise<string> {
     const sid = newSessionId();
     try {
+        if (signal?.aborted) throw new DOMException("aborted", "AbortError"); // 已终止不设防会白建会话
         const resp = await fetch(EApi.AgentSaveSession, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({
                 id: sid,
                 revision: 0,
@@ -172,14 +187,20 @@ export async function agentChatOnce(
             }),
             signal,
         });
-        const j = (await resp.json()) as { code?: number; msg?: string };
+        const text = await resp.text();
+        let j: { code?: number; msg?: string };
+        try {
+            j = JSON.parse(text) as { code?: number; msg?: string };
+        } catch (e) {
+            throw new Error(`saveSession HTTP ${resp.status}`, { cause: e });
+        }
         if (j.code !== 0) throw new Error(j.msg || `saveSession ${j.code}`);
         return await agentChat(message, modelId, timeoutMs, signal, sid);
     } finally {
         // 会话清仓（失败静默——堆积文件无功能影响）
         void fetch(EApi.AgentRemoveSession, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({ id: sid }),
         }).catch((): void => undefined);
     }

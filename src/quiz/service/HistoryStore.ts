@@ -67,6 +67,11 @@ export interface WenguHistory {
 export class HistoryStore {
     private cache?: WenguHistory;
     private loading?: Promise<WenguHistory>;
+    /** 串行落盘链（同 WordStore/ChatStore 模式）：逐题 void upsert 全是
+     *  fire-and-forget，快速连答并发 saveData 撞「内核 fetchSyncPost 并发
+     *  互吞响应」——一轮最后一次落库被吞则封卷数据（endedAt/最终计数）
+     *  丢失（20260829 三轮审查）。 */
+    private saveChain: Promise<unknown> = Promise.resolve();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -101,11 +106,15 @@ export class HistoryStore {
         const i = h.sessions.findIndex((s) => s.id === session.id);
         if (i >= 0) h.sessions[i] = session;
         else h.sessions.push(session);
-        try {
-            await this.saveRaw(h);
-        } catch (_) {
-            // 尽力而为：写失败不阻断答题（内存态仍在）
-        }
+        await this.enqueueSave(h);
+    }
+
+    /** 挂到串行链落盘（写失败吞错：内存态仍在，下次写入自愈）。 */
+    private enqueueSave(h: WenguHistory): Promise<void> {
+        const run = this.saveChain.then(() => this.saveRaw(h));
+        const noop = (): void => undefined;
+        this.saveChain = run.then(noop, noop);
+        return run.then(noop, noop);
     }
 
     /** 某文档的全部轮次，按开始时间升序。 */
@@ -126,11 +135,7 @@ export class HistoryStore {
         const h = await this.all();
         const dead = new Set(docIds);
         h.sessions = h.sessions.filter((s) => !dead.has(s.docId));
-        try {
-            await this.saveRaw(h);
-        } catch (_) {
-            // 尽力而为：写失败不影响清理流程
-        }
+        await this.enqueueSave(h);
     }
 }
 

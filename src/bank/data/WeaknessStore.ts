@@ -109,15 +109,15 @@ export class WeaknessStore {
 
     private async all(): Promise<WeaknessData> {
         if (this.cache) return this.cache;
-        try {
-            const data = (await this.loadRaw()) as WeaknessData | "" | null | undefined;
-            this.cache =
-                data && typeof data === "object" && data.points
-                    ? data
-                    : { version: 1, points: {}, applied: [], causeApplied: [] };
-        } catch (_) {
-            this.cache = { version: 1, points: {}, applied: [], causeApplied: [] };
-        }
+        // 只把「读到的东西不是合法画像」当空；**读异常上抛不落缓存**——
+        // 原归空后任意 markDirty→flush 会把空 points 覆写落盘、画像清零
+        // （HistoryStore 同坑 20260828 已修，20260829 三轮审查补齐本店；
+        // loadRaw「文件不存在」约定返回空串/undefined，进 then 归空不受影响）
+        const data = (await this.loadRaw()) as WeaknessData | "" | null | undefined;
+        this.cache =
+            data && typeof data === "object" && data.points
+                ? data
+                : { version: 1, points: {}, applied: [], causeApplied: [] };
         return this.cache;
     }
 

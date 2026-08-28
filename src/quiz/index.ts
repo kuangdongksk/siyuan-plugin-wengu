@@ -330,8 +330,16 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.loadError = "";
         this.renderList();
         const prefs = await loadPrefs(this.storage);
-        await this.weakness?.preload();
-        await this.bank?.preload();
+        // 存储读异常（20260829 起吞错改上抛）落到 loadError 而非无提示挂起
+        try {
+            await this.weakness?.preload();
+            await this.bank?.preload();
+        } catch (e) {
+            this.loading = false;
+            this.loadError = String((e as Error)?.message ?? e);
+            this.renderList();
+            return;
+        }
         if (prefs.colId && !this.colFlow.isActive()) await this.colFlow.restore(prefs.colId); // 重开恢复专题模式
         const colQuestions = await this.colFlow.questions();
         const r = await loadQuizState({

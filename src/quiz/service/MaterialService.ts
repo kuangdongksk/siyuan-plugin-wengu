@@ -19,7 +19,9 @@ import type { WenguMaterial } from "../../types";
 /** 解析 group="prev" 占位为真实材料块 id（按文档序：材料在前、
  *  小题紧随）。返回被改写题块 → 材料块 id 的映射，供内存视图同步。 */
 export async function resolveGroupPlaceholders(docId: string): Promise<Map<string, string>> {
-    const rows = await KernelQuery.rows<{ id: string; name: string; value: string }>(`
+    // rowsAll 全量分页：行数=材料数+题数，长阅读卷轻松过 64——裸 rows
+    // 会被内核静默截断，后段题的 group 占位解析不到材料（20260829 审查）
+    const rows = await KernelQuery.rowsAll<{ id: string; name: string; value: string }>(`
             SELECT a.block_id AS id, a.name AS name, a.value AS value
             FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
             WHERE b.root_id = '${docId}'
@@ -47,7 +49,7 @@ export async function resolveGroupPlaceholders(docId: string): Promise<Map<strin
 
 /** 拉取一篇习题文档的全部材料块（正文/译文，供组头渲染与降级 HTML）。 */
 export async function listMaterials(docId: string): Promise<WenguMaterial[]> {
-    const rows = await KernelQuery.rows<{ id: string }>(`
+    const rows = await KernelQuery.rowsAll<{ id: string }>(`
             SELECT a.block_id AS id
             FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
             WHERE a.name = '${Attr.material}' AND a.value = '${MATERIAL_FLAG}'

@@ -18,24 +18,9 @@ export class KernelDoc {
         return fetchSyncPost(EApi.RemoveDocById, { id });
     }
 
-    /** 改文档标题。 */
-    static rename(notebook: string, path: string, title: string) {
-        return fetchSyncPost(EApi.RenameDoc, { notebook, path, title });
-    }
-
-    /** 按 id 移动文档到新父文档下。 */
-    static moveById(fromDocId: string, toDocId: string, toNotebook: string) {
-        return fetchSyncPost(EApi.MoveDocsById, { toNotebook, fromPaths: [fromDocId], toPath: toDocId });
-    }
-
     /** 取人类可读路径（hPath）。 */
     static hPath(id: string): Promise<IWebSocketData> {
         return fetchSyncPost(EApi.GetHPathById, { id });
-    }
-
-    /** 按路径列子文档。 */
-    static listByPath(notebook: string, path: string) {
-        return fetchSyncPost(EApi.ListDocsByPath, { notebook, path });
     }
 
     /** 批量取文档标题与 hPath（分块 IN 50 兼容大批量；hPath 供树建分支；

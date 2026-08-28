@@ -203,7 +203,9 @@ export class WordLib {
     }
 
     /** 删书（不删进度；最后一本不可删——UI 禁用、此处兜底拒绝）。
-     * 删的是当前书时自动切到剩余第一本并激活。 */
+     * 删的是当前书时自动切到剩余第一本并激活。先落 manifest 再删文件：
+     * manifest 是事实源，文件删失败只是无害残留，反过来则删除半途
+     * manifest 不落盘、重启后幽灵书复活。 */
     async removeBook(id: string): Promise<void> {
         await this.ensure();
         if (this.manifest.books.length <= 1) return;
@@ -212,8 +214,8 @@ export class WordLib {
         if (wasCurrent) this.manifest.current = this.manifest.books[0].id;
         const next = wasCurrent ? await this.loadBook(this.manifest.current) : undefined;
         await this.persist(async () => {
-            await this.io.remove(fileOf(id));
             await this.io.write(MANIFEST_PATH, JSON.stringify(this.manifest));
+            await this.io.remove(fileOf(id));
         });
         if (wasCurrent && next) this.setActive(next);
     }
