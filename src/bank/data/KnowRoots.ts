@@ -25,3 +25,21 @@ export async function removeKnowRoot(bank: QuestionBank, id: string): Promise<vo
     data.knowRoots = data.knowRoots.filter((x) => x !== id);
     bank.markDirty();
 }
+
+/** 匹配面板把新挂的知识引用并入题库记录（按 id 去重保序；kramdown 由
+ *  replaceRecordKramdown 先行更新，这里同步 kpRefs 供面板计数/反查）。 */
+export async function mergeRecordKpRefs(
+    bank: QuestionBank,
+    qid: string,
+    refs: { id: string; title: string }[]
+): Promise<void> {
+    if (refs.length === 0) return;
+    const data = await bank.all();
+    const r = data.records[qid];
+    if (!r) return;
+    const seen = new Set(r.kpRefs.map((k) => k.id));
+    const add = refs.filter((x) => !seen.has(x.id));
+    if (add.length === 0) return;
+    r.kpRefs.push(...add);
+    bank.markDirty();
+}

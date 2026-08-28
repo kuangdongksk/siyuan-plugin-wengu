@@ -69,11 +69,12 @@ describe("mergeKnowDocs", () => {
         const out = mergeKnowDocs(
             derived,
             [{ docId: "docPhys", title: "物理手册", sections: [{ id: "s1", title: "力学" }] }],
+            new Set(["docPhys"]),
             new Set(["docPhys"])
         );
         expect(out).toHaveLength(2);
         expect(out[0].docId).toBe("docMath");
-        expect(out[1]).toMatchObject({ docId: "docPhys", total: 0, manual: true });
+        expect(out[1]).toMatchObject({ docId: "docPhys", total: 0, manual: true, registered: true });
         expect(out[1].sections[0]).toEqual({ id: "s1", title: "力学", count: 0 });
     });
 
@@ -90,6 +91,7 @@ describe("mergeKnowDocs", () => {
                     ],
                 },
             ],
+            new Set(["docMath"]),
             new Set(["docMath"])
         );
         expect(out).toHaveLength(1);
@@ -101,7 +103,26 @@ describe("mergeKnowDocs", () => {
     });
 
     it("未登记的推导行不带 manual 标记", () => {
-        const out = mergeKnowDocs(derived, [], new Set(["docOther"]));
+        const out = mergeKnowDocs(derived, [], new Set(["docOther"]), new Set(["docOther"]));
         expect(out[0].manual).toBeUndefined();
+    });
+
+    it("递归展开：登记根的后代各自成行，manual 跟子树、registered 只跟根", () => {
+        const out = mergeKnowDocs(
+            derived,
+            [
+                { docId: "shelf", title: "书架", sections: [] },
+                { docId: "bookA", title: "书A", sections: [{ id: "s1", title: "章一" }] },
+                { docId: "bookB", title: "书B", sections: [] },
+            ],
+            new Set(["shelf", "bookA", "bookB"]),
+            new Set(["shelf"])
+        );
+        expect(out).toHaveLength(4); // 1 推导 + 登记根 + 两个后代
+        const byId = new Map(out.map((d) => [d.docId, d]));
+        expect(byId.get("shelf")).toMatchObject({ manual: true, registered: true });
+        expect(byId.get("bookA")).toMatchObject({ manual: true, registered: undefined });
+        expect(byId.get("bookB")?.manual).toBe(true);
+        expect(byId.get("bookA")?.sections[0]).toEqual({ id: "s1", title: "章一", count: 0 });
     });
 });

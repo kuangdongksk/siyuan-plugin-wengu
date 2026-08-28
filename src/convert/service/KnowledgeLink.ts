@@ -4,7 +4,7 @@ import { KernelQuery } from "../../siyuan/query";
 
 /**
  * 知识点反链（从 ConvertBatch 拆出的独立关注点）：
- * 转换前按用户给的知识点根文档（书架/书）建两级索引（章 → h2~h4 小节，
+ * 转换前按用户给的知识点根文档（书架/书）建两级索引（章 → h1~h6 小节，
  * 全部走 SQL 拿块 id，不导出正文）；每批生成前先路由出本批涉及的小节，
  * 让 AI 用 K 别名标注（避免抄错长块 id），生成后把别名映射回真实块 id、
  * 在解析引述块尾注入 `((id "标题"))` 块引用——知识点文档的反链面板
@@ -15,7 +15,7 @@ import { KernelQuery } from "../../siyuan/query";
  * 任何路由失败都降级为「该批不加链接」，不阻断转换主流程。
  */
 
-/** 知识点小节（h2~h4 标题块）。 */
+/** 知识点小节（h1~h6 标题块）。 */
 export interface KnowSection {
     /** 标题块 id（块引用目标）。 */
     id: string;
@@ -48,6 +48,46 @@ export interface KnowRouteDeps {
 /** SQL 查询（工厂 rowsMap：code!==0 抛错由调用方降级）。 */
 const sql = KernelQuery.rowsMap;
 
+/** rowsMap 行（KernelQuery 工厂的 Map 行别名）。 */
+type KnowRow = Map<string, string>;
+
+/** 根块行 + 其全部后代文档行（同笔记本递归 path LIKE，含书/章中间层）。
+ *  根非文档/已删/SQL 失败返回 null，调用方各自降级。 */
+async function knowDocRows(rootId: string): Promise<{ root: KnowRow; rows: KnowRow[] } | null> {
+    let root: KnowRow | undefined;
+    try {
+        root = (
+            await sql(`SELECT id, box, path, content, hpath FROM blocks WHERE id = '${rootId}' AND type = 'd' LIMIT 1`)
+        )[0];
+    } catch (_) {
+        return null;
+    }
+    if (!root?.get("box")) return null;
+    const dir = root.get("path").replace(/\.sy$/, "");
+    const rows = await KernelQuery.rowsMapAll(
+        `SELECT id, path, content, hpath FROM blocks WHERE type = 'd' AND box = '${root.get(
+            "box"
+        )}' AND path LIKE '${dir}/%.sy' ORDER BY hpath`
+    );
+    return { root, rows };
+}
+
+/** 批量拉文档的 h1~h6 标题块（按 root_id 分组、sort 保序）。 */
+async function headingsByRoot(docIds: string[]): Promise<Map<string, { id: string; content: string }[]>> {
+    const byRoot = new Map<string, { id: string; content: string }[]>();
+    if (docIds.length === 0) return byRoot;
+    const ids = docIds.map((x) => `'${x}'`).join(",");
+    for (const h of await KernelQuery.rowsMapAll(
+        `SELECT root_id, id, content FROM blocks WHERE type = 'h' AND subtype IN ('h1','h2','h3','h4','h5','h6') AND root_id IN (${ids}) ORDER BY root_id, sort`
+    )) {
+        const k = h.get("root_id");
+        const arr = byRoot.get(k) ?? [];
+        arr.push({ id: h.get("id"), content: h.get("content") });
+        byRoot.set(k, arr);
+    }
+    return byRoot;
+}
+
 /**
  * 建知识点索引。rootIds 是用户填的知识点根文档（书架那层或直接一本
  * 书/一章）：取其下所有叶子文档为章节（书名空壳层自动排除），根自身
@@ -57,45 +97,18 @@ const sql = KernelQuery.rowsMap;
 export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeIndex> {
     const chapters: KnowChapter[] = [];
     for (const rid of rootIds) {
-        let root;
-        try {
-            root = (
-                await sql(`SELECT id, box, path, content, hpath FROM blocks WHERE id = '${rid}' AND type = 'd' LIMIT 1`)
-            )[0];
-        } catch (_) {
-            continue;
-        }
-        if (!root?.get("box")) continue;
-        const rootPath = root.get("path");
-        const dir = rootPath.replace(/\.sy$/, "");
-        const rows = await KernelQuery.rowsMapAll(
-            `SELECT id, path, content, hpath FROM blocks WHERE type = 'd' AND box = '${root.get(
-                "box"
-            )}' AND path LIKE '${dir}/%.sy' ORDER BY hpath`
-        );
+        const hit = await knowDocRows(rid);
+        if (!hit) continue;
         // 叶子 = 没有任何文档以它为父目录（书名空壳层自动出局）
         const parentDirs = new Set(
-            rows.map((r) => {
+            hit.rows.map((r) => {
                 const p = r.get("path");
                 return p.slice(0, p.lastIndexOf("/"));
             })
         );
-        let leaves = rows.filter((r) => !parentDirs.has(r.get("path").replace(/\.sy$/, "")));
-        if (leaves.length === 0) leaves = [root];
-        // 一次性拉全部叶子章节的 h2~h4 标题块（按 sort 保序；分页后要按章重排）
-        const ids = leaves.map((r) => `'${r.get("id")}'`).join(",");
-        const heads = ids
-            ? await KernelQuery.rowsMapAll(
-                  `SELECT root_id, id, content FROM blocks WHERE type = 'h' AND subtype IN ('h2','h3','h4') AND root_id IN (${ids}) ORDER BY root_id, sort`
-              )
-            : [];
-        const byRoot = new Map<string, { id: string; content: string }[]>();
-        for (const h of heads) {
-            const k = h.get("root_id");
-            const arr = byRoot.get(k) ?? [];
-            arr.push({ id: h.get("id"), content: h.get("content") });
-            byRoot.set(k, arr);
-        }
+        let leaves = hit.rows.filter((r) => !parentDirs.has(r.get("path").replace(/\.sy$/, "")));
+        if (leaves.length === 0) leaves = [hit.root];
+        const byRoot = await headingsByRoot(leaves.map((r) => r.get("id")));
         for (const leaf of leaves) {
             const hp = leaf.get("hpath");
             const secs = (byRoot.get(leaf.get("id")) ?? []).map((h) => ({
@@ -112,6 +125,34 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
         }
     }
     return { chapters };
+}
+
+/** 知识文档树条目（知识面板展示用：一个文档一行，带自己的小节）。 */
+export interface KnowDocEntry {
+    docId: string;
+    title: string;
+    hPath: string;
+    sections: { id: string; title: string }[];
+}
+
+/**
+ * 递归展开登记根的知识文档树（知识面板「导入文档」20260828 用）：根
+ * 自身 + 全部后代文档（含书/章中间层）各一条，每条带自己的 h1~h6 小节
+ * ——与 buildKnowledgeIndex 的分工：路由索引只要叶子章节，这里保留
+ * 完整层级供面板按原生文档树观感逐文档展示。根查无/SQL 失败返回空
+ * 数组（调用方按标题兜底区分「已删跳过」与「保留空节登记行」）。
+ */
+export async function expandKnowDocs(rootId: string): Promise<KnowDocEntry[]> {
+    const hit = await knowDocRows(rootId);
+    if (!hit) return [];
+    const docs = [hit.root, ...hit.rows];
+    const byRoot = await headingsByRoot(docs.map((d) => d.get("id")));
+    return docs.map((d) => ({
+        docId: d.get("id"),
+        title: d.get("content") || d.get("hpath") || d.get("id"),
+        hPath: d.get("hpath") ?? "",
+        sections: (byRoot.get(d.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content })),
+    }));
 }
 
 /** 从路由回复里抽数字（JSON 或裸列表都行），保序去重并限界 [1,max]。 */
@@ -132,7 +173,7 @@ const MAX_SECTIONS = 10;
 
 /**
  * 两级路由：①章清单（全部章标题，几百字）→ 命中章；②小节清单（命中
- * 章的 h2~h4 标题）→ 小节。返回 K 别名 → 小节的映射（供生成 prompt 与
+ * 章的 h1~h6 标题）→ 小节。返回 K 别名 → 小节的映射（供生成 prompt 与
  * 后处理共享）。任何一步失败返回空映射（该批不加链接）。
  */
 export async function routeKnowledge(
@@ -271,6 +312,12 @@ function refTitle(title: string): string {
 /** 生成「相关知识点」引用行（与转换注入同格式，反链面板可见）。 */
 export function knowledgeRefLine(refs: { id: string; title: string }[]): string {
     return `> 相关知识点：${refs.map((h) => `((${h.id} "${refTitle(h.title)}"))`).join(" ")}`;
+}
+
+/** 剥掉题目 kramdown 里已有的「相关知识点」引用行（事后匹配重挂前先清旧，
+ *  与 injectKnowledgeRefs 配对成「替换」语义；纯函数）。 */
+export function stripKnowledgeRefs(kd: string): string {
+    return kd.replace(/^[ \t]*>[ \t]*相关知识点：.*$/gm, "").replace(/\n{3,}/g, "\n\n");
 }
 
 /** 把知识点引用行注入题目 kramdown 的解析块尾（无解析块补独立块）。

@@ -487,4 +487,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly reloadView = (): Promise<void> => this.load();
 
     readonly openConvert = () => openConvertForView(this.convertAccess);
+    /** 带预填打开转换弹窗（知识面板「转习题」：源/知识点根=该文档）。 */
+    readonly openConvertPrefilled = (docId: string, know: string) =>
+        openConvertForView(this.convertAccess, docId, know);
 }

@@ -148,8 +148,10 @@ export interface ConvertViewAccess {
 }
 
 /** 由视图能力组装 ConvertHostCtx 并打开弹窗（openConvert 的拆出体）。
- *  prefillDocId：面板「继续生成」回弹窗时预填的源文档 id。 */
-export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string): void {
+ *  prefillDocId：预填的源文档 id（面板「继续生成」/知识面板「转习题」）。
+ *  prefillKnow：预填的知识点根文档 id（知识面板「转习题」——源=根=该
+ *  知识文档，生成时即挂自身小节反链；空=回落 prefs 上次输入）。 */
+export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string, prefillKnow?: string): void {
     openWenguConvert({
         t: v.t,
         el: v.container(),
@@ -158,7 +160,7 @@ export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string):
         lastConvertModelId: v.lastConvert().modelId,
         lastConvertFill: v.lastConvert().fill,
         lastConvertSteps: v.lastConvert().steps,
-        lastConvertKnow: v.lastConvert().know,
+        lastConvertKnow: prefillKnow || v.lastConvert().know,
         convertParallel: v.convertParallelOf(),
         saveChoice: (modelId, fill, steps, know) => v.saveConvertChoice(modelId, fill, steps, know),
         getProgress: (srcDocId) => v.convertProgressOf(srcDocId),

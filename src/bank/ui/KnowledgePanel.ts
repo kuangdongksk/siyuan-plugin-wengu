@@ -3,7 +3,8 @@ import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
 import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
 import { openRelatedDialog } from "./RelatedDialog";
-import { buildKnowledgeIndex } from "../../convert/service/KnowledgeLink";
+import { openMatchDialog } from "./MatchDialog";
+import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/KnowledgeLink";
 import { openKnowPicker } from "../../ui/KnowPicker";
 import { KernelQuery } from "../../siyuan/query";
 import { svgIcon } from "../../ui/FormHtml";
@@ -13,7 +14,8 @@ import { esc, fmt } from "../../ui/shared";
  * 知识文档管理工作区面板：两个来源合并展示——①题库推导（kp 块→标题
  * →根文档，collectKpRefs/kpRootMap/knowledgeIndex 三次调用组全量，
  * groupKnowByDoc 为导出纯函数）②手动导入（bank.knowRoots 登记，
- * importedKnowDocs 用 buildKnowledgeIndex 拉 h2~h4 小节结构，无题也
+ * importedKnowDocs 走 expandKnowDocs **递归展开**：登记根+全部后代
+ * 文档各一条（20260828 前是整棵子树拍平进根行的小节清单），无题也
  * 展示；mergeKnowDocs 合并去重，单测覆盖）。转换入口仍在刷题侧栏。
  */
 
@@ -28,8 +30,10 @@ export interface KnowDocView {
     title: string;
     sections: KnowSectionView[];
     total: number;
-    /** 手动导入登记的文档（可「移除」退册；推导行无此标记）。 */
+    /** 手动导入涉及的文档（登记根或其后代；行上标「手动导入」）。 */
     manual?: boolean;
+    /** 直接登记的根（行上显示「移除」，退册整个登记子树）。 */
+    registered?: boolean;
 }
 
 /** 按根文档聚合知识覆盖（文档按关联题数降序，小节同理）。 */
@@ -65,12 +69,22 @@ export interface ImportedKnowDoc {
     sections: { id: string; title: string }[];
 }
 
-/** 推导行 × 导入行合并：同文档节并集（题数保留推导侧）、manual 标记
- *  跟登记走、按关联题数降序（纯导入的 0 题沉底）。 */
-export function mergeKnowDocs(derived: KnowDocView[], imported: ImportedKnowDoc[], manual: Set<string>): KnowDocView[] {
+/** 推导行 × 导入行合并：同文档节并集（题数保留推导侧）、manual 跟
+ *  登记子树走、registered 只跟直接登记走、按关联题数降序（纯导入的
+ *  0 题沉底）。 */
+export function mergeKnowDocs(
+    derived: KnowDocView[],
+    imported: ImportedKnowDoc[],
+    manual: Set<string>,
+    registered: Set<string>
+): KnowDocView[] {
+    const flagsOf = (docId: string): Pick<KnowDocView, "manual" | "registered"> => ({
+        manual: manual.has(docId) || undefined,
+        registered: registered.has(docId) || undefined,
+    });
     const out: KnowDocView[] = derived.map((d) => ({
         ...d,
-        manual: manual.has(d.docId) || undefined,
+        ...flagsOf(d.docId),
         sections: [...d.sections],
     }));
     const byId = new Map(out.map((d) => [d.docId, d]));
@@ -87,7 +101,7 @@ export function mergeKnowDocs(derived: KnowDocView[], imported: ImportedKnowDoc[
             title: imp.title,
             sections: secs,
             total: 0,
-            manual: manual.has(imp.docId) || undefined,
+            ...flagsOf(imp.docId),
         };
         out.push(doc);
         byId.set(imp.docId, doc);
@@ -95,31 +109,49 @@ export function mergeKnowDocs(derived: KnowDocView[], imported: ImportedKnowDoc[
     return out.sort((a, b) => b.total - a.total);
 }
 
-/** 拉一个登记根的小节结构（buildKnowledgeIndex 单根调用：章→h2~h4
- *  小节；无小节的章以文档根块为「节」）。文档已删（查无标题）不展示。 */
-async function importedKnowDocs(rootIds: string[], titles: Map<string, string>): Promise<ImportedKnowDoc[]> {
-    const out: ImportedKnowDoc[] = [];
-    for (const rid of rootIds) {
-        const title = titles.get(rid);
-        if (!title) continue;
-        let sections: { id: string; title: string }[] = [];
-        try {
-            const idx = await buildKnowledgeIndex([rid]);
-            sections = idx.chapters.flatMap((c) =>
-                c.sections.length > 0
-                    ? c.sections.map((s) => ({ id: s.id, title: s.title }))
-                    : [{ id: c.docId, title: c.title }]
-            );
-        } catch (_) {
-            // 结构拉失败：保留登记行（空节），退册入口不丢
+/** 手动导入的递归展开（expandKnowDocs：登记根 → 根 + 全部后代文档
+ *  各一条，各带自己的 h1~h6 小节）。manualAll=登记∪展开后代（供合并
+ *  标「手动导入」）；info 带回标题/hPath 供树化。根已删（查无标题）
+ *  不展示；展开失败但文档还在 → 保留空节登记行，退册入口不丢。 */
+async function importedKnowDocs(
+    rootIds: string[],
+    titles: Map<string, string>
+): Promise<{ docs: ImportedKnowDoc[]; info: Map<string, { title: string; hPath: string }>; manualAll: Set<string> }> {
+    const docs: ImportedKnowDoc[] = [];
+    const info = new Map<string, { title: string; hPath: string }>();
+    const manualAll = new Set<string>();
+    const absorb = (entries: KnowDocEntry[]): void => {
+        for (const e of entries) {
+            docs.push({
+                docId: e.docId,
+                title: e.title,
+                sections: e.sections.map((s) => ({ id: s.id, title: s.title })),
+            });
+            info.set(e.docId, { title: e.title, hPath: e.hPath });
+            manualAll.add(e.docId);
         }
-        out.push({ docId: rid, title, sections });
+    };
+    for (const rid of rootIds) {
+        let entries: KnowDocEntry[] = [];
+        try {
+            entries = await expandKnowDocs(rid);
+        } catch (_) {
+            // 展开失败：下面按标题兜底
+        }
+        if (entries.length === 0) {
+            const title = titles.get(rid);
+            if (!title) continue; // 根已删（查无标题）不展示
+            docs.push({ docId: rid, title, sections: [] });
+            manualAll.add(rid);
+            continue;
+        }
+        absorb(entries);
     }
-    return out;
+    return { docs, info, manualAll };
 }
 
 /** 根文档标题与 hPath（分块 IN，兼容大批量；hPath 供树建分支）。 */
-async function docInfoOf(docIds: string[]): Promise<Map<string, { title: string; hPath: string }>> {
+export async function docInfoOf(docIds: string[]): Promise<Map<string, { title: string; hPath: string }>> {
     const out = new Map<string, { title: string; hPath: string }>();
     for (let i = 0; i < docIds.length; i += 50) {
         const chunk = docIds
@@ -197,10 +229,13 @@ interface KnowPaintCtx {
 }
 
 function toggleSlot(node: KnowTreeNode, ctx: KnowPaintCtx): string {
+    // 文档行的箭头切小节容器（key 带 ::sec 后缀，与 knowDocRowHtml 的
+    // 显隐判断同键），分支行的箭头切子分支（key=树路径本身）
+    const key = node.doc ? secKeyOf(node.path) : node.path;
     const expandable = node.children.length > 0 || (!!node.doc && node.doc.sections.length > 0);
     return expandable
-        ? `<span class="wengu-tree-toggle wengu-tree-toggle-btn${ctx.openPaths.has(node.path) ? " wengu-tree-open" : ""}" data-tree-path="${esc(
-              node.path
+        ? `<span class="wengu-tree-toggle wengu-tree-toggle-btn${ctx.openPaths.has(key) ? " wengu-tree-open" : ""}" data-tree-path="${esc(
+              key
           )}">${svgIcon("iconRight")}</span>`
         : '<span class="wengu-tree-toggle"></span>';
 }
@@ -220,7 +255,7 @@ function knowDocRowHtml(node: KnowTreeNode, ctx: KnowPaintCtx): string {
     const title = `${d.title}\n${fmt(t("knowSections"), { n: String(d.sections.length) })} · ${fmt(t("knowQCount"), {
         n: String(d.total),
     })}${tag}`;
-    const rm = d.manual
+    const rm = d.registered
         ? `<button type="button" class="b3-button b3-button--text" data-krm>${esc(t("knowRemoveBtn"))}</button>`
         : "";
     const secOpen = ctx.openPaths.has(secKeyOf(node.path));
@@ -237,6 +272,8 @@ function knowDocRowHtml(node: KnowTreeNode, ctx: KnowPaintCtx): string {
   <span class="b3-list-item__text">${esc(d.title)}</span>
   <span class="wengu-cp-meta">${esc(fmt(t("knowQCount"), { n: String(d.total) }))}</span>
   <span class="b3-list-item__action">
+    <button type="button" class="b3-button b3-button--text" data-kmatch>${esc(t("knowMatchBtn"))}</button>
+    <button type="button" class="b3-button b3-button--text" data-kgen>${esc(t("knowGenBtn"))}</button>
     <button type="button" class="b3-button b3-button--text" data-krelated>${esc(t("knowRelated"))}</button>
     <button type="button" class="b3-button b3-button--text" data-kopen>${esc(t("knowOpen"))}</button>
     ${rm}
@@ -272,8 +309,9 @@ export async function renderKnowledgePanelInto(v: QuizView, root: HTMLElement): 
     const titles = new Map([...info].map(([k, v]) => [k, v.title]));
     let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
     if (registered.length > 0) {
-        const imported = await importedKnowDocs(registered, titles);
-        docs = mergeKnowDocs(docs, imported, new Set(registered));
+        const imp = await importedKnowDocs(registered, titles);
+        for (const [k, v] of imp.info) info.set(k, v); // 展开行自带标题/hPath，供树化分支
+        docs = mergeKnowDocs(docs, imp.docs, imp.manualAll, new Set(registered));
     }
     // 工作区骨架可能在异步装载期间被重建（refreshSide 全量重绘），旧
     // 根节点已离场——此时本次结果作废，接管中的新调用自会渲染
@@ -342,11 +380,33 @@ function bindKnowledgePanel(
     // 列表容器级委托（同 KnowPicker）：折叠/小节/开文档/行内操作一次接管
     root.querySelector<HTMLElement>(".wengu-cp-list")?.addEventListener("click", (ev) => {
         const el = ev.target as HTMLElement;
-        const opBtn = el.closest<HTMLElement>("[data-krelated],[data-kopen],[data-krm]");
+        const opBtn = el.closest<HTMLElement>("[data-kmatch],[data-kgen],[data-krelated],[data-kopen],[data-krm]");
         if (opBtn) {
             ev.stopPropagation();
-            const docId = opBtn.dataset.krelated ?? opBtn.dataset.kopen ?? opBtn.dataset.krm ?? "";
+            // 五个动作属性都是空值布尔标记，docId 一律取所在文档行
+            const docId = opBtn.closest<HTMLElement>("[data-kdoc]")?.dataset.kdoc ?? "";
             if (!docId) return;
+            if (opBtn.dataset.kmatch !== undefined) {
+                const title =
+                    opBtn
+                        .closest<HTMLElement>("[data-kdoc]")
+                        ?.querySelector<HTMLElement>(".b3-list-item__text")
+                        ?.textContent?.trim() ?? docId;
+                void openMatchDialog({
+                    t: v.t,
+                    bank,
+                    modelId: v.aiModelId(),
+                    knowDocId: docId,
+                    knowTitle: title,
+                    onDone: rerender,
+                });
+                return;
+            }
+            if (opBtn.dataset.kgen !== undefined) {
+                // 源=知识点根=该文档：转换生成时即挂自身小节反链
+                v.openConvertPrefilled(docId, docId);
+                return;
+            }
             if (opBtn.dataset.krelated !== undefined) void openRelatedDialog(bank, v.t, docId);
             else if (opBtn.dataset.kopen !== undefined) window.open(`siyuan://blocks/${docId}`);
             else {
