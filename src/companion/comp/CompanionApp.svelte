@@ -25,8 +25,13 @@
     let pos = $state(ctl.figurePos());
     let drag: { sx: number; sy: number; ox: number; oy: number; moved: boolean } | undefined;
 
+    /** 水平钳位余量：取聊天/气泡面板宽（272），不是团子 64——气泡与聊天
+     *  面板都从团子向右对齐展开，内联 left 与 scss right 同存会把容器
+     *  宽度钉死成面板宽、内容被 flex-end 右对齐挤出视口（20260828 报
+     *  「拖到右缘被挤出去」）；留足面板宽，右侧整体总在视口内。 */
+    const MARGIN_X = 272;
     const clampPos = (x: number, y: number): { x: number; y: number } => ({
-        x: Math.max(8, Math.min(x, window.innerWidth - 72)),
+        x: Math.max(8, Math.min(x, window.innerWidth - MARGIN_X)),
         y: Math.max(8, Math.min(y, window.innerHeight - 72)),
     });
 
