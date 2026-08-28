@@ -59,11 +59,12 @@ export function bindNumRail(
         if (!head) return;
         const headH = head.offsetHeight + 8;
         scroller.style.setProperty("--wengu-head-h", `${headH}px`);
-        // 底衬=滚动容器自身的 padding-bottom（布局值实读，不猜数字）；
-        // 题号栏内衬/列间距见 cards.scss（padding/gap）——间距全部由
-        // 布局表达，JS 只测量不决定
+        // 底部留白=滚动容器 padding-bottom + 题号栏自身 margin-bottom
+        // （都从布局实读，不猜数字）；栏内衬/列间距见 cards.scss——
+        // 间距全部由布局表达，JS 只测量不决定
         const padB = parseFloat(getComputedStyle(scroller).paddingBottom) || 8;
-        const max = `${Math.max(160, scroller.clientHeight - headH - padB)}px`;
+        const railM = nav ? parseFloat(getComputedStyle(nav).marginBottom) || 0 : 0;
+        const max = `${Math.max(160, scroller.clientHeight - headH - padB - railM)}px`;
         if (scroller.style.getPropertyValue("--wengu-nums-max") !== max) {
             scroller.style.setProperty("--wengu-nums-max", max);
         }

@@ -56,9 +56,11 @@
   align-items: center;
   gap: 4px;
   /* 内衬与主区同律 8px：首/末按钮不贴栏框边缘；列间距由 .wengu-body
-     的 gap 8px 表达。封顶=NumRail 实测的 --wengu-nums-max（滚动可视区
-     − 吸顶头下缘 − 主区 padding-bottom，间距全来自布局、JS 只读不猜），
-     绑定前兜底走视口近似 */
+     的 gap 8px 表达。底部留白=自身 margin-bottom + 主区 padding-bottom
+     （叠加 16px，20260829 用户「底部加padding」；NumRail 实读计入封顶）。
+     封顶=NumRail 实测的 --wengu-nums-max（滚动可视区 − 吸顶头下缘 −
+     上述两项布局值，JS 只测量不决定），绑定前兜底走视口近似 */
+  margin-bottom: 8px;
   padding: 8px 0;
   max-height: var(--wengu-nums-max, calc(100vh - var(--wengu-head-h, 56px) - 40px));
   box-sizing: border-box;
