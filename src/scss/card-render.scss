@@ -2,7 +2,7 @@
    判断/自评/静态渲染（专题模式）。题号导航与作答位在 cards.scss。 */
 /* ── 卡片内嵌 Protyle：题目内容渲染 ── */
 .wengu-qprotyle {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   border-radius: var(--b3-border-radius);
 }
 
@@ -215,7 +215,9 @@
 .wengu-option-fallback {
   display: flex;
   gap: 6px;
-  padding: 2px 8px;
+  /* 数学选项常带 KaTeX 分式（上下突出），行内边距给足净空——
+     2px 时行间几乎贴死（20260829 用户反馈布局太紧凑） */
+  padding: 5px 8px;
 }
 
 .wengu-opt-letter {

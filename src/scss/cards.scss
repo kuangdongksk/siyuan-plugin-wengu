@@ -109,8 +109,8 @@
 }
 
 .wengu-card {
-  padding: 12px;
-  margin-bottom: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
   border: 1px solid var(--b3-theme-surface);
   border-radius: var(--b3-border-radius);
   background: var(--b3-theme-background);
@@ -121,13 +121,13 @@
      让浏览器记住上次渲染尺寸，回滚不跳。估计高度 ~240px 贴平均卡高，
      数学卡偏高者滚动时滚动条会轻微修正，属预期 */
   content-visibility: auto;
-  contain-intrinsic-size: auto 240px;
+  contain-intrinsic-size: auto 260px;
 }
 
 /* 材料组单元同款（材料面板 + 组内题卡都重） */
 .wengu-gunit {
   content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
+  contain-intrinsic-size: auto 340px;
 }
 
 .wengu-card-head {
@@ -135,7 +135,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .wengu-card-num {
