@@ -162,7 +162,10 @@ causes{错因键→次数}, aiNote(最近评语)}`。
 - **记录**：`{qid(容器块id), kramdown 原文, type/knowledge/chapter/
 difficulty, kpRefs(知识点反链目标), sourceDocId, hash(内容指纹),
 stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
-  （块属性照写 + 题库镜像），防抖 2s 落盘。
+  （块属性照写 + 题库镜像），防抖 2s 落盘。多步/逐空题（qid#k）逐
+  步作答不进镜像，**整题收口**（recordStepsResult/recordSlotsResult
+  后的 bankMirror）按整题记一次——submitted 为字母串拼接、ok=整题全对
+  （20260828 审查补齐，原整题从不进镜像）。
 - **解析**：BankParse 把 kramdown 拆回 WenguQuestion（语义与
   QuestionService.hydrate 一致；注意 IAL 是**尾随**行——part 属性行
   之前的内容才是该 part 的块）。
