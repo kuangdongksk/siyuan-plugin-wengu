@@ -9,7 +9,8 @@ import { mmss } from "../../ui/shared";
  * - `elapsed()` = baseSec + 本段秒数 → 写会话 elapsedSec（继续上轮时
  *   base 为该会话已用时）；
  * - `pending` 只算本段未落库秒数 → total-time 落库用（consume 取走
- *   清零，与 base 不重复累计）；
+ *   清零并并入 baseSec：elapsed() 单调不塌缩，文档级与会话级两口径
+ *   都不重复累计）；
  * - 逐题秒数：每秒记到当前题（setQuestion 跟随题号导航/滚动），
  *   可从上轮会话的 result.sec 恢复；
  * - 倒计时：归零置 timeUp（视图层弹「继续作答/结束本轮」）；选择
@@ -100,10 +101,14 @@ export class TimerController {
         return this.sec;
     }
 
-    /** 取走未落库秒数（total-time 落库用），取后清零、base 不动。 */
+    /** 取走未落库秒数（total-time 落库用）。取走部分并入 baseSec，
+     *  elapsed() 保持单调——TimerBinder 每秒 syncSession(elapsed())，
+     *  若只清 sec 不并 base，会话 elapsedSec 会在每次 flush 后塌缩
+     *  回 1~15s 锯齿（轮报告/统计累计用时严重少计，20260828 审查）。 */
     consume(): number {
         const d = this.sec;
         this.sec = 0;
+        this.baseSec += d;
         return d;
     }
 

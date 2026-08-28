@@ -237,12 +237,12 @@ function knowDocRowHtml(node: KnowTreeNode, ctx: KnowPaintCtx): string {
         ? `<button type="button" class="b3-button b3-button--text" data-krm>${esc(t("knowRemoveBtn"))}</button>`
         : "";
     const secOpen = ctx.openPaths.has(secKeyOf(node.path));
-    const kids =
-        d.sections.length > 0
-            ? `<div class="wengu-tree-children"${secOpen ? "" : " hidden"}>${d.sections
-                  .map((s) => sectionRowHtml(s, t))
-                  .join("")}</div>`
-            : "";
+    // 小节与嵌套子文档同一容器（同 secKeyOf 折叠键）：buildKnowTree 会把
+    // 后代 hPath 挂进 doc 节点的 children，不渲染即整棵子树丢失（20260828
+    // 审查——导入含子文档的书后面板只剩根行）；撞名后缀子行同路进容器
+    const kidRows =
+        d.sections.map((s) => sectionRowHtml(s, t)).join("") + node.children.map((c) => knowNodeHtml(c, ctx)).join("");
+    const kids = kidRows ? `<div class="wengu-tree-children"${secOpen ? "" : " hidden"}>${kidRows}</div>` : "";
     return `<div class="b3-list-item b3-list-item--narrow b3-list-item--hide-action wengu-kp-doc" data-kdoc="${esc(
         d.docId
     )}" data-tree-path="${esc(node.path)}" title="${esc(title)}">

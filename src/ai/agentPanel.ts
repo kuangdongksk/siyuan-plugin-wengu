@@ -11,7 +11,7 @@ import { AI_TIMEOUT } from "./timeouts";
  * （插件 API 无官方入口，选择器按 3.8.0 真机 dump 校准）；任何一步
  * 失配都返回 false，调用方降级页内分析。
  */
-export async function openAgentWithPrompt(prompt: string, marker = "刷题分析助手"): Promise<boolean> {
+export async function openAgentWithPrompt(prompt: string, marker = "你是刷题"): Promise<boolean> {
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     const visible = (): HTMLElement | null => {
         for (const el of document.querySelectorAll<HTMLElement>(".agent-chat")) {
@@ -39,6 +39,9 @@ export async function openAgentWithPrompt(prompt: string, marker = "刷题分析
         dt.setData("text/plain", prompt);
         wysiwyg.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
         await sleep(150);
+        // 粘贴校验：marker 取 prompt 的稳定前缀（判卷/统计两类调用方共用
+        // 「你是刷题」；写死完整角色名曾与调用方措辞漂移导致恒 false——
+        // 20260828 审查，每次点击都留下未发送粘贴+空会话后误降级）
         if (!wysiwyg.textContent?.includes(marker)) return false; // 未粘上
         send.click();
         return true;

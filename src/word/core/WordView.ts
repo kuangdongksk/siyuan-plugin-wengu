@@ -152,6 +152,7 @@ export class WordView {
         this.hardList = [];
         this.ui.hardN = 0;
         this.doneSet.clear();
+        this.learned.clear(); // 新会话：首见词仍走 recallEn 回想
         this.groupLog = [];
         this.finishCount = 0;
         this.enterPrompt();
@@ -263,6 +264,7 @@ export class WordView {
     /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
     private advanceAfterFinish(grade: WordGrade, idx: number): void {
         const p = this.ui.progress!;
+        this.learned.add(idx); // 会话内已作答：队列轨重现时走题型轮换（enterPrompt 读）
         if (grade === "no" && !this.hardList.includes(idx)) this.hardList.push(idx);
         if (this.ui.queueKind === "fresh") {
             syncLadderFor(this);

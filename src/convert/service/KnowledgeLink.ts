@@ -316,9 +316,11 @@ function knowledgeRefLine(refs: { id: string; title: string }[]): string {
 }
 
 /** 剥掉题目 kramdown 里已有的「相关知识点」引用行（事后匹配重挂前先清旧，
- *  与 injectKnowledgeRefs 配对成「替换」语义；纯函数）。 */
+ *  与 injectKnowledgeRefs 配对成「替换」语义；纯函数）。连行尾换行一起
+ *  吞——只删内容留空行会让 SOLUTION_RE 失配，inject 走容器尾兜底再补
+ *  一个 solution 块，原 IAL 悬空（20260828 审查：重跑匹配越跑越坏）。 */
 export function stripKnowledgeRefs(kd: string): string {
-    return kd.replace(/^[ \t]*>[ \t]*相关知识点：.*$/gm, "").replace(/\n{3,}/g, "\n\n");
+    return kd.replace(/^[ \t]*>[ \t]*相关知识点：.*(?:\r?\n)?/gm, "").replace(/\n{3,}/g, "\n\n");
 }
 
 /** 把知识点引用行注入题目 kramdown 的解析块尾（无解析块补独立块）。
@@ -362,9 +364,11 @@ export async function sectionKramdown(headingId: string, maxChars = 3000): Promi
     return out.join("\n\n");
 }
 
-/** 解析引述块（多行 > 引用 + 紧随的 part="solution" IAL 行）。 */
+/** 解析引述块（多行 > 引用 + 紧随的 part="solution" IAL 行）。引用与
+ *  IAL 之间容忍空行——历史上被 strip 留空行污染过的记录由此重新匹配，
+ *  inject 重写为紧邻形态即自愈（20260828 审查）。 */
 const SOLUTION_RE =
-    /\n[ \t]*(>[^\n]*(?:\n[ \t]*>[^\n]*)*)\n[ \t]*(\{:[^\n]*custom-plugin-wengu-part="solution"[^\n]*\})/;
+    /\n[ \t]*(>[^\n]*(?:\n[ \t]*>[^\n]*)*)\n(?:[ \t]*\n)*[ \t]*(\{:[^\n]*custom-plugin-wengu-part="solution"[^\n]*\})/;
 
 /**
  * 生成后处理：把题目容器 IAL 上的 know 别名映射回真实块 id——在解析

@@ -49,3 +49,24 @@ describe("strip + inject 配对（事后匹配的替换语义）", () => {
         expect(injectKnowledgeRefs(raw, REFS)).toBe(raw);
     });
 });
+
+describe("strip + inject 幂等往返（20260828 审查：重跑匹配不得破坏结构）", () => {
+    it("两次 strip+inject 输出逐字节相等——solution IAL 始终紧邻引述块", () => {
+        const once = injectKnowledgeRefs(stripKnowledgeRefs(KD), REFS);
+        const twice = injectKnowledgeRefs(stripKnowledgeRefs(once), REFS);
+        expect(twice).toBe(once);
+        // IAL 紧邻：引用行与 part="solution" 之间无空行
+        const m = />\s*相关知识点：[^\n]*\n(?:\{:[^\n]*part="solution")/.exec(once);
+        expect(m).not.toBeNull();
+        // solution 块全卷唯一（旧 bug：strip 留空行→SOLUTION_RE 失配→
+        // 兜底再补一个独立 solution 块，每次重跑叠一个）
+        expect(once.match(/part="solution"/g)?.length).toBe(1);
+    });
+
+    it("已被旧 bug 污染（引用行与 IAL 间有空行）的记录重新匹配即自愈", () => {
+        const dirty = KD.replace(/相关知识点：[^\n]*\n/, "相关知识点：旧引用\n\n");
+        const healed = injectKnowledgeRefs(stripKnowledgeRefs(dirty), REFS);
+        expect(healed.match(/part="solution"/g)?.length).toBe(1);
+        expect(injectKnowledgeRefs(stripKnowledgeRefs(healed), REFS)).toBe(healed);
+    });
+});

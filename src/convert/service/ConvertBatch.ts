@@ -284,8 +284,11 @@ export async function convertDocBatched(
         buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),
     });
     /** 连续前缀推进：按文档序拼装、计数、渐进追加与进度上报。
-     *  材料块随题目一起落盘（group="prev" 依赖顺序），但不占题数与预览行号。 */
-    const flushPrefix = async (): Promise<void> => {
+     *  材料块随题目一起落盘（group="prev" 依赖顺序），但不占题数与预览行号。
+     *  经 flushChain 互斥串行执行：并发池下多 worker 同时进 appendBlock/
+     *  createDoc 会并发 fetchSyncPost（内核并发互吞响应）且两段前缀乱序
+     *  插入、首建窗口重叠建出两份文档（20260828 审查）。 */
+    const runFlushPrefix = async (): Promise<void> => {
         const newStems: QuestionPreview[] = [];
         const newUnits: string[] = [];
         while (contiguous < chunks.length && results[contiguous]) {
@@ -333,6 +336,13 @@ export async function convertDocBatched(
             newStems,
             ...(created ? { docId: created.id, title: created.title } : {}),
         });
+    };
+    let flushChain: Promise<void> = Promise.resolve();
+    const flushPrefix = (): Promise<void> => {
+        const run = flushChain.then(runFlushPrefix, runFlushPrefix);
+        const noop = (): void => undefined;
+        flushChain = run.then(noop, noop); // 链面吞错保后续可排（真实错误由 run 抛给 worker）
+        return run;
     };
     const worker = async (): Promise<void> => {
         for (;;) {

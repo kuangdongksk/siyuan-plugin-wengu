@@ -368,9 +368,10 @@ export async function replaceDocInPlace(oldInfo: DocInfo, markdown: string): Pro
     return created;
 }
 
-/** 旧「另存」习题文档的配对源改指到原位重建后的新文档。 */
+/** 旧「另存」习题文档的配对源改指到原位重建后的新文档。rowsAll 分页：
+ *  >64 条配对被截断的话，漏改的旧 id 下次装载会被 OrphanCleaner 误删。 */
 async function repointSourcePairs(oldDocId: string, newDocId: string): Promise<void> {
-    const rows = await KernelQuery.rows<{ id?: string }>(
+    const rows = await KernelQuery.rowsAll<{ id?: string }>(
         `SELECT block_id AS id FROM attributes WHERE name = '${Attr.sourceDoc}' AND value = '${oldDocId}'`
     );
     for (const row of rows) {

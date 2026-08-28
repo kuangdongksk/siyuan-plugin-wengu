@@ -9,7 +9,7 @@ import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/data/WeaknessStore";
 import { WordStore } from "./word/core/WordStore";
 import { mountWordView, type WordView } from "./word";
-import { initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
+import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
@@ -309,7 +309,10 @@ export default class WenguPlugin extends Plugin {
             pluginName: this.i18n.pluginName || this.name,
             version: (this as unknown as { manifest?: { version?: string } }).manifest?.version ?? "0.1.0",
             settings: this.settings,
-            onSettingsChange: () => this.activeView?.applySettings(),
+            onSettingsChange: () => {
+                this.activeView?.applySettings();
+                companionCtl()?.syncEnabled(); // 学伴总开关对全局悬浮层即时生效（20260828 审查：原只写 settings 不刷 ui.enabled）
+            },
         });
     }
 }

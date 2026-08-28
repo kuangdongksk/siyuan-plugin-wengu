@@ -16,14 +16,18 @@ const ID_RE = /^[\w-]+$/;
 
 /** 找出源讲义已不存在的习题文档 id（attributes 表配对 + 存在性核对）。 */
 async function findOrphanDocIds(): Promise<string[]> {
+    // rowsAll 自动 LIMIT/OFFSET 分页：内核 SQL 无 LIMIT 静默截断 64 行，
+    // 配对超 64 时存活源被误判已死→活文档误删（20260828 审查）
     const pairs = (
-        await KernelQuery.rows<{ docId?: string; srcId?: string }>(
+        await KernelQuery.rowsAll<{ docId?: string; srcId?: string }>(
             `SELECT block_id AS docId, value AS srcId FROM attributes WHERE name = '${Attr.sourceDoc}'`
         )
     ).filter((p) => !!p.docId && !!p.srcId && p.docId !== p.srcId && ID_RE.test(p.srcId));
     if (pairs.length === 0) return [];
     const ids = pairs.map((p) => `'${p.srcId}'`).join(",");
-    const alive = await KernelQuery.rows<{ id?: string }>(`SELECT id FROM blocks WHERE type = 'd' AND id IN (${ids})`);
+    const alive = await KernelQuery.rowsAll<{ id?: string }>(
+        `SELECT id FROM blocks WHERE type = 'd' AND id IN (${ids})`
+    );
     const living = new Set(alive.map((x) => String(x.id ?? "")));
     return pairs.filter((p) => !living.has(String(p.srcId))).map((p) => String(p.docId));
 }

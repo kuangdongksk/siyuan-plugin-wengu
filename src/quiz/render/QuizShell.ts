@@ -27,6 +27,10 @@ export function renderQuizShellFor(v: QuizView): void {
     v.protyleHost.destroyAll();
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
     detachCompanionPanel(); // Svelte 面板先卸再挂（防实例滞留，同 statsPanel 位）
+    // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
+    // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828
+    // 审查；预览模式稍后由 decoratePreview 重新加回）
+    v.el.classList.remove("wengu-pv", "wengu-pv-secret");
     // 三栏格局：非刷题工作区（学伴/专题/知识文档）整体换内容后返回
     if (v.workspace !== "drill") {
         renderWorkspaceFor(v);
