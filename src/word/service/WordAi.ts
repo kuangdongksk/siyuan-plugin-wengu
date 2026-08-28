@@ -1,6 +1,5 @@
-import { agentChat } from "../../ai/client";
+import { agentChatOnce } from "../../ai/client";
 import { defaultAgentModelId } from "../../ai/models";
-import { enqueueAi } from "../../ai/queue";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { fmt } from "../../ui/shared";
 import { wordLib } from "./WordLib";
@@ -9,9 +8,9 @@ import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProg
 
 /**
  * AI 复盘（docs/word-timing.md）：误认词手动分析 + 组完成自动触发
- * 共用一条管线。走 ai/client 同一智能体端点、过共享串行队列 enqueueAi
- * ——无 sessionID 的 agentChat 在内核侧共用 "" 会话锁，并发互吞响应
- * （真机坑）。每批 ≤20 词，多批顺序执行。
+ * 共用一条管线。走 ai/client 的 agentChatOnce 一次性独立会话（独立
+ * sessionID 天然并发）——不占无 sessionID agentChat 的 "" 共享会话锁，
+ * 与判分/转换互不阻塞。每批 ≤20 词，多批顺序执行。
  * 运行态（running/msg）由 WordView.syncAi 镜像进响应态供按钮/消息渲染。
  *
  * 回复协议（锚定规则，不凭空给天数）：
@@ -88,7 +87,9 @@ async function analyzeBatch(
     p: WenguWordProgress,
     save: () => Promise<unknown>
 ): Promise<number> {
-    const reply = await enqueueAi(() => agentChat(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid));
+    // 一次性独立会话：不占无 sessionID agentChat 的 "" 共享会话锁——
+    // 单词复盘与判分/转换互不阻塞（20260829，用户拍板弃用空会话）
+    const reply = await agentChatOnce(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid);
     const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
     const items: { key: string; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];
     for (const it of parseReply(reply)) {

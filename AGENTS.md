@@ -22,7 +22,8 @@
       并发/agentChatOnce 一次性独立会话天然并发）、`models.ts` 模型
       清单与默认、`timeouts.ts` AI_TIMEOUT 档位（调用点禁自造超时
       数字）、`queue.ts` enqueueAi（无 sessionID 的 agentChat 共用 ""
-      会话锁，判分/单词复盘一律过队列）、`agentPanel.ts` 智能体面板
+      会话锁，判分一律过队列；单词复盘 20260829 起改走 agentChatOnce
+      独立会话，不入队）、`agentPanel.ts` 智能体面板
       DOM 自动化与「面板优先、页内降级」按钮帮手。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、

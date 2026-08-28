@@ -204,8 +204,7 @@ export class WordView {
     /** 收尾：批改并进下一张。fresh=滚动梯步进（know 前进、错即整梯
      * 清零、④毕业进 FSRS）；队列轨=FSRS 复习步进 + 答错隔卡重现。 */
     finishCard(grade: WordGrade): void {
-        const awaitingGrade = this.ui.phase === "result" || this.ui.answered;
-        if (!awaitingGrade || this.busy || !this.ui.progress) return;
+        if (!(this.ui.phase === "result" || this.ui.answered) || this.busy || !this.ui.progress) return;
         this.busy = true;
         const p = this.ui.progress;
         const idx = this.currentIdx;
@@ -215,8 +214,9 @@ export class WordView {
         if (v || this.ui.mistakeClaimed) grade = "no";
         // 停留超时（走神）按「忘记」处理（决策 2）
         if (this.curTiming?.over) grade = "no";
+        let counted = true;
         if (this.ui.queueKind === "fresh" && this.freshWin.has(idx)) {
-            settleFreshFor(this, grade);
+            counted = settleFreshFor(this, grade);
         } else {
             reviewWord(p, idx, grade);
         }
@@ -236,13 +236,12 @@ export class WordView {
         this.curTiming = undefined;
         this.spellTyped = undefined;
         notifyWordGrade(this, grade, idx);
-        this.advanceAfterFinish(grade, idx);
+        this.advanceAfterFinish(grade, idx, counted);
     }
 
     /** 标「熟」收尾：退出复习循环，不进误认/重现（fresh 同样出窗毕业）。 */
     finishMastered(): void {
-        const awaiting = this.ui.phase === "result" || this.ui.answered;
-        if (!awaiting || this.busy || !this.ui.progress) return;
+        if (!(this.ui.phase === "result" || this.ui.answered) || this.busy || !this.ui.progress) return;
         this.busy = true;
         const idx = this.currentIdx;
         const fresh = this.ui.queueKind === "fresh" && this.freshWin.has(idx);
@@ -251,7 +250,7 @@ export class WordView {
             this.freshWin.delete(idx);
             this.finishCount++;
         }
-        this.advanceAfterFinish("know", idx);
+        this.advanceAfterFinish("know", idx, true);
     }
 
     /** 星标开关（任意卡、任意阶段可点）。 */
@@ -261,8 +260,9 @@ export class WordView {
         void this.store.save(this.ui.progress);
     }
 
-    /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6）。 */
-    private advanceAfterFinish(grade: WordGrade, idx: number): void {
+    /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6；counted=
+     *  本卡计入 finishCount——fresh 非毕业卡不判组边界，GroupFlow）。 */
+    private advanceAfterFinish(grade: WordGrade, idx: number, counted: boolean): void {
         const p = this.ui.progress!;
         this.learned.add(idx); // 会话内已作答：队列轨重现时走题型轮换（enterPrompt 读）
         if (grade === "no" && !this.hardList.includes(idx)) this.hardList.push(idx);
@@ -272,7 +272,7 @@ export class WordView {
             this.doneSet.add(idx);
             this.ui.cardSeq++;
             this.ui.hardN = this.hardList.length;
-            settleGroupBoundary(this, p);
+            settleGroupBoundary(this, p, counted);
             pickNextFresh(this);
         } else {
             // 会话内重现：插到 3 张卡之后（到末尾则接着出）
@@ -285,7 +285,7 @@ export class WordView {
             this.ui.cardSeq++;
             this.finishCount++;
             this.ui.hardN = this.hardList.length;
-            settleGroupBoundary(this, p);
+            settleGroupBoundary(this, p, counted);
             if (this.pos >= this.queue.length) {
                 this.ui.pos = this.pos;
                 this.ui.queueLen = this.queue.length;

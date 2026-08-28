@@ -10,7 +10,7 @@ import { EApi } from "../siyuan/api";
  *    设置默认不可指定——转换并发池用。
  *  - agentChatOnce：一次性独立会话（saveSession→chat→removeSession），
  *    独立 sessionID 天然并发（20260827 真机验证），高频独立任务
- *    （看板娘反应/聊天）用它，无需串行队列。
+ *    （看板娘反应/聊天/单词复盘）用它，无需串行队列。
  */
 
 /**
@@ -150,7 +150,8 @@ export function newSessionId(now = new Date()): string {
  * 一次性智能体会话（独立 sessionID 并发通道）：saveSession 落盘一条
  * user 条目 → chat（并发锁按 sessionID 键控，不同会话互不 busy）→
  * removeSession 清理防落盘堆积。20260827 真机验证双路并发零 busy；
- * 高频独立任务（看板娘反应/聊天/讲题）直接用它，无需模块级串行队列。
+ * 高频独立任务（看板娘反应/聊天/讲题、单词复盘）直接用它，无需
+ * 模块级串行队列。
  */
 export async function agentChatOnce(
     message: string,
