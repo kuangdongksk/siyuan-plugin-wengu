@@ -8,7 +8,10 @@
   chrome 余量）；余量猜值在两台机器/主题间仍差几像素，第二轮改为 NumRail
   实测写入 `--wengu-nums-max`（滚动可视区 clientHeight − 吸顶头下缘 − 8px
   底衬，chrome 差异天然排除），CSS 以它为封顶、旧视口算式仅作绑定前兜底；
-  窗口缩放随下一次滚动自愈（滚动帧内零开销重测，不加新监听）。
+  窗口缩放随下一次滚动自愈（滚动帧内零开销重测，不加新监听）。第三轮
+  （用户「那应该有padding和margin啊」）间距回归布局表达：底衬实读主区
+  padding-bottom 不再 JS 硬编码，题号栏内衬 4→8px 与主区同律（首末按钮
+  不贴栏框边缘），列间距仍由 .wengu-body gap 8px 表达——JS 只测量不决定。
 - v2→v3 进度迁移代码退役（20260829）：真机确认工作区 words 存量已是
   v3（3243 词 FSRS/1532 熟/2 在学），删除 core/WordMigrate 及其测试、
   WordStore.get 的 migrateV2 分支；仅认 v3，再遇旧版本文件按空进度
