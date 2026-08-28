@@ -216,6 +216,10 @@ async function judgeBriefAnswer(
         checkAllDone(host);
     } catch (e) {
         if (batch) {
+            // AI 失败不再静默丢账（原只记号收卷，该题不进会话、收卷统计
+            // 少一题、AI 报告当未答）——提示 + 露自评钮补账，20260828 二轮
+            showNote(card, `${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`);
+            card.querySelector("[data-self]")?.removeAttribute("hidden");
             markNumAnswered(host, q);
             checkAllDone(host);
             return;

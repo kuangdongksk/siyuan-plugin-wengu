@@ -151,7 +151,10 @@ export function buildStartPanelModel(args: {
 }): StartPanelModel {
     const last = args.rounds[args.rounds.length - 1];
     const answered = answeredQuestionCount(last);
-    const unfinished = last && answered > 0 && answered < args.list.length ? last : undefined;
+    // endedAt 已写=该轮已收卷，不是「未完成」（否则 wrong/wrongAll 轮
+    // 答完重开永远默认「继续上次」，点了就续开已收卷的轮，20260828
+    // 二轮审查）
+    const unfinished = last && !last.endedAt && answered > 0 && answered < args.list.length ? last : undefined;
     const resumeReveal: WenguRevealMode = unfinished?.revealMode === "after" ? "after" : "instant";
     return {
         t: args.t,
@@ -269,18 +272,31 @@ export interface StartRoundCtx {
  * 否则新会话；scopeFilter 把 fullList 按范围裁剪（P2-6：中断轮继续不再展开为全量）。 */
 export function startRound(ctx: StartRoundCtx, override?: { scope?: WenguRoundScope }): void {
     const cfg = readRoundConfig(ctx.root, ctx.defaults);
-    if (override?.scope) cfg.scope = override.scope; // 复习模式「重刷本文档」直落范围
+    if (override?.scope) {
+        cfg.scope = override.scope; // 复习模式「重刷本文档」直落范围
+        cfg.progress = "fresh"; // 显式重刷=新轮——否则旧未完成轮换走「继续」吞掉按钮意图
+    }
     ctx.setRevealMode(cfg.reveal);
     ctx.setActiveIdx(0);
     const last = ctx.rounds[ctx.rounds.length - 1];
     const lastAnswered = new Set((last?.results ?? []).map((r) => baseQid(r.qid))).size;
     const unfinished =
-        cfg.progress === "continue" && last && lastAnswered > 0 && lastAnswered < ctx.fullList.length
+        cfg.progress === "continue" && last && !last.endedAt && lastAnswered > 0 && lastAnswered < ctx.fullList.length
             ? last
             : undefined;
-    // 范围裁剪：进行中的轮按它落盘的 scope 恢复，新轮按面板选择
+    // 范围裁剪：进行中的轮优先按它**落盘的范围清单**恢复（scopeIds 快照，
+    // 开轮时冻结）——旧轮没有快照的按 scope+该轮结果重算；范围自引用会
+    // 漂移：wrong 轮按本轮结果重算丢原范围、wrongAll 轮内答对的题被
+    // 静默移出（20260828 二轮审查）
     const scope = unfinished ? (unfinished.scope ?? "all") : cfg.scope;
-    ctx.setList(scopeFilter(ctx.fullList, scope, last));
+    let list: WenguQuestion[];
+    if (unfinished?.scopeIds?.length) {
+        const ids = new Set(unfinished.scopeIds);
+        list = ctx.fullList.filter((q) => ids.has(q.id));
+    } else {
+        list = scopeFilter(ctx.fullList, scope, last);
+    }
+    ctx.setList(list);
     let session: WenguSession;
     if (unfinished) {
         // 继续上次 = 原样恢复该轮配置（面板上已锁定回显）
@@ -304,6 +320,7 @@ export function startRound(ctx: StartRoundCtx, override?: { scope?: WenguRoundSc
             revealMode: cfg.reveal,
             stepsMode: cfg.stepsMode,
             scope,
+            scopeIds: scope === "all" ? undefined : list.map((q) => q.id), // 范围快照：恢复不自引用
             elapsedSec: 0,
             answered: 0,
             correct: 0,

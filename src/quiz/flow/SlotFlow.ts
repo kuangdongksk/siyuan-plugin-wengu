@@ -35,12 +35,23 @@ function bindCloze(host: AnswerHost, card: HTMLElement, q: WenguQuestion): void 
     const optRow = card.querySelector<HTMLElement>("[data-slot-opts]");
     const stemEl = card.querySelector<HTMLElement>("[data-slot-stem]");
     const render = () => {
+        // 自愈：跳过已答空（恢复路径 bind 时 dataset 尚空、cur 停在 0）
+        while (cur < slots.length && card.dataset[`slot${cur}`] !== undefined) cur++;
+        if (cur >= slots.length) {
+            // 全部作答完（提交最后一空/恢复后）：不再填空，收提交钮
+            strip.forEach((b) => b.classList.remove("wengu-slotbtn-cur"));
+            const doneBtn = card.querySelector<HTMLElement>("[data-slot-submit]");
+            if (doneBtn) doneBtn.hidden = true;
+            return;
+        }
         fillClozeSlot(stemEl, optRow, slots[cur], cur, host);
         strip.forEach((b, i) => b.classList.toggle("wengu-slotbtn-cur", i === cur));
         const done = slotsDone(card, slots.length);
         const curBtn = card.querySelector<HTMLElement>("[data-slot-submit]");
         if (curBtn) curBtn.hidden = done >= slots.length;
     };
+    // 恢复路径重灌当前空（restoreSlotsCard 在 bind 之后跑，dataset 才有已答态）
+    (card as HTMLElement & { __wenguClozeRender?: () => void }).__wenguClozeRender = render;
     strip.forEach((b) =>
         b.addEventListener("click", () => {
             if (b.dataset.locked === "1") return;
@@ -76,6 +87,7 @@ function fillClozeSlot(
 ): void {
     if (stemEl) stemEl.textContent = host.t("slotNO").replace("{n}", String(k + 1));
     if (!optRow) return;
+    delete optRow.dataset.locked; // 换空重填：上一空的锁定不带入，否则第二空起选项点不动
     optRow.innerHTML = slot.optionMd
         .map(
             (_, i) =>
@@ -214,6 +226,7 @@ export function restoreSlotsCard(
         card.dataset[`slotLetter${k}`] = v.letter;
         const btn = card.querySelector<HTMLElement>(`[data-slotbtn="${k}"]`);
         btn?.classList.add(v.ok ? "wengu-slotbtn-right" : "wengu-slotbtn-wrong");
+        btn?.setAttribute("data-locked", "1"); // cloze 空号条：已答空不可点回（bindCloze 查此标记）
         const row = card.querySelector<HTMLElement>(`[data-matchrow="${k}"]`);
         if (row) {
             row.classList.add(v.ok ? "wengu-match-right" : "wengu-match-wrong");
@@ -225,7 +238,11 @@ export function restoreSlotsCard(
             row.querySelector("[data-act='match-submit']")?.setAttribute("hidden", "");
         }
     }
-    if (partial) return; // 未答空的行/提交钮保持初始可用态，接着作答即可
+    if (partial) {
+        // cloze 变体：重灌首个未答空（bind 时 dataset 尚空、cur=0 是错的）
+        (card as HTMLElement & { __wenguClozeRender?: () => void }).__wenguClozeRender?.();
+        return; // 未答空的行/提交钮保持初始可用态，接着作答即可
+    }
     card.querySelectorAll("button, select, input, textarea").forEach((n) => ((n as HTMLButtonElement).disabled = true));
     card.classList.add("wengu-graded");
 }

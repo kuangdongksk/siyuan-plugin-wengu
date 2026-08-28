@@ -90,11 +90,11 @@ async function proxyJson(url: string, token: string, method: string, body?: stri
 }
 
 /** PUT 上传文件二进制到 OSS 预签名地址（不带 Content-Type）。 */
-async function putToOss(uploadUrl: string, data: ArrayBuffer): Promise<void> {
+async function putToOss(uploadUrl: string, data: ArrayBuffer, signal?: AbortSignal): Promise<void> {
     try {
         // ArrayBuffer body：fetch 不会自动补 Content-Type（File/Blob 带类型会，
         // 预签名按无 Content-Type 计算，带了直接签名不匹配）
-        const res = await fetch(uploadUrl, { method: "PUT", body: data });
+        const res = await fetch(uploadUrl, { method: "PUT", body: data, signal }); // 可中止（原未传=终止按钮对上传无效）
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (e) {
         throw new MinerUError("upload", String((e as Error)?.message ?? e));
@@ -109,9 +109,15 @@ interface ExtractResultRow {
 }
 
 /** 轮询批次结果，done 时返回 zip 地址。 */
-async function pollResult(batchId: string, token: string, onProgress: MinerUProgress): Promise<string> {
+async function pollResult(
+    batchId: string,
+    token: string,
+    onProgress: MinerUProgress,
+    signal?: AbortSignal
+): Promise<string> {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     for (;;) {
+        signal?.throwIfAborted(); // 每轮可中止——waiting 阶段最长 20 分钟，原无检查点=终止按钮无效
         if (Date.now() >= deadline) throw new MinerUError("timeout", batchId);
         const json = await proxyJson(`${API_BASE}/extract-results/batch/${batchId}`, token, "GET");
         const rows = (json.data as { extract_result?: ExtractResultRow[] } | undefined)?.extract_result ?? [];
@@ -145,7 +151,8 @@ function extractZip(bytes: Uint8Array): MinerUParseResult {
         const base = path.slice(path.lastIndexOf("/") + 1);
         if (base === "full.md" && !markdown) {
             markdown = new TextDecoder().decode(data);
-        } else if (path.startsWith("images/") && base) {
+        } else if (base && (path.startsWith("images/") || path.includes("/images/"))) {
+            // 目录层兜底与 full.md 同款：zip 带 xxx/ 前缀时 xxx/images/a.jpg 也要收
             images.push({ name: base, data });
         }
     }
@@ -178,13 +185,13 @@ export async function mineruParsePdf(
     const batchId = data.batch_id;
     if (!uploadUrl || !batchId) throw new MinerUError("api", "申请上传地址失败：响应缺 file_urls/batch_id");
     signal?.throwIfAborted();
-    await putToOss(uploadUrl, await file.arrayBuffer());
+    await putToOss(uploadUrl, await file.arrayBuffer(), signal);
     signal?.throwIfAborted();
-    const zipUrl = await pollResult(batchId, token, onProgress);
+    const zipUrl = await pollResult(batchId, token, onProgress, signal);
     onProgress({ stage: "downloading" });
     signal?.throwIfAborted();
     try {
-        const res = await fetch(zipUrl);
+        const res = await fetch(zipUrl, { signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return extractZip(new Uint8Array(await res.arrayBuffer()));
     } catch (e) {

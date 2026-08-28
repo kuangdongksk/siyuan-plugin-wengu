@@ -35,7 +35,7 @@ export interface ConvertRunEvents {
     t: (k: string) => string;
     setConverting(v: boolean): void;
     /** 状态条 HTML（进度文案由这里拼好，条上的按钮由渲染方加）。 */
-    onStatus(html: string, kind: "ok" | "err" | "muted"): void;
+    onStatus(html: string, kind: "ok" | "err" | "muted", terminal?: boolean): void;
     onBatch(docId: string, title: string, count: number, batch: number, total: number): void;
     /** 终止后的二选一：页面渲染「保留进度/全部丢弃」。 */
     onStopChoice(info: { count: number; batches: number; total: number; message?: string }): void;
@@ -196,7 +196,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
             // 意外异常同样必须清 active，否则单例卡死（见文件头注释）
             active = undefined;
             ev.setConverting(false);
-            ev.onStatus(esc(String((e as Error)?.message ?? e)), "err");
+            ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true); // 终态：状态条不再带终止钮/replay
             notify();
             return;
         }
@@ -211,7 +211,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
             active = undefined;
             ev.setConverting(false);
             if (!r.kramdown.trim()) {
-                ev.onStatus(esc(t("convertStoppedEmpty")), "err");
+                ev.onStatus(esc(t("convertStoppedEmpty")), "err", true);
                 notify();
                 return;
             }
@@ -226,7 +226,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
         active = undefined;
         ev.setConverting(false);
         const partial = r.count > 0 ? `<br>${esc(t("convertPartialKept"))}` : "";
-        ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err");
+        ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
         if (r.count > 0) {
             ev.saveProgress(
                 cfg.srcDocId,
@@ -289,7 +289,7 @@ export function keepConvertRun(): Promise<void> {
                 count: a.r.count,
                 kramdown: a.r.kramdown,
             });
-            a.ev.onStatus(esc(fmt(t("convertKeepProgress"), { c: String(a.r.count) })), "muted");
+            a.ev.onStatus(esc(fmt(t("convertKeepProgress"), { c: String(a.r.count) })), "muted", true);
             return;
         }
         const info = await getDocInfo(a.cfg.srcDocId);
@@ -305,7 +305,7 @@ export function keepConvertRun(): Promise<void> {
         });
         await finishRun(a.ev, { ...a.r, status: "done", docId: created.id, title: created.title });
     })()
-        .catch((e) => a.ev.onStatus(esc(String((e as Error)?.message ?? e)), "err"))
+        .catch((e) => a.ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true))
         .then(() => notify());
 }
 
@@ -317,7 +317,7 @@ export function discardConvertRun(): void {
     void (a.r.docId ? removeDoc(a.r.docId) : Promise.resolve());
     a.ev.saveProgress(a.cfg.srcDocId, undefined);
     a.ev.onCancel?.();
-    a.ev.onStatus(esc(a.ev.t("convertDiscarded")), "muted");
+    a.ev.onStatus(esc(a.ev.t("convertDiscarded")), "muted", true);
     notify();
 }
 

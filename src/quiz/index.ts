@@ -250,8 +250,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly switchMode = (mode: "quiz" | "review" | "preview"): void => {
         if (this.mode === mode) return;
         this.mode = mode;
-        this.renderList();
-        if (mode === "quiz" && this.started) restoreAnsweredCards(this);
+        this.renderList(); // 落幕统一恢复已答锁定（见 renderList 尾注）
     };
 
     /** 预览模式入口：开刷面板「预览」按钮（只读浏览，不作答不计轮次）。 */
@@ -443,8 +442,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly rerenderView = (): void => this.renderList();
     readonly updateTimerLabelNow = (): void => this.timerBinder.updateLabel();
     readonly afterStartHook = (): void => {
-        this.renderList();
-        restoreAnsweredCards(this);
+        this.renderList(); // 落幕统一恢复已答锁定（继续上轮路径）
         this.timerBinder.updateLabel();
     };
 
@@ -460,6 +458,11 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     )}</div>`;
             bindHeadFor(this);
         }
+        // 落幕统一恢复已答锁定：renderList 是整壳 innerHTML 重建（收起
+        // 目录/设置变更/切工作区/继续上轮……全走它），不恢复的话已答题
+        // 回到未答外观、可重复提交（attempts 再+1、会话重复条目）。
+        // 渐进/预览/复习不绑作答，started 未开的装载也不需要。
+        if (this.mode === "quiz" && this.started && !this.progressive.active) restoreAnsweredCards(this);
     }
 
     private renderListInner(): void {

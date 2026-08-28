@@ -25,10 +25,16 @@ async function findOrphanDocIds(): Promise<string[]> {
     ).filter((p) => !!p.docId && !!p.srcId && p.docId !== p.srcId && ID_RE.test(p.srcId));
     if (pairs.length === 0) return [];
     const ids = pairs.map((p) => `'${p.srcId}'`).join(",");
-    const alive = await KernelQuery.rowsAll<{ id?: string }>(
-        `SELECT id FROM blocks WHERE type = 'd' AND id IN (${ids})`
-    );
-    const living = new Set(alive.map((x) => String(x.id ?? "")));
+    // rowsMapAll：code!==0 抛错（rows/rowsAll 吞错归空——「查询失败」与
+    // 「全都不存在」无法区分，全判孤儿=批量误删活文档；抛错由外层
+    // catch 收口本轮跳过，留待下次装载重试）
+    const alive = await KernelQuery.rowsMapAll(`SELECT id FROM blocks WHERE type = 'd' AND id IN (${ids})`);
+    const living = new Set(alive.map((m) => String(m.get("id") ?? "")));
+    if (living.size === 0 && pairs.length > 0) {
+        // 源笔记本被「关闭」（非删除）时其块同样不在 SQL 索引——与已删
+        // 无法区分，只能整体拒删本轮（宁漏勿误删，20260828 二轮审查）
+        return [];
+    }
     return pairs.filter((p) => !living.has(String(p.srcId))).map((p) => String(p.docId));
 }
 

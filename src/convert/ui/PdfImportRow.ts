@@ -84,6 +84,7 @@ export function bindPdfImportRow(root: HTMLElement, deps: PdfImportRowDeps): voi
     pdfBtn.addEventListener("click", () => pdfFile.click());
     pdfFile.addEventListener("change", () => {
         const f = pdfFile?.files?.[0];
+        pdfFile.value = ""; // 复位：失败后重选同一文件也要能再触发 change
         if (f) void runImport(f);
     });
 }

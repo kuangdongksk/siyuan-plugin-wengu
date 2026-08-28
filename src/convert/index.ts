@@ -89,7 +89,8 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
             startConvertRun(cfg, {
                 t: ctx.t,
                 setConverting: ctx.setConverting,
-                onStatus: (html, kind) => renderConvertBar(ctx.el, ctx.t, html, kind, "running"),
+                onStatus: (html, kind, terminal) =>
+                    renderConvertBar(ctx.el, ctx.t, html, kind, terminal ? null : "running"),
                 onBatch: ctx.onBatch,
                 onStopChoice: (info) =>
                     renderConvertBar(

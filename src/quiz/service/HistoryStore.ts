@@ -33,6 +33,9 @@ export interface WenguSession {
     stepsMode?: WenguStepsMode;
     /** 刷题范围（旧记录缺省视为 all；「继续上次」按它恢复清单，P2-6）。 */
     scope?: WenguRoundScope;
+    /** 范围快照（开轮时冻结的 qid 清单）：恢复按它裁剪，避免按该轮自身
+     *  结果重算导致范围漂移（旧记录缺省走 scope 重算兜底）。 */
+    scopeIds?: string[];
     /** 实际用时（秒，到最近一次作答/收卷为止）。 */
     elapsedSec: number;
     answered: number;
@@ -63,6 +66,7 @@ export interface WenguHistory {
  */
 export class HistoryStore {
     private cache?: WenguHistory;
+    private loading?: Promise<WenguHistory>;
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -71,14 +75,24 @@ export class HistoryStore {
 
     private async all(): Promise<WenguHistory> {
         if (this.cache) return this.cache;
-        try {
-            const data = (await this.loadRaw()) as WenguHistory | "" | null | undefined;
-            this.cache =
-                data && typeof data === "object" && Array.isArray(data.sessions) ? data : { version: 1, sessions: [] };
-        } catch (_) {
-            this.cache = { version: 1, sessions: [] };
+        // in-flight 备忘：并发首载各自 loadRaw 后赋 cache 会互相覆盖丢更新
+        if (!this.loading) {
+            this.loading = this.loadRaw()
+                .then((data) => {
+                    // 只把「读到的东西不是合法历史」当空库；**读异常上抛不落
+                    // 缓存**——原 catch 一切失败归空库，随后 upsert 把
+                    // 「空库+单轮」写回 history.json，全部历史永久丢失
+                    // （20260828 二轮审查；loadRaw 的「文件不存在」约定
+                    // 返回空串/undefined，进 then 分支归空库，不受影响）
+                    this.cache =
+                        data && typeof data === "object" && Array.isArray((data as WenguHistory).sessions)
+                            ? (data as WenguHistory)
+                            : { version: 1, sessions: [] };
+                    return this.cache;
+                })
+                .finally(() => (this.loading = undefined));
         }
-        return this.cache;
+        return this.loading;
     }
 
     /** 新建/更新一轮（同 id 覆盖），整文件落盘——量级小，直接写。 */

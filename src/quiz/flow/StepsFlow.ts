@@ -39,7 +39,12 @@ function appealedSet(card: HTMLElement): Set<number> {
 export function bindStepsCard(host: AnswerHost, card: HTMLElement, q: WenguQuestion): void {
     if (card.dataset.stepsBound === "1") return;
     card.dataset.stepsBound = "1";
-    if (host.currentSession()?.stepsMode === "ai") {
+    // 已有本题作答（继续上次/收卷后重渲染）一律走离线渲染——startRealtime
+    // 会清空步骤区重问，且跑在 restoreAnsweredCards 之前导致恢复扫不到
+    // 元素、重答产生重复会话条目（20260828 二轮审查）
+    const prefix = q.id + "#";
+    const answered = (host.currentSession()?.results ?? []).some((r) => r.qid.startsWith(prefix));
+    if (!answered && host.currentSession()?.stepsMode === "ai") {
         startRealtime(host, card, q);
     } else {
         bindOffline(host, card, q);

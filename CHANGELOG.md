@@ -34,6 +34,24 @@
   同一提交还丢了「答错记误认本」的写入（旧 Leitner reviewWord 内联，
   FSRS 重写未搬）——恢复 markMistake（复习轨 reviewWord 与新学梯
   settleFreshFor 双入口，重答错清旧 AI 辨析、模糊不记）。
+- 二轮审查修复（20260828，quiz 恢复编排 5 P1 + convert 链 3 P1 + P2 六项）：
+  开刷面板 unfinished 判定补 !endedAt（错题轮收卷后不再永远「继续上次」）；
+  范围轮 scopeIds 快照落盘恢复（WenguSession 新字段，开轮冻结清单——原按
+  该轮自身结果重算，wrong 丢原范围/wrongAll 轮内答对的被移出）；AI 实时
+  steps 已答卡绕开 startRealtime（原清空重问+恢复扫不到+重复会话条目）；
+  renderList 落幕统一恢复已答锁定（收起目录/设置变更/切工作区/继续上轮
+  全走它，原只挂 2 处——已答题回未答外观可重复提交）；cloze 三修（换空
+  清 optRow 锁定否则第二空起点不动、全答完 slots[cur] 越界、恢复补
+  data-locked+cur 自愈重灌）。convert：OrphanCleaner 存活查询改 rowsMapAll
+  抛错+alive 全空拒删护栏（查询失败/闭笔记本不再全判孤儿批量误删）；
+  MinerU 终止三阶段接入 signal（轮询每轮检查点/上传 fetch/落盘循环——原
+  waiting 最长 20 分钟终止按钮无效）；导入 busy 接管弹窗 X（先 abort 再
+  关，原直接 destroy 变后台孤儿锁按钮）；onStatus 增 terminal 语义（终态
+  条不再带死终止钮、replay 不复活）；PdfImportRow 文件输入复位；extractZip
+  images 目录层兜底对齐 full.md；空文档点开始给提示。quiz P2：HistoryStore
+  读异常上抛不落缓存（原归空库后 upsert 把整份历史写丢）+并发首载 in-flight
+  备忘；after 模式 brief AI 失败露自评钮补账（原静默该题不进会话）；复习
+  「重刷本文档」带 override 强制新轮（原被「继续上次」吞掉意图）。
 - 全仓代码审查两波修复（20260828，四路并行深读+机械扫描，9 个 P1
   见上一提交）：②波 P2——word 跨书竞态（WordAiInput 带 key 构建时刻
   冻结，addPair/applyAiReview 改词头入参不吃活下标——AI 往返期间切书

@@ -112,6 +112,7 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
     const stamp = Date.now().toString(36);
     let markdown = parsed.markdown;
     for (const img of parsed.images) {
+        opts.signal?.throwIfAborted(); // 落盘循环可中止（原无检查点）
         const target = `assets/wengu/${stamp}/${img.name}`;
         // putFile 路径必须工作区相对（带前导斜杠 3.8.1 会拼出非法盘符路径）
         await putAsset(`data/${notebook}/assets/wengu/${stamp}/${img.name}`, img.data);

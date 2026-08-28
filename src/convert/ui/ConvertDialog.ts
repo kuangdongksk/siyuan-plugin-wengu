@@ -115,6 +115,21 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         });
     };
 
+    // 导入 busy 期间接管右上角 X：先中止 MinerU 再关窗——原 X 直接
+    // destroy，导入变后台孤儿（状态写在分离 DOM 上不可见、转换按钮锁
+    // 到轮询自然结束最长 20 分钟，20260828 二轮审查）
+    let importAbort: AbortController | undefined;
+    dialog.element.querySelector(".b3-dialog__close")?.addEventListener(
+        "click",
+        (ev) => {
+            if (!okBtn?.disabled) return; // 非 busy 走原生关闭
+            ev.stopPropagation();
+            importAbort?.abort(); // pollResult 每轮检查点接住，流程即刻收口
+            dialog.destroy();
+        },
+        true // capture：抢在 Dialog 自带关闭处理之前
+    );
+
     // 输入变化时探查该文档是否有未完成的转换进度
     const syncResumeHint = () => {
         const docId = (input?.value ?? "").trim();
@@ -184,7 +199,10 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
     /** 开始转换：收集参数交运行器（页面接管状态与渐进呈现），随即关窗。 */
     const start = (resumeRec?: ConvertProgressRecord) => {
         const target = (input?.value ?? "").trim();
-        if (!target) return;
+        if (!target) {
+            showDlgStatus(t("convertNoDoc"), "err"); // 原静默 return 像按钮失灵
+            return;
+        }
         const modelId = modelBtn?.dataset.value ?? "";
         const fill = fillInput?.checked ?? false;
         const bigSteps = stepsInput?.checked ?? false;
@@ -236,6 +254,7 @@ export function openConvertDialog(deps: ConvertDialogDeps): void {
         t,
         mineruToken: deps.mineruToken,
         hookStop: (c) => {
+            importAbort = c;
             if (stopBtn) stopBtn.onclick = () => c.abort();
         },
         resolveTarget: () => {
