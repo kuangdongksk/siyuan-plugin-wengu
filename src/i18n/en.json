@@ -10,6 +10,7 @@
   "totalTimeHint": "Total drilling time of this document",
   "drilledCount": "Drilled {a}",
   "loading": "Loading…",
+  "rendering": "Rendering questions",
   "loadFailed": "Load failed: ",
   "noExerciseDocs": "No generated exercise sets yet — click \"AI: make questions\" above to create one",
   "quizNone": "No question blocks in this document (maybe not generated, or deleted)",

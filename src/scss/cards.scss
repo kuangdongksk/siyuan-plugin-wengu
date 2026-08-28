@@ -1,4 +1,38 @@
 /* ── 题号导航 + 卡片列表 ── */
+
+/* 静态渲染进度胶囊（长卷/题库模式分片成像期间）：粘在吸顶头下
+   （让位高度与题号栏同款 CSS 变量），居中小胶囊 + 转圈图标，
+   mountStatic 填完由 QuizShell 摘除 */
+.wengu-rendering {
+  position: sticky;
+  top: var(--wengu-head-h, 0);
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 auto 8px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--b3-list-hover);
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-rendering svg {
+  animation: wengu-spin 0.9s linear infinite;
+}
+
+@keyframes wengu-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wengu-rendering-count {
+  font-variant-numeric: tabular-nums;
+}
+
 .wengu-body {
   display: flex;
   align-items: flex-start;

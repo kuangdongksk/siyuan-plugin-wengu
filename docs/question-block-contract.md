@@ -202,7 +202,9 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   yield，题卡「…」占位渐次成像，mountGen 自增放弃在途批次、已挂
   真 Protyle 的节点跳过防覆写）；题号栏滚动跟踪改缓存+差分（可见
   卡列表 MutationObserver 失效重扫，active 只动前后两钮，当前题
-  取 data-idx 而非可见序——材料组卷不再错位）。
+  取 data-idx 而非可见序——材料组卷不再错位）；成像期间头部下方
+  挂「题目渲染中 n/m」进度胶囊（mountStatic onProgress 逐卡回调，
+  填完摘除）。
 - **预览模式**（mode="preview"，2026-08-26 起）：开刷面板「预览」
   入口（预览 | 开始刷题 | 错题回顾）。复用做题壳渲染题卡后由
   PreviewFlow 装饰成只读态——作答位/提交/自评/思路摘除，正确项

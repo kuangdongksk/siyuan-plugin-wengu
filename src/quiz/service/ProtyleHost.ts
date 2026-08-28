@@ -73,10 +73,16 @@ export class ProtyleHost {
      *  单任务，逐卡填完一帧预算（16ms）就 yield 让 UI 呼吸，题卡按
      *  「…」占位渐次成像；整壳重渲染（mountGen 自增）放弃在途批次，
      *  材料组切换已挂真 Protyle 的节点跳过（防静态内容覆写挂载实例）。 */
-    async mountStatic(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): Promise<void> {
+    async mountStatic(
+        root: HTMLElement,
+        list: WenguQuestion[],
+        materials: WenguMaterial[] = [],
+        onProgress?: (done: number, total: number) => void
+    ): Promise<void> {
         const gen = this.mountGen;
         let deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
         const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle], [data-mprotyle]"));
+        let done = 0;
         for (const node of nodes) {
             if (gen !== this.mountGen) return; // 整壳已重建，放弃本轮
             if (performance.now() > deadline) {
@@ -98,6 +104,8 @@ export class ProtyleHost {
                     (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
             }
             renderMath(node);
+            done++;
+            onProgress?.(done, nodes.length);
         }
     }
 

@@ -14,6 +14,7 @@ import { bindRailFor, renderRailHtml } from "./RailHtml";
 import { beginDrillFor, bindStartPanel, renderStartPanel } from "./StartPanel";
 import { bindHeadFor } from "../flow/ViewBindings";
 import { renderWorkspaceFor } from "./WorkspaceShell";
+import { svgIcon } from "../../ui/FormHtml";
 import { esc } from "../../ui/shared";
 
 /**
@@ -92,13 +93,29 @@ export function renderQuizShellFor(v: QuizView): void {
     // Protyle 实例）；常规卷走内嵌 Protyle（块级还原最完整）
     if (colMode || v.list.length > PROTYLE_INLINE_MAX) {
         // 静态渲染分片异步（长卷卡顿修复）：题卡「…」占位渐次成像，
-        // 组滚动位置等全部填完再恢复
-        void v.protyleHost.mountStatic(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
+        // 头下挂「题目渲染中 n/m」胶囊交代进度，填完摘除、组滚动恢复
+        v.el.querySelector(".wengu-main > .wengu-head")?.insertAdjacentHTML("afterend", renderingPillHtml(v.t));
+        const counter = v.el.querySelector<HTMLElement>("[data-rendering-count]");
+        void v.protyleHost
+            .mountStatic(v.el, v.list, v.materials, (done, total) => {
+                if (counter) counter.textContent = `${done}/${total}`;
+            })
+            .then(() => {
+                v.el.querySelector("[data-rendering]")?.remove();
+                restoreGroupScrolls(v.el);
+            });
     } else {
         void v.protyleHost.mount(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
     }
     if (pv) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz")); // 预览装饰：揭示答案/快捷复制/模糊开关/退出预览
     v.timerBinder.updateLabel();
+}
+
+/** 静态渲染进度胶囊：转圈图标 + 文案 + n/m 计数（mountStatic 逐卡回调）。 */
+function renderingPillHtml(t: (key: string) => string): string {
+    return `<div class="wengu-rendering" data-rendering>${svgIcon("iconRefresh")}<span>${esc(
+        t("rendering")
+    )}</span><span class="wengu-rendering-count" data-rendering-count></span></div>`;
 }
 
 /** 视图级绑定：头部/题号/开刷面板/题卡/材料组单元。 */

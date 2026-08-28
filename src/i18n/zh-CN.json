@@ -10,6 +10,7 @@
   "totalTimeHint": "本文档累计刷题用时",
   "drilledCount": "已刷 {a}",
   "loading": "加载中…",
+  "rendering": "题目渲染中",
   "loadFailed": "加载失败：",
   "noExerciseDocs": "还没有已生成的习题文档：点上方「AI 转习题」生成",
   "quizNone": "该文档没有题目块（可能未生成或已被删除）",

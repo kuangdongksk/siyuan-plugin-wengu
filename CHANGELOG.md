@@ -9,7 +9,10 @@
   真 Protyle 的节点跳过防覆写，组滚动位置改为填完再恢复；③题号栏
   滚动跟踪缓存化——可见卡列表 MutationObserver 失效重扫（滚动帧内
   不再全树 querySelectorAll）、active 差分更新只动前后两钮、当前题
-  取 data-idx 修材料组卷错位。
+  取 data-idx 修材料组卷错位。续（20260829 用户验收「快了很多但
+  想要提示」）：分片成像期间头下挂「题目渲染中 n/m」进度胶囊
+  （吸顶、转圈图标、tabular-nums 计数），mountStatic 增 onProgress
+  逐卡回调，填完自动摘除；i18n 增 rendering 键（zh/en）。
 - 静态渲染选项字母角标（20260828，用户反馈「ABCD 都没了」）：>50 题
   长卷与题库模式走 mountStatic、Protyle 挂载失败走降级——两路选项文本
   被 optionDisplayMd 剥掉文档里的字母标签后无人补画，选项成无字母裸
