@@ -57,9 +57,11 @@
   gap: 4px;
   padding: 4px 0;
   /* 滚动容器是 .wengu-main；父级 .wengu-body 高度随内容自适应，
-     100% 解析不动等于没约束（193 题栏底不可达）——用视口近似封顶：
-     页签可视高约 100vh-140px，留出头部再扣一点，宁短勿溢 */
-  max-height: calc(100vh - 200px);
+     100% 解析不动等于没约束（193 题栏底不可达）——用视口近似封顶。
+     头下缘用 NumRail 实测的 --wengu-head-h（含 8px 让位），再留 ~40px
+     页签栏 chrome：占满可视高。旧固定 200px 在高分屏留大片空白
+     （20260829 用户反馈「题号没占满」，栏底离可视区底差 ~150px） */
+  max-height: calc(100vh - var(--wengu-head-h, 56px) - 40px);
   box-sizing: border-box;
   overflow-y: auto;
 }

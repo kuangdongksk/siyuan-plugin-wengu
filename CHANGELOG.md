@@ -2,6 +2,10 @@
 
 ## v0.1.1 unreleased
 
+- 题号栏占满可视高（20260829，用户反馈「题号没占满」）：题号竖列
+  max-height 由固定 `100vh - 200px` 改为 `100vh - var(--wengu-head-h) - 40px`
+  ——头部下缘用 NumRail 已有的实测变量，只留页签栏 chrome 余量；高分屏
+  上栏底距可视区底 ~150px 的大片空白消除（197 题长卷真机截图红框）。
 - v2→v3 进度迁移代码退役（20260829）：真机确认工作区 words 存量已是
   v3（3243 词 FSRS/1532 熟/2 在学），删除 core/WordMigrate 及其测试、
   WordStore.get 的 migrateV2 分支；仅认 v3，再遇旧版本文件按空进度
