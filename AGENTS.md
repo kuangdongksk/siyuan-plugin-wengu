@@ -189,6 +189,12 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
 message, language, references, model?}`；`userEntryID` 是
            **entries 里 user 条目的 id**（非文档 ID），空串=取最后一条
            user 条目；`model` = `conf.json ai.providers[].models[].id`。
+    - **model id 是内核生成的时戳格式**（如 `20260824211456-z5lcgdq`，
+      3.8.1 实测）：删改 AI 配置后存量 id 永久失效，内核对未知 id
+      一律报「请先参考用户指南 [人工智能] 章节进行配置」——调用侧
+      一律走 `ai/models.resolveModelId`（agentChat 入口已总闸：失效
+      回落默认、默认无效省略 model），别把用户存量选择直送内核
+      （20260829 学伴档案存已删模型踩坑）。
     - 流结束 SSE 出 `event:turn`（带 turnID）；前端随后调 saveSession
       `{...session, commitTurnID: turnID}` 提交；插件任务结束不保留
       上下文就调 `POST /api/ai/agent/removeSession {id}` 清理，否则
