@@ -86,6 +86,7 @@
   "convertResumeSettled": "Progress already covers the whole source; settled as done",
   "convertWriteFailed": "Write failed: ",
   "weakDrillNone": "Select at least one weak point first",
+  "wordResumeCard": "Back to card",
   "confirmDiscard": "Click again to confirm discard",
   "timingTitle": "Choose timing mode",
   "timingCountUp": "Count up (accumulate total time)",

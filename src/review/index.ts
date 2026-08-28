@@ -146,7 +146,13 @@ function bindReviewEvents(v: ReviewViewAccess): void {
 /** 筛选/排序变化只重绘清单块（下拉不重建、详情不动）。 */
 function rerenderListOnly(v: ReviewViewAccess): void {
     const list = v.el.querySelector("[data-review-list]");
-    if (list) list.innerHTML = renderGroupsHtml(listModelOf(v.t, cache?.items ?? []));
+    if (!list) return;
+    list.innerHTML = renderGroupsHtml(listModelOf(v.t, cache?.items ?? []));
+    // 选中高亮回填：重绘清单后按当前选中题补 cur 类（原不复位，
+    // 筛选后选中的题看着「掉了」，20260829 三轮审查）
+    if (ui.selQid) {
+        list.querySelector(`[data-review-qid="${CSS.escape(ui.selQid)}"]`)?.classList.add("wengu-review-item-cur");
+    }
 }
 
 /** 侧栏点文档（复习模式）＝清单筛选该文档；再点一次取消。 */
@@ -284,52 +290,68 @@ function plainSummary(text: string): string {
     return s.length > 80 ? `${s.slice(0, 80)}…` : s;
 }
 
-/** 详情渲染：选中题惰性 hydrate（fetchSyncPost 串行约束天然满足），
- *  重渲染代际变化则放弃填充；hydrated 题存模块级供「复制题目」用。 */
+/** 详情渲染：选中题惰性 hydrate，经模块级串行链逐个执行（快速连点
+ *  两条错题不再并发 fetchSyncPost——内核并发互吞响应）；代际序号 +
+ *  比对视图盒子双保险，重渲染/换选中后旧结果不落框。hydrated 题存
+ *  模块级供「复制题目」用，仅在成功渲染当前框后置位（原 hydrate 失败
+ *  保留旧值，复制按钮会把上一题复制出去，20260829 三轮审查）。 */
 let detailQ: WenguQuestion | undefined;
+let detailSeq = 0;
+let detailChain: Promise<void> = Promise.resolve();
 async function renderDetailFor(v: ReviewViewAccess, qid: string): Promise<void> {
     const box = v.el.querySelector<HTMLElement>("[data-review-detail]");
     if (!box) return;
     if (!qid) {
+        detailQ = undefined;
         box.innerHTML = `<div class="wengu-muted wengu-review-detail-empty">${esc(v.t("reviewPickHint"))}</div>`;
         return;
     }
     const item = cache?.items.find((x) => x.qid === qid);
     if (!item) {
+        detailQ = undefined;
         box.innerHTML = renderDetailLoadingHtml(v.t);
         return;
     }
+    const seq = ++detailSeq;
+    detailQ = undefined; // 等待期间失效：复制不再命中上一题
     box.innerHTML = renderDetailLoadingHtml(v.t);
-    const q: WenguQuestion = { id: item.qid, attempts: 0, wrongCount: item.wrongCount, type: item.type };
-    try {
-        await hydrate(q);
-        detailQ = q; // 快捷复制的原料（题干/选项/答案/解析已齐）
-    } catch (_) {
-        // 保留已知信息（时间线/摘要），题目正文缺省
-    }
-    if (v.el.querySelector("[data-review-detail]") !== box) return; // 已重渲染
-    const t = v.t;
-    const optionsHtml = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
-    const stepsHtml = (q.steps ?? [])
-        .map(
-            (s, i) =>
-                `<div class="wengu-review-step"><span class="wengu-muted">#${i + 1}</span><div class="wengu-review-step-stem">${mdFragmentHtml(
-                    s.stemMd
-                )}</div><div class="wengu-review-step-ans">${mdFragmentHtml(s.answer)}</div></div>`
-        )
-        .join("");
-    const d: ReviewDetailModel = {
-        qid: item.qid,
-        docTitle: docTitleOf(item.docId),
-        stemHtml: q.stemMd ? mdFragmentHtml(q.stemMd) : `<div class="wengu-muted">${esc(item.stemSummary)}</div>`,
-        optionsHtml,
-        stepsHtml,
-        timelineHtml: renderTimelineHtml(t, item.attempts),
-        answerHtml: q.answer ? mdFragmentHtml(q.answer) : "",
-        solutionHtml: q.solutionMd ? mdFragmentHtml(q.solutionMd) : "",
-    };
-    box.innerHTML = renderReviewDetailHtml(t, d);
-    renderMathIn(box);
+    const run = detailChain.then(async (): Promise<void> => {
+        if (seq !== detailSeq) return;
+        const q: WenguQuestion = { id: item.qid, attempts: 0, wrongCount: item.wrongCount, type: item.type };
+        try {
+            await hydrate(q);
+        } catch (_) {
+            // 保留已知信息（时间线/摘要），题目正文缺省
+        }
+        if (seq !== detailSeq) return;
+        if (v.el.querySelector("[data-review-detail]") !== box) return; // 已重渲染
+        detailQ = q; // 快捷复制的原料（渲染落框后才置位）
+        const t = v.t;
+        const optionsHtml = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
+        const stepsHtml = (q.steps ?? [])
+            .map(
+                (s, i) =>
+                    `<div class="wengu-review-step"><span class="wengu-muted">#${i + 1}</span><div class="wengu-review-step-stem">${mdFragmentHtml(
+                        s.stemMd
+                    )}</div><div class="wengu-review-step-ans">${mdFragmentHtml(s.answer)}</div></div>`
+            )
+            .join("");
+        const d: ReviewDetailModel = {
+            qid: item.qid,
+            docTitle: docTitleOf(item.docId),
+            stemHtml: q.stemMd ? mdFragmentHtml(q.stemMd) : `<div class="wengu-muted">${esc(item.stemSummary)}</div>`,
+            optionsHtml,
+            stepsHtml,
+            timelineHtml: renderTimelineHtml(t, item.attempts),
+            answerHtml: q.answer ? mdFragmentHtml(q.answer) : "",
+            solutionHtml: q.solutionMd ? mdFragmentHtml(q.solutionMd) : "",
+        };
+        box.innerHTML = renderReviewDetailHtml(t, d);
+        renderMathIn(box);
+    });
+    const noop = (): void => undefined;
+    detailChain = run.then(noop, noop); // 链面吞错保后续可排（错误已在 run 内自兜）
+    await run;
 }
 
 /** 统计面板总览「错题概况」的数据（缓存命中即回；未命中由面板自拉）。 */

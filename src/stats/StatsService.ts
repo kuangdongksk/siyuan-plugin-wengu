@@ -56,6 +56,9 @@ export interface WenguDocStats {
     rounds: WenguSession[];
     /** 错题清单（按错次降序，上限 50）。 */
     wrongs: WenguWrongItem[];
+    /** 错题总数（不截断——清单只展示前 50，总数原用 wrongs.length 把
+     *  截断长度当总数展示，20260829 三轮审查）。 */
+    wrongTotal: number;
 }
 
 const RECENT_ROUNDS = 20;
@@ -121,21 +124,20 @@ function plainText(md: string, max: number): string {
 /** 单文档详情：轮次全量 + 错题清单（来自已 hydrate 的题目列表）。 */
 export function buildDocStats(docTitle: string, sessions: WenguSession[], fullList: WenguQuestion[]): WenguDocStats {
     const rounds = [...sessions].sort((a, b) => a.startedAt - b.startedAt);
-    const wrongs = fullList
+    const wrongAll = fullList
         .map((q, i) => ({ q, index: i + 1 }))
         .filter(({ q }) => q.wrongCount > 0)
-        .sort((a, b) => b.q.wrongCount - a.q.wrongCount)
-        .slice(0, WRONG_LIMIT)
-        .map(({ q, index }) => ({
-            qid: q.id,
-            index,
-            stemSummary: plainText(q.stemMd ?? "", 80),
-            knowledge: q.knowledge,
-            wrongCount: q.wrongCount,
-            lastAnswer: q.lastAnswer ? plainText(q.lastAnswer, 40) : undefined,
-            right: q.right,
-        }));
-    return { docTitle, total: fullList.length, rounds, wrongs };
+        .sort((a, b) => b.q.wrongCount - a.q.wrongCount);
+    const wrongs = wrongAll.slice(0, WRONG_LIMIT).map(({ q, index }) => ({
+        qid: q.id,
+        index,
+        stemSummary: plainText(q.stemMd ?? "", 80),
+        knowledge: q.knowledge,
+        wrongCount: q.wrongCount,
+        lastAnswer: q.lastAnswer ? plainText(q.lastAnswer, 40) : undefined,
+        right: q.right,
+    }));
+    return { docTitle, total: fullList.length, rounds, wrongs, wrongTotal: wrongAll.length };
 }
 
 /** 计时方式的中文短名（prompt 与列表展示共用）。 */

@@ -52,18 +52,25 @@ export async function importBookFor(v: WordView, file: File, input: HTMLInputEle
     input.value = "";
 }
 
-/** 会话复位（切书/删当前书后）：回首页、清窗口/队列/查词态。 */
+/** 会话复位（切书/删当前书后）：回首页、清窗口/队列/查词态。
+ *  learned/familiarized 一并清：旧书下标残留会让新书同号词误走
+ *  题型轮换/跳过复习批改（20260829 三轮审查）。 */
 function resetSessionFor(v: WordView): void {
     v.queue = [];
     v.pos = 0;
     v.freshWin = new Map();
-    v.sessionNew = new Set();
     v.hardList = [];
     v.doneSet.clear();
+    v.learned.clear();
+    v.familiarized.clear();
     v.groupLog = [];
     v.finishCount = 0;
     v.ui.mode = "home";
     v.ui.lookupQuery = "";
     v.ui.lookupSel = undefined;
+    // 派生数据踢一脚：buildQueue 等内部读当前词书（非响应式资源），
+    // 切书后 ui.progress 同引用会让首页 $derived 缓存不失效（挂账
+    // 「首页 derived 切书不刷」清偿）
+    v.ui.progress = { ...v.ui.progress };
     v.syncAi();
 }

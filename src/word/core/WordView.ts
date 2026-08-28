@@ -73,10 +73,11 @@ export class WordView {
     freshWin = new Map<number, WinEntry>();
     seq = 0;
     cur = 0;
-    /** 本会话已作答过的词（队列轨重现词走题型轮换）。 */
-    private learned = new Set<number>();
-    /** 构队时标记的新词（fresh=窗口在学词；队列轨恒空）。 */
-    sessionNew = new Set<number>();
+    /** 本会话已作答过的词（队列轨重现词走题型轮换；重过/切书时清，
+     *  CardOps/BookOps 友元同权访问）。 */
+    readonly learned = new Set<number>();
+    /** 会话内已标熟（查词「标熟」）：当前卡收尾跳过复习批改防双计。 */
+    readonly familiarized = new Set<number>();
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     hardList: number[] = [];
     readonly doneSet = new Set<number>();
@@ -145,7 +146,6 @@ export class WordView {
             return;
         }
         this.queue = kind === "star" ? starredList(this.ui.progress) : [...buildQueue(this.ui.progress).review];
-        this.sessionNew = new Set<number>();
         this.freshWin = new Map();
         this.ui.queueKind = kind;
         this.pos = 0;
@@ -153,6 +153,7 @@ export class WordView {
         this.ui.hardN = 0;
         this.doneSet.clear();
         this.learned.clear(); // 新会话：首见词仍走 recallEn 回想
+        this.familiarized.clear();
         this.groupLog = [];
         this.finishCount = 0;
         this.enterPrompt();
@@ -217,7 +218,9 @@ export class WordView {
         let counted = true;
         if (this.ui.queueKind === "fresh" && this.freshWin.has(idx)) {
             counted = settleFreshFor(this, grade);
-        } else {
+        } else if (!this.familiarized.has(idx)) {
+            // 查词已标熟的当前词不再复习批改（标熟时已计 revCount/建
+            // FSRS，二次 reviewWord 双计，20260829 三轮审查）
             reviewWord(p, idx, grade);
         }
         if (v) {
@@ -239,13 +242,21 @@ export class WordView {
         this.advanceAfterFinish(grade, idx, counted);
     }
 
-    /** 标「熟」收尾：退出复习循环，不进误认/重现（fresh 同样出窗毕业）。 */
+    /** 标「熟」收尾：退出复习循环，不进误认/重现（fresh 同样出窗毕业）。
+     *  查词已标熟的词不重复 markFamiliar（双计 revCount）。记账与普通
+     *  收尾同口径（groupLog/notifyWordGrade 原缺失——组复盘少一档、
+     *  看板娘不感知，20260829 单词域审查挂账）。 */
     finishMastered(): void {
         if (!(this.ui.phase === "result" || this.ui.answered) || this.busy || !this.ui.progress) return;
         this.busy = true;
+        const p = this.ui.progress;
         const idx = this.currentIdx;
         const fresh = this.ui.queueKind === "fresh" && this.freshWin.has(idx);
-        markFamiliar(this.ui.progress!, idx, fresh);
+        if (!this.familiarized.has(idx)) markFamiliar(p, idx, fresh);
+        this.groupLog.push(
+            wordAiInput(p, idx, "know", this.ui.answered?.correct, this.curTiming, this.spellTyped, undefined)
+        );
+        notifyWordGrade(this, "know", idx);
         if (fresh) {
             this.freshWin.delete(idx);
             this.finishCount++;
@@ -456,7 +467,9 @@ export class WordView {
         void this.ai.run(
             p,
             () => this.store.save(p),
-            () => (this.ui.mode = "home"),
+            // 应用完成原地刷新，不再踢回首页（「aiAnalyze 完成踢回首页」
+            // 挂账清偿：卡片/查词中被 AI 完成打断强行导航）
+            () => (this.ui.mode === "card" ? this.enterPrompt() : this.syncAi()),
             () => this.syncAi()
         );
     }

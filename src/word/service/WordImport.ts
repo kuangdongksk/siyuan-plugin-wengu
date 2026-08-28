@@ -243,13 +243,21 @@ export async function runWordImport(
         }
     }
     const apply = status === "auto" ? (autoStatus ?? "unlearned") : status;
-    // 匹配词书（精确优先，lev≤1 兜底；按当前书）
+    // 匹配词书（精确优先，lev≤1 兜底；按当前书）。精确匹配先建一次
+    // 小写索引——原逐词全书 findIndex+toLowerCase，3000 词导入×6900 词
+    // 书 ≈2×10⁷ 次比较，主线程秒级冻结（20260829 三轮审查）
     const lib = wordLib();
+    const book = lib.curBook();
+    const exact = new Map<string, number>();
+    for (let i = 0; i < book.words.length; i++) {
+        const lw = book.words[i].w.toLowerCase();
+        if (!exact.has(lw)) exact.set(lw, i);
+    }
     const hits = new Set<number>();
     const miss: string[] = [];
     for (const w of extractWords(text)) {
         const lw = w.toLowerCase();
-        let idx = lib.curBook().words.findIndex((e) => e.w.toLowerCase() === lw);
+        let idx = exact.get(lw) ?? -1;
         if (idx < 0) {
             idx = bucketOf(lib, lw).find((b) => lev1(b.w, lw))?.i ?? -1;
         }
@@ -287,5 +295,8 @@ function applyStatus(p: WenguWordProgress, idxs: Set<number>, apply: WordImportS
         }
     }
     rollToday(p, now);
-    p.log[todayKey(now)] = [p.today.newCount, p.today.revCount];
+    // 只在有实际计数时记当日 log：无条件写 [0,0] 伪打卡，streak 只看
+    // log 键真值会把没学习的导入日也续上（20260829 三轮审查）
+    const cnt: [number, number] = [p.today.newCount, p.today.revCount];
+    if (cnt[0] > 0 || cnt[1] > 0) p.log[todayKey(now)] = cnt;
 }

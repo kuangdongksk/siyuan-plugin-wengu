@@ -192,15 +192,8 @@ export class WordLib {
         return meta;
     }
 
-    /** 改书名（头部副位显示名）。 */
-    async renameBook(id: string, name: string): Promise<void> {
-        await this.ensure();
-        const b = this.manifest.books.find((x) => x.id === id);
-        if (!b || !name.trim() || b.name === name) return;
-        b.name = name.trim();
-        if (this.manifest.current === id) this.active.title = b.name;
-        await this.persist(() => this.io.write(MANIFEST_PATH, JSON.stringify(this.manifest)));
-    }
+    // 注：renameBook（改书名）已移除——零调用方的死代码，且只写
+    // manifest 不写书文件，重启后书名回旧值（20260829 单词域审查挂账）。
 
     /** 删书（不删进度；最后一本不可删——UI 禁用、此处兜底拒绝）。
      * 删的是当前书时自动切到剩余第一本并激活。先落 manifest 再删文件：

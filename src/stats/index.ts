@@ -98,6 +98,8 @@ class StatsPanel {
     private readonly layer = document.createElement("div");
     private readonly charts = new StatsChartHost();
     private tab: "overview" | "doc";
+    /** renderTab 代际（快速切 tab 防旧请求晚到覆写）。 */
+    private tabGen = 0;
 
     constructor(private readonly d: StatsPanelDeps) {
         this.tab = d.tab ?? "overview";
@@ -152,11 +154,16 @@ class StatsPanel {
     private async renderTab(): Promise<void> {
         const body = this.layer.querySelector<HTMLElement>("[data-stats-body]");
         if (!body) return;
+        // 代际护栏：快速切 tab 时两个 renderTab 并发在途，慢的那个后到
+        // 会把旧 tab 内容写进新 tab 选中态下（挂账清偿，20260829）
+        const gen = ++this.tabGen;
         this.charts.dispose();
         this.charts.startListen();
         body.innerHTML = `<div class="wengu-muted">${esc(this.d.t("loading"))}</div>`;
+        const stale = (): boolean => gen !== this.tabGen || !this.layer.isConnected;
         if (this.tab === "overview") {
             const sessions = (await this.d.history?.allSessions()) ?? [];
+            if (stale()) return;
             const stats = buildQuizStats(sessions);
             const extra: OverviewExtra = {
                 wrong: wrongOverviewNow(),
@@ -169,12 +176,13 @@ class StatsPanel {
             this.bindReviewEntries(body);
         } else {
             const sessions = (await this.d.history?.docSessions(this.d.docId)) ?? [];
+            if (stale()) return;
             const title = this.d.docs.find((x) => x.id === this.d.docId)?.title || this.d.docId;
             const s = buildDocStats(title, sessions, this.d.fullList);
             body.innerHTML = renderDocStatsHtml(this.d.t, {
                 docTitle: s.docTitle,
                 total: s.total,
-                wrongTotal: s.wrongs.length,
+                wrongTotal: s.wrongTotal,
                 rounds: s.rounds.map((r) => ({
                     startedAt: r.startedAt,
                     mode: modeLabel(r.mode),

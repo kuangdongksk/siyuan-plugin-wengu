@@ -198,17 +198,20 @@ export function buildQueue(progress: WenguWordProgress, now = Date.now()): { rev
     return { review, freshLeft: bookLeftOf(progress) };
 }
 
-/** 明天要复习多少个：到期时间落在 (现在, 明天结束] 的词（当前书口径）。 */
+/** 明天要复习多少个：到期时间落在 (今日 24 点, 明日 24 点] 的词（当前
+ *  书口径）。原口径 (现在, 明日 24 点] 把「今天稍后到期」的词也计进
+ *  明天——它们今天稍后就会进复习队列（挂账「到期口径」清偿）。 */
 export function dueTomorrowCount(progress: WenguWordProgress, now = Date.now()): number {
     const endToday = new Date(now);
     endToday.setHours(23, 59, 59, 999);
-    const end = endToday.getTime() + 86400_000;
+    const start = endToday.getTime();
+    const end = start + 86400_000;
     let count = 0;
     for (const key of Object.keys(progress.words)) {
         if (progress.simple[key] || progress.familiar[key]) continue;
         if (keyIndex(key) === undefined) continue;
         const due = progress.words[key].due;
-        if (due > now && due <= end) count++;
+        if (due > start && due <= end) count++;
     }
     return count;
 }
@@ -251,6 +254,7 @@ export function markMistake(progress: WenguWordProgress, index: number, now = Da
  *  清零、还写下 [0,0] 伪造打卡 streak（20260828 审查）。 */
 export function markFamiliar(progress: WenguWordProgress, index: number, wasNew: boolean, now = Date.now()): void {
     const key = keyOf(index);
+    if (!key) return; // keyOf 空串防护：空键会写进 familiar/log 污染进度
     progress.familiar[key] = 1;
     delete progress.ladder[key];
     rollToday(progress, now);
@@ -262,6 +266,7 @@ export function markFamiliar(progress: WenguWordProgress, index: number, wasNew:
 /** 星标开关，返回切换后是否已星标。 */
 export function toggleStar(progress: WenguWordProgress, index: number): boolean {
     const key = keyOf(index);
+    if (!key) return false; // keyOf 空串防护
     if (progress.starred[key]) {
         delete progress.starred[key];
         return false;

@@ -33,10 +33,16 @@ export function lookupStarFor(v: WordView, idx: number): void {
 }
 
 export function lookupFamiliarFor(v: WordView, idx: number): void {
-    markFamiliar(v.ui.progress!, idx, false);
+    // 梯内新词按新学口径计数（原恒 false 计成复习，口径失真）
+    const wasNew = v.freshWin?.has(idx) ?? false;
+    markFamiliar(v.ui.progress!, idx, wasNew);
     // 同步逐出挂起的在学窗口：syncLadderFor 以 freshWin 为准重建 ladder，
     // 不删的话刚清的条目被写回——familiar+ladder 双态、本会话继续出卡
     v.freshWin?.delete(idx);
+    // 标记「本会话已标熟」：该词当前卡收尾不再走 reviewWord 二次记账
+    // （标熟已计 revCount/建 FSRS——原当前卡标熟后落入复习批改路径，
+    // today.revCount 双计，20260829 三轮审查）
+    v.familiarized.add(idx);
     void v.store.save(v.ui.progress!);
     v.syncAi();
 }

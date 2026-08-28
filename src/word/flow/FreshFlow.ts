@@ -30,7 +30,6 @@ export function startFreshFor(v: WordView): void {
         if (i !== undefined) entries.push([i, { step: st[0], lastSeq: 0, errs: st[1] }]);
     }
     v.freshWin = new Map(entries);
-    v.sessionNew = new Set(v.freshWin.keys());
     v.seq = 0;
     v.ui.queueKind = "fresh";
     v.queue = [];
@@ -58,7 +57,6 @@ export function pickNextFresh(v: WordView): void {
     if (pick.kind === "new") {
         openWord(p, pick.idx);
         v.freshWin.set(pick.idx, { step: 0, lastSeq: v.seq, errs: 0 });
-        v.sessionNew.add(pick.idx);
     }
     v.cur = pick.idx;
     v.seq++;
