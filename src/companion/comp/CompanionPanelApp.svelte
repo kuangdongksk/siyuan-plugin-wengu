@@ -28,8 +28,11 @@
     ] as const;
 
     // 保存按钮从 DOM 收当前输入（非受控输入未失焦时 settings 里还没有）
+    // svelte-ignore non_reactive_update
     let nameEl: HTMLInputElement | undefined;
+    // svelte-ignore non_reactive_update
     let promptEl: HTMLTextAreaElement | undefined;
+    // svelte-ignore non_reactive_update
     let dirEl: HTMLInputElement | undefined;
     const save = (): void =>
         ctl.saveNow({
