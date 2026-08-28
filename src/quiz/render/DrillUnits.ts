@@ -55,34 +55,38 @@ export function buildDrillUnits(list: WenguQuestion[], materials: WenguMaterial[
 
 /** 单元列表 HTML：独立题=题卡；组单元=分栏壳（材料 + 全部题卡，非当前 hidden）。 */
 export function renderUnitsHtml(units: DrillUnit[], m: CardHtmlModel): string {
-    const out: string[] = [];
-    for (const u of units) {
-        if (u.kind === "single") {
-            out.push(tryCard(u.q!, u.idx!, m));
-            continue;
-        }
-        const cards = (u.qs ?? []).map((gq, i) => {
-            const html = tryCard(gq.q, gq.idx, m);
-            // 非当前题隐藏（MaterialFlow 切换时挪 hidden），恢复/揭示流程不受影响
-            return i === 0 ? html : html.replace('<div class="wengu-card"', '<div class="wengu-card" hidden');
-        });
-        out.push(`<div class="wengu-gunit" data-mid="${esc(u.mid ?? "")}">
+    return units.map((u) => renderOneUnitHtml(u, m)).join("");
+}
+
+/** 单个单元 HTML（静态分片管线逐片插入用，与整串拼装同构）。 */
+export function renderOneUnitHtml(u: DrillUnit, m: CardHtmlModel): string {
+    if (u.kind === "single") {
+        return tryCard(u.q!, u.idx!, m);
+    }
+    const cards = (u.qs ?? []).map((gq, i) => {
+        const html = tryCard(gq.q, gq.idx, m);
+        // 非当前题隐藏（MaterialFlow 切换时挪 hidden），恢复/揭示流程不受影响
+        return i === 0 ? html : html.replace('<div class="wengu-card"', '<div class="wengu-card" hidden');
+    });
+    return `<div class="wengu-gunit" data-mid="${esc(u.mid ?? "")}">
       <div class="wengu-ghead">
         <button class="wengu-gmat-fold" data-act="gmat-fold" title="${esc(m.t("materialToggle"))}">${svgIcon(
             "iconRight"
         )}<span>${esc(m.t("materialTitle"))}</span></button>
         <span class="wengu-gnav">
-          <button class="wengu-gnav-btn" data-act="gq-prev" title="${esc(m.t("groupPrev"))}">${svgIcon("iconLeft")}</button>
+          <button class="wengu-gnav-btn" data-act="gq-prev" title="${esc(m.t("groupPrev"))}">${svgIcon(
+              "iconLeft"
+          )}</button>
           <span class="wengu-gq-label" data-gq-label></span>
-          <button class="wengu-gnav-btn" data-act="gq-next" title="${esc(m.t("groupNext"))}">${svgIcon("iconRight")}</button>
+          <button class="wengu-gnav-btn" data-act="gq-next" title="${esc(m.t("groupNext"))}">${svgIcon(
+              "iconRight"
+          )}</button>
         </span>
       </div>
       <div class="wengu-gmat" data-mprotyle><span class="wengu-muted">…</span></div>
       <div class="wengu-gqs">${cards.join("")}</div>
       <div class="wengu-gclues" data-clues hidden></div>
-    </div>`);
-    }
-    return out.join("");
+    </div>`;
 }
 
 /** 单卡渲染失败给占位卡，不拖垮整个列表（与原 renderCardsHtml 同策）。 */

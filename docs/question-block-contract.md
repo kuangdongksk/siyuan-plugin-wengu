@@ -204,7 +204,13 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   卡列表 MutationObserver 失效重扫，active 只动前后两钮，当前题
   取 data-idx 而非可见序——材料组卷不再错位）；成像期间头部下方
   挂「题目渲染中 n/m」进度胶囊（mountStatic onProgress 逐卡回调，
-  填完摘除）。
+  填完摘除）。⑤视口优先渲染（20260829 ①~④）：题卡/组单元
+  `content-visibility:auto`（屏外跳过布局绘制，intrinsic 尺寸记忆）；
+  KaTeX 惰性（renderMathWhenVisible，IO 锚点=卡/组，进视口前 400px
+  才渲，整壳重建重置观察器防泄漏）；静态路径壳分片插入（列表空壳
+  先落，单元逐片插+绑+填同一帧预算循环，消灭整壳解析冻结；已答
+  恢复/预览装饰等题卡就绪，renderListInner 返回就绪 Promise）；
+  装载分页 512→2048。
 - **预览模式**（mode="preview"，2026-08-26 起）：开刷面板「预览」
   入口（预览 | 开始刷题 | 错题回顾）。复用做题壳渲染题卡后由
   PreviewFlow 装饰成只读态——作答位/提交/自评/思路摘除，正确项

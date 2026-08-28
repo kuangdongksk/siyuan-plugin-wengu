@@ -52,12 +52,17 @@ export async function hydrateAll(questions: WenguQuestion[]): Promise<void> {
             .slice(off, off + ID_CHUNK)
             .map((q) => q.id)
             .join("','");
-        const rows = await KernelQuery.rowsAll<ChildRow>(`
+        // 分页 2048（默认 512）：整卷 ~2000 行从 4~5 次串行内核请求
+        // 压到 1 次（fetchSyncPost 必须串行，省的是往返不是并发）
+        const rows = await KernelQuery.rowsAll<ChildRow>(
+            `
                 SELECT b.parent_id AS pid, b.id AS bid, b.markdown AS markdown, a.value AS part
                 FROM blocks AS b
                 LEFT JOIN attributes AS a ON a.block_id = b.id AND a.name = '${Attr.part}'
                 WHERE b.parent_id IN ('${inList}')
-                ORDER BY b.parent_id, b.id`);
+                ORDER BY b.parent_id, b.id`,
+            2048
+        );
         for (const r of rows) {
             const arr = blocksByPid.get(r.pid) ?? [];
             arr.push({ id: r.bid, markdown: r.markdown });

@@ -26,22 +26,29 @@ export function bindGroupUnits(root: HTMLElement, units: DrillUnit[], host: Answ
     for (const unit of root.querySelectorAll<HTMLElement>(".wengu-gunit")) {
         const u = units.find((x) => x.kind === "group" && x.mid === unit.dataset.mid);
         if (!u?.qs?.length) continue;
-        const cur = clampQi(qiByMid.get(u.mid ?? "") ?? 0, u.qs.length);
-        showQuestion(unit, u, cur, opts, false);
-        unit.querySelector("[data-act='gq-prev']")?.addEventListener("click", () => {
-            stepQuestion(unit, u, -1, opts);
-        });
-        unit.querySelector("[data-act='gq-next']")?.addEventListener("click", () => {
-            stepQuestion(unit, u, 1, opts);
-        });
-        unit.querySelector("[data-act='gmat-fold']")?.addEventListener("click", () => {
-            unit.toggleAttribute("data-collapsed");
-        });
-        const mat = unit.querySelector<HTMLElement>(".wengu-gmat");
-        mat?.addEventListener("scroll", () => {
-            if (u.mid) scrollByMid.set(u.mid, mat.scrollTop);
-        });
+        bindOneGroupUnit(unit, u, opts);
     }
+}
+
+/** 绑定一个组单元（静态分片管线逐片插入时复用；host 参数保留给
+ *  未来组级交互，与 bindGroupUnits 同签名语义）。 */
+export function bindOneGroupUnit(unit: HTMLElement, u: DrillUnit, opts: GroupFlowOpts): void {
+    if (!u.qs?.length) return;
+    const cur = clampQi(qiByMid.get(u.mid ?? "") ?? 0, u.qs.length);
+    showQuestion(unit, u, cur, opts, false);
+    unit.querySelector("[data-act='gq-prev']")?.addEventListener("click", () => {
+        stepQuestion(unit, u, -1, opts);
+    });
+    unit.querySelector("[data-act='gq-next']")?.addEventListener("click", () => {
+        stepQuestion(unit, u, 1, opts);
+    });
+    unit.querySelector("[data-act='gmat-fold']")?.addEventListener("click", () => {
+        unit.toggleAttribute("data-collapsed");
+    });
+    const mat = unit.querySelector<HTMLElement>(".wengu-gmat");
+    mat?.addEventListener("scroll", () => {
+        if (u.mid) scrollByMid.set(u.mid, mat.scrollTop);
+    });
 }
 
 /** 材料挂载完成（ProtyleHost.mount 之后）恢复各组滚动位置。 */

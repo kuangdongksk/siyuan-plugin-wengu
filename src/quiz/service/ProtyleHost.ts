@@ -19,8 +19,8 @@ import { esc } from "../../ui/shared";
 export const PROTYLE_INLINE_MAX = 50;
 
 /** mountStatic 分片渲染的帧预算（ms）：填满即 yield，滚动/点击在
- *  长卷成像期间保持可响应。 */
-const STATIC_FRAME_BUDGET_MS = 16;
+ *  长卷成像期间保持可响应（静态管线逐单元插入同用它）。 */
+export const STATIC_FRAME_BUDGET_MS = 16;
 
 export class ProtyleHost {
     private readonly protyles = new Map<string, Protyle>();
@@ -103,7 +103,7 @@ export class ProtyleHost {
                     fallbackQuestionHtml(q) +
                     (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
             }
-            renderMath(node);
+            renderMathWhenVisible(node);
             done++;
             onProgress?.(done, nodes.length);
         }
@@ -155,6 +155,9 @@ export class ProtyleHost {
     /** 重渲染前调用：销毁全部 Protyle，代数自增。 */
     destroyAll(): void {
         this.mountGen++;
+        // 惰性数学观察器一并重置：在途锚点全属旧 DOM，不重置会扣住
+        // 整棵旧卡片树（IO 强引用）跨渲染泄漏
+        resetLazyMath();
         for (const p of this.protyles.values()) {
             try {
                 p.destroy();
@@ -163,6 +166,11 @@ export class ProtyleHost {
             }
         }
         this.protyles.clear();
+    }
+
+    /** 当前挂载代数（静态分片管线放弃在途批次用）。 */
+    currentGen(): number {
+        return this.mountGen;
     }
 }
 
@@ -261,4 +269,40 @@ function renderMath(el: HTMLElement): void {
 /** 对任意容器渲染公式/代码高亮（StepsFlow 填充步骤内容后调用）。 */
 export function renderMathIn(el: HTMLElement): void {
     renderMath(el);
+}
+
+/** 惰性数学观察器：锚点（题卡/组单元）进入视口前 400px 才渲染公式。
+ *  长卷整卷 KaTeX 是成像大头，与思源 Protyle 编辑器「滚到可视区才
+ *  渲公式」同策略——静态路径只注入 Lute HTML 字符串，公式按需补。
+ *  观察目标取卡/组锚点而非 qprotyle 本体：content-visibility 跳过
+ *  渲染的卡片内部无布局盒，IO 不触发；锚点盒子（intrinsic 尺寸）
+ *  始终存在。 */
+let lazyMathObserver: IntersectionObserver | undefined;
+
+/** KaTeX 惰性渲染入口（mountStatic 逐节点与预览装饰共用）。 */
+export function renderMathWhenVisible(node: HTMLElement): void {
+    if (typeof IntersectionObserver === "undefined") {
+        renderMath(node); // 环境无 IO（老内核/测试）立即渲染
+        return;
+    }
+    if (!lazyMathObserver) {
+        lazyMathObserver = new IntersectionObserver(
+            (entries) => {
+                for (const e of entries) {
+                    if (!e.isIntersecting) continue;
+                    lazyMathObserver!.unobserve(e.target);
+                    if (e.target.isConnected) renderMath(e.target as HTMLElement);
+                }
+            },
+            { rootMargin: "400px 0px" }
+        );
+    }
+    lazyMathObserver.observe(node.closest<HTMLElement>(".wengu-card, .wengu-gunit") ?? node);
+}
+
+/** 整壳重建时重置惰性观察器（destroyAll 调）：在途锚点属旧 DOM，
+ *  IO 强引用会扣住整棵旧卡片树跨渲染泄漏。 */
+function resetLazyMath(): void {
+    lazyMathObserver?.disconnect();
+    lazyMathObserver = undefined;
 }

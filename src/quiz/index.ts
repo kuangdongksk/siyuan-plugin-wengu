@@ -448,8 +448,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
 
     private renderList(): void {
         this.el.classList.add("wengu-panel");
+        let ready: Promise<void> | undefined;
         try {
-            this.renderListInner();
+            ready = this.renderListInner();
         } catch (e) {
             this.protyleHost.destroyAll();
             this.el.innerHTML = `${renderRailHtml(this.t, this.workspace)}<div class="wengu-head"></div>
@@ -462,11 +463,17 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         // 目录/设置变更/切工作区/继续上轮……全走它），不恢复的话已答题
         // 回到未答外观、可重复提交（attempts 再+1、会话重复条目）。
         // 渐进/预览/复习不绑作答，started 未开的装载也不需要。
-        if (this.mode === "quiz" && this.started && !this.progressive.active) restoreAnsweredCards(this);
+        // 静态路径题卡分片插入——恢复必须等全部就绪（restoreAnsweredCards
+        // 幂等，多轮渲染的在途 then 重复执行无害）。
+        const restore = () => {
+            if (this.mode === "quiz" && this.started && !this.progressive.active) restoreAnsweredCards(this);
+        };
+        if (ready) void ready.then(restore);
+        else restore();
     }
 
-    private renderListInner(): void {
-        renderQuizShellFor(this);
+    private renderListInner(): Promise<void> | undefined {
+        return renderQuizShellFor(this);
     }
 
     /** 打开统计面板（tab 直落；下钻后 load 完成时也走这里重开）。 */

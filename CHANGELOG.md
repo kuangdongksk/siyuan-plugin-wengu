@@ -2,6 +2,20 @@
 
 ## v0.1.1 unreleased
 
+- 长卷「视口优先渲染」（20260829，①~④一次到位）：①题卡/组单元
+  `content-visibility: auto`——屏外卡片跳过布局/绘制与分片填充引发的
+  全卷重排（contain-intrinsic-size 记住已渲染尺寸，回滚不跳；数学卡
+  偏高者滚动条会轻微修正，属预期）；②KaTeX 惰性——静态路径只注入
+  Lute HTML，公式在卡片进入视口前 400px 才渲（renderMathWhenVisible
+  IntersectionObserver，与思源 Protyle 编辑器同策略；观察锚点取卡/组
+  而非 qprotyle——c-v 跳过渲染的卡片内部无布局盒 IO 不触发；整壳重建
+  时 destroyAll 重置观察器防旧 DOM 树被 IO 强引用扣住泄漏）；③壳分片
+  插入——静态路径壳先落（题卡列表空），单元逐片插入+绑定+Lute 填充
+  同一 16ms 帧预算循环，消灭整壳一次性解析的同步冻结（~200 题几百
+  毫秒）；已答锁定恢复/预览装饰改等题卡就绪（renderListInner 返回
+  Promise），预览态不绑作答事件（守卫与 bindQuizFor 同口径）；
+  ④装载分页 512→2048——整卷 ~2000 行从 4~5 次串行内核请求压到 1 次。
+  胶囊计数随分片推进（逐单元累加）。
 - 长卷静态渲染卡顿续修（20260828，197 题卡）：①Lute 单例复用——原
   每个 kramdown 片段都 Lute.New() 重初始化解析器，整卷上千次纯浪费；
   ②mountStatic 分片异步——16ms 帧预算逐卡填充后 yield，题卡「…」

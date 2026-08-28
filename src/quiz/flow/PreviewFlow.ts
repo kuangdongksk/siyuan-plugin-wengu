@@ -1,6 +1,6 @@
 import { fillOneStep } from "../render/CardHtml";
 import { typeKey } from "../render/CardParts";
-import { mdFragmentHtml, renderMathIn } from "../service/ProtyleHost";
+import { mdFragmentHtml, renderMathWhenVisible } from "../service/ProtyleHost";
 import { optionIsRight } from "../service/QuestionGrading";
 import { svgIcon } from "../../ui/FormHtml";
 import type { WenguQuestion, WenguStep } from "../../types";
@@ -77,7 +77,9 @@ function decorateOneCard(card: HTMLElement, q: WenguQuestion, t: (k: string) => 
     const stem = card.querySelector(".wengu-qprotyle");
     if (ansHtml && stem) {
         stem.insertAdjacentHTML("afterend", ansHtml);
-        renderMathIn(card);
+        // 长卷预览整卷同步 KaTeX 会冻结——惰性到卡片接近视口（与静态
+        // 填充同策略；观察锚点即卡本身）
+        renderMathWhenVisible(card);
     }
 }
 

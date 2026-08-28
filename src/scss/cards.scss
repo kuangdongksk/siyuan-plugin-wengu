@@ -116,6 +116,18 @@
   background: var(--b3-theme-background);
   /* 点击题号 scrollIntoView 后别贴顶 */
   scroll-margin: 8px;
+  /* 长卷视口优先（20260829）：屏外卡片跳过布局/绘制/分片填充引发的
+     全卷重排——Chromium 对 content-visibility 支持成熟；auto 关键字
+     让浏览器记住上次渲染尺寸，回滚不跳。估计高度 ~240px 贴平均卡高，
+     数学卡偏高者滚动时滚动条会轻微修正，属预期 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
+}
+
+/* 材料组单元同款（材料面板 + 组内题卡都重） */
+.wengu-gunit {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
 }
 
 .wengu-card-head {
