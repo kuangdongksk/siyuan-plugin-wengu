@@ -50,9 +50,21 @@ export function bindNumRail(
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (!scroller) return;
     // 头部吸顶后题号栏让位到头下：实测头部实际高度（窄窗折行会更高），
-    // 每次渲染后刷新到滚动容器上
+    // 每次渲染后刷新到滚动容器上；题号栏封顶 = 滚动可视区 − 头下缘，
+    // 同样实测写入（--wengu-nums-max）——固定 100vh-N 的页签 chrome
+    // 余量在两台机器/主题间差几像素，猜值两轮真机反馈都不准
+    // （20260829「题号没占满」→「又装不下，只差几像素」）
     const head = root.querySelector<HTMLElement>(".wengu-head");
-    if (head) scroller.style.setProperty("--wengu-head-h", `${head.offsetHeight + 8}px`);
+    const applyHeights = (): void => {
+        if (!head) return;
+        const headH = head.offsetHeight + 8;
+        scroller.style.setProperty("--wengu-head-h", `${headH}px`);
+        const max = `${Math.max(160, scroller.clientHeight - headH - 8)}px`;
+        if (scroller.style.getPropertyValue("--wengu-nums-max") !== max) {
+            scroller.style.setProperty("--wengu-nums-max", max);
+        }
+    };
+    applyHeights();
     // 可见题卡缓存：静态渲染分片填 innerHTML、材料组切 hidden 都会
     // 改子树——观察到了才重扫，滚动帧内用缓存
     const visibleCards = () => Array.from(root.querySelectorAll<HTMLElement>(".wengu-card:not([hidden])"));
@@ -72,6 +84,7 @@ export function bindNumRail(
             pending = true;
             window.requestAnimationFrame(() => {
                 pending = false;
+                applyHeights(); // 窗口缩放后随滚动自愈（值没变时零开销）
                 if (performance.now() < lockUntil) {
                     // 平滑滚动仍在进行就续锁：长列表滚到末尾常超 800ms，
                     // 固定锁过期后「顶端最近」规则会把点击的末题翻回前题
