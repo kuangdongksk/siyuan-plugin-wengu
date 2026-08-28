@@ -1,6 +1,5 @@
-import { BUILTIN_BOOK, type WenguWordUnitMeta } from "../service/WordBook";
+import type { WenguWordUnitMeta } from "../service/WordBook";
 import { wordLib } from "../service/WordLib";
-import { migrateV2 } from "./WordMigrate";
 
 /**
  * 单词复习的进度存储（schema v3，20260828 redesign §五）：**进度 key 从
@@ -416,11 +415,11 @@ export class WordStore {
         try {
             const data = (await this.loadRaw()) as unknown;
             const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
-            // v2→v3（key 下标→归一化词头）一次性迁移：内置书是 v2 时代唯一
-            // 词书，索引按内置书换算；v1 更早文件无存量、按新进度起步。
-            // 迁移代码待用户确认存量落盘 v3 后移除（同 v1→v2 先例）。
-            this.cache =
-                ver === 3 ? (data as WenguWordProgress) : ver === 2 ? migrateV2(data, BUILTIN_BOOK) : defaultProgress();
+            // 仅认 v3（词头 key）。v2→v3 一次性迁移代码已于 20260829 确认
+            // 存量落盘 v3 后移除（core/WordMigrate，同 v1→v2 先例）；再遇
+            // 旧版本文件按空进度起步并告警（真机确认无 v2 存量）。
+            if (data && ver !== 3) console.warn(`[wengu] words 进度版本非 v3（${String(ver)}），按空进度起步`);
+            this.cache = ver === 3 ? (data as WenguWordProgress) : defaultProgress();
         } catch (_) {
             this.cache = defaultProgress();
         }

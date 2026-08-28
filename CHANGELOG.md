@@ -2,6 +2,10 @@
 
 ## v0.1.1 unreleased
 
+- v2→v3 进度迁移代码退役（20260829）：真机确认工作区 words 存量已是
+  v3（3243 词 FSRS/1532 熟/2 在学），删除 core/WordMigrate 及其测试、
+  WordStore.get 的 migrateV2 分支；仅认 v3，再遇旧版本文件按空进度
+  起步并 console.warn 告警（同 v1→v2 先例）。
 - 单词组边界误触发修复 + AI 通道弃用空会话（20260829）：①组边界判定
   `finishCount % groupSize === 0` 在 fresh 轨失效——finishCount 只在
   毕业递增，开局 0 与两次毕业之间的整数倍上**每张卡**都命中，把单卡

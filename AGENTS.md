@@ -34,7 +34,8 @@
       词库数据在 `word/data/`；**多词书**（2026-08-28 redesign §五）：
       词书=`data/wengu/wordbooks/{id}.json`+manifest（service/WordLib，
       内置书首启动落盘与导入同权），**进度 key=归一化词头**（schema v3，
-      同词跨书共享；v2 下标 key 由 core/WordMigrate 一次性迁移）、队列
+      同词跨书共享；v2 下标 key 的一次性迁移已随存量确认于 20260829
+      移除）、队列
       统计一律当前书口径）、
       `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题标题含
       「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath

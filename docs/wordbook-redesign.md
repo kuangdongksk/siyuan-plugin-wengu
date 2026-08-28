@@ -135,8 +135,8 @@ peek:true}` → 正确项高亮 + 详情 + 「下一个/记错了」，反馈文
   mistakes/simple/familiar/starred/timing/notes）与易混组 ids/confNotes
   key 全部换词头；v2 的 `cursor` 字段废除（新词=全书扫第一个无进度词，
   太简单/熟的词不再被当新词引入——与「剩」口径统一）；**存量 v2→v3
-  一次性迁移**（core/WordMigrate，索引按内置书换算，坏组员丢弃；待用户
-  确认落盘后移除，同 v1→v2 先例）。
+  一次性迁移**（core/WordMigrate，索引按内置书换算，坏组员丢弃；已于
+  20260829 确认机器 A 存量落盘 v3 后移除迁移代码，同 v1→v2 先例）。
 - **存储**：工作区文件 `data/wengu/wordbooks/{id}.json`（紧凑数组线上格式，
   WordBook.bookToFile/bookFromFile）+ manifest `index.json`（书单+当前书）；
   文件 IO 走 `siyuan/files.ts` 内核特殊通道（getFile 裸内容/putFile
