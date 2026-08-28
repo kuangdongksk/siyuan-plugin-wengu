@@ -149,12 +149,13 @@ export class CompanionCtl {
         return typeof x === "number" && typeof y === "number" ? { x, y } : undefined;
     }
 
-    /** 拖动结束落盘位置。拖拽中组件已按容器实际尺寸动态钳位，这里只做
-     *  最小钳（8px 不出界）——若再按固定余量钳，会与拖拽中看到的位置跳变。 */
+    /** 拖动结束落盘团子左上角位置。拖拽中组件已按容器实际尺寸动态钳
+     *  位，这里只做最小钳（团子 64 + 8px 边距不出界）——若再按固定余
+     *  量钳，会与拖拽中看到的位置跳变。 */
     setFigurePos(x: number, y: number): void {
         const s = this.d.settings;
-        s.companionX = Math.max(8, Math.min(x, window.innerWidth - 8));
-        s.companionY = Math.max(8, Math.min(y, window.innerHeight - 8));
+        s.companionX = Math.max(8, Math.min(x, window.innerWidth - 72));
+        s.companionY = Math.max(8, Math.min(y, window.innerHeight - 72));
         s.save?.();
     }
 

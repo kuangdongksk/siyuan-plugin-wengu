@@ -38,6 +38,19 @@
   attachCompanion/detachCompanion API 清退、单词 WordApp 内嵌份摘除，
   全局层由插件 onload mountCompanionGlobal（mount→unmountSvelteApp 修
   类型）、onunload 显式卸（重载不叠影）。
+- 悬浮层位置系统重写「团子恒锚」（20260828 用户报「还得修」）：四连
+  修后仍两处系统性问题——①水平朝向条件写反（r 小=贴右半屏却加
+  .wengu-comp-left 向右展开，fresh load 即命中：气泡一弹团子被推离
+  锚角 ~208px、7s 后弹回）；②内联锚恒钉容器右/下缘而展开物朝锚反
+  方向生长，只有默认朝向团子恰在锚缘不动，贴左/上时开聊即被顶走。
+  重写为 orient(r,b) 按落点判贴边侧、内联锚随朝向换轴（贴右/下出
+  right/bottom，贴左/上换算 left/top），四组合下团子恒落
+  (视口-r-64, 视口-b-64)、展开物只向屏内生长，拖拽跨中点翻转朝向
+  不再跳团子；钳位随朝向算轴。附带：落盘改读团子实际 rect（原读容
+  器 rect，聊天开着拖落盘漂移一个展开宽）；视口尺寸经
+  svelte:window bind 进响应链（原 resize 后朝向类不重算）；
+  setFigurePos 最小钳上界改 视口-72（原 -8 允许团子大半出界）；朝向
+  类 wengu-comp-up→comp-top 改名贴边侧语义、三处与行为相反的注释纠偏。
 - 新学滚动窗口 + FSRS 复习排期（20260828 redesign §二/§三 定稿实施）：
   新学会话弃静态流水线（pipelineLadder 删）改**每张卡现场决策**的滚动
   窗口（flow/WindowSched 纯函数+7 例单测：窗口未满先进新词/满窗推进
