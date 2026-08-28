@@ -196,7 +196,13 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   同走 mountStatic 静态 Lute+KaTeX，不再逐卡挂内嵌 Protyle（N 个
   实例 × 8s 挂载等待是长卷卡死主源）。③题号栏 max-height 用视口
   近似 `calc(100vh - 200px)`（父级 .wengu-body 高度自适应，原 100%
-  无约束，长卷题号底端不可达）。
+  无约束，长卷题号底端不可达）。④静态渲染性能续修（20260828，
+  197 题卡顿）——Lute 单例复用（原每个 kramdown 片段 Lute.New()
+  一次，整卷上千次纯浪费）；mountStatic 分片异步（16ms 帧预算
+  yield，题卡「…」占位渐次成像，mountGen 自增放弃在途批次、已挂
+  真 Protyle 的节点跳过防覆写）；题号栏滚动跟踪改缓存+差分（可见
+  卡列表 MutationObserver 失效重扫，active 只动前后两钮，当前题
+  取 data-idx 而非可见序——材料组卷不再错位）。
 - **预览模式**（mode="preview"，2026-08-26 起）：开刷面板「预览」
   入口（预览 | 开始刷题 | 错题回顾）。复用做题壳渲染题卡后由
   PreviewFlow 装饰成只读态——作答位/提交/自评/思路摘除，正确项

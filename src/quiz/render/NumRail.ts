@@ -2,6 +2,11 @@
  * 题号导航（从 QuizView 拆出）：点击平滑滚到对应卡片；滚动时联动
  * 高亮当前题。当前题下标通过 onActive 回调上报——逐题计时的计时
  * 对象跟随它，即使题号栏被设置关闭也保持滚动跟踪。
+ *
+ * 长卷性能（20260828）：可见题卡列表缓存 + MutationObserver 失效
+ * （hidden 翻转/子树重建才重扫，滚动帧内不再全树 querySelectorAll，
+ * ~200 题卷每帧省一次 8000+ 节点扫描）；active 差分更新只动前后
+ * 两个按钮，同题号重复上报直接跳过。
  */
 export function bindNumRail(
     root: HTMLElement,
@@ -11,12 +16,18 @@ export function bindNumRail(
     // 点击导航后的平滑滚动期间暂停滚动跟踪回写：末尾卡片到不了视口
     // 顶部，「顶端最近」规则会把点击的题号翻回前面的题（真机踩坑）。
     let lockUntil = 0;
+    let lastN = -1;
+    let activeBtn: HTMLElement | null = null;
     const setActive = (n: number) => {
+        if (n === lastN) return;
+        lastN = n;
         opts.onActive(n - 1);
         if (!nav) return;
-        nav.querySelectorAll(".wengu-num").forEach((b) => {
-            b.classList.toggle("wengu-num-active", Number((b as HTMLElement).dataset.num) === n);
-        });
+        const next = nav.querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
+        if (next === activeBtn) return;
+        activeBtn?.classList.remove("wengu-num-active");
+        next?.classList.add("wengu-num-active");
+        activeBtn = next;
     };
     if (nav) {
         for (const btn of nav.querySelectorAll<HTMLElement>(".wengu-num")) {
@@ -42,6 +53,17 @@ export function bindNumRail(
     // 每次渲染后刷新到滚动容器上
     const head = root.querySelector<HTMLElement>(".wengu-head");
     if (head) scroller.style.setProperty("--wengu-head-h", `${head.offsetHeight + 8}px`);
+    // 可见题卡缓存：静态渲染分片填 innerHTML、材料组切 hidden 都会
+    // 改子树——观察到了才重扫，滚动帧内用缓存
+    const visibleCards = () => Array.from(root.querySelectorAll<HTMLElement>(".wengu-card:not([hidden])"));
+    let cards = visibleCards();
+    let dirty = false;
+    const body = root.querySelector<HTMLElement>(".wengu-body");
+    if (body) {
+        new MutationObserver(() => {
+            dirty = true;
+        }).observe(body, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden"] });
+    }
     let pending = false;
     scroller.addEventListener(
         "scroll",
@@ -56,19 +78,21 @@ export function bindNumRail(
                     lockUntil = performance.now() + 200;
                     return;
                 }
-                // 组内隐藏卡不参与「顶端最近」跟踪（rect 全零会误判）
-                const cards = Array.from(root.querySelectorAll<HTMLElement>(".wengu-card:not([hidden])"));
+                if (dirty) {
+                    cards = visibleCards();
+                    dirty = false;
+                }
                 if (cards.length === 0) return;
                 const top = scroller.getBoundingClientRect().top + 24;
                 let best = 0;
                 let bestDist = Infinity;
-                cards.forEach((c, i) => {
+                for (const c of cards) {
                     const d = Math.abs(c.getBoundingClientRect().top - top);
                     if (d < bestDist) {
                         bestDist = d;
-                        best = i;
+                        best = Number(c.dataset.idx ?? 0);
                     }
-                });
+                }
                 setActive(best + 1);
             });
         },

@@ -18,6 +18,10 @@ import { esc } from "../../ui/shared";
  *  串行挂 N 个 Protyle 实例是真机卡死主源（每个还有 8s 等待上限）。 */
 export const PROTYLE_INLINE_MAX = 50;
 
+/** mountStatic 分片渲染的帧预算（ms）：填满即 yield，滚动/点击在
+ *  长卷成像期间保持可响应。 */
+const STATIC_FRAME_BUDGET_MS = 16;
+
 export class ProtyleHost {
     private readonly protyles = new Map<string, Protyle>();
     /** 挂载代数：destroy 时自增，让在途的异步挂载自动放弃。 */
@@ -61,25 +65,38 @@ export class ProtyleHost {
         return holder?.dataset.mid || holder?.dataset.qid || "";
     }
 
-    /** 题库（专题）模式的静态挂载：Lute 渲染题干/选项 + 解析容器
-     *  （作答前由 CSS 随 wengu-graded 显隐，防剧透与文档模式同机制），
-     *  块引用静态渲染为可点击跳转。材料面板按来源文档并集静态渲染。
-     *  不碰内核，无串行约束。 */
-    mountStatic(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): void {
-        for (const node of Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle]"))) {
-            const card = node.closest<HTMLElement>(".wengu-card");
-            const q = list.find((x) => x.id === card?.dataset.qid);
-            if (!q) continue;
-            const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
-            node.innerHTML =
-                fallbackQuestionHtml(q) +
-                (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
-            renderMath(node);
-        }
-        for (const node of Array.from(root.querySelectorAll<HTMLElement>("[data-mprotyle]"))) {
-            const mat = materials.find((x) => x.id === this.nodeBlockId(node));
-            if (!mat?.bodyMd) continue;
-            node.innerHTML = safeLute(mat.bodyMd);
+    /** 题库（专题）模式与长卷（>PROTYLE_INLINE_MAX）的静态挂载：Lute
+     *  渲染题干/选项 + 解析容器（作答前由 CSS 随 wengu-graded 显隐，
+     *  防剧透与文档模式同机制），块引用静态渲染为可点击跳转。材料
+     *  面板按来源文档并集静态渲染。不碰内核，无串行约束。
+     *  分片异步（20260828 长卷卡顿）：~200 题整卷 Lute+KaTeX 是数秒级
+     *  单任务，逐卡填完一帧预算（16ms）就 yield 让 UI 呼吸，题卡按
+     *  「…」占位渐次成像；整壳重渲染（mountGen 自增）放弃在途批次，
+     *  材料组切换已挂真 Protyle 的节点跳过（防静态内容覆写挂载实例）。 */
+    async mountStatic(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): Promise<void> {
+        const gen = this.mountGen;
+        let deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
+        const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle], [data-mprotyle]"));
+        for (const node of nodes) {
+            if (gen !== this.mountGen) return; // 整壳已重建，放弃本轮
+            if (performance.now() > deadline) {
+                await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+                deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
+            }
+            if (this.protyles.has(this.nodeBlockId(node))) continue; // 已挂真 Protyle
+            if (node.hasAttribute("data-mprotyle")) {
+                const mat = materials.find((x) => x.id === this.nodeBlockId(node));
+                if (!mat?.bodyMd) continue;
+                node.innerHTML = safeLute(mat.bodyMd);
+            } else {
+                const card = node.closest<HTMLElement>(".wengu-card");
+                const q = list.find((x) => x.id === card?.dataset.qid);
+                if (!q) continue;
+                const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
+                node.innerHTML =
+                    fallbackQuestionHtml(q) +
+                    (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
+            }
             renderMath(node);
         }
     }
@@ -160,19 +177,35 @@ function waitForBlockNode(node: HTMLElement, timeoutMs: number): Promise<boolean
     });
 }
 
+/** 复用的 Lute 单例（懒建）：长卷静态渲染一次要跑上千个 kramdown
+ *  片段（题干/选项/解析 × ~200 题），每次 Lute.New() 重初始化解析器
+ *  是纯浪费——Md2BlockDOM 单次调用无状态，思源前端自身也是整窗
+ *  复用一个实例。 */
+let sharedLute: LuteLike | undefined;
+
+/** Lute 实例的用到的最小面（window.Lute 的结构类型收窄）。 */
+interface LuteLike {
+    SetKramdownIAL(b: boolean): void;
+    SetInlineMath(b: boolean): void;
+    SetInlineMathAllowDigitAfterOpenMarker(b: boolean): void;
+    Md2BlockDOM(md: string): string;
+}
+
 /** 把 kramdown 交给思源 Lute 渲染为块 DOM HTML。
  *  Lute 是 window 全局（app 逐窗口加载 lute.min.js），插件 API 模块
- *  「siyuan」并不导出它——import { Lute } from "siyuan" 拿到 undefined，
+ *  「siyuan」并不导出它——import { Lute } from "siyuan" 得到 undefined，
  *  New() 抛异常被 safeLute 吞掉后整体退成 <pre> 纯文本，公式显示为
  *  裸 $...$（20260825 真机踩坑，3.8.1 加载器实测确认）。 */
 function luteToHtml(md: string): string {
-    const lute = window.Lute.New();
-    lute.SetKramdownIAL(true);
-    // 行级/块级公式必须显式开启（编辑器配置默认关，不开 $...$ 原样输出）
-    lute.SetInlineMath(true);
-    (lute as unknown as { SetMathBlock?: (b: boolean) => void }).SetMathBlock?.(true);
-    lute.SetInlineMathAllowDigitAfterOpenMarker(true);
-    return lute.Md2BlockDOM(md);
+    if (!sharedLute) {
+        sharedLute = window.Lute.New() as LuteLike;
+        sharedLute.SetKramdownIAL(true);
+        // 行级/块级公式必须显式开启（编辑器配置默认关，不开 $...$ 原样输出）
+        sharedLute.SetInlineMath(true);
+        (sharedLute as unknown as { SetMathBlock?: (b: boolean) => void }).SetMathBlock?.(true);
+        sharedLute.SetInlineMathAllowDigitAfterOpenMarker(true);
+    }
+    return sharedLute.Md2BlockDOM(md);
 }
 
 /** 选项行 HTML（静态/降级渲染共用；复习详情也走它）：字母角标按位

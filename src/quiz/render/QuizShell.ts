@@ -91,8 +91,9 @@ export function renderQuizShellFor(v: QuizView): void {
     // 渲染路径分流：题库模式/长卷走静态 Lute（无内核请求、无 N 个
     // Protyle 实例）；常规卷走内嵌 Protyle（块级还原最完整）
     if (colMode || v.list.length > PROTYLE_INLINE_MAX) {
-        v.protyleHost.mountStatic(v.el, v.list, v.materials);
-        restoreGroupScrolls(v.el);
+        // 静态渲染分片异步（长卷卡顿修复）：题卡「…」占位渐次成像，
+        // 组滚动位置等全部填完再恢复
+        void v.protyleHost.mountStatic(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
     } else {
         void v.protyleHost.mount(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
     }

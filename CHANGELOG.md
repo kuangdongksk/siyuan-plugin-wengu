@@ -2,6 +2,14 @@
 
 ## v0.1.1 unreleased
 
+- 长卷静态渲染卡顿续修（20260828，197 题卡）：①Lute 单例复用——原
+  每个 kramdown 片段都 Lute.New() 重初始化解析器，整卷上千次纯浪费；
+  ②mountStatic 分片异步——16ms 帧预算逐卡填充后 yield，题卡「…」
+  占位渐次成像，整壳重渲染（mountGen）放弃在途批次、材料组切换已挂
+  真 Protyle 的节点跳过防覆写，组滚动位置改为填完再恢复；③题号栏
+  滚动跟踪缓存化——可见卡列表 MutationObserver 失效重扫（滚动帧内
+  不再全树 querySelectorAll）、active 差分更新只动前后两钮、当前题
+  取 data-idx 修材料组卷错位。
 - 静态渲染选项字母角标（20260828，用户反馈「ABCD 都没了」）：>50 题
   长卷与题库模式走 mountStatic、Protyle 挂载失败走降级——两路选项文本
   被 optionDisplayMd 剥掉文档里的字母标签后无人补画，选项成无字母裸
