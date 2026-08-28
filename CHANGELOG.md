@@ -2,6 +2,11 @@
 
 ## v0.1.1 unreleased
 
+- 内嵌 Protyle 题卡选项锁只读（20260829，用户「选项不应该能编辑」）：
+  3.8.1 前端源码核实——Wysiwyg 构造在桌面端无条件 contenteditable="true"，
+  protyle.disable() 只置内部标志，选项块仍可被就地编辑。照搬思源自家只读面
+  （agent chat body）配方：contenteditable="false" + data-readonly="true"，
+  构造后与装载完成各刷一遍（覆盖 8s 等待期）；点击作答与文本选择不受影响。
 - 题号栏占满可视高（20260829，用户反馈「题号没占满」→「又装不下只差几
   像素」两轮）：题号竖列封顶第一轮从固定 `100vh - 200px` 改
   `100vh - var(--wengu-head-h) - 40px`（头高用 NumRail 实测变量，留页签

@@ -108,6 +108,7 @@ export class ProtyleHost {
                 mode: "wysiwyg",
                 render: { title: false, gutter: false, scroll: false, breadcrumb: false },
             });
+            lockWysiwyg(node); // 构造即锁：8s 装载等待期内也不可编辑
             this.protyles.set(blockId, protyle);
             const loaded = await waitForBlockNode(node, 8000);
             if (gen !== this.mountGen) {
@@ -120,6 +121,7 @@ export class ProtyleHost {
             }
             if (loaded) {
                 protyle.disable();
+                lockWysiwyg(node); // 再刷一遍：防装载期间属性被 protyle 内部重置
                 return;
             }
             try {
@@ -169,6 +171,18 @@ export class ProtyleHost {
 }
 
 /** 等 Protyle 把块 DOM 渲染进容器（出现 [data-node-id]），超时 false。 */
+/** 3.8.1 真机（前端源码核实）：Wysiwyg 构造在桌面端无条件
+ *  contenteditable="true"，protyle.disable() 只置内部标志——题卡选项块
+ *  仍可被就地编辑。照搬思源自家只读面（agent chat body）的配方：
+ *  contenteditable="false" + data-readonly="true" 双保险；点击作答与
+ *  文本选择不受影响。 */
+function lockWysiwyg(node: HTMLElement): void {
+    node.querySelectorAll<HTMLElement>(".protyle-wysiwyg").forEach((el) => {
+        el.setAttribute("contenteditable", "false");
+        el.setAttribute("data-readonly", "true");
+    });
+}
+
 function waitForBlockNode(node: HTMLElement, timeoutMs: number): Promise<boolean> {
     return new Promise((resolve) => {
         const start = Date.now();
