@@ -43,10 +43,11 @@ export function mountCompanionGlobal(): void {
     ctlRef.loadImages();
 }
 
-/** 卸全局层（插件 onunload）。 */
+/** 卸全局层（插件 onunload）+ 控制器收尾。 */
 export function unmountCompanionGlobal(): void {
     globalApp?.unmount();
     globalApp = undefined;
+    ctlRef?.dispose();
 }
 
 /* ── 学伴管理工作区面板（Svelte 四件套，模式见 docs/svelte-migration.md） ── */

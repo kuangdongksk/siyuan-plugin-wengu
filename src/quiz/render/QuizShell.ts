@@ -24,6 +24,32 @@ import { esc, yieldToBrowser } from "../../ui/shared";
  * 头部/题号/开刷面板/材料组/题卡绑定。纯编排，状态全在 QuizView。
  */
 
+/** renderList 主体（自 QuizView 拆出压 500 行红线）：整壳渲染 + 错误
+ *  兜底 + 落幕统一恢复已答锁定（renderList 是整壳 innerHTML 重建——
+ *  收起目录/设置变更/切工作区/继续上轮全走它，不恢复的话已答题回到
+ *  未答外观、可重复提交。渐进/预览/复习不绑作答，started 未开的装载
+ *  也不需要。静态路径题卡分片插入——恢复必须等全部就绪
+ *  （restoreAnsweredCards 幂等，多轮渲染的在途 then 重复执行无害）。 */
+export function renderListFor(v: QuizView): void {
+    v.el.classList.add("wengu-panel");
+    let ready: Promise<void> | undefined;
+    try {
+        ready = renderQuizShellFor(v);
+    } catch (e) {
+        v.protyleHost.destroyAll(v.el);
+        v.el.innerHTML = `${renderRailHtml(v.t, v.workspace)}<div class="wengu-head"></div>
+    <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(
+        String((e as Error)?.message ?? e)
+    )}</div>`;
+        bindHeadFor(v);
+    }
+    const restore = (): void => {
+        if (v.mode === "quiz" && v.started && !v.progressive.active) restoreAnsweredCards(v);
+    };
+    if (ready) void ready.then(restore);
+    else restore();
+}
+
 /** renderListInner 主体（QuizView.renderList 调；错误兜底留在视图）。
  *  静态路径（题库/长卷）返回「题卡全部就绪」的 Promise——已答锁定
  *  恢复、预览装饰等收尾须等它；其余路径同步完成返回 undefined。 */

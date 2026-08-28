@@ -70,7 +70,9 @@ export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
  */
 export function extractBlockId(input: string): string {
     const m = /(\d{14}-[a-z0-9]+)/i.exec(input.trim());
-    return m ? m[1] : input.trim();
+    // 未匹配时原样透传——调用方把它拼进 SQL（id = '…'），含引号即注入
+    // 面；块 id 字符集不含引号，剥掉只影响垃圾输入（20260829 三轮审查）
+    return m ? m[1] : input.trim().replace(/['"\\]/g, "");
 }
 
 /** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。

@@ -391,12 +391,16 @@ function bindKnowledgePanel(
                 // 二次确认：先点变文案，3s 内再点执行退册
                 const st = rmArmed.get(docId) ?? { armed: false };
                 if (!st.armed) {
-                    rmArmed.set(docId, { armed: true, timer: undefined });
-                    opBtn.textContent = v.t("collectConfirm");
+                    st.armed = true;
+                    // 定时器挂在 map 里的同一对象上——原 set 新对象后把
+                    // timer 写在旧引用，二次点击 clearTimeout(undefined)
+                    // 清不掉真定时器，退册后又被回填僵尸条目（20260829 审查）
                     st.timer = setTimeout(() => {
                         rmArmed.set(docId, { armed: false });
                         opBtn.textContent = v.t("knowRemoveBtn");
                     }, 3000);
+                    rmArmed.set(docId, st);
+                    opBtn.textContent = v.t("collectConfirm");
                     return;
                 }
                 clearTimeout(st.timer);

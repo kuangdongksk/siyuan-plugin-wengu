@@ -319,8 +319,16 @@ export class CompanionCtl {
     private armDoze(): void {
         clearTimeout(this.dozeTimer);
         this.dozeTimer = setTimeout(() => {
+            this.dozeTimer = undefined;
             this.showLine(pickLine(this.persona(), "doze"), WenguExpr.Doze);
         }, DOZE_AFTER_MS);
+    }
+
+    /** 卸载收尾（插件 onunload）：清打盹定时器——卸载 5 分钟后仍向已
+     * 卸组件的 ui 写台词虽无害，但属残留（20260829 三轮审查）。 */
+    dispose(): void {
+        clearTimeout(this.dozeTimer);
+        this.dozeTimer = undefined;
     }
 
     /** AI 增强层：单题事件按节奏自适应节流、批次完成必触发，生成

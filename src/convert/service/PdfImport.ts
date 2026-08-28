@@ -116,7 +116,8 @@ export async function importPdfAsDoc(file: File, opts: PdfImportOptions): Promis
         const target = `assets/wengu/${stamp}/${img.name}`;
         // putFile 路径必须工作区相对（带前导斜杠 3.8.1 会拼出非法盘符路径）
         await putAsset(`data/${notebook}/assets/wengu/${stamp}/${img.name}`, img.data);
-        markdown = markdown.replace(new RegExp(`images/${escRe(img.name)}`, "g"), target);
+        // 函数形式替换串：zip 内文件名含 $&/$' 等序列时不被特殊解释
+        markdown = markdown.replace(new RegExp(`images/${escRe(img.name)}`, "g"), () => target);
     }
 
     const title = titleOf(file.name);

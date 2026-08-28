@@ -145,8 +145,10 @@ export class QuestionBank {
         try {
             await this.saveRaw(this.cache);
         } catch (_) {
-            // 尽力而为：写失败保留脏标记等下次
+            // 尽力而为：写失败保留脏标记并重排防抖——原只保留标记不清
+            // 定时器，得等下一次 markDirty 才会再试（20260829 审查）
             this.dirty = true;
+            this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
         }
     }
 
@@ -447,7 +449,7 @@ export class QuestionBank {
         };
         data.hashed[hash] = qid;
         const col = data.collections.find((c) => c.title === title);
-        if (col) col.qids.push(qid);
+        if (col && !col.qids.includes(qid)) col.qids.push(qid); // 去重（与 appendToCollection 口径对齐）
         this.markDirty();
         return qid;
     }

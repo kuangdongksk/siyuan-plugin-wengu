@@ -1,12 +1,10 @@
-import { WordAiRunner, wordAiInput, type WordAiInput } from "../service/WordAi";
+import { WordAiRunner, type WordAiInput } from "../service/WordAi";
 import { wordLib } from "../service/WordLib";
-import { addPair, confOthers } from "../service/WordConfusables";
+import { confOthers } from "../service/WordConfusables";
 import { LookupConfCtl } from "../flow/WordLookup";
-import { redoHardFor } from "../flow/CardOps";
+import { finishCardFor, finishMasteredFor, redoHardFor } from "../flow/CardOps";
 import { switchBookFor, removeBookFor, importBookFor } from "../flow/BookOps";
-import { bookLeftFor, pickNextFresh, settleFreshFor, startFreshFor, syncLadderFor } from "../flow/FreshFlow";
-import { flushGroupFor, settleGroupBoundary } from "../flow/GroupFlow";
-import { notifyWordDone, notifyWordGrade } from "../../companion";
+import { bookLeftFor, startFreshFor } from "../flow/FreshFlow";
 import {
     enterLookupFor,
     lookupFamiliarFor,
@@ -36,21 +34,10 @@ import {
     type AnsweredState,
 } from "../flow/WordQuiz";
 import type { WinEntry } from "../flow/WindowSched";
-import { reviewWord } from "./WordFsrs";
 import { speakWord } from "../service/WordSpeak";
 import { WordStartCtl, makeStartCtl } from "../flow/WordStart";
-import {
-    buildQueue,
-    keyOf,
-    markFamiliar,
-    pushTiming,
-    starredList,
-    toggleStar,
-    WordStore,
-    type WenguTimingRec,
-    type WordGrade,
-} from "./WordStore";
-import { REINSERT_GAP, WordTimer } from "./WordTiming";
+import { buildQueue, starredList, toggleStar, WordStore, type WenguTimingRec, type WordGrade } from "./WordStore";
+import { WordTimer } from "./WordTiming";
 import type { WordUi } from "./WordUi";
 
 /**
@@ -81,11 +68,13 @@ export class WordView {
     /** 本会话答错过的词（去重），完成后可一键重过。 */
     hardList: number[] = [];
     readonly doneSet = new Set<number>();
-    /** 当前卡计时结算（reveal/作答时存，finishCard 消费）。 */
-    private curTiming: WenguTimingRec | undefined;
-    /** spell 错拼原文（作答瞬间抓取）。 */
-    private spellTyped: string | undefined;
-    private busy = false;
+    /** 当前卡计时结算（reveal/作答时存，CardOps.finishCardFor 消费；
+     *  友元直访字段，压 500 行红线时放权）。 */
+    curTiming: WenguTimingRec | undefined;
+    /** spell 错拼原文（作答瞬间抓取，CardOps 消费）。 */
+    spellTyped: string | undefined;
+    /** 收尾互斥（CardOps 置位/复位）。 */
+    busy = false;
     /** 误认词 AI 视图胶水。 */
     readonly ai: WordAiRunner;
     private timer?: WordTimer;
@@ -202,66 +191,15 @@ export class WordView {
         this.ui.answered = a;
     }
 
-    /** 收尾：批改并进下一张。fresh=滚动梯步进（know 前进、错即整梯
-     * 清零、④毕业进 FSRS）；队列轨=FSRS 复习步进 + 答错隔卡重现。 */
+    /** 收尾：批改并进下一张（实现体在 CardOps.finishCardFor，拆出压
+     *  500 行红线）。fresh=滚动梯步进、队列轨=FSRS 复习步进+隔卡重现。 */
     finishCard(grade: WordGrade): void {
-        if (!(this.ui.phase === "result" || this.ui.answered) || this.busy || !this.ui.progress) return;
-        this.busy = true;
-        const p = this.ui.progress;
-        const idx = this.currentIdx;
-        // 自述「认成了什么」：填了即没记住（决策 7，不论点什么档位）；
-        // 「记错了」同路——点了即按不认识批改，填没填自述都算
-        const v = this.ui.confessedDraft.trim();
-        if (v || this.ui.mistakeClaimed) grade = "no";
-        // 停留超时（走神）按「忘记」处理（决策 2）
-        if (this.curTiming?.over) grade = "no";
-        let counted = true;
-        if (this.ui.queueKind === "fresh" && this.freshWin.has(idx)) {
-            counted = settleFreshFor(this, grade);
-        } else if (!this.familiarized.has(idx)) {
-            // 查词已标熟的当前词不再复习批改（标熟时已计 revCount/建
-            // FSRS，二次 reviewWord 双计，20260829 三轮审查）
-            reviewWord(p, idx, grade);
-        }
-        if (v) {
-            const mk = p.mistakes[keyOf(idx)];
-            if (mk) mk.confused = v;
-        }
-        // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
-        const pf = this.ui.answered && !this.ui.answered.correct ? this.ui.answered.pickFrom : undefined;
-        if (v) addPair(p, keyOf(idx), v, "evidence");
-        else if (pf !== undefined && pf !== idx) addPair(p, keyOf(idx), wordLib().curBook().words[pf].w, "evidence");
-        if (this.curTiming) {
-            this.curTiming.typed = this.spellTyped;
-            pushTiming(p, idx, this.curTiming);
-        }
-        this.groupLog.push(wordAiInput(p, idx, grade, this.ui.answered?.correct, this.curTiming, this.spellTyped, v));
-        this.curTiming = undefined;
-        this.spellTyped = undefined;
-        notifyWordGrade(this, grade, idx);
-        this.advanceAfterFinish(grade, idx, counted);
+        finishCardFor(this, grade);
     }
 
-    /** 标「熟」收尾：退出复习循环，不进误认/重现（fresh 同样出窗毕业）。
-     *  查词已标熟的词不重复 markFamiliar（双计 revCount）。记账与普通
-     *  收尾同口径（groupLog/notifyWordGrade 原缺失——组复盘少一档、
-     *  看板娘不感知，20260829 单词域审查挂账）。 */
+    /** 标「熟」收尾（实现体在 CardOps.finishMasteredFor）。 */
     finishMastered(): void {
-        if (!(this.ui.phase === "result" || this.ui.answered) || this.busy || !this.ui.progress) return;
-        this.busy = true;
-        const p = this.ui.progress;
-        const idx = this.currentIdx;
-        const fresh = this.ui.queueKind === "fresh" && this.freshWin.has(idx);
-        if (!this.familiarized.has(idx)) markFamiliar(p, idx, fresh);
-        this.groupLog.push(
-            wordAiInput(p, idx, "know", this.ui.answered?.correct, this.curTiming, this.spellTyped, undefined)
-        );
-        notifyWordGrade(this, "know", idx);
-        if (fresh) {
-            this.freshWin.delete(idx);
-            this.finishCount++;
-        }
-        this.advanceAfterFinish("know", idx, true);
+        finishMasteredFor(this);
     }
 
     /** 星标开关（任意卡、任意阶段可点）。 */
@@ -269,47 +207,6 @@ export class WordView {
         if (!this.ui.progress || this.ui.mode !== "card") return;
         toggleStar(this.ui.progress, this.currentIdx);
         void this.store.save(this.ui.progress);
-    }
-
-    /** finishCard/finishMastered 公共推进 + 组边界（决策 3/6；counted=
-     *  本卡计入 finishCount——fresh 非毕业卡不判组边界，GroupFlow）。 */
-    private advanceAfterFinish(grade: WordGrade, idx: number, counted: boolean): void {
-        const p = this.ui.progress!;
-        this.learned.add(idx); // 会话内已作答：队列轨重现时走题型轮换（enterPrompt 读）
-        if (grade === "no" && !this.hardList.includes(idx)) this.hardList.push(idx);
-        if (this.ui.queueKind === "fresh") {
-            syncLadderFor(this);
-            void this.store.save(p);
-            this.doneSet.add(idx);
-            this.ui.cardSeq++;
-            this.ui.hardN = this.hardList.length;
-            settleGroupBoundary(this, p, counted);
-            pickNextFresh(this);
-        } else {
-            // 会话内重现：插到 3 张卡之后（到末尾则接着出）
-            if (grade === "no") {
-                this.queue.splice(Math.min(this.pos + 1 + REINSERT_GAP, this.queue.length), 0, idx);
-            }
-            void this.store.save(p);
-            this.doneSet.add(idx);
-            this.pos++;
-            this.ui.cardSeq++;
-            this.finishCount++;
-            this.ui.hardN = this.hardList.length;
-            settleGroupBoundary(this, p, counted);
-            if (this.pos >= this.queue.length) {
-                this.ui.pos = this.pos;
-                this.ui.queueLen = this.queue.length;
-                this.ui.remainWords = remainingWordCount(this.queue, this.pos);
-                this.ui.mode = "done";
-                flushGroupFor(this);
-                notifyWordDone(this.hardList.length, this.finishCount);
-            } else {
-                this.enterPrompt();
-            }
-        }
-        this.busy = false;
-        this.syncAi();
     }
 
     redoHard(): void {

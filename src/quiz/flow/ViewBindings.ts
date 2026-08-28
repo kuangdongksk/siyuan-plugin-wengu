@@ -2,8 +2,12 @@ import { Menu } from "siyuan";
 import { applySideFilter } from "../render/CardHtml";
 import type { CollectionFlow } from "../../bank";
 import { updateConvertBtn } from "../../convert";
+import { bindCardActions } from "../../bank/ui/RegenDialog";
+import { bindAnnotationLayer, type AnnoCallbacks } from "./AnnoFlow";
+import { addClue, bindClueJudge } from "./ClueFlow";
 import type { QuizView } from "../index";
 import type { WenguDoc } from "../../types";
+import type { QuestionBank } from "../../bank/data/QuestionBank";
 
 /**
  * 视图通用事件绑定（从 QuizView 拆出）：头部按钮（刷新/转换/设置/
@@ -11,6 +15,31 @@ import type { WenguDoc } from "../../types";
  * 题号/开刷面板/卡片事件在各自模块（模式入口在开刷面板三按钮，
  * 头部切换器已删，2026-08-26）。
  */
+
+/** 构造器一次性事件委托（自 QuizView 拆出压 500 行红线）：块引用跳转
+ *  + 题卡「重新生成」+ 标注层（线索/生词）与「AI 复核线索」委托。
+ *  返回标注层解绑函数（destroy 时调）。bank 是视图私有存储，经参传入。 */
+export function bindViewFrameFor(
+    v: QuizView,
+    bank: QuestionBank | undefined,
+    wordStore: AnnoCallbacks["wordStore"] | undefined,
+    reload: () => void
+): () => void {
+    bindCardActions(v.el, {
+        t: v.t,
+        find: (qid) => v.list.find((x) => x.id === qid),
+        bank,
+        modelId: v.aiModelId,
+        reload,
+    });
+    const cleanup = bindAnnotationLayer(v.el, {
+        t: v.t,
+        onMarkClue: (text) => addClue(v, text),
+        wordStore,
+    });
+    bindClueJudge(v);
+    return cleanup;
+}
 export interface ViewBindCtx {
     el: HTMLElement;
     reload(): void;

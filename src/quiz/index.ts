@@ -1,11 +1,11 @@
 import type { App } from "siyuan";
 import type { AnswerHost } from "./flow/AnswerFlow";
-import { restoreAnsweredCards, revealAll } from "./flow/AnswerFlow";
+import { revealAll } from "./flow/AnswerFlow";
 import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { collectCardThoughts } from "./render/CardHtml";
 import { deleteDocWithCleanup } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
-import { normalizeWorkspace, renderRailHtml, type WenguWorkspace } from "./render/RailHtml";
+import { normalizeWorkspace, type WenguWorkspace } from "./render/RailHtml";
 import { buildSideTree } from "./render/SideTree";
 import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
@@ -14,16 +14,15 @@ import { refreshDocFor } from "../bank/data/BankMigrate";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
-import { bindAnnotationLayer, hideBar, type AnnoCallbacks } from "./flow/AnnoFlow";
-import { addClue, bindClueJudge, refreshClueRow } from "./flow/ClueFlow";
+import { hideBar, type AnnoCallbacks } from "./flow/AnnoFlow";
+import { refreshClueRow } from "./flow/ClueFlow";
 import type { DrillUnit } from "./render/DrillUnits";
 import { ProgressivePreview } from "./service/ProgressivePreview";
 import { ProtyleHost } from "./service/ProtyleHost";
-import { renderQuizShellFor } from "./render/QuizShell";
+import { renderListFor } from "./render/QuizShell";
 import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./service/QuizLoader";
-import { bindCardActions } from "../bank/ui/RegenDialog";
 import { openVariantDrillDialog } from "../bank/ui/VariantDrill";
 import { filterReviewDocFor } from "../review";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
@@ -32,10 +31,9 @@ import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDi
 import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
-import { bindHeadFor, toggleSideTreeFor } from "./flow/ViewBindings";
+import { bindViewFrameFor, toggleSideTreeFor } from "./flow/ViewBindings";
 import { TimerController } from "./service/TimerController";
 import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "../types";
-import { esc } from "../ui/shared";
 
 /** 温故刷题页签视图（编排层），各模块见 docs/design-review.md。 */
 export class QuizView implements AnswerHost, ConvertAccessHost {
@@ -135,21 +133,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             settleTimer: () => void this.timerBinder.flush(),
             reloadFromCollection: () => this.reloadDocs(""),
         });
-        // 一次性事件委托（重渲染不重复绑定）：块引用跳转 + 题卡「重新生成」
-        bindCardActions(this.el, {
-            t: this.t,
-            find: (qid) => this.list.find((x) => x.id === qid),
-            bank: this.bank,
-            modelId: this.aiModelId,
-            reload: () => void this.load(),
-        });
-        // 标注层（线索/生词）与「AI 复核线索」委托：每视图绑一次
-        this.annoCleanup = bindAnnotationLayer(element, {
-            t: this.t,
-            onMarkClue: (text) => addClue(this, text),
-            wordStore,
-        });
-        bindClueJudge(this);
+        // 一次性事件委托（重渲染不重复绑定，实现体 ViewBindings）：
+        // 块引用跳转/题卡「重新生成」+ 标注层（线索/生词）+ AI 复核线索
+        this.annoCleanup = bindViewFrameFor(this, this.bank, wordStore, () => void this.load());
     }
 
     readonly container = (): HTMLElement => this.el;
@@ -457,33 +443,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
 
     private renderList(): void {
-        this.el.classList.add("wengu-panel");
-        let ready: Promise<void> | undefined;
-        try {
-            ready = this.renderListInner();
-        } catch (e) {
-            this.protyleHost.destroyAll(this.el);
-            this.el.innerHTML = `${renderRailHtml(this.t, this.workspace)}<div class="wengu-head"></div>
-    <div class="wengu-status wengu-status-err">${esc(this.t("loadFailed"))}${esc(
-        String((e as Error)?.message ?? e)
-    )}</div>`;
-            bindHeadFor(this);
-        }
-        // 落幕统一恢复已答锁定：renderList 是整壳 innerHTML 重建（收起
-        // 目录/设置变更/切工作区/继续上轮……全走它），不恢复的话已答题
-        // 回到未答外观、可重复提交（attempts 再+1、会话重复条目）。
-        // 渐进/预览/复习不绑作答，started 未开的装载也不需要。
-        // 静态路径题卡分片插入——恢复必须等全部就绪（restoreAnsweredCards
-        // 幂等，多轮渲染的在途 then 重复执行无害）。
-        const restore = () => {
-            if (this.mode === "quiz" && this.started && !this.progressive.active) restoreAnsweredCards(this);
-        };
-        if (ready) void ready.then(restore);
-        else restore();
-    }
-
-    private renderListInner(): Promise<void> | undefined {
-        return renderQuizShellFor(this);
+        renderListFor(this);
     }
 
     /** 打开统计面板（tab 直落；下钻后 load 完成时也走这里重开）。 */
