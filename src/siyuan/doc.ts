@@ -1,5 +1,6 @@
 import { fetchSyncPost, type IWebSocketData } from "siyuan";
 import { EApi } from "./api";
+import { KernelQuery } from "./query";
 
 /**
  * 文档级内核操作（迁自 sy-lively 的 SY文档，取温故实际用到的面）。
@@ -35,5 +36,28 @@ export class KernelDoc {
     /** 按路径列子文档。 */
     static listByPath(notebook: string, path: string) {
         return fetchSyncPost(EApi.ListDocsByPath, { notebook, path });
+    }
+
+    /** 批量取文档标题与 hPath（分块 IN 50 兼容大批量；hPath 供树建分支；
+     *  查不到的 id 不入表，调用方用 id 兜底显示）。 */
+    static async infoOf(docIds: string[]): Promise<Map<string, { title: string; hPath: string }>> {
+        const out = new Map<string, { title: string; hPath: string }>();
+        for (let i = 0; i < docIds.length; i += 50) {
+            const chunk = docIds
+                .slice(i, i + 50)
+                .map((x) => `'${x}'`)
+                .join(",");
+            if (!chunk) continue;
+            try {
+                for (const row of await KernelQuery.rows<{ id: string; content: string; hpath: string }>(
+                    `SELECT id, content, hpath FROM blocks WHERE id IN (${chunk})`
+                )) {
+                    out.set(row.id, { title: row.content, hPath: row.hpath ?? "" });
+                }
+            } catch (_) {
+                // 单块查询失败跳过：缺的用 id 兜底
+            }
+        }
+        return out;
     }
 }

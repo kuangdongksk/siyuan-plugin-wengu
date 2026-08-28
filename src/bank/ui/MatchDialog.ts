@@ -9,12 +9,12 @@ import {
     stripKnowledgeRefs,
 } from "../../convert/service/KnowledgeLink";
 import { KernelBlock } from "../../siyuan/block";
+import { KernelDoc } from "../../siyuan/doc";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { mergeRecordKpRefs } from "../data/KnowRoots";
-import { docInfoOf } from "./KnowledgePanel";
 
 /**
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
@@ -57,7 +57,7 @@ export function routeTextOf(r: BankRecord): string {
 export async function openMatchDialog(deps: MatchDeps): Promise<void> {
     const { t, bank } = deps;
     const options = sourceDocOptions(Object.values((await bank.all()).records));
-    const info = await docInfoOf(options.map((o) => o.docId));
+    const info = await KernelDoc.infoOf(options.map((o) => o.docId));
     const dialog = new Dialog({
         title: fmt(t("matchTitle"), { doc: deps.knowTitle }),
         width: "560px",
@@ -108,11 +108,25 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
         status.removeAttribute("hidden");
     };
     root.querySelector("[data-act='match-cancel']")?.addEventListener("click", () => dialog.destroy());
-    root.querySelector<HTMLButtonElement>("[data-act='match-ok']")?.addEventListener("click", (ev) => {
-        const btn = ev.currentTarget as HTMLButtonElement;
+    // 单一点击处理器：运行中=停止（abort）、空闲=开始——多次开始不叠
+    // 监听；运行期间按钮保持可点（disabled 会让「停止」点不动）
+    const okBtn = root.querySelector<HTMLButtonElement>("[data-act='match-ok']");
+    let running = false;
+    let ctrl: AbortController | undefined;
+    okBtn?.addEventListener("click", () => {
+        if (running) {
+            ctrl?.abort();
+            return;
+        }
         const src = root.querySelector<HTMLSelectElement>("[data-act='match-src']")?.value ?? "";
+        if (!src) return;
         const skip = root.querySelector<HTMLInputElement>("[data-act='match-skip']")?.checked ?? true;
-        if (src) void runMatch(deps, dialog, src, skip, show, btn);
+        running = true;
+        ctrl = new AbortController();
+        void runMatch(deps, dialog, src, skip, ctrl, show, okBtn, () => {
+            running = false;
+            ctrl = undefined;
+        });
     });
 }
 
@@ -121,14 +135,13 @@ async function runMatch(
     dialog: Dialog,
     srcDocId: string,
     skipLinked: boolean,
+    ctrl: AbortController,
     show: (text: string, kind: "ok" | "err" | "muted") => void,
-    okBtn: HTMLButtonElement
+    okBtn: HTMLButtonElement,
+    onEnd: () => void
 ): Promise<void> {
     const { t, bank, modelId } = deps;
-    okBtn.disabled = true;
     okBtn.textContent = t("matchStop");
-    const ctrl = new AbortController();
-    okBtn.addEventListener("click", () => ctrl.abort());
     show(t("matchPreparing"), "muted");
     try {
         const index = await buildKnowledgeIndex([deps.knowDocId]);
@@ -190,13 +203,12 @@ async function runMatch(
                 : fmt(t("matchDone"), { h: String(hit), m: String(miss), s: String(skip) }),
             ctrl.signal.aborted ? "muted" : "ok"
         );
-        okBtn.textContent = t("matchStart");
-        okBtn.disabled = false;
         if (!ctrl.signal.aborted) window.setTimeout(() => dialog.destroy(), 800);
         deps.onDone?.();
     } catch (e) {
         show(String((e as Error)?.message ?? e), "err");
+    } finally {
         okBtn.textContent = t("matchStart");
-        okBtn.disabled = false;
+        onEnd();
     }
 }

@@ -309,8 +309,9 @@ function refTitle(title: string): string {
         .slice(0, 50);
 }
 
-/** 生成「相关知识点」引用行（与转换注入同格式，反链面板可见）。 */
-export function knowledgeRefLine(refs: { id: string; title: string }[]): string {
+/** 生成「相关知识点」引用行（模块内唯一真相：转换注入/事后匹配共用，
+ *  反链面板可见的同格式）。 */
+function knowledgeRefLine(refs: { id: string; title: string }[]): string {
     return `> 相关知识点：${refs.map((h) => `((${h.id} "${refTitle(h.title)}"))`).join(" ")}`;
 }
 
@@ -394,7 +395,7 @@ export function applyKnowLinks(
             out[i] = stripped;
             continue;
         }
-        const line = `> 相关知识点：${hits.map((h) => `((${h.id} "${refTitle(h.title)}"))`).join(" ")}`;
+        const line = knowledgeRefLine(hits);
         const sol = SOLUTION_RE.exec(stripped);
         if (sol) {
             // 追加为解析引述块的最后一行引用（IAL 行之前），保持同一 part 块

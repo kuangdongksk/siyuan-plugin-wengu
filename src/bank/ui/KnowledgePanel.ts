@@ -6,7 +6,7 @@ import { openRelatedDialog } from "./RelatedDialog";
 import { openMatchDialog } from "./MatchDialog";
 import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/KnowledgeLink";
 import { openKnowPicker } from "../../ui/KnowPicker";
-import { KernelQuery } from "../../siyuan/query";
+import { KernelDoc } from "../../siyuan/doc";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc, fmt } from "../../ui/shared";
 
@@ -150,28 +150,6 @@ async function importedKnowDocs(
     return { docs, info, manualAll };
 }
 
-/** 根文档标题与 hPath（分块 IN，兼容大批量；hPath 供树建分支）。 */
-export async function docInfoOf(docIds: string[]): Promise<Map<string, { title: string; hPath: string }>> {
-    const out = new Map<string, { title: string; hPath: string }>();
-    for (let i = 0; i < docIds.length; i += 50) {
-        const chunk = docIds
-            .slice(i, i + 50)
-            .map((x) => `'${x}'`)
-            .join(",");
-        if (!chunk) continue;
-        try {
-            for (const row of await KernelQuery.rows<{ id: string; content: string; hpath: string }>(
-                `SELECT id, content, hpath FROM blocks WHERE id IN (${chunk})`
-            )) {
-                out.set(row.id, { title: row.content, hPath: row.hpath ?? "" });
-            }
-        } catch (_) {
-            // 标题查不到用 id 兜底显示
-        }
-    }
-    return out;
-}
-
 /* ── hPath 树化（20260827 用户定稿：跟思源原生文档树同款观感）──
    行壳走 PickerTree 同款 b3-list-item 紧凑单行风；交互完全对齐
    KnowPicker 的已验证模式：展开集合（openPaths）持有状态、点击后整树
@@ -305,7 +283,7 @@ export async function renderKnowledgePanelInto(v: QuizView, root: HTMLElement): 
     const refs = await bank.collectKpRefs();
     const rootsMap = await kpRootMap([...refs.keys()]);
     const registered = await knowRootsOf(bank);
-    const info = await docInfoOf([...new Set([...rootsMap.values(), ...registered])]);
+    const info = await KernelDoc.infoOf([...new Set([...rootsMap.values(), ...registered])]);
     const titles = new Map([...info].map(([k, v]) => [k, v.title]));
     let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
     if (registered.length > 0) {

@@ -37,9 +37,13 @@
       统计一律当前书口径）、
       `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题标题含
       「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath
-      规范化、CollectionPanel buildColTree 树形展示）；知识文档可手动
-      导入登记（BankData.knowRoots + data/KnowRoots.ts 友元模块，
-      KnowledgePanel 合并推导行与导入行）；专题/知识文档管理面板
+      规范化、CollectionPanel buildColTree 树形展示）；知识文档
+      （KnowledgePanel）：手动导入**递归展开**（KnowRoots 登记 +
+      KnowledgeLink.expandKnowDocs 根+全部后代逐行，小节 h1~h6）、
+      行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
+      →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
+      与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=
+      该文档）；专题/知识文档管理面板
       CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
       `src/companion/`
       （伴学看板娘「小书童」：规则层表情+台词/AI 增强与聊天走智能体
