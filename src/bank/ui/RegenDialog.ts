@@ -117,12 +117,15 @@ async function runRegen(
     okBtn?: HTMLButtonElement
 ): Promise<void> {
     const { t, bank, modelId } = deps;
+    // 先禁用再进首个 await：原「recordOf 之后才禁用」，异步窗口内可
+    // 双击并发两轮重生成（20260829 审查）
+    if (okBtn) okBtn.disabled = true;
     const record = await bank.recordOf(q.id);
     if (!record) {
         show(t("regenNoRecord"), "err");
+        if (okBtn) okBtn.disabled = false;
         return;
     }
-    if (okBtn) okBtn.disabled = true;
     show(t("regenRunning"), "muted");
     try {
         // 提供原文链接：拉原文块 kramdown；不提供：知识点小节正文（首个引用）

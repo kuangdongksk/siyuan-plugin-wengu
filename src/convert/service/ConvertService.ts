@@ -331,12 +331,18 @@ export async function hasChildDocs(docId: string): Promise<boolean> {
     return Number(children[0]?.n ?? 0) > 0;
 }
 
-/** 原位替换失败原因：原文档已删 / 写盘时刻发现有子文档。 */
-export type ReplaceInplaceReason = "noDoc" | "hasChildren";
+/** 原位替换失败原因：原文档已删 / 写盘时刻发现有子文档 / 备份后重建失败。 */
+export type ReplaceInplaceReason = "noDoc" | "hasChildren" | "createFailed";
 
 export class ReplaceInplaceError extends Error {
-    constructor(public readonly reason: ReplaceInplaceReason) {
-        super(reason);
+    /** 附加细节（createFailed：底层错误与备份文档标题）。 */
+    public readonly detail?: string;
+    constructor(
+        public readonly reason: ReplaceInplaceReason,
+        detail?: string
+    ) {
+        super(detail || reason);
+        this.detail = detail;
     }
 }
 
@@ -357,14 +363,25 @@ export async function replaceDocInPlace(oldInfo: DocInfo, markdown: string): Pro
     if (!fresh?.notebook) throw new ReplaceInplaceError("noDoc");
     if (await hasChildDocs(fresh.id)) throw new ReplaceInplaceError("hasChildren");
     const safe = fresh.title.replace(/[\\/:*?"<>|]/g, "-").trim() || "习题";
-    await KernelDoc.remove(fresh.id);
-    const created = await createDocWithTitles(
-        fresh.notebook,
-        parentOf(fresh.hPath ?? "/"),
-        [safe, `${safe}·${Date.now().toString(36)}`],
-        markdown
-    );
+    const parent = parentOf(fresh.hPath ?? "/");
+    // 先建备份再删旧（「先删后建」挂账清偿，20260829）：删与建之间失败
+    // 的话原文档已进回收站、新内容只在内存。先在旁边落一份同内容备份，
+    // 任意时刻磁盘上都有完整内容；终态成功才删备份，失败路径保留备份
+    // （标题带「替换备份」，用户可自行改名顶替）。
+    const stamp = Date.now().toString(36);
+    const backup = await createDocWithTitles(fresh.notebook, parent, [`${safe}·替换备份${stamp}`], markdown);
+    let created: { id: string; title: string };
+    try {
+        await KernelDoc.remove(fresh.id);
+        created = await createDocWithTitles(fresh.notebook, parent, [safe, `${safe}·${stamp}`], markdown);
+    } catch (e) {
+        throw new ReplaceInplaceError(
+            "createFailed",
+            `${e instanceof Error ? e.message : String(e)}｜备份：${backup.title}`
+        );
+    }
     await repointSourcePairs(fresh.id, created.id);
+    await removeDoc(backup.id);
     return created;
 }
 

@@ -153,8 +153,24 @@ export function openConvertPanel(deps: ConvertPanelDeps): void {
         if (act === "panel-drop") {
             const srcDocId = btn.dataset.doc ?? "";
             const hit = deps.listProgress().find((r) => r.srcDocId === srcDocId);
-            if (hit) deps.discardProgress(srcDocId, hit.rec);
-            render();
+            if (!hit) return;
+            // 两击确认（arm 模式）：丢弃=删掉整份渐进文档且不可恢复，误触
+            // 代价高（20260829 审查，同文件 panel-del 同款）
+            if (btn.dataset.armed === "1") {
+                deps.discardProgress(srcDocId, hit.rec);
+                render();
+                return;
+            }
+            btn.dataset.armed = "1";
+            btn.classList.add("b3-button--error");
+            const label = btn.textContent;
+            btn.textContent = deps.t("confirmDiscard");
+            window.setTimeout(() => {
+                if (!btn.isConnected) return;
+                btn.dataset.armed = "";
+                btn.classList.remove("b3-button--error");
+                btn.textContent = label;
+            }, 3000);
             return;
         }
         if (act === "panel-resume") {

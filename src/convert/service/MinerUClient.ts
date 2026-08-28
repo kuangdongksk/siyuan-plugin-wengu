@@ -108,7 +108,9 @@ interface ExtractResultRow {
     extract_progress?: { extracted_pages?: number; total_pages?: number };
 }
 
-/** 轮询批次结果，done 时返回 zip 地址。 */
+/** 轮询批次结果，done 时返回 zip 地址。瞬时网络抖动容忍 3 连败
+ *  （waiting 阶段要连打 ~240 次代理请求，一次抖动报废整轮、用户从头
+ *  重传再等 20 分钟——20260829 三轮审查），连败退避加长。 */
 async function pollResult(
     batchId: string,
     token: string,
@@ -116,12 +118,21 @@ async function pollResult(
     signal?: AbortSignal
 ): Promise<string> {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let transient = 0;
     for (;;) {
         signal?.throwIfAborted(); // 每轮可中止——waiting 阶段最长 20 分钟，原无检查点=终止按钮无效
         if (Date.now() >= deadline) throw new MinerUError("timeout", batchId);
-        const json = await proxyJson(`${API_BASE}/extract-results/batch/${batchId}`, token, "GET");
-        const rows = (json.data as { extract_result?: ExtractResultRow[] } | undefined)?.extract_result ?? [];
-        const row = rows[0] ?? {};
+        let row: ExtractResultRow;
+        try {
+            const json = await proxyJson(`${API_BASE}/extract-results/batch/${batchId}`, token, "GET");
+            row = ((json.data as { extract_result?: ExtractResultRow[] } | undefined)?.extract_result ?? [])[0] ?? {};
+            transient = 0;
+        } catch (e) {
+            if (signal?.aborted) throw e; // 用户终止不是瞬时错误
+            if (++transient >= 3) throw e;
+            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS * transient));
+            continue;
+        }
         if (row.state === "done" && row.full_zip_url) return row.full_zip_url;
         if (row.state === "failed") throw new MinerUError("parseFailed", row.err_msg ?? "");
         const p = row.extract_progress;

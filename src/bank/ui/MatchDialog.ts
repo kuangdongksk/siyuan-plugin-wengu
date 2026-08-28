@@ -10,6 +10,7 @@ import {
 } from "../../convert/service/KnowledgeLink";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelDoc } from "../../siyuan/doc";
+import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
@@ -107,7 +108,14 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
         status.className = `wengu-status wengu-status-${kind}`;
         status.removeAttribute("hidden");
     };
-    root.querySelector("[data-act='match-cancel']")?.addEventListener("click", () => dialog.destroy());
+    // 取消/X 销毁同时中止在途：原只 destroy，循环靠 isConnected 在
+    // 下一轮才断——在途那发 AI 路由与 pending 队列任务照跑完（挂账清偿）
+    const cancelAll = (): void => {
+        ctrl?.abort();
+        dialog.destroy();
+    };
+    root.querySelector("[data-act='match-cancel']")?.addEventListener("click", cancelAll);
+    root.querySelector(".b3-dialog__close")?.addEventListener("click", () => ctrl?.abort());
     // 单一点击处理器：运行中=停止（abort）、空闲=开始——多次开始不叠
     // 监听；运行期间按钮保持可点（disabled 会让「停止」点不动）
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='match-ok']");
@@ -116,6 +124,12 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
     okBtn?.addEventListener("click", () => {
         if (running) {
             ctrl?.abort();
+            return;
+        }
+        // 转换运行中不开第二条内核写流（updateBlock 与转换 append 并发
+        // 互吞响应，20260829 审查）
+        if (convertRunActive()) {
+            show(t("convertBusy"), "err");
             return;
         }
         const src = root.querySelector<HTMLSelectElement>("[data-act='match-src']")?.value ?? "";

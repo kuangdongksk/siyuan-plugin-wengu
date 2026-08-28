@@ -1,5 +1,6 @@
 import { MinerUError } from "../service/MinerUClient";
 import { importPdfAsDoc } from "../service/PdfImport";
+import { convertRunActive } from "../service/ConvertRun";
 import { esc, fmt } from "../../ui/shared";
 
 /**
@@ -40,6 +41,13 @@ export function bindPdfImportRow(root: HTMLElement, deps: PdfImportRowDeps): voi
     const pdfFile = root.querySelector<HTMLInputElement>("[data-act='dlg-pdffile']");
     if (!pdfBtn || !pdfFile) return;
     const runImport = async (file: File): Promise<void> => {
+        // 转换运行中不开第二条内核写流：导入建文档与转换 append 并发
+        // fetchSyncPost 会互相吞响应（20260829 审查，互斥原来只做在
+        // ConvertRun 单例内部）
+        if (convertRunActive()) {
+            deps.showStatus(deps.t("convertBusy"), "err");
+            return;
+        }
         if (!deps.mineruToken) {
             deps.showStatus(deps.t("mineruNoToken"), "err");
             return;

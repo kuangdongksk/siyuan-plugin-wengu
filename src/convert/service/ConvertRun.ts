@@ -203,6 +203,10 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
         if (r.status === "done") {
             active = undefined;
             ev.setConverting(false);
+            // 完成即清进度记录：残留会让面板永远显示「有未完成转换」，
+            // 「丢弃」按钮更会直接删掉已完成的整本文档、「继续生成」会
+            // 复制/重删同一文档（20260829 三轮审查 P1）
+            ev.saveProgress(cfg.srcDocId, undefined);
             notify();
             await finishRun(ev, r);
             return;

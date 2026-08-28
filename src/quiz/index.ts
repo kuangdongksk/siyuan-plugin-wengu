@@ -10,6 +10,7 @@ import { buildSideTree } from "./render/SideTree";
 import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
+import { refreshDocFor } from "../bank/data/BankMigrate";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
@@ -511,6 +512,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.renderList();
     };
     readonly reloadView = (): Promise<void> => this.load();
+
+    /** 转换完成后同步该文档入题库（ConvertAccessHost；refreshDoc 幂等
+     *  增量：续跑追加/手工改题都重扫，已删题块记录剔除）。 */
+    readonly refreshBankDoc = (docId: string, title: string): void => {
+        if (!this.bank || !docId || docId.startsWith("col:")) return;
+        void refreshDocFor(this.bank, docId, title)
+            .then(() => this.bank?.flush())
+            .catch((): void => undefined); // 后台尽力而为，失败走下次装载迁移
+    };
 
     readonly openConvert = () => openConvertForView(this.convertAccess);
     /** 带预填打开转换弹窗（知识面板「转习题」：源/知识点根=该文档）。 */

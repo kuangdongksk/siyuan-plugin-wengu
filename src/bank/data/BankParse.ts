@@ -160,14 +160,22 @@ export function parseKpRefs(text: string): { id: string; title: string }[] {
     return out;
 }
 
-/** 内容指纹：剥掉块 id/updated 属性后哈希（跨卷同题去重用）。 */
+/** 内容指纹：剥掉块 id/updated 属性后哈希（跨卷同题去重用）。双种子
+ *  DJB2 拼 64 位（万级题目下 32 位生日碰撞约 1%，碰撞即静默丢题，
+ *  20260829 三轮审查）；旧记录的单段 36 进制指纹格式不同、永不与新
+ *  指纹相等——存量重复题首次重扫会再入一条，一次性代价可接受。 */
 export function questionHash(kd: string): string {
     const norm = kd
         .replace(/\s+id="[^"]*"/g, "")
         .replace(/\s+updated="[^"]*"/g, "")
         .replace(/\s+/g, " ")
         .trim();
-    let h = 5381;
-    for (let i = 0; i < norm.length; i++) h = ((h << 5) + h + norm.charCodeAt(i)) | 0;
-    return (h >>> 0).toString(36);
+    let h1 = 5381;
+    let h2 = 52711;
+    for (let i = 0; i < norm.length; i++) {
+        const c = norm.charCodeAt(i);
+        h1 = ((h1 << 5) + h1 + c) | 0;
+        h2 = ((h2 << 5) + h2 + c) | 0;
+    }
+    return `${(h1 >>> 0).toString(36)}-${(h2 >>> 0).toString(36)}`;
 }

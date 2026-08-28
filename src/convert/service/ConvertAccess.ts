@@ -26,6 +26,9 @@ export interface ConvertAccessHost {
     stopRoundNow(): void;
     /** 渐进文档切换（pendingDoc 补位 + 选中 + 旧轮清理）。 */
     switchPreviewDoc(id: string, title: string, count: number): void;
+    /** 转换完成后同步该文档入题库（refreshDoc 幂等增量：续跑追加/手工
+     *  改题都能重扫；migratedDocs 防重不再挡增量，20260829 审查）。 */
+    refreshBankDoc?(docId: string, title: string): void;
     applyQuizList(list: WenguQuestion[], materials?: WenguMaterial[]): void;
     reloadView(): Promise<void>;
 }
@@ -138,6 +141,9 @@ export class ConvertAccess implements ConvertViewAccess {
     onConvertDone(r: { docId: string; title: string; count: number; message?: string }): void {
         this.host.progressiveOf().clear();
         this.host.switchPreviewDoc(r.docId, r.title, r.count);
+        // 题库增量同步放后台（逐题 kramdown 拉取是 2N+1 次串行内核
+        // 调用，不阻塞视图重载；装载路径 ensureMigrated 对该文档零工作）
+        this.host.refreshBankDoc?.(r.docId, r.title);
         void this.host
             .reloadView()
             .then(() => showStatus(this.host.el, convertDoneText(this.host.t, r.title, r.count), "ok"));

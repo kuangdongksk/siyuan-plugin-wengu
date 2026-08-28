@@ -4,6 +4,7 @@ import { HistoryStore } from "./quiz/service/HistoryStore";
 import { QuestionBank } from "./bank/data/QuestionBank";
 import { QuizView } from "./quiz";
 import { openRelatedDialog } from "./bank/ui/RelatedDialog";
+import { KernelQuery } from "./siyuan/query";
 import { openWenguSetting } from "./ui/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/data/WeaknessStore";
@@ -231,6 +232,15 @@ export default class WenguPlugin extends Plugin {
             });
         });
 
+        // 用户在思源树里删/移文档时对账题库：内核事务经 ws-main 广播
+        // （doOperations.action=delete/move），官方事件面没有独立的
+        // deleted/moved 事件。不过滤明细、delete/move 一律防抖全量对账
+        // ——migratedDocs 登记的文档逐个查活（分块 IN 50），死文档的
+        // 记录/影子专题/登记一次清掉。原无任何同步路径：树里删了习题
+        // 文档后题库存量悬空、专题/材料静默空转（20260829 三轮审查）。
+        // 串行内核调用、放后台不阻塞 UI。
+        this.eventBus.on("ws-main", WenguPlugin.onWsReconcile);
+
         this.addTab({
             type: TAB_RESULT,
             init(this: Custom | MobileCustom) {
@@ -277,7 +287,48 @@ export default class WenguPlugin extends Plugin {
     /** 卸载：全局悬浮层挂 body 不随页签回收，必须显式卸（重载不叠影）。 */
     onunload(): void {
         unmountCompanionGlobal();
+        this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
+        if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
     }
+
+    /** 树删除/移动事件的防抖对账定时器（onunload 清）。 */
+    private static reconcileTimer: number | undefined;
+
+    /** ws 事务流过滤：出现 delete/move 操作才排程对账（其余零成本忽略）。 */
+    private static readonly onWsReconcile = (ev: {
+        detail: { data?: { doOperations?: { action?: string }[] } };
+    }): void => {
+        const ops = ev.detail?.data?.doOperations ?? [];
+        if (ops.some((o) => o.action === "delete" || o.action === "move")) WenguPlugin.scheduleBankReconcile();
+    };
+
+    /** 防抖对账题库登记文档的存活性（ws-main 的 delete/move 触发）。 */
+    private static readonly scheduleBankReconcile = (): void => {
+        if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
+        WenguPlugin.reconcileTimer = window.setTimeout((): void => {
+            WenguPlugin.reconcileTimer = undefined;
+            void (async () => {
+                const plugin = WenguPlugin.instance;
+                const bank = plugin?.bank();
+                if (!plugin || !bank) return;
+                const docIds = [...(await bank.all()).migratedDocs];
+                for (let i = 0; i < docIds.length; i += 50) {
+                    const chunk = docIds
+                        .slice(i, i + 50)
+                        .map((x) => `'${x}'`)
+                        .join(",");
+                    const rows = await KernelQuery.rows<{ id: string }>(
+                        `SELECT id FROM blocks WHERE type = 'd' AND id IN (${chunk})`
+                    );
+                    const alive = new Set(rows.map((r) => r.id));
+                    for (const id of docIds.slice(i, i + 50)) {
+                        if (!alive.has(id)) await bank.removeDocData(id);
+                    }
+                }
+                await bank.flush();
+            })().catch((): void => undefined); // 对账尽力而为，失败等下次事件/装载
+        }, 5000);
+    };
 
     /** 单词进度存储单例（Dock 面板/兜底页签/刷题生词标记共用同一缓存）。 */
     private wordStore: WordStore | undefined;

@@ -79,20 +79,20 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
     };
     root.querySelector("[data-act='drill-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='drill-ok']")?.addEventListener("click", () => {
+        const okBtn = root.querySelector<HTMLButtonElement>("[data-act='drill-ok']");
+        const picked = rows.filter((r) => selected.has(r.key));
+        if (picked.length === 0) {
+            show(t("weakDrillNone"), "err");
+            return;
+        }
+        if (okBtn) okBtn.disabled = true; // 生成期间禁用防连点并发多轮 AI（同 VariantDrill，20260829 审查）
         const mode = (root.querySelector<HTMLSelectElement>("[data-act='drill-mode']")?.value ?? "variant") as
             "variant" | "concept";
         const count = Math.min(
             MAX_PER_RUN,
             Number(root.querySelector<HTMLSelectElement>("[data-act='drill-count']")?.value ?? 3) || 3
         );
-        void runDrill(
-            deps,
-            rows.filter((r) => selected.has(r.key)),
-            mode,
-            count,
-            show,
-            dialog
-        );
+        void runDrill(deps, picked, mode, count, show, dialog);
     });
 }
 
