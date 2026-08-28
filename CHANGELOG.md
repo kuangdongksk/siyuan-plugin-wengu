@@ -34,6 +34,22 @@
   同一提交还丢了「答错记误认本」的写入（旧 Leitner reviewWord 内联，
   FSRS 重写未搬）——恢复 markMistake（复习轨 reviewWord 与新学梯
   settleFreshFor 双入口，重答错清旧 AI 辨析、模糊不记）。
+- 全仓代码审查两波修复（20260828，四路并行深读+机械扫描，9 个 P1
+  见上一提交）：②波 P2——word 跨书竞态（WordAiInput 带 key 构建时刻
+  冻结，addPair/applyAiReview 改词头入参不吃活下标——AI 往返期间切书
+  档位/易混对不再写串词）；学伴聊天归属（runChat 发起时捕获
+  chatId+chatLog，回复到达落原学伴，不再串进切换后的新学伴历史）；
+  WordStore.save 串行落盘链（同 ChatStore 模式，void save() 并发不再
+  撞内核互吞）；6 处裸 agentChat 补 enqueueAi 共享队列（GenQuestion
+  出题+自检/RegenDialog/ConvertDetect/KnowledgeLink 串行分支/
+  agentPanel 降级）；markFamiliar 先 roll 再计数（隔夜首张不再清零
+  计数伪造打卡）；backfill 补 ladder（坏 v3 文件不再白屏）；查词标熟
+  同步逐出 freshWin（familiar+ladder 双态复活）；slots 部分作答恢复
+  不再整卡锁死（与 steps 恢复对称）；steps/slots 整题收口补题库镜像
+  bankMirror（专题错题重刷对这类题恢复生效）。挂账：NumRail 可见序数
+  /steps 逐题秒数/统计 tab 代际/replaceDocInPlace 先删后建/MatchDialog
+  取消中止在途/SSE 尾帧/signal 已 abort/kernelRemoveFile 吞错/首页
+  derived 切书/到期口径/书尾搁浅/专题边界计时错账/aiAnalyze 踢回首页。
 - 看板娘全局悬浮层收尾（20260828，前批半成品收口）：quiz 页签旧
   attachCompanion/detachCompanion API 清退、单词 WordApp 内嵌份摘除，
   全局层由插件 onload mountCompanionGlobal（mount→unmountSvelteApp 修

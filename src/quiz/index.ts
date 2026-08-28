@@ -182,6 +182,13 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         notifyQuizAnswer(this, qid, submitted, ok, sec); // 看板娘事件（含错题讲解上下文）
     };
 
+    /** 整题收口镜像（steps/slots 用）：题库按整题记一次——逐 #k 的
+     *  recordAnswer 刻意跳过题库，整题结果在此补（契约「调用方剥后缀」，
+     *  20260828 审查：原整题从不进镜像，专题错题重刷对这类题失效）。 */
+    readonly bankMirror = (qid: string, submitted: string, ok: boolean): void => {
+        void this.bank?.recordAnswer(qid, submitted, ok);
+    };
+
     /** 设置页开关变更后由插件调用：立即按新设置重渲染。 */
     applySettings(): void {
         this.renderList();

@@ -1,6 +1,6 @@
 import PRESET from "../data/confusables";
 import { esc } from "../../ui/shared";
-import { BUILTIN_BOOK, keyOf as keyOfBook } from "./WordBook";
+import { BUILTIN_BOOK, keyOf as keyOfBook, wordKey } from "./WordBook";
 import { wordLib, type WordLib } from "./WordLib";
 import { confKey, keyOf, type WenguConfusableGroup, type WenguWordProgress } from "../core/WordStore";
 
@@ -55,12 +55,13 @@ export function confOthers(p: WenguWordProgress, idx: number): number[] {
 }
 
 /** 记一对混淆（去重）：B 在当前书 → [A,B] 组；不在 → [A] + raw。
- * evidence=作答实证，ai=组复盘判定（docs/confusable-words.md §三）。 */
-export function addPair(p: WenguWordProgress, a: number, bRaw: string, src: "evidence" | "ai"): void {
+ * evidence=作答实证，ai=组复盘判定（docs/confusable-words.md §三）。
+ * keyA 为**归一化词头**——AI 异步落盘调用方传构建时刻冻结的 key，
+ * 防往返期间切书串词（20260828 审查）。 */
+export function addPair(p: WenguWordProgress, keyA: string, bRaw: string, src: "evidence" | "ai"): void {
     const lib = wordLib();
     const raw = bRaw.trim().toLowerCase();
-    const keyA = keyOf(a);
-    if (!raw || !keyA || raw === lib.curBook().words[a]?.w.toLowerCase()) return;
+    if (!raw || !keyA || wordKey(raw) === keyA) return; // 自己配自己无意义
     const b = indexOfWord(lib, raw);
     for (const g of p.confusables ?? []) {
         if (!g.ids.includes(keyA)) continue;

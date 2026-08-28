@@ -226,8 +226,8 @@ export class WordView {
         }
         // 误认实证（决策 7）：自述「认成了 B」，否则错选 B 的选项
         const pf = this.ui.answered && !this.ui.answered.correct ? this.ui.answered.pickFrom : undefined;
-        if (v) addPair(p, idx, v, "evidence");
-        else if (pf !== undefined && pf !== idx) addPair(p, idx, wordLib().curBook().words[pf].w, "evidence");
+        if (v) addPair(p, keyOf(idx), v, "evidence");
+        else if (pf !== undefined && pf !== idx) addPair(p, keyOf(idx), wordLib().curBook().words[pf].w, "evidence");
         if (this.curTiming) {
             this.curTiming.typed = this.spellTyped;
             pushTiming(p, idx, this.curTiming);

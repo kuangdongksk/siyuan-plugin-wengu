@@ -1,4 +1,5 @@
 import { agentChat } from "../../ai/client";
+import { enqueueAi } from "../../ai/queue";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { isMaterialKramdown, parseVerdict } from "./ConvertService";
 import { esc } from "../../ui/shared";
@@ -28,17 +29,19 @@ export interface DetectResult {
 export async function detectQuestions(source: string, modelId: string, signal?: AbortSignal): Promise<DetectResult> {
     const truncated = source.length > DETECT_CHARS;
     const head = truncated ? `${source.slice(0, DETECT_CHARS)}\n<!-- 内容过长已截断 -->` : source;
-    const reply = await agentChat(
-        `你是思源笔记出题助手的前置检查。判断下面的文档是否适合出题，并统计其中现成题目的数量。
+    const reply = await enqueueAi(() =>
+        agentChat(
+            `你是思源笔记出题助手的前置检查。判断下面的文档是否适合出题，并统计其中现成题目的数量。
 输出严格三行，格式之外不要输出任何文字：
 CAN_CONVERT: yes 或 no
 COUNT: 数字（原文中现成题目的总数；讲义/笔记等没有现成题目时输出 0；若下方内容带「已截断」标记，只数可见部分并在数字后紧跟一个加号，如 12+）
 REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不能转换时说明原因）
 文档内容：
 ${head}`,
-        modelId,
-        AI_TIMEOUT.quick,
-        signal
+            modelId,
+            AI_TIMEOUT.quick,
+            signal
+        )
     );
     const verdict = parseVerdict(reply);
     const cm = /COUNT\s*[:：]\s*(\d+)\s*(\+)?/i.exec(reply);

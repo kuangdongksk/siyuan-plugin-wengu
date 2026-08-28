@@ -168,6 +168,7 @@ async function finishSlots(host: AnswerHost, card: HTMLElement, q: WenguQuestion
     const letters = slots.map((_, k) => card.dataset[`slotLetter${k}`] ?? "");
     const oks = slots.map((_, k) => card.dataset[`slot${k}`] === "1");
     const allOk = await recordSlotsResult(q, letters, oks);
+    host.bankMirror?.(q.id, letters.join(""), allOk); // 题库整题镜像（原整题从不进镜像）
     card.dataset.graded = "1";
     card.classList.add("wengu-graded");
     card.querySelectorAll("button, select, input, textarea").forEach((n) => ((n as HTMLButtonElement).disabled = true));
@@ -201,7 +202,13 @@ export function restoreSlotsCard(
         if (Number.isInteger(k) && k >= 0 && k < slots.length) done.set(k, { letter: r.submitted, ok: r.ok });
     }
     if (done.size === 0) return;
-    card.dataset.graded = "1";
+    // 部分作答恢复：只还原已答空、解锁首个未答空，整卡不判满（与
+    // restoreStepsCard 对称——原只要答过 1 空就 graded=1 全禁用，
+    // 剩余空永久不可作答、整题结果永不落盘，20260828 审查）
+    const partial = done.size < slots.length;
+    if (!partial) {
+        card.dataset.graded = "1";
+    }
     for (const [k, v] of done) {
         card.dataset[`slot${k}`] = v.ok ? "1" : "0";
         card.dataset[`slotLetter${k}`] = v.letter;
@@ -218,6 +225,7 @@ export function restoreSlotsCard(
             row.querySelector("[data-act='match-submit']")?.setAttribute("hidden", "");
         }
     }
+    if (partial) return; // 未答空的行/提交钮保持初始可用态，接着作答即可
     card.querySelectorAll("button, select, input, textarea").forEach((n) => ((n as HTMLButtonElement).disabled = true));
     card.classList.add("wengu-graded");
 }

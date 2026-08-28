@@ -235,6 +235,7 @@ async function finishCard(
     card.querySelectorAll("button:not(.wengu-step-appeal)").forEach((b) => ((b as HTMLButtonElement).disabled = true));
     const allOk = oks.length > 0 && oks.every(Boolean);
     await recordStepsResult(q, letters, oks, persistStepState);
+    host.bankMirror?.(q.id, letters.join(""), allOk); // 题库整题镜像（原整题从不进镜像）
     markNum(host, q, allOk);
     const firstWrong = oks.findIndex((ok) => !ok);
     const wrongLabel = firstWrong >= 0 ? fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) }) : host.t("noAnswer");

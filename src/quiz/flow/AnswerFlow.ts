@@ -36,6 +36,8 @@ export interface AnswerHost {
         ok: boolean,
         extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
     ): void;
+    /** 整题收口镜像（steps/slots）：题库按整题记一次（可选，QuizView 提供）。 */
+    bankMirror?(qid: string, submitted: string, ok: boolean): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
     flushTime(): void;

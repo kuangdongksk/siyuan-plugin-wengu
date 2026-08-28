@@ -25,6 +25,10 @@ const BATCH_SIZE = 20;
 /** 待分析词的完整作答画像（手动误认分析只需前半，组复盘带全量）。 */
 export interface WordAiInput {
     index: number;
+    /** 归一化词头（构建时刻冻结）：AI 往返是长事务，落盘点一律用它定位，
+     *  不吃活下标——否则期间切书，keyOf 会按新书把档位/易混对写到
+     *  无关词上（20260828 审查）。 */
+    key: string;
     w: string;
     m: string;
     /** 累计答错次数。 */
@@ -61,9 +65,11 @@ export function wordAiInput(
     confessed: string | undefined
 ): WordAiInput {
     const entry = wordLib().curBook().words[idx];
-    const m = p.mistakes[keyOf(idx)];
+    const key = keyOf(idx);
+    const m = p.mistakes[key];
     return {
         index: idx,
+        key,
         w: entry.w,
         m: entry.m,
         count: m?.count ?? 0,
@@ -84,12 +90,12 @@ async function analyzeBatch(
 ): Promise<number> {
     const reply = await enqueueAi(() => agentChat(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid));
     const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
-    const items: { index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];
+    const items: { key: string; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];
     for (const it of parseReply(reply)) {
         const hit = byWord.get(it.word.trim().toLowerCase());
         if (!hit) continue;
-        items.push({ index: hit.index, act: it.act, tip: it.tip, confused: it.confused });
-        if (it.confused) addPair(p, hit.index, it.confused, "ai");
+        items.push({ key: hit.key, act: it.act, tip: it.tip, confused: it.confused });
+        if (it.confused) addPair(p, hit.key, it.confused, "ai");
     }
     applyAiReview(p, items);
     await save();
@@ -170,7 +176,7 @@ export class WordAiRunner {
             const i = keyIndex(key);
             const entry = i === undefined ? undefined : wordLib().curBook().words[i];
             if (entry) {
-                out.push({ index: i, w: entry.w, m: entry.m, count: m.count, confused: m.confused });
+                out.push({ index: i, key, w: entry.w, m: entry.m, count: m.count, confused: m.confused });
             }
         }
         return out;

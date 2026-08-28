@@ -247,14 +247,16 @@ export function markMistake(progress: WenguWordProgress, index: number, now = Da
     progress.mistakes[key] = { count: (m?.count ?? 0) + 1, lastTs: now };
 }
 
-/** 标「熟」：退出复习循环（同太简单），今日计数与打卡照记。 */
+/** 标「熟」：退出复习循环（同太简单），今日计数与打卡照记。先 roll 再
+ *  计数（与 WordFsrs.countInto 同构）——跨天后首张先加后 roll 会把计数
+ *  清零、还写下 [0,0] 伪造打卡 streak（20260828 审查）。 */
 export function markFamiliar(progress: WenguWordProgress, index: number, wasNew: boolean, now = Date.now()): void {
     const key = keyOf(index);
     progress.familiar[key] = 1;
     delete progress.ladder[key];
+    rollToday(progress, now);
     if (wasNew) progress.today.newCount++;
     else progress.today.revCount++;
-    rollToday(progress, now);
     progress.log[todayKey(now)] = [progress.today.newCount, progress.today.revCount];
 }
 
@@ -365,14 +367,16 @@ export function buildStats(progress: WenguWordProgress, now = Date.now()): Wengu
 
 /** AI 复盘结果落盘：稳定度动作（up/keep/down 按比例挪，不凭空给天数）
  *  + 误认词辨析 tip；配对组由 WordConfusables.applyAi 落。在学梯内的词
- *  没有 FSRS 态，只吃 tip 不动排期（归滚动窗口管）。 */
+ *  没有 FSRS 态，只吃 tip 不动排期（归滚动窗口管）。items 带**归一化
+ *  词头**（构建时刻冻结）——不吃活下标：AI 往返期间切书的话 keyOf 会
+ *  按新书把档位写到无关词上（20260828 审查）。 */
 export function applyAiReview(
     progress: WenguWordProgress,
-    items: { index: number; act: "up" | "keep" | "down"; tip?: string; confused?: string }[],
+    items: { key: string; act: "up" | "keep" | "down"; tip?: string; confused?: string }[],
     now = Date.now()
 ): void {
     for (const it of items) {
-        const key = keyOf(it.index);
+        const key = it.key;
         if (it.tip) {
             const m = progress.mistakes[key];
             if (m) m.note = it.tip;
@@ -432,6 +436,7 @@ export class WordStore {
         if (!p.simple) p.simple = {};
         if (!p.familiar) p.familiar = {};
         if (!p.starred) p.starred = {};
+        if (!p.ladder) p.ladder = {}; // 缺它 render/claimed/startFreshFor 全线 TypeError（20260828 审查）
         if (!p.log) p.log = {};
         if (!p.timing) p.timing = {};
         if (!p.confusables) p.confusables = [];
@@ -440,9 +445,17 @@ export class WordStore {
         if (!p.words) p.words = {};
     }
 
+    /** 串行落盘链（同 ChatStore 模式）：调用方全是 void save()（不 await），
+     *  并发写会撞「内核 fetchSyncPost 并发互吞响应」丢进度（卡片收尾与
+     *  组边界 runGroup 两条并发源几乎必然重叠，20260828 审查）。 */
+    private saveChain: Promise<unknown> = Promise.resolve();
+
     async save(p: WenguWordProgress): Promise<void> {
+        const run = this.saveChain.then(() => this.saveRaw(p));
+        const noop = (): void => undefined;
+        this.saveChain = run.then(noop, noop);
         try {
-            await this.saveRaw(p);
+            await run;
         } catch (_) {
             // 尽力而为：写失败不阻断刷词
         }

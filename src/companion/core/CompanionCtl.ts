@@ -454,26 +454,35 @@ export class CompanionCtl {
 
     private async runChat(build: (u: UserProfile) => string): Promise<void> {
         const ui = this.ui!;
+        // 发起时捕获归属：AI 往返（秒级）期间切学伴，回复只落**原**学伴的
+        // 历史与 UI——完成时才采样 chatId/chatLog 会把回复写进新学伴
+        // （串扰+落错历史文件，20260828 审查）。loadChatOf 切换时换新
+        // 数组，捕获的 log 引用即冻结为原学伴的写入面。
+        const owner = { id: this.chatId(), log: this.chatLog };
         ui.chatBusy = true;
         try {
             const u = await this.userProfile();
             const reply = await agentChatOnce(build(u), this.modelId(), AI_TIMEOUT.chat);
-            this.pushMsg("ai", clampText(reply, 400));
+            this.pushMsg("ai", clampText(reply, 400), owner);
         } catch (err) {
             const why = err instanceof Error && err.message ? `：${err.message.slice(0, 80)}` : "";
-            this.pushMsg("ai", `${this.t("companionAiFail").replace("{name}", this.profileName())}${why}`);
+            this.pushMsg("ai", `${this.t("companionAiFail").replace("{name}", this.profileName())}${why}`, owner);
         } finally {
             ui.chatBusy = false;
         }
     }
 
-    private pushMsg(role: "user" | "ai", text: string): void {
+    private pushMsg(role: "user" | "ai", text: string, owner?: { id: string; log: ChatTurn[] }): void {
         const ui = this.ui;
         if (!ui) return;
-        ui.messages.push({ role, text });
-        if (ui.messages.length > CHAT_MAX_TURNS) ui.messages.splice(0, ui.messages.length - CHAT_MAX_TURNS);
-        this.chatLog.push({ role, text });
-        if (this.chatLog.length > CHAT_MAX_TURNS) this.chatLog.splice(0, this.chatLog.length - CHAT_MAX_TURNS);
-        this.chats.put(this.chatId(), this.chatLog);
+        const id = owner?.id ?? this.chatId();
+        const log = owner?.log ?? this.chatLog;
+        if (id === this.chatId()) {
+            ui.messages.push({ role, text });
+            if (ui.messages.length > CHAT_MAX_TURNS) ui.messages.splice(0, ui.messages.length - CHAT_MAX_TURNS);
+        }
+        log.push({ role, text });
+        if (log.length > CHAT_MAX_TURNS) log.splice(0, log.length - CHAT_MAX_TURNS);
+        this.chats.put(id, log);
     }
 }

@@ -1,4 +1,5 @@
 import { agentChat, agentChatConcurrent } from "../../ai/client";
+import { enqueueAi } from "../../ai/queue";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
 
@@ -289,14 +290,16 @@ export function makeKnowAwareAi(opts: {
     knowIndex: KnowledgeIndex | undefined;
     buildPrompt: (source: string, knowRuleBlock: string, knowList: string) => string;
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
+    // 并行>1 走可并发的 chatGPT 通道；=1 走 agent/chat 且过共享队列——
+    // 裸调会与判分/复盘等其他 "" 会话调用撞内核互斥锁（20260828 审查）
     const call = (message: string): Promise<string> =>
         opts.parallel > 1
             ? agentChatConcurrent(message, AI_TIMEOUT.quick, opts.signal)
-            : agentChat(message, opts.modelId, AI_TIMEOUT.quick, opts.signal);
+            : enqueueAi(() => agentChat(message, opts.modelId, AI_TIMEOUT.quick, opts.signal));
     const generate = (prompt: string): Promise<string> =>
         opts.parallel > 1
             ? agentChatConcurrent(prompt, AI_TIMEOUT.batch, opts.signal)
-            : agentChat(prompt, opts.modelId, AI_TIMEOUT.long, opts.signal);
+            : enqueueAi(() => agentChat(prompt, opts.modelId, AI_TIMEOUT.long, opts.signal));
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }
 

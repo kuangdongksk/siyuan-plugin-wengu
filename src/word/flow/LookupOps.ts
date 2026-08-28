@@ -34,6 +34,9 @@ export function lookupStarFor(v: WordView, idx: number): void {
 
 export function lookupFamiliarFor(v: WordView, idx: number): void {
     markFamiliar(v.ui.progress!, idx, false);
+    // 同步逐出挂起的在学窗口：syncLadderFor 以 freshWin 为准重建 ladder，
+    // 不删的话刚清的条目被写回——familiar+ladder 双态、本会话继续出卡
+    v.freshWin?.delete(idx);
     void v.store.save(v.ui.progress!);
     v.syncAi();
 }

@@ -1,4 +1,5 @@
 import { agentChat } from "../../ai/client";
+import { enqueueAi } from "../../ai/queue";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBatchQuestions } from "../../convert/service/ConvertService";
 import { sectionKramdown } from "../../convert/service/KnowledgeLink";
@@ -75,17 +76,19 @@ ${template}`;
 
 /** 发 prompt 出题 + AI 自检（独立重做校验答案，不过检丢弃返回空串）。 */
 async function genWithVerify(prompt: string, modelId: string): Promise<string> {
-    const reply = await agentChat(prompt, modelId, AI_TIMEOUT.long);
+    const reply = await enqueueAi(() => agentChat(prompt, modelId, AI_TIMEOUT.long)); // "" 会话锁共享：与判分/复盘互斥
     const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
     if (qs.length === 0) return "";
     const kd = qs[0];
-    const check = await agentChat(
-        `你是解题验算助手。独立解下面的题，再与题内给出的答案比对。只输出一行：
+    const check = await enqueueAi(() =>
+        agentChat(
+            `你是解题验算助手。独立解下面的题，再与题内给出的答案比对。只输出一行：
 VERIFY: yes 或 no（答案与解析自洽为 yes；算不平/矛盾为 no）
 
 ${kd}`,
-        modelId,
-        AI_TIMEOUT.mid
+            modelId,
+            AI_TIMEOUT.mid
+        )
     );
     if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) return "";
     return kd;
