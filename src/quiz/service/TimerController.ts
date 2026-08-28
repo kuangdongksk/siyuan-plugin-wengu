@@ -26,6 +26,8 @@ export class TimerController {
     private baseSec = 0;
     private sec = 0;
     private readonly qSec = new Map<string, number>();
+    /** steps/slots 逐空（qid#k）提交已取走的整题累计：增量口径的游标。 */
+    private readonly stepTaken = new Map<string, number>();
     private activeQid = "";
 
     constructor(private readonly onChange: () => void) {}
@@ -39,6 +41,7 @@ export class TimerController {
         this.overtimeSec = 0;
         this.overtimeStarted = false;
         this.qSec.clear();
+        this.stepTaken.clear();
         this.timeUp = false;
         if (mode === "countdown") {
             this.countdownLeft = Math.max(0, countdownMin * 60 - prevElapsed);
@@ -117,9 +120,16 @@ export class TimerController {
         return this.qSec.get(qid) ?? 0;
     }
 
-    /** 提交时取本题秒数记入会话 result.sec。 */
+    /** 提交时取本题秒数记入会话 result.sec。steps/slots 的 qid#k 逐空
+     *  提交取增量（各空之和=整题用时）：qSec 只按整题 id 累计，原样
+     *  查带后缀的 key 恒 0（「steps 逐题秒数恒 0」挂账，20260829）。 */
     takeQuestionSec(qid: string): number {
-        return this.questionSec(qid);
+        const base = qid.split("#")[0];
+        const cur = this.qSec.get(base) ?? 0;
+        if (base === qid) return cur;
+        const delta = Math.max(0, cur - (this.stepTaken.get(base) ?? 0));
+        this.stepTaken.set(base, cur);
+        return delta;
     }
     /** 头部标签文案（图标由视图侧 svgIcon 渲染，这里只给文本）。 */
     labelText(t: (k: string) => string, docTotalPending: number, currentQSec: number): string {

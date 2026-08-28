@@ -23,6 +23,10 @@ export interface CollectionViewAccess {
     sideTreeOpen(): string[];
     /** AI 模型 id（收集并补题用）。 */
     modelId(): string;
+    /** 切换前结算计时（旧口径 total-time 落库）：switchTo 先改选中再
+     *  重载，若不先结算，flush 读到的是新专题 id——旧上下文的用时
+     *  落错目标（「专题边界计时错账」挂账，20260829）。 */
+    settleTimer(): void;
     /** 模式切换收尾（结算旧上下文、置空文档选中并重载，视图实现）。 */
     reloadFromCollection(): void;
 }
@@ -52,6 +56,7 @@ export class CollectionFlow {
     /** 切换专题（同 id 忽略；空串=回文档模式）。 */
     switchTo(id: string): void {
         if (id === this.collectionId) return;
+        this.v.settleTimer(); // 先按旧口径结算，再改选中（防边界错账）
         this.collectionId = id;
         this.v.reloadFromCollection();
     }

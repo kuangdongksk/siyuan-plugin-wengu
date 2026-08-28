@@ -97,15 +97,15 @@ export function bindNumRail(
                 }
                 if (cards.length === 0) return;
                 const top = scroller.getBoundingClientRect().top + 24;
-                let best = 0;
-                let bestDist = Infinity;
+                // 当前题 = 顶端参考线落在其卡身内的最后一张可见卡（包含
+                // 规则）。原「取距参考线最近的卡顶」在高题卡（数学卡
+                // 300px+）中段作答时会被下一题反超——题号高亮与逐题计时
+                // 跟着错位（「可见序数错位」挂账，20260829）。
+                let best = -1;
                 for (const c of cards) {
-                    const d = Math.abs(c.getBoundingClientRect().top - top);
-                    if (d < bestDist) {
-                        bestDist = d;
-                        best = Number(c.dataset.idx ?? 0);
-                    }
+                    if (c.getBoundingClientRect().top <= top) best = Math.max(best, Number(c.dataset.idx ?? 0));
                 }
+                if (best < 0) best = Number(cards[0].dataset.idx ?? 0);
                 setActive(best + 1);
             });
         },

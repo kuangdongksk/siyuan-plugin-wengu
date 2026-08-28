@@ -34,3 +34,14 @@ export function fmtDateTime(ts: number): string {
     const p = (n: number) => String(n).padStart(2, "0");
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+
+/** 让出主线程一拍（静态分片渲染的帧预算 yield 用）：MessageChannel
+ *  派发宏任务，不受后台页签定时器钳制——setTimeout(0) 在隐藏页签被
+ *  钳到 ≥1s，长卷后台成像会被拖到分钟级（20260829 审查）。 */
+export function yieldToBrowser(): Promise<void> {
+    return new Promise<void>((resolve) => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = () => resolve();
+        ch.port2.postMessage(0);
+    });
+}

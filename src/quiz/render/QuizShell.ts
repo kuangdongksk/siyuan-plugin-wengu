@@ -2,20 +2,21 @@ import type { QuizView } from "../index";
 import { destroyStatsPanel } from "../../stats";
 import { renderReviewFor } from "../../review";
 import { detachCompanionPanel } from "../../companion";
-import { bindCardEvents } from "../flow/AnswerFlow";
+import { bindCardEvents, restoreAnsweredCards } from "../flow/AnswerFlow";
 import { renderMainShell, renderNumsHtml, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, renderOneUnitHtml, renderUnitsHtml, type DrillUnit } from "./DrillUnits";
 import { bindGroupUnits, bindOneGroupUnit, focusQuestion, restoreGroupScrolls } from "../flow/MaterialFlow";
 import { bindNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
+import { lockAllCards } from "./RoundReport";
 import { PROTYLE_INLINE_MAX, STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { bindRailFor, renderRailHtml } from "./RailHtml";
 import { beginDrillFor, bindStartPanel, renderStartPanel } from "./StartPanel";
 import { bindHeadFor } from "../flow/ViewBindings";
 import { renderWorkspaceFor } from "./WorkspaceShell";
 import { svgIcon } from "../../ui/FormHtml";
-import { esc } from "../../ui/shared";
+import { esc, yieldToBrowser } from "../../ui/shared";
 
 /**
  * 主区渲染与视图级绑定（自 QuizView 拆出压 500 行红线）：
@@ -27,7 +28,7 @@ import { esc } from "../../ui/shared";
  *  静态路径（题库/长卷）返回「题卡全部就绪」的 Promise——已答锁定
  *  恢复、预览装饰等收尾须等它；其余路径同步完成返回 undefined。 */
 export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
-    v.protyleHost.destroyAll();
+    v.protyleHost.destroyAll(v.el);
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
     detachCompanionPanel(); // Svelte 面板先卸再挂（防实例滞留，同 statsPanel 位）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
@@ -100,9 +101,16 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     v.timerBinder.updateLabel();
     if (staticMode) {
         const task = renderStaticChunked(v, cardModel);
-        // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部卡）
-        if (pv) void task.then(() => decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz")));
-        return task;
+        // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
+        // 卡）；stale 放弃的批次不装饰——新批次自己会装饰，旧批次补挂会
+        // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
+        if (pv)
+            void task.then((fresh) => {
+                if (fresh) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz"));
+            });
+        return task.then((): void => {
+            /* 就绪信号（restore 等收尾由调用方挂） */
+        });
     }
     void v.protyleHost.mount(v.el, v.list, v.materials).then(() => restoreGroupScrolls(v.el));
     if (pv) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz")); // 预览装饰：揭示答案/快捷复制/模糊开关/退出预览
@@ -111,45 +119,75 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
 
 /** 静态路径分片管线：壳已落、题卡列表空——单元逐片插入 + 绑定 +
  *  Lute 填充（16ms 帧预算 yield），头下挂「题目渲染中 n/m」胶囊，
- *  填完摘除并恢复材料组滚动。代数变更（整壳重建）放弃在途批次。 */
-async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<void> {
+ *  填完摘除并恢复材料组滚动。代数变更（整壳重建）或中途异常 resolve
+ *  false，收尾方据此跳过预览装饰等后续。 */
+async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
-    if (!container) return;
+    if (!container) return false;
     v.el.querySelector(".wengu-main > .wengu-head")?.insertAdjacentHTML("afterend", renderingPillHtml(v.t));
-    const counter = v.el.querySelector<HTMLElement>("[data-rendering-count]");
+    // 胶囊持元素引用摘除：选择器会把重渲染后新批次的胶囊误摘
+    const pill = v.el.querySelector<HTMLElement>("[data-rendering]") ?? undefined;
+    const counter = pill?.querySelector<HTMLElement>("[data-rendering-count]") ?? undefined;
     const gen = v.protyleHost.currentGen();
     const stale = () => gen !== v.protyleHost.currentGen();
-    const nodesOf = (u: DrillUnit) => (u.qs?.length ?? 0) + (u.mid ? 1 : 0);
+    // 节点口径：独立题单元=1 个题卡节点；组单元=组内题+材料。原只算
+    // 组口径，纯独立题长卷全程显示「渲染中 0/0」（20260829 审查）。
+    const nodesOf = (u: DrillUnit) => (u.kind === "group" ? (u.qs?.length ?? 0) + (u.mid ? 1 : 0) : 1);
     const total = v.units.reduce((n, u) => n + nodesOf(u), 0);
     let done = 0;
     let deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
-    for (const u of v.units) {
-        if (stale()) return; // 整壳已重建，放弃本轮
-        if (performance.now() > deadline) {
-            await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-            if (stale()) return;
-            deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
-        }
-        container.insertAdjacentHTML("beforeend", renderOneUnitHtml(u, m));
-        const el = container.lastElementChild as HTMLElement | null;
-        if (el) {
-            if (u.kind === "group") {
-                bindOneGroupUnit(el, u, {
-                    onActive: (idx) => v.onActiveQ(idx),
-                    onShown: () => void v.protyleHost.mount(v.el, v.list, v.materials),
-                });
-            } else if (u.q && v.mode === "quiz" && !v.progressive.active) {
-                // 作答绑定守卫与 bindQuizFor 同口径：预览/渐进不绑（预览
-                // 装饰只摘按钮不摘 chip，误绑会让预览态选项可选）
-                bindCardEvents(v, el, u.q);
+    try {
+        for (const u of v.units) {
+            if (stale()) return false; // 整壳已重建，放弃本轮
+            if (performance.now() > deadline) {
+                await yieldToBrowser();
+                if (stale()) return false;
+                deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
-            await v.protyleHost.mountStatic(el, v.list, v.materials); // 本单元内容填充（KaTeX 惰性）
+            container.insertAdjacentHTML("beforeend", renderOneUnitHtml(u, m));
+            const el = container.lastElementChild as HTMLElement | null;
+            if (el) {
+                // 作答绑定守卫与 bindQuizFor 同口径（预览/渐进不绑：预览
+                // 装饰只摘按钮不摘 chip，误绑会让预览态选项可选）；再加
+                // started——收卷后（stopRoundNow 置 false）在途分片不再
+                // 绑新卡，防收卷竞态窗口内重复提交
+                const bindable = v.mode === "quiz" && !v.progressive.active && v.started;
+                if (u.kind === "group") {
+                    bindOneGroupUnit(el, u, {
+                        onActive: (idx) => v.onActiveQ(idx),
+                        onShown: () => void v.protyleHost.mount(v.el, v.list, v.materials),
+                    });
+                    // 组内题卡与独立题同权绑作答（原组分支漏绑：题库/长卷
+                    // 静态路径的材料组题全部点不动，20260829 审查）
+                    if (bindable) {
+                        for (const node of el.querySelectorAll<HTMLElement>(".wengu-gqs .wengu-card")) {
+                            const q = v.list.find((x) => x.id === node.dataset.qid);
+                            if (q) bindCardEvents(v, node, q);
+                        }
+                    }
+                } else if (u.q && bindable) {
+                    bindCardEvents(v, el, u.q);
+                }
+                await v.protyleHost.mountStatic(el, v.list, v.materials); // 本单元内容填充（KaTeX 惰性）
+                if (v.mode === "quiz" && !v.progressive.active) {
+                    // 已答锁定逐单元就地恢复（幂等）：不等全卷成像——分片
+                    // 窗口内已答题呈现未答外观、事件已绑，可重复提交；收卷
+                    // 后插入的卡无新会话可续，直接整卡上锁
+                    if (v.currentSession()) restoreAnsweredCards(v, el);
+                    if (!v.started) lockAllCards(el);
+                }
+            }
+            done += nodesOf(u);
+            if (counter) counter.textContent = `${done}/${total}`;
         }
-        done += nodesOf(u);
-        if (counter) counter.textContent = `${done}/${total}`;
+    } catch (e) {
+        console.error("[wengu] 静态分片渲染中断", e);
+        return false;
+    } finally {
+        pill?.remove();
     }
-    v.el.querySelector("[data-rendering]")?.remove();
     restoreGroupScrolls(v.el);
+    return true;
 }
 
 /** 静态渲染进度胶囊：转圈图标 + 文案 + n/m 计数（mountStatic 逐卡回调）。 */

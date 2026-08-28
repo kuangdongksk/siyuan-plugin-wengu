@@ -271,8 +271,11 @@ function showQTime(host: AnswerHost, card: HTMLElement, qid: string): void {
     if (sec > 0) showNote(card, fmt(host.t("perQTime"), { t: mmss(sec) }));
 }
 
-/** 继续上轮时：把已答卡片恢复为锁定状态（已选/已填 + 判分揭示视展示模式）。 */
-export function restoreAnsweredCards(host: AnswerHost): void {
+/** 继续上轮时：把已答卡片恢复为锁定状态（已选/已填 + 判分揭示视展示模式）。
+ *  root 限定恢复范围——静态分片管线逐单元就地恢复（分片窗口内已答题
+ *  呈现未答外观可重复提交）；allDone 触发的统一揭示只在全量恢复时收口，
+ *  逐单元调用不提前出报告（幂等，重复执行无害）。 */
+export function restoreAnsweredCards(host: AnswerHost, root?: HTMLElement): void {
     const s = host.currentSession();
     const list = host.questions();
     if (!s || s.results.length === 0) return;
@@ -288,7 +291,7 @@ export function restoreAnsweredCards(host: AnswerHost): void {
                   : byQid.has(q.id)
         );
     const revealNow = host.currentRevealMode() === "instant" || allDone;
-    for (const node of host.container().querySelectorAll<HTMLElement>(".wengu-card")) {
+    for (const node of (root ?? host.container()).querySelectorAll<HTMLElement>(".wengu-card")) {
         const q = list.find((x) => x.id === node.dataset.qid);
         if (!q) continue;
         if (hasSteps(q)) {
@@ -314,7 +317,7 @@ export function restoreAnsweredCards(host: AnswerHost): void {
             markNumAnswered(host, q);
         }
     }
-    if (allDone) void revealAll(host);
+    if (allDone && !root) void revealAll(host);
 }
 
 /** 某 slots 题在会话里的逐空结果（原样传给 restoreSlotsCard）。 */

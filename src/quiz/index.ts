@@ -131,6 +131,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             sideFilter: () => this.sideFilter,
             sideTreeOpen: () => this.sideTreeOpen,
             modelId: () => this.aiModelId(),
+            settleTimer: () => void this.timerBinder.flush(),
             reloadFromCollection: () => this.reloadDocs(""),
         });
         // 一次性事件委托（重渲染不重复绑定）：块引用跳转 + 题卡「重新生成」
@@ -214,7 +215,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.annoCleanup?.();
         hideBar();
         void this.bank?.flush();
-        this.protyleHost.destroyAll();
+        this.protyleHost.destroyAll(this.el);
         detachCompanionPanel();
     }
 
@@ -452,7 +453,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         try {
             ready = this.renderListInner();
         } catch (e) {
-            this.protyleHost.destroyAll();
+            this.protyleHost.destroyAll(this.el);
             this.el.innerHTML = `${renderRailHtml(this.t, this.workspace)}<div class="wengu-head"></div>
     <div class="wengu-status wengu-status-err">${esc(this.t("loadFailed"))}${esc(
         String((e as Error)?.message ?? e)

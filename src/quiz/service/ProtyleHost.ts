@@ -2,7 +2,7 @@ import { Protyle, ProtyleMethod } from "siyuan";
 import type { App } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { optionDisplayMd, LETTERS } from "../../types";
-import { esc } from "../../ui/shared";
+import { esc, yieldToBrowser } from "../../ui/shared";
 
 /**
  * 题目内容的内嵌只读 Protyle 宿主（从 QuizView 拆出）。
@@ -73,20 +73,14 @@ export class ProtyleHost {
      *  单任务，逐卡填完一帧预算（16ms）就 yield 让 UI 呼吸，题卡按
      *  「…」占位渐次成像；整壳重渲染（mountGen 自增）放弃在途批次，
      *  材料组切换已挂真 Protyle 的节点跳过（防静态内容覆写挂载实例）。 */
-    async mountStatic(
-        root: HTMLElement,
-        list: WenguQuestion[],
-        materials: WenguMaterial[] = [],
-        onProgress?: (done: number, total: number) => void
-    ): Promise<void> {
+    async mountStatic(root: HTMLElement, list: WenguQuestion[], materials: WenguMaterial[] = []): Promise<void> {
         const gen = this.mountGen;
         let deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
         const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-qprotyle], [data-mprotyle]"));
-        let done = 0;
         for (const node of nodes) {
             if (gen !== this.mountGen) return; // 整壳已重建，放弃本轮
             if (performance.now() > deadline) {
-                await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+                await yieldToBrowser();
                 deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
             if (this.protyles.has(this.nodeBlockId(node))) continue; // 已挂真 Protyle
@@ -104,8 +98,6 @@ export class ProtyleHost {
                     (sol ? `<div class="wengu-static-sol" data-static-sol>${mdFragmentHtml(sol)}</div>` : "");
             }
             renderMathWhenVisible(node);
-            done++;
-            onProgress?.(done, nodes.length);
         }
     }
 
@@ -152,12 +144,14 @@ export class ProtyleHost {
         renderMath(root);
     }
 
-    /** 重渲染前调用：销毁全部 Protyle，代数自增。 */
-    destroyAll(): void {
+    /** 重渲染前调用：销毁全部 Protyle，代数自增。root 是视图根——惰性
+     *  数学观察器按根分份，只重置本视图的（两个刷题页签并存时互不
+     *  干扰，模块级单例会被 A 的重建 disconnect 掉 B 的屏外锚点）。 */
+    destroyAll(root?: HTMLElement): void {
         this.mountGen++;
         // 惰性数学观察器一并重置：在途锚点全属旧 DOM，不重置会扣住
         // 整棵旧卡片树（IO 强引用）跨渲染泄漏
-        resetLazyMath();
+        resetLazyMath(root);
         for (const p of this.protyles.values()) {
             try {
                 p.destroy();
@@ -276,8 +270,9 @@ export function renderMathIn(el: HTMLElement): void {
  *  渲公式」同策略——静态路径只注入 Lute HTML 字符串，公式按需补。
  *  观察目标取卡/组锚点而非 qprotyle 本体：content-visibility 跳过
  *  渲染的卡片内部无布局盒，IO 不触发；锚点盒子（intrinsic 尺寸）
- *  始终存在。 */
-let lazyMathObserver: IntersectionObserver | undefined;
+ *  始终存在。观察器按视图根（.wengu-panel）分份：A 页签整壳重建
+ *  只重置 A 的，不连坐 B 页签的屏外公式（20260829 审查）。 */
+const lazyObservers = new WeakMap<HTMLElement, IntersectionObserver>();
 
 /** KaTeX 惰性渲染入口（mountStatic 逐节点与预览装饰共用）。 */
 export function renderMathWhenVisible(node: HTMLElement): void {
@@ -285,24 +280,30 @@ export function renderMathWhenVisible(node: HTMLElement): void {
         renderMath(node); // 环境无 IO（老内核/测试）立即渲染
         return;
     }
-    if (!lazyMathObserver) {
-        lazyMathObserver = new IntersectionObserver(
+    const anchor = node.closest<HTMLElement>(".wengu-card, .wengu-gunit") ?? node;
+    const root = anchor.closest<HTMLElement>(".wengu-panel") ?? anchor;
+    let obs = lazyObservers.get(root);
+    if (!obs) {
+        obs = new IntersectionObserver(
             (entries) => {
                 for (const e of entries) {
                     if (!e.isIntersecting) continue;
-                    lazyMathObserver!.unobserve(e.target);
+                    obs!.unobserve(e.target);
                     if (e.target.isConnected) renderMath(e.target as HTMLElement);
                 }
             },
             { rootMargin: "400px 0px" }
         );
+        lazyObservers.set(root, obs);
     }
-    lazyMathObserver.observe(node.closest<HTMLElement>(".wengu-card, .wengu-gunit") ?? node);
+    obs.observe(anchor);
 }
 
 /** 整壳重建时重置惰性观察器（destroyAll 调）：在途锚点属旧 DOM，
  *  IO 强引用会扣住整棵旧卡片树跨渲染泄漏。 */
-function resetLazyMath(): void {
-    lazyMathObserver?.disconnect();
-    lazyMathObserver = undefined;
+function resetLazyMath(root?: HTMLElement): void {
+    if (root) {
+        lazyObservers.get(root)?.disconnect();
+        lazyObservers.delete(root);
+    }
 }
