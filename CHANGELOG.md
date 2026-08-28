@@ -12,6 +12,8 @@
   （用户「那应该有padding和margin啊」）间距回归布局表达：底衬实读主区
   padding-bottom 不再 JS 硬编码，题号栏内衬 4→8px 与主区同律（首末按钮
   不贴栏框边缘），列间距仍由 .wengu-body gap 8px 表达——JS 只测量不决定。
+  第四轮（用户「底部加padding」）：题号栏自身 `margin-bottom: 8px` 与主区
+  padding-bottom 叠加=栏底留白 16px，NumRail 实读两项计入封顶。
 - v2→v3 进度迁移代码退役（20260829）：真机确认工作区 words 存量已是
   v3（3243 词 FSRS/1532 熟/2 在学），删除 core/WordMigrate 及其测试、
   WordStore.get 的 migrateV2 分支；仅认 v3，再遇旧版本文件按空进度
