@@ -41,6 +41,17 @@
   }
 }
 
+/* ── 朝向类（20260828 用户定稿：贴哪边就往反方向展开）──
+   默认=贴右下：内容右对齐团子（向左展开）、团子在展开物下方。
+   .wengu-comp-up：贴下半屏→向上展开，团子移到最下（气泡/聊天在其上）。
+   .wengu-comp-left：贴左半屏→向右展开，内容左对齐团子。 */
+.wengu-companion.wengu-comp-up .wengu-companion-inner {
+  flex-direction: column-reverse;
+}
+.wengu-companion.wengu-comp-left .wengu-companion-inner {
+  align-items: flex-start;
+}
+
 /* 自定义形象图片模式（ui.imgExpr 命中时替代内置 SVG） */
 .wengu-comp-img {
   width: 100%;

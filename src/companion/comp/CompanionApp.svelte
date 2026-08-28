@@ -21,37 +21,45 @@
         return () => clearTimeout(bubbleTimer);
     });
 
-    /* ── 悬浮位置：拖动挂件移动，松手落盘；位移 <4px 视为点击（开聊天） ── */
-    let pos = $state(ctl.figurePos());
+    /* ── 悬浮位置：存 right/bottom 锚（可辨贴边方向）；拖动挂件移动，
+       松手落盘；位移 <4px 视为点击（开聊天） ── */
+    type Pos = { r: number; b: number }; // 团子右/下边到视口右/下缘的距离
+    const saved = ctl.figurePos();
+    let pos = $state<Pos | undefined>(
+        saved
+            ? { r: Math.max(0, window.innerWidth - saved.x - 64), b: Math.max(0, window.innerHeight - saved.y - 64) }
+            : undefined
+    );
     let wrap = $state<HTMLElement | undefined>(undefined);
     let drag: { sx: number; sy: number; ox: number; oy: number; moved: boolean } | undefined;
 
-    /** 动态钳位：按容器**实际内容尺寸**（气泡/聊天打开时容器被撑宽，
-     *  静态余量猜不准——20260828 用户要求动态检测）把团子+展开物整体
-     *  留在视口内，四角各留 8px。容器尺寸 0（未渲染）退化为团子 64。 */
-    const clampPos = (x: number, y: number): { x: number; y: number } => {
+    /** 动态钳位（right/bottom 空间）：容器实测内容尺寸把团子+展开物钳在
+     *  视口内，四角留 8px；尺寸 0 退化团子 64。 */
+    const clampPos = (r: number, b: number): Pos => {
         const w = wrap?.offsetWidth || 64;
         const h = wrap?.offsetHeight || 64;
         return {
-            x: Math.max(8, Math.min(x, window.innerWidth - w - 8)),
-            y: Math.max(8, Math.min(y, window.innerHeight - h - 8)),
+            r: Math.max(8, Math.min(r, window.innerWidth - w - 8)),
+            b: Math.max(8, Math.min(b, window.innerHeight - h - 8)),
         };
     };
-
-    /** 内容尺寸变化后回钳（开聊天/出气泡/窗口缩放都可能把展开物顶出界）。 */
     const reclamp = (): void => {
         if (!pos || !wrap) return;
-        const next = clampPos(pos.x, pos.y);
-        if (next.x !== pos.x || next.y !== pos.y) pos = next;
+        const next = clampPos(pos.r, pos.b);
+        if (next.r !== pos.r || next.b !== pos.b) pos = next;
     };
     $effect(() => {
-        ui.chatOpen;
-        ui.line;
-        pos;
         if (!wrap) return;
-        // 内容重排后（面板开合/气泡进出）下一帧回钳
-        const raf = requestAnimationFrame(reclamp);
-        return () => cancelAnimationFrame(raf);
+        const ro = new ResizeObserver(() => requestAnimationFrame(reclamp));
+        ro.observe(wrap);
+        return () => ro.disconnect();
+    });
+
+    /** 朝向：贴下半屏→面板向上展开（在团子上方），上半屏→向下；
+     *  贴右半屏→向左（内容右对齐团子），左半屏→向右。 */
+    const side = $derived({
+        v: (pos?.b ?? 0) >= window.innerHeight / 2 ? "up" : "down",
+        h: (pos?.r ?? 8) <= window.innerWidth / 2 ? "left" : "right",
     });
 
     const onDown = (ev: PointerEvent): void => {
@@ -59,10 +67,10 @@
         const el = ev.currentTarget as HTMLElement;
         el.setPointerCapture(ev.pointerId);
         // 首拖（无保存位置）从当前实际渲染位置起算，不跳变
-        const r = el.closest(".wengu-companion")!.getBoundingClientRect();
-        const base = pos ?? { x: r.x, y: r.y };
+        const rect = el.closest(".wengu-companion")!.getBoundingClientRect();
+        const base = pos ?? { r: window.innerWidth - rect.right, b: window.innerHeight - rect.bottom };
         pos = base;
-        drag = { sx: ev.clientX, sy: ev.clientY, ox: base.x, oy: base.y, moved: false };
+        drag = { sx: ev.clientX, sy: ev.clientY, ox: base.r, oy: base.b, moved: false };
     };
     const onMove = (ev: PointerEvent): void => {
         if (!drag) return;
@@ -70,14 +78,18 @@
         const dy = ev.clientY - drag.sy;
         if (!drag.moved && Math.hypot(dx, dy) < 4) return;
         drag.moved = true;
-        pos = clampPos(drag.ox + dx, drag.oy + dy);
+        // 指针右移 → right 减小；指针下移 → bottom 减小
+        pos = clampPos(drag.ox - dx, drag.oy - dy);
     };
     const onUp = (): void => {
-        if (!drag) return;
+        if (!drag || !wrap) return;
         const moved = drag.moved;
         drag = undefined;
-        if (moved) ctl.setFigurePos(pos.x, pos.y);
-        else ui.chatOpen = !ui.chatOpen;
+        if (moved) {
+            // 落盘 left/top（设置契约未变），由 right/bottom 反算
+            const rect = wrap.getBoundingClientRect();
+            ctl.setFigurePos(window.innerWidth - pos.r - rect.width, window.innerHeight - pos.b - rect.height);
+        } else ui.chatOpen = !ui.chatOpen;
     };
     const onMenu = (ev: MouseEvent): void => {
         ev.preventDefault();
@@ -90,8 +102,13 @@
 
 {#if ui.enabled}
     <!-- 全局悬浮层：组件根即 fixed 容器（mount 到 body，样式在 companion.scss；
-         位置未拖动过用 scss 默认右下角，拖动后 left/top 覆盖） -->
-    <div class="wengu-companion" bind:this={wrap} style={pos ? `left:${pos.x}px;top:${pos.y}px` : ""}>
+         位置未拖动过用 scss 默认右下角，拖动后 right/bottom 覆盖；
+         wengu-comp-up/left 朝向类由贴边方向派生） -->
+    <div
+        class="wengu-companion{side.v === 'up' ? ' wengu-comp-up' : ''}{side.h === 'left' ? ' wengu-comp-left' : ''}"
+        bind:this={wrap}
+        style={pos ? `right:${pos.r}px;bottom:${pos.b}px` : ""}
+    >
         <div class="wengu-companion-inner">
             {#if ui.chatOpen}
                 <ChatPanel {ctl} {ui} />
