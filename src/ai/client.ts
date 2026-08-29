@@ -142,7 +142,9 @@ export async function agentChatConcurrent(message: string, timeoutMs: number, si
         try {
             j = JSON.parse(text) as { code?: number; msg?: string; data?: unknown };
         } catch (e) {
-            throw new Error(`chatGPT HTTP ${resp.status}`, { cause: e });
+            const err = new Error(`chatGPT HTTP ${resp.status}`);
+            (err as Error & { cause?: unknown }).cause = e;
+            throw err;
         }
         if (j.code !== 0) throw new Error(j.msg || `chatGPT ${j.code}`);
         return String(j.data ?? "");
@@ -196,7 +198,9 @@ export async function agentChatOnce(
         try {
             j = JSON.parse(text) as { code?: number; msg?: string };
         } catch (e) {
-            throw new Error(`saveSession HTTP ${resp.status}`, { cause: e });
+            const err = new Error(`saveSession HTTP ${resp.status}`);
+            (err as Error & { cause?: unknown }).cause = e;
+            throw err;
         }
         if (j.code !== 0) throw new Error(j.msg || `saveSession ${j.code}`);
         return await agentChat(message, modelId, timeoutMs, signal, sid);

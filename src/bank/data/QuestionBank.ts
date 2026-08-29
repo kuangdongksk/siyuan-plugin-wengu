@@ -59,6 +59,8 @@ export interface BankData {
     hashed: Record<string, string>;
     /** 手动导入的知识文档根（知识面板登记；旧数据缺省为 []）。 */
     knowRoots: string[];
+    /** 手动建的目录文件夹路径（空文件夹落盘；旧数据缺省为 []）。 */
+    folders: string[];
 }
 
 /** 侧栏专题行。 */
@@ -117,8 +119,16 @@ export class QuestionBank {
         this.cache =
             data && typeof data === "object" && data.records
                 ? data
-                : { version: 1, records: {}, collections: [], migratedDocs: [], hashed: {}, knowRoots: [] };
-        if (!Array.isArray(this.cache.knowRoots)) this.cache.knowRoots = []; // 旧数据补字段
+                : {
+                      version: 1,
+                      records: {},
+                      collections: [],
+                      migratedDocs: [],
+                      hashed: {},
+                      knowRoots: [],
+                      folders: [],
+                  };
+        for (const k of ["knowRoots", "folders"] as const) if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
         return this.cache;
     }
 

@@ -161,84 +161,44 @@
   padding: 4px 0;
 }
 
-/* ── 清单行（专题/知识文档面板） ── */
-.wengu-cp-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--b3-border-radius);
-
-  &:hover {
-    background: var(--b3-list-hover);
-  }
-}
-
-.wengu-cp-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  font-size: 13px;
-
-  .b3-text-field {
-    width: 100%;
-    min-width: 120px;
-    font-size: 13px;
-  }
-}
-
+/* ── 清单行（知识文档面板） ── */
 .wengu-cp-meta {
   flex: none;
   font-size: 12px;
   color: var(--b3-theme-on-surface-light);
 }
 
-.wengu-cp-ops {
-  flex: none;
-  display: flex;
-  gap: 4px;
+/* ── 专题管理树（官方文档树同款 b3-list 行壳；新文件夹/空文件夹、
+   箭头折叠、counter 计数、hover 图标操作均走 stage 全局样式） ── */
+.wengu-cp-tree,
+.wengu-cp-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-/* 专题目录分组（标题含 / 时树形展示；叶子专题行由内联 padding-left 缩进） */
-.wengu-col-group {
-  > summary {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border-radius: var(--b3-border-radius);
-    cursor: pointer;
+/* 行内改名：b3-list-item__text 是 -webkit-box 截断盒，须换成 flex 容输入框 */
+.wengu-cp-tree .b3-list-item__text.wengu-cp-editing {
+  display: flex;
+  align-items: center;
+
+  .b3-text-field {
+    flex: 1;
+    min-width: 120px;
+    height: 22px;
     font-size: 13px;
-    color: var(--b3-theme-on-surface);
-    list-style: none;
-    user-select: none;
-
-    &::-webkit-details-marker {
-      display: none;
-    }
-
-    &:hover {
-      background: var(--b3-list-hover);
-    }
-
-    svg {
-      flex: none;
-      width: 14px;
-      height: 14px;
-      color: var(--b3-theme-on-surface-light);
-    }
   }
 }
 
-.wengu-col-group-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.wengu-cp-tree .b3-list-item .b3-text-field {
+  height: 22px;
+  font-size: 13px;
+}
+
+/* 两击确认武装态：图标位换「确认」红字（专题/文件夹删除共用） */
+.wengu-cp-armed {
+  color: var(--b3-theme-error);
+  font-size: 12px;
 }
 
 /* 知识文档面板树化（20260827，PickerTree 同款 b3-list-item 行壳 +
