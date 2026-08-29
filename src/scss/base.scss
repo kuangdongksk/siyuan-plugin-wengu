@@ -291,6 +291,17 @@
   width: 100%;
 }
 
+/* 行内定宽控件守卫（20260829 用户截图「内容超出」）：内核 base.css 的
+   窄屏响应式 @media (max-width:750px){.config__item > .b3-text-field/
+   .b3-select/.b3-button{width:100%;margin-top:8px}} 特异性 0,2,0 盖过
+   .fn__size200 的 200px——窗口 ≤750 CSS px（半屏分栏/DPI 缩放）时
+   控件被拉成整行宽并挤换行，视觉超出面板。复合选择器抬到 0,3,0 压
+   回：温故的行是「标签+定宽控件」横排语义，不吃内核窄屏堆叠布局。 */
+.b3-label.wengu-formrow > .fn__size200 {
+  width: 200px;
+  margin-top: 0;
+}
+
 /* 模型选择浮层：类名照抄官方 commonMenu（b3-menu__filter + b3-list），
    挂 body 用 fixed 定位，列表封顶滚动 */
 .wengu-model-menu {
