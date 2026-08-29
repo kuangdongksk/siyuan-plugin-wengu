@@ -2,6 +2,17 @@
 
 ## v0.1.1 unreleased
 
+- 题库静态渲染两修（20260829，用户反馈「还是可以编辑」+ 选项旁泄漏
+  `updated=…` 属性文本）：①防误编辑——静态/降级渲染全链路（题干/选项/
+  解析/材料/steps）的 Lute `Md2BlockDOM` 输出带 `contenteditable="true"`
+  （编辑器 DOM 形态），在 luteToHtml 单点剥除，静态内容纯展示（文字仍
+  可选中，「标为线索」不受影响）。②IAL 残渣清理——思源 kramdown 读回
+  时列表项/块引用子块的 IAL 行内尾随或带缩进/引用前缀独立成行（题库
+  落盘实测 `- {: id="…" updated="…"}A. …`），BankParse 只认无前缀整行
+  part IAL，残渣混进选项 md 渲染成 `"updated=…"}A.` 字面文本；splitParts
+  现按「整行属性行删行 + 行内尾随片段删片段」清理（key="value" 全形态
+  约束不误伤公式），题库每次装载从落盘 kramdown 重新解析，存量数据
+  重载即愈、无需迁移。
 - 短选项紧凑排布 opt-compact（20260829，用户反馈数学短公式选项每个独占
   一行、右侧大片空白；docs/option-compact-layout.md 方案 C）：内容渲染
   保留 Lute，仅「剥壳」——`unwrapSingleBlock` 把 Md2BlockDOM 的单段落

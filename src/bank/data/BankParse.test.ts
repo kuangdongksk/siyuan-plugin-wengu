@@ -48,6 +48,40 @@ describe("parseQuestionKramdown · 单题", () => {
         const noType = singleKd.replace(' custom-plugin-wengu-type="single"', "");
         expect(parseQuestionKramdown(noType, "qid")).toBeUndefined();
     });
+
+    it("子块 IAL 残渣清理（列表项行内尾随/缩进行/块引用行，20260829 真机踩坑）", () => {
+        // 思源 kramdown 读回的真实形态：列表项首段 IAL 行内尾随、条目自身
+        // IAL 缩进独立成行、块引用子块 IAL 带 > 前缀——不清理会以
+        // "updated=…"}A. 字面文本泄漏到渲染侧
+        const kd = [
+            "{{{row",
+            "题干",
+            '{: id="20260825115806-zjzkei2" updated="20260825115806" custom-plugin-wengu-part="stem"}',
+            "",
+            '- {: id="20260825115806-veod33h" updated="20260825115806"}A. 甲',
+            '  {: id="20260825115806-hzinuke" updated="20260825115806"}',
+            '- {: id="20260825115806-3p0lxmx" updated="20260825115806"}B. 乙',
+            '  {: id="20260825115806-m43n61o" updated="20260825115806"}',
+            '{: id="20260825115806-1sh94wt" updated="20260825115806" custom-plugin-wengu-part="option-0"}',
+            "",
+            "> 正确答案：A",
+            '> {: id="20260825115806-rhlm2sz" updated="20260825115806"}',
+            ">",
+            '{: id="20260825115806-nklqlwa" updated="20260825115806" custom-plugin-wengu-part="answer"}',
+            "",
+            "解析 $x$",
+            '{: id="20260825115806-4wsulpj" updated="20260825115806" custom-plugin-wengu-part="solution"}',
+            "}}}",
+            '{: id="20260825115806-0xnzdaj" updated="20260825115806" custom-plugin-wengu-q="1" custom-plugin-wengu-type="single"}',
+        ].join("\n");
+        const q = parseQuestionKramdown(kd, "qid1");
+        expect(q).toBeDefined();
+        const json = JSON.stringify(q);
+        expect(json).not.toContain("{:");
+        expect(json).not.toContain("updated=");
+        expect(q?.optionMd).toEqual(["- A. 甲", "- B. 乙"]);
+        expect(q?.answer).toBe("A");
+    });
 });
 
 describe("parseQuestionKramdown · steps", () => {

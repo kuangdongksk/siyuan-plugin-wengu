@@ -1,14 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { estimateOptWidth } from "../../types";
-import { optionRowHtml, unwrapSingleBlock } from "./ProtyleHost";
+import { mdFragmentHtml, optionRowHtml, unwrapSingleBlock } from "./ProtyleHost";
 
 /**
  * 短选项紧凑排布（opt-compact，20260829；docs/option-compact-layout.md）：
  * ① unwrapSingleBlock 剥壳——真机段落形态（3.8.1 lute.min.js node 探针）：
  * `<div … class="p"><div contenteditable="true">正文</div><div class=
- * "protyle-attr">…</div></div>`，取 contenteditable 正文为内联 HTML，
- * contenteditable 壳与 protyle-attr 尾巴剥掉；多块/代码块/标题/pre 降级/
- * 形态漂移一律返回 null（整行独占）。
+ * "protyle-attr">…</div></div>`，取正文壳的内联 HTML（luteToHtml 已先剥
+ * contenteditable=true 防误编辑，故运行时壳多无该属性——两种形态都认）；
+ * 多块/代码块/标题/pre 降级/形态漂移一律返回 null（整行独占）。
  * ② estimateOptWidth 估宽——公式段定值 8、全角 2、半角 1，档位
  * s≤10 / m≤24。optionRowHtml 的档类只在 Lute 可用（剥壳成功）时出现，
  * 故用 stub window.Lute 走真分支；与 ProtyleHost.test.ts 分文件——
@@ -55,8 +55,15 @@ describe("unwrapSingleBlock：Lute 输出剥壳", () => {
         expect(unwrapSingleBlock("")).toBeNull();
     });
 
-    it("形态漂移（contenteditable 壳缺失）返回 null 整行独占", () => {
+    it("形态漂移（正文壳整体缺失）返回 null 整行独占", () => {
         expect(unwrapSingleBlock('<div class="p">直接正文</div>')).toBeNull();
+    });
+
+    it("正文壳无属性（luteToHtml 已剥 contenteditable）仍可剥壳", () => {
+        const stripped =
+            '<div data-node-id="x" data-type="NodeParagraph" class="p"><div spellcheck="false">甲</div>' +
+            '<div class="protyle-attr">\u200B</div></div>';
+        expect(unwrapSingleBlock(stripped)).toBe("甲");
     });
 });
 
@@ -108,5 +115,12 @@ describe("optionRowHtml：估宽档类（stub Lute 走剥壳真分支）", () =>
 
     it("复习行类与档类并存", () => {
         expect(optionRowHtml(0, "甲", "wengu-review-option")).toContain('class="wengu-review-option wengu-opt-s"');
+    });
+
+    it("静态输出全链路无 contenteditable=true（防误编辑，含剥壳失败的多块选项）", () => {
+        expect(optionRowHtml(0, "A. 甲")).not.toContain('contenteditable="true"');
+        // 空行分段 → 两个顶层块 → 剥壳失败整行独占，同样不可编辑
+        expect(optionRowHtml(1, "B. 行一\n\n行二")).not.toContain('contenteditable="true"');
+        expect(mdFragmentHtml("题干 $x$")).not.toContain('contenteditable="true"');
     });
 });

@@ -215,7 +215,10 @@ function luteToHtml(md: string): string {
         (sharedLute as unknown as { SetMathBlock?: (b: boolean) => void }).SetMathBlock?.(true);
         sharedLute.SetInlineMathAllowDigitAfterOpenMarker(true);
     }
-    return sharedLute.Md2BlockDOM(md);
+    // Md2BlockDOM 输出带 contenteditable="true"（编辑器 DOM 形态）——
+    // 静态渲染是纯展示，剥掉该属性防误编辑（20260829 用户反馈「还是
+    // 可以编辑」：题干/选项/解析/材料全链路都从这里走，一处收口）
+    return sharedLute.Md2BlockDOM(md).replace(/ contenteditable="true"/g, "");
 }
 
 /** 选项行 HTML（静态/降级渲染共用；复习详情也走它）：字母角标按位
@@ -279,7 +282,9 @@ export function unwrapSingleBlock(html: string): string | null {
         if (depth === 0) {
             if (m.index + m[0].length !== t.length) return null;
             const inner = t.slice(openEnd + 1, m.index);
-            const body = inner.match(/^<div contenteditable="true"[^>]*>([\s\S]*)<\/div><div class="protyle-attr"/);
+            // 正文壳的首 div 不认属性（luteToHtml 已剥 contenteditable，
+            // 壳可能是 <div spellcheck="false">；兼容未剥形态）
+            const body = inner.match(/^<div[^>]*>([\s\S]*)<\/div><div class="protyle-attr"/);
             return body ? body[1] : null;
         }
     }
