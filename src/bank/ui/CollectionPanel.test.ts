@@ -50,6 +50,23 @@ describe("buildColTree", () => {
         expect(root.rows).toHaveLength(0);
         expect(root.children).toHaveLength(0);
     });
+
+    it("节点带完整目录路径（文件夹操作键）", () => {
+        const root = buildColTree([row("高数/极限/洛必达")]);
+        expect(root.children[0].path).toBe("高数");
+        expect(root.children[0].children[0].path).toBe("高数/极限");
+    });
+
+    it("手动文件夹并入树（空目录成节点、中间层补齐、与标题派生合并）", () => {
+        const root = buildColTree([row("高数/极限/洛必达")], ["英语/阅读", "错题"]);
+        expect(new Set(root.children.map((c) => c.name))).toEqual(new Set(["错题", "英语", "高数"]));
+        const gs = root.children.find((c) => c.name === "高数")!;
+        expect(gs.rows).toHaveLength(0); // 只有派生子目录，无直属专题
+        const yy = root.children.find((c) => c.name === "英语")!;
+        expect(yy.children.map((c) => c.name)).toEqual(["阅读"]); // 空文件夹叶子
+        expect(yy.children[0].rows).toHaveLength(0);
+        expect(yy.children[0].children).toHaveLength(0);
+    });
 });
 
 describe("normalizeCollectionPath", () => {

@@ -2,6 +2,23 @@
 
 ## v0.1.1 unreleased
 
+- 专题管理：新建文件夹 + 官方文档树样式（20260829，用户「专题管理需要
+  支持新建文件夹，树形跟官方样式一模一样」）：①目录此前只由专题标题
+  含 / 派生、无空目录——BankData 新增 folders 字段（手动文件夹路径，
+  旧数据缺省补 []），增删改走新友元模块 BankFolders（QuestionBank 已
+  贴 500 行红线）：新建（头部按钮/文件夹行 iconAdd 内联输入行，路径
+  可 / 分级）、改名（行内编辑完整路径，严格前缀改写其下专题标题与
+  子文件夹条目）、删除（两击确认，连同严格前缀下全部专题并联动清
+  col: 会话；同名平铺专题不受牵连）；空文件夹并入 buildColTree 树。
+  ②树形重写为官方文档树同款 DOM（ul.b3-list--background + li.b3-list-item
+  --hide-action 行壳、b3-list-item__toggle/__arrow 箭头旋转折叠、
+  __icon/__text、counter 计数徽标、hover 才显的 b3-list-item__action
+  图标操作 + b3-tooltips；行内 --file-toggle-width/--file-action-offset
+  与 stage 实测一致），行与子目录按名混排，统计移入悬浮 tooltip；
+  专题行删除同样改图标两击确认。wengu-cp-row/-title/-ops 与
+  wengu-col-group 旧样式清除，i18n 增 colNewFolder/colNewSub/
+  colDelFolder/colFolderPh、退役 colGroupCount。
+
 - 内嵌 Protyle 题卡选项锁只读（20260829，用户「选项不应该能编辑」）：
   3.8.1 前端源码核实——Wysiwyg 构造在桌面端无条件 contenteditable="true"，
   protyle.disable() 只置内部标志，选项块仍可被就地编辑。照搬思源自家只读面
