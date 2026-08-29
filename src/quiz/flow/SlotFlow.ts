@@ -1,6 +1,6 @@
 import type { AnswerHost } from "./AnswerFlow";
 import { statusIcon } from "../../ui/FormHtml";
-import { mdFragmentHtml, renderMathIn } from "../service/ProtyleHost";
+import { optionInline, renderMathIn } from "../service/ProtyleHost";
 import { checkAllDone } from "./AnswerFlow";
 import { markNum, paintOptions, showNote as showSlotNote } from "../render/FlowDom";
 import { gradeSlot, recordSlotsResult, slotOptionIsRight } from "../service/QuestionService";
@@ -100,7 +100,11 @@ function fillClozeSlot(
     for (const opt of optRow.querySelectorAll<HTMLElement>(".wengu-slot-opt")) {
         const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
         const text = opt.querySelector<HTMLElement>("[data-opt-text]");
-        if (text && slot.optionMd[idx]) text.innerHTML = mdFragmentHtml(optionDisplayMd(slot.optionMd[idx]));
+        if (text && slot.optionMd[idx]) {
+            const { body, tier } = optionInline(optionDisplayMd(slot.optionMd[idx]));
+            text.innerHTML = body;
+            if (tier) opt.classList.add(tier); // 短选项多列档类（opt-compact）
+        }
         opt.addEventListener("click", () => {
             if (optRow.dataset.locked === "1") return;
             optRow.querySelectorAll(".wengu-slot-opt").forEach((o) => o.classList.remove("wengu-slot-selected"));

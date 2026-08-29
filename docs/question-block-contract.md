@@ -184,11 +184,18 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   剥掉列表标记与字母标签后，字母由页签按位补画角标
   （`optionRowHtml` → `.wengu-opt-letter`，与作答 chip 按位对齐）；
   文档模式字母来自文档正文或有序列表 CSS 计数器（1234→ABCD）。
-  复习模式详情选项行同款角标。
+  复习模式详情选项行同款角标。**短选项紧凑排布**（2026-08-29
+  opt-compact）：静态/降级/复习/steps/cloze/match 选项正文经
+  `unwrapSingleBlock` 剥掉 Lute 段落壳成内联 HTML（公式 span 原样，
+  KaTeX 链不变），按 `estimateOptWidth` 估宽分档（公式段定值 8、
+  全角 2、半角 1；s≤10 一行 4 个、m≤24 一行 2 个、其余整行），档类
+  `wengu-opt-s/m` + `.wengu-opts` 等 wrap 容器（card-render.scss）；
+  多块/代码块/畸形选项不剥不加档，整行独占。文档模式 ol 多列未做
+  （docs/option-compact-layout.md □4 二期）。
 - **长卷性能（2026-08-26，193 题真机触发）**：①装载——listQuestions
   改走 QuestionBatch.hydrateAll：整卷子块×part 一条 JOIN SQL 显式
   LIMIT 512 分页拉全（~每 512 行一次请求），替代逐题
-  getChildBlocks+SQL 的 2×N 次串行往返（193 题 ≈390 次 → ~4 次；
+  getChildBlocks+SQL 的 2×N 次串行往返（193 题 ≈390 次 → ~~4 次；
   fetchSyncPost 仍全程串行）；子块序=容器内 id 字典序≈写入序，
   手工重排的小概率乱序不追求，单题 hydrate（复习详情）仍走
   getChildBlocks 保序；题干清洗回写（StemRewrite）收集后统一串行
@@ -204,7 +211,7 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   卡列表 MutationObserver 失效重扫，active 只动前后两钮，当前题
   取 data-idx 而非可见序——材料组卷不再错位）；成像期间头部下方
   挂「题目渲染中 n/m」进度胶囊（mountStatic onProgress 逐卡回调，
-  填完摘除）。⑤视口优先渲染（20260829 ①~④）：题卡/组单元
+  填完摘除）。⑤视口优先渲染（20260829 ①~~④）：题卡/组单元
   `content-visibility:auto`（屏外跳过布局绘制，intrinsic 尺寸记忆）；
   KaTeX 惰性（renderMathWhenVisible，IO 锚点=卡/组，进视口前 400px
   才渲，整壳重建重置观察器防泄漏）；静态路径壳分片插入（列表空壳

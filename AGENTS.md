@@ -216,6 +216,11 @@ message, language, references, model?}`；`userEntryID` 是
   （20260825 踩坑，ProtyleHost.luteToHtml）。自建实例还必须
   `SetInlineMath(true)`（编辑器默认关行级公式，否则 `$...$` 原样
   输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发 getDoc 挂起）。
+  `Md2BlockDOM` 段落输出形态（3.8.1 lute.min.js 在 node 沙箱探针实测，
+  20260829）：`<div … class="p"><div contenteditable="true">正文</div>
+  <div class="protyle-attr">…</div></div>`——正文藏在 contenteditable
+  壳里、尾部还拖 protyle-attr；要取内联内容剥壳得按这个形态
+  （ProtyleHost.unwrapSingleBlock），朴素取 innerHTML 会把块级壳漏进去。
 
 ## 外部 API：MinerU（PDF 解析，20260823 接入）
 

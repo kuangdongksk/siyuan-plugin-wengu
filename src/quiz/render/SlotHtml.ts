@@ -1,6 +1,6 @@
 import { renderCardHead, renderThoughtArea } from "./CardParts";
 import type { CardHtmlModel } from "./CardParts";
-import { mdFragmentHtml } from "../service/ProtyleHost";
+import { optionInline } from "../service/ProtyleHost";
 import type { WenguQuestion } from "../../types";
 import { LETTERS, optionDisplayMd, QuestionType } from "../../types";
 import { esc } from "../../ui/shared";
@@ -43,10 +43,11 @@ function renderSlotsArea(q: WenguQuestion, t: (k: string) => string): string {
 /** match：候选池（只读展示）+ 每槽一行（下拉选字母 + 提交）。 */
 function renderMatchArea(q: WenguQuestion, t: (k: string) => string): string {
     const pool = (q.optionMd ?? [])
-        .map(
-            (md, i) =>
-                `<div class="wengu-match-poolitem"><span class="wengu-match-letter">${LETTERS[i] ?? ""}</span><span>${mdFragmentHtml(optionDisplayMd(md))}</span></div>`
-        )
+        .map((md, i) => {
+            const { body, tier } = optionInline(optionDisplayMd(md));
+            const cls = tier ? `wengu-match-poolitem ${tier}` : "wengu-match-poolitem";
+            return `<div class="${cls}"><span class="wengu-match-letter">${LETTERS[i] ?? ""}</span><span>${body}</span></div>`;
+        })
         .join("");
     const opts = (q.optionMd ?? [])
         .map((_, i) => `<option value="${LETTERS[i] ?? ""}">${LETTERS[i] ?? ""}</option>`)

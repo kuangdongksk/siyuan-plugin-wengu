@@ -129,9 +129,11 @@
 }
 
 .wengu-step-opts {
+  /* 行向 wrap + 短选项档类（opt-compact）：默认整行，档项并排 */
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
   margin-bottom: 8px;
 }
 
@@ -229,6 +231,33 @@
 .wengu-opt-body {
   flex: 1;
   min-width: 0;
+}
+
+/* ── 短选项多列排布（opt-compact，20260829；docs/option-compact-layout.md）──
+   选项正文剥壳成内联 HTML 后按估宽分档：wengu-opt-s ≤10 半角单位一行
+   4 个、wengu-opt-m ≤24 一行 2 个，无档类整行。flex-basis 减 column-gap
+   份额（s 档 3 缝/4 项、m 档 1 缝/2 项）保证同档正好铺满一行；估偏大
+   只是该项提前换行（安全侧），grow 1 吃掉取整余量。steps 选项按钮、
+   cloze 逐空选项、match 候选池容器（english.scss）同用档类。 */
+.wengu-opts {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin-bottom: 6px;
+}
+
+:is(.wengu-opts, .wengu-step-opts, .wengu-slot-opts, .wengu-matchpool) > * {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+:is(.wengu-opts, .wengu-step-opts, .wengu-slot-opts, .wengu-matchpool) > .wengu-opt-s {
+  flex: 1 1 calc(25% - 9px);
+}
+
+:is(.wengu-opts, .wengu-step-opts, .wengu-slot-opts, .wengu-matchpool) > .wengu-opt-m {
+  flex: 1 1 calc(50% - 6px);
 }
 
 /* ── 判断题按钮 ── */

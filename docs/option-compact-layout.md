@@ -6,11 +6,11 @@
 
 ## 一、现状：选项的三条显示路径
 
-| 路径 | 场景 | 选项 HTML | 现布局 |
-|---|---|---|---|
-| 静态/降级 | 题库模式、长卷 >50 题静态渲染、Protyle 挂载失败降级、复习详情 | `optionRowHtml`（ProtyleHost.ts:224）→ `safeLute` = `Md2BlockDOM` | 每项一个块级行，纵向堆叠 |
-| 文档模式 | 文档做题（真 Protyle） | Protyle 原生有序列表，CSS counter 把 1234 画成 A.（card-render.scss:304） | ol 语义每项一行 |
-| steps/slots | 步骤题选项按钮、匹配题候选池 | `button.wengu-step-opt`（CardHtml.ts:109，flex column 容器）/ `.wengu-match-poolitem`（SlotHtml.ts:48） | 纵向一列 / 池内逐项 |
+| 路径        | 场景                                                          | 选项 HTML                                                                                               | 现布局                   |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------ |
+| 静态/降级   | 题库模式、长卷 >50 题静态渲染、Protyle 挂载失败降级、复习详情 | `optionRowHtml`（ProtyleHost.ts:224）→ `safeLute` = `Md2BlockDOM`                                       | 每项一个块级行，纵向堆叠 |
+| 文档模式    | 文档做题（真 Protyle）                                        | Protyle 原生有序列表，CSS counter 把 1234 画成 A.（card-render.scss:304）                               | ol 语义每项一行          |
+| steps/slots | 步骤题选项按钮、匹配题候选池                                  | `button.wengu-step-opt`（CardHtml.ts:109，flex column 容器）/ `.wengu-match-poolitem`（SlotHtml.ts:48） | 纵向一列 / 池内逐项      |
 
 「每项一行」的直接原因（静态路径）：`Md2BlockDOM` 输出**块级** DOM——
 单行选项 = 顶层一个 `<div class="p" data-node-id=…>`，正文包在块 div 里，
@@ -42,17 +42,17 @@
 - **B 硬 grid 分档**：估宽→全短 4 列 / 次短 2 列。列最齐，但估宽误差
   无处可退（估小同行挤爆）。否。
 - **C（推荐）估宽分档 + flex-basis + wrap**：
-  - `estimateOptWidth(展示md)`：`$…$` 段每段计定值 **8 单位**（π²/6
-    渲染约 60px ≈ 8 半角单位，宁大勿小）；其余文本 CJK 记 2、半角记 1。
-  - 档位：`w≤10` → `opt-s`（basis 25%，一行 4 个）；`w≤24` → `opt-m`
-    （basis 50%，一行 2 个）；否则独占（不加类，basis 100%）。
-  - 容器 `.wengu-opts { display:flex; flex-wrap:wrap; column-gap:12px;
-    row-gap:2px }`；选项行内部结构不变（角标 + 剥壳后的内联正文）。
-  - 误差兜底：估偏大 → 该项提前换行（安全侧）；估偏小 → 同行略挤不
-    破版（KaTeX 是惰性后渲染，估宽定值已按渲染后宽度计）。阈值常量，
-    真机截图调参。
+    - `estimateOptWidth(展示md)`：`$…$` 段每段计定值 **8 单位**（π²/6
+      渲染约 60px ≈ 8 半角单位，宁大勿小）；其余文本 CJK 记 2、半角记 1。
+    - 档位：`w≤10` → `opt-s`（basis 25%，一行 4 个）；`w≤24` → `opt-m`
+      （basis 50%，一行 2 个）；否则独占（不加类，basis 100%）。
+    - 容器 `.wengu-opts { display:flex; flex-wrap:wrap; column-gap:12px;
+row-gap:2px }`；选项行内部结构不变（角标 + 剥壳后的内联正文）。
+    - 误差兜底：估偏大 → 该项提前换行（安全侧）；估偏小 → 同行略挤不
+      破版（KaTeX 是惰性后渲染，估宽定值已按渲染后宽度计）。阈值常量，
+      真机截图调参。
 - **D DOM 实测两遍**：渲染后量 offsetWidth 再套 grid。最准但长卷批量
-    多一遍 reflow，复杂度不值。备选。
+  多一遍 reflow，复杂度不值。备选。
 
 ## 四、覆盖范围（□ 勾选后实施）
 

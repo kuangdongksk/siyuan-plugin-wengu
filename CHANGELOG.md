@@ -2,6 +2,16 @@
 
 ## v0.1.1 unreleased
 
+- 短选项紧凑排布 opt-compact（20260829，用户反馈数学短公式选项每个独占
+  一行、右侧大片空白；docs/option-compact-layout.md 方案 C）：内容渲染
+  保留 Lute，仅「剥壳」——`unwrapSingleBlock` 把 Md2BlockDOM 的单段落
+  块取 innerHTML 成内联 HTML（公式 span 原样，KaTeX 惰性链零改动），
+  多块/代码块/畸形选项不剥、整行独占（Lute 异常退 pre 同理）；估宽
+  `estimateOptWidth`（公式段定值 8、全角 2、半角 1）分档 s≤10 一行
+  4 个 / m≤24 一行 2 个，flex-basis 减 column-gap 份额 + wrap 兜底
+  （估偏大只是提前换行，安全侧）。接线：静态/降级 `optionRowHtml`+
+  `.wengu-opts` 容器、复习详情、steps 选项按钮（column→row wrap）、
+  cloze 逐空选项、match 候选池；文档模式 ol 多列留二期（□4）。
 - 题号栏占满可视高（20260829，用户反馈「题号没占满」→「又装不下只差几
   像素」两轮）：题号竖列封顶第一轮从固定 `100vh - 200px` 改
   `100vh - var(--wengu-head-h) - 40px`（头高用 NumRail 实测变量，留页签
