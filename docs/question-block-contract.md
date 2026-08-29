@@ -179,12 +179,23 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
 - **题库模式渲染**：静态路径（Lute Md2BlockDOM + KaTeX），解析/
   答案在 `.wengu-static-sol` 容器里随 `wengu-graded` 显隐（与文档
   模式 part 显隐同语义）；块引用静态渲染、点击 `siyuan://blocks/id`
-  跳转。文档模式仍走内嵌 Protyle。**选项字母三路一致**（2026-08-28
+  跳转。静态输出在 luteToHtml 单点剥 `contenteditable="true"`（纯展示
+  防误编辑，20260829；文字仍可选中供「标为线索」）。题库落盘 kramdown
+  里子块 IAL 的行内尾随/缩进/引用前缀残渣由 BankParse splitParts 清理
+  （`- {: id=…}A. …` 不清会渲染成字面属性文本，20260829 真机踩坑）。
+  文档模式仍走内嵌 Protyle。**选项字母三路一致**（2026-08-28
   「ABCD 都没了」修复）：静态/降级路径选项文本经 `optionDisplayMd`
   剥掉列表标记与字母标签后，字母由页签按位补画角标
   （`optionRowHtml` → `.wengu-opt-letter`，与作答 chip 按位对齐）；
   文档模式字母来自文档正文或有序列表 CSS 计数器（1234→ABCD）。
-  复习模式详情选项行同款角标。
+  复习模式详情选项行同款角标。**短选项紧凑排布**（2026-08-29
+  opt-compact）：静态/降级/复习/steps/cloze/match 选项正文经
+  `unwrapSingleBlock` 剥掉 Lute 段落壳成内联 HTML（公式 span 原样，
+  KaTeX 链不变），按 `estimateOptWidth` 估宽分档（公式段定值 8、
+  全角 2、半角 1；s≤10 一行 4 个、m≤24 一行 2 个、其余整行），档类
+  `wengu-opt-s/m` + `.wengu-opts` 等 wrap 容器（card-render.scss）；
+  多块/代码块/畸形选项不剥不加档，整行独占。文档模式 ol 多列未做
+  （docs/option-compact-layout.md □4 二期）。
 - **长卷性能（2026-08-26，193 题真机触发）**：①装载——listQuestions
   改走 QuestionBatch.hydrateAll：整卷子块×part 一条 JOIN SQL 显式
   LIMIT 512 分页拉全（~每 512 行一次请求），替代逐题

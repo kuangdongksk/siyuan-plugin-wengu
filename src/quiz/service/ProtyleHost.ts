@@ -1,7 +1,7 @@
 import { Protyle, ProtyleMethod } from "siyuan";
 import type { App } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
-import { optionDisplayMd, LETTERS } from "../../types";
+import { optionDisplayMd, estimateOptWidth, LETTERS } from "../../types";
 import { esc, yieldToBrowser } from "../../ui/shared";
 
 /**
@@ -229,25 +229,80 @@ function luteToHtml(md: string): string {
         (sharedLute as unknown as { SetMathBlock?: (b: boolean) => void }).SetMathBlock?.(true);
         sharedLute.SetInlineMathAllowDigitAfterOpenMarker(true);
     }
-    return sharedLute.Md2BlockDOM(md);
+    // Md2BlockDOM 输出带 contenteditable="true"（编辑器 DOM 形态）——
+    // 静态渲染是纯展示，剥掉该属性防误编辑（20260829 用户反馈「还是
+    // 可以编辑」：题干/选项/解析/材料全链路都从这里走，一处收口）
+    return sharedLute.Md2BlockDOM(md).replace(/ contenteditable="true"/g, "");
 }
 
 /** 选项行 HTML（静态/降级渲染共用；复习详情也走它）：字母角标按位
  *  补画——选项文本经 optionDisplayMd 剥掉文档里的字母标签后，字母
- *  只能由页签自己画（types.ts 约定），否则作答 chip 无从对应。 */
+ *  只能由页签自己画（types.ts 约定），否则作答 chip 无从对应。
+ *  正文经 optionInline 剥壳成内联 HTML 并按估宽加紧凑档类
+ *  （wengu-opt-s/m，多列排布见 card-render.scss）。 */
 export function optionRowHtml(i: number, md: string, rowClass = "wengu-option-fallback"): string {
-    return (
-        `<div class="${rowClass}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span>` +
-        `<div class="wengu-opt-body">${safeLute(optionDisplayMd(md))}</div></div>`
-    );
+    const { body, tier } = optionInline(optionDisplayMd(md));
+    const cls = tier ? `${rowClass} ${tier}` : rowClass;
+    return `<div class="${cls}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span><div class="wengu-opt-body">${body}</div></div>`;
 }
 
-/** 降级渲染：题干 + 选项行（静态挂载与 Protyle 失败降级共用）。 */
+/** 降级渲染：题干 + 选项行（静态挂载与 Protyle 失败降级共用）。
+ *  选项行包进 .wengu-opts 容器（flex-wrap 多列排布的挂点）。 */
 export function fallbackQuestionHtml(q: WenguQuestion): string {
     const parts: string[] = [];
     if (q.stemMd) parts.push(safeLute(q.stemMd));
-    for (const [i, md] of (q.optionMd ?? []).entries()) parts.push(optionRowHtml(i, md));
+    const rows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md)).join("");
+    parts.push(rows ? `<div class="wengu-opts">${rows}</div>` : "");
     return parts.join("");
+}
+
+/** 紧凑档阈值（半角单位，docs/option-compact-layout.md 方案 C）：≤10
+ *  一行 4 个（25%）、≤24 一行 2 个（50%）；估偏大安全侧。 */
+const OPT_W_S = 10;
+const OPT_W_M = 24;
+
+/** 选项正文 + 紧凑档类（opt-compact，20260829）：Lute 输出剥壳成纯
+ *  内联 HTML（inline-math span 原样保留，KaTeX 惰性链零改动），估宽
+ *  达标才给档类；剥壳失败（多块/代码块/畸形）一律 tier="" 整行独占。
+ *  steps/slots 选项按钮与 match 候选池同用本函数分档。 */
+export function optionInline(disp: string): { body: string; tier: string } {
+    const block = safeLute(disp);
+    const inline = unwrapSingleBlock(block);
+    if (inline === null) return { body: block, tier: "" };
+    const w = estimateOptWidth(disp);
+    return { body: inline, tier: w <= OPT_W_S ? "wengu-opt-s" : w <= OPT_W_M ? "wengu-opt-m" : "" };
+}
+
+/** 剥壳：Lute 输出顶层恰一个段落 div（class="p"）时取其正文。真机
+ *  段落形态（3.8.1 lute.min.js node 探针，20260829）：p 块内是
+ *  `<div contenteditable="true">正文</div><div class="protyle-attr">…</div>`
+ *  ——正文才是内联 HTML（inline-math span 在其中，KaTeX 惰性链零改
+ *  动），contenteditable 壳与 protyle-attr 尾巴都剥掉。字符串深度扫描
+ *  不开 DOM（node 测试环境无 document；只数 div 标签，段落 div 属性
+ *  无用户内容、内层 span 的 data-content 即便实体化 &gt; 也不影响）；
+ *  非单块/非段落（列表、代码块、pre 降级、标题、形态漂移）返回 null。 */
+export function unwrapSingleBlock(html: string): string | null {
+    const t = html.trim();
+    if (!t.startsWith("<div") || !t.endsWith("</div>")) return null;
+    const openEnd = t.indexOf(">");
+    if (openEnd < 0) return null;
+    if (!/class="p[" ]/.test(t.slice(0, openEnd + 1))) return null;
+    let depth = 0;
+    const re = /<\/?div\b[^>]*>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(t))) {
+        depth += m[0].startsWith("</") ? -1 : 1;
+        // 首个顶层 div 闭合处必须正好到串尾——否则不止一个顶层块
+        if (depth === 0) {
+            if (m.index + m[0].length !== t.length) return null;
+            const inner = t.slice(openEnd + 1, m.index);
+            // 正文壳的首 div 不认属性（luteToHtml 已剥 contenteditable，
+            // 壳可能是 <div spellcheck="false">；兼容未剥形态）
+            const body = inner.match(/^<div[^>]*>([\s\S]*)<\/div><div class="protyle-attr"/);
+            return body ? body[1] : null;
+        }
+    }
+    return null;
 }
 
 /** Lute 渲染降级：个别畸形 kramdown 会让 Lute 抛异常，退回纯文本。 */

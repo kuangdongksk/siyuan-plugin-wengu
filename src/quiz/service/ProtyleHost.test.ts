@@ -43,6 +43,7 @@ describe("fallbackQuestionHtml：题干 + 选项行", () => {
         } satisfies WenguQuestion;
         const html = fallbackQuestionHtml(q);
         expect(html).toContain("题干");
+        expect(html).toContain('<div class="wengu-opts">'); // 多列排布容器（opt-compact）
         for (const letter of ["A", "B", "C", "D"]) {
             expect(html).toContain(`<span class="wengu-opt-letter">${letter}</span>`);
             expect(html).not.toContain(`${letter}.`);

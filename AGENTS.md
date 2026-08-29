@@ -157,6 +157,11 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
       且回显 doOperations，内容根本不落盘（两轮探针假阴性的根因）。
     - **一次只能一块**：单次调用传多块 markdown 会散落错位（首块进锚点、
       其余乱序落尾）；IAL 写在行内会变成正文，必须独立成行。
+    - **kramdown 读回形态（20260829 题库踩坑）**：getBlockKramdown/
+      落盘读回时，列表项首段子块的 IAL 是**行内尾随**（`- {: id="…"
+updated="…"}A. …`）、条目自身 IAL 缩进独立成行、块引用子块 IAL
+      带 `>` 前缀——按行解析 kramdown 时必须清理这些残渣（BankParse
+      的 IAL_LINE/IAL_INLINE），否则渲染成字面属性文本。
     - `/api/transactions` + DOM 数据（前端同款）也可用（多顶层块、超级块
       完整落盘），但 **`data-custom-*` 被内核剥离**且 `data-node-id` 可能
       被重生成——不如 markdown 通道，留作后备。
@@ -222,6 +227,13 @@ message, language, references, model?}`；`userEntryID` 是
   （20260825 踩坑，ProtyleHost.luteToHtml）。自建实例还必须
   `SetInlineMath(true)`（编辑器默认关行级公式，否则 `$...$` 原样
   输出）；内嵌 Protyle 必须**逐卡串行挂载**（并发 getDoc 挂起）。
+  `Md2BlockDOM` 段落输出形态（3.8.1 lute.min.js 在 node 沙箱探针实测，
+  20260829）——正文藏在 contenteditable 壳里、尾部还拖 protyle-attr：
+
+      <div … class="p"><div contenteditable="true">正文</div><div class="protyle-attr">…</div></div>
+
+    要取内联内容剥壳得按这个形态（ProtyleHost.unwrapSingleBlock），
+    朴素取 innerHTML 会把块级壳漏进去。
 
 ## 外部 API：MinerU（PDF 解析，20260823 接入）
 

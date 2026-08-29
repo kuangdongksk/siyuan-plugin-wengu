@@ -26,6 +26,16 @@ const CONTAINER_IAL = /^\{:[^\n]*custom-plugin-wengu-q=/;
 /** 子块属性行，捕获 part 名。 */
 const PART_IAL = /^\{:[^\n]*custom-plugin-wengu-part="([a-z0-9-]+)"/;
 
+/** IAL 残渣清理（20260829 题库真机踩坑）：思源 kramdown 读回时，列表项/
+ *  块引用等子块的 IAL 会行内尾随或带缩进/引用前缀独立成行落盘——如
+ *  `- {: id="…" updated="…"}A. …`、`  {: id="…" …}`、`> {: id="…" …}`。
+ *  splitParts 只按无前缀整行 part IAL 分段，这些子块 IAL 全混进 part
+ *  内容，渲染侧变成 "updated=…"}A. 字面泄漏。整行属性行（允许缩进/
+ *  引用前缀）删行；行内尾随片段删片段（key="value" 全形态约束，
+ *  不误伤公式里的 \{ 之类）。 */
+const IAL_LINE = /^[ \t]*(?:>[ \t]*)*\{:[^}\n]*\}[ \t]*$/;
+const IAL_INLINE = /\{:(?:[ \t]*[a-zA-Z-]+="[^"\n]*")+[ \t]*\}/g;
+
 /** 容器 IAL 里的自定义属性值（custom-plugin-wengu- 前缀剥除后取裸名）。 */
 function containerAttr(ial: string, name: string): string | undefined {
     const m = new RegExp(`custom-plugin-wengu-${name}="([^"]*)"`).exec(ial);
@@ -39,7 +49,13 @@ function splitParts(kd: string): { containerIal: string; parts: Map<string, stri
     let buf: string[] = [];
     let part = "";
     const flush = () => {
-        const text = buf.join("\n").trim();
+        const text = buf
+            .join("\n")
+            .split("\n")
+            .filter((ln) => !IAL_LINE.test(ln))
+            .join("\n")
+            .replace(IAL_INLINE, "")
+            .trim();
         if (part && text) {
             const arr = parts.get(part) ?? [];
             arr.push(text);

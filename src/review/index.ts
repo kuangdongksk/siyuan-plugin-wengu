@@ -327,7 +327,9 @@ async function renderDetailFor(v: ReviewViewAccess, qid: string): Promise<void> 
         if (v.el.querySelector("[data-review-detail]") !== box) return; // 已重渲染
         detailQ = q; // 快捷复制的原料（渲染落框后才置位）
         const t = v.t;
-        const optionsHtml = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
+        const optRows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
+        // .wengu-opts 容器：短选项多列排布挂点（opt-compact，同题库静态路径）
+        const optionsHtml = optRows ? `<div class="wengu-opts">${optRows}</div>` : "";
         const stepsHtml = (q.steps ?? [])
             .map(
                 (s, i) =>

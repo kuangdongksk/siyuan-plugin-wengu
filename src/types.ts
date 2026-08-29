@@ -295,6 +295,19 @@ export function optionComparable(md: string): string {
     return normAnswerText(optionDisplayMd(md));
 }
 
+/** 全角字符域（CJK/假名/全角形）——估宽记 2，其余半角记 1。 */
+const FULLWIDTH_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+
+/** 选项估宽（半角单位，opt-compact 分档用，20260829）：`$…$`/`$$…$$`
+ *  公式段每段计定值 8——按 KaTeX 渲染后宽度取保守值，宁大勿小（估偏
+ *  大只是该项提前换行，估偏小才挤同行）；其余文本全角记 2、半角记 1。 */
+export function estimateOptWidth(text: string): number {
+    const MATH = /\${1,2}[^$]+\${1,2}/g;
+    let w = (text.match(MATH) ?? []).length * 8;
+    for (const ch of text.replace(MATH, "")) w += FULLWIDTH_RE.test(ch) ? 2 : 1;
+    return w;
+}
+
 function stripOptionLabel(md: string): string {
     // 单字母标签：A. / A、 / A： / (A) …；选项正文本就带这些标签，误伤率低
     return md.replace(/^\s*(?:\([A-Za-z]\)|[A-Za-z]\s*[.、．:：)])\s*/, "");

@@ -1,7 +1,7 @@
 import { svgIcon } from "../../ui/FormHtml";
 import { renderCardHead, renderThoughtArea } from "./CardParts";
 import type { CardHtmlModel } from "./CardParts";
-import { mdFragmentHtml, renderMathIn } from "../service/ProtyleHost";
+import { mdFragmentHtml, optionInline, renderMathIn } from "../service/ProtyleHost";
 import { renderSlotsCardHtml } from "./SlotHtml";
 import type { WenguQuestion } from "../../types";
 import type { WenguStep } from "../../types";
@@ -124,7 +124,11 @@ export function fillOneStep(stepEl: HTMLElement, step: WenguStep): void {
     for (const opt of stepEl.querySelectorAll<HTMLElement>(".wengu-step-opt")) {
         const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
         const text = opt.querySelector<HTMLElement>("[data-opt-text]");
-        if (text && step.optionMd[idx]) text.innerHTML = mdFragmentHtml(optionDisplayMd(step.optionMd[idx]));
+        if (text && step.optionMd[idx]) {
+            const { body, tier } = optionInline(optionDisplayMd(step.optionMd[idx]));
+            text.innerHTML = body;
+            if (tier) opt.classList.add(tier); // 短选项多列档类（opt-compact）
+        }
     }
     renderMathIn(stepEl);
 }

@@ -2,7 +2,29 @@
 
 ## v0.1.1 unreleased
 
-<<<<<<< HEAD
+- 题库静态渲染两修（20260829，用户反馈「还是可以编辑」+ 选项旁泄漏
+  `updated=…` 属性文本）：①防误编辑——静态/降级渲染全链路（题干/选项/
+  解析/材料/steps）的 Lute `Md2BlockDOM` 输出带 `contenteditable="true"`
+  （编辑器 DOM 形态），在 luteToHtml 单点剥除，静态内容纯展示（文字仍
+  可选中，「标为线索」不受影响）。②IAL 残渣清理——思源 kramdown 读回
+  时列表项/块引用子块的 IAL 行内尾随或带缩进/引用前缀独立成行（题库
+  落盘实测 `- {: id="…" updated="…"}A. …`），BankParse 只认无前缀整行
+  part IAL，残渣混进选项 md 渲染成 `"updated=…"}A.` 字面文本；splitParts
+  现按「整行属性行删行 + 行内尾随片段删片段」清理（key="value" 全形态
+  约束不误伤公式），题库每次装载从落盘 kramdown 重新解析，存量数据
+  重载即愈、无需迁移。
+
+- 短选项紧凑排布 opt-compact（20260829，用户反馈数学短公式选项每个独占
+  一行、右侧大片空白；docs/option-compact-layout.md 方案 C）：内容渲染
+  保留 Lute，仅「剥壳」——`unwrapSingleBlock` 把 Md2BlockDOM 的单段落
+  块取 innerHTML 成内联 HTML（公式 span 原样，KaTeX 惰性链零改动），
+  多块/代码块/畸形选项不剥、整行独占（Lute 异常退 pre 同理）；估宽
+  `estimateOptWidth`（公式段定值 8、全角 2、半角 1）分档 s≤10 一行
+  4 个 / m≤24 一行 2 个，flex-basis 减 column-gap 份额 + wrap 兜底
+  （估偏大只是提前换行，安全侧）。接线：静态/降级 `optionRowHtml`+
+  `.wengu-opts` 容器、复习详情、steps 选项按钮（column→row wrap）、
+  cloze 逐空选项、match 候选池；文档模式 ol 多列留二期（□4）。
+
 - 设置行定宽控件窄屏守卫（20260829，用户截图「内容超出了」）：内核
   base.css 窄屏响应式 @media (max-width:750px) 把 .config__item 下的
   输入框/下拉/按钮拉成整行宽（width:100%;margin-top:8px，特异性
@@ -11,6 +33,7 @@
   选择器 .b3-label.wengu-formrow>.fn__size200 抬到 0,3,0 压回 200px
   （温故行是「标签+定宽控件」横排语义，不吃内核窄屏堆叠布局）；
   6806 网页版 700px 视口复现+修复验证（真机 1bb4ce1）。
+
 - 三轮全仓审查五波修复（20260829，4 并行代理深读+逐 P1 亲核；A~E 五提交
   fe5bfde/f50b438/0dfd7d1/8056ffc/647673f，均已部署机器 A）：
   **A·quiz 渲染管线**（278e16a 壳分片化的回归）——题库/长卷静态路径材料组
@@ -44,6 +67,7 @@
   extractBlockId 透传消毒；PDF 插图替换防 $ 序列。未修遗留：书尾在学窗口
   搁浅（原始发现细节缺失，未能定位）、decoratePreview 全卷同步 Lute（预览
   大卷仍有一次冻结）、rows/rowsAll 吞错双口径（统一需逐调用点评审）。
+
 - 失效 model id 总闸口校正（20260829，用户「已配置好却一用 AI 就报『请先
   参考用户指南 [人工智能] 章节进行配置』」）：真机排查——内核/默认模型
   探针全通，激活学伴档案存了已删模型的存量 id（3.8.1 模型 id 为内核
@@ -51,7 +75,7 @@
   入口统一 `resolveModelId`：不在当前可用清单（被删/停用/旧格式）回落
   默认模型，默认也无效则省略 model 让内核自决——覆盖学伴/判分/转换/
   题库/单词全部调用点；models.test.ts 五条回落口径单测。
-=======
+
 - 专题管理：新建文件夹 + 官方文档树样式（20260829，用户「专题管理需要
   支持新建文件夹，树形跟官方样式一模一样」）：①目录此前只由专题标题
   含 / 派生、无空目录——BankData 新增 folders 字段（手动文件夹路径，
@@ -69,12 +93,12 @@
   wengu-col-group 旧样式清除，i18n 增 colNewFolder/colNewSub/
   colDelFolder/colFolderPh、退役 colGroupCount。
 
->>>>>>> col-folder
 - 内嵌 Protyle 题卡选项锁只读（20260829，用户「选项不应该能编辑」）：
   3.8.1 前端源码核实——Wysiwyg 构造在桌面端无条件 contenteditable="true"，
   protyle.disable() 只置内部标志，选项块仍可被就地编辑。照搬思源自家只读面
   （agent chat body）配方：contenteditable="false" + data-readonly="true"，
   构造后与装载完成各刷一遍（覆盖 8s 等待期）；点击作答与文本选择不受影响。
+
 - 题号栏占满可视高（20260829，用户反馈「题号没占满」→「又装不下只差几
   像素」两轮）：题号竖列封顶第一轮从固定 `100vh - 200px` 改
   `100vh - var(--wengu-head-h) - 40px`（头高用 NumRail 实测变量，留页签
@@ -87,10 +111,12 @@
   不贴栏框边缘），列间距仍由 .wengu-body gap 8px 表达——JS 只测量不决定。
   第四轮（用户「底部加padding」）：题号栏自身 `margin-bottom: 8px` 与主区
   padding-bottom 叠加=栏底留白 16px，NumRail 实读两项计入封顶。
+
 - v2→v3 进度迁移代码退役（20260829）：真机确认工作区 words 存量已是
   v3（3243 词 FSRS/1532 熟/2 在学），删除 core/WordMigrate 及其测试、
   WordStore.get 的 migrateV2 分支；仅认 v3，再遇旧版本文件按空进度
   起步并 console.warn 告警（同 v1→v2 先例）。
+
 - 单词组边界误触发修复 + AI 通道弃用空会话（20260829）：①组边界判定
   `finishCount % groupSize === 0` 在 fresh 轨失效——finishCount 只在
   毕业递增，开局 0 与两次毕业之间的整数倍上**每张卡**都命中，把单卡
@@ -100,10 +126,12 @@
   会话改走 agentChatOnce 一次性独立会话（用户拍板「怎么能用空会话」）：
   独立 sessionID 天然并发，不再与判分/转换在 "" 锁上互堵；docs/
   word-timing.md 决策 6 已随修订。
+
 - 题卡排版放宽（20260829，用户反馈「布局太紧凑」）：卡内边距 12→
   16px、卡间距 12→16px、卡头下缘 8→12px、题干区下缘 8→12px、选项
   行内边距 2→5px（数学分式选项行间几乎贴死是主诉）；c-v 估计高度
   随之 240→260 / 320→340px。
+
 - 长卷「视口优先渲染」（20260829，①~④一次到位）：①题卡/组单元
   `content-visibility: auto`——屏外卡片跳过布局/绘制与分片填充引发的
   全卷重排（contain-intrinsic-size 记住已渲染尺寸，回滚不跳；数学卡
@@ -118,6 +146,7 @@
   Promise），预览态不绑作答事件（守卫与 bindQuizFor 同口径）；
   ④装载分页 512→2048——整卷 ~~2000 行从 4~~5 次串行内核请求压到 1 次。
   胶囊计数随分片推进（逐单元累加）。
+
 - 长卷静态渲染卡顿续修（20260828，197 题卡）：①Lute 单例复用——原
   每个 kramdown 片段都 Lute.New() 重初始化解析器，整卷上千次纯浪费；
   ②mountStatic 分片异步——16ms 帧预算逐卡填充后 yield，题卡「…」
@@ -129,6 +158,7 @@
   想要提示」）：分片成像期间头下挂「题目渲染中 n/m」进度胶囊
   （吸顶、转圈图标、tabular-nums 计数），mountStatic 增 onProgress
   逐卡回调，填完自动摘除；i18n 增 rendering 键（zh/en）。
+
 - 静态渲染选项字母角标（20260828，用户反馈「ABCD 都没了」）：>50 题
   长卷与题库模式走 mountStatic、Protyle 挂载失败走降级——两路选项文本
   被 optionDisplayMd 剥掉文档里的字母标签后无人补画，选项成无字母裸
@@ -136,6 +166,7 @@
   修复：选项行统一走 optionRowHtml 按位补画 `.wengu-opt-letter` 角标
   （复习模式详情同款），与文档模式有序列表 CSS 计数器（1234→ABCD）
   显示一致；补 ProtyleHost 纯函数单测锁角标回归面。
+
 - 知识文档×题库双向匹配（20260828）：知识面板文档行新增「匹配」「转
   习题」。匹配（MatchDialog）= 选已入库习题文档（存量/新建同权）→
   逐题走转换同款两级 AI 路由（过 enqueueAi 共享队列）→ strip+inject
@@ -145,6 +176,7 @@
   导入递归展开（expandKnowDocs 根+全部后代逐行；manual 标子树、
   registered 才可移除）、小节层级 h2~~h4→h1~~h6、文档行展开 key 不一致
   与行按钮 docId 误取空值布尔属性两处死交互。
+
 - 多词书 + 标题「温故单词」（20260828 redesign §四/§五 定稿实施）：
   **进度 key 从书内下标换归一化词头**（小写、去空格/连字符/撇号，
   WordBook.wordKey——同词跨书共享进度），words.json **schema v3**：
@@ -162,12 +194,14 @@
   在学词 ladder 保留。易混组跨书有效（ids 即词头，不在当前书的组员标注
   展示）；干扰项池导入书无单元时回落全书。WordView 拆 BookOps/
   ladderOf/setGroupSize 迁 WordStartCtl 压 500 行红线。
+
 - 首页崩修复 + 误认本记账恢复（20260828）：76657bf 把 buildQueue 改成
   {review, freshLeft} 但 HomeScreen 仍读 queues.fresh（undefined.length
   首页即崩，svelte-check 三红一直可见）——本轮随 freshLeft 对齐修复；
   同一提交还丢了「答错记误认本」的写入（旧 Leitner reviewWord 内联，
   FSRS 重写未搬）——恢复 markMistake（复习轨 reviewWord 与新学梯
   settleFreshFor 双入口，重答错清旧 AI 辨析、模糊不记）。
+
 - 二轮审查修复（20260828，quiz 恢复编排 5 P1 + convert 链 3 P1 + P2 六项）：
   开刷面板 unfinished 判定补 !endedAt（错题轮收卷后不再永远「继续上次」）；
   范围轮 scopeIds 快照落盘恢复（WenguSession 新字段，开轮冻结清单——原按
@@ -186,6 +220,7 @@
   读异常上抛不落缓存（原归空库后 upsert 把整份历史写丢）+并发首载 in-flight
   备忘；after 模式 brief AI 失败露自评钮补账（原静默该题不进会话）；复习
   「重刷本文档」带 override 强制新轮（原被「继续上次」吞掉意图）。
+
 - 全仓代码审查两波修复（20260828，四路并行深读+机械扫描，9 个 P1
   见上一提交）：②波 P2——word 跨书竞态（WordAiInput 带 key 构建时刻
   冻结，addPair/applyAiReview 改词头入参不吃活下标——AI 往返期间切书
@@ -202,10 +237,12 @@
   /steps 逐题秒数/统计 tab 代际/replaceDocInPlace 先删后建/MatchDialog
   取消中止在途/SSE 尾帧/signal 已 abort/kernelRemoveFile 吞错/首页
   derived 切书/到期口径/书尾搁浅/专题边界计时错账/aiAnalyze 踢回首页。
+
 - 看板娘全局悬浮层收尾（20260828，前批半成品收口）：quiz 页签旧
   attachCompanion/detachCompanion API 清退、单词 WordApp 内嵌份摘除，
   全局层由插件 onload mountCompanionGlobal（mount→unmountSvelteApp 修
   类型）、onunload 显式卸（重载不叠影）。
+
 - 悬浮层位置系统重写「团子恒锚」（20260828 用户报「还得修」）：四连
   修后仍两处系统性问题——①水平朝向条件写反（r 小=贴右半屏却加
   .wengu-comp-left 向右展开，fresh load 即命中：气泡一弹团子被推离
@@ -219,6 +256,7 @@
   svelte:window bind 进响应链（原 resize 后朝向类不重算）；
   setFigurePos 最小钳上界改 视口-72（原 -8 允许团子大半出界）；朝向
   类 wengu-comp-up→comp-top 改名贴边侧语义、三处与行为相反的注释纠偏。
+
 - 新学滚动窗口 + FSRS 复习排期（20260828 redesign §二/§三 定稿实施）：
   新学会话弃静态流水线（pipelineLadder 删）改**每张卡现场决策**的滚动
   窗口（flow/WindowSched 纯函数+7 例单测：窗口未满先进新词/满窗推进
@@ -233,6 +271,7 @@
   队列轨(review/star)不变；头部「剩」fresh=书级剩余未学（进度条同口
   径）；今日新学计数改按毕业一次计（原每步一计的虚增随流水线一并修
   正）；WordView 拆 LookupOps/PageOps 友元压 500 行红线
+
 - 学伴编辑器加保存按钮 + 修复编辑不落盘（20260828 用户报障，网页版
   真机三轮定位）：曾把输入改 bind:value 到 ui 镜像里的 settings
   对象——违反迁移文档暗雷 §6/§9（settings 本体不进响应链），且
@@ -243,6 +282,7 @@
   从 DOM 收当前输入（未失焦的编辑也能存）调 saveNow(fields) 规整
   （trim/限长）后落盘，「已保存」反馈 1.5s；图片目录变化随保存重探
   形象。端到端验证：fill→保存→存储文件 mtime 即时更新、内容为新值
+
 - 默认学伴改名「小书童」+物化为可删条目（20260828 用户定稿）：默认
   学伴不再是左列特殊卡（不可编辑/删除），改为 companionProfiles 里
   id=default 的正式条目（与聊天存储 DEFAULT_CHAT_KEY 同 id，历史
@@ -252,6 +292,7 @@
   迁移（无 default 条目则补、activeId 空/悬空则归位）。默认名
   companionDefaultName「团子」→「小书童」（en: Dango→Shutong），
   「默认团子」特殊卡与提示文案随死键清理，注释措辞同步
+
 - 学伴聊天历史分学伴持久化（20260828 用户提出）：chatLog 从控制器
   单份内存改为按学伴 id 分份（内置团子=固定 default key，学伴 id 为
   时间戳36-随机段格式不冲突；老版本空串 key 首次加载自动迁移）落插件存储
@@ -262,6 +303,7 @@
   onActiveChange/onProfileRemoved 回调穿透挂载编排到 ctl），删除学伴
   清其聊天残留；prompt 近期对话轮随分份天然按学伴隔离，UI 消息列表
   同步对齐 24 轮上限防超长会话 DOM 涨爆
+
 - 学伴 AI 反应做题侧改自适应节流（20260828 用户提出）：原固定 45s 间隔
   且只在里程碑（连错 3/连对 5/轮完成）请求大模型，普通单题 AI 无感知；
   现每道答题事件都是候选触发点，间隔随答题节奏自适应——最近窗口平均
@@ -269,12 +311,14 @@
   纯函数+单测，样本不足按快节奏保守）；一轮完成/单词收工的批次事件
   不设间隔仅互斥（「每批必点评」维持不变）；事件描述泛化到普通单题
   （带用时与连对/连错计数），prompt 结构不变
+
 - 学伴名动态化（20260828 用户提出）：聊天的「想一想/输入占位/回话失败」
   三条文案与 AI prompt 的角色行、近期对话轮标签不再写死「团子」，改随
   当前学伴配置名——i18n 加 {name} 占位符、调用点 replace（同 slotNO
   惯例），Prompt 三 builder 首参加 name；设置里「启用/AI 台词」两条描述
   的「团子」改中性「看板娘」；默认名仍团子（companionDefaultName），
   「默认团子/回退内置团子」等指向默认形象的文案不动
+
 - Svelte 渐进迁移首批落地（20260827，路线图见 docs/svelte-migration.md）：
   学伴管理工作区面板从字符串模板+逐控件绑定迁为 Svelte 四件套
   （CompanionPanelUi/Ctl + CompanionPanelApp.svelte，删旧
@@ -285,15 +329,18 @@
   modelPickLabel；svelte-check 接入（tsconfig.svelte.json bundler 解析，
   存量 14 组件零错误）；renderQuizShellFor 重灌前 detachCompanionPanel
   先卸（同 statsPanel 位）+ QuizView.destroy 兜底
+
 - 梯进度点改竖排+错梯归零（20260828 用户定稿）：四点纵列贴词尾、
   总高与单词行同高（space-between+stretch，词行改 flex）；前进规则
   加严为「答错一次整梯重来」——归零词静态流水线后续位不足重走全梯
   时按缺口补插 REINSERT_GAP 邻域；redesign §二.2 同步
+
 - 判分反馈用色规范化（20260828 用户提出，设计评审 §〇 新增第 10 条）：
   词域对错反馈行从「灰字+彩色小图标」改为文本/底色成对的思源语义
   色——答对 success、答错（含看答案按错计）error，12% color-mix 底
   与 base.wengu-status-ok/err 同公式；回想引导语等非判分行保持中性。
   浏览器实测 is-ok 行 color=oklch 绿 + 12% 底生效
+
 - 词尾四点梯进度（仿不背单词，20260827 用户需求）：新词四步梯进行中
   在词尾渲染 4 个小圆点——已完成步 primary-lighter 实心、当前步
   主色放大、未到步 border-color 灰点；listen 步词面隐藏时随题面隐去；
@@ -310,6 +357,7 @@
   翻面结果视图同构；正确答案本身就在详情里，选项高亮不再重复展示。
   详情态内容不满屏时信息块垂直居中（上下 auto margin 平分空隙），
   按钮仍贴底——不再中段一大块空白
+
 - 新词四步梯接线（20260827 用户定稿）：口述版梯序 英选中→中选英→
   听音选义→英文回想（参考流草案作废，readalong 挂账未接线）+ §六
   决策 2「仅认识前进」——模糊/忘记/答错/看答案原步不动，靠流水线
@@ -321,38 +369,47 @@
   speechSynthesis 发音小模块 WordSpeak（en-US·0.9x，离线系统 TTS，
   redesign §一落点）+ 自绘 iconVolume 符号；i18n 六键 zh/en；新增
   WordLadder.test 锁梯序与流水线轮转性质
+
 - 查词结果行去原生按钮壳：列表行对齐思源文档树 ghost 风（无边框
   无灰底、悬停浅底、词左粗体释义右省略），结果列不再限宽 420
+
 - 修查词列表横向滚动条+排版散架：结果行的「单词左/释义右省略」flex
   规则挂在旧渲染器的 `.wengu-word-opt[data-act="lookuppick"]` 上，
   Svelte 迁移后按钮无 data-act 整条失效——按钮退化 block、inline span
   上的 nowrap+ellipsis 双双无效，长释义把卡片内容撑到 ~800px 顶出横向
   滚动条（浏览器实测 scrollWidth 814/356）。行改挂专用类 wengu-word-lk，
   meaning 补 min-width:0 让省略号真正生效；布局复测 sw=cw、截图确认
+
 - 刷卡右上角工具组常驻「回首页」按钮（列表图标，同头部入口）：中途
   退出不再依赖标题行小图标；goHome 语义不变（重进按到期/新学重构队）
+
 - 回想三档按钮全阶段统一为 认识/模糊/忘记：空翻兜底结果页原本写反成
   忘记/模糊/认识（正面直选档是 认识(3)/模糊(2)/不认识(1)），两态按钮
   位置互换易误触——统一左起 认识(1)/模糊(2)/不认识(3)，键盘 1-3 映射
   与 i18n 快捷键编号（zh/en）同步重排
+
 - 修回想卡「直接显示答案」：鼠标点「下一个」/档位按钮收尾后，同一次
   点击冒泡到卡根的翻面 onclick，把刚换上的新卡当场翻面（enterPrompt
   同步写 phase=prompt，冒泡晚于状态更新）——卡根翻面改为忽略来自
   button/input 的点击，键盘路径不受影响
+
 - 测试兜底接入：vitest（node 环境，`siyuan` 别名到 tests/siyuan-stub，
   内核 IO 不进单测）+ GitHub Actions CI（tsc/eslint/prettier/test/build
   与 AGENTS.md 调试链同序）；首批 7 个测试文件 67 例锁纯逻辑回归面
   ——判分矩阵、选项洗牌不变量、分批切块确定性、AI 回复规整
   （extractBatchQuestions）、题库/文档双路 kramdown 装配、契约归一化
+
 - 修小数选项误判（测试首跑挖出）：optionDisplayMd 的有序列表标记
   剥除改为「标记后须有空白」（与 splitOptionMd 同约定）——旧正则会把
   「0.5」「1.5」的 `1.` 当列表标记吃掉，数学题内容比对必错判
+
 - 内核调用全量收拢进 src/siyuan 工厂（新增 KernelQuery，EApi 补
   agent/chat·chatGPT·forwardProxy；13 文件 33 处散落直调清零）；
   修 getBlockKramdown 把 `{id,kramdown}` 对象当串返回的 bug
   （真机探针实锤，题库 refreshDoc 静默失败根因）；ConvertBatch
   496→440 行；生成核/Flow DOM 件/hydrate 样板三处复制粘贴收敛
   （GenCore/FlowDom/fetchChildParts）
+
 - 背单词 UI 层 Svelte 化：word 域渲染从 innerHTML 全量 paint 换成
   Svelte 5 组件（`word/comp/`，WordApp 根组件 + 各屏幕/卡片组件），
   控制器拆 `WordView.ts`（会话状态机与语义动作）、响应态形状
@@ -362,39 +419,48 @@
   svelte-loader（Svelte 5 编译器原生支持组件内 TS，无需预处理），
   prettier 加 prettier-plugin-svelte、eslint ignore `*.svelte`；
   插件 Dock destroy 补卸载（旧版空置会泄漏监听）
+
 - 图标定稿：手绘 SVG 换成思源官方图标集原始 path（温故=iconRiffCard
   卡牌堆、背单词=iconLanguage 地球），仍以自有稳定 id 经 addIcons 注册
   ——直接引用内置 sprite id 会被 uiLayout 持久化的旧 dock 图标引用
   打穿渲染空白（iconLanguage 也非核心图标，部分环境 sprite 未收录）
+
 - UI 标准落地（design-review §〇 新增 6/7/8 条）：弹窗底部操作行按钮
   统一 8px 间距（原生 b3-dialog__action 无间距规则，多按钮贴死）；模型
   选择从原生 select（几百项不可搜）改为模仿官方 commonMenu 的带搜索
   浮层（`src/ui/ModelPicker.ts`，b3-menu__filter + b3-list，转换弹窗与
   设置页共用）
+
 - 文档选择器（源文档/父文档/知识点「选择…」）从大 Dialog 改为官方
   风格可搜索下拉浮层（b3-menu__filter + b3-list，同 ModelPicker 交互）：
   单选点击即回填，多选行内勾选+底部「清空/确定」，Esc/点外部取消
+
 - 「更多选项」折叠行：内置 iconRight 箭头随开合旋转、隐藏原生三角
   marker、悬停变色、间距入 8px 体系
+
 - 删除页签头部「做题 | 复习」切换器（样式不达标且头部信息行拥挤；
   开刷面板三按钮「预览 | 开始刷题 | 错题回顾」为统一模式入口，另保留
   侧栏文档右键「错题复习」）；switchMode/会话恢复机制保留，契约见
   docs/review-mode.md §二 D1 v3
+
 - 源码按功能分域重构（组织方式借鉴 sy-lively）：`src/siyuan`（内核 API
   工厂：EApi 路径枚举 + KernelBlock/KernelDoc/KernelNotebook，迁自
   sy-lively 构建工厂）+ quiz/convert/review/word/stats/bank/ui 六域，
   各域 `index.ts` 为入口编排（禁纯 re-export barrel），词库数据入
   `word/data/`
+
 - 转换落盘改走 appendBlock 增量追加（sy-lively 同款通道，20260826
   八轮真机探针定论）：首批 createDocWithMd 建文档（IAL 整体解析），
   之后每题一次尾插——不再每批删旧重建，块 id 稳定、回收站无每批
   尸体；继续生成直接在旧渐进文档上续写
+
 - 转换流程页面化：弹窗只收参数，点「开始转换」即关窗——批次循环交
   ConvertRun 单例运行器，温故页签内转换条展示进度并支持停止/保留
   进度/全部丢弃；原位替换也每批渐进落盘（原文档旁临时《·习题》，
   页签像做题一样逐批出题，终态替换原文档后删临时文档，转换期间
   原文档不动）；源文档/父文档/知识点改为选择器（可搜索）+ hint 槽
   回显路径，原位模式收起「生成位置」两行
+
 - 错题复习模式（错题本）：入口=开刷面板「错题回顾」按钮 + 侧栏文档
   右键（原页签头部「做题|复习」切换器已删，2026-08-26 入口统一
   开刷面板三按钮）；全局错题清单（SQL 直查块属性）+ 单题回看（历次
@@ -402,46 +468,60 @@
   以 scope=wrongAll 直落开轮；会话落 scope 字段（继续上次按范围恢复）；
   统计总览加错题概况 / 薄弱 Top8 / 错因分布三块（详见
   docs/review-mode.md）
+
 - 插件题库/专题/知识点反链体系补记：bank 主记录 + 按知识点收集专题 +
   悬空对账 + 题卡重生成 + 右键「查相关题目」+ 薄弱针对性加练（详见
   docs/question-block-contract.md）
+
 - 专题会话独立归档（`col:<id>`）：专题作答不再误记到无关文档的轮次
   统计里；专题轮次可读——「继续上次 / 只刷错题」在专题模式生效；
   重开页签恢复上次专题（prefs.colId）
+
 - 专题模式材料并集装载：按题目来源文档合并材料、解析 group 占位，
   材料组在专题里分栏渲染（静态 Lute + KaTeX）
+
 - 专题可编辑：管理对话框展开专题逐题移除、删除两击确认、创建后直接
   切换过去开刷
+
 - 「收集并补题」：按勾选知识点收集已有题后，AI 生成（错题变式/概念
   辨析，逐题自检）按缺口补入专题（≤10 题/次；非反链键自动降级变式）
+
 - 薄弱加练专题名走 i18n；知识点引用解析器合一（BankParse.parseKpRefs）
+
 - 修复：AI 生成的选择题正确答案恒为 A——prompt 让模型先写正确项再补
   干扰项，输出天然正确项居首；转换/生成规整链尾部统一做选项均衡洗牌
   并同步改写答案字母（single/multiple/steps；「以上都对」类位置敏感
   措辞跳过，OptionShuffle）
+
 - 新增「结束本次做题」：做题中头部一键提前收卷，报告/批改只含已答
   部分；薄弱画像按结果水位增量（同轮多次收卷不重不漏）；下次
   「继续上次」接着做（大卷 100~200 题分次刷的场景）
+
 - 修复：批次超时等失败收口不清运行器单例——一次超时后「继续转换」
   永久被拒、弹窗误报「已有转换在进行中」（ConvertRun failed/catch
   路径 active 复位；待抉择期间也拒绝开新转换）
+
 - 转换超时改判据：串行通道（agent/chat SSE）按**空闲**计——每收到
   一段流数据即续期，慢模型长批次只要在出字就不掐；并发直答通道
   （chatGPT 非流式）总时长放宽到 10 分钟（原 5 分钟总时长误杀）
+
 - 新增转换管理面板（ConvertPanel）：转换弹窗被拒不再一句报错——
   直接转进面板单独管理；面板两区：进行中（进度/终止/终止后保留-
   丢弃抉择，订阅运行器实时刷新）+ 未完成进度记录（prefs 持久，逐条
   「继续生成」回弹窗预填源文档 /「丢弃进度」清记录并删保留的渐进
   文档）；弹窗打开时若有转换在跑，底部露出「查看进行中的转换」
+
 - 新增预览模式：开刷面板三按钮「预览 | 开始刷题 | 错题回顾」统一
   模式入口（页签头部切换器已删）；预览复用做题壳渲染，题卡只读
   全揭示——作答位/提交/自评/思路摘除、正确项 chip 与 steps 选项
   描绿、题级答案/解析全展开、题号与徽标不透历史对错；工具行
   「模糊答案」（答案区打码+隐去描色，点答案区单卡揭示）与
   「退出预览」；QuizShell 自 QuizView 拆出（500 行红线）
+
 - 快捷复制：预览每卡 + 错题本详情「复制题目」——题型/题干/选项/
   steps/slots/答案/解析拼 markdown 写剪贴板（含 clipboard 兜底与
   轻提示），供粘贴到思源 AI 对话
+
 - 修复长卷卡死（193 题真机触发）：①装载改批量——整卷子块×part
   一条 JOIN SQL 显式分页拉全（QuestionBatch，~390 次串行请求 →
   ~4 次，fetchSyncPost 仍串行）；②渲染分流——题量 >50
@@ -456,14 +536,18 @@ First usable cut of Wengu (温故), the drill plugin:
 - Quiz tab from the top bar: collapsible sidebar of generated exercise
   documents (question count / drilled / correct / total time per doc),
   question-number rail with a "show numbers" setting toggle
+
 - "AI: make questions" turns any note into a sibling `Title·习题`
   exercise document via SiYuan's built-in AI (suitability verdict first,
   then kramdown question blocks per the block contract)
+
 - Per-type answering widgets; auto-grading for single/multiple/judge/fill
   tolerant of real AI output (content answers, merged option blocks,
   `$…$` delimiters); self-assessment for brief questions
+
 - Timing modes (count-up / countdown / none) with per-round session
   history and a persisted per-document `total-time` attribute
+
 - Wrong answers sync into the "温故错题" flashcard deck (added on wrong,
   removed on correct)
 
@@ -482,7 +566,9 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.4.8 2026-6-30
 
 - [Upgrade devDependencies and implement kernel plugin demo](https://github.com/siyuan-note/plugin-sample/pull/42)
+
 - [Enhance KernelPlugin with MCP tool registration and update ESLint](https://github.com/siyuan-note/plugin-sample/pull/47)
+
 - Migrate i18n locale codes from legacy underscore form (`zh_CN`/`en_US`) to [BCP 47](https://tools.ietf.org/html/bcp47) (`zh-CN`/`en`)
     - Aligns with SiYuan kernel RFC 5646 / BCP 47 lang code refactor (see https://github.com/siyuan-note/siyuan/issues/7098)
     - `plugin.json` keys, i18n file names (`src/i18n/*.json`) and `README.zh-CN.md` filename updated accordingly
@@ -511,6 +597,7 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.4.2 2025-08-26
 
 - [Upgrade ESLint to 9.33.0](https://github.com/siyuan-note/plugin-sample/issues/30)
+
 - [Adjust `addTopBar` and `addStatusBar` from `onload` lifecycle to `onLayoutReady`](https://github.com/siyuan-note/siyuan/issues/15455)
 
 ## v0.4.1 2025-07-22
@@ -528,19 +615,25 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.3.8 2025-02-11
 
 - [Add plugin util `openSetting`](https://github.com/siyuan-note/siyuan/pull/13761)
+
 - [Add plugin method `updateProtyleToolbar`](https://github.com/siyuan-note/plugin-sample/issues/24)
 
 ## v0.3.7 2024-11-05
 
 - [Add plugin util `platformUtils`](https://github.com/siyuan-note/siyuan/issues/12930)
+
 - [Add plugin function `getAllEditor`](https://github.com/siyuan-note/siyuan/issues/12884)
+
 - [Add plugin function `getModelByDockType`](https://github.com/siyuan-note/siyuan/issues/11782)
+
 - [Replace `any` in IProtyle with the corresponding type](https://github.com/siyuan-note/petal/issues/34)
+
 - [Add `data-id` attribute to menu button](https://github.com/siyuan-note/plugin-sample/pull/20)
 
 ## v0.3.6 2024-09-27
 
 - [Add plugin event bus `opened-notebook` & `closed-notebook`](https://github.com/siyuan-note/siyuan/issues/11974)
+
 - [⬆️ Bump braces from 3.0.2 to 3.0.3](https://github.com/siyuan-note/plugin-sample/pull/16)
 
 ## v0.3.5 2024-04-30
@@ -558,10 +651,15 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.3.2 2024-01-09
 
 - [Add plugin `protyleOptions`](https://github.com/siyuan-note/siyuan/issues/10090)
+
 - [Add plugin api `uninstall`](https://github.com/siyuan-note/siyuan/issues/10063)
+
 - [Add plugin method `updateCards`](https://github.com/siyuan-note/siyuan/issues/10065)
+
 - [Add plugin function `lockScreen`](https://github.com/siyuan-note/siyuan/issues/10063)
+
 - [Add plugin event bus `lock-screen`](https://github.com/siyuan-note/siyuan/pull/9967)
+
 - [Add plugin event bus `open-menu-inbox`](https://github.com/siyuan-note/siyuan/pull/9967)
 
 ## v0.3.1 2023-12-06
@@ -571,6 +669,7 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.3.0 2023-12-05
 
 - Upgrade Siyuan to 0.9.0
+
 - Support more platforms
 
 ## v0.2.9 2023-11-28
@@ -584,7 +683,9 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.2.7 2023-10-31
 
 - [Export `Constants` to plugin](https://github.com/siyuan-note/siyuan/issues/9555)
+
 - [Add plugin `app.appId`](https://github.com/siyuan-note/siyuan/issues/9538)
+
 - [Add plugin event bus `switch-protyle`](https://github.com/siyuan-note/siyuan/issues/9454)
 
 ## v0.2.6 2023-10-24
@@ -598,21 +699,25 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.2.4 2023-09-19
 
 - Supports use in windows
+
 - [Add plugin function `transaction`](https://github.com/siyuan-note/siyuan/issues/9172)
 
 ## v0.2.3 2023-09-05
 
 - [Add plugin function `transaction`](https://github.com/siyuan-note/siyuan/issues/9172)
+
 - [Plugin API add openWindow and command.globalCallback](https://github.com/siyuan-note/siyuan/issues/9032)
 
 ## v0.2.2 2023-08-29
 
 - [Add plugin event bus `destroy-protyle`](https://github.com/siyuan-note/siyuan/issues/9033)
+
 - [Add plugin event bus `loaded-protyle-dynamic`](https://github.com/siyuan-note/siyuan/issues/9021)
 
 ## v0.2.1 2023-08-21
 
 - [Plugin API add getOpenedTab method](https://github.com/siyuan-note/siyuan/issues/9002)
+
 - [Plugin API custom.fn => custom.id in openTab](https://github.com/siyuan-note/siyuan/issues/8944)
 
 ## v0.2.0 2023-08-15
@@ -630,6 +735,7 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.1.10
 
 - [Add `bind this` example for eventBus in plugins](https://github.com/siyuan-note/siyuan/issues/8668)
+
 - [Add `open-menu-breadcrumbmore` event bus to plugins](https://github.com/siyuan-note/siyuan/issues/8666)
 
 ## v0.1.9
@@ -639,6 +745,7 @@ First usable cut of Wengu (温故), the drill plugin:
 ## v0.1.8
 
 - [Add protyleSlash to the plugin](https://github.com/siyuan-note/siyuan/issues/8599)
+
 - [Add plugin API protyle](https://github.com/siyuan-note/siyuan/issues/8445)
 
 ## v0.1.7
