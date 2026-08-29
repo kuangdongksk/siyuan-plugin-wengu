@@ -3,7 +3,7 @@ import type { AnswerHost } from "./flow/AnswerFlow";
 import { revealAll } from "./flow/AnswerFlow";
 import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { collectCardThoughts } from "./render/CardHtml";
-import { deleteDocWithCleanup } from "./service/DocOps";
+import { reimportDocFrom, unregisterDocAsQuiz } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
 import { normalizeWorkspace, type WenguWorkspace } from "./render/RailHtml";
 import { buildSideTree } from "./render/SideTree";
@@ -81,8 +81,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     revealMode: WenguRevealMode = "instant";
     private activeQIdx = 0;
     started = false;
-    /** 转换弹窗状态与收尾（ConvertViewAccess 实现体，拆出压行数）。 */
-    private readonly convertAccess: ConvertAccess;
+    /** 转换弹窗状态与收尾（ConvertViewAccess 实现体，拆出压行数）。
+     *  public：DocOps「重新导入」直接经它取上次设置/清续跑记录/启动运行。 */
+    readonly convertAccess: ConvertAccess;
     /** 复习模式「重刷本文档」的待开轮范围（load 完成后消费并清空）。 */
     private pendingDrillScope?: import("./service/HistoryStore").WenguRoundScope;
     private session?: WenguSession;
@@ -265,8 +266,11 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         else void ((this.pendingDrillScope = "wrongAll"), this.selectDoc(docId));
     };
 
-    /** 目录文档右键「删除文档」：实现见 DocOps（文档删入回收站 + 联动清理）。 */
-    readonly deleteDocOf = (docId: string): void => deleteDocWithCleanup(this, docId);
+    /** 目录文档右键「重新导入」：实现见 DocOps（删旧题集+源讲义重转替换）。 */
+    readonly reimportDocOf = (docId: string): void => reimportDocFrom(this, docId);
+
+    /** 目录文档右键「删除此题集」：实现见 DocOps（剥属性留文档+联动清理）。 */
+    readonly removeSetOf = (docId: string): void => unregisterDocAsQuiz(this, docId);
 
     persistPrefs(): void {
         savePrefs(this.storage, {

@@ -7,6 +7,8 @@ import {
     keepConvertRun,
     startConvertRun,
     stopConvertRun,
+    type ConvertRunCfg,
+    type ConvertRunEvents,
 } from "./service/ConvertRun";
 import type { ProgressivePreview } from "../quiz/service/ProgressivePreview";
 import { showBatchPreview } from "../quiz/service/ProgressivePreview";
@@ -22,7 +24,6 @@ import { esc, fmt } from "../ui/shared";
 /** 视图侧能力（QuizView 组装，风格同 StartRoundCtx/ViewBindCtx）。 */
 export interface ConvertHostCtx {
     t: (key: string) => string;
-    el: HTMLElement;
     /** 顶栏带来的活动文档（弹窗输入框默认值）。 */
     activeDocId: string;
     settings?: SettingsDialogShape;
@@ -38,22 +39,17 @@ export interface ConvertHostCtx {
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean, knowRoots: string): void;
     /** 读取某源文档的未完成转换进度（无则 undefined）。 */
     getProgress(srcDocId: string): ConvertProgressRecord | undefined;
-    /** 记录/清除未完成转换进度（prefs 持久化）。 */
-    saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 转换状态变化（按钮禁用/文案）。 */
     setConverting(v: boolean): void;
-    /** 每批渐进落盘后回调（页签以做题界面渐进呈现）。 */
-    onBatch?(docId: string, title: string, count: number, batch: number, total: number): void;
-    /** 全部丢弃后回调（页签恢复原状）。 */
-    onCancel?(): void;
-    /** 成功收尾：切到新文档、重载、报状态（视图实现）。 */
-    onDone(r: { docId: string; title: string; count: number }): void;
     /** 未完成进度记录（转换管理面板用）。 */
     listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[];
     /** 丢弃一条进度记录（面板用：清 prefs + 删保留的渐进文档）。 */
     discardProgress(srcDocId: string, rec: ConvertProgressRecord): void;
     /** 面板「继续生成」：重开转换弹窗并预填该源文档。 */
     reopenWithDoc(srcDocId: string): void;
+    /** 直接启动一次转换（弹窗「开始转换」的执行体，事件接线见
+     *  convertRunEventsFor；返回 false=已有转换在跑）。 */
+    startRun(cfg: ConvertRunCfg): boolean;
 }
 
 /** 组装并打开转换管理面板（弹窗被拒/「查看进行中的转换」入口）。 */
@@ -85,34 +81,7 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         isRunning: () => convertRunActive(),
         openPanel: () => openConvertPanelForView(ctx),
         /** 点「开始转换」：关窗启动运行器，状态/停止/抉择全部转页内转换条。 */
-        startRun: (cfg) =>
-            startConvertRun(cfg, {
-                t: ctx.t,
-                setConverting: ctx.setConverting,
-                onStatus: (html, kind, terminal) =>
-                    renderConvertBar(ctx.el, ctx.t, html, kind, terminal ? null : "running"),
-                onBatch: ctx.onBatch,
-                onStopChoice: (info) =>
-                    renderConvertBar(
-                        ctx.el,
-                        ctx.t,
-                        `${info.message ?? ""}${esc(
-                            fmt(ctx.t("convertStopped"), {
-                                c: String(info.count),
-                                b: String(info.batches),
-                                n: String(info.total),
-                            })
-                        )}`,
-                        "muted",
-                        "choice"
-                    ),
-                onCancel: ctx.onCancel,
-                onDone: (r) => {
-                    clearConvertBar();
-                    ctx.onDone(r);
-                },
-                saveProgress: ctx.saveProgress,
-            }),
+        startRun: ctx.startRun,
     });
 }
 
@@ -148,6 +117,48 @@ export interface ConvertViewAccess {
     onConvertDone(r: { docId: string; title: string; count: number; message?: string }): void;
 }
 
+/** 页内转换事件组（弹窗「开始转换」与右键「重新导入」共用的接线：
+ *  状态条渲染/渐进呈现/终止抉择/收尾清条）。 */
+export function convertRunEventsFor(v: ConvertViewAccess): ConvertRunEvents {
+    return {
+        t: v.t,
+        setConverting: (flag) => v.setConvertingState(flag),
+        onStatus: (html, kind, terminal) =>
+            renderConvertBar(v.container(), v.t, html, kind, terminal ? null : "running"),
+        onBatch: (docId, title, count, batch, total) =>
+            showBatchPreview(v.progressiveOf(), previewHostOf(v), docId, title, count, batch, total),
+        onStopChoice: (info) =>
+            renderConvertBar(
+                v.container(),
+                v.t,
+                `${info.message ?? ""}${esc(
+                    fmt(v.t("convertStopped"), {
+                        c: String(info.count),
+                        b: String(info.batches),
+                        n: String(info.total),
+                    })
+                )}`,
+                "muted",
+                "choice"
+            ),
+        onCancel: () => {
+            v.progressiveOf().clear();
+            v.reloadView();
+        },
+        onDone: (r) => {
+            clearConvertBar();
+            v.onConvertDone(r);
+        },
+        saveProgress: (srcDocId, rec) => v.saveConvertProgress(srcDocId, rec),
+    };
+}
+
+/** 由视图能力直接启动一次转换（弹窗 startRun 与右键「重新导入」共用；
+ *  返回 false=已有转换在跑/待抉择）。 */
+export function startConvertForView(v: ConvertViewAccess, cfg: ConvertRunCfg): boolean {
+    return startConvertRun(cfg, convertRunEventsFor(v));
+}
+
 /** 由视图能力组装 ConvertHostCtx 并打开弹窗（openConvert 的拆出体）。
  *  prefillDocId：预填的源文档 id（面板「继续生成」/知识面板「转习题」）。
  *  prefillKnow：预填的知识点根文档 id（知识面板「转习题」——源=根=该
@@ -155,7 +166,6 @@ export interface ConvertViewAccess {
 export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string, prefillKnow?: string): void {
     openWenguConvert({
         t: v.t,
-        el: v.container(),
         activeDocId: prefillDocId || v.activeDocIdOf(),
         settings: v.settingsOf(),
         lastConvertModelId: v.lastConvert().modelId,
@@ -165,18 +175,11 @@ export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string, 
         convertParallel: v.convertParallelOf(),
         saveChoice: (modelId, fill, steps, know) => v.saveConvertChoice(modelId, fill, steps, know),
         getProgress: (srcDocId) => v.convertProgressOf(srcDocId),
-        saveProgress: (srcDocId, rec) => v.saveConvertProgress(srcDocId, rec),
         setConverting: (flag) => v.setConvertingState(flag),
-        onBatch: (docId, title, count, batch, total) =>
-            showBatchPreview(v.progressiveOf(), previewHostOf(v), docId, title, count, batch, total),
-        onCancel: () => {
-            v.progressiveOf().clear();
-            v.reloadView();
-        },
-        onDone: (r) => v.onConvertDone(r),
         listProgress: () => v.listProgress(),
         discardProgress: (srcDocId, rec) => v.discardProgress(srcDocId, rec),
         reopenWithDoc: (srcDocId) => openConvertForView(v, srcDocId),
+        startRun: (cfg) => startConvertForView(v, cfg),
     });
 }
 

@@ -3,6 +3,7 @@ import { applySideFilter } from "../render/CardHtml";
 import type { CollectionFlow } from "../../bank";
 import { updateConvertBtn } from "../../convert";
 import { bindCardActions } from "../../bank/ui/RegenDialog";
+import { livingSourceOf } from "../service/DocOps";
 import { bindAnnotationLayer, type AnnoCallbacks } from "./AnnoFlow";
 import { addClue, bindClueJudge } from "./ClueFlow";
 import type { QuizView } from "../index";
@@ -63,15 +64,18 @@ export interface ViewBindCtx {
     endRound(): void;
     /** 目录文档右键「错题复习」：进复习模式并预筛该文档。 */
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
-    /** 目录文档右键「删除文档」：删入回收站并清插件侧数据后重载。 */
-    deleteDoc(docId: string): void;
+    /** 目录文档右键「重新导入」：删旧题集并把配对源讲义重转一份新的。 */
+    reimportDoc(docId: string): void;
+    /** 目录文档右键「删除此题集」：解除登记（剥属性，文档保留）并清插件侧数据。 */
+    removeDocSet(docId: string): void;
     /** 目录文档右键「变式重练」：按题生成变式专题并切换开刷。 */
     variantDrill(docId: string): void;
     /** 侧栏树分支折叠/展开（S1）。 */
     toggleTree(path: string): void;
     /** 右键菜单项文案（i18n）。 */
     reviewMenuLabel: string;
-    deleteDocMenuLabel: string;
+    reimportMenuLabel: string;
+    removeSetMenuLabel: string;
     variantDrillMenuLabel: string;
 }
 
@@ -107,7 +111,8 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
         const col = target.closest<HTMLElement>("[data-colid]");
         if (col) ctx.switchCollection(col.dataset.colid ?? "");
     });
-    // 目录文档右键：错题复习快捷入口（D1 v2）+ 删除文档（回收站可找回）
+    // 目录文档右键：错题复习 + 重新导入（有存活源讲义才露出，源查库
+    // 有一次 SQL 往返，菜单迟一拍开）+ 删除此题集（文档保留）+ 变式重练
     q("[data-side-body]")?.addEventListener("contextmenu", (ev) => {
         const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid]");
         const docId = node?.dataset.docid;
@@ -115,11 +120,24 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
         const pos = ev as MouseEvent;
         ev.preventDefault();
         ev.stopPropagation();
-        const menu = new Menu("wengu-doc-review");
-        menu.addItem({ icon: "iconInfo", label: ctx.reviewMenuLabel, click: () => ctx.enterReviewMode({ docId }) });
-        menu.addItem({ icon: "iconTrashcan", label: ctx.deleteDocMenuLabel, click: () => ctx.deleteDoc(docId) });
-        menu.addItem({ icon: "iconSparkles", label: ctx.variantDrillMenuLabel, click: () => ctx.variantDrill(docId) });
-        menu.open({ x: pos.clientX, y: pos.clientY });
+        void (async () => {
+            const menu = new Menu("wengu-doc-menu");
+            menu.addItem({ icon: "iconInfo", label: ctx.reviewMenuLabel, click: () => ctx.enterReviewMode({ docId }) });
+            if (await livingSourceOf(docId)) {
+                menu.addItem({
+                    icon: "iconRefresh",
+                    label: ctx.reimportMenuLabel,
+                    click: () => ctx.reimportDoc(docId),
+                });
+            }
+            menu.addItem({ icon: "iconTrashcan", label: ctx.removeSetMenuLabel, click: () => ctx.removeDocSet(docId) });
+            menu.addItem({
+                icon: "iconSparkles",
+                label: ctx.variantDrillMenuLabel,
+                click: () => ctx.variantDrill(docId),
+            });
+            menu.open({ x: pos.clientX, y: pos.clientY });
+        })();
     });
 }
 
@@ -140,7 +158,8 @@ export interface HeadAccess {
     selectDoc(docId: string): void;
     endRound(): void;
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
-    deleteDocOf(docId: string): void;
+    reimportDocOf(docId: string): void;
+    removeSetOf(docId: string): void;
     variantDrillOf(docId: string): void;
     toggleSideTreeOf(path: string): void;
     sideTreeOpenOf(): string[];
@@ -174,11 +193,13 @@ export function bindHeadFor(v: HeadAccess): void {
         switchDoc: (id) => v.selectDoc(id),
         endRound: () => v.endRound(),
         enterReviewMode: (opt) => v.enterReviewMode(opt),
-        deleteDoc: (id) => v.deleteDocOf(id),
+        reimportDoc: (id) => v.reimportDocOf(id),
+        removeDocSet: (id) => v.removeSetOf(id),
         variantDrill: (id) => v.variantDrillOf(id),
         toggleTree: (path) => v.toggleSideTreeOf(path),
         reviewMenuLabel: v.t("reviewMenuLabel"),
-        deleteDocMenuLabel: v.t("deleteDocMenuLabel"),
+        reimportMenuLabel: v.t("reimportMenuLabel"),
+        removeSetMenuLabel: v.t("removeSetMenuLabel"),
         variantDrillMenuLabel: v.t("variantDrillMenuLabel"),
     });
 }
