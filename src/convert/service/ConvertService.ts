@@ -49,6 +49,34 @@ export interface ConvertResult {
  */
 export const MAX_SOURCE_CHARS = 6000;
 
+/** 生成批切块字符上限（略小于 MAX_SOURCE_CHARS，给 prompt 头部留余量）。 */
+export const CHUNK_CHARS = 5000;
+
+/** 源文档切块（确定性：同一切分规则，偏移可作为续跑标记；检测的分段
+ *  计数复用同一原语，只是窗口更大）。 */
+export interface SourceChunk {
+    text: string;
+    /** 本块在源 kramdown 中的起始偏移（继续生成的断点）。 */
+    offset: number;
+}
+
+/** 在 [半长, 全长] 窗口内找最后一个空行切块，找不到就硬切。 */
+export function chunkKramdown(md: string, maxChars = CHUNK_CHARS): SourceChunk[] {
+    const out: SourceChunk[] = [];
+    let start = 0;
+    while (start < md.length) {
+        let end = Math.min(start + maxChars, md.length);
+        if (end < md.length) {
+            const blank = md.lastIndexOf("\n\n", end);
+            if (blank > start + Math.floor(maxChars / 2)) end = blank + 2;
+        }
+        const text = md.slice(start, end).trim();
+        if (text) out.push({ text, offset: start });
+        start = end;
+    }
+    return out;
+}
+
 /** 取文档定位信息（标题/笔记本/标题路径）。 */
 export async function getDocInfo(docId: string): Promise<DocInfo | undefined> {
     const row = (

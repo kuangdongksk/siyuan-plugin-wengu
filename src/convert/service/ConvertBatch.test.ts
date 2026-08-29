@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkKramdown } from "./ConvertBatch";
+import { chunkKramdown } from "./ConvertService";
 
 /**
  * 源文档切块是续跑断点的事实源（offset 持久化在进度记录里）：切分必须

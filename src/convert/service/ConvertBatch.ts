@@ -3,6 +3,7 @@ import type { QuestionPreview } from "./ConvertDetect";
 import {
     appendBlockToDoc,
     buildPrompt,
+    chunkKramdown,
     createExerciseDoc,
     extractBatchQuestions,
     extractBlockId,
@@ -34,33 +35,6 @@ import { fmt } from "../../ui/shared";
  * 前缀」拼装，题目顺序始终是原文档的忠实前缀。
  */
 
-/** 单批字符上限（略小于 MAX_SOURCE_CHARS，给 prompt 头部留余量）。 */
-const CHUNK_CHARS = 5000;
-
-/** 源文档切块（确定性：同一切分规则，偏移可作为续跑标记）。 */
-export interface SourceChunk {
-    text: string;
-    /** 本块在源 kramdown 中的起始偏移（继续生成的断点）。 */
-    offset: number;
-}
-
-/** 在 [半长, 全长] 窗口内找最后一个空行切块，找不到就硬切。 */
-export function chunkKramdown(md: string, maxChars = CHUNK_CHARS): SourceChunk[] {
-    const out: SourceChunk[] = [];
-    let start = 0;
-    while (start < md.length) {
-        let end = Math.min(start + maxChars, md.length);
-        if (end < md.length) {
-            const blank = md.lastIndexOf("\n\n", end);
-            if (blank > start + Math.floor(maxChars / 2)) end = blank + 2;
-        }
-        const text = md.slice(start, end).trim();
-        if (text) out.push({ text, offset: start });
-        start = end;
-    }
-    return out;
-}
-
 /** 插图自检：源文档的图片行没被带进生成结果的条数（0=无缺，真机
  *  案例：AI 读不了图、把带图题整题跳过）。 */
 function countMissingImages(srcMd: string, outMd: string): number {
@@ -73,7 +47,7 @@ function countMissingImages(srcMd: string, outMd: string): number {
     return n;
 }
 
-/** 检测数的展示文案（"检测共 N 题"，前缀检测只覆盖部分时带 +）。 */
+/** 检测数的展示文案（"检测共 N 题"，分段计数有失败段时带 +）。 */
 function detectedText(detected: number | undefined, truncated: boolean, t: (key: string) => string): string {
     return detected !== undefined && detected > 0
         ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (truncated ? "+" : "")
@@ -92,9 +66,9 @@ export interface ConvertProgress {
     count: number;
     /** 刚完成那批生成的题数（首批前为 0）。 */
     lastBatch: number;
-    /** 前置检测到的现成题数（未确定为空）。 */
+    /** 前置检测到的现成题数（未确定为空；分段计数覆盖全文）。 */
     detected?: number;
-    /** 检测只覆盖了前缀（长文档），总数是下限（显示 N+）。 */
+    /** 检测有分段计数失败（长文档分段并行），总数是下限（显示 N+）。 */
     detectedTruncated?: boolean;
     /** 刚完成那批的题目预览（弹窗渐进展示）。 */
     newStems?: QuestionPreview[];

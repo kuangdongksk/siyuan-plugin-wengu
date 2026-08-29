@@ -1,52 +1,93 @@
-import { agentChat } from "../../ai/client";
-import { enqueueAi } from "../../ai/queue";
+import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import { isMaterialKramdown, parseVerdict } from "./ConvertService";
+import { chunkKramdown, isMaterialKramdown, parseVerdict } from "./ConvertService";
 import { esc } from "../../ui/shared";
 
 /**
  * 转换前置检测与预览行（从 ConvertBatch 拆出，保主文件 ≤500 行）：
- * detectQuestions 问 AI「能否出题+现成题数」（检测窗口截断），answer
- * 端截断时 count 是下限（N+）；questionPreview 从题目 kramdown 抽
- * 「题号 题型 题干片段」供弹窗渐进预览。
+ * detectQuestions 问 AI「能否出题+现成题数」——长文档按空行边界分段
+ * **并行计数、总和=全文题数**（20260829 用户反馈「检测数远小于实际题数」：
+ * 旧实现只把前 12k 前缀发给 AI 数，长卷必然报小）；questionPreview 从
+ * 题目 kramdown 抽「题号 题型 题干片段」供弹窗渐进预览。
  */
 
-/** 检测窗口：检测调用只看前 N 字符（输入越长内核 AI 越易超时；
- *  超窗时 AI 只数可见部分并带 + 号（如 12+），UI 如实展示）。 */
+/** 检测分段：单次计数调用最多看 N 字符（输入越长内核 AI 越易超时），
+ *  超窗文档分段各数各的、按题干起点归属本段（跨段题不重不漏）。 */
 const DETECT_CHARS = 12000;
 
+/** 分段计数并发上限（agentChatOnce 独立会话天然并发，小池限流）。 */
+const DETECT_PARALLEL = 4;
+
 /** 前置检测：能否出题 + 原文现成题目数（试卷题库才有意义）。
- *  truncated=文档超出检测窗口，count 是可见部分的下限（N+）。 */
+ *  truncated=有分段计数失败，count 是成功分段之和的下限（N+）。 */
 export interface DetectResult {
     can: boolean;
     reason: string;
     /** 原文现成题目数；讲义/无法判定为 undefined。 */
     count?: number;
-    /** 文档超出检测窗口，计数只覆盖可见前缀。 */
+    /** 有分段计数失败，计数只覆盖成功分段。 */
     truncated?: boolean;
 }
 
+/** 从检测回复取 COUNT 数字（带 + 也只取数字——加号由本模块按分段
+ *  失败自行标注，不再让 AI 输出）。 */
+export function parseCount(reply: string): number | undefined {
+    const cm = /COUNT\s*[:：]\s*(\d+)/i.exec(reply);
+    return cm ? Number(cm[1]) : undefined;
+}
+
+/** 单段计数 prompt：只数题干起点落在本段的题（段首承接上文的残题
+ *  不计、段尾未完照计），各段之和即全文总数。首段额外产出 CAN/REASON。
+ */
+function windowPrompt(win: string, withVerdict: boolean): string {
+    const lines: string[] = [];
+    if (withVerdict) lines.push("CAN_CONVERT: yes 或 no");
+    lines.push("COUNT: 数字（本段中现成题目的数量）");
+    if (withVerdict) lines.push("REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不能转换时说明原因）");
+    const head = withVerdict
+        ? "你是思源笔记出题助手的前置检查。判断下面的内容是否适合出题，并统计其中现成题目的数量。"
+        : "你是思源笔记出题助手的题目计数器。统计下面这段内容里现成题目的数量。";
+    return `${head}
+只统计题干开头（题号如「1.」「(1)」，或一道题的完整设问起点）出现在本段中的题目：
+本段开头承接上文的未完残题不要计，本段末尾未写完的题目照常计；讲义/笔记等没有现成题目时计 0。
+输出严格${withVerdict ? "三行" : "一行"}，格式之外不要输出任何文字：
+${lines.join("\n")}
+内容：
+${win}`;
+}
+
+/** 分段并行计数（独立会话天然并发，小池限流）。首段失败=整个检测
+ *  失败上抛（调用方不阻断转换）；其余段失败留空计 truncated，
+ *  count 仍是成功段之和（N+ 下限）。 */
 export async function detectQuestions(source: string, modelId: string, signal?: AbortSignal): Promise<DetectResult> {
-    const truncated = source.length > DETECT_CHARS;
-    const head = truncated ? `${source.slice(0, DETECT_CHARS)}\n<!-- 内容过长已截断 -->` : source;
-    const reply = await enqueueAi(() =>
-        agentChat(
-            `你是思源笔记出题助手的前置检查。判断下面的文档是否适合出题，并统计其中现成题目的数量。
-输出严格三行，格式之外不要输出任何文字：
-CAN_CONVERT: yes 或 no
-COUNT: 数字（原文中现成题目的总数；讲义/笔记等没有现成题目时输出 0；若下方内容带「已截断」标记，只数可见部分并在数字后紧跟一个加号，如 12+）
-REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不能转换时说明原因）
-文档内容：
-${head}`,
-            modelId,
-            AI_TIMEOUT.quick,
-            signal
-        )
-    );
-    const verdict = parseVerdict(reply);
-    const cm = /COUNT\s*[:：]\s*(\d+)\s*(\+)?/i.exec(reply);
-    const count = cm ? Number(cm[1]) : undefined;
-    return { can: verdict.can, reason: verdict.reason, count, truncated: truncated && !!cm };
+    const wins = chunkKramdown(source, DETECT_CHARS).map((c) => c.text);
+    if (wins.length === 0) return { can: true, reason: "" };
+    const counts: (number | undefined)[] = new Array(wins.length).fill(undefined);
+    let headReply = "";
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+        for (;;) {
+            if (signal?.aborted) return;
+            const i = cursor++;
+            if (i >= wins.length) return;
+            try {
+                const reply = await agentChatOnce(windowPrompt(wins[i], i === 0), modelId, AI_TIMEOUT.quick, signal);
+                if (i === 0) headReply = reply;
+                counts[i] = parseCount(reply);
+            } catch (e) {
+                if (i === 0 || (e as Error)?.name === "AbortError") throw e;
+            }
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(DETECT_PARALLEL, wins.length) }, () => worker()));
+    const verdict = parseVerdict(headReply);
+    const ok = counts.filter((c): c is number => c !== undefined);
+    return {
+        can: verdict.can,
+        reason: verdict.reason,
+        ...(ok.length > 0 ? { count: ok.reduce((a, b) => a + b, 0) } : {}),
+        truncated: ok.length < wins.length,
+    };
 }
 
 /** 弹窗预览行：题号 + 题型 + 题干片段。 */
