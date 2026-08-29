@@ -60,11 +60,19 @@ describe("reimportCfg", () => {
         expect(c.parallel).toBe(1);
     });
 
-    it("另存模式、生成在源旁、从头重转不吃续跑记录", () => {
+    it("另存模式、生成在源旁、默认无续跑（从头重转）", () => {
         const c = reimportCfg(src, { modelId: "", fill: false, steps: false, know: "" });
         expect(c.writeMode).toBe("newdoc");
         expect(c.targetRaw).toBe("");
         expect(c.resume).toBeUndefined();
+    });
+
+    it("续跑记录原样透传（有断点则接着跑）", () => {
+        const c = reimportCfg(src, { modelId: "", fill: false, steps: false, know: "" }, undefined, {
+            offset: 5000,
+            kramdown: "已生成部分",
+        });
+        expect(c.resume).toEqual({ offset: 5000, kramdown: "已生成部分" });
     });
 
     it("并发批数收敛到 1~4；知识点串剥链接取 id、垃圾滤净", () => {

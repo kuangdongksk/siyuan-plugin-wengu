@@ -14,9 +14,10 @@ import type { QuizView } from "../index";
  *   20260829 真机探针验证）+ 清题库/会话历史，**文档本体与内容原样
  *   保留**、不再进回收站；source-doc 配对随属性一并剥离，此后源讲义
  *   被删也不会被 OrphanCleaner 连带删除。
- * - 重新导入：网络中断等「导一半」的题集一键重做——删旧题集（回收
- *   站可找回）+ 清插件侧数据，再以上次转换设置把配对源讲义重转一份
- *   新《源·习题》（另存模式、生成在源讲义旁，源讲义不动）。
+ * - 重新导入：网络中断等「导一半」的题集一键续做——查该源的续跑
+ *   记录（prefs convertProgress），有则接着断点跑（已生成部分不重复
+ *   生成、不重复花费）、无则从头重转；删旧题集（回收站可找回）后另存
+ *   一份新《源·习题》（生成在源讲义旁，源讲义不动）。
  *
  * fetchSyncPost 必须串行（内核并发互吞响应）；内核调用全程尽力而为，
  * 失败停在中间态由下次操作重试。
@@ -91,11 +92,13 @@ export function unregisterDocAsQuiz(v: QuizView, docId: string): void {
     })();
 }
 
-/** 重新导入的转换参数（弹窗默认同款解析：prefs 上次 > 设置默认）。 */
+/** 重新导入的转换参数（弹窗默认同款解析：prefs 上次 > 设置默认）。
+ *  有续跑记录则接着上次断点续跑（已生成部分保留），无记录才从头重转。 */
 export function reimportCfg(
     srcDocId: string,
     last: { modelId: string; fill: boolean; steps: boolean; know: string },
-    settings?: { convertModelId?: string; fillToChoice?: boolean; bigToSteps?: boolean; convertParallel?: number }
+    settings?: { convertModelId?: string; fillToChoice?: boolean; bigToSteps?: boolean; convertParallel?: number },
+    resume?: { offset: number; docId?: string; kramdown?: string }
 ): ConvertRunCfg {
     return {
         srcDocId,
@@ -109,11 +112,20 @@ export function reimportCfg(
             .split(/[\s,;，；]+/)
             .map((s) => extractBlockId(s))
             .filter((s) => BLOCK_ID_RE.test(s)),
-        resume: undefined, // 重导=从头重转，不吃旧续跑记录（续走弹窗「继续生成」）
+        resume,
     };
 }
 
-/** 「重新导入」：删旧题集（回收站）+ 清插件侧数据 + 清旧续跑记录，以上次设置重转源讲义。 */
+/**
+ * 「重新导入」＝检测断点续跑，而非无条件全量重转：
+ * 1. 配对源讲义查得到续跑记录（prefs convertProgress）→ 接着断点跑。
+ *    记录保留的渐进文档（rec.docId）若要被删，先把其内容读回转进
+ *    resume.kramdown——否则它随删除消失、resume.docId 落空时 ConvertBatch
+ *    静默丢掉已生成部分（created 挂不上）；清续跑记录防止「全部完成」
+ *    短路直接把已删文档当完成态返回。
+ * 2. 完全没有续跑记录 → 从头重转（kramdown=空即全量）。
+ * 落盘统一另存一份新《源·习题》（源讲义不动），失败自动记回续跑进度。
+ */
 export function reimportDocFrom(v: QuizView, docId: string): void {
     void (async () => {
         if (convertRunActive()) {
@@ -125,20 +137,45 @@ export function reimportDocFrom(v: QuizView, docId: string): void {
             showStatus(v.el, v.t("reimportNoSource"), "err");
             return;
         }
+        const rec = v.convertAccess.convertProgressOf(srcId);
+        let kramdown = "";
+        let docDeleted = false;
+        if (rec) {
+            const keepId = rec.docId && ID_RE.test(rec.docId) ? rec.docId : "";
+            if (keepId && keepId !== docId) {
+                const old = await KernelBlock.kramdown(keepId);
+                kramdown = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
+                try {
+                    await KernelDoc.remove(keepId);
+                } catch (_) {
+                    // 渐进文档删除失败不阻断续跑（可能本就是孤儿）
+                }
+            }
+        }
         try {
             const { code } = await KernelDoc.remove(docId);
-            if (code !== 0) return; // 删除失败不动插件数据，下次再试
+            if (code === 0) docDeleted = true;
         } catch (_) {
-            return;
+            docDeleted = false;
         }
-        await v.bankStore()?.removeDocData(docId);
-        await v.bankStore()?.flush();
-        await v.historyStore()?.removeDocs([docId]);
+        if (docDeleted) {
+            await v.bankStore()?.removeDocData(docId);
+            await v.bankStore()?.flush();
+            await v.historyStore()?.removeDocs([docId]);
+        }
+        // 删与建之间清续跑记录：防「offset 已覆盖全文」短路把已删/待删
+        // 的保留文档当完成态返回；失败路径会重新记回（延续上下文）
         v.convertAccess.saveConvertProgress(srcId, undefined);
+        const resume = rec
+            ? {
+                  offset: rec.offset,
+                  ...(kramdown.trim() ? { kramdown } : {}),
+              }
+            : undefined;
         await v.reloadView(); // 侧栏先摘掉旧题集，转换条/渐进呈现落在新 DOM 上
         const started = startConvertForView(
             v.convertAccess,
-            reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf())
+            reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf(), resume)
         );
         if (!started) showStatus(v.el, v.t("convertBusy"), "err"); // reload 间隙被抢跑的兜底
     })();
