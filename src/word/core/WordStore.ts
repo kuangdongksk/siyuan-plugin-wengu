@@ -104,7 +104,7 @@ export interface WenguWordProgress {
 export type WordGrade = "no" | "fuzzy" | "know";
 
 /** 每组单词数可选档（稀疏档位，起点面板下拉与 getter 吸附共用）。 */
-export const GROUP_SIZES = [10, 15, 25, 30, 40, 60, 80, 100];
+export const GROUP_SIZES = [10, 15, 20, 25, 30, 40, 60, 80, 100];
 /** 默认每组单词数（AI 复盘粒度）。 */
 const DEFAULT_GROUP_SIZE = 10;
 /** 默认新学窗口容量。 */
