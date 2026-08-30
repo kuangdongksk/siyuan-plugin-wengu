@@ -10,7 +10,7 @@ import { buildDrillUnits, renderOneUnitHtml, type DrillUnit } from "./DrillUnits
 import { bindGroupUnits, bindOneGroupUnit, focusQuestion, restoreGroupScrolls } from "../flow/MaterialFlow";
 import { bindNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
-import { lockAllCards } from "./RoundReport";
+import { detachRoundReport, lockAllCards } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { bindRailFor, renderRailHtml } from "./RailHtml";
 import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
@@ -62,6 +62,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     detachBankPanels(); // bank 两面板同款（专题/知识文档）
     detachReviewApp(); // 复习主区同款（Svelte 化 20260830）
     detachStartPanel(); // 开刷面板同款（Svelte 化 20260830）
+    detachRoundReport(); // 轮次报告同款（Svelte 化 20260830）
     detachSideTree(); // 侧栏树同款（TreeList 化 20260830；回调一并作废）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
     // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828

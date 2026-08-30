@@ -1,4 +1,3 @@
-import { runAgentTextOrPanel } from "../../ai/agentPanel";
 import { attributeWrongCauses } from "../service/AiJudge";
 import type { CauseItem } from "../service/AiJudge";
 import { svgIcon } from "../../ui/FormHtml";
@@ -6,16 +5,19 @@ import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import type { WenguQuestion } from "../../types";
 import { baseQid } from "../../types";
-import { esc, fmt, mmss } from "../../ui/shared";
+import { esc, mmss } from "../../ui/shared";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import type { WeakCause, WeakTopRow, WeaknessStore } from "../../bank/data/WeaknessStore";
 import { openWeakDrill } from "../../bank/ui/WeakDrill";
 import { roundAggByQid } from "../../bank/data/WeaknessStore";
+import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
+import RoundReportApp from "../component/RoundReportApp.svelte";
 
 /**
- * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：
- * 总用时/得分摘要 + 每题用时图 + 历史轮次得分图 + AI 分析报告
- * （走 ai 域客户端）。
+ * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：渲染在
+ * component/RoundReportApp.svelte（Svelte 化 20260830），本文件保留
+ * 模型与收卷编排（showRoundReportNow）+ AI 分析 prompt 构建 +
+ * 错因沉淀；AI 通道走 ai 域客户端。
  */
 
 export interface RoundReportModel {
@@ -34,109 +36,9 @@ export interface RoundReportModel {
     weakRows: WeakTopRow[];
 }
 
-export function renderRoundReport(m: RoundReportModel): string {
-    const { t, session: s, list, rounds } = m;
-    const byQid = byBaseQid(s);
-    // 每题用时条形图：高度 ∝ 秒数，对错描色，未答灰色（多步题按整题聚合）
-    const maxSec = Math.max(1, ...list.map((q) => byQid.get(q.id)?.sec ?? 0));
-    const timeBars = list
-        .map((q, i) => {
-            const r = byQid.get(q.id);
-            const sec = r?.sec ?? 0;
-            const h = Math.max(4, Math.round((sec / maxSec) * 100));
-            // partial（brief 方向对但有缺口）单独描黄，区别于全错
-            const cls = !r
-                ? "wengu-bar-muted"
-                : r.verdict === "partial"
-                  ? "wengu-bar-partial"
-                  : r.ok
-                    ? "wengu-bar-right"
-                    : "wengu-bar-wrong";
-            const state = !r
-                ? t("reportUnanswered")
-                : r.verdict === "partial"
-                  ? t("verdictPartial")
-                  : r.ok
-                    ? t("correct")
-                    : t("wrong");
-            const title = fmt(t("reportQTime"), { n: String(i + 1), t: mmss(sec) }) + ` · ${state}`;
-            return `<div class="wengu-bar-col" title="${esc(title)}">
-  <div class="wengu-bar ${cls}" style="height:${h}%"></div>
-  <span class="wengu-bar-label">${i + 1}</span>
-</div>`;
-        })
-        .join("");
-    // 历史轮次得分条形图：高度 ∝ 正确率
-    const scoreBars = rounds
-        .map((r, i) => {
-            const rate = r.answered > 0 ? r.correct / r.answered : 0;
-            const h = Math.max(4, Math.round(rate * 100));
-            const title = fmt(t("reportRoundScore"), { n: String(i + 1), c: String(r.correct), a: String(r.answered) });
-            return `<div class="wengu-bar-col" title="${esc(title)}">
-  <div class="wengu-bar wengu-bar-score" style="height:${h}%"></div>
-  <span class="wengu-bar-label">${i + 1}</span>
-</div>`;
-        })
-        .join("");
-    const overtime =
-        m.overtimeSec > 0 ? `<span class="wengu-meta">+${mmss(m.overtimeSec)} ${esc(t("reportOvertime"))}</span>` : "";
-    return `<div class="wengu-report" data-report>
-  <div class="wengu-start-title">${esc(t("reportTitle"))}</div>
-  <div class="wengu-report-summary">
-    <span class="wengu-meta">${esc(fmt(t("reportScore"), { c: String(s.correct), a: String(s.answered) }))}</span>
-    <span class="wengu-meta">${svgIcon("iconClock")} ${esc(mmss(m.totalSec))}</span>
-    ${overtime}
-  </div>
-  <div class="wengu-report-chart">
-    <div class="wengu-report-label">${esc(t("reportTimeChart"))}</div>
-    <div class="wengu-bars">${timeBars}</div>
-  </div>
-  ${
-      rounds.length > 0
-          ? `<div class="wengu-report-chart">
-    <div class="wengu-report-label">${esc(t("reportScoreChart"))}</div>
-    <div class="wengu-bars">${scoreBars}</div>
-  </div>`
-          : ""
-  }
-  ${renderWeakSection(t, m.weakRows)}
-  <div>
-    <button class="b3-button b3-button--outline" data-act="ai-report">${esc(t("reportAiBtn"))}</button>
-  </div>
-  <div class="wengu-report-ai" data-ai hidden></div>
-</div>`;
-}
-
-/** 错因显示文案（存储是规范键，展示走 i18n）。 */
-function weakCauseLabel(t: (k: string) => string, cause: WeakCause): string {
-    const cap = cause[0].toUpperCase() + cause.slice(1);
-    return t(`weakCause${cap}`);
-}
-
-/** 薄弱沉淀区块：跨轮次累计的薄弱知识点（错数/题数/主要错因）。 */
-function renderWeakSection(t: (k: string) => string, rows: WeakTopRow[]): string {
-    if (rows.length === 0) return "";
-    const items = rows
-        .map(
-            (r) =>
-                `<div class="wengu-weak-row" title="${esc(r.title)}">
-    <span class="wengu-weak-title">${esc(r.title)}</span>
-    <span class="wengu-meta">${esc(fmt(t("weakStats"), { w: String(r.wrong), n: String(r.total) }))}</span>${
-        r.topCause ? `<span class="wengu-badge">${esc(weakCauseLabel(t, r.topCause))}</span>` : ""
-    }
-  </div>`
-        )
-        .join("");
-    return `<div class="wengu-report-chart">
-    <div class="wengu-report-label">${esc(t("weakTitle"))}</div>
-    <div class="wengu-weak-list">${items}</div>
-    <button class="b3-button b3-button--outline" data-act="weak-drill">${esc(t("drillTitle"))}</button>
-  </div>`;
-}
-
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
  *  ok=全步对、sec=各步求和；verdict 保留 brief 的 partial 标记）。 */
-function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
+export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
     const out = new Map<string, { ok: boolean; sec: number; verdict?: string }>();
     for (const r of s.results) {
         const b = baseQid(r.qid);
@@ -150,28 +52,8 @@ function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; ver
     return out;
 }
 
-/** 绑定 AI 报告按钮：优先开思源智能体新会话，失败降级页内拉取。 */
-export function bindRoundReport(root: HTMLElement, m: RoundReportModel, modelId: string): void {
-    const btn = root.querySelector<HTMLButtonElement>("[data-act='ai-report']");
-    const out = root.querySelector<HTMLElement>("[data-ai]");
-    if (!btn || !out) return;
-    btn.addEventListener("click", () => void run(btn, out, m, modelId));
-}
-
-async function run(btn: HTMLButtonElement, out: HTMLElement, m: RoundReportModel, modelId: string): Promise<void> {
-    await runAgentTextOrPanel({
-        prompt: buildAnalysisPrompt(m),
-        btn,
-        out,
-        modelId,
-        loadingText: m.t("reportAiLoading"),
-        emptyText: m.t("convertEmptyReply"),
-        failPrefix: m.t("convertAiFailed"),
-    });
-}
-
 /** 把一轮数据交给 AI 判卷（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。 */
-function buildAnalysisPrompt(m: RoundReportModel): string {
+export function buildAnalysisPrompt(m: RoundReportModel): string {
     const { session: s, list, rounds } = m;
     const byQid = byBaseQid(s);
     const thoughts = s.thoughts ?? {};
@@ -252,11 +134,21 @@ function roundsWithCurrent(rounds: WenguSession[], cur?: WenguSession): WenguSes
     return cur && !rounds.some((x) => x.id === cur.id) ? [...rounds, cur] : rounds;
 }
 
-/** 一轮完成：收卷 + 渲染总结报告（总用时/用时图/得分图 + AI 分析入口）。 */
+/* ── 报告挂载编排（Svelte 化 20260830，组件在 component/RoundReportApp） ── */
+
+let reportApp: MountedSvelteApp | undefined;
+
+/** 卸载轮次报告（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
+export function detachRoundReport(): void {
+    reportApp?.unmount();
+    reportApp = undefined;
+}
+
+/** 一轮完成：收卷 + 挂载总结报告（总用时/用时图/得分图 + AI 分析入口）。 */
 export function showRoundReportNow(ctx: RoundFinishCtx): void {
     const s = ctx.session ?? ctx.finished;
-    const out = ctx.el.querySelector<HTMLElement>("[data-report]");
-    if (!s || !out) return;
+    const host = ctx.el.querySelector<HTMLElement>("[data-report]");
+    if (!s || !host) return;
     const totalSec = ctx.timer.elapsed();
     const overtime = ctx.timer.inOvertime ? ctx.timer.overtimeSec : 0;
     ctx.finishSession();
@@ -270,23 +162,26 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
         overtimeSec: overtime,
         weakRows: ctx.weakness?.topSync(8) ?? [],
     };
-    out.innerHTML = renderRoundReport(model);
-    out.removeAttribute("hidden");
-    bindRoundReport(out, model, ctx.aiModelId);
-    out.querySelector("[data-act='weak-drill']")?.addEventListener("click", () => {
-        if (ctx.weakness && ctx.bank)
-            openWeakDrill(
-                {
-                    t: ctx.t,
-                    bank: ctx.bank,
-                    weakness: ctx.weakness,
-                    modelId: ctx.aiModelId,
-                    onDone: () => ctx.refreshCollections?.(),
-                },
-                model.weakRows
-            );
+    detachRoundReport();
+    host.removeAttribute("hidden");
+    reportApp = mountSvelteApp(RoundReportApp, host, {
+        model,
+        modelId: ctx.aiModelId,
+        onWeakDrill: (rows: WeakTopRow[]) => {
+            if (ctx.weakness && ctx.bank)
+                openWeakDrill(
+                    {
+                        t: ctx.t,
+                        bank: ctx.bank,
+                        weakness: ctx.weakness,
+                        modelId: ctx.aiModelId,
+                        onDone: () => ctx.refreshCollections?.(),
+                    },
+                    rows
+                );
+        },
     });
-    out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    host.scrollIntoView({ behavior: "smooth", block: "nearest" });
     if (ctx.weakness) void settleWeakness(ctx.weakness, s, ctx.list, ctx.aiModelId);
 }
 
