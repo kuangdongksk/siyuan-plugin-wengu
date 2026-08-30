@@ -29,7 +29,7 @@ import { openVariantDrillDialog } from "../bank/ui/VariantDrill";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
-import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
+import { beginDrillFor, detachStartPanel, startPanelModelFor } from "./render/StartPanel";
 import { destroyStatsPanel, openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
@@ -209,6 +209,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         detachCompanionPanel();
         detachBankPanels();
         detachReviewApp();
+        detachStartPanel();
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */

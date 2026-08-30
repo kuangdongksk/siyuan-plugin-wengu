@@ -13,7 +13,7 @@ import { decoratePreview } from "../flow/PreviewFlow";
 import { lockAllCards } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { bindRailFor, renderRailHtml } from "./RailHtml";
-import { beginDrillFor, bindStartPanel, renderStartPanel } from "./StartPanel";
+import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
 import { bindHeadFor } from "../flow/ViewBindings";
 import { detachSideTree, mountSideTreeFor } from "../flow/SideTreeMount";
 import { renderWorkspaceFor } from "./WorkspaceShell";
@@ -61,6 +61,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     detachCompanionPanel(); // Svelte 面板先卸再挂（防实例滞留，同 statsPanel 位）
     detachBankPanels(); // bank 两面板同款（专题/知识文档）
     detachReviewApp(); // 复习主区同款（Svelte 化 20260830）
+    detachStartPanel(); // 开刷面板同款（Svelte 化 20260830）
     detachSideTree(); // 侧栏树同款（TreeList 化 20260830；回调一并作废）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
     // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828
@@ -128,7 +129,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
             previewing: v.progressive.active,
             hasDoc: !!doc,
             listCount: v.list.length,
-            startPanelHtml: renderStartPanel(v.startPanelModel()),
+            startPanelHtml: "<div data-startpanel-host></div>",
             subheadHtml: colMode
                 ? `<span class="wengu-muted">${esc(v.colFlow.activeTitle() ?? "")} · ${esc(String(v.list.length))}</span>`
                 : renderSubheadHtml({ t: v.t, doc, listCount: v.list.length, rounds: v.rounds }),
@@ -142,6 +143,11 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         });
     bindQuizFor(v); // 静态路径卡事件改逐片绑（bindQuizFor 的全量卡循环此时扫到空表）
     bindRailFor(v);
+    // 开刷面板挂载（renderMainShell 的面板态条件同款：非加载/错误、
+    // 有文档有题、未开刷非预览渐进）
+    if (!v.loading && !v.loadError && doc && v.list.length > 0 && !v.started && !pv && !v.progressive.active) {
+        mountStartPanelFor(v);
+    }
     mountSideTreeFor({
         // 侧栏树挂载适配（回调记进 SideTreeMount，重灌后 remount 复用）
         el: v.el,
@@ -250,16 +256,13 @@ function renderingPillHtml(t: (key: string) => string): string {
     )}</span><span class="wengu-rendering-count" data-rendering-count></span></div>`;
 }
 
-/** 视图级绑定：头部/题号/开刷面板/题卡/材料组单元。 */
+/** 视图级绑定：头部/题号/题卡/材料组单元（开刷面板为 Svelte 组件，
+ *  由 renderQuizShellFor 壳落后挂载，无 DOM 绑定）。 */
 function bindQuizFor(v: QuizView): void {
     bindHeadFor(v);
     bindNumRail(v.el, {
         onActive: (idx) => v.onActiveQ(idx),
         onFocus: (idx) => focusQuestion(v.el, v.units, v.list, idx),
-    });
-    bindStartPanel(v.el, v.startPanelModel(), () => beginDrillFor(v), {
-        onPreview: () => v.enterPreviewMode(),
-        onReview: () => v.enterReviewMode({}),
     });
     bindGroupUnits(v.el, v.units, v, {
         onActive: (idx) => v.onActiveQ(idx),
