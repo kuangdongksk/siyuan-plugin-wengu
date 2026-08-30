@@ -30,7 +30,7 @@ import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } f
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
-import { openStatsPanelFor } from "../stats";
+import { destroyStatsPanel, openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
 import { TimerController } from "./service/TimerController";
@@ -205,6 +205,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         hideBar();
         void this.bank?.flush();
         this.protyleHost.destroyAll(this.el);
+        destroyStatsPanel(); // 浮层 echarts 防 leak（此前 destroy 漏清，挂账项）
         detachCompanionPanel();
         detachBankPanels();
         detachReviewApp();

@@ -97,7 +97,7 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 | 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                               | ✅ 2026-08-27 |
 | 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                      | ✅ 2026-08-30 |
 | 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                           | ✅ 2026-08-30 |
-| 4   | stats 域              | 822 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                      |               |
+| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                      | ✅ 2026-08-30 |
 | 5   | convert 域            | 3962 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                           |               |
 | 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（Protyle 壳）→ Steps/AnswerFlow（三写痛点终结） |               |
 
@@ -216,3 +216,18 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   行内改名/新建输入是其定稿视觉（col-folder 分支验收过），行解剖
   （depth 缩进模型/计数/武装态）与 TreeList 差异过大，硬塞会把共享
   组件撑成上帝组件；它本身已是递归 Svelte 组件，架构同族。
+
+## 批次 4 落地记录（2026-08-30，stats 统计面板）
+
+- 四件套：core/StatsUi|StatsCtl（ctl 单例，浮层 open/destroy 外部契约
+  不变）+ comp/StatsApp（浮层壳+tab 路由）|StatsOverview|StatsDoc；
+  StatsHtml.ts 整体删除（纯渲染函数组件化）。
+- **echarts action 壳**（comp/echart.ts）：`use:echart={option}`——
+  init/setOption/dispose + window resize 监听全收进 action，节点
+  卸载即 dispose（旧 StatsChartHost 实例池删除，浮层关闭/切 tab 天然
+  防泄漏——暗雷 §8 命令式别声明式化的标准应用）。
+- 挂账清偿：QuizView.destroy 此前漏调 destroyStatsPanel（浮层随
+  v.el 移除但 echarts 实例与 resize 监听滞留）——已补。
+- 浮层定位壳 .wengu-stats-wrap 由挂载编排建宿主挂（组件根从
+  .wengu-stats-layer 起，CSS 零改动）；关闭动作经 props onClose
+  注入（防组件→index 循环 import）。

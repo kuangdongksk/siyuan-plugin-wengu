@@ -1,17 +1,16 @@
 import { BarChart, LineChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
-import type { EChartsCoreOption, EChartsType } from "echarts/core";
+import type { EChartsCoreOption } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import type { WenguSession } from "../quiz/service/HistoryStore";
 import type { RoundTrendItem } from "./StatsService";
-import { mmss } from "../ui/shared";
-
-/**
+import { mmss } from "../ui/shared"; /**
  * 统计图表层：插件自带按需 echarts（echarts/core 注册最小集），
  * 不用 window.echarts——官方未向插件开放（issue #8516 关闭未采纳）。
  * option 组装为纯函数；实例生命周期（init/dispose/resize）由
- * StatsChartHost 统一管理，浮层关闭时必须 dispose 防泄漏。
+ * comp/echart.ts 的 Svelte action 壳管理（20260830 起，替代旧
+ * StatsChartHost 实例池——节点卸载即 dispose，浮层关闭天然防泄漏）。
  */
 
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
@@ -131,31 +130,4 @@ export function roundsOption(rounds: WenguSession[], t: T): EChartsCoreOption {
             },
         ],
     };
-}
-
-/** echarts 实例池：浮层内多图统一 resize/dispose。 */
-export class StatsChartHost {
-    private readonly charts: EChartsType[] = [];
-    private readonly onResize = () => this.resizeAll();
-
-    mount(el: HTMLElement, option: EChartsCoreOption): void {
-        if (el.clientWidth <= 0) return;
-        const c = echarts.init(el);
-        c.setOption(option);
-        this.charts.push(c);
-    }
-
-    startListen(): void {
-        window.addEventListener("resize", this.onResize);
-    }
-
-    dispose(): void {
-        window.removeEventListener("resize", this.onResize);
-        for (const c of this.charts) c.dispose();
-        this.charts.length = 0;
-    }
-
-    private resizeAll(): void {
-        for (const c of this.charts) c.resize();
-    }
 }

@@ -1,22 +1,17 @@
-import { runAgentTextOrPanel } from "../ai/agentPanel";
 import type { HistoryStore } from "../quiz/service/HistoryStore";
-import { wrongOverviewNow } from "../review";
-import { roundsOption, StatsChartHost, trendOption } from "./StatsCharts";
-import { renderDocStatsHtml, renderOverviewHtml, renderStatsShell, type OverviewExtra } from "./StatsHtml";
-import { buildDocStats, buildQuizStats, buildStatsPrompt, modeLabel } from "./StatsService";
+import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
+import StatsApp from "./comp/StatsApp.svelte";
 import type { WeakCause, WeakTopRow } from "../bank/data/WeaknessStore";
 import type { WenguDoc, WenguQuestion } from "../types";
-import { esc, fmt } from "../ui/shared";
 
 /**
- * 统计面板编排（浮层，模块级单例）：总览 / 本文档详情两 tab。
- * 数据只读聚合——会话历史（HistoryStore）+ 视图已装载的文档榜与
- * 题目列表，无额外 SQL；文档榜行点击下钻走视图 switchDoc，装载
- * 完成后由视图重开面板（tab=doc）。视图重渲染会清 DOM，须先调
- * destroyStatsPanel 防 echarts 泄漏。
+ * 统计面板编排（浮层，Svelte 化 20260830，四件套见 core/comp/）：
+ * 总览 / 本文档详情两 tab。数据只读聚合——会话历史（HistoryStore）+
+ * 视图已装载的文档榜与题目列表，无额外 SQL；文档榜行点击下钻走视图
+ * switchDoc，装载完成后由视图重开面板（tab=doc）。视图重渲染/销毁
+ * 须先调 destroyStatsPanel（echarts dispose 防泄漏——QuizView.destroy
+ * 已兜底，此前漏清是挂账项）。
  */
-
-/** AI 建议超时（毫秒），与轮报告一致。 */
 
 export interface StatsPanelDeps {
     el: HTMLElement;
@@ -36,8 +31,6 @@ export interface StatsPanelDeps {
     tab?: "overview" | "doc";
 }
 
-let current: StatsPanel | undefined;
-
 export interface StatsViewAccess {
     container(): HTMLElement;
     t(key: string): string;
@@ -54,7 +47,7 @@ export interface StatsViewAccess {
         totalTime: number;
     }[];
     docIdOf(): string;
-    fullListOf(): import("../types").WenguQuestion[];
+    fullListOf(): WenguQuestion[];
     switchDocSelect(id: string): void;
     markReopenStats(tab: "overview" | "doc"): void;
     enterReviewMode(opt: { docId?: string; qid?: string }): void;
@@ -81,162 +74,23 @@ export function openStatsPanelFor(v: StatsViewAccess, tab: "overview" | "doc"): 
     });
 }
 
+/* ── 浮层单例（旧 StatsPanel 类的等价物） ── */
+
+let statsApp: MountedSvelteApp | undefined;
+/** 宿主壳（.wengu-stats-wrap 定位层，组件根从 .wengu-stats-layer 起）。 */
+let statsHost: HTMLElement | undefined;
+
 export function openStatsPanel(deps: StatsPanelDeps): void {
     destroyStatsPanel();
-    current = new StatsPanel(deps);
-    current.open();
+    statsHost = document.createElement("div");
+    statsHost.className = "wengu-stats-wrap";
+    deps.el.appendChild(statsHost);
+    statsApp = mountSvelteApp(StatsApp, statsHost, { deps, onClose: destroyStatsPanel });
 }
 
 export function destroyStatsPanel(): void {
-    if (current) {
-        current.destroy();
-        current = undefined;
-    }
-}
-
-class StatsPanel {
-    private readonly layer = document.createElement("div");
-    private readonly charts = new StatsChartHost();
-    private tab: "overview" | "doc";
-    /** renderTab 代际（快速切 tab 防旧请求晚到覆写）。 */
-    private tabGen = 0;
-
-    constructor(private readonly d: StatsPanelDeps) {
-        this.tab = d.tab ?? "overview";
-        this.layer.className = "wengu-stats-wrap";
-    }
-
-    open(): void {
-        this.layer.innerHTML = renderStatsShell(this.d.t, this.tabsHtml(), "");
-        this.d.el.appendChild(this.layer);
-        this.charts.startListen();
-        this.bindHead();
-        void this.renderTab();
-    }
-
-    destroy(): void {
-        this.charts.dispose();
-        this.layer.remove();
-    }
-
-    private tabsHtml(): string {
-        const btn = (id: "overview" | "doc", label: string) =>
-            `<button class="b3-button b3-button--outline wengu-stats-tab${
-                this.tab === id ? " wengu-stats-tab-cur" : ""
-            }" data-tab="${id}">${esc(label)}</button>`;
-        const title = this.d.docs.find((x) => x.id === this.d.docId)?.title ?? "";
-        const short = title.length > 12 ? `${title.slice(0, 12)}…` : title;
-        return (
-            btn("overview", this.d.t("statsTabOverview")) +
-            (this.d.docId ? btn("doc", fmt(this.d.t("statsTabDoc"), { title: short || this.d.docId })) : "")
-        );
-    }
-
-    private bindHead(): void {
-        this.layer.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) =>
-            b.addEventListener("click", () => {
-                if (this.tab === b.dataset.tab) return;
-                this.tab = b.dataset.tab === "doc" ? "doc" : "overview";
-                this.refreshTabs();
-                void this.renderTab();
-            })
-        );
-        this.layer.querySelector("[data-act='stats-close']")?.addEventListener("click", () => destroyStatsPanel());
-    }
-
-    /** 只重绘 tab 按钮的选中态，不动内容区。 */
-    private refreshTabs(): void {
-        this.layer.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => {
-            b.classList.toggle("wengu-stats-tab-cur", b.dataset.tab === this.tab);
-        });
-    }
-
-    private async renderTab(): Promise<void> {
-        const body = this.layer.querySelector<HTMLElement>("[data-stats-body]");
-        if (!body) return;
-        // 代际护栏：快速切 tab 时两个 renderTab 并发在途，慢的那个后到
-        // 会把旧 tab 内容写进新 tab 选中态下（挂账清偿，20260829）
-        const gen = ++this.tabGen;
-        this.charts.dispose();
-        this.charts.startListen();
-        body.innerHTML = `<div class="wengu-muted">${esc(this.d.t("loading"))}</div>`;
-        const stale = (): boolean => gen !== this.tabGen || !this.layer.isConnected;
-        if (this.tab === "overview") {
-            const sessions = (await this.d.history?.allSessions()) ?? [];
-            if (stale()) return;
-            const stats = buildQuizStats(sessions);
-            const extra: OverviewExtra = {
-                wrong: wrongOverviewNow(),
-                weakRows: this.d.weakness?.topSync(8) ?? [],
-                causeDist: this.d.weakness?.causeDistSync() ?? [],
-            };
-            body.innerHTML = renderOverviewHtml(this.d.t, stats, this.d.docs, this.d.docId, extra);
-            this.mountChart(body, "trend", trendOption(stats.recent, this.d.t));
-            this.bindDocRows(body);
-            this.bindReviewEntries(body);
-        } else {
-            const sessions = (await this.d.history?.docSessions(this.d.docId)) ?? [];
-            if (stale()) return;
-            const title = this.d.docs.find((x) => x.id === this.d.docId)?.title || this.d.docId;
-            const s = buildDocStats(title, sessions, this.d.fullList);
-            body.innerHTML = renderDocStatsHtml(this.d.t, {
-                docTitle: s.docTitle,
-                total: s.total,
-                wrongTotal: s.wrongTotal,
-                rounds: s.rounds.map((r) => ({
-                    startedAt: r.startedAt,
-                    mode: modeLabel(r.mode),
-                    answered: r.answered,
-                    correct: r.correct,
-                    elapsedSec: r.elapsedSec,
-                })),
-                wrongs: s.wrongs,
-            });
-            this.mountChart(body, "rounds", roundsOption(s.rounds, this.d.t));
-            this.bindAi(body, s);
-            this.bindReviewEntries(body); // 错题清单行 → 错题本定位回看
-        }
-    }
-
-    private mountChart(body: HTMLElement, key: string, option: ReturnType<typeof trendOption>): void {
-        const el = body.querySelector<HTMLElement>(`[data-chart='${key}']`);
-        if (el) this.charts.mount(el, option);
-    }
-
-    private bindDocRows(body: HTMLElement): void {
-        body.querySelectorAll<HTMLElement>("[data-docid]").forEach((row) =>
-            row.addEventListener("click", () => {
-                const id = row.dataset.docid ?? "";
-                if (id && id !== this.d.docId) this.d.switchDoc(id);
-            })
-        );
-    }
-
-    /** 总览「进错题本」按钮 + 详情错题行 → 关面板进复习模式（D6 联动）。 */
-    private bindReviewEntries(body: HTMLElement): void {
-        body.querySelector("[data-act='enter-review']")?.addEventListener("click", () => this.d.enterReview());
-        body.querySelectorAll<HTMLElement>("[data-wrong-qid]").forEach((row) =>
-            row.addEventListener("click", () => this.d.enterReview(row.dataset.wrongQid ?? ""))
-        );
-    }
-
-    private bindAi(body: HTMLElement, s: ReturnType<typeof buildDocStats>): void {
-        const btn = body.querySelector<HTMLButtonElement>("[data-act='ai-stats']");
-        const out = body.querySelector<HTMLElement>("[data-ai]");
-        if (!btn || !out) return;
-        btn.addEventListener("click", () => void this.runAi(btn, out, buildStatsPrompt(s)));
-    }
-
-    /** AI 学习建议：首选思源内置智能体（可追问），失配降级页内拉取。 */
-    private async runAi(btn: HTMLButtonElement, out: HTMLElement, prompt: string): Promise<void> {
-        await runAgentTextOrPanel({
-            prompt,
-            btn,
-            out,
-            modelId: this.d.aiModelId,
-            loadingText: this.d.t("statsAiLoading"),
-            emptyText: this.d.t("convertEmptyReply"),
-            failPrefix: this.d.t("convertAiFailed"),
-        });
-    }
+    statsApp?.unmount();
+    statsApp = undefined;
+    statsHost?.remove();
+    statsHost = undefined;
 }
