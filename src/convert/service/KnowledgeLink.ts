@@ -172,15 +172,46 @@ const SECTION_INDEX_CHARS = 2200;
 const MAX_HIT_CHAPTERS = 4;
 const MAX_SECTIONS = 10;
 
+/** 路由失败上报（routeKnowledgeDiag 用）：stage 定位失败发生在哪一级。 */
+export interface KnowRouteFail {
+    stage: "chapter" | "section";
+    error: Error;
+}
+
+/** 匹配失败归类（20260829 真机「0 命中无线索」补诊断）：把路由错误按
+ *  关键词归到可行动的类别，hit=0 时给状态栏一句人话而非干瞪眼。 */
+export type MatchFailKind = "model" | "timeout" | "network" | "other";
+
+/** 错误归类（纯函数）：模型配置失效/超时/网络三分，其余归 other。 */
+export function classifyMatchFail(msg: string): MatchFailKind {
+    const m = msg.toLowerCase();
+    if (/用户指南|进行配置|invalid model|model.*not|请先参考/.test(msg) || /model/.test(m)) return "model";
+    if (/abort|timeout|timed?\s*out|超时/.test(m)) return "timeout";
+    if (/fetch|network|econn|socket|failed to fetch|网络/.test(m)) return "network";
+    return "other";
+}
+
 /**
  * 两级路由：①章清单（全部章标题，几百字）→ 命中章；②小节清单（命中
  * 章的 h1~h6 标题）→ 小节。返回 K 别名 → 小节的映射（供生成 prompt 与
- * 后处理共享）。任何一步失败返回空映射（该批不加链接）。
+ * 后处理共享）。任何一步失败返回空映射（该批不加链接）；onFail 透传时
+ * 失败也会上报（诊断用，不改变降级语义）。
  */
 export async function routeKnowledge(
     chunk: string,
     index: KnowledgeIndex,
     deps: KnowRouteDeps
+): Promise<Map<string, KnowSection>> {
+    return routeKnowledgeDiag(chunk, index, deps);
+}
+
+/** routeKnowledge 的诊断版：额外通过 onFail 上报每次 AI 调用失败（匹配
+ *  批量跑完汇总失败原因用）。原接口保留给转换侧（不需要诊断）。 */
+export async function routeKnowledgeDiag(
+    chunk: string,
+    index: KnowledgeIndex,
+    deps: KnowRouteDeps,
+    onFail?: (f: KnowRouteFail) => void
 ): Promise<Map<string, KnowSection>> {
     const out = new Map<string, KnowSection>();
     try {
@@ -188,8 +219,10 @@ export async function routeKnowledge(
         let hit = index.chapters;
         if (index.chapters.length > 1) {
             const list = index.chapters.map((c, i) => `${i + 1}|${c.path}`).join("\n");
-            const reply = await deps.call(
-                `你是思源笔记的知识点路由器。下面是题目原文和章节清单（编号|路径）。
+            let reply: string;
+            try {
+                reply = await deps.call(
+                    `你是思源笔记的知识点路由器。下面是题目原文和章节清单（编号|路径）。
 判断这批题目考查的内容涉及哪些章节，只输出 JSON，格式之外不要输出任何文字：
 {"chapters":[编号,编号]}
 规则：只输出清单里存在的编号，最多 ${MAX_HIT_CHAPTERS} 个，按相关度降序；没有合适的输出 {"chapters":[]}。
@@ -199,7 +232,11 @@ ${list}
 
 题目原文：
 ${chunk}`
-            );
+                );
+            } catch (e) {
+                onFail?.({ stage: "chapter", error: e as Error });
+                return out;
+            }
             const nums = parseNums(reply, index.chapters.length).slice(0, MAX_HIT_CHAPTERS);
             hit = nums.map((n) => index.chapters[n - 1]);
             if (hit.length === 0) return out;
@@ -220,8 +257,10 @@ ${chunk}`
         }
         if (picked.length === 0) return out;
         const list2 = picked.map((s, i) => `${i + 1}|${s.path}`).join("\n");
-        const reply2 = await deps.call(
-            `你是思源笔记的知识点路由器。下面是题目原文和知识点小节清单（编号|路径）。
+        let reply2: string;
+        try {
+            reply2 = await deps.call(
+                `你是思源笔记的知识点路由器。下面是题目原文和知识点小节清单（编号|路径）。
 判断这批题目考查的具体知识点对应哪些小节，只输出 JSON，格式之外不要输出任何文字：
 {"sections":[编号,编号]}
 规则：只输出清单里存在的编号，最多 ${MAX_SECTIONS} 个，按相关度降序；没有合适的输出 {"sections":[]}。
@@ -231,7 +270,11 @@ ${list2}
 
 题目原文：
 ${chunk}`
-        );
+            );
+        } catch (e) {
+            onFail?.({ stage: "section", error: e as Error });
+            return out;
+        }
         for (const n of parseNums(reply2, picked.length).slice(0, MAX_SECTIONS)) {
             const s = picked[n - 1];
             if (s) out.set(`K${out.size + 1}`, s);

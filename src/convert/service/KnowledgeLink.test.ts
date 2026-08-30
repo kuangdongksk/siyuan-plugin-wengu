@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowledgeLink";
+import { classifyMatchFail, injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowledgeLink";
 
 /** 带解析引述块的最小题目 kramdown（契约 §一：容器 + part IAL 行）。 */
 const KD = `{{{row
@@ -68,5 +68,27 @@ describe("strip + inject 幂等往返（20260828 审查：重跑匹配不得破�
         const healed = injectKnowledgeRefs(stripKnowledgeRefs(dirty), REFS);
         expect(healed.match(/part="solution"/g)?.length).toBe(1);
         expect(injectKnowledgeRefs(stripKnowledgeRefs(healed), REFS)).toBe(healed);
+    });
+});
+
+describe("classifyMatchFail（20260829 匹配诊断：失败归类供状态栏提示）", () => {
+    it("模型失效类（内核「请先参考用户指南」报文）归 model", () => {
+        expect(classifyMatchFail("请先参考用户指南 [人工智能] 章节进行配置")).toBe("model");
+        expect(classifyMatchFail("invalid model id")).toBe("model");
+    });
+
+    it("中断/超时类归 timeout", () => {
+        expect(classifyMatchFail("AbortError: aborted")).toBe("timeout");
+        expect(classifyMatchFail("request timeout")).toBe("timeout");
+    });
+
+    it("网络类归 network", () => {
+        expect(classifyMatchFail("failed to fetch")).toBe("network");
+        expect(classifyMatchFail("network error")).toBe("network");
+    });
+
+    it("其余归 other", () => {
+        expect(classifyMatchFail("agent error")).toBe("other");
+        expect(classifyMatchFail("")).toBe("other");
     });
 });

@@ -4,9 +4,12 @@ import { enqueueAi } from "../../ai/queue";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
+    classifyMatchFail,
     injectKnowledgeRefs,
-    routeKnowledge,
+    routeKnowledgeDiag,
     stripKnowledgeRefs,
+    type KnowRouteFail,
+    type MatchFailKind,
 } from "../../convert/service/KnowledgeLink";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelDoc } from "../../siyuan/doc";
@@ -164,6 +167,11 @@ async function runMatch(
         let hit = 0;
         let miss = 0;
         let skip = 0;
+        // 失败诊断（20260829「0 命中无线索」）：routeKnowledgeDiag 上报每次
+        // AI 调用失败，跑完 hit=0 时按类别给状态栏一句人话（模型失效/超时/
+        // 网络），不再被 catch 静默吞成「未命中」。
+        const fails: KnowRouteFail[] = [];
+        const failCount = new Map<MatchFailKind, number>();
         for (let i = 0; i < records.length; i++) {
             if (ctrl.signal.aborted || !dialog.element.isConnected) break;
             const r = records[i];
@@ -175,9 +183,14 @@ async function runMatch(
             try {
                 // 过共享队列串行：与判分/复盘等 "" 会话调用互斥，不抢内核
                 const routed = await enqueueAi(() =>
-                    routeKnowledge(routeTextOf(r), index, {
-                        call: (m) => agentChat(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
-                    })
+                    routeKnowledgeDiag(
+                        routeTextOf(r),
+                        index,
+                        {
+                            call: (m) => agentChat(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                        },
+                        (f) => fails.push(f)
+                    )
                 );
                 refs = [...routed.values()].map((s) => ({ id: s.id, title: s.title }));
             } catch (_) {
@@ -211,11 +224,19 @@ async function runMatch(
             );
         }
         await bank.flush();
+        // 汇总失败类别（路由失败原因归类计数，hit=0 时挑最多的一类提示）
+        for (const f of fails) {
+            const k = classifyMatchFail(String(f.error?.message ?? f.error ?? ""));
+            failCount.set(k, (failCount.get(k) ?? 0) + 1);
+        }
+        const topFail = [...failCount.entries()].sort((a, b) => b[1] - a[1])[0];
+        const failHint =
+            hit === 0 && miss > 0 && topFail ? "\n" + fmt(t(`matchFail_${topFail[0]}`), { n: String(topFail[1]) }) : "";
         show(
             ctrl.signal.aborted
                 ? fmt(t("matchAborted"), { h: String(hit) })
-                : fmt(t("matchDone"), { h: String(hit), m: String(miss), s: String(skip) }),
-            ctrl.signal.aborted ? "muted" : "ok"
+                : fmt(t("matchDone"), { h: String(hit), m: String(miss), s: String(skip) }) + failHint,
+            ctrl.signal.aborted ? "muted" : hit === 0 && failHint ? "err" : "ok"
         );
         if (!ctrl.signal.aborted) window.setTimeout(() => dialog.destroy(), 800);
         deps.onDone?.();

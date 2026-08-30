@@ -600,5 +600,9 @@
   "matchDone": "Done: {h} questions linked (miss {m}, skipped {s})",
   "matchAborted": "Stopped: {h} questions linked",
   "matchNoSrc": "No banked exercise docs yet: convert one via \"AI convert\" in the quiz sidebar, or use \"Convert\" on a row",
-  "matchNoIndex": "Failed to build the knowledge doc structure (or no chapters); cannot match"
+  "matchNoIndex": "Failed to build the knowledge doc structure (or no chapters); cannot match",
+  "matchFail_model": "{n} route call(s) failed: the routing model may be invalid — re-select a working model in \"AI convert\"",
+  "matchFail_timeout": "{n} route call(s) timed out: the model is slow or the network is unstable; try again",
+  "matchFail_network": "{n} route call(s) hit a network error: check the SiYuan AI service / network and retry",
+  "matchFail_other": "{n} route call(s) failed (not model/timeout/network)"
 }

@@ -600,5 +600,9 @@
   "matchDone": "完成：{h} 题挂上知识点（未命中 {m}，跳过 {s}）",
   "matchAborted": "已停止：{h} 题挂上知识点",
   "matchNoSrc": "题库还没有习题文档：先在刷题侧栏「AI 转习题」生成，或用行上「转习题」",
-  "matchNoIndex": "知识文档结构拉取失败或无章节，无法匹配"
+  "matchNoIndex": "知识文档结构拉取失败或无章节，无法匹配",
+  "matchFail_model": "{n} 次路由调用失败：路由模型可能已失效——请在「AI 转习题」里重选一个可用模型",
+  "matchFail_timeout": "{n} 次路由调用超时：模型响应过慢或网络不稳，可重试",
+  "matchFail_network": "{n} 次路由调用网络异常：请检查思源 AI 服务/网络后重试",
+  "matchFail_other": "{n} 次路由调用失败（非模型/超时/网络类）"
 }

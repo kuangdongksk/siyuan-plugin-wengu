@@ -325,6 +325,8 @@
   padding: 6px 8px;
   border-radius: var(--b3-border-radius);
   font-size: 13px;
+  /* 匹配诊断等多行提示（textContent 里的 \n）需要 pre-line 才换行 */
+  white-space: pre-line;
 }
 
 .wengu-status-ok {
