@@ -36,6 +36,16 @@ const PART_IAL = /^\{:[^\n]*custom-plugin-wengu-part="([a-z0-9-]+)"/;
 const IAL_LINE = /^[ \t]*(?:>[ \t]*)*\{:[^}\n]*\}[ \t]*$/;
 const IAL_INLINE = /\{:(?:[ \t]*[a-zA-Z-]+="[^"\n]*")+[ \t]*\}/g;
 
+/** 渲染前的 IAL 残渣清理（MdRender 渲染入口同款复用）：整行属性行
+ *  删行、行内尾随片段删片段。 */
+export function stripIal(text: string): string {
+    return text
+        .split("\n")
+        .filter((ln) => !IAL_LINE.test(ln))
+        .join("\n")
+        .replace(IAL_INLINE, "");
+}
+
 /** 容器 IAL 里的自定义属性值（custom-plugin-wengu- 前缀剥除后取裸名）。 */
 function containerAttr(ial: string, name: string): string | undefined {
     const m = new RegExp(`custom-plugin-wengu-${name}="([^"]*)"`).exec(ial);

@@ -32,7 +32,7 @@ import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDi
 import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
-import { bindViewFrameFor, toggleSideTreeFor } from "./flow/ViewBindings";
+import { bindViewFrameFor } from "./flow/ViewBindings";
 import { TimerController } from "./service/TimerController";
 import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "../types";
 
@@ -120,7 +120,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.bank = bank;
         this.openSettings = openSettings;
         this.wordStore = wordStore;
-        this.protyleHost = new ProtyleHost(app);
+        this.protyleHost = new ProtyleHost();
         this.convertAccess = new ConvertAccess(this);
         this.timerBinder = new TimerBinder(timerHostFor(this));
         this.colFlow = new CollectionFlow({
@@ -285,10 +285,6 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             ...this.convertAccess.prefsSnapshot(),
         });
     }
-
-    /** 侧栏树分支折叠/展开（S1）：改集合持久化后局部重绘清单块。 */
-    /** 侧栏树分支折叠/展开（S1）：实现见 ViewBindings.toggleSideTreeFor。 */
-    readonly toggleSideTreeOf = (path: string): void => toggleSideTreeFor(this, path);
 
     /** 目录文档右键「变式重练」（V2）：整卷/仅错题按题生成变式专题。 */
     readonly variantDrillOf = (docId: string): void => {

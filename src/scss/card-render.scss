@@ -326,6 +326,55 @@
   cursor: pointer;
 }
 
+/* ── MdRender 静态产物的标签基线（20260830 渲染自包含化；div.p 与
+   Lute 形态对齐无默认 margin，但 markdown-it 的列表/表格是标准标签，
+   主题 reset 对插件 DOM 的覆盖不确定——显式给基线防漂移）── */
+.wengu-qprotyle :where(ul, ol) {
+  margin: 4px 0;
+  padding-left: 1.6em;
+}
+
+.wengu-qprotyle :where(table) {
+  margin: 6px 0;
+  border-collapse: collapse;
+}
+
+.wengu-qprotyle :where(th, td) {
+  padding: 2px 8px;
+  border: 1px solid var(--b3-border-color);
+}
+
+.wengu-qprotyle :where(pre) {
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+  overflow-x: auto;
+}
+
+.wengu-qprotyle :where(code) {
+  font-family: var(--b3-font-family-code);
+}
+
+.wengu-qprotyle :where(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  font-weight: 600;
+}
+
+.wengu-qprotyle :where(blockquote) {
+  margin: 6px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--b3-border-color);
+}
+
+/* 题干内嵌块引用（查看原文，MdRender 产出 span；点击走 document 委托） */
+.wengu-blockref {
+  color: var(--b3-theme-primary);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* 选择题选项序号与作答字母对齐（1234 → ABCD）：思源有序列表的序号
    是 .protyle-action 里的 marker 文本，CSS 改不了文本——用计数器生成
    字母绝对居中覆盖，原数字透明化（盒子尺寸/行高不动，垂直对齐不塌）。

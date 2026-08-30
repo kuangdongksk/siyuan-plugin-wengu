@@ -3,12 +3,11 @@ import { fallbackQuestionHtml, optionRowHtml } from "./ProtyleHost";
 import type { WenguQuestion } from "../../types";
 
 /**
- * 静态/降级渲染的选项字母角标回归面（20260828 用户反馈「ABCD 都没了」）：
- * >50 题长卷与题库模式走 mountStatic、Protyle 挂载失败走降级——两路
- * 都经 optionRowHtml，选项文本被 optionDisplayMd 剥掉文档里的字母
- * 标签后，字母必须由页签按位补画，否则作答 chip（A/B/C/D）无从对应。
- * node 环境无 window.Lute，safeLute 退 <pre> 纯文本——正好锁「角标
- * 在、正文在、原字母标签不在」的结构断言。
+ * 静态渲染的选项字母角标回归面（20260828 用户反馈「ABCD 都没了」）：
+ * 全量静态管线（20260830 起内嵌 Protyle 退役）经 optionRowHtml，选项
+ * 文本被 optionDisplayMd 剥掉文档里的字母标签后，字母必须由页签按位
+ * 补画，否则作答 chip（A/B/C/D）无从对应。渲染底层 markdown-it 纯
+ * JS，node 直跑——锁「角标在、正文在、原字母标签不在」的结构断言。
  */
 
 describe("optionRowHtml：选项行字母角标", () => {
@@ -23,8 +22,8 @@ describe("optionRowHtml：选项行字母角标", () => {
         expect(b).not.toContain("B、乙");
     });
 
-    it("自定义行类（复习详情复用同款角标）", () => {
-        expect(optionRowHtml(0, "甲", "wengu-review-option")).toContain('class="wengu-review-option"');
+    it("自定义行类（复习详情复用同款角标；短选项可再叠紧凑档类）", () => {
+        expect(optionRowHtml(0, "甲", "wengu-review-option")).toContain('class="wengu-review-option');
     });
 
     it("越界下标角标为空不抛异常", () => {

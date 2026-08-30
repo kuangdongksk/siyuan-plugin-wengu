@@ -1,44 +1,35 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { estimateOptWidth } from "../../types";
 import { mdFragmentHtml, optionRowHtml, unwrapSingleBlock } from "./ProtyleHost";
 
 /**
  * 短选项紧凑排布（opt-compact，20260829；docs/option-compact-layout.md）：
- * ① unwrapSingleBlock 剥壳——真机段落形态（3.8.1 lute.min.js node 探针）：
- * `<div … class="p"><div contenteditable="true">正文</div><div class=
- * "protyle-attr">…</div></div>`，取正文壳的内联 HTML（luteToHtml 已先剥
- * contenteditable=true 防误编辑，故运行时壳多无该属性——两种形态都认）；
- * 多块/代码块/标题/pre 降级/形态漂移一律返回 null（整行独占）。
+ * ① unwrapSingleBlock 剥壳——20260830 渲染自包含化后 MdRender 产出的
+ * 段落是 `<div class="p">内联正文</div>`（无 Lute 时代的 contenteditable
+ * 壳/protyle-attr 尾巴），剥壳取内联 HTML；多块/代码块/标题/形态漂移
+ * 一律返回 null（整行独占）。旧 Lute 残渣形态仍兼容（存量渲染缓存）。
  * ② estimateOptWidth 估宽——公式段定值 8、全角 2、半角 1，档位
- * s≤10 / m≤24。optionRowHtml 的档类只在 Lute 可用（剥壳成功）时出现，
- * 故用 stub window.Lute 走真分支；与 ProtyleHost.test.ts 分文件——
- * vitest 按文件隔离模块级 sharedLute 缓存，互不污染。
+ * s≤10 / m≤24。渲染底层 markdown-it 纯 JS，node 直跑无需 stub。
  */
 
-/** 真机段落壳模板（contenteditable 正文 + protyle-attr 尾巴）。 */
-const pWrap = (inner: string) =>
-    '<div data-node-id="20260829000000-abc1234" data-node-index="1" data-type="NodeParagraph" class="p">' +
+/** MdRender 段落形态模板。 */
+const pWrap = (inner: string) => `<div class="p">${inner}</div>`;
+
+/** 旧 Lute 残渣形态（contenteditable 正文 + protyle-attr 尾巴）。 */
+const pLegacy = (inner: string) =>
+    '<div data-node-id="20260829000000-abc1234" data-type="NodeParagraph" class="p">' +
     `<div contenteditable="true" spellcheck="false">${inner}</div>` +
     '<div class="protyle-attr" contenteditable="false">\u200B</div></div>';
 
-describe("unwrapSingleBlock：Lute 输出剥壳", () => {
-    it("单段落块取 contenteditable 正文（公式 span 原样保留）", () => {
+describe("unwrapSingleBlock：渲染输出剥壳", () => {
+    it("单段落块取内联正文（公式 span 原样保留）", () => {
         const inner =
             '甲<span data-type="inline-math" data-subtype="math" data-content="\\frac{\\pi}{6}" contenteditable="false" class="render-node"></span>';
         expect(unwrapSingleBlock(pWrap(inner))).toBe(inner);
     });
 
-    it("内层属性实体化 &gt; 不干扰（深度扫描只数 div 标签）", () => {
-        expect(unwrapSingleBlock(pWrap('<span data-content="&gt;">t</span>'))).toBe(
-            '<span data-content="&gt;">t</span>'
-        );
-    });
-
-    it("顶层 class 带附加类（p fn__flex）仍认段落", () => {
-        const html =
-            '<div class="p fn__flex" data-node-id="x"><div contenteditable="true" spellcheck="false">a</div>' +
-            '<div class="protyle-attr" contenteditable="false">\u200B</div></div>';
-        expect(unwrapSingleBlock(html)).toBe("a");
+    it("旧 Lute 残渣形态仍可剥壳（兼容）", () => {
+        expect(unwrapSingleBlock(pLegacy("甲"))).toBe("甲");
     });
 
     it("两个顶层块返回 null（多块选项整行独占）", () => {
@@ -47,23 +38,13 @@ describe("unwrapSingleBlock：Lute 输出剥壳", () => {
 
     it("非段落块返回 null：列表/代码块/标题/pre 降级", () => {
         expect(unwrapSingleBlock('<div class="list"><div class="li">a</div></div>')).toBeNull();
-        expect(
-            unwrapSingleBlock('<div class="code-block" data-node-id="x"><div class="protyle-action">.</div></div>')
-        ).toBeNull();
-        expect(unwrapSingleBlock('<h1 data-node-id="x">题</h1>')).toBeNull();
         expect(unwrapSingleBlock("<pre>甲</pre>")).toBeNull();
+        expect(unwrapSingleBlock('<h1 data-node-id="x">题</h1>')).toBeNull();
         expect(unwrapSingleBlock("")).toBeNull();
     });
 
-    it("形态漂移（正文壳整体缺失）返回 null 整行独占", () => {
-        expect(unwrapSingleBlock('<div class="p">直接正文</div>')).toBeNull();
-    });
-
-    it("正文壳无属性（luteToHtml 已剥 contenteditable）仍可剥壳", () => {
-        const stripped =
-            '<div data-node-id="x" data-type="NodeParagraph" class="p"><div spellcheck="false">甲</div>' +
-            '<div class="protyle-attr">\u200B</div></div>';
-        expect(unwrapSingleBlock(stripped)).toBe("甲");
+    it("顶层 class 带附加类（p fn__flex）仍认段落", () => {
+        expect(unwrapSingleBlock('<div class="p fn__flex">a</div>')).toBe("a");
     });
 });
 
@@ -85,30 +66,16 @@ describe("estimateOptWidth：估宽（半角单位）", () => {
     });
 });
 
-describe("optionRowHtml：估宽档类（stub Lute 走剥壳真分支）", () => {
-    beforeAll(() => {
-        // 对齐真机 Md2BlockDOM 段落形态（见文件头 pWrap）
-        (globalThis as unknown as { window?: unknown }).window = {
-            Lute: {
-                New: () => ({
-                    SetKramdownIAL() {},
-                    SetInlineMath() {},
-                    SetInlineMathAllowDigitAfterOpenMarker() {},
-                    Md2BlockDOM: (md: string) => pWrap(md),
-                }),
-            },
-        };
-    });
-
+describe("optionRowHtml：估宽档类（markdown-it 直跑）", () => {
     it("短选项加 s 档、中长加 m 档、长选项无档类", () => {
         expect(optionRowHtml(0, "- A. $x$")).toContain('class="wengu-option-fallback wengu-opt-s"');
         expect(optionRowHtml(1, "B、甲乙丙丁戊己")).toContain('class="wengu-option-fallback wengu-opt-m"');
         expect(optionRowHtml(2, "C. 一段很长很长的选项文本超过两档阈值")).toContain('class="wengu-option-fallback"');
     });
 
-    it("正文为剥壳后的内联 HTML（无段落壳/protyle-attr）", () => {
+    it("正文为剥壳后的内联 HTML（$ 桥产出思源同款公式占位）", () => {
         const row = optionRowHtml(0, "A. $x$");
-        expect(row).toContain('<div class="wengu-opt-body">$x$</div>');
+        expect(row).toContain('data-type="inline-math"');
         expect(row).not.toContain('class="p"');
         expect(row).not.toContain("protyle-attr");
     });

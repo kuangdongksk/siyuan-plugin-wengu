@@ -154,6 +154,8 @@ export default class WenguPlugin extends Plugin {
         });
         // 全局悬浮层（挂 body）：onload 尾声挂，onunload 卸——重载不叠影
         mountCompanionGlobal();
+        // 题干内嵌块引用（查看原文）：document 级委托一次接管静态渲染产出的引用 span
+        document.addEventListener("click", WenguPlugin.onBlockRefClick);
         // 插件图标：形状取自思源官方图标集（litheness 包 iconRiffCard /
         // iconLanguage 的原始 path），以自有稳定 id 注册——不依赖运行环境
         // sprite 是否收录该图标（iconLanguage 非核心图标，dock 里会渲染成
@@ -287,9 +289,17 @@ export default class WenguPlugin extends Plugin {
     /** 卸载：全局悬浮层挂 body 不随页签回收，必须显式卸（重载不叠影）。 */
     onunload(): void {
         unmountCompanionGlobal();
+        document.removeEventListener("click", WenguPlugin.onBlockRefClick);
         this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
     }
+
+    /** 题干内嵌块引用（查看原文）的 document 级委托：静态渲染是字符串
+     *  管线（md → HTML 串），引用 span 只能带 data 标记由这里统一跳转。 */
+    private static readonly onBlockRefClick = (ev: MouseEvent): void => {
+        const el = (ev.target as HTMLElement | null)?.closest<HTMLElement>("[data-wengu-blockref]");
+        if (el?.dataset.wenguBlockref) window.open(`siyuan://blocks/${el.dataset.wenguBlockref}`);
+    };
 
     /** 树删除/移动事件的防抖对账定时器（onunload 清）。 */
     private static reconcileTimer: number | undefined;
