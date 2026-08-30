@@ -1,14 +1,13 @@
 import type { QuizView } from "../index";
 import { bindRailFor, renderRailHtml } from "./RailHtml";
 import { mountCompanionPanel } from "../../companion";
-import { renderCollectionPanelInto } from "../../bank/ui/CollectionPanel";
-import { renderKnowledgePanelInto } from "../../bank/ui/KnowledgePanel";
+import { mountCollectionPanel, mountKnowledgePanel } from "../../bank";
 
 /**
  * 工作区分支渲染（workspace !== "drill" 时由 renderQuizShellFor 早退到
- * 这里）：rail + 空主区骨架，再把面板内容填进去。各面板自带数据拉取
- * 与绑定；全量重绘（renderList）时面板随之重建，局部更新由面板自理
- * （companion 面板已 Svelte 化：renderQuizShellFor 开头先 detach 旧实例）。
+ * 这里）：rail + 空主区骨架，再把面板挂进去。三个面板均已 Svelte 化
+ * （companion/bank），数据装载在组件 onMount 里自起；全量重绘
+ * （renderList）时 renderQuizShellFor 开头统一 detach 面板实例。
  */
 export function renderWorkspaceFor(v: QuizView): void {
     v.el.innerHTML = `${renderRailHtml(v.t, v.workspace)}<div class="wengu-main wengu-ws-main" data-ws-root></div>`;
@@ -16,6 +15,6 @@ export function renderWorkspaceFor(v: QuizView): void {
     const root = v.el.querySelector<HTMLElement>("[data-ws-root]");
     if (!root) return;
     if (v.workspace === "companion") mountCompanionPanel(v, root);
-    else if (v.workspace === "collection") void renderCollectionPanelInto(v, root);
-    else renderKnowledgePanelInto(v, root);
+    else if (v.workspace === "collection") mountCollectionPanel(v, root);
+    else mountKnowledgePanel(v, root);
 }

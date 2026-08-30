@@ -95,7 +95,7 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 | 批  | 目标                  | 规模    | 要点                                                                                        | 状态          |
 | --- | --------------------- | ------- | ------------------------------------------------------------------------------------------- | ------------- |
 | 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                               | ✅ 2026-08-27 |
-| 2   | bank 工作区面板       | ~300 行 | 同 WorkspaceShell 挂载链，复用面板样板                                                      |               |
+| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                       | ✅ 2026-08-30 |
 | 3   | review 域             | 539 行  | 先抽 quiz 借用的 rail/side/head 成共享组件                                                  |               |
 | 4   | stats 域              | 822 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                      |               |
 | 5   | convert 域            | 3962 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                           |               |
@@ -120,3 +120,26 @@ SettingsDialog（低频稳定，路线图末尾再评估）。
   `QuizView.destroy` 兜底。
 - `tsconfig.svelte.json` + `pnpm run check:svelte`（存量 14 组件
   零错误零警告）。
+
+## 批次 2 落地记录（2026-08-30，bank 工作区面板）
+
+- 两个面板四件套（CollectionPanel/KnowledgePanel）：
+  `core/ColPanelUi|ColPanelCtl` / `core/KnowPanelUi|KnowPanelCtl` +
+  `comp/CollectionPanelApp|ColTreeLevel` / `comp/KnowledgePanelApp|
+  KnowTreeItem`。原 `ui/CollectionPanel.ts|KnowledgePanel.ts` 瘦身为
+  视图模型层（类型+树化/聚合纯函数+渲染辅助，单测不动）。
+- **递归树组件自引用**：Svelte 5 移除 `<svelte:self>`，组件文件
+  `import Self from "./Self.svelte"` 后用 `<Self>` 递归（两棵树同款）。
+  svelte-check 对未 import 的自名标签报 Cannot find name，是防呆位。
+- 挂载：`bank/index.ts` 的 `mountCollectionPanel/mountKnowledgePanel/
+  detachBankPanels`（companion 同款模块级单例+先卸再挂）；
+  `renderQuizShellFor` 开头 `detachBankPanels()`（同 statsPanel 位），
+  `QuizView.destroy` 兜底。
+- 行为改进（有意）：折叠态/两击确认态/编辑态进 ui 后，数据刷新不再
+  重置（旧 innerHTML 全量重绘全丢）；Knowledge 面板「移除」确认态与
+  渲染同源，消除旧模块级 rmArmed Map 与重绘 DOM 漂移的隐患。
+- 竞态守卫换血：旧 `root.isConnected` 检查换成控制器 `alive` 标志
+  （destroy 置位，装载 await 后检查作废）。
+- 旧实现「面板相关 scss 无 data-* 键控选择器」迁移前已核实，`data-*`
+  委托键（data-cid/data-dir/data-kdoc…）随迁移整体消失，类名逐字
+  保留（含 wengu-cp-armed/wengu-cp-editing 状态类改由条件渲染挂）。

@@ -5,6 +5,10 @@ import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
 import { listMaterials, resolveGroupPlaceholders } from "../quiz/service/MaterialService";
 import type { CollectionRow, QuestionBank } from "./data/QuestionBank";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
+import type { QuizView } from "../quiz";
+import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
+import CollectionPanelApp from "./comp/CollectionPanelApp.svelte";
+import KnowledgePanelApp from "./comp/KnowledgePanelApp.svelte";
 
 /**
  * 专题编排（从 QuizView 拆出）：持有当前选中的专题 id 与侧栏清单，
@@ -130,6 +134,29 @@ export class CollectionFlow {
 /** col 模式的会话域 id（history 里与文档 id 同场存放，前缀天然隔离）。 */
 export function colSessionId(colId: string): string {
     return `col:${colId}`;
+}
+
+/* ── 工作区面板挂载（Svelte 化，companion 同款单例+detach 模式） ── */
+
+let colPanelApp: MountedSvelteApp | undefined;
+let knowPanelApp: MountedSvelteApp | undefined;
+
+export function mountCollectionPanel(v: QuizView, root: HTMLElement): void {
+    detachBankPanels();
+    colPanelApp = mountSvelteApp(CollectionPanelApp, root, { v });
+}
+
+export function mountKnowledgePanel(v: QuizView, root: HTMLElement): void {
+    detachBankPanels();
+    knowPanelApp = mountSvelteApp(KnowledgePanelApp, root, { v });
+}
+
+/** 卸载两个工作区面板（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
+export function detachBankPanels(): void {
+    colPanelApp?.unmount();
+    colPanelApp = undefined;
+    knowPanelApp?.unmount();
+    knowPanelApp = undefined;
 }
 
 /** col 模式装载上下文：专题轮次（col:<id> 归档）+ 来源文档的材料并集。

@@ -1,22 +1,12 @@
-import type { QuizView } from "../../quiz";
-import type { QuestionBank } from "../data/QuestionBank";
-import { kpRootMap } from "../data/BankReconcile";
-import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
-import { openRelatedDialog } from "./RelatedDialog";
-import { openMatchDialog } from "./MatchDialog";
 import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/KnowledgeLink";
-import { openKnowPicker } from "../../ui/KnowPicker";
-import { KernelDoc } from "../../siyuan/doc";
-import { svgIcon } from "../../ui/FormHtml";
-import { esc, fmt } from "../../ui/shared";
 
 /**
- * 知识文档管理工作区面板：两个来源合并展示——①题库推导（kp 块→标题
- * →根文档，collectKpRefs/kpRootMap/knowledgeIndex 三次调用组全量，
- * groupKnowByDoc 为导出纯函数）②手动导入（bank.knowRoots 登记，
- * importedKnowDocs 走 expandKnowDocs **递归展开**：登记根+全部后代
- * 文档各一条（20260828 前是整棵子树拍平进根行的小节清单），无题也
- * 展示；mergeKnowDocs 合并去重，单测覆盖）。转换入口仍在刷题侧栏。
+ * 知识文档面板的视图模型层（Svelte 化前的渲染/绑定已删，20260830）：
+ * 类型 + 聚合/合并纯函数 + 手动导入的递归展开装配 + hPath 树构建，
+ * 供 comp/KnowledgePanelApp 与 core/KnowPanelCtl 消费，单测覆盖
+ * groupKnowByDoc/mergeKnowDocs。面板语义：两个来源合并展示——①题库
+ * 推导（kp 块→标题→根文档）②手动导入（bank.knowRoots 登记，
+ * expandKnowDocs 递归展开：登记根+全部后代文档各一条），无题也展示。
  */
 
 export interface KnowSectionView {
@@ -113,7 +103,7 @@ export function mergeKnowDocs(
  *  各一条，各带自己的 h1~h6 小节）。manualAll=登记∪展开后代（供合并
  *  标「手动导入」）；info 带回标题/hPath 供树化。根已删（查无标题）
  *  不展示；展开失败但文档还在 → 保留空节登记行，退册入口不丢。 */
-async function importedKnowDocs(
+export async function importedKnowDocs(
     rootIds: string[],
     titles: Map<string, string>
 ): Promise<{ docs: ImportedKnowDoc[]; info: Map<string, { title: string; hPath: string }>; manualAll: Set<string> }> {
@@ -150,12 +140,9 @@ async function importedKnowDocs(
     return { docs, info, manualAll };
 }
 
-/* ── hPath 树化（20260827 用户定稿：跟思源原生文档树同款观感）──
-   行壳走 PickerTree 同款 b3-list-item 紧凑单行风；交互完全对齐
-   KnowPicker 的已验证模式：展开集合（openPaths）持有状态、点击后整树
-   重渲染、容器级事件委托——绝不对行节点逐个 addEventListener。 */
+/* ── hPath 树化（跟思源原生文档树同款观感；算法同 PickerTree）── */
 
-interface KnowTreeNode {
+export interface KnowTreeNode {
     /** 完整路径（分支折叠 key；文档行追加 docId 后缀防撞）。 */
     path: string;
     name: string;
@@ -163,9 +150,11 @@ interface KnowTreeNode {
     children: KnowTreeNode[];
 }
 
-/** 知识文档按 hPath 建树（算法同 PickerTree.buildPickerTree；同路径
- *  撞名以 docId 后缀子行挂载不丢）。 */
-function buildKnowTree(docs: KnowDocView[], info: Map<string, { title: string; hPath: string }>): KnowTreeNode[] {
+/** 知识文档按 hPath 建树（同路径撞名以 docId 后缀子行挂载不丢）。 */
+export function buildKnowTree(
+    docs: KnowDocView[],
+    info: Map<string, { title: string; hPath: string }>
+): KnowTreeNode[] {
     const roots: KnowTreeNode[] = [];
     const byPath = new Map<string, KnowTreeNode>();
     for (const d of docs) {
@@ -199,238 +188,4 @@ function buildKnowTree(docs: KnowDocView[], info: Map<string, { title: string; h
 }
 
 /** 文档小节容器的折叠 key（与树路径同空间但带后缀防撞）。 */
-const secKeyOf = (path: string): string => `${path}::sec`;
-
-interface KnowPaintCtx {
-    t: (key: string) => string;
-    openPaths: Set<string>;
-}
-
-function toggleSlot(node: KnowTreeNode, ctx: KnowPaintCtx): string {
-    // 文档行的箭头切小节容器（key 带 ::sec 后缀，与 knowDocRowHtml 的
-    // 显隐判断同键），分支行的箭头切子分支（key=树路径本身）
-    const key = node.doc ? secKeyOf(node.path) : node.path;
-    const expandable = node.children.length > 0 || (!!node.doc && node.doc.sections.length > 0);
-    return expandable
-        ? `<span class="wengu-tree-toggle wengu-tree-toggle-btn${ctx.openPaths.has(key) ? " wengu-tree-open" : ""}" data-tree-path="${esc(
-              key
-          )}">${svgIcon("iconRight")}</span>`
-        : '<span class="wengu-tree-toggle"></span>';
-}
-
-function sectionRowHtml(s: KnowSectionView, t: (key: string) => string): string {
-    return `<div class="b3-list-item b3-list-item--narrow wengu-kp-sec-row" data-ksec="${esc(s.id)}" title="${esc(
-        s.title
-    )}"><span class="wengu-tree-toggle"></span><span class="b3-list-item__text">${esc(
-        s.title
-    )}</span><span class="wengu-cp-meta">${esc(fmt(t("knowQCount"), { n: String(s.count) }))}</span></div>`;
-}
-
-function knowDocRowHtml(node: KnowTreeNode, ctx: KnowPaintCtx): string {
-    const d = node.doc!;
-    const t = ctx.t;
-    const tag = d.manual ? ` · ${t("knowImportTag")}` : "";
-    const title = `${d.title}\n${fmt(t("knowSections"), { n: String(d.sections.length) })} · ${fmt(t("knowQCount"), {
-        n: String(d.total),
-    })}${tag}`;
-    const rm = d.registered
-        ? `<button type="button" class="b3-button b3-button--text" data-krm>${esc(t("knowRemoveBtn"))}</button>`
-        : "";
-    const secOpen = ctx.openPaths.has(secKeyOf(node.path));
-    // 小节与嵌套子文档同一容器（同 secKeyOf 折叠键）：buildKnowTree 会把
-    // 后代 hPath 挂进 doc 节点的 children，不渲染即整棵子树丢失（20260828
-    // 审查——导入含子文档的书后面板只剩根行）；撞名后缀子行同路进容器
-    const kidRows =
-        d.sections.map((s) => sectionRowHtml(s, t)).join("") + node.children.map((c) => knowNodeHtml(c, ctx)).join("");
-    const kids = kidRows ? `<div class="wengu-tree-children"${secOpen ? "" : " hidden"}>${kidRows}</div>` : "";
-    return `<div class="b3-list-item b3-list-item--narrow b3-list-item--hide-action wengu-kp-doc" data-kdoc="${esc(
-        d.docId
-    )}" data-tree-path="${esc(node.path)}" title="${esc(title)}">
-  ${toggleSlot(node, ctx)}
-  <span class="b3-list-item__text">${esc(d.title)}</span>
-  <span class="wengu-cp-meta">${esc(fmt(t("knowQCount"), { n: String(d.total) }))}</span>
-  <span class="b3-list-item__action">
-    <button type="button" class="b3-button b3-button--text" data-kmatch>${esc(t("knowMatchBtn"))}</button>
-    <button type="button" class="b3-button b3-button--text" data-kgen>${esc(t("knowGenBtn"))}</button>
-    <button type="button" class="b3-button b3-button--text" data-krelated>${esc(t("knowRelated"))}</button>
-    <button type="button" class="b3-button b3-button--text" data-kopen>${esc(t("knowOpen"))}</button>
-    ${rm}
-  </span>
-</div>${kids}`;
-}
-
-function knowNodeHtml(node: KnowTreeNode, ctx: KnowPaintCtx): string {
-    if (node.doc) return knowDocRowHtml(node, ctx);
-    const open = ctx.openPaths.has(node.path);
-    return `<div class="b3-list-item b3-list-item--narrow wengu-kp-branch${open ? " wengu-tree-open" : ""}" data-tree-path="${esc(
-        node.path
-    )}" title="${esc(node.path)}">
-  ${toggleSlot(node, ctx)}
-  <span class="b3-list-item__text">${esc(node.name)}</span>
-</div>
-<div class="wengu-tree-children"${open ? "" : " hidden"}>${node.children.map((c) => knowNodeHtml(c, ctx)).join("")}</div>`;
-}
-
-/** 知识文档面板渲染入口（WorkspaceShell 调）。 */
-export async function renderKnowledgePanelInto(v: QuizView, root: HTMLElement): Promise<void> {
-    const t = v.t;
-    const bank: QuestionBank | undefined = v.bankStore();
-    if (!bank) {
-        root.innerHTML = `<div class="wengu-ws-page"><div class="wengu-muted">${esc(t("knowEmpty"))}</div></div>`;
-        return;
-    }
-    root.innerHTML = `<div class="wengu-ws-page"><div class="wengu-muted">${esc(t("loading"))}</div></div>`;
-    const refs = await bank.collectKpRefs();
-    const rootsMap = await kpRootMap([...refs.keys()]);
-    const registered = await knowRootsOf(bank);
-    const info = await KernelDoc.infoOf([...new Set([...rootsMap.values(), ...registered])]);
-    const titles = new Map([...info].map(([k, v]) => [k, v.title]));
-    let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
-    if (registered.length > 0) {
-        const imp = await importedKnowDocs(registered, titles);
-        for (const [k, v] of imp.info) info.set(k, v); // 展开行自带标题/hPath，供树化分支
-        docs = mergeKnowDocs(docs, imp.docs, imp.manualAll, new Set(registered));
-    }
-    // 工作区骨架可能在异步装载期间被重建（refreshSide 全量重绘），旧
-    // 根节点已离场——此时本次结果作废，接管中的新调用自会渲染
-    if (!root.isConnected) return;
-    const treeNodes = buildKnowTree(docs, info);
-    const openPaths = new Set<string>(
-        // 分支默认全展开（知识树浅、文档即叶子，全可见才对齐原生观感）；
-        // 小节容器不进集合=默认收起
-        (function collect(nodes: KnowTreeNode[]): string[] {
-            return nodes.flatMap((n) => [n.path, ...collect(n.children)]);
-        })(treeNodes)
-    );
-    const ctx: KnowPaintCtx = { t, openPaths };
-    const paintTree = (): void => {
-        const listEl = root.querySelector<HTMLElement>(".wengu-cp-list");
-        if (!listEl) return;
-        listEl.innerHTML = docs.length
-            ? `<div class="wengu-tree">${treeNodes.map((n) => knowNodeHtml(n, ctx)).join("")}</div>`
-            : `<div class="wengu-muted">${esc(t("knowEmpty"))}</div>`;
-    };
-    root.innerHTML = `<div class="wengu-ws-page">
-  <div class="wengu-ws-title">${esc(t("knowPanelTitle"))}
-    <span class="wengu-ws-titlebtns">
-      <button type="button" class="b3-button b3-button--outline" data-kimport>${esc(t("knowImportBtn"))}</button>
-      <button type="button" class="b3-button b3-button--text" data-krefresh>${esc(t("quizRefresh"))}</button>
-    </span>
-  </div>
-  <div class="wengu-muted" style="margin-bottom:8px">${esc(t("knowHint"))}</div>
-  <div class="wengu-cp-list"></div>
-</div>`;
-    paintTree();
-    // 每次装载都重建壳节点，委托监听挂在新列表上=生命周期天然对齐，不叠加
-    bindKnowledgePanel(v, root, bank, ctx, paintTree);
-}
-
-/** 「移除」二次确认状态（按文档 id 记忆武装态，3s 未点回退）。 */
-const rmArmed = new Map<string, { armed: boolean; timer?: ReturnType<typeof setTimeout> }>();
-
-function bindKnowledgePanel(
-    v: QuizView,
-    root: HTMLElement,
-    bank: QuestionBank,
-    ctx: KnowPaintCtx,
-    paintTree: () => void
-): void {
-    const rerender = (): void => void renderKnowledgePanelInto(v, root);
-    // 标题行动作（每面板只有一对按钮，直接绑新节点）
-    root.querySelector<HTMLButtonElement>("[data-krefresh]")?.addEventListener("click", rerender);
-    root.querySelector<HTMLButtonElement>("[data-kimport]")?.addEventListener("click", (ev) => {
-        const btn = ev.currentTarget as HTMLButtonElement;
-        void (async () => {
-            const current = await knowRootsOf(bank);
-            openKnowPicker({
-                t: v.t,
-                anchor: btn,
-                current,
-                single: false,
-                onConfirm: (ids) => {
-                    void setKnowRoots(bank, ids)
-                        .then(() => bank.flush())
-                        .then(rerender);
-                },
-            });
-        })();
-    });
-    // 列表容器级委托（同 KnowPicker）：折叠/小节/开文档/行内操作一次接管
-    root.querySelector<HTMLElement>(".wengu-cp-list")?.addEventListener("click", (ev) => {
-        const el = ev.target as HTMLElement;
-        const opBtn = el.closest<HTMLElement>("[data-kmatch],[data-kgen],[data-krelated],[data-kopen],[data-krm]");
-        if (opBtn) {
-            ev.stopPropagation();
-            // 五个动作属性都是空值布尔标记，docId 一律取所在文档行
-            const docId = opBtn.closest<HTMLElement>("[data-kdoc]")?.dataset.kdoc ?? "";
-            if (!docId) return;
-            if (opBtn.dataset.kmatch !== undefined) {
-                const title =
-                    opBtn
-                        .closest<HTMLElement>("[data-kdoc]")
-                        ?.querySelector<HTMLElement>(".b3-list-item__text")
-                        ?.textContent?.trim() ?? docId;
-                void openMatchDialog({
-                    t: v.t,
-                    bank,
-                    modelId: v.aiModelId(),
-                    knowDocId: docId,
-                    knowTitle: title,
-                    onDone: rerender,
-                });
-                return;
-            }
-            if (opBtn.dataset.kgen !== undefined) {
-                // 源=知识点根=该文档：转换生成时即挂自身小节反链
-                v.openConvertPrefilled(docId, docId);
-                return;
-            }
-            if (opBtn.dataset.krelated !== undefined) void openRelatedDialog(bank, v.t, docId);
-            else if (opBtn.dataset.kopen !== undefined) window.open(`siyuan://blocks/${docId}`);
-            else {
-                // 二次确认：先点变文案，3s 内再点执行退册
-                const st = rmArmed.get(docId) ?? { armed: false };
-                if (!st.armed) {
-                    st.armed = true;
-                    // 定时器挂在 map 里的同一对象上——原 set 新对象后把
-                    // timer 写在旧引用，二次点击 clearTimeout(undefined)
-                    // 清不掉真定时器，退册后又被回填僵尸条目（20260829 审查）
-                    st.timer = setTimeout(() => {
-                        rmArmed.set(docId, { armed: false });
-                        opBtn.textContent = v.t("knowRemoveBtn");
-                    }, 3000);
-                    rmArmed.set(docId, st);
-                    opBtn.textContent = v.t("collectConfirm");
-                    return;
-                }
-                clearTimeout(st.timer);
-                rmArmed.delete(docId);
-                void removeKnowRoot(bank, docId)
-                    .then(() => bank.flush())
-                    .then(rerender);
-            }
-            return;
-        }
-        // 知识点子行：跳转块
-        const sec = el.closest<HTMLElement>("[data-ksec]");
-        if (sec) {
-            window.open(`siyuan://blocks/${sec.dataset.ksec}`);
-            return;
-        }
-        // 折叠切换：箭头点文档小节层；分支行整行可折（原生手感）。
-        // 文档行本体不算折叠命中（点它是开文档）
-        const tg = el.closest<HTMLElement>(".wengu-tree-toggle-btn");
-        const branchRow = el.closest<HTMLElement>(".wengu-kp-branch");
-        const hit = tg ?? branchRow;
-        if (hit) {
-            const p = hit.dataset.treePath ?? "";
-            if (!p) return;
-            if (ctx.openPaths.has(p)) ctx.openPaths.delete(p);
-            else ctx.openPaths.add(p);
-            paintTree();
-            return;
-        }
-        const docRow = el.closest<HTMLElement>("[data-kdoc]");
-        if (docRow && !el.closest("button")) window.open(`siyuan://blocks/${docRow.dataset.kdoc}`);
-    });
-}
+export const secKeyOf = (path: string): string => `${path}::sec`;

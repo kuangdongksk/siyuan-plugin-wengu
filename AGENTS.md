@@ -62,8 +62,9 @@
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：
   模式样板/暗雷清单/路线图见 `docs/svelte-migration.md`（各域开工前
-  必读）；已迁 word 域、companion 看板娘+管理面板，后续 bank 面板 →
-  review → stats → convert → quiz。组件零 `<style>`，类名与迁移前
+  必读）；已迁 word 域、companion 看板娘+管理面板、bank 工作区面板
+  （专题/知识文档，2026-08-30），后续 review → stats → convert →
+  quiz。组件零 `<style>`，类名与迁移前
   逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
 - **硬性约束：仓库内单文件 ≤500 行**；界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
@@ -94,16 +95,30 @@
 4. 验证安装：在装好的 `index.js` 里 grep 特征串；注意 minify 会把中文
    转成 `\uXXXX`，grep 原文中文可能查不到（用英文标识符/属性名查）。
 
-## 机器 A（本机，Windows + Git Bash，已验证）
+## 机器 A（本机，Windows + Git Bash，2026-08-30 重验）
 
-- 思源 3.8.0 桌面版，工作区 `D:\data\思源\工作`
-- 内核 API：`http://127.0.0.1:6806`，`Authorization: Token gm8mhokhgd58ceaf`
-  （token 变了去工作区 `conf.json` 里找 `api.token`）
+- 思源 **3.8.1** 桌面版（已自 3.8.0 升级），日常两个工作区：
+  `D:\data\思源\工作`（主）与 `D:\data\思源\测试`（调试常开的是它）
+- ⚠️ **conf.json 在 `conf/conf.json` 子目录**（3.8.1 挪的，同机器 B），
+  token 变了去那里找 `api.token`（工作区=gm8mhokhgd58ceaf，
+  测试区=ycfl0ijk9mxvnh21）
+- ⚠️ **内核端口不再固定 6806**（2026-08-30 实测：conf 无自定义端口时
+  随机，当时为 52036 且 6806 无监听）——调试前先
+  `wmic process where "name='SiYuan-Kernel.exe'" get CommandLine`
+  查 `--port` 与 `--workspace`，按实际工作区取端口+token 调用
 - 插件安装目录：`D:/data/思源/工作/data/plugins/siyuan-plugin-wengu/`
+  与 `D:/data/思源/测试/data/plugins/siyuan-plugin-wengu/`（两区都拷）
 - 思源前端源码（读实现用）：`C:\Program Files\WindowsApps\
-89C2A984.SiYuan_3.8.0.0_x64__1qfd3tsw4ngc2\app\resources\stage\build\app\`
+89C2A984.SiYuan_3.8.1.0_x64__1qfd3tsw4ngc2\app\resources\stage\build\app\`
   （`common.*.js` 是压缩单行，**直接 grep 会卡死 shell**，先
   `tr ';{' '\n\n'` 分行再 grep）
+
+### 机器 A 的 Shell 坑（Git Bash 特有）
+
+- **`/tmp` 是 MSYS 虚拟路径，Windows 原生 node 读不到**：curl
+  `-o /tmp/x.json` 后验证要用
+  `node -e "require(require('path').join(require('os').tmpdir(),'x.json'))"`
+  （Git Bash 的 /tmp 恰好映射 os.tmpdir()，但 node 不认 `/tmp` 字面量）
 
 ## 机器 B（Mac，macOS arm64，已验证 2026-08-24）
 
@@ -115,7 +130,7 @@
 - 内核 API：`http://127.0.0.1:6806`，`Authorization: Token 8xmofpelwury3fkd`
   （同进程另有 `--attach-ui` 随机端口如 54644，用 6806 即可）
 - ⚠️ **conf.json 在 `conf/conf.json`**——3.8.1 把它挪进了 `conf/`
-  子目录，不在工作区根（和 3.8.0/机器 A 不同），token 变了去那里找
+  子目录，不在工作区根（机器 A 已升 3.8.1 同款），token 变了去那里找
   `api.token`
 - 插件安装目录：`/Volumes/baiWeiNV7200/data/思源/工作/data/plugins/siyuan-plugin-wengu/`
 - 思源前端源码（读实现用）：`/Volumes/baiWeiNV7200/app/SiYuan.app/
