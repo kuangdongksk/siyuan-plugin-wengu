@@ -51,7 +51,6 @@ export function renderReviewFor(v: ReviewViewAccess): void {
             filter: "",
             collections: [],
             activeCollection: "",
-            sideTreeOpen: v.sideTreeOpenOf(),
         }) +
         `<div class="wengu-main wengu-review-main">
   <div class="wengu-head">${renderHeadHtml(t, false, esc(summary))}</div>

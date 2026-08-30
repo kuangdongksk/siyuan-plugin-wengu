@@ -2,6 +2,8 @@
 /* Svelte 根容器（挂载层与业务布局解耦，撑满 Dock 面板） */
 .wengu-word-root {
   height: 100%;
+  /* 同 .wengu-panel：圈住内部 z-index（词书菜单 220 等），不压官方弹窗 */
+  isolation: isolate;
 }
 
 .wengu-word {
