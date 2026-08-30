@@ -1,5 +1,5 @@
 import type { QuizView } from "../index";
-import { bindRailFor, renderRailHtml } from "./RailHtml";
+import { mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
 import { mountCompanionPanel } from "../../companion";
 import { mountCollectionPanel, mountKnowledgePanel } from "../../bank";
 
@@ -10,8 +10,8 @@ import { mountCollectionPanel, mountKnowledgePanel } from "../../bank";
  * （renderList）时 renderQuizShellFor 开头统一 detach 面板实例。
  */
 export function renderWorkspaceFor(v: QuizView): void {
-    v.el.innerHTML = `${renderRailHtml(v.t, v.workspace)}<div class="wengu-main wengu-ws-main" data-ws-root></div>`;
-    bindRailFor(v);
+    v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-main wengu-ws-main" data-ws-root></div>`;
+    mountRailFor(v);
     const root = v.el.querySelector<HTMLElement>("[data-ws-root]");
     if (!root) return;
     if (v.workspace === "companion") mountCompanionPanel(v, root);

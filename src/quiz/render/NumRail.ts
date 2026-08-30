@@ -3,10 +3,16 @@
  * 高亮当前题。当前题下标通过 onActive 回调上报——逐题计时的计时
  * 对象跟随它，即使题号栏被设置关闭也保持滚动跟踪。
  *
+ * Svelte 化（20260830）：渲染与标色状态在 component/NumRailApp.svelte
+ * （三写收敛：初始态/判分描色/已答态原散在 renderNumsHtml、
+ * FlowDom.markNum、AnswerFlow.markNumAnswered 三处直改 DOM，现统一为
+ * 组件 marks 响应态），本文件保留全部实测调优的行为代码——滚动跟踪/
+ * 追赶滚动/吸顶封顶实测不动。
+ *
  * 长卷性能（20260828）：可见题卡列表缓存 + MutationObserver 失效
  * （hidden 翻转/子树重建才重扫，滚动帧内不再全树 querySelectorAll，
- * ~200 题卷每帧省一次 8000+ 节点扫描）；active 差分更新只动前后
- * 两个按钮，同题号重复上报直接跳过。
+ * ~200 题卷每帧省一次 8000+ 节点扫描）；active 差分上报只过前后
+ * 两个题号，同题号重复上报直接跳过。
  */
 /* ── 追赶式滚动（题号导航专用）──
  * scrollIntoView(smooth) 的目标像素在调用瞬间定死，而长卷滚动路径上
@@ -15,6 +21,11 @@
  * 30 题卷第一题点末题落到中途（20260830 真机）。改 rAF 逐帧按目标卡
  * 当前几何位置重算目标 scrollTop 逼近，撑高多少追多少；用户滚轮/
  * 拖动（wheel/pointerdown）即刻让路，目标卡被整壳重建摘除即止。 */
+
+import type { WenguQuestion } from "../../types";
+import { numState } from "./CardHtml";
+import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
+import NumRailApp from "../component/NumRailApp.svelte";
 
 interface Chase {
     stop: () => void;
@@ -71,26 +82,70 @@ export function chaseScrollIntoView(scroller: HTMLElement, card: HTMLElement, bl
     requestAnimationFrame(step);
 }
 
+/* ── 题号栏组件实例（*.svelte 环境声明不带实例导出类型，这里收口） ── */
+
+interface NumRailExports {
+    setActive(n: number): void;
+    markAnswered(n: number): void;
+    markResult(n: number, ok: boolean): void;
+}
+
+let numsApp: MountedSvelteApp<NumRailExports> | undefined;
+
+/** 卸载题号栏（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
+export function detachNumRail(): void {
+    numsApp?.unmount();
+    numsApp = undefined;
+}
+
+/** 判分后题号描色（FlowDom.markNum 收口至此；未挂栏=无操作）。 */
+export function markNumRailResult(n: number, ok: boolean): void {
+    numsApp?.app.markResult(n, ok);
+}
+
+/** after 模式已答标记（AnswerFlow.markNumAnswered 收口至此）。 */
+export function markNumRailAnswered(n: number): void {
+    numsApp?.app.markAnswered(n);
+}
+
 export function bindNumRail(
     root: HTMLElement,
-    opts: { onActive: (idx: number) => void; onFocus?: (idx: number) => void }
+    list: WenguQuestion[],
+    opts: {
+        onActive: (idx: number) => void;
+        onFocus?: (idx: number) => void;
+        numsTitle: string;
+        showNums: boolean;
+        showPast: boolean;
+    }
 ): void {
+    // 题号栏组件挂载：壳在 .wengu-body 里放 [data-nums-anchor] 锚
+    // （renderNumsHtml 退役），anchor 法插入保住 sticky 直接子元素
+    // 布局；设置关闭/无题时壳不放锚=不挂栏（旧 renderNumsHtml 同款）
+    if (opts.showNums && list.length > 0) {
+        detachNumRail();
+        const anchor = root.querySelector("[data-nums-anchor]");
+        const body = root.querySelector<HTMLElement>(".wengu-body");
+        if (anchor && body) {
+            numsApp = mountSvelteApp(
+                NumRailApp,
+                body,
+                { initialStates: list.map((q) => numState(q, opts.showPast).trim()), title: opts.numsTitle },
+                { anchor }
+            ) as MountedSvelteApp<NumRailExports>;
+            anchor.remove();
+        }
+    }
     const nav = root.querySelector<HTMLElement>("[data-nums]");
     // 点击导航后的平滑滚动期间暂停滚动跟踪回写：末尾卡片到不了视口
     // 顶部，「顶端最近」规则会把点击的题号翻回前面的题（真机踩坑）。
     let lockUntil = 0;
     let lastN = -1;
-    let activeBtn: HTMLElement | null = null;
     const setActive = (n: number) => {
         if (n === lastN) return;
         lastN = n;
         opts.onActive(n - 1);
-        if (!nav) return;
-        const next = nav.querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
-        if (next === activeBtn) return;
-        activeBtn?.classList.remove("wengu-num-active");
-        next?.classList.add("wengu-num-active");
-        activeBtn = next;
+        numsApp?.app.setActive(n); // 高亮进组件响应态（旧 activeBtn 差分退役）
     };
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (nav) {

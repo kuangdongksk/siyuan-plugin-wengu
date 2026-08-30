@@ -4,15 +4,15 @@ import { renderReviewFor, detachReviewApp } from "../../review";
 import { detachCompanionPanel } from "../../companion";
 import { detachBankPanels } from "../../bank";
 import { bindCardEvents, restoreAnsweredCards } from "../flow/AnswerFlow";
-import { renderMainShell, renderNumsHtml, renderSubheadHtml } from "./CardHtml";
+import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, renderOneUnitHtml, type DrillUnit } from "./DrillUnits";
 import { bindGroupUnits, bindOneGroupUnit, focusQuestion, restoreGroupScrolls } from "../flow/MaterialFlow";
-import { bindNumRail } from "./NumRail";
+import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
 import { detachRoundReport, lockAllCards } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
-import { bindRailFor, renderRailHtml } from "./RailHtml";
+import { detachRail, mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
 import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
 import { bindHeadFor } from "../flow/ViewBindings";
 import { detachSideTree, mountSideTreeFor } from "../flow/SideTreeMount";
@@ -39,11 +39,12 @@ export function renderListFor(v: QuizView): void {
         ready = renderQuizShellFor(v);
     } catch (e) {
         v.protyleHost.destroyAll(v.el);
-        v.el.innerHTML = `${renderRailHtml(v.t, v.workspace)}<div class="wengu-head"></div>
+        v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-head"></div>
     <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(
         String((e as Error)?.message ?? e)
     )}</div>`;
         bindHeadFor(v);
+        mountRailFor(v); // 错误兜底 rail 一并挂载（旧路径渲染了 rail 却漏绑事件，顺修）
     }
     const restore = (): void => {
         if (v.mode === "quiz" && v.started && !v.progressive.active) restoreAnsweredCards(v);
@@ -63,6 +64,8 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     detachReviewApp(); // 复习主区同款（Svelte 化 20260830）
     detachStartPanel(); // 开刷面板同款（Svelte 化 20260830）
     detachRoundReport(); // 轮次报告同款（Svelte 化 20260830）
+    detachRail(); // 工作区 rail 同款（Svelte 化 20260830）
+    detachNumRail(); // 题号栏同款（Svelte 化 20260830）
     detachSideTree(); // 侧栏树同款（TreeList 化 20260830；回调一并作废）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
     // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828
@@ -78,7 +81,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     if (v.mode === "review") {
         renderReviewFor(v);
         bindHeadFor(v);
-        bindRailFor(v);
+        mountRailFor(v);
         // 复习侧栏同样有树（点行=筛选错题本到该文档，selectDoc 分流）；
         // docId 传空=不亮行（旧 renderSideHtml 同款）
         mountSideTreeFor({
@@ -113,7 +116,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     // KaTeX 惰性到接近视口（renderMathWhenVisible），卡片
     // content-visibility 跳过屏外布局。
     v.el.innerHTML =
-        renderRailHtml(v.t, v.workspace) +
+        RAIL_ANCHOR_HTML +
         renderMainShell({
             t: v.t,
             docs: v.docs,
@@ -135,15 +138,12 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
                 ? `<span class="wengu-muted">${esc(v.colFlow.activeTitle() ?? "")} · ${esc(String(v.list.length))}</span>`
                 : renderSubheadHtml({ t: v.t, doc, listCount: v.list.length, rounds: v.rounds }),
             cardsHtml: "",
-            numsHtml: renderNumsHtml(
-                v.list,
-                v.t,
-                v.settings?.showNums !== false,
-                !pv && v.settings?.showWrong !== false && v.revealMode === "instant"
-            ),
+            // 题号栏改 Svelte 挂载锚（bindNumRail 以 anchor 法插入；
+            // 设置关闭/无题不放锚=不挂栏，旧 renderNumsHtml 同款守卫）
+            numsHtml: v.settings?.showNums !== false && v.list.length > 0 ? "<div data-nums-anchor></div>" : "",
         });
     bindQuizFor(v); // 静态路径卡事件改逐片绑（bindQuizFor 的全量卡循环此时扫到空表）
-    bindRailFor(v);
+    mountRailFor(v);
     // 开刷面板挂载（renderMainShell 的面板态条件同款：非加载/错误、
     // 有文档有题、未开刷非预览渐进）
     if (!v.loading && !v.loadError && doc && v.list.length > 0 && !v.started && !pv && !v.progressive.active) {
@@ -261,9 +261,12 @@ function renderingPillHtml(t: (key: string) => string): string {
  *  由 renderQuizShellFor 壳落后挂载，无 DOM 绑定）。 */
 function bindQuizFor(v: QuizView): void {
     bindHeadFor(v);
-    bindNumRail(v.el, {
+    bindNumRail(v.el, v.list, {
         onActive: (idx) => v.onActiveQ(idx),
         onFocus: (idx) => focusQuestion(v.el, v.units, v.list, idx),
+        numsTitle: v.t("qnumsTitle"),
+        showNums: v.settings?.showNums !== false,
+        showPast: v.mode !== "preview" && v.settings?.showWrong !== false && v.revealMode === "instant",
     });
     bindGroupUnits(v.el, v.units, v, {
         onActive: (idx) => v.onActiveQ(idx),

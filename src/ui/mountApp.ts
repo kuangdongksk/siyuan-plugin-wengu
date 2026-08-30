@@ -13,12 +13,16 @@ export interface MountedSvelteApp<E = unknown> {
     unmount(): void;
 }
 
-/** 挂载一个根组件（props 缺省为空对象）；卸载统一走返回的 unmount。 */
+/** 挂载一个根组件（props 缺省为空对象）；卸载统一走返回的 unmount。
+ *  anchor=宿主内的占位节点（组件插到它之前，调用方随后自删占位）——
+ *  组件根须作某布局容器直接子元素时用它（rail/nums 的 flex/sticky
+ *  定位依赖父子关系，不能包宿主 div）。 */
 export function mountSvelteApp<P extends Record<string, any>, E = unknown>(
     root: Component<P, E>,
     el: HTMLElement,
-    props?: P
+    props?: P,
+    opts?: { anchor?: Node }
 ): MountedSvelteApp<E> {
-    const app = mount(root, { target: el, props: (props ?? {}) as P });
+    const app = mount(root, { target: el, props: (props ?? {}) as P, anchor: opts?.anchor });
     return { app, unmount: () => unmount(app) };
 }

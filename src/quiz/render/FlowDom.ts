@@ -1,6 +1,7 @@
 import type { AnswerHost } from "../flow/AnswerFlow";
 import type { WenguQuestion } from "../../types";
 import { LETTERS } from "../../types";
+import { markNumRailResult } from "./NumRail";
 
 /**
  * 做题各 Flow（Answer/Steps/Slot）共用的小 DOM 件（2026-08-26 从
@@ -9,14 +10,10 @@ import { LETTERS } from "../../types";
  * 不走 paintOptions。
  */
 
-/** 题号栏标色（判分后）：对绿错红，先摘「已答」态。 */
+/** 题号栏标色（判分后）：对绿错红——写进题号栏组件响应态
+ *  （NumRailApp.markResult，Svelte 化 20260830 收口三写之一）。 */
 export function markNum(host: AnswerHost, q: WenguQuestion, ok: boolean): void {
-    const n = host.questions().indexOf(q) + 1;
-    const btn = host.container().querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
-    if (!btn) return;
-    btn.classList.remove("wengu-num-answered");
-    btn.classList.toggle("wengu-num-right", ok);
-    btn.classList.toggle("wengu-num-wrong", !ok);
+    markNumRailResult(host.questions().indexOf(q) + 1, ok);
 }
 
 /** 卡内提示行写文本并显示（[data-note] 槽）。 */

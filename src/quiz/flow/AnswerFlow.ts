@@ -5,6 +5,7 @@ import type { WenguSession, WenguSessionResult } from "../service/HistoryStore";
 import { syncGroupReveal } from "./MaterialFlow";
 import { optionIsRight, overrideAttemptResult, recordAttempt, recordAttemptResult } from "../service/QuestionService";
 import { markNum, paintOptions, showNote } from "../render/FlowDom";
+import { markNumRailAnswered } from "../render/NumRail";
 import { bindSlotsCard, restoreSlotsCard } from "./SlotFlow";
 import { bindStepsCard, restoreStepsCard } from "./StepsFlow";
 import type { TimerController } from "../service/TimerController";
@@ -415,14 +416,10 @@ export function checkAllDone(host: AnswerHost): void {
     else host.roundComplete();
 }
 
-/** 判分/自评后同步题号导航的对错标记。 */
-/** after 模式：已作答但尚未揭示的题，题号只标「已答」不透对错。 */
+/** after 模式：已作答但尚未揭示的题，题号只标「已答」不透对错
+ *  （写进题号栏组件响应态，Svelte 化 20260830 收口三写之一）。 */
 function markNumAnswered(host: AnswerHost, q: WenguQuestion): void {
-    const n = host.questions().indexOf(q) + 1;
-    const btn = host.container().querySelector<HTMLElement>(`.wengu-num[data-num="${n}"]`);
-    if (btn && !btn.classList.contains("wengu-num-right") && !btn.classList.contains("wengu-num-wrong")) {
-        btn.classList.add("wengu-num-answered");
-    }
+    markNumRailAnswered(host.questions().indexOf(q) + 1);
 }
 
 /** 判分后标记字母 chip：答案项描绿，误选项描红。 */

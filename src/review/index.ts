@@ -1,6 +1,6 @@
 import type { HistoryStore } from "../quiz/service/HistoryStore";
 import { renderHeadHtml, renderSideHtml } from "../quiz/render/CardHtml";
-import { renderRailHtml } from "../quiz/render/RailHtml";
+import { RAIL_ANCHOR_HTML } from "../quiz/render/RailMount";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
 import { reviewCtl } from "./core/ReviewCtl";
 import ReviewApp from "./component/ReviewApp.svelte";
@@ -41,7 +41,7 @@ export function renderReviewFor(v: ReviewViewAccess): void {
     const o = reviewCtl.overview();
     const summary = o ? fmt(t("reviewHeadSummary"), { p: String(o.pending), m: String(o.mastered) }) : t("reviewTitle");
     v.el.innerHTML =
-        renderRailHtml(t, "drill") +
+        RAIL_ANCHOR_HTML +
         renderSideHtml({
             t,
             docs: v.docsOf(),
