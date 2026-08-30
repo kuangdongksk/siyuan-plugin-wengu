@@ -304,7 +304,12 @@
   font-size: 24px;
 }
 
+/* 起点/设置表单：头部下方唯一伸缩子项，超高自己滚（同 .wengu-word-card
+   配方）——否则 .wengu-word 的 overflow:hidden 直接裁掉尾部设置组 */
 .wengu-word-form {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   max-width: 640px;
   margin: 24px auto 0;
   width: 100%;
