@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupAttrsByBlock, reimportCfg } from "./DocOps";
+import { groupAttrsByBlock, planReimportRead, reimportCfg, reimportResume } from "./DocOps";
 
 /** 「删除此题集」/「重新导入」的纯逻辑面（内核 IO 不进单测，见
  *  vitest.config.ts；行为契约见 docs/question-block-contract.md）。 */
@@ -88,5 +88,43 @@ describe("reimportCfg", () => {
         );
         expect(c.parallel).toBe(4);
         expect(c.knowRoots).toEqual(["20260829080000-xyz12312", "20260829080000-abc12345"]);
+    });
+});
+
+describe("planReimportRead", () => {
+    it("渐进文档=当前题集（newdoc 终止保留的常态）：读回它、不单独删", () => {
+        // 半截 bug 回归：此形态漏读会让题集带着前半截进回收站，续跑只剩后半截
+        expect(planReimportRead({ docId: "q1" }, "q1")).toEqual({ readId: "q1", removeId: "" });
+    });
+
+    it("渐进文档另有其人：读回并单独删（防孤儿）", () => {
+        expect(planReimportRead({ docId: "k1" }, "q1")).toEqual({ readId: "k1", removeId: "k1" });
+    });
+
+    it("无记录/脏 id：什么都不读不删", () => {
+        expect(planReimportRead(undefined, "q1")).toEqual({ readId: "", removeId: "" });
+        expect(planReimportRead({ docId: "x'y;drop" }, "q1")).toEqual({ readId: "", removeId: "" });
+    });
+});
+
+describe("reimportResume", () => {
+    it("读回内容在手才带断点续跑", () => {
+        expect(reimportResume({ offset: 5000 }, "已生成前半截")).toEqual({
+            offset: 5000,
+            kramdown: "已生成前半截",
+        });
+    });
+
+    it("读回为空回落记录里的 kramdown（原位形态残留）", () => {
+        expect(reimportResume({ offset: 5000, kramdown: "记录里的" }, "")).toEqual({
+            offset: 5000,
+            kramdown: "记录里的",
+        });
+    });
+
+    it("什么都读不回则不带断点（防「只有后半截」的续跑）", () => {
+        expect(reimportResume({ offset: 5000 }, "")).toBeUndefined();
+        expect(reimportResume({ offset: 5000 }, "   ")).toBeUndefined();
+        expect(reimportResume(undefined, "")).toBeUndefined();
     });
 });

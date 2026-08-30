@@ -92,6 +92,31 @@ export function unregisterDocAsQuiz(v: QuizView, docId: string): void {
     })();
 }
 
+/** 重新导入的读回计划（纯决策，IO 由调用方执行）：续跑记录的渐进文档
+ *  就是当前题集本身（newdoc 中途终止「保留已生成」的常态——渐进文档
+ *  即《源·习题》）时，读回目标同样是它、但不单独删（题集稍后统一删除，
+ *  漏读=前半截随删除消失、续跑只剩后半截，20260830 踩坑）；渐进文档
+ *  另有其人则读它并单独删，防孤儿。 */
+export function planReimportRead(
+    rec: { docId?: string } | undefined,
+    quizDocId: string
+): { readId: string; removeId: string } {
+    const keepId = rec?.docId && ID_RE.test(rec.docId) ? rec.docId : "";
+    if (keepId && keepId !== quizDocId) return { readId: keepId, removeId: keepId };
+    return keepId ? { readId: keepId, removeId: "" } : { readId: "", removeId: "" };
+}
+
+/** 重新导入的续跑参数（纯决策）：读得回已生成内容才带断点——读不回还
+ *  硬按 offset 跳批，只会产出「只有后半截」的文档，宁可从头全量重转；
+ *  读回为空时回落记录里的 kramdown（原位形态残留）。 */
+export function reimportResume(
+    rec: { offset: number; kramdown?: string } | undefined,
+    readBack: string
+): { offset: number; kramdown: string } | undefined {
+    const carried = readBack.trim() ? readBack : (rec?.kramdown ?? "");
+    return rec && carried.trim() ? { offset: rec.offset, kramdown: carried } : undefined;
+}
+
 /** 重新导入的转换参数（弹窗默认同款解析：prefs 上次 > 设置默认）。
  *  有续跑记录则接着上次断点续跑（已生成部分保留），无记录才从头重转。 */
 export function reimportCfg(
@@ -119,10 +144,12 @@ export function reimportCfg(
 /**
  * 「重新导入」＝检测断点续跑，而非无条件全量重转：
  * 1. 配对源讲义查得到续跑记录（prefs convertProgress）→ 接着断点跑。
- *    记录保留的渐进文档（rec.docId）若要被删，先把其内容读回转进
- *    resume.kramdown——否则它随删除消失、resume.docId 落空时 ConvertBatch
- *    静默丢掉已生成部分（created 挂不上）；清续跑记录防止「全部完成」
- *    短路直接把已删文档当完成态返回。
+ *    记录保留的渐进文档（rec.docId，含它就是当前题集本身的常态形态）
+ *    删除前先把内容读回转进 resume.kramdown——否则它随删除消失，
+ *    ConvertBatch 挂不上目标会静默丢掉已生成部分（created 挂不上）；
+ *    读不回任何旧内容时不带断点从头重转（硬按 offset 跳批只会产出
+ *    「只有后半截」的文档）。清续跑记录防止「全部完成」短路直接把
+ *    已删文档当完成态返回。
  * 2. 完全没有续跑记录 → 从头重转（kramdown=空即全量）。
  * 落盘统一另存一份新《源·习题》（源讲义不动），失败自动记回续跑进度。
  */
@@ -140,13 +167,15 @@ export function reimportDocFrom(v: QuizView, docId: string): void {
         const rec = v.convertAccess.convertProgressOf(srcId);
         let kramdown = "";
         let docDeleted = false;
-        if (rec) {
-            const keepId = rec.docId && ID_RE.test(rec.docId) ? rec.docId : "";
-            if (keepId && keepId !== docId) {
-                const old = await KernelBlock.kramdown(keepId);
-                kramdown = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
+        const plan = planReimportRead(rec, docId);
+        if (plan.readId) {
+            // 删除前读回已生成内容（续跑 existing 的来源；渐进文档=当前
+            // 题集时读的就是它，必须在下方 remove 之前）
+            const old = await KernelBlock.kramdown(plan.readId);
+            kramdown = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
+            if (plan.removeId) {
                 try {
-                    await KernelDoc.remove(keepId);
+                    await KernelDoc.remove(plan.removeId);
                 } catch (_) {
                     // 渐进文档删除失败不阻断续跑（可能本就是孤儿）
                 }
@@ -166,12 +195,8 @@ export function reimportDocFrom(v: QuizView, docId: string): void {
         // 删与建之间清续跑记录：防「offset 已覆盖全文」短路把已删/待删
         // 的保留文档当完成态返回；失败路径会重新记回（延续上下文）
         v.convertAccess.saveConvertProgress(srcId, undefined);
-        const resume = rec
-            ? {
-                  offset: rec.offset,
-                  ...(kramdown.trim() ? { kramdown } : {}),
-              }
-            : undefined;
+        // 读不回已生成内容时不带断点（防半截，见 reimportResume）
+        const resume = reimportResume(rec, kramdown);
         await v.reloadView(); // 侧栏先摘掉旧题集，转换条/渐进呈现落在新 DOM 上
         const started = startConvertForView(
             v.convertAccess,

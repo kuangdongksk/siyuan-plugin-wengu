@@ -181,15 +181,20 @@ export async function convertDocBatched(
             existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
         }
     }
+    // 断点总闸：旧内容一点都读不回（渐进文档已删且记录无 kramdown）仍
+    // 按 offset 跳批，只会产出「只有后半截」的文档——归一为全新转换
+    // （跑检测、全量批；20260830「重新导入」踩坑，「继续生成」路径
+    // 渐进文档被手动删时同病）
+    const resume = opts.resume && existing.trim() ? opts.resume : undefined;
     const allChunks = chunkKramdown(kramdown);
     // 进度偏移越过当前源文档末尾（记录残留的完成态/源文档被改短）：
     // 按已完成收口到旧文档，不再走生成循环——否则 chunks 为空会走到
     // 末尾「!created 兜底新建」，把旧文档内容原样复制成第二份
     // （20260829 三轮审查 P1）
-    if (opts.resume?.docId && allChunks.length > 0) {
+    if (resume?.docId && allChunks.length > 0) {
         const last = allChunks[allChunks.length - 1];
-        if (opts.resume.offset >= last.offset + last.text.length) {
-            const old = await getDocInfo(opts.resume.docId);
+        if (resume.offset >= last.offset + last.text.length) {
+            const old = await getDocInfo(resume.docId);
             if (old?.notebook) {
                 return {
                     status: "done",
@@ -205,7 +210,7 @@ export async function convertDocBatched(
             }
         }
     }
-    const chunks = opts.resume ? allChunks.filter((c) => c.offset >= opts.resume!.offset) : allChunks;
+    const chunks = resume ? allChunks.filter((c) => c.offset >= resume.offset) : allChunks;
 
     // 知识点索引（建失败降级为不加反链，不阻断转换）
     let knowIndex: KnowledgeIndex | undefined;
@@ -216,7 +221,7 @@ export async function convertDocBatched(
 
     let detected: number | undefined;
     let detectedTruncated = false;
-    if (!opts.resume) {
+    if (!resume) {
         opts.onProgress({ phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0 });
         try {
             const d = await detectQuestions(kramdown, opts.modelId, opts.signal);
@@ -232,7 +237,7 @@ export async function convertDocBatched(
     }
 
     const parts: string[] = [];
-    let doneOffset = opts.resume?.offset ?? 0;
+    let doneOffset = resume?.offset ?? 0;
     let count = 0;
     let lastBatch = 0;
     /** 累积 kramdown（旧保留 + 已完成批，落盘/续跑共用一份拼装口径）。 */
@@ -248,9 +253,9 @@ export async function convertDocBatched(
     // 继续生成：旧渐进文档在跑批前就接管为落盘目标（原等首批 flush 才
     // 挂上——detect/首批期间终止会丢 docId，保留分支另建重复文档、
     // 丢弃分支删不到旧文档成孤儿，20260829 三轮审查 P1）
-    if (opts.resume?.docId) {
-        const old = await getDocInfo(opts.resume.docId);
-        if (old?.notebook) created = { id: opts.resume.docId, title: old.title };
+    if (resume?.docId) {
+        const old = await getDocInfo(resume.docId);
+        if (old?.notebook) created = { id: resume.docId, title: old.title };
     }
     // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
     opts.onProgress({
@@ -463,7 +468,7 @@ export async function convertDocBatched(
         }
         // resume 文档即续写文档时不能删（它就是成果）；原位模式的渐进
         // 临时文档在终态替换后删除
-        if (opts.resume?.docId && opts.resume.docId !== created?.id) await removeDoc(opts.resume.docId);
+        if (resume?.docId && resume.docId !== created?.id) await removeDoc(resume.docId);
         if (created) await removeDoc(created.id);
         return done(detectedMsg + imgWarn, replaced);
     }
