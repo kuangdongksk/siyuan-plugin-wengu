@@ -549,6 +549,7 @@
   "companionUseBadge": "in use",
   "companionPanelTitle": "Companions",
   "companionPanelHint": "Create/edit/delete companions in the left rail of the Wengu tab (star icon).",
+  "companionMenuHide": "Hide companion",
   "railDrill": "Drill",
   "railCompanion": "Companions",
   "railCollection": "Collections",

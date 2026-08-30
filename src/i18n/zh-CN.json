@@ -549,6 +549,7 @@
   "companionUseBadge": "使用中",
   "companionPanelTitle": "学伴管理",
   "companionPanelHint": "学伴的建/删/改与切换在温故页签左侧「学伴管理」面板（rail 星形按钮）。",
+  "companionMenuHide": "隐藏学伴",
   "railDrill": "刷题",
   "railCompanion": "学伴管理",
   "railCollection": "专题管理",
