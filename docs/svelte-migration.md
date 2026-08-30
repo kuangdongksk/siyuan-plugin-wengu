@@ -95,8 +95,8 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 | 批  | 目标                  | 规模    | 要点                                                                                        | 状态          |
 | --- | --------------------- | ------- | ------------------------------------------------------------------------------------------- | ------------- |
 | 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                               | ✅ 2026-08-27 |
-| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                       | ✅ 2026-08-30 |
-| 3   | review 域             | 539 行  | 先抽 quiz 借用的 rail/side/head 成共享组件                                                  |               |
+| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                      | ✅ 2026-08-30 |
+| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                           | ✅ 2026-08-30 |
 | 4   | stats 域              | 822 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                      |               |
 | 5   | convert 域            | 3962 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                           |               |
 | 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（Protyle 壳）→ Steps/AnswerFlow（三写痛点终结） |               |
@@ -126,13 +126,13 @@ SettingsDialog（低频稳定，路线图末尾再评估）。
 - 两个面板四件套（CollectionPanel/KnowledgePanel）：
   `core/ColPanelUi|ColPanelCtl` / `core/KnowPanelUi|KnowPanelCtl` +
   `comp/CollectionPanelApp|ColTreeLevel` / `comp/KnowledgePanelApp|
-  KnowTreeItem`。原 `ui/CollectionPanel.ts|KnowledgePanel.ts` 瘦身为
+KnowTreeItem`。原 `ui/CollectionPanel.ts|KnowledgePanel.ts` 瘦身为
   视图模型层（类型+树化/聚合纯函数+渲染辅助，单测不动）。
 - **递归树组件自引用**：Svelte 5 移除 `<svelte:self>`，组件文件
   `import Self from "./Self.svelte"` 后用 `<Self>` 递归（两棵树同款）。
   svelte-check 对未 import 的自名标签报 Cannot find name，是防呆位。
 - 挂载：`bank/index.ts` 的 `mountCollectionPanel/mountKnowledgePanel/
-  detachBankPanels`（companion 同款模块级单例+先卸再挂）；
+detachBankPanels`（companion 同款模块级单例+先卸再挂）；
   `renderQuizShellFor` 开头 `detachBankPanels()`（同 statsPanel 位），
   `QuizView.destroy` 兜底。
 - 行为改进（有意）：折叠态/两击确认态/编辑态进 ui 后，数据刷新不再
@@ -143,3 +143,28 @@ SettingsDialog（低频稳定，路线图末尾再评估）。
 - 旧实现「面板相关 scss 无 data-* 键控选择器」迁移前已核实，`data-*`
   委托键（data-cid/data-dir/data-kdoc…）随迁移整体消失，类名逐字
   保留（含 wengu-cp-armed/wengu-cp-editing 状态类改由条件渲染挂）。
+
+## 批次 3 落地记录（2026-08-30，review 域）
+
+- 四件套：`core/ReviewUi|ReviewCtl` + `comp/ReviewApp|ReviewGroup|
+  ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
+  `ReviewHtml.ts` 瘦身为模型层（清单分组纯函数 listReviewModel +
+  时间线 html 串——svg/Lute 产物与详情其余 html 字段同口径走
+  {@html} 桥接）。
+- **控制器单例模式（review 特有）**：筛选/排序/选中/缓存/详情串行链
+  持久在模块级 `reviewCtl`（外部域 quiz 侧栏/统计面板在视图外也要
+  读写：filterReviewDocFor/selectReviewQid/wrongOverviewNow 转发它）。
+  组件 attach 时同步持久字段进 ui、detach 作废在途装载——视图重挂
+  状态不丢（旧模块级变量语义）。
+- **要点修订（rail/side/head 共享组件化留批次 6）**：review 是 quiz
+  页签的模式分支而非平级面板（本就深依赖 quiz/service），side/head
+  的绑定链（bindHeadFor/applySideFilter/树交互）与 quiz 壳同生命
+  周期，提前抽字符串版无行为收益；批次 6 quiz 壳 Svelte 化时一并
+  组件化才是自然时机。
+- 装载完成仍走 `rerenderView()` 整壳重绘刷头部 summary（旧语义）——
+  Svelte 主区随之重挂，单例状态由 ctl 承接；头部/侧栏事件仍由
+  QuizView 统一绑定（壳 DOM 逐字未动）。
+- snippet 渲染调用是 `{@render name(args)}`（写成 `{@name(args)}`
+  svelte-check 报 expected_tag）。
+- 详情数学渲染换 `$effect`（phase ready 且容器在位时对 inner 补
+  renderMathIn，对齐旧 innerHTML 落位即调的时机）。

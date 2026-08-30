@@ -63,9 +63,9 @@
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：
   模式样板/暗雷清单/路线图见 `docs/svelte-migration.md`（各域开工前
   必读）；已迁 word 域、companion 看板娘+管理面板、bank 工作区面板
-  （专题/知识文档，2026-08-30），后续 review → stats → convert →
-  quiz。组件零 `<style>`，类名与迁移前
-  逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
+  （专题/知识文档）、review 错题本主区（2026-08-30），后续 stats →
+  convert → quiz（rail/side/head 组件化并入批次 6）。组件零 `<style>`，
+  类名与迁移前逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
 - **硬性约束：仓库内单文件 ≤500 行**；界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器

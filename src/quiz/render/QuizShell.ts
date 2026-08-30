@@ -1,6 +1,6 @@
 import type { QuizView } from "../index";
 import { destroyStatsPanel } from "../../stats";
-import { renderReviewFor } from "../../review";
+import { renderReviewFor, detachReviewApp } from "../../review";
 import { detachCompanionPanel } from "../../companion";
 import { detachBankPanels } from "../../bank";
 import { bindCardEvents, restoreAnsweredCards } from "../flow/AnswerFlow";
@@ -59,6 +59,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
     detachCompanionPanel(); // Svelte 面板先卸再挂（防实例滞留，同 statsPanel 位）
     detachBankPanels(); // bank 两面板同款（专题/知识文档）
+    detachReviewApp(); // 复习主区同款（Svelte 化 20260830）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
     // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828
     // 审查；预览模式稍后由 decoratePreview 重新加回）

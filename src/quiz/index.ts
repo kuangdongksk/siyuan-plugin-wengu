@@ -3,6 +3,7 @@ import type { AnswerHost } from "./flow/AnswerFlow";
 import { revealAll } from "./flow/AnswerFlow";
 import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { detachBankPanels } from "../bank";
+import { detachReviewApp, filterReviewDocFor } from "../review";
 import { collectCardThoughts } from "./render/CardHtml";
 import { reimportDocFrom, unregisterDocAsQuiz } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
@@ -25,7 +26,6 @@ import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./service/QuizLoader";
 import { openVariantDrillDialog } from "../bank/ui/VariantDrill";
-import { filterReviewDocFor } from "../review";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
@@ -207,6 +207,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.protyleHost.destroyAll(this.el);
         detachCompanionPanel();
         detachBankPanels();
+        detachReviewApp();
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */

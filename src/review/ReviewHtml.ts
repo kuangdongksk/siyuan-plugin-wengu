@@ -1,17 +1,19 @@
 import { svgIcon } from "../ui/FormHtml";
-import type { ReviewAttempt } from "./index";
+import type { ReviewAttempt } from "./core/ReviewUi";
 import { esc, fmt, fmtDateTime } from "../ui/shared";
 
 /**
- * 错题本（复习模式）纯渲染层：清单（按文档分组）+ 单题回看详情。
- * 只做字符串拼接；数据装载/事件绑定在 ReviewFlow，样式在 scss/review.scss。
+ * 错题本（复习模式）的模型层（Svelte 化前的清单/详情渲染函数已删，
+ * 20260830）：清单分组纯函数 + 详情模型类型 + 历次作答时间线的 HTML
+ * 串（svg/Lute 产物统一走 {@html} 桥接，与详情其余 html 字段同口径）。
+ * 数据装载/事件在 core/ReviewCtl，组件在 comp/，样式在 scss/review.scss。
  */
 
-type T = (k: string) => string;
-
-/** 清单条目模型（ReviewFlow 聚合后传入）。 */
+/** 清单条目模型（ReviewCtl 聚合后传入）。 */
 export interface ReviewItemModel {
     qid: string;
+    /** 归属文档（清单分组的键）。 */
+    docId: string;
     stemSummary: string;
     wrongCount: number;
     /** 掌握=错过且最近一次对（D4 口径）。 */
@@ -30,97 +32,54 @@ export interface ReviewGroupModel {
     items: ReviewItemModel[];
 }
 
-/** 清单渲染入参。 */
+/** 清单模型（组件 $derived 现算；文案层 t 在组件侧取）。 */
 export interface ReviewListModel {
-    t: T;
     groups: ReviewGroupModel[];
     total: number;
     pending: number;
     mastered: number;
-    filter: "all" | "pending" | "mastered";
-    sort: "recent" | "count";
 }
 
-/** 复习模式主区（工具行 + 左清单右详情两栏）。 */
-export function renderReviewMainHtml(m: ReviewListModel): string {
-    const { t } = m;
-    const opt = (v: string, label: string, cur: string) =>
-        `<option value="${v}"${v === cur ? " selected" : ""}>${esc(label)}</option>`;
-    return `<div class="wengu-review">
-  <div class="wengu-review-tools">
-    <select class="b3-select" data-review-filter title="${esc(t("reviewFilterTitle"))}">
-      ${opt("all", t("reviewFilterAll"), m.filter)}${opt("pending", t("reviewFilterPending"), m.filter)}${opt(
-          "mastered",
-          t("reviewFilterMastered"),
-          m.filter
-      )}
-    </select>
-    <select class="b3-select" data-review-sort title="${esc(t("reviewSortTitle"))}">
-      ${opt("recent", t("reviewSortRecent"), m.sort)}${opt("count", t("reviewSortCount"), m.sort)}
-    </select>
-    <span class="wengu-muted wengu-review-summary">${esc(
-        fmt(t("reviewSummary"), { n: String(m.total), p: String(m.pending), m: String(m.mastered) })
-    )}</span>
-    <button class="wengu-side-iconbtn" data-act="review-refresh" title="${esc(t("quizRefresh"))}">${svgIcon(
-        "iconRefresh"
-    )}</button>
-  </div>
-  <div class="wengu-review-cols">
-    <div class="wengu-review-list" data-review-list>${renderGroupsHtml(m)}</div>
-    <div class="wengu-review-detail" data-review-detail>
-      <div class="wengu-muted wengu-review-detail-empty">${esc(t("reviewPickHint"))}</div>
-    </div>
-  </div>
-</div>`;
-}
-
-/** 分组清单（空态两种：无错题 / 筛选后为空）。 */
-export function renderGroupsHtml(m: ReviewListModel): string {
-    if (m.groups.length === 0) {
-        return `<div class="wengu-muted wengu-review-empty">${esc(
-            m.total === 0 ? m.t("reviewEmpty") : m.t("reviewFilterEmpty")
-        )}</div>`;
+/** 组装清单模型：筛选（状态/文档）→ 排序 → 按文档分组。 */
+export function listReviewModel(
+    items: ReviewItemModel[],
+    filter: "all" | "pending" | "mastered",
+    sort: "recent" | "count",
+    docFilter: string,
+    docTitleOf: (docId: string) => string
+): ReviewListModel {
+    const filtered = items.filter((it) => {
+        if (filter === "pending" && it.mastered) return false;
+        if (filter === "mastered" && !it.mastered) return false;
+        if (docFilter && it.docId !== docFilter) return false;
+        return true;
+    });
+    filtered.sort((a, b) =>
+        sort === "count"
+            ? b.wrongCount - a.wrongCount || (b.lastWrongAt ?? 0) - (a.lastWrongAt ?? 0)
+            : (b.lastWrongAt ?? 0) - (a.lastWrongAt ?? 0) || b.wrongCount - a.wrongCount
+    );
+    const byDoc = new Map<string, ReviewItemModel[]>();
+    for (const it of filtered) {
+        const arr = byDoc.get(it.docId) ?? [];
+        arr.push(it);
+        byDoc.set(it.docId, arr);
     }
-    return m.groups.map((g) => renderGroupHtml(g, m.t)).join("");
+    const groups: ReviewGroupModel[] = [];
+    for (const [docId, arr] of byDoc) {
+        groups.push({
+            docId,
+            docTitle: docTitleOf(docId),
+            pending: arr.filter((x) => !x.mastered).length,
+            items: arr,
+        });
+    }
+    groups.sort((a, b) => (b.items[0]?.lastWrongAt ?? 0) - (a.items[0]?.lastWrongAt ?? 0));
+    const pending = items.filter((x) => !x.mastered).length;
+    return { groups, total: items.length, pending, mastered: items.length - pending };
 }
 
-function renderGroupHtml(g: ReviewGroupModel, t: T): string {
-    const drill = `<button class="b3-button b3-button--outline wengu-review-redrill" data-redrill="${esc(
-        g.docId
-    )}"${g.pending === 0 ? " disabled" : ""}>${esc(fmt(t("reviewRedrill"), { n: String(g.pending) }))}</button>`;
-    return `<div class="wengu-review-group" data-doc-group="${esc(g.docId)}">
-  <div class="wengu-review-group-head">
-    <span class="wengu-review-group-title" title="${esc(g.docTitle)}">${esc(g.docTitle)}</span>
-    ${drill}
-  </div>
-  ${g.items.map((it) => renderItemHtml(it, t)).join("")}
-</div>`;
-}
-
-function renderItemHtml(it: ReviewItemModel, t: T): string {
-    const meta = [
-        it.knowledge ? esc(it.knowledge) : "",
-        esc(fmt(t("statsWrongCount"), { n: String(it.wrongCount) })),
-        it.lastWrongAt ? fmtDateTime(it.lastWrongAt) : "",
-    ]
-        .filter(Boolean)
-        .join(" · ");
-    const badge = it.mastered
-        ? `<span class="wengu-review-badge wengu-review-badge-mastered">${esc(t("reviewFilterMastered"))}</span>`
-        : `<span class="wengu-review-badge wengu-review-badge-pending">${esc(t("reviewFilterPending"))}</span>`;
-    const cause = it.cause ? `<span class="wengu-review-cause">${esc(t(`weakCause${cap(it.cause)}`))}</span>` : "";
-    return `<div class="wengu-review-item" data-review-qid="${esc(it.qid)}">
-  <div class="wengu-review-item-stem" title="${esc(it.stemSummary)}">${esc(it.stemSummary)}</div>
-  <div class="wengu-review-item-meta">${meta}</div>
-  <div class="wengu-review-item-tags">${badge}${cause}</div>
-</div>`;
-}
-
-function cap(s: string): string {
-    return s ? s[0].toUpperCase() + s.slice(1) : s;
-}
-
-/** 详情模型（ReviewFlow 惰性 hydrate 后构建；html 均已 Lute 渲染）。 */
+/** 详情模型（ReviewCtl 惰性 hydrate 后构建；html 均已 Lute 渲染）。 */
 export interface ReviewDetailModel {
     qid: string;
     docTitle: string;
@@ -133,35 +92,8 @@ export interface ReviewDetailModel {
     loading?: boolean;
 }
 
-/** 详情加载骨架。 */
-export function renderDetailLoadingHtml(t: T): string {
-    return `<div class="wengu-muted">${esc(t("loading"))}</div>`;
-}
-
-/** 单题回看：题目 + 历次作答时间线 + 正确答案/解析 + 跳源块。 */
-export function renderReviewDetailHtml(t: T, d: ReviewDetailModel): string {
-    const section = (title: string, body: string, cls = "") =>
-        body
-            ? `<div class="wengu-review-sec${cls ? ` ${cls}` : ""}"><div class="wengu-review-sec-title">${esc(title)}</div>${body}</div>`
-            : "";
-    return `<div class="wengu-review-detail-inner">
-  ${section(t("reviewSecQuestion"), `<div class="wengu-review-q">${d.stemHtml}</div>${d.optionsHtml}${d.stepsHtml}`)}
-  ${section(t("reviewSecTimeline"), d.timelineHtml)}
-  ${section(t("reviewSecAnswer"), d.answerHtml, " wengu-review-sec-answer")}
-  ${section(t("reviewSecSolution"), d.solutionHtml)}
-  <div class="wengu-review-detail-actions">
-    <button class="b3-button b3-button--outline" data-review-copy title="${esc(t("pvCopyTitle"))}">
-      ${svgIcon("iconCopy")} ${esc(t("pvCopyTitle"))}
-    </button>
-    <button class="b3-button b3-button--outline" data-goto-block="${esc(d.qid)}">
-      ${svgIcon("iconRight")} ${esc(t("reviewGotoBlock"))}
-    </button>
-  </div>
-</div>`;
-}
-
-/** 历次作答时间线（最新在上；qid#k 条目由 Flow 归并后传入）。 */
-export function renderTimelineHtml(t: T, attempts: ReviewAttempt[]): string {
+/** 历次作答时间线（最新在上；qid#k 条目由 Ctl 归并后传入）。 */
+export function renderTimelineHtml(t: (k: string) => string, attempts: ReviewAttempt[]): string {
     if (attempts.length === 0) return `<div class="wengu-muted">${esc(t("reviewNoAttempts"))}</div>`;
     return attempts
         .slice()
@@ -183,4 +115,8 @@ export function renderTimelineHtml(t: T, attempts: ReviewAttempt[]): string {
 </div>`;
         })
         .join("");
+}
+
+function cap(s: string): string {
+    return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
