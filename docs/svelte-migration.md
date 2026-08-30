@@ -92,14 +92,14 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 
 ## 路线图（练手优先序，每批真机验证后进下一批）
 
-| 批  | 目标                  | 规模    | 要点                                                                                        | 状态          |
-| --- | --------------------- | ------- | ------------------------------------------------------------------------------------------- | ------------- |
-| 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                               | ✅ 2026-08-27 |
-| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                      | ✅ 2026-08-30 |
-| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                           | ✅ 2026-08-30 |
-| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                      | ✅ 2026-08-30 |
-| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                           | ✅ 2026-08-30 |
-| 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（Protyle 壳）→ Steps/AnswerFlow（三写痛点终结） |               |
+| 批  | 目标                  | 规模    | 要点                                                                                                                  | 状态                     |
+| --- | --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                                                         | ✅ 2026-08-27            |
+| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                                                | ✅ 2026-08-30            |
+| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                                                     | ✅ 2026-08-30            |
+| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                                                | ✅ 2026-08-30            |
+| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                                                     | ✅ 2026-08-30            |
+| 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（~~Protyle 壳~~静态管线，9a53a63 退役）→ Steps/AnswerFlow（三写痛点终结） | 🔶 6-1~6-3 ✅ 2026-08-30 |
 
 **不迁清单**：`ui/FormHtml.ts`（两轨公共地基）；ModelPicker/KnowPicker
 浮层（body 单例，保持字符串模板，Svelte 侧用 action 桥接）；
@@ -252,3 +252,42 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   两击确认进 ui.armedDoc；「进行中」空态/两区路由全响应式。
 - ConvertDialogHtml.ts / ConvertPick.ts 删除（渲染与联动逻辑分别
   进组件与 ctl）。
+
+## 批次 6 落地记录（2026-08-30，quiz 域拆多批：6-1~6-3）
+
+- **6-1 开刷面板**：component/StartPanelApp（表单字段全 $state）+
+  render/StartPanel.ts 瘦身为模型构建（buildStartPanelModel）+ 开轮
+  执行（startRound/beginDrillFor）+ 挂载编排（mountStartPanelFor/
+  detachStartPanel）。「继续上次=锁定回显」走 $derived 渲染值，旧
+  bindStartPanel 的 setVal 重放与 data-act 委托链删除；壳在面板位放
+  `[data-startpanel-host]` 宿主，面板态条件（非加载/错误、有文档有题、
+  未开刷非预览渐进）与 renderMainShell 同款在编排层判断。
+- **6-2 轮次报告**：component/RoundReportApp（条形图/薄弱区脚本侧
+  预计算，model 为收卷时一次性快照）+ showRoundReportNow 收口挂载
+  （[data-report] 宿主，收一次卷整挂整卸）。AI 分析按暗雷 §8 保持
+  命令式：组件 bind:this 拿按钮/输出区直喂 runAgentTextOrPanel；
+  薄弱加练经 onWeakDrill 回调进编排层。renderRoundReport/
+  renderWeakSection/bindRoundReport 删除；byBaseQid/buildAnalysisPrompt
+  导出供组件复用。
+- **6-3 rail + 题号栏**：component/RailApp + component/NumRailApp；
+  RailHtml.ts 改名 RailMount.ts（挂载编排，RAIL_ANCHOR_HTML 锚）。
+  **anchor 挂载法**（mountApp 新增 anchor 选项）：rail（flex:none
+  三栏）与题号栏（sticky 直接子元素）的布局依赖父子关系不能包宿主
+  div——壳 HTML 在插入位放锚节点，mount(root,{target:父,anchor:锚})
+  后删锚，组件根顶替锚位，CSS 零改动。四处壳拼接（主壳/错误兜底/
+  工作区分支/复习分支）统一 RAIL_ANCHOR_HTML + mountRailFor；错误
+  兜底旧路径渲染了 rail 却漏绑事件，随迁移顺修（有意）。
+- **题号栏三写收敛**：初始态（numState）/判分描色（FlowDom.markNum）/
+  已答态（AnswerFlow.markNumAnswered）三处直改 DOM 统一为 NumRailApp
+  的 marks 响应态，写入经实例导出（setActive/markAnswered/
+  markResult，*.svelte 实例导出类型在 ts 侧收口 interface + cast，
+  KnowPicker 同款）；bindNumRail 保留全部实测调优行为（追赶滚动/
+  滚动跟踪/吸顶封顶实测），activeBtn 差分手写退役。showPast 守卫
+  （预览保密/统一揭示）从渲染入参挪进挂载入参，语义不变。
+- **待办（6-4+，按「每批真机验证后进下一批」纪律候验后动）**：题卡
+  渲染（CardHtml 486 行 + DrillUnits 分片管线）与 Steps/AnswerFlow/
+  Slot 三流程的渲染收敛（三写痛点：初始渲染/恢复/判分三处写卡 DOM
+  统一为卡内响应态）。长卷性能（分片插入+帧预算 yield+content-
+  visibility，20260830 真机调优）是硬约束——Svelte 化须保住分片
+  节奏（逐单元 mount 组件替代 insertAdjacentHTML）或先真机验证
+  6-1~6-3 再评估切法。
