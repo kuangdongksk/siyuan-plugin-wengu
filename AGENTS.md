@@ -17,13 +17,13 @@
       等非块文件走它））+ 题目契约属性常量
       `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
     - `src/ai/`——**AI 基础设施域**（2026-08-27 从 convert/AgentClient
-      抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` 三通道
-      （agentChat SSE 可指定模型/agentChatConcurrent chatGPT 直答可
-      并发/agentChatOnce 一次性独立会话天然并发）、`models.ts` 模型
+      抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` **唯一
+      对外通道 agentChatOnce**（一次性独立会话：saveSession→chat→
+      removeSession，独立 sessionID 天然并发+可按次指定模型；20260830
+      起 chatGPT 直答与共享 "" 会话两条路已弃用——agentChat 收为模块
+      私有，queue.ts/enqueueAi 整体退役）、`models.ts` 模型
       清单与默认、`timeouts.ts` AI_TIMEOUT 档位（调用点禁自造超时
-      数字）、`queue.ts` enqueueAi（无 sessionID 的 agentChat 共用 ""
-      会话锁，判分一律过队列；单词复盘 20260829 起改走 agentChatOnce
-      独立会话，不入队）、`agentPanel.ts` 智能体面板
+      数字；超时统一按 SSE 空闲计）、`agentPanel.ts` 智能体面板
       DOM 自动化与「面板优先、页内降级」按钮帮手。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、
@@ -209,8 +209,10 @@ message, language, references, model?}`；`userEntryID` 是
       插件纯文本问答通常不触发，需自测。
 
 - 旧直答端点 `/api/ai/chatGPT`（`{msg}` → `{code,data:回复全文}`）
-  **支持并发**（真机验证），模型跟随设置默认、不可按次指定；插件要
-  并发 AI 只有这条路。conf.json 里 providers 的 apiKey 是**内核加密
+  支持并发（真机验证），模型跟随设置默认、不可按次指定——**插件侧
+  已于 20260830 弃用**（并发统一走 agent/chat 独立 sessionID，顺带
+  修掉并行转换忽略用户选模型的暗病），内核行为仅备查。conf.json 里
+  providers 的 apiKey 是**内核加密
   密文**（hex，长 224/512），插件拿不到明文、无法绕开内核直连供应商。
 - 插件 addDock 的 config **必须带 position 与 size**：缺 position 会在
   内核 dock 布局初始化里 `.startsWith` undefined 直接崩，且是 onload 级

@@ -9,8 +9,7 @@ import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProg
 /**
  * AI 复盘（docs/word-timing.md）：误认词手动分析 + 组完成自动触发
  * 共用一条管线。走 ai/client 的 agentChatOnce 一次性独立会话（独立
- * sessionID 天然并发）——不占无 sessionID agentChat 的 "" 共享会话锁，
- * 与判分/转换互不阻塞。每批 ≤20 词，多批顺序执行。
+ * sessionID 天然并发），与判分/转换互不阻塞。每批 ≤20 词，多批顺序执行。
  * 运行态（running/msg）由 WordView.syncAi 镜像进响应态供按钮/消息渲染。
  *
  * 回复协议（锚定规则，不凭空给天数）：
@@ -87,8 +86,8 @@ async function analyzeBatch(
     p: WenguWordProgress,
     save: () => Promise<unknown>
 ): Promise<number> {
-    // 一次性独立会话：不占无 sessionID agentChat 的 "" 共享会话锁——
-    // 单词复盘与判分/转换互不阻塞（20260829，用户拍板弃用空会话）
+    // 一次性独立会话：独立 sessionID 天然并发——单词复盘与判分/转换
+    // 互不阻塞（20260829 起走 agentChatOnce；20260830 全仓统一此通道）
     const reply = await agentChatOnce(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid);
     const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
     const items: { key: string; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];

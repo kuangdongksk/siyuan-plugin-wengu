@@ -262,11 +262,10 @@ export async function convertDocBatched(
         detected,
         detectedTruncated,
     });
-    // 并发池（parallel=1 串行走 agent/chat，可选模型；>1 走可并发的
-    // chatGPT 通道，模型跟随设置默认——agent/chat 并发会被内核拒绝，
-    // 真机 20260823 验证见 AGENTS.md）。结果按「连续完成前缀」拼装，
-    // 题目顺序与渐进文档始终是原文档的忠实前缀；并发度受供应商限流
-    // 约束，由弹窗选择。
+    // 并发池（20260830 起统一走独立会话 agentChatOnce：可按次指定模型、
+    // 天然并发——原并行分支走 chatGPT 直答会忽略用户选的模型，已弃用）。
+    // 结果按「连续完成前缀」拼装，题目顺序与渐进文档始终是原文档的忠实
+    // 前缀；并发度受供应商限流约束，由弹窗选择。
     const parallel = Math.max(1, Math.min(4, Math.floor(opts.parallel ?? 1)));
     const results: (string[] | undefined)[] = new Array(chunks.length).fill(undefined);
     let cursor = 0;
@@ -279,10 +278,9 @@ export async function convertDocBatched(
         internal.abort();
     };
     opts.signal?.addEventListener("abort", relayAbort);
-    // 批调用 = 知识点路由（有配置时）+ 生成，通道选择见 makeKnowAwareAi
+    // 批调用 = 知识点路由（有配置时）+ 生成，独立会话通道见 makeKnowAwareAi
     const callAi = makeKnowAwareAi({
         modelId: opts.modelId,
-        parallel,
         signal: internal.signal,
         knowIndex,
         buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),

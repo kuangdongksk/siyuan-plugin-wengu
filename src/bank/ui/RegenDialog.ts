@@ -1,6 +1,5 @@
 import { Dialog } from "siyuan";
-import { agentChat } from "../../ai/client";
-import { enqueueAi } from "../../ai/queue";
+import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBlockId, extractBatchQuestions } from "../../convert/service/ConvertService";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
@@ -142,7 +141,7 @@ async function runRegen(
         const kp = record.kpRefs[0];
         const section = sourceBlock ? "" : kp ? await sectionKramdown(kp.id) : "";
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
-        const reply = await enqueueAi(() => agentChat(prompt, modelId, AI_TIMEOUT.long)); // "" 会话锁共享
+        const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long);
         const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
         if (qs.length === 0) throw new Error(t("convertEmptyReply"));
         let kd = qs[0];

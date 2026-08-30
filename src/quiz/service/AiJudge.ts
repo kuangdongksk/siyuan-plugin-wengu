@@ -1,5 +1,4 @@
-import { agentChat } from "../../ai/client";
-import { enqueueAi } from "../../ai/queue";
+import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import type { WenguQuestion } from "../../types";
 import type { WenguStep } from "../../types";
@@ -10,9 +9,9 @@ import { normalizeCause } from "../../bank/data/WeaknessStore";
 /**
  * AI 判分与实时引导（brief 思路验证 + steps 实时模式）。
  *
- * 走 ai/client 同一智能体端点；判分/引导调用一律过共享串行队列
- * enqueueAi——无 sessionID 的 agentChat 在内核侧共用 "" 会话锁，
- * 并发互吞响应（真机坑）。
+ * 全部走 ai/client 的 agentChatOnce 一次性独立会话（20260830 起，
+ * 原共享 "" 会话 + enqueueAi 串行队列已退役）——独立 sessionID
+ * 天然并发，连续判分/跨域调用互不阻塞。
  */
 
 /* ── brief 思路验证 ── */
@@ -30,20 +29,18 @@ export interface BriefVerdict {
     cause?: WeakCause;
 }
 
-/** 把用户的解题思路交给 AI 对照参考答案判定（串行）。
+/** 把用户的解题思路交给 AI 对照参考答案判定。
  *  thought 为「思路」折叠区里的推导备注（可选，判 partial 的素材）。
  *  essay/trans（英语）走各自的 rubric prompt（E3），SCORE 并入评语。 */
-export function judgeBrief(q: WenguQuestion, mine: string, modelId: string, thought = ""): Promise<BriefVerdict> {
-    return enqueueAi(async () => {
-        const prompt =
-            q.type === QuestionType.Essay
-                ? buildEssayPrompt(q, mine)
-                : q.type === QuestionType.Trans
-                  ? buildTransPrompt(q, mine)
-                  : buildBriefPrompt(q, mine, thought);
-        const reply = await agentChat(prompt, modelId, AI_TIMEOUT.quick);
-        return parseBriefVerdict(reply);
-    });
+export async function judgeBrief(q: WenguQuestion, mine: string, modelId: string, thought = ""): Promise<BriefVerdict> {
+    const prompt =
+        q.type === QuestionType.Essay
+            ? buildEssayPrompt(q, mine)
+            : q.type === QuestionType.Trans
+              ? buildTransPrompt(q, mine)
+              : buildBriefPrompt(q, mine, thought);
+    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.quick);
+    return parseBriefVerdict(reply);
 }
 
 function buildBriefPrompt(q: WenguQuestion, mine: string, thought: string): string {
@@ -130,23 +127,21 @@ export interface ClueVerdict {
     comment: string;
 }
 
-/** 复核学生为某题标注的线索段是否是该题的定位依据（串行）。 */
-export function judgeClue(
+/** 复核学生为某题标注的线索段是否是该题的定位依据。 */
+export async function judgeClue(
     materialBody: string,
     q: WenguQuestion,
     submitted: string,
     clues: string[],
     modelId: string
 ): Promise<ClueVerdict> {
-    return enqueueAi(async () => {
-        const reply = await agentChat(buildCluePrompt(materialBody, q, submitted, clues), modelId, AI_TIMEOUT.quick);
-        const m = /CLUE\s*[:：]\s*(hit|near|miss|对|近似|错)/i.exec(reply);
-        if (!m) throw new Error("AI 未按格式返回线索复核");
-        const raw = m[1].toLowerCase();
-        const clue = raw === "hit" || raw === "对" ? "hit" : raw === "near" || raw === "近似" ? "near" : "miss";
-        const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
-        return { clue, comment: (cm?.[1] ?? "").trim() };
-    });
+    const reply = await agentChatOnce(buildCluePrompt(materialBody, q, submitted, clues), modelId, AI_TIMEOUT.quick);
+    const m = /CLUE\s*[:：]\s*(hit|near|miss|对|近似|错)/i.exec(reply);
+    if (!m) throw new Error("AI 未按格式返回线索复核");
+    const raw = m[1].toLowerCase();
+    const clue = raw === "hit" || raw === "对" ? "hit" : raw === "near" || raw === "近似" ? "near" : "miss";
+    const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
+    return { clue, comment: (cm?.[1] ?? "").trim() };
 }
 
 function buildCluePrompt(materialBody: string, q: WenguQuestion, submitted: string, clues: string[]): string {
@@ -175,40 +170,36 @@ export interface CauseItem {
     answer: string;
 }
 
-/** 客观题答错后没有判分调用可搭车——收卷时把错题打包一次归因（串行）。 */
-export function attributeWrongCauses(items: CauseItem[], modelId: string): Promise<Map<string, WeakCause>> {
-    return enqueueAi(async () => {
-        const lines = items
-            .map((it, i) => `${i + 1}|${it.stem}|我的答案：${it.mine}|正确答案：${it.answer}`)
-            .join("\n");
-        const reply = await agentChat(
-            `你是刷题错因分析器。下面是一轮刷题中答错的客观题（编号|题干|我的答案|正确答案）。逐题判断最可能的错因，只输出 JSON，格式之外不要输出任何文字：
+/** 客观题答错后没有判分调用可搭车——收卷时把错题打包一次归因。 */
+export async function attributeWrongCauses(items: CauseItem[], modelId: string): Promise<Map<string, WeakCause>> {
+    const lines = items.map((it, i) => `${i + 1}|${it.stem}|我的答案：${it.mine}|正确答案：${it.answer}`).join("\n");
+    const reply = await agentChatOnce(
+        `你是刷题错因分析器。下面是一轮刷题中答错的客观题（编号|题干|我的答案|正确答案）。逐题判断最可能的错因，只输出 JSON，格式之外不要输出任何文字：
 {"1":"概念不清","3":"计算失误"}
 错因只能从「概念不清/计算失误/方法选择错/公式记错/审题失误/其他」里选。
 题目：
 ${lines}`,
-            modelId,
-            AI_TIMEOUT.quick
-        );
-        const out = new Map<string, WeakCause>();
-        const jm = /\{[\s\S]*\}/.exec(reply);
-        let pairs: [string, string][] = [];
-        if (jm) {
-            try {
-                pairs = Object.entries(JSON.parse(jm[0]) as Record<string, string>);
-            } catch (_) {
-                pairs = [];
-            }
+        modelId,
+        AI_TIMEOUT.quick
+    );
+    const out = new Map<string, WeakCause>();
+    const jm = /\{[\s\S]*\}/.exec(reply);
+    let pairs: [string, string][] = [];
+    if (jm) {
+        try {
+            pairs = Object.entries(JSON.parse(jm[0]) as Record<string, string>);
+        } catch (_) {
+            pairs = [];
         }
-        if (pairs.length === 0) {
-            pairs = [...reply.matchAll(/"?\s*(\d+)\s*"?\s*[:：]\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]);
-        }
-        for (const [no, cause] of pairs) {
-            const it = items[Number(no) - 1];
-            if (it && cause && cause !== "无") out.set(it.qid, normalizeCause(cause));
-        }
-        return out;
-    });
+    }
+    if (pairs.length === 0) {
+        pairs = [...reply.matchAll(/"?\s*(\d+)\s*"?\s*[:：]\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]);
+    }
+    for (const [no, cause] of pairs) {
+        const it = items[Number(no) - 1];
+        if (it && cause && cause !== "无") out.set(it.qid, normalizeCause(cause));
+    }
+    return out;
 }
 
 /* ── steps 方法步申诉 ── */
@@ -219,22 +210,20 @@ export interface MethodAppealVerdict {
     comment: string;
 }
 
-/** 方法步答错后的 AI 复核：学生所选方法对该题是否实际可行（串行）。 */
-export function appealMethodStep(
+/** 方法步答错后的 AI 复核：学生所选方法对该题是否实际可行。 */
+export async function appealMethodStep(
     q: WenguQuestion,
     step: WenguStep,
     chosen: string,
     modelId: string
 ): Promise<MethodAppealVerdict> {
-    return enqueueAi(async () => {
-        const reply = await agentChat(buildAppealPrompt(q, step, chosen), modelId, AI_TIMEOUT.quick);
-        const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
-        if (!m) throw new Error("AI 未按格式返回复核");
-        const v = m[1].toLowerCase();
-        const feasible = v === "yes" || v === "true" || v === "是" || v === "可行";
-        const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
-        return { feasible, comment: (cm?.[1] ?? "").trim() };
-    });
+    const reply = await agentChatOnce(buildAppealPrompt(q, step, chosen), modelId, AI_TIMEOUT.quick);
+    const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
+    if (!m) throw new Error("AI 未按格式返回复核");
+    const v = m[1].toLowerCase();
+    const feasible = v === "yes" || v === "true" || v === "是" || v === "可行";
+    const cm = /COMMENT\s*[:：]\s*([^\n]+)/i.exec(reply);
+    return { feasible, comment: (cm?.[1] ?? "").trim() };
 }
 
 function buildAppealPrompt(q: WenguQuestion, step: WenguStep, chosen: string): string {
@@ -276,16 +265,14 @@ export interface RealtimeStep {
     step?: WenguStep;
 }
 
-/** 向 AI 要多步引导的「下一步」（跟随学生已选的方法，串行）。 */
-export function nextRealtimeStep(
+/** 向 AI 要多步引导的「下一步」（跟随学生已选的方法）。 */
+export async function nextRealtimeStep(
     q: WenguQuestion,
     history: RealtimeHistoryItem[],
     modelId: string
 ): Promise<RealtimeStep> {
-    return enqueueAi(async () => {
-        const reply = await agentChat(buildRealtimePrompt(q, history), modelId, AI_TIMEOUT.quick);
-        return parseRealtimeStep(reply);
-    });
+    const reply = await agentChatOnce(buildRealtimePrompt(q, history), modelId, AI_TIMEOUT.quick);
+    return parseRealtimeStep(reply);
 }
 
 function buildRealtimePrompt(q: WenguQuestion, history: RealtimeHistoryItem[]): string {

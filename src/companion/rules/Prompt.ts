@@ -3,7 +3,8 @@ import { EXPR_KEYS, normalizeExpr, WenguExpr } from "./Expressions";
 /**
  * 看板娘的 prompt 组装与回复解析（纯函数，无 IO，单测覆盖）。
  *
- * 通道走智能体 agentChat（可按次指定模型）；回复协议沿用仓库约定
+ * 通道走智能体 agentChatOnce（一次性独立会话，可按次指定模型）；
+ * 回复协议沿用仓库约定
  * 「输出严格 N 行，格式之外不要输出任何文字」——反应类两条：
  * EXPRESSION: <枚举> / LINE: <台词>，解析失败由调用方落回规则层。
  */

@@ -1,5 +1,4 @@
-import { agentChat } from "./client";
-import { enqueueAi } from "./queue";
+import { agentChatOnce } from "./client";
 import { AI_TIMEOUT } from "./timeouts";
 
 /**
@@ -71,7 +70,7 @@ export async function runAgentTextOrPanel(opts: {
     out.textContent = opts.loadingText;
     out.removeAttribute("hidden");
     try {
-        const text = await enqueueAi(() => agentChat(opts.prompt, opts.modelId, AI_TIMEOUT.quick)); // "" 会话锁共享
+        const text = await agentChatOnce(opts.prompt, opts.modelId, AI_TIMEOUT.quick); // 独立会话，页内降级路径
         out.textContent = text.trim() || opts.emptyText;
     } catch (e) {
         out.textContent = `${opts.failPrefix}${String((e as Error)?.message ?? e)}`;

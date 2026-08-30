@@ -24,11 +24,10 @@ export enum EApi {
     // ── 查询 ──
     QuerySql = "/api/query/sql",
 
-    // ── AI（agent/chat 是 SSE、chatGPT 是普通 JSON——见 ai/client）──
+    // ── AI（agent/chat 是 SSE，一律独立会话走 ai/client——见其头注释）──
     AgentChat = "/api/ai/agent/chat",
     AgentSaveSession = "/api/ai/agent/saveSession",
     AgentRemoveSession = "/api/ai/agent/removeSession",
-    AiChatGpt = "/api/ai/chatGPT",
 
     // ── 网络（外网 JSON 经内核转发，见 MinerUClient）──
     ForwardProxy = "/api/network/forwardProxy",

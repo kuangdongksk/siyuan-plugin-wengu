@@ -5,14 +5,10 @@ import { resolveModelId } from "./models";
 /**
  * 思源内置 AI 的调用通道（2026-08-27 从 convert/AgentClient 抽离成
  * 独立域——convert/bank/quiz/word/stats/companion 六域共用的基础设施，
- * 不再隶属任何业务域）。三条通道按场景选：
- *  - agentChat：智能体 SSE 流式，可按次指定 model；不传 sessionID 时
- *    共用 "" 会话（内核并发锁键控，并发互斥，须过 enqueueAi 串行）。
- *  - agentChatConcurrent：旧直答端点 chatGPT，支持并发、模型跟随
- *    设置默认不可指定——转换并发池用。
- *  - agentChatOnce：一次性独立会话（saveSession→chat→removeSession），
- *    独立 sessionID 天然并发（20260827 真机验证），高频独立任务
- *    （看板娘反应/聊天/单词复盘）用它，无需串行队列。
+ * 不再隶属任何业务域）。**全仓唯一对外通道是 agentChatOnce**（一次性
+ * 独立会话，天然并发 + 可按次指定模型）；旧 chatGPT 直答与共享空会话
+ * 两条路已于 2026-08-30 弃用（见 AGENTS.md），并发靠独立 sessionID
+ * 而非换端点/全局串行队列（queue.ts 已随之退役）。
  */
 
 /**
@@ -23,15 +19,17 @@ import { resolveModelId } from "./models";
  * 超时按**空闲**计：每收到一段流数据即续期——慢模型长批次只要还在
  * 出字就不掐，只有长时间无响应才断（总时长超时会误杀 5 分钟以上的
  * 正常生成，真机踩坑）。
+ *
+ * 模块内部实现细节：只被 agentChatOnce 以独立 sessionID 调用——
+ * 内核并发锁按 sessionID 键控，不传会撞 "" 共享锁（老设计，已退役）。
  */
-export async function agentChat(
+async function agentChat(
     message: string,
     modelId: string,
     timeoutMs: number,
-    signal?: AbortSignal,
-    /** 独立会话 id（见 agentChatOnce）：传了即带 sessionID/userEntryID，
-     * 并发锁按 sessionID 键控，不同会话互不 busy。 */
-    sessionId = ""
+    signal: AbortSignal | undefined,
+    /** 独立会话 id：带 sessionID/userEntryID，并发锁按 sessionID 键控。 */
+    sessionId: string
 ): Promise<string> {
     // 总闸口校正（20260829）：失效/存量 model id 内核一律报「请先参考
     // 用户指南进行配置」——不在当前可用清单的回落默认，覆盖全部调用点
@@ -56,7 +54,8 @@ export async function agentChat(
                 language: lang,
                 references: [],
                 ...(modelId ? { model: modelId } : {}),
-                ...(sessionId ? { sessionID: sessionId, userEntryID: "" } : {}),
+                sessionID: sessionId,
+                userEntryID: "",
             }),
             signal: controller.signal,
         });
@@ -115,45 +114,6 @@ export async function agentChat(
     }
 }
 
-/**
- * 旧直答端点（POST /api/ai/chatGPT，{msg} → {code, data: 回复全文}）。
- * 与 agent/chat 的关键差异（真机 20260823 验证）：无智能体会话，
- * **支持并发**（agent/chat 并发会报 "session is busy in another
- * instance"）；模型跟随 设置→AI 的默认模型，不能按次指定。分批转换
- * 的并发池走这里。
- */
-export async function agentChatConcurrent(message: string, timeoutMs: number, signal?: AbortSignal): Promise<string> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const onAbort = (): void => controller.abort();
-    signal?.addEventListener("abort", onAbort);
-    if (signal?.aborted) controller.abort(); // 已终止的 signal 显式设防（挂账清偿）
-    try {
-        const resp = await fetch(EApi.AiChatGpt, {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ msg: message }),
-            signal: controller.signal,
-        });
-        // 先取文本再解析：鉴权 401 等回 HTML 页时 resp.json() 抛裸
-        // SyntaxError（无上下文），这里给出可读的状态码错误
-        const text = await resp.text();
-        let j: { code?: number; msg?: string; data?: unknown };
-        try {
-            j = JSON.parse(text) as { code?: number; msg?: string; data?: unknown };
-        } catch (e) {
-            const err = new Error(`chatGPT HTTP ${resp.status}`);
-            (err as Error & { cause?: unknown }).cause = e;
-            throw err;
-        }
-        if (j.code !== 0) throw new Error(j.msg || `chatGPT ${j.code}`);
-        return String(j.data ?? "");
-    } finally {
-        clearTimeout(timer);
-        signal?.removeEventListener("abort", onAbort);
-    }
-}
-
 /** 一次性会话 id：{14位时间戳}-{7位字母数字}（内核 isValidSessionID 校验格式）。 */
 export function newSessionId(now = new Date()): string {
     const p = (n: number): string => String(n).padStart(2, "0");
@@ -167,11 +127,12 @@ export function newSessionId(now = new Date()): string {
 }
 
 /**
- * 一次性智能体会话（独立 sessionID 并发通道）：saveSession 落盘一条
+ * 一次性智能体会话（全仓唯一 AI 对外通道）：saveSession 落盘一条
  * user 条目 → chat（并发锁按 sessionID 键控，不同会话互不 busy）→
  * removeSession 清理防落盘堆积。20260827 真机验证双路并发零 busy；
- * 高频独立任务（看板娘反应/聊天/讲题、单词复盘）直接用它，无需
- * 模块级串行队列。
+ * 20260830 起判分/出题/匹配/转换等原共享 "" 会话与 chatGPT 直答的
+ * 调用点全部收拢至此——调用方无需任何串行队列，需要限流的场景
+ * （转换并发池）自带 worker 池。
  */
 export async function agentChatOnce(
     message: string,

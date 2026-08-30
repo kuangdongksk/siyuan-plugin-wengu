@@ -1,5 +1,4 @@
-import { agentChat, agentChatConcurrent } from "../../ai/client";
-import { enqueueAi } from "../../ai/queue";
+import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
 
@@ -323,26 +322,20 @@ async function knowAwareCall(
     return { reply, byAlias };
 }
 
-/** 组装「路由+生成」批调用：通道与生成本职一致（并发走 chatGPT 直答，
- *  串行走 agent/chat 可选模型；路由输出一行 JSON 用 quick 档），ConvertBatch
- *  只提供 prompt 组装与信号。 */
+/** 组装「路由+生成」批调用：两条链路统一走独立会话（agentChatOnce，
+ *  可按次指定模型、天然并发——20260830 前并行分支走 chatGPT 直答会
+ *  忽略用户选的模型，已弃用）；并发度由 ConvertBatch 的 worker 池
+ *  控制，ConvertBatch 只提供 prompt 组装与信号。 */
 export function makeKnowAwareAi(opts: {
     modelId: string;
-    parallel: number;
     signal: AbortSignal;
     knowIndex: KnowledgeIndex | undefined;
     buildPrompt: (source: string, knowRuleBlock: string, knowList: string) => string;
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
-    // 并行>1 走可并发的 chatGPT 通道；=1 走 agent/chat 且过共享队列——
-    // 裸调会与判分/复盘等其他 "" 会话调用撞内核互斥锁（20260828 审查）
     const call = (message: string): Promise<string> =>
-        opts.parallel > 1
-            ? agentChatConcurrent(message, AI_TIMEOUT.quick, opts.signal)
-            : enqueueAi(() => agentChat(message, opts.modelId, AI_TIMEOUT.quick, opts.signal));
+        agentChatOnce(message, opts.modelId, AI_TIMEOUT.quick, opts.signal);
     const generate = (prompt: string): Promise<string> =>
-        opts.parallel > 1
-            ? agentChatConcurrent(prompt, AI_TIMEOUT.batch, opts.signal)
-            : enqueueAi(() => agentChat(prompt, opts.modelId, AI_TIMEOUT.long, opts.signal));
+        agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.batch, opts.signal);
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }
 

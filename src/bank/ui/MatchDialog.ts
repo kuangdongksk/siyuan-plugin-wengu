@@ -1,6 +1,5 @@
 import { Dialog } from "siyuan";
-import { agentChat } from "../../ai/client";
-import { enqueueAi } from "../../ai/queue";
+import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
@@ -26,7 +25,7 @@ import { mergeRecordKpRefs } from "../data/KnowRoots";
  * 转换同款两级 AI 路由（routeKnowledge），把「相关知识点」块引用确定
  * 性注入题库记录（strip+inject=替换语义，默认跳过已关联题），源文档块
  * 尽力同步（题库为主记录，模式同 RegenDialog）。内核调用全程串行；AI
- * 路由过共享队列（enqueueAi，无 sessionID 的 "" 会话锁）。
+ * 路由走独立会话（agentChatOnce，逐题 await 天然串行）。
  */
 
 export interface MatchDeps {
@@ -181,16 +180,14 @@ async function runMatch(
             }
             let refs: { id: string; title: string }[] = [];
             try {
-                // 过共享队列串行：与判分/复盘等 "" 会话调用互斥，不抢内核
-                const routed = await enqueueAi(() =>
-                    routeKnowledgeDiag(
-                        routeTextOf(r),
-                        index,
-                        {
-                            call: (m) => agentChat(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
-                        },
-                        (f) => fails.push(f)
-                    )
+                // 独立会话路由（20260830）：每题一次性 sessionID，逐题 await
+                const routed = await routeKnowledgeDiag(
+                    routeTextOf(r),
+                    index,
+                    {
+                        call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                    },
+                    (f) => fails.push(f)
                 );
                 refs = [...routed.values()].map((s) => ({ id: s.id, title: s.title }));
             } catch (_) {
