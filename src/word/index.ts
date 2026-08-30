@@ -1,5 +1,5 @@
 import { mount, unmount } from "svelte";
-import WordApp from "./comp/WordApp.svelte";
+import WordApp from "./component/WordApp.svelte";
 import { initialWordUi } from "./core/WordUi";
 import type { WordStore } from "./core/WordStore";
 import { WordView } from "./core/WordView";

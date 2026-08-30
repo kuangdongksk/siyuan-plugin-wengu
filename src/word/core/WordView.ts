@@ -42,7 +42,7 @@ import type { WordUi } from "./WordUi";
 
 /**
  * 单词复习控制器（Svelte 化改造）：会话状态机与全部语义动作在此，
- * 渲染交给 src/word/comp/ 下的 Svelte 组件（读 ui 深代理细粒度更新）。
+ * 渲染交给 src/word/component/ 下的 Svelte 组件（读 ui 深代理细粒度更新）。
  *
  * 会话双轨（redesign §二/§三，20260828）：fresh=新学滚动窗口（freshWin/
  * seq/cur，编排见 FreshFlow，决策见 WindowSched，进度持久 ladder）；

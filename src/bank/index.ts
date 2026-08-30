@@ -7,8 +7,8 @@ import type { CollectionRow, QuestionBank } from "./data/QuestionBank";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
 import type { QuizView } from "../quiz";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
-import CollectionPanelApp from "./comp/CollectionPanelApp.svelte";
-import KnowledgePanelApp from "./comp/KnowledgePanelApp.svelte";
+import CollectionPanelApp from "./component/CollectionPanelApp.svelte";
+import KnowledgePanelApp from "./component/KnowledgePanelApp.svelte";
 
 /**
  * 专题编排（从 QuizView 拆出）：持有当前选中的专题 id 与侧栏清单，

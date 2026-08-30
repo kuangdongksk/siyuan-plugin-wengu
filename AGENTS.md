@@ -28,7 +28,7 @@
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、
       `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器
-      在 `WordView.ts`，**UI 是 Svelte 组件**（`word/comp/`，2026-08-26
+      在 `WordView.ts`，**UI 是 Svelte 组件**（`word/component/`，2026-08-26
       起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
       Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess；
       词库数据在 `word/data/`；**多词书**（2026-08-28 redesign §五）：

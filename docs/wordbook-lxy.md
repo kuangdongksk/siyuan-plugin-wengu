@@ -96,7 +96,7 @@ iconSparkles 按钮把**未分析的误认词**批量(≤20/批,串行队列)交
 - 复习与新学是两条独立队列(入口决定 queueKind);完成页按队列给文案,
   含生词重过与回首页;刷题卡头部加回首页按钮(iconList)。
 - 拆件:WordHome(首页/确认层/完成页/头部)、WordAi.runner(AI 视图胶水),
-  WordView 468 行守住红线。(2026-08-26 Svelte 化:渲染拆件改 word/comp/
+  WordView 468 行守住红线。(2026-08-26 Svelte 化:渲染拆件改 word/component/
   组件,WordHome 已删,控制器在 WordView.ts)
 
 ## 统计页与时间健壮性(2026-08-23 六改)

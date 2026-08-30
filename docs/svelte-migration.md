@@ -7,7 +7,7 @@
 ## 现状
 
 - 构建链零配置扩展：webpack 按 `\.svelte$` 后缀匹配整个 `src/`
-  （webpack.config.js），任何域新增 `comp/*.svelte` 即被编译。
+  （webpack.config.js），任何域新增 `component/*.svelte` 即被编译。
   Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess。
 - 类型检查：`pnpm run check:svelte`（svelte-check + tsconfig.svelte.json
   的 bundler 解析；主 tsconfig 的 node10 解析配 vitest 子路径导出会假报）。
@@ -24,7 +24,7 @@
 
 1. **响应态形状** `core/XxxUi.ts`：接口 + `initialXxxUi()` 工厂 +
    context Symbol。只放「渲染要读」的字段；纯逻辑数据留在控制器私有字段。
-2. **根组件** `comp/XxxApp.svelte`：
+2. **根组件** `component/XxxApp.svelte`：
     - `const ui: XxxUi = $state(initialXxxUi());`（深代理，此后读写全走代理）
     - `export const view = new XxxView(ui, …);`（实例导出，挂载方能读到）
     - `setContext(XXX_CTX, view);`（子组件 `getContext` 取控制器）
@@ -112,7 +112,7 @@ SettingsDialog（低频稳定，路线图末尾再评估）。
 - `src/ui/FormRow.svelte`：表单行 Svelte 积木（children snippet）。
 - `src/ui/ModelPicker.ts` 新增 `modelPickAction`：Svelte action 桥。
 - companion 管理面板四件套：`CompanionPanelUi` / `CompanionPanelCtl`
-  / `comp/CompanionPanelApp.svelte`，删除旧 `core/CompanionPanel.ts`
+  / `component/CompanionPanelApp.svelte`，删除旧 `core/CompanionPanel.ts`
   （-218 行字符串模板）。行为变化：改任意配置不再全量重灌面板，
   响应式就地更新；两击确认状态不再因重灌丢失。
 - 挂载：`companion/index.ts` 的 `mountCompanionPanel`/`detachCompanionPanel`；
@@ -125,7 +125,7 @@ SettingsDialog（低频稳定，路线图末尾再评估）。
 
 - 两个面板四件套（CollectionPanel/KnowledgePanel）：
   `core/ColPanelUi|ColPanelCtl` / `core/KnowPanelUi|KnowPanelCtl` +
-  `comp/CollectionPanelApp|ColTreeLevel` / `comp/KnowledgePanelApp|
+  `component/CollectionPanelApp|ColTreeLevel` / `component/KnowledgePanelApp|
 KnowTreeItem`。原 `ui/CollectionPanel.ts|KnowledgePanel.ts` 瘦身为
   视图模型层（类型+树化/聚合纯函数+渲染辅助，单测不动）。
 - **递归树组件自引用**：Svelte 5 移除 `<svelte:self>`，组件文件
@@ -146,7 +146,7 @@ detachBankPanels`（companion 同款模块级单例+先卸再挂）；
 
 ## 批次 3 落地记录（2026-08-30，review 域）
 
-- 四件套：`core/ReviewUi|ReviewCtl` + `comp/ReviewApp|ReviewGroup|
+- 四件套：`core/ReviewUi|ReviewCtl` + `component/ReviewApp|ReviewGroup|
 ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   `ReviewHtml.ts` 瘦身为模型层（清单分组纯函数 listReviewModel +
   时间线 html 串——svg/Lute 产物与详情其余 html 字段同口径走
@@ -194,7 +194,7 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
 
 - 刷题侧栏文档树（原 `quiz/render/SideTree.ts` 字符串渲染）并入
   TreeList：渲染层退役，只剩 `buildSideTree` 纯建树；新增
-  `quiz/comp/SideTreeApp.svelte`（宿主：两行文档行经 TreeList 的
+  `quiz/component/SideTreeApp.svelte`（宿主：两行文档行经 TreeList 的
   `main` snippet 注入，元信息串在挂载侧预计算）+
   `quiz/flow/SideTreeMount.ts`（挂载编排：整壳 innerHTML 重建下
   挂载点不常驻——renderQuizShellFor 头部 detachSideTree、壳落后

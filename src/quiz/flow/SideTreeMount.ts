@@ -3,7 +3,7 @@ import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
 import type { TreeListNode } from "../../ui/TreeListTypes";
 import { buildSideTree, type SideTreeNode } from "../render/SideTree";
 import { fmt, mmss } from "../../ui/shared";
-import SideTreeApp from "../comp/SideTreeApp.svelte";
+import SideTreeApp from "../component/SideTreeApp.svelte";
 
 /**
  * 刷题侧栏树的挂载编排（TreeList 共享化 20260830）：整壳 innerHTML

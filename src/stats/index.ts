@@ -1,11 +1,11 @@
 import type { HistoryStore } from "../quiz/service/HistoryStore";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
-import StatsApp from "./comp/StatsApp.svelte";
+import StatsApp from "./component/StatsApp.svelte";
 import type { WeakCause, WeakTopRow } from "../bank/data/WeaknessStore";
 import type { WenguDoc, WenguQuestion } from "../types";
 
 /**
- * 统计面板编排（浮层，Svelte 化 20260830，四件套见 core/comp/）：
+ * 统计面板编排（浮层，Svelte 化 20260830，四件套见 core/component/）：
  * 总览 / 本文档详情两 tab。数据只读聚合——会话历史（HistoryStore）+
  * 视图已装载的文档榜与题目列表，无额外 SQL；文档榜行点击下钻走视图
  * switchDoc，装载完成后由视图重开面板（tab=doc）。视图重渲染/销毁

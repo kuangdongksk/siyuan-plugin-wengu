@@ -3,14 +3,14 @@ import { renderHeadHtml, renderSideHtml } from "../quiz/render/CardHtml";
 import { renderRailHtml } from "../quiz/render/RailHtml";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
 import { reviewCtl } from "./core/ReviewCtl";
-import ReviewApp from "./comp/ReviewApp.svelte";
+import ReviewApp from "./component/ReviewApp.svelte";
 import type { WenguDoc } from "../types";
 import { esc, fmt } from "../ui/shared";
 
 /**
  * 错题本（复习模式，M6 mode="review"）编排：rail/side/head 壳仍走
  * quiz 的字符串渲染（头部/侧栏事件由 QuizView 统一绑定），主区
- * （工具行+清单+详情）Svelte 化挂载（20260830，四件套见 core/comp/）。
+ * （工具行+清单+详情）Svelte 化挂载（20260830，四件套见 core/component/）。
  * 筛选/排序/选中/缓存持久在 ReviewCtl 单例——外部域（quiz 侧栏/
  * 统计面板）在视图外读写，视图重渲染不丢状态。
  */
