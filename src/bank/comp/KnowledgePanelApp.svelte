@@ -3,14 +3,24 @@
     import type { QuizView } from "../../quiz";
     import { KNOW_PANEL_CTX, initialKnowPanelUi } from "../core/KnowPanelUi";
     import { KnowPanelCtl } from "../core/KnowPanelCtl";
-    import { buildKnowTree } from "../ui/KnowledgePanel";
-    import KnowTreeItem from "./KnowTreeItem.svelte";
+    import {
+        buildKnowTree,
+        secKeyOf,
+        type KnowDocView,
+        type KnowSectionView,
+        type KnowTreeNode,
+    } from "../ui/KnowledgePanel";
+    import TreeList from "../../ui/TreeList.svelte";
+    import type { TreeListNode } from "../../ui/TreeListTypes";
+    import { fmt } from "../../ui/shared";
 
     /**
      * 知识文档管理工作区面板根组件（四件套之一）：屏幕路由=phase 三态，
      * 树由 docs/info 现算（buildKnowTree）。旧实现折叠切换要 paintTree
-     * 整树重绘（容器级委托 + openPaths 集合），现在 openPaths 进响应态，
-     * 细粒度更新。挂载编排见 bank/index.ts mountKnowledgePanel。
+     * 整树重绘，现在 openPaths 进响应态，细粒度更新；20260830 行渲染
+     * 收敛共享组件 TreeList（与文档选择器同源，行尾计数/动作钮走
+     * trailing snippet，载荷经 key 回查表携带）。挂载编排见 bank/index.ts
+     * mountKnowledgePanel。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -21,7 +31,57 @@
     const ctl = new KnowPanelCtl(ui, v);
     setContext(KNOW_PANEL_CTX, { ctl, ui, t });
 
-    const treeNodes = $derived(buildKnowTree(ui.docs, ui.info));
+    const docTip = (d: KnowDocView): string => {
+        const tag = d.manual ? ` · ${t("knowImportTag")}` : "";
+        return `${d.title}\n${fmt(t("knowSections"), { n: String(d.sections.length) })} · ${fmt(t("knowQCount"), {
+            n: String(d.total),
+        })}${tag}`;
+    };
+
+    /** KnowTreeNode → 通用树行：分支 key=树路径，文档行 key=小节容器
+     * （secKeyOf 后缀防撞，折叠语义同旧实现）；小节叶子插在文档子级头部。 */
+    const toRows = (
+        ns: KnowTreeNode[],
+        docByKey: Map<string, KnowDocView>,
+        secByKey: Map<string, KnowSectionView>
+    ): TreeListNode[] =>
+        ns.map((n): TreeListNode => {
+            if (!n.doc) {
+                return { key: n.path, name: n.name, tip: n.path, kind: "branch", children: [] };
+            }
+            const key = secKeyOf(n.path);
+            docByKey.set(key, n.doc);
+            const kids = n.doc.sections.map((s): TreeListNode => {
+                secByKey.set(s.id, s);
+                return { key: s.id, name: s.title, tip: s.title, kind: "sec", children: [] };
+            });
+            return {
+                key,
+                name: n.doc.title,
+                tip: docTip(n.doc),
+                kind: "doc",
+                hideAction: true,
+                children: [...kids, ...toRows(n.children, docByKey, secByKey)],
+            };
+        });
+
+    const tree = $derived.by(() => {
+        const docByKey = new Map<string, KnowDocView>();
+        const secByKey = new Map<string, KnowSectionView>();
+        const rows = toRows(buildKnowTree(ui.docs, ui.info), docByKey, secByKey);
+        return { rows, docByKey, secByKey };
+    });
+
+    const rowclick = (n: TreeListNode, e: MouseEvent): void => {
+        if ((e.target as HTMLElement).closest("button")) return; // 动作钮不触发打开
+        const s = tree.secByKey.get(n.key);
+        if (s) {
+            ctl.open(s.id);
+            return;
+        }
+        const d = tree.docByKey.get(n.key);
+        if (d) ctl.open(d.docId);
+    };
 
     onMount(() => {
         void ctl.load();
@@ -52,9 +112,43 @@
         <div class="wengu-cp-list">
             {#if ui.docs.length}
                 <div class="wengu-tree">
-                    {#each treeNodes as n (n.path)}
-                        <KnowTreeItem node={n} />
-                    {/each}
+                    <TreeList nodes={tree.rows} openKeys={ui.openPaths} onrowclick={rowclick}>
+                        {#snippet trailing(n)}
+                            {@const d = tree.docByKey.get(n.key)}
+                            {@const s = tree.secByKey.get(n.key)}
+                            {#if s}
+                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(s.count) })}</span>
+                            {:else if d}
+                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(d.total) })}</span>
+                                <span class="b3-list-item__action">
+                                    <button type="button" class="b3-button b3-button--text" onclick={() => ctl.match(d)}
+                                        >{t("knowMatchBtn")}</button
+                                    >
+                                    <button type="button" class="b3-button b3-button--text" onclick={() => ctl.gen(d)}
+                                        >{t("knowGenBtn")}</button
+                                    >
+                                    <button
+                                        type="button"
+                                        class="b3-button b3-button--text"
+                                        onclick={() => ctl.related(d)}>{t("knowRelated")}</button
+                                    >
+                                    <button
+                                        type="button"
+                                        class="b3-button b3-button--text"
+                                        onclick={() => ctl.open(d.docId)}>{t("knowOpen")}</button
+                                    >
+                                    {#if d.registered}
+                                        <button
+                                            type="button"
+                                            class="b3-button b3-button--text"
+                                            onclick={() => ctl.armRemove(d.docId)}
+                                            >{ui.rmArmed === d.docId ? t("collectConfirm") : t("knowRemoveBtn")}</button
+                                        >
+                                    {/if}
+                                </span>
+                            {/if}
+                        {/snippet}
+                    </TreeList>
                 </div>
             {:else}
                 <div class="wengu-muted">{t("knowEmpty")}</div>

@@ -70,8 +70,6 @@ export interface ViewBindCtx {
     removeDocSet(docId: string): void;
     /** 目录文档右键「变式重练」：按题生成变式专题并切换开刷。 */
     variantDrill(docId: string): void;
-    /** 侧栏树分支折叠/展开（S1）。 */
-    toggleTree(path: string): void;
     /** 右键菜单项文案（i18n）。 */
     reviewMenuLabel: string;
     reimportMenuLabel: string;
@@ -93,16 +91,10 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
     q("[data-act='side-search']")?.addEventListener("input", (ev) => {
         ctx.filterDocs((ev.target as HTMLInputElement).value);
     });
-    // 事件委托：搜索过滤只重绘清单 innerHTML，点击绑定挂在容器上不失效
+    // 事件委托：搜索过滤只重绘清单 innerHTML，点击绑定挂在容器上不失效。
+    // 树行（TreeList）的折叠/开刷在组件内消化，此处只服务平铺搜索行/专题行
     q("[data-side-body]")?.addEventListener("click", (ev) => {
         const target = ev.target as HTMLElement;
-        // 树分支折叠/展开：分支行/带子级文档行的 toggle 带 data-tree-path
-        // （带子级的文档行本身不带，点其标题仍走开刷）
-        const toggle = target.closest<HTMLElement>("[data-tree-path]");
-        if (toggle) {
-            ctx.toggleTree(toggle.dataset.treePath ?? "");
-            return;
-        }
         const node = target.closest<HTMLElement>("[data-docid]");
         if (node) {
             ctx.switchDoc(node.dataset.docid ?? "");
@@ -113,9 +105,10 @@ export function bindViewEvents(ctx: ViewBindCtx): void {
     });
     // 目录文档右键：错题复习 + 重新导入（有存活源讲义才露出，源查库
     // 有一次 SQL 往返，菜单迟一拍开）+ 删除此题集（文档保留）+ 变式重练
+    // （平铺搜索行带 data-docid；树行=TreeList 的 data-id）
     q("[data-side-body]")?.addEventListener("contextmenu", (ev) => {
-        const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid]");
-        const docId = node?.dataset.docid;
+        const node = (ev.target as HTMLElement).closest<HTMLElement>("[data-docid], [data-id]");
+        const docId = node?.dataset.docid ?? node?.dataset.id;
         if (!docId) return;
         const pos = ev as MouseEvent;
         ev.preventDefault();
@@ -161,7 +154,6 @@ export interface HeadAccess {
     reimportDocOf(docId: string): void;
     removeSetOf(docId: string): void;
     variantDrillOf(docId: string): void;
-    toggleSideTreeOf(path: string): void;
     sideTreeOpenOf(): string[];
 }
 
@@ -196,21 +188,9 @@ export function bindHeadFor(v: HeadAccess): void {
         reimportDoc: (id) => v.reimportDocOf(id),
         removeDocSet: (id) => v.removeSetOf(id),
         variantDrill: (id) => v.variantDrillOf(id),
-        toggleTree: (path) => v.toggleSideTreeOf(path),
         reviewMenuLabel: v.t("reviewMenuLabel"),
         reimportMenuLabel: v.t("reimportMenuLabel"),
         removeSetMenuLabel: v.t("removeSetMenuLabel"),
         variantDrillMenuLabel: v.t("variantDrillMenuLabel"),
     });
-}
-
-/** 侧栏树分支折叠/展开（S1）：改集合持久化后局部重绘清单块。
- *  自 QuizView.toggleSideTreeOf 拆出压 500 行红线。 */
-export function toggleSideTreeFor(v: QuizView, path: string): void {
-    const set = new Set(v.sideTreeOpen);
-    if (set.has(path)) set.delete(path);
-    else set.add(path);
-    v.sideTreeOpen = [...set];
-    v.persistPrefs();
-    applySideFilter(v.el, v.docs, v.docId, v.t, v.sideFilter, v.colFlow.rowsView(), v.colFlow.id(), v.sideTreeOpen);
 }

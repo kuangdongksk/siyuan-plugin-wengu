@@ -147,7 +147,7 @@ detachBankPanels`（companion 同款模块级单例+先卸再挂）；
 ## 批次 3 落地记录（2026-08-30，review 域）
 
 - 四件套：`core/ReviewUi|ReviewCtl` + `comp/ReviewApp|ReviewGroup|
-  ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
+ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   `ReviewHtml.ts` 瘦身为模型层（清单分组纯函数 listReviewModel +
   时间线 html 串——svg/Lute 产物与详情其余 html 字段同口径走
   {@html} 桥接）。
@@ -168,3 +168,51 @@ detachBankPanels`（companion 同款模块级单例+先卸再挂）；
   svelte-check 报 expected_tag）。
 - 详情数学渲染换 `$effect`（phase ready 且容器在位时对 inner 补
   renderMathIn，对齐旧 innerHTML 落位即调的时机）。
+
+## 树组件收拢（2026-08-30，TreeList）
+
+- `src/ui/TreeList.svelte`：共享递归树行组件——知识面板树（原
+  `KnowTreeItem`，已删）与文档选择器树（原 `PickerTree.ts` 渲染层，
+  已退役只剩建树纯函数）两套同款类名、各写一份渲染+宿主 CSS 的漂移
+  源，收敛为同源渲染。通用行样式归 `base.scss` `.wengu-tree` 一份
+  （原 rail/panels 两份宿主规则删除，宿主只留面板动作钮 hover、勾位
+  图标色等特有位）。
+- 组件契约：宿主自备 `<div class="wengu-tree">` 容器；`openKeys` 传
+  共享可变 Set（$state 深代理，组件内增删即响应）；行尾自定义（计数/
+  动作钮/勾位）走 `trailing` snippet；`kind: branch|doc|sec` 定行壳，
+  `id` 参与单选高亮/多选勾。浮层内挂载见 `KnowPickerApp.svelte`
+  （实例导出 getSelected/toggleSelected/clearSelected，平铺搜索行与
+  「清空/确定」共用同一份勾选事实源）。
+- vitest 无 svelte 插件：测试 import 链路过 .svelte（convert→
+  KnowPicker→KnowPickerApp）会解析失败，`vitest.config.ts` 把
+  `*.svelte` 别名到 `tests/svelte-stub.ts` 空壳（挂载不进单测）。
+- 顺带修暗病：旧知识面板分支行/文档行的箭头点击无 stopPropagation，
+  与行体 handler 双触发（分支折叠相互抵消=点箭头没反应、文档行误触
+  打开）；TreeList 箭头统一断泡。
+
+### 侧栏树并入（20260830 同日）
+
+- 刷题侧栏文档树（原 `quiz/render/SideTree.ts` 字符串渲染）并入
+  TreeList：渲染层退役，只剩 `buildSideTree` 纯建树；新增
+  `quiz/comp/SideTreeApp.svelte`（宿主：两行文档行经 TreeList 的
+  `main` snippet 注入，元信息串在挂载侧预计算）+
+  `quiz/flow/SideTreeMount.ts`（挂载编排：整壳 innerHTML 重建下
+  挂载点不常驻——renderQuizShellFor 头部 detachSideTree、壳落后
+  mountSideTreeFor；applySideFilter 重灌侧栏体后 remountSideTree
+  复用本次壳的回调重挂，搜索态无挂载点=只卸不挂）。
+- 折叠不再走 DOM 委托重绘：SideTreeApp 内部改展开集合经
+  `ontoggle` 回调持久化 prefs.sideTreeOpen（旧 toggleSideTreeFor/
+  toggleTree 委托链删除）；复习模式侧栏同挂（docId 传空不亮行，
+  点行=selectDoc 分流筛选错题本）。树行带 `data-id`，右键菜单
+  委托从 `[data-docid]` 扩到 `[data-id]`。
+- **TreeList 契约同步扩展**：`main` snippet（自定义行主内容）、
+  `ontoggle` 回调、行上 `data-id`；节点契约挪 `ui/TreeListTypes.ts`
+  ——*.svelte 环境声明不带具名导出，.ts 侧（SideTreeMount）无法
+  从 .svelte 具名导入类型。
+- base.scss 旧的 `.wengu-tree-doc/.wengu-tree-branch/.wengu-tree-name`
+  行规则随旧渲染删除；侧栏两行行/active 高亮条改 `.wengu-side-body`
+  作用域新规则（对齐旧观感）。
+- 专题树 ColTreeLevel **不并入**：官方文档树同款 li/ul+文件夹图标+
+  行内改名/新建输入是其定稿视觉（col-folder 分支验收过），行解剖
+  （depth 缩进模型/计数/武装态）与 TreeList 差异过大，硬塞会把共享
+  组件撑成上帝组件；它本身已是递归 Svelte 组件，架构同族。

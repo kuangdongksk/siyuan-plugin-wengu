@@ -8,7 +8,7 @@ import type { WenguStep } from "../../types";
 import { AUTO_GRADE_TYPES, hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../../types";
 import type { WenguDoc } from "../../types";
 import { esc, fmt, mmss } from "../../ui/shared";
-import { buildSideTree, renderSideTree } from "./SideTree";
+import { remountSideTree } from "../flow/SideTreeMount";
 
 /**
  * 纯 HTML 构建层（design-review 拆分）：题卡/作答位/目录/头部。
@@ -173,8 +173,6 @@ export interface SideHtmlModel {
     collections: { id: string; title: string; count: number }[];
     /** 当前选中的专题 id（题库模式）。 */
     activeCollection: string;
-    /** 展开的树路径集合（搜索态走平铺不用它）。 */
-    sideTreeOpen: string[];
 }
 
 /** 目录文档清单（空搜索=树形渲染，S1~S3；有搜索词=临时平铺分组便于扫结果）。
@@ -186,8 +184,7 @@ export function renderSideBodyHtml(
     t: (key: string) => string,
     filter: string,
     collections: { id: string; title: string; count: number }[] = [],
-    activeCollection = "",
-    sideTreeOpen: string[] = []
+    activeCollection = ""
 ): string {
     const q = filter.trim().toLowerCase();
     const cols = collections.filter((c) => !c.id.startsWith("doc:"));
@@ -207,18 +204,11 @@ export function renderSideBodyHtml(
             .join("")}</div>`
             : "";
     if (!q) {
-        // 树形（默认视图）：hPath 建树，展开集合由调用方持有持久化
+        // 树形（默认视图）：TreeList 挂载点占位（挂载/重挂编排在
+        // flow/SideTreeMount；展开集合由 QuizView 持有并持久化）
         if (docs.length === 0)
             return colSection + `<div class="wengu-muted wengu-side-empty">${esc(t("noExerciseDocs"))}</div>`;
-        return (
-            colSection +
-            renderSideTree(buildSideTree(docs), {
-                t,
-                docId,
-                activeCollection,
-                openPaths: new Set(sideTreeOpen),
-            })
-        );
+        return colSection + "<div data-side-tree></div>";
     }
     const groups = new Map<string, WenguDoc[]>();
     for (const d of docs) {
@@ -303,8 +293,7 @@ export function renderSideHtml(m: SideHtmlModel): string {
           t,
           m.filter,
           m.collections,
-          m.activeCollection,
-          m.sideTreeOpen
+          m.activeCollection
       )}</div>
     </div>`;
 }
@@ -391,8 +380,6 @@ export interface MainShellModel {
     hasSettingsButton: boolean;
     /** 目录搜索过滤词（透传给目录）。 */
     filter: string;
-    /** 侧栏树展开集合（透传给目录）。 */
-    sideTreeOpen: string[];
     /** 题库专题清单与选中项（透传给目录）。 */
     collections: { id: string; title: string; count: number }[];
     activeCollection: string;
@@ -422,7 +409,6 @@ export function renderMainShell(m: MainShellModel): string {
             filter: m.filter,
             collections: m.collections,
             activeCollection: m.activeCollection,
-            sideTreeOpen: m.sideTreeOpen,
         })}<div class="wengu-main">
     <div class="wengu-head">${renderHeadHtml(m.t, m.sideCollapsed, m.subheadHtml, m.started)}</div>
     ${body}
@@ -494,5 +480,7 @@ export function applySideFilter(
     sideTreeOpen: string[] = []
 ): void {
     const body = el.querySelector("[data-side-body]");
-    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text, collections, activeCollection, sideTreeOpen);
+    if (body) body.innerHTML = renderSideBodyHtml(docs, docId, t, text, collections, activeCollection);
+    // 树挂载点随 innerHTML 重灌消亡，重挂（搜索态无挂载点=只卸不挂）
+    remountSideTree(el, docs, docId, activeCollection, sideTreeOpen, t);
 }

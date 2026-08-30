@@ -1,5 +1,6 @@
 import type { AnswerHost } from "./AnswerFlow";
 import type { DrillUnit } from "../render/DrillUnits";
+import { chaseScrollIntoView } from "../render/NumRail";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
 
@@ -87,8 +88,12 @@ function showQuestion(unit: HTMLElement, u: DrillUnit, qi: number, opts: GroupFl
     }
 }
 
-/** 题号导航/滚动跟踪入口：idx 属于某组时切到该题并滚到组单元。 */
+/** 题号导航/滚动跟踪入口：idx 属于某组时切到该题并滚到组单元。
+ *  滚动走追赶式（NumRail）：组单元材料 Protyle 挂载中持续撑高，
+ *  scrollIntoView 一次定标会停在过时像素。 */
 export function focusQuestion(root: HTMLElement, units: DrillUnit[], list: WenguQuestion[], idx: number): void {
+    const scroller = root.querySelector<HTMLElement>(".wengu-main");
+    if (!scroller) return;
     for (const unit of root.querySelectorAll<HTMLElement>(".wengu-gunit")) {
         const u = units.find((x) => x.kind === "group" && x.mid === unit.dataset.mid);
         const hit = u?.qs?.find((gq) => gq.idx === idx);
@@ -106,14 +111,12 @@ export function focusQuestion(root: HTMLElement, units: DrillUnit[], list: Wengu
             const label = unit.querySelector<HTMLElement>("[data-gq-label]");
             if (label) label.textContent = `${qi + 1}/${u.qs!.length}`;
         }
-        unit.scrollIntoView({ block: "start", behavior: "smooth" });
+        chaseScrollIntoView(scroller, unit, "start");
         return;
     }
     // 非组题：滚到普通题卡
-    root.querySelector<HTMLElement>(`.wengu-card[data-idx="${idx}"]`)?.scrollIntoView({
-        block: "center",
-        behavior: "smooth",
-    });
+    const card = root.querySelector<HTMLElement>(`.wengu-card[data-idx="${idx}"]:not([hidden])`);
+    if (card) chaseScrollIntoView(scroller, card, "center");
 }
 
 /** 组内题目全部判分后揭示材料译文（判分/恢复/统一揭示路径都会调）。 */

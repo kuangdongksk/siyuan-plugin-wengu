@@ -1,18 +1,21 @@
 import { esc } from "./shared";
 import { svgIcon } from "./FormHtml";
 import { KernelQuery } from "../siyuan/query";
-import { buildPickerTree, renderPickerTree, PickerTreeNode } from "./PickerTree";
+import { mountSvelteApp, type MountedSvelteApp } from "./mountApp";
+import KnowPickerApp from "./KnowPickerApp.svelte";
 
 /**
  * 文档选择器（UI 标准第 7 条：长列表选择用官方风格可搜索浮层）：
- * 挂 body 的 b3-menu 下拉（b3-menu__filter + b3-list），替代旧版大
- * Dialog（20260826 按用户意见改版）。单选即点即回；多选行内勾选 +
- * 底部「清空/确定」。SQL 恒带 LIMIT（内核无 LIMIT 静默截断 64 行的坑），
- * 关键词过滤引号/通配符防 SQL 串坏。
+ * 挂 body 的 b3-menu 下拉（b3-menu__filter + b3-list）。单选即点即回；
+ * 多选行内勾选 + 底部「清空/确定」。SQL 恒带 LIMIT（内核无 LIMIT 静默
+ * 截断 64 行的坑），关键词过滤引号/通配符防 SQL 串坏。
  *
  * 20260827 树化（variant-and-doctree §二 T1~T3）：空搜索默认展示
  * hPath 树（分支折叠、仅文档行可点），输入关键词切平铺结果、清空回树
  * （思源文档树同款模式）。树数据分页串行拉全量，60s 内缓存复用。
+ * 20260830 树渲染收敛共享组件 TreeList（挂 KnowPickerApp，勾选/展开
+ * 是组件内响应态，本文件经实例导出读写；平铺搜索行仍字符串模板，
+ * 勾选与之共用同一份事实源）。
  */
 
 interface PickerDoc {
@@ -70,8 +73,16 @@ async function fetchTreeDocs(): Promise<{ id: string; hpath: string }[]> {
 }
 
 let menuEl: HTMLElement | null = null;
+/** 树组件实例（勾选事实源；与 menuEl 同生命周期，单浮层全局一份）。 */
+let treeApp: MountedSvelteApp<PickerAppExports> | null = null;
+
+function unmountTree(): void {
+    treeApp?.unmount();
+    treeApp = null;
+}
 
 function closePickerMenu(): void {
+    unmountTree();
     menuEl?.remove();
     menuEl = null;
     document.removeEventListener("pointerdown", onDocPointer, true);
@@ -82,14 +93,20 @@ function onDocPointer(ev: Event): void {
     if (menuEl && ev.target instanceof Node && !menuEl.contains(ev.target)) closePickerMenu();
 }
 
-function onDocKey(ev: KeyboardEvent): void {
-    if (ev.key === "Escape") closePickerMenu();
+function onDocKey(ev: Event): void {
+    if ((ev as KeyboardEvent).key === "Escape") closePickerMenu();
+}
+
+/** 树组件实例导出（勾选事实源，平铺行/清空/确定共用）。 */
+interface PickerAppExports {
+    getSelected(): string[];
+    toggleSelected(id: string): void;
+    clearSelected(): void;
 }
 
 export function openKnowPicker(opts: KnowPickerOpts): void {
     const { t } = opts;
     closePickerMenu();
-    const selected = new Set(opts.current);
     const single = opts.single === true;
 
     const wrap = document.createElement("div");
@@ -114,57 +131,80 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
     wrap.style.top = `${Math.min(rect.bottom + 4, window.innerHeight - 80)}px`;
 
     const list = wrap.querySelector<HTMLElement>("[data-act='kp-list']")!;
-    const rowOf = (d: PickerDoc): string => {
-        const on = single ? opts.current[0] === d.id : selected.has(d.id);
-        const label = d.hpath || d.content || d.id;
-        return `<div class="b3-list-item b3-list-item--narrow${single && on ? " b3-list-item--focus" : ""}" data-id="${
-            d.id
-        }" title="${esc(label)}"><span class="b3-list-item__text">${esc(label)}</span>${
-            single ? "" : `<span class="b3-list-item__action fn__none">${svgIcon("iconCheck")}</span>`
-        }</div>`;
+    // 双宿主并存：树=挂载组件的容器，平铺=搜索结果字符串模板；切换只
+    // 翻 hidden（勾选事实源在组件实例里，平铺行读写都经实例导出）
+    const treeHost = document.createElement("div");
+    const flatHost = document.createElement("div");
+    flatHost.hidden = true;
+    list.replaceChildren(treeHost, flatHost);
+
+    const mountTree = (docs: { id: string; hpath: string }[]): void => {
+        unmountTree();
+        treeHost.innerHTML = "";
+        const mounted = mountSvelteApp(KnowPickerApp, treeHost, {
+            docs,
+            current: opts.current[0] ?? "",
+            multi: !single,
+            initialSelected: opts.current,
+            onpick: single
+                ? (id: string) => {
+                      closePickerMenu();
+                      opts.onConfirm([id]);
+                  }
+                : undefined,
+        });
+        // *.svelte 的环境声明不带实例导出类型，这里收口一次
+        treeApp = { app: mounted.app as PickerAppExports, unmount: mounted.unmount };
     };
-    const syncTicks = (): void => {
-        for (const row of Array.from(list.querySelectorAll<HTMLElement>("[data-id]"))) {
-            const tick = row.querySelector<HTMLElement>(".b3-list-item__action");
-            if (tick) tick.classList.toggle("fn__none", !selected.has(row.dataset.id ?? ""));
+
+    const syncFlatTicks = (): void => {
+        const sel = new Set(treeApp?.app.getSelected() ?? []);
+        for (const row of flatHost.querySelectorAll<HTMLElement>("[data-id]")) {
+            row.querySelector(".b3-list-item__action")?.classList.toggle("fn__none", !sel.has(row.dataset.id ?? ""));
         }
     };
-    const render = (docs: PickerDoc[]): void => {
-        list.innerHTML = docs.length
-            ? docs.map(rowOf).join("")
+
+    const showFlat = (docs: PickerDoc[]): void => {
+        unmountTree();
+        treeHost.hidden = true;
+        flatHost.hidden = false;
+        flatHost.innerHTML = docs.length
+            ? docs
+                  .map((d) => {
+                      const on = single ? opts.current[0] === d.id : false;
+                      const label = d.hpath || d.content || d.id;
+                      return `<div class="b3-list-item b3-list-item--narrow${on ? " b3-list-item--focus" : ""}" data-id="${
+                          d.id
+                      }" title="${esc(label)}"><span class="b3-list-item__text">${esc(label)}</span>${
+                          single ? "" : `<span class="b3-list-item__action fn__none">${svgIcon("iconCheck")}</span>`
+                      }</div>`;
+                  })
+                  .join("")
             : `<div class="b3-list--empty">${esc(t("knowPickEmpty"))}</div>`;
-        syncTicks();
+    };
+
+    const showTree = (): void => {
+        flatHost.hidden = true;
+        treeHost.hidden = false;
+        if (treeApp) return; // 树已挂载（搜索回树不重灌）
+        if (treeCache && Date.now() - treeCache.at < TREE_TTL) {
+            mountTree(treeCache.docs);
+            return;
+        }
+        treeHost.innerHTML = "<div class='wengu-muted'>…</div>";
+        void fetchTreeDocs()
+            .then((docs) => {
+                if (menuEl === wrap) mountTree(docs);
+            })
+            .catch(() => {
+                if (menuEl === wrap) {
+                    unmountTree();
+                    treeHost.innerHTML = `<div class="b3-list--empty">${esc(t("knowPickEmpty"))}</div>`;
+                }
+            });
     };
 
     let timer = 0;
-    let seq = 0;
-    // 树态：节点首拉后常驻本次浮层；展开集合默认第一层（笔记本级）
-    let treeNodes: PickerTreeNode[] | null = null;
-    const openPaths = new Set<string>();
-    const renderTree = (): void => {
-        list.innerHTML = treeNodes?.length
-            ? renderPickerTree(treeNodes, { selected, current: opts.current[0] ?? "", openPaths }, single)
-            : `<div class="b3-list--empty">${esc(t("knowPickEmpty"))}</div>`;
-    };
-    const showTree = (): void => {
-        const cur = ++seq;
-        if (treeNodes) {
-            renderTree();
-            return;
-        }
-        list.innerHTML = "<div class='wengu-muted'>…</div>";
-        fetchTreeDocs()
-            .then((docs) => {
-                if (cur !== seq) return;
-                treeNodes = buildPickerTree(docs);
-                for (const n of treeNodes) if (n.children.length > 0) openPaths.add(n.path);
-                renderTree();
-            })
-            .catch(() => {
-                if (cur !== seq) return;
-                renderTree();
-            });
-    };
     const reload = (): void => {
         window.clearTimeout(timer);
         timer = window.setTimeout(() => {
@@ -173,28 +213,19 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
                 showTree();
                 return;
             }
-            const cur = ++seq;
             void queryDocs(kw)
                 .then((docs) => {
-                    if (cur === seq) render(docs);
+                    if (menuEl === wrap) showFlat(docs);
                 })
                 .catch(() => {
-                    if (cur === seq) render([]);
+                    if (menuEl === wrap) showFlat([]);
                 });
         }, 300);
     };
     wrap.querySelector("input")!.addEventListener("input", reload);
 
-    list.addEventListener("click", (ev) => {
-        // 折叠箭头优先于文档行选中（箭头在文档行内，closest 先命中）
-        const toggle = (ev.target as HTMLElement).closest<HTMLElement>("[data-tree-path]");
-        if (toggle) {
-            const p = toggle.dataset.treePath ?? "";
-            if (openPaths.has(p)) openPaths.delete(p);
-            else openPaths.add(p);
-            renderTree();
-            return;
-        }
+    // 平铺行点击：单选即确认；多选切勾（勾选事实源在组件实例，树回显自动同步）
+    flatHost.addEventListener("click", (ev) => {
         const row = (ev.target as HTMLElement).closest<HTMLElement>("[data-id]");
         const id = row?.dataset.id ?? "";
         if (!id) return;
@@ -203,17 +234,17 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
             opts.onConfirm([id]);
             return;
         }
-        if (selected.has(id)) selected.delete(id);
-        else selected.add(id);
-        syncTicks();
+        treeApp?.app.toggleSelected(id);
+        syncFlatTicks();
     });
     wrap.querySelector<HTMLButtonElement>("[data-act='kp-clear']")?.addEventListener("click", () => {
-        selected.clear();
-        syncTicks();
+        treeApp?.app.clearSelected();
+        syncFlatTicks();
     });
     wrap.querySelector<HTMLButtonElement>("[data-act='kp-ok']")?.addEventListener("click", () => {
+        const ids = treeApp?.app.getSelected() ?? [];
         closePickerMenu();
-        opts.onConfirm(Array.from(selected));
+        opts.onConfirm(ids);
     });
 
     document.body.appendChild(wrap);

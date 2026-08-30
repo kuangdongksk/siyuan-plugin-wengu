@@ -8,6 +8,69 @@
  * ~200 题卷每帧省一次 8000+ 节点扫描）；active 差分更新只动前后
  * 两个按钮，同题号重复上报直接跳过。
  */
+/* ── 追赶式滚动（题号导航专用）──
+ * scrollIntoView(smooth) 的目标像素在调用瞬间定死，而长卷滚动路径上
+ * 布局还在变：内嵌 Protyle 逐卡串行挂载、content-visibility 屏外卡
+ * 260px 占位到近视口才真实化，上方卡片持续撑高——动画停在过时像素，
+ * 30 题卷第一题点末题落到中途（20260830 真机）。改 rAF 逐帧按目标卡
+ * 当前几何位置重算目标 scrollTop 逼近，撑高多少追多少；用户滚轮/
+ * 拖动（wheel/pointerdown）即刻让路，目标卡被整壳重建摘除即止。 */
+
+interface Chase {
+    stop: () => void;
+}
+
+const chases = new WeakMap<HTMLElement, Chase>();
+
+/** 滚动跟踪回写的闸：追赶进行中题号栏不按「顶端最近」规则翻高亮。 */
+export function isChasingActive(scroller: HTMLElement): boolean {
+    return chases.has(scroller);
+}
+
+/** 追赶滚动到目标元素。block 语义对齐 scrollIntoView：start=顶对齐
+ *  （+scroll-margin-top，实测不猜值），center=居中。 */
+export function chaseScrollIntoView(scroller: HTMLElement, card: HTMLElement, block: "start" | "center"): void {
+    chases.get(scroller)?.stop();
+    const ac = new AbortController();
+    const state: Chase = {
+        stop: (): void => {
+            ac.abort();
+            if (chases.get(scroller) === state) chases.delete(scroller);
+        },
+    };
+    chases.set(scroller, state);
+    for (const type of ["wheel", "pointerdown"] as const) {
+        scroller.addEventListener(type, () => state.stop(), { signal: ac.signal, passive: true });
+    }
+    const marginTop = parseFloat(getComputedStyle(card).scrollMarginTop) || 0;
+    let stable = 0;
+    const deadline = performance.now() + 10000; // 兜底防 rAF 死循环（挂载撑高一般 1~2s 收敛）
+    const step = (): void => {
+        if (ac.signal.aborted || !card.isConnected) {
+            state.stop();
+            return;
+        }
+        const sTop = scroller.getBoundingClientRect().top;
+        const c = card.getBoundingClientRect();
+        const slack = block === "start" ? marginTop : (scroller.clientHeight - c.height) / 2;
+        const goal = scroller.scrollTop + (c.top - sTop) - slack;
+        const cur = scroller.scrollTop;
+        if (Math.abs(goal - cur) < 1) {
+            // 连续 ~130ms 目标稳定才算落位：挂载尾程的撑高随时再追
+            if (++stable >= 8) {
+                state.stop();
+                return;
+            }
+        } else {
+            stable = 0;
+            scroller.scrollTop = cur + (goal - cur) * 0.2;
+        }
+        if (performance.now() > deadline) state.stop();
+        requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
 export function bindNumRail(
     root: HTMLElement,
     opts: { onActive: (idx: number) => void; onFocus?: (idx: number) => void }
@@ -29,6 +92,7 @@ export function bindNumRail(
         next?.classList.add("wengu-num-active");
         activeBtn = next;
     };
+    const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (nav) {
         for (const btn of nav.querySelectorAll<HTMLElement>(".wengu-num")) {
             btn.addEventListener("click", () => {
@@ -37,17 +101,14 @@ export function bindNumRail(
                 if (opts.onFocus) {
                     // 材料组一次一题：点击组内题号由视图切题并滚到组单元
                     opts.onFocus(n - 1);
-                } else {
-                    root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`)?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center",
-                    });
+                } else if (scroller) {
+                    const card = root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`);
+                    if (card) chaseScrollIntoView(scroller, card, "center");
                 }
                 setActive(n);
             });
         }
     }
-    const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (!scroller) return;
     // 头部吸顶后题号栏让位到头下：实测头部实际高度（窄窗折行会更高），
     // 每次渲染后刷新到滚动容器上；题号栏封顶 = 滚动可视区 − 头下缘，
@@ -90,6 +151,7 @@ export function bindNumRail(
             window.requestAnimationFrame(() => {
                 pending = false;
                 applyHeights(); // 窗口缩放后随滚动自愈（值没变时零开销）
+                if (isChasingActive(scroller)) return; // 追赶滚动期间不回写（见文件头）
                 if (performance.now() < lockUntil) {
                     // 平滑滚动仍在进行就续锁：长列表滚到末尾常超 800ms，
                     // 固定锁过期后「顶端最近」规则会把点击的末题翻回前题

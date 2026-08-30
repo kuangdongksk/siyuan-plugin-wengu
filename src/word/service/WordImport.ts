@@ -3,16 +3,29 @@ import { keyOf, rollToday, todayKey, type WenguWordProgress } from "../core/Word
 import { seedWord } from "../core/WordFsrs";
 
 /**
- * 不背单词进度导入（PDF 文字层 / txt）。
+ * 进度导入（TSV：制表符三列「单词 | 状态 | n天后复习」）。
  *
- * 不背按学习状态分别导出 PDF（标题如「…·未学习」，词条两栏：
- * 编号+单词 | 释义），是 App 生成的文本 PDF——本模块自解析文字层：
- * 流解压走浏览器原生 DecompressionStream，中文经 ToUnicode CMap
- * 映射，单词直接取 ASCII 词元；扫描件（无文字层）明确报错引导转 txt。
+ * 一份文件覆盖全部词，状态行内自带（未学习/复习中/复习完成/已标熟，
+ * 英文枚举同认），不再逐份导出+预选状态。第三列天数是**复习中的进度
+ * 锚点**：填 n = n 天后到期；不填按**词书顺序**错峰打散（复习中 1+W
+ * 天、复习完成 6+W 天，窗口 W 随量自适应）——避开同日到期洪峰，且
+ * FSRS 首次真实复习即按评分校正，种子偏差短命（redesign §三）。
+ * 编码 UTF-8 优先，解码失败回 GBK（Excel 中文另存常见 ANSI/GBK）。
  */
 
 /** 四种导入状态。 */
 export type WordImportStatus = "unlearned" | "reviewing" | "done" | "familiar";
+
+/** 状态词表（中/英同认，行内第 2 列）。 */
+const STATUS_WORDS: [WordImportStatus, string[]][] = [
+    ["unlearned", ["未学习", "unlearned"]],
+    ["reviewing", ["复习中", "reviewing"]],
+    ["done", ["复习完成", "done"]],
+    ["familiar", ["已标熟", "familiar"]],
+];
+
+/** 天数列合法范围（防手滑巨值）。 */
+const DAYS_MAX = 365;
 
 export interface WordImportResult {
     /** 词书命中数。 */
@@ -21,159 +34,45 @@ export interface WordImportResult {
     miss: number;
     /** 未匹配示例（前 5 个）。 */
     missSample: string[];
-    /** 自动识别出的状态（null=未识别，按用户选择处理）。 */
-    autoStatus: WordImportStatus | null;
-    /** 提取失败原因（有值即失败）。 */
+    /** 各状态命中数（明细文案用）。 */
+    perStatus: Record<WordImportStatus, number>;
+    /** 状态列未识别的行数（已跳过）。 */
+    badStatus: number;
+    badSample: string[];
+    /** 失败原因（有值即失败）。 */
     error?: string;
 }
 
-/* ── PDF 文字层提取 ── */
-
-/** 找出全部 stream 的原始字节（dictText 用于类型判断；负向断言避开 endstream）。 */
-function collectStreams(bytes: Uint8Array): { dict: string; data: Uint8Array }[] {
-    const latin = new TextDecoder("latin1").decode(bytes);
-    const out: { dict: string; data: Uint8Array }[] = [];
-    const re = /(?<!end)stream\r?\n/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(latin)) !== null) {
-        const end = latin.indexOf("endstream", m.index + m[0].length);
-        if (end < 0) break;
-        const dictStart = Math.max(0, m.index - 600);
-        out.push({
-            dict: latin.slice(dictStart, m.index),
-            data: bytes.subarray(m.index + m[0].length, end),
-        });
-        re.lastIndex = end;
-    }
-    return out;
+/** 一行的解析产物（days=第 3 列天数，非法/缺失=undefined 走默认打散）。 */
+interface TsvRow {
+    w: string;
+    st: WordImportStatus;
+    days?: number;
 }
 
-async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
-    // 流数据与 endstream 间常有换行，先裁掉再解压；失败再逐步多裁
-    let cut = data.length;
-    while (cut > 0 && [10, 13, 32].includes(data[cut - 1])) cut--;
-    for (let extra = 0; extra <= 2 && cut - extra > 0; extra++) {
-        try {
-            const ds = new DecompressionStream("deflate");
-            const part = data.subarray(0, cut - extra);
-            const stream = new Blob([part as unknown as BlobPart]).stream().pipeThrough(ds);
-            const buf = await new Response(stream).arrayBuffer();
-            return new Uint8Array(buf);
-        } catch (_) {
-            // 继续尝试
-        }
-    }
-    return null;
-}
-
-/** CMap：CID(hex) → Unicode。多字体流合并。 */
-function parseCMaps(text: string): Map<number, string> {
-    const map = new Map<number, string>();
-    const bfchar = /beginbfchar([\s\S]*?)endbfchar/g;
-    let m: RegExpExecArray | null;
-    while ((m = bfchar.exec(text)) !== null) {
-        for (const pair of m[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
-            const cid = parseInt(pair[1], 16);
-            const hex = pair[2];
-            let uni = "";
-            for (let i = 0; i + 3 < hex.length + 1 && i < hex.length; i += 4) {
-                uni += String.fromCharCode(parseInt(hex.slice(i, i + 4).padEnd(4, "0"), 16));
-            }
-            if (!map.has(cid)) map.set(cid, uni);
-        }
-    }
-    const bfrange = /beginbfrange([\s\S]*?)endbfrange/g;
-    while ((m = bfrange.exec(text)) !== null) {
-        for (const r of m[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
-            const lo = parseInt(r[1], 16);
-            const hi = parseInt(r[2], 16);
-            const base = parseInt(r[3], 16);
-            for (let c = lo; c <= hi && c - lo < 65536; c++) {
-                if (!map.has(c)) map.set(c, String.fromCharCode(base + (c - lo)));
-            }
-        }
-    }
-    return map;
-}
-
-/** 解码一个 PDF 文字串字面量（括号串处理转义；十六进制串走 CMap）。 */
-function decodeStr(raw: string, cmaps: Map<number, string>): string {
-    if (raw.startsWith("(")) {
-        const body = raw.slice(1, -1);
-        return body.replace(/\\([nrtbf()\\]|[0-7]{1,3})/g, (_, e: string) => {
-            if (e === "n") return "\n";
-            if (e === "r") return "\r";
-            if (e === "t") return "\t";
-            if (e.length <= 3 && /^[0-7]+$/.test(e)) return String.fromCharCode(parseInt(e, 8));
-            return e;
-        });
-    }
-    const hex = raw.slice(1, -1).replace(/\s+/g, "");
-    // 2 字节 CID 逐个映射；映射不到按 UTF-16BE 兜底（ASCII 场景已够）
-    let out = "";
-    for (let i = 0; i + 4 <= hex.length; i += 4) {
-        const cid = parseInt(hex.slice(i, i + 4), 16);
-        out += cmaps.get(cid) ?? (cid < 256 ? String.fromCharCode(cid) : "");
-    }
-    return out;
-}
-
-/** 全部内容流 → 纯文本：定位/换行操作符原位替换为换行，再逐行取字面量。 */
-function contentToText(content: string, cmaps: Map<number, string>): string {
-    const marked = content.replace(/\b(Td|TD|T\*|BT|ET)\b/g, "\n");
-    const re = /(\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]+>)/g;
-    return marked
-        .split("\n")
-        .map((line) => {
-            let out = "";
-            let m: RegExpExecArray | null;
-            re.lastIndex = 0;
-            while ((m = re.exec(line)) !== null) out += decodeStr(m[1], cmaps);
-            return out;
-        })
-        .filter((l) => l.length > 0)
-        .join("\n");
-}
-
-/** PDF → 文本（无文字层返回空串）。 */
-export async function extractPdfText(bytes: Uint8Array): Promise<string> {
-    const streams = await Promise.all(
-        collectStreams(bytes).map(async (s) => {
-            // Flate 解压失败(如误判)回退原始字节，文本流未压缩也能出字
-            const data = s.dict.includes("FlateDecode") ? ((await inflate(s.data)) ?? s.data) : s.data;
-            return data ? new TextDecoder("latin1").decode(data) : "";
-        })
-    );
-    const cmaps = parseCMaps(streams.join(""));
-    let text = "";
-    for (const s of streams) {
-        if (/\bTj\b|\bTJ\b/.test(s)) text += contentToText(s, cmaps) + "\n";
-    }
-    return text;
-}
-
-/* ── 词条解析与状态应用 ── */
-
-const STATUS_KEYWORDS: [WordImportStatus, string][] = [
-    ["unlearned", "未学习"],
-    ["reviewing", "复习中"],
-    ["done", "复习完成"],
-    ["familiar", "已标熟"],
-];
-
-/** 从文本抽候选单词（每行「编号 单词」或行首独立英文词元）。 */
-function extractWords(text: string): string[] {
-    const words: string[] = [];
-    for (const line of text.split(/\n|\r/)) {
-        const m = line.match(/^\s*\d{1,4}[\s.、]+([A-Za-z][A-Za-z'\-]*(?:\s+[A-Za-z][A-Za-z'\-]*){0,2})/);
-        if (m) {
-            words.push(m[1].trim());
+/** TSV 文本 → 行产物：表头行（第 2 列=「状态」/「status」）跳过；
+ * 状态不认识的行进 bad 计数不导入。导出供单测。 */
+export function parseTsv(text: string): { rows: TsvRow[]; bad: number; badSample: string[] } {
+    const rows: TsvRow[] = [];
+    let bad = 0;
+    const badSample: string[] = [];
+    const clean = text.replace(/^\uFEFF/, "");
+    for (const line of clean.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        const cols = line.split("\t").map((c) => c.trim());
+        const stWord = (cols[1] ?? "").toLowerCase();
+        if (stWord === "状态" || stWord === "status") continue; // 表头
+        const st = STATUS_WORDS.find(([, ws]) => ws.some((x) => x === stWord))?.[0];
+        if (!st || !cols[0]) {
+            bad++;
+            if (badSample.length < 5) badSample.push(cols[0] || line.slice(0, 20));
             continue;
         }
-        const w = line.match(/^\s*([A-Za-z][A-Za-z'\-]{2,})\s*$/);
-        if (w) words.push(w[1].trim());
+        const dn = Number(cols[2]);
+        const days = cols[2] && Number.isInteger(dn) && dn >= 1 && dn <= DAYS_MAX ? dn : undefined;
+        rows.push({ w: cols[0], st, days });
     }
-    return words;
+    return { rows, bad, badSample };
 }
 
 /** 词书字母桶索引（按当前书懒建，随换书失效；模糊匹配用）。 */
@@ -215,34 +114,30 @@ function lev1(a: string, b: string): boolean {
     return diff <= 1;
 }
 
-/** 导入：file(.pdf/.txt/.csv) + 状态(auto=按标题识别)，返回结果并落进度。 */
-export async function runWordImport(
-    file: File,
-    status: WordImportStatus | "auto",
-    p: WenguWordProgress
-): Promise<WordImportResult> {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let text: string;
-    const isTextFile = /\.(txt|csv)$/i.test(file.name);
-    if (isTextFile) {
-        text = new TextDecoder("utf-8").decode(bytes);
-    } else {
-        text = await extractPdfText(bytes);
-        // PDF 空文本 = 无文字层（扫描件）；txt 路径不做此判（小清单也合法）
-        if (extractWords(text).length < 5) {
-            return { hit: 0, miss: 0, missSample: [], autoStatus: null, error: "noTextLayer" };
-        }
+/** 文件字节 → 文本（UTF-8 优先失败回 GBK，Excel 中文另存兼容）。 */
+function decodeText(bytes: Uint8Array): string {
+    try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (_) {
+        return new TextDecoder("gbk").decode(bytes);
     }
-    let autoStatus: WordImportStatus | null = null;
-    if (status === "auto") {
-        for (const [k, kw] of STATUS_KEYWORDS) {
-            if (text.includes(kw)) {
-                autoStatus = k;
-                break;
-            }
-        }
+}
+
+/** 导入：file(.tsv/.csv/.txt)，状态行内自带，返回结果并落进度。 */
+export async function runWordImport(file: File, p: WenguWordProgress): Promise<WordImportResult> {
+    const empty: Record<WordImportStatus, number> = { unlearned: 0, reviewing: 0, done: 0, familiar: 0 };
+    const parsed = parseTsv(decodeText(new Uint8Array(await file.arrayBuffer())));
+    if (parsed.rows.length === 0) {
+        return {
+            hit: 0,
+            miss: 0,
+            missSample: [],
+            perStatus: empty,
+            badStatus: parsed.bad,
+            badSample: parsed.badSample,
+            error: "noRow",
+        };
     }
-    const apply = status === "auto" ? (autoStatus ?? "unlearned") : status;
     // 匹配词书（精确优先，lev≤1 兜底；按当前书）。精确匹配先建一次
     // 小写索引——原逐词全书 findIndex+toLowerCase，3000 词导入×6900 词
     // 书 ≈2×10⁷ 次比较，主线程秒级冻结（20260829 三轮审查）
@@ -253,50 +148,84 @@ export async function runWordImport(
         const lw = book.words[i].w.toLowerCase();
         if (!exact.has(lw)) exact.set(lw, i);
     }
-    const hits = new Set<number>();
+    const hits: { i: number; st: WordImportStatus; days?: number }[] = [];
     const miss: string[] = [];
-    for (const w of extractWords(text)) {
-        const lw = w.toLowerCase();
+    for (const row of parsed.rows) {
+        const lw = row.w.toLowerCase();
         let idx = exact.get(lw) ?? -1;
         if (idx < 0) {
             idx = bucketOf(lib, lw).find((b) => lev1(b.w, lw))?.i ?? -1;
         }
-        if (idx >= 0) hits.add(idx);
-        else if (miss.length < 50) miss.push(w);
+        if (idx >= 0) hits.push({ i: idx, st: row.st, days: row.days });
+        else if (miss.length < 50) miss.push(row.w);
     }
-    if (hits.size === 0)
-        return { hit: 0, miss: miss.length, missSample: miss.slice(0, 5), autoStatus, error: "noMatch" };
-    applyStatus(p, hits, apply);
-    return { hit: hits.size, miss: miss.length, missSample: miss.slice(0, 5), autoStatus };
+    if (hits.length === 0) {
+        return {
+            hit: 0,
+            miss: miss.length,
+            missSample: miss.slice(0, 5),
+            perStatus: empty,
+            badStatus: parsed.bad,
+            badSample: parsed.badSample,
+            error: "noMatch",
+        };
+    }
+    const perStatus = applyRows(p, hits, Date.now());
+    return {
+        hit: hits.length,
+        miss: miss.length,
+        missSample: miss.slice(0, 5),
+        perStatus,
+        badStatus: parsed.bad,
+        badSample: parsed.badSample,
+    };
 }
 
-/** 按状态写进度（FSRS 种子态，redesign §三；不触碰误认本）。 */
-function applyStatus(p: WenguWordProgress, idxs: Set<number>, apply: WordImportStatus): void {
-    const now = Date.now();
-    for (const i of idxs) {
+/** 错峰窗口：按该状态命中量自适应（20260830 拍板——几千词挤 7 天
+ *  仍是每日几百的洪峰）。目标单日到期 ≤100，窗口下限 7（小量导入
+ *  紧凑起步）、上限 60（防整本大书手滑摊成俩月后）。导出供单测。 */
+export function spreadWindow(n: number): number {
+    return Math.min(60, Math.max(7, Math.ceil(n / 100)));
+}
+
+/** 按状态落进度（FSRS 种子态，redesign §三；不触碰误认本）：天数列
+ * 是复习中的进度锚点，其余状态忽略；缺天数按词书序 i%W 错峰，W 随
+ * 该状态量自适应（复习中 1+W 天、复习完成 6+W 天），已标熟固定 32
+ * 天+标熟位；未学习=清进度。 */
+function applyRows(
+    p: WenguWordProgress,
+    hits: { i: number; st: WordImportStatus; days?: number }[],
+    now: number
+): Record<WordImportStatus, number> {
+    const perStatus: Record<WordImportStatus, number> = { unlearned: 0, reviewing: 0, done: 0, familiar: 0 };
+    const wRev = spreadWindow(hits.filter((h) => h.st === "reviewing").length);
+    const wDone = spreadWindow(hits.filter((h) => h.st === "done").length);
+    for (const { i, st, days } of hits) {
         const key = keyOf(i);
         if (!key) continue;
-        if (apply === "unlearned") {
+        perStatus[st]++;
+        if (st === "unlearned") {
             delete p.words[key];
             delete p.ladder[key];
             delete p.simple[key];
             delete p.familiar[key];
-        } else if (apply === "reviewing") {
-            seedWord(p, i, 1, 1, now); // 旧档2≈1~2 天
-            delete p.familiar[key];
-            delete p.simple[key];
-        } else if (apply === "done") {
-            seedWord(p, i, 8, 8, now); // 旧档5=8 天
-            delete p.familiar[key];
-            delete p.simple[key];
-        } else {
-            seedWord(p, i, 32, 32, now); // 旧档6=32 天
-            p.familiar[key] = 1;
+            continue;
         }
+        // 天数列只对复习中生效（复习进度锚点，20260830 定稿）：复习完成
+        // /已标熟是完成态，到期一律默认错峰，配天数只会看着矛盾
+        let due: number;
+        if (st === "reviewing") due = days ?? 1 + (i % wRev);
+        else if (st === "done") due = 6 + (i % wDone);
+        else due = 32;
+        seedWord(p, i, due, due, now);
+        delete p.familiar[key];
+        delete p.simple[key];
+        if (st === "familiar") p.familiar[key] = 1;
     }
     rollToday(p, now);
     // 只在有实际计数时记当日 log：无条件写 [0,0] 伪打卡，streak 只看
     // log 键真值会把没学习的导入日也续上（20260829 三轮审查）
     const cnt: [number, number] = [p.today.newCount, p.today.revCount];
     if (cnt[0] > 0 || cnt[1] > 0) p.log[todayKey(now)] = cnt;
+    return perStatus;
 }

@@ -201,29 +201,9 @@
   font-size: 12px;
 }
 
-/* 知识文档面板树化（20260827，PickerTree 同款 b3-list-item 行壳 +
-   wengu-tree toggle/缩进全局类）：分支浅色小字、题数计数贴右、
-   操作钮 hover 才显（b3-list-item--hide-action 的自兜底版，防主题差异） */
-.wengu-cp-list .wengu-kp-branch {
-  padding-left: 4px;
-  padding-right: 8px;
-}
-
-.wengu-cp-list .wengu-kp-branch:hover {
-  background: var(--b3-theme-background-light);
-}
-
-.wengu-cp-list .wengu-kp-branch .b3-list-item__text {
-  color: var(--b3-theme-on-surface-light);
-  font-size: 12px;
-}
-
-.wengu-cp-list .wengu-kp-doc,
-.wengu-cp-list .wengu-kp-sec-row {
-  padding-left: 4px;
-  padding-right: 8px;
-}
-
+/* 知识文档面板行尾（宿主特有，20260830：通用行样式已归 base.scss
+   .wengu-tree 一份；计数贴右、动作钮 hover 才显——选择器勾位常驻
+   不可走 hover 隐藏，故留面板作用域） */
 .wengu-cp-list .wengu-kp-doc .wengu-cp-meta,
 .wengu-cp-list .wengu-kp-sec-row .wengu-cp-meta {
   flex: none;

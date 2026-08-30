@@ -53,8 +53,7 @@ export interface WordUi {
     aiRunning: boolean;
     aiMsg: string;
     aiPending: number;
-    /** 起点设置面板：导入状态选择 + 导入结果文案（WordStartCtl 写）。 */
-    importStatus: string;
+    /** 起点设置面板：导入结果文案（WordStartCtl 写）。 */
     startMsg: string;
     /** spell 实时输入 /「认成了」自述草稿（作答瞬间由控制器读取）。 */
     spellLive: string;
@@ -87,7 +86,6 @@ export function initialWordUi(): WordUi {
         aiRunning: false,
         aiMsg: "",
         aiPending: 0,
-        importStatus: "auto",
         startMsg: "",
         spellLive: "",
         confessedDraft: "",

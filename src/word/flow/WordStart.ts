@@ -5,8 +5,8 @@ import type { WordUi } from "../core/WordUi";
 
 /**
  * 起点面板控制器（Svelte 化后渲染在 comp/StartScreen）：
- * 每组单词数即时生效（组件 onchange 直调），进度导入（PDF/txt）的
- * 状态选择与结果文案走响应态 ui.importStatus / ui.startMsg。
+ * 每组单词数即时生效（组件 onchange 直调），进度导入（TSV）的
+ * 结果文案走响应态 ui.startMsg。
  * 无手动起点——未导入时从词书第一个词开始；导入后按进度来
  * （cursor 自动对齐书序第一个未学词，未学的新学、学过的到期复习、
  * 标熟的不再出现）。
@@ -42,18 +42,28 @@ export class WordStartCtl {
 
     async importFile(file: File, input: HTMLInputElement): Promise<void> {
         const p = this.getProgress();
-        const status = this.ui.importStatus as Parameters<typeof runWordImport>[1];
         this.ui.startMsg = this.t("wordImportRunning");
         try {
-            const r = await runWordImport(file, status, p);
+            const r = await runWordImport(file, p);
             await this.save(p);
             this.ui.startMsg =
-                r.error === "noTextLayer"
-                    ? this.t("wordImportNoText")
+                r.error === "noRow"
+                    ? this.t("wordImportNoRow")
                     : r.error === "noMatch"
                       ? this.t("wordImportNoMatch")
                       : this.t("wordImportResult").replace("{a}", String(r.hit)).replace("{b}", String(r.miss)) +
-                        (r.missSample.length > 0 ? `（${r.missSample.join(", ")}）` : "");
+                        (r.missSample.length > 0 ? `（${r.missSample.join(", ")}）` : "") +
+                        " " +
+                        this.t("wordImportDetail")
+                            .replace("{a}", String(r.perStatus.unlearned))
+                            .replace("{b}", String(r.perStatus.reviewing))
+                            .replace("{c}", String(r.perStatus.done))
+                            .replace("{d}", String(r.perStatus.familiar)) +
+                        (r.badStatus > 0
+                            ? " " +
+                              this.t("wordImportBadStatus").replace("{a}", String(r.badStatus)) +
+                              (r.badSample.length > 0 ? `（${r.badSample.join(", ")}）` : "")
+                            : "");
         } catch (e) {
             this.ui.startMsg = this.t("wordImportFailed") + String((e as Error)?.message ?? e).slice(0, 80);
         }

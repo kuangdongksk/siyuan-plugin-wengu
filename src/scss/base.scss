@@ -21,6 +21,11 @@
   box-sizing: border-box;
   color: var(--b3-theme-on-background);
   font-size: 14px;
+  /* 官方弹窗/菜单（.b3-dialog/.b3-menu）是 body 末尾的 z-index:auto 浮层，
+     内部任何正值 z（吸顶头 20/题号栏 19/伴学 15…）都会在根层叠上下文
+     压过它们——isolate 把整页 z 圈进自己的上下文，内部顺序不变，
+     官方浮层永远在上（20260830 吸顶头盖住官方弹窗踩坑） */
+  isolation: isolate;
 }
 
 /* ── 左侧文档目录 ── */
@@ -164,51 +169,10 @@
   color: var(--b3-theme-on-surface-light);
 }
 
-/* ── 侧栏文档树（S1~S3，结构借思源文档树）── */
-.wengu-tree-doc,
-.wengu-tree-branch {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 4px 8px 4px 4px;
-  min-width: 0;
-}
-
-.wengu-tree-doc {
-  cursor: pointer;
-  border-left: 2px solid transparent;
-}
-
+/* ── 树通用件（TreeList 共享组件 20260830：toggle/缩进辅助线/两行行主区）── */
 .wengu-tree-main {
   flex: 1;
   min-width: 0;
-}
-
-.wengu-tree-toggle {
-  margin-top: 2px;
-}
-
-.wengu-tree-doc:hover,
-.wengu-tree-branch:hover {
-  background: var(--b3-theme-background-light);
-}
-
-.wengu-tree-doc.wengu-side-active,
-.wengu-tree-doc.wengu-side-active:hover {
-  border-left-color: var(--b3-theme-primary);
-  background: var(--b3-theme-primary-lightest);
-}
-
-.wengu-tree-branch {
-  cursor: pointer;
-}
-
-.wengu-tree-branch .wengu-tree-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--b3-theme-on-surface-light);
 }
 
 .wengu-tree-toggle {
@@ -221,7 +185,7 @@
   color: var(--b3-theme-on-surface-light);
 }
 
-/* 可点折叠箭头给手型（侧栏树/知识面板树共用） */
+/* 可点折叠箭头给手型（各树共用） */
 .wengu-tree-toggle-btn {
   cursor: pointer;
 }
@@ -241,6 +205,44 @@
 .wengu-tree-children {
   margin-left: 16px;
   border-left: 1px solid var(--b3-border-color);
+}
+
+/* ── 树行内容（TreeList 共享组件，20260830 收拢：知识面板/文档选择器
+   两份同款宿主规则合一；行壳 b3-list-item--narrow）── */
+.wengu-tree .wengu-kp-branch {
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
+.wengu-tree .wengu-kp-branch:hover {
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-tree .wengu-kp-branch .b3-list-item__text {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.wengu-tree .wengu-kp-doc,
+.wengu-tree .wengu-kp-sec-row {
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
+/* 刷题侧栏树（TreeList 化 20260830）：文档行=两行（标题+元信息，
+   align-items 抬到顶）、active 左侧高亮条（对齐旧 wengu-side-active 观感） */
+.wengu-side-body .wengu-kp-doc {
+  align-items: flex-start;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.wengu-side-body .wengu-kp-doc.b3-list-item--focus,
+.wengu-side-body .wengu-kp-doc.b3-list-item--focus:hover {
+  border-left-color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
 }
 
 /* ── 主区 ── */
