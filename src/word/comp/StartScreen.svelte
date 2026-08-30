@@ -2,7 +2,7 @@
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
-    import { groupSizeOf, windowCapOf } from "../core/WordStore";
+    import { GROUP_SIZES, groupSizeOf, windowCapOf } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
 
@@ -39,7 +39,7 @@
                         value={gs}
                         onchange={(e) => view.startCtl().setGroupSize(Number(e.currentTarget.value))}
                     >
-                        {#each [5, 10, 15, 20] as n}
+                        {#each GROUP_SIZES as n}
                             <option value={n}>{fmt(t("wordGroupOpt"), { n: String(n) })}</option>
                         {/each}
                     </select>

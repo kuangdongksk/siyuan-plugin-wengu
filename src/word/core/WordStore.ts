@@ -94,7 +94,7 @@ export interface WenguWordProgress {
     confNotes?: Record<string, string>;
     /** 词级笔记（用户手写，任何词可写）。 */
     notes?: Record<string, string>;
-    /** 每组单词数（AI 复盘粒度，5~20）。 */
+    /** 每组单词数（AI 复盘粒度，取值吸附到 GROUP_SIZES）。 */
     groupSize?: number;
     /** 新学滚动窗口容量（3~10，缺省 5）。 */
     windowCap?: number;
@@ -103,6 +103,8 @@ export interface WenguWordProgress {
 /** 认识程度。 */
 export type WordGrade = "no" | "fuzzy" | "know";
 
+/** 每组单词数可选档（稀疏档位，起点面板下拉与 getter 吸附共用）。 */
+export const GROUP_SIZES = [10, 15, 25, 30, 40, 60, 80, 100];
 /** 默认每组单词数（AI 复盘粒度）。 */
 const DEFAULT_GROUP_SIZE = 10;
 /** 默认新学窗口容量。 */
@@ -145,10 +147,14 @@ export function defaultProgress(): WenguWordProgress {
     };
 }
 
-/** 每组单词数（夹 5~20，缺省 10）。 */
+/** 每组单词数（吸附到 GROUP_SIZES 里 ≤ 存量的最大档，缺省 10——旧档 5/20
+ *  等不在新档位里的存量值平滑落到邻近档，select 不落空）。 */
 export function groupSizeOf(p: WenguWordProgress): number {
     const n = p.groupSize;
-    return Number.isFinite(n) && n !== undefined && n >= 5 ? Math.min(20, Math.floor(n)) : DEFAULT_GROUP_SIZE;
+    if (!Number.isFinite(n) || n === undefined) return DEFAULT_GROUP_SIZE;
+    let best = DEFAULT_GROUP_SIZE;
+    for (const s of GROUP_SIZES) if (s <= n) best = s;
+    return best;
 }
 
 /** 新学窗口容量（夹 3~10，缺省 5）。 */

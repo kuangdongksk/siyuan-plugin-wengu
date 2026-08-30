@@ -1,4 +1,5 @@
 import { runWordImport } from "../service/WordImport";
+import { GROUP_SIZES } from "../core/WordStore";
 import type { WenguWordProgress } from "../core/WordStore";
 import type { WordUi } from "../core/WordUi";
 
@@ -22,9 +23,9 @@ export class WordStartCtl {
         // 无手动起点：不重置任何数据，「开始背」= 进入背词
     }
 
-    /** 每组单词数（AI 复盘粒度，5~20，即时生效）。 */
+    /** 每组单词数（AI 复盘粒度，档位见 GROUP_SIZES，即时生效）。 */
     setGroupSize(n: number): void {
-        if (n >= 5 && n <= 20) this.setField("groupSize", n);
+        if (GROUP_SIZES.includes(n)) this.setField("groupSize", n);
     }
 
     /** 新学窗口容量（3~10，redesign §二.3；下一张选卡即生效）。 */
