@@ -4,13 +4,14 @@ import { convertRunActive } from "../service/ConvertRun";
 import { esc, fmt } from "../../ui/shared";
 
 /**
- * 转换弹窗的「从 PDF 导入」行（从 ConvertDialog 拆出，保其 ≤500 行）：
- * 按钮 + 隐藏文件输入 + MinerU 导入执行。导入位置 = 生成位置的指定
- * 父文档（custom）；same 时建到当前文档旁边（同笔记本同目录）。
- * 完成后把原文档 id 回填给弹窗（onImported），由用户接着点开始转换。
+ * 转换弹窗的「从 PDF 导入」执行体（Svelte 化 20260830：runPdfImport
+ * 纯函数化由组件直调，按钮/文件输入的 DOM 交互在组件里）。导入位置 =
+ * 生成位置的指定父文档（custom）；same 时建到当前文档旁边（同笔记本
+ * 同目录）。完成后把原文档 id 回填给弹窗（onImported），由用户接着点
+ * 开始转换。
  */
 
-/** 行依赖（弹窗提供 DOM 之外的宿主能力）。 */
+/** 行依赖（弹窗控制器提供 DOM 之外的宿主能力）。 */
 export interface PdfImportRowDeps {
     t: (key: string) => string;
     /** MinerU API token（设置页，空=未配置，点导入时提示）。 */
@@ -35,64 +36,53 @@ function importError(e: unknown, t: (key: string) => string): string {
     return m === "pdfImportParentMissing" ? t("pdfImportParentMissing") : m;
 }
 
-/** 绑定按钮与文件输入；导入中可经终止按钮中止。 */
-export function bindPdfImportRow(root: HTMLElement, deps: PdfImportRowDeps): void {
-    const pdfBtn = root.querySelector<HTMLButtonElement>("[data-act='dlg-pdf']");
-    const pdfFile = root.querySelector<HTMLInputElement>("[data-act='dlg-pdffile']");
-    if (!pdfBtn || !pdfFile) return;
-    const runImport = async (file: File): Promise<void> => {
-        // 转换运行中不开第二条内核写流：导入建文档与转换 append 并发
-        // fetchSyncPost 会互相吞响应（20260829 审查，互斥原来只做在
-        // ConvertRun 单例内部）
-        if (convertRunActive()) {
-            deps.showStatus(deps.t("convertBusy"), "err");
-            return;
+/** 执行一次 MinerU 导入（文件已就位）；导入中可经终止按钮中止。 */
+export async function runPdfImport(file: File, deps: PdfImportRowDeps): Promise<void> {
+    // 转换运行中不开第二条内核写流：导入建文档与转换 append 并发
+    // fetchSyncPost 会互相吞响应（20260829 审查，互斥原来只做在
+    // ConvertRun 单例内部）
+    if (convertRunActive()) {
+        deps.showStatus(deps.t("convertBusy"), "err");
+        return;
+    }
+    if (!deps.mineruToken) {
+        deps.showStatus(deps.t("mineruNoToken"), "err");
+        return;
+    }
+    const controller = new AbortController();
+    deps.hookStop(controller);
+    deps.setBusy(true);
+    try {
+        const r = await importPdfAsDoc(file, {
+            token: deps.mineruToken,
+            ...deps.resolveTarget(),
+            signal: controller.signal,
+            onProgress: (p) => {
+                if (p.stage === "upload") deps.showStatus(deps.t("mineruUploading"), "muted");
+                else if (p.stage === "wait") {
+                    deps.showStatus(fmt(deps.t("mineruWaiting"), { p: String(p.percent ?? 0) }), "muted");
+                } else if (p.stage === "download") deps.showStatus(deps.t("mineruDownloading"), "muted");
+                else deps.showStatus(deps.t("mineruSaving"), "muted");
+            },
+        });
+        deps.onImported(r);
+        deps.showStatus(
+            esc(
+                fmt(deps.t("mineruImported"), {
+                    title: r.title,
+                    n: String(r.charCount),
+                    img: String(r.imageCount),
+                })
+            ),
+            "ok"
+        );
+    } catch (e) {
+        if ((e as Error)?.name === "AbortError") {
+            deps.showStatus(deps.t("convertDiscarded"), "muted");
+        } else {
+            deps.showStatus(importError(e, deps.t), "err");
         }
-        if (!deps.mineruToken) {
-            deps.showStatus(deps.t("mineruNoToken"), "err");
-            return;
-        }
-        const controller = new AbortController();
-        deps.hookStop(controller);
-        deps.setBusy(true);
-        try {
-            const r = await importPdfAsDoc(file, {
-                token: deps.mineruToken,
-                ...deps.resolveTarget(),
-                signal: controller.signal,
-                onProgress: (p) => {
-                    if (p.stage === "upload") deps.showStatus(deps.t("mineruUploading"), "muted");
-                    else if (p.stage === "wait") {
-                        deps.showStatus(fmt(deps.t("mineruWaiting"), { p: String(p.percent ?? 0) }), "muted");
-                    } else if (p.stage === "download") deps.showStatus(deps.t("mineruDownloading"), "muted");
-                    else deps.showStatus(deps.t("mineruSaving"), "muted");
-                },
-            });
-            deps.onImported(r);
-            deps.showStatus(
-                esc(
-                    fmt(deps.t("mineruImported"), {
-                        title: r.title,
-                        n: String(r.charCount),
-                        img: String(r.imageCount),
-                    })
-                ),
-                "ok"
-            );
-        } catch (e) {
-            if ((e as Error)?.name === "AbortError") {
-                deps.showStatus(deps.t("convertDiscarded"), "muted");
-            } else {
-                deps.showStatus(importError(e, deps.t), "err");
-            }
-        } finally {
-            deps.setBusy(false);
-        }
-    };
-    pdfBtn.addEventListener("click", () => pdfFile.click());
-    pdfFile.addEventListener("change", () => {
-        const f = pdfFile?.files?.[0];
-        pdfFile.value = ""; // 复位：失败后重选同一文件也要能再触发 change
-        if (f) void runImport(f);
-    });
+    } finally {
+        deps.setBusy(false);
+    }
 }

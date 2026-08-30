@@ -98,7 +98,7 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 | 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                      | ✅ 2026-08-30 |
 | 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                           | ✅ 2026-08-30 |
 | 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                      | ✅ 2026-08-30 |
-| 5   | convert 域            | 3962 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                           |               |
+| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                           | ✅ 2026-08-30 |
 | 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（Protyle 壳）→ Steps/AnswerFlow（三写痛点终结） |               |
 
 **不迁清单**：`ui/FormHtml.ts`（两轨公共地基）；ModelPicker/KnowPicker
@@ -231,3 +231,24 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
 - 浮层定位壳 .wengu-stats-wrap 由挂载编排建宿主挂（组件根从
   .wengu-stats-layer 起，CSS 零改动）；关闭动作经 props onClose
   注入（防组件→index 循环 import）。
+
+## 批次 5 落地记录（2026-08-30，convert 两弹窗）
+
+- 范围裁定：service 层（ConvertRun/Batch/Service/Detect/MinerU 等，
+  ~3300 行）是流程与数据逻辑不属 UI 迁移；本批只迁 UI 层两弹窗
+  （ConvertDialog 288+118 行 / ConvertPanel 197 行 + ConvertPick 110）。
+- **Dialog 壳模式落地**：`new Dialog({content: 宿主 div})` +
+  mountSvelteApp 进宿主——关闭统一走编排层 close()（unmount+destroy），
+  组件经 props onClose 调用（防组件→编排循环 import）。busy 期间
+  右上角 X 的 capture 接管留在编排层（ctl.isBusy/stopImport）。
+- ConvertDialog 四件套：表单状态全进 ui（旧实现散在 DOM 控件、start
+  时逐个 querySelector 收集）；选择器桥（KnowPicker/ModelPicker）由
+  ctl 方法直调 openKnowPicker / modelPickAction action；回显解析带
+  竞态序号；PdfImportRow 改纯函数 runPdfImport 由组件直调（按钮/
+  文件输入交互在组件）。setBusy 禁用=disabled={ui.busy} 声明式，
+  旧 setBusy 十二个元素手动 disable 的重放自然消失。
+- ConvertPanel 四件套：subscribeConvertRun 订阅在 attach/detach 对齐
+  组件生命周期（旧 document.contains 自清退订不再需要）；丢弃进度
+  两击确认进 ui.armedDoc；「进行中」空态/两区路由全响应式。
+- ConvertDialogHtml.ts / ConvertPick.ts 删除（渲染与联动逻辑分别
+  进组件与 ctl）。
