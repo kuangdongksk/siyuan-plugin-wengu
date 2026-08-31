@@ -25,6 +25,9 @@ export interface WenguSettingsShape {
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（转换时把可分解的工科大题改写为多步引导题）。 */
     bigToSteps?: boolean;
+    /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块，
+     *  跳过逐块选弹窗（docs/incremental-hash-plan.md §二）。 */
+    convertKeepOld?: boolean;
     /** 默认转换并发批数（1=串行；>1 走内置直连通道）。 */
     convertParallel?: number;
     /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
@@ -159,6 +162,11 @@ export function openWenguSetting(opts: {
                   formSwitch("bigsteps", opts.settings.bigToSteps === true, "data-set")
               ) +
               formRow(
+                  t("convertKeepOld"),
+                  t("convertKeepOldDesc"),
+                  formSwitch("keepold", opts.settings.convertKeepOld === true, "data-set")
+              ) +
+              formRow(
                   t("setConvertParallel"),
                   t("setConvertParallelDesc"),
                   formSelect(
@@ -246,7 +254,15 @@ export function openWenguSetting(opts: {
         });
     }
     const bindSwitch = (
-        key: "shownums" | "showattempts" | "showwrong" | "fillchoice" | "bigsteps" | "companionenabled" | "companionai",
+        key:
+            | "shownums"
+            | "showattempts"
+            | "showwrong"
+            | "fillchoice"
+            | "bigsteps"
+            | "keepold"
+            | "companionenabled"
+            | "companionai",
         apply: (v: boolean) => void
     ) => {
         root.querySelector<HTMLInputElement>(`[data-set='${key}']`)?.addEventListener("change", (ev) => {
@@ -259,6 +275,7 @@ export function openWenguSetting(opts: {
     bindSwitch("showattempts", (v) => (opts.settings.showAttempts = v));
     bindSwitch("showwrong", (v) => (opts.settings.showWrong = v));
     bindSwitch("fillchoice", (v) => (opts.settings.fillToChoice = v));
+    bindSwitch("keepold", (v) => (opts.settings.convertKeepOld = v));
     bindSwitch("bigsteps", (v) => (opts.settings.bigToSteps = v));
     bindSwitch("companionenabled", (v) => (opts.settings.companionEnabled = v));
     bindSwitch("companionai", (v) => (opts.settings.companionAi = v));

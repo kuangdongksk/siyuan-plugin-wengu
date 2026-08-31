@@ -2,9 +2,14 @@ import { ATTR_PREFIX, Attr } from "../../siyuan/attrs";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelDoc } from "../../siyuan/doc";
 import { KernelQuery } from "../../siyuan/query";
-import { showStatus, startConvertForView } from "../../convert";
-import { convertRunActive, type ConvertRunCfg } from "../../convert/service/ConvertRun";
+import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
+import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/ConvertRun";
 import { extractBlockId, getDocInfo } from "../../convert/service/ConvertService";
+import { classifyChunks, type SrcGroup } from "../../convert/service/SrcChunk";
+import { convertIncremental, readSrcGroups, sourceChunksOf } from "../../convert/service/ConvertIncrement";
+import { keepOldChoice, openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
+import { refreshDocFor } from "../../bank/data/BankMigrate";
+import { esc, fmt } from "../../ui/shared";
 import type { QuizView } from "../index";
 
 /**
@@ -143,6 +148,11 @@ export function reimportCfg(
 
 /**
  * 「重新导入」＝检测断点续跑，而非无条件全量重转：
+ * 0. **增量重转换**（20260831 二期）：整卷完成态（无续跑记录）且题集
+ *    带 src-hash 指纹（二期起生成的题集）→ 不删旧重转——重新结构切块
+ *    比对三态分类，相同跳过（保原题与刷题统计）、新增补生成、变更/
+ *    消失逐块选（省费模式 convertKeepOld=全保留只补新增）。中止后已
+ *    追加块自带指纹，重跑分类即跳过（自愈，无续跑记录负担）。
  * 1. 配对源讲义查得到续跑记录（prefs convertProgress）→ 接着断点跑。
  *    记录保留的渐进文档（rec.docId，含它就是当前题集本身的常态形态）
  *    删除前先把内容读回转进 resume.kramdown——否则它随删除消失，
@@ -165,6 +175,14 @@ export function reimportDocFrom(v: QuizView, docId: string): void {
             return;
         }
         const rec = v.convertAccess.convertProgressOf(srcId);
+        // 增量分支（二期）：完成态 + 带指纹的题集走三态分类，不删旧文档
+        if (!rec) {
+            const groups = await readSrcGroups(docId).catch((): SrcGroup[] => []);
+            if (groups.length > 0) {
+                await runIncrementalReimport(v, docId, srcId, groups);
+                return;
+            }
+        }
         let kramdown = "";
         let docDeleted = false;
         const plan = planReimportRead(rec, docId);
@@ -204,4 +222,95 @@ export function reimportDocFrom(v: QuizView, docId: string): void {
         );
         if (!started) showStatus(v.el, v.t("convertBusy"), "err"); // reload 间隙被抢跑的兜底
     })();
+}
+
+/**
+ * 增量重转换分支（二期）：源文档重新结构切块 → 与题集旧分组三态分类。
+ * 全部相同=零成本收口；有变更时省费模式（settings.convertKeepOld）
+ * 直通「只补新增」，否则弹窗逐块选。执行占独占运行槽（页内转换条
+ * 呈现进度、可停止），完成后题库重扫入库（refreshDocFor 幂等，删除/
+ * 追加的块同步进 records 与影子专题）+ 视图重载。
+ */
+async function runIncrementalReimport(
+    v: QuizView,
+    quizDocId: string,
+    srcId: string,
+    groups: SrcGroup[]
+): Promise<void> {
+    const t = v.t;
+    let chunks;
+    try {
+        chunks = await sourceChunksOf(srcId);
+    } catch (e) {
+        showStatus(v.el, String((e as Error)?.message ?? e), "err");
+        return;
+    }
+    if (chunks.length === 0) {
+        showStatus(v.el, t("convertEmptyDoc"), "err");
+        return;
+    }
+    const plan = classifyChunks(groups, chunks);
+    if (plan.fresh.length === 0 && plan.changed.length === 0 && plan.removed.length === 0) {
+        showStatus(v.el, fmt(t("reimportUnchanged"), { n: String(plan.same) }), "ok");
+        return;
+    }
+    const start = (choice: IncrementChoice): void => {
+        const cfg = reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf());
+        const ev = convertRunEventsFor(v.convertAccess);
+        const started = startExclusiveConvertRun(ev, srcId, async (signal) => {
+            ev.onStatus(esc(t("incrPreparing")), "muted");
+            let res;
+            let failed = "";
+            try {
+                res = await convertIncremental({
+                    deleteBlockIds: choice.deleteBlockIds,
+                    staleBlockIds: choice.staleBlockIds,
+                    chunks: choice.chunks,
+                    quizDocId,
+                    modelId: cfg.modelId,
+                    fillToChoice: cfg.fillToChoice,
+                    bigToSteps: cfg.bigToSteps,
+                    knowRoots: cfg.knowRoots,
+                    signal,
+                    onProgress: (p) =>
+                        ev.onStatus(
+                            esc(
+                                fmt(t("incrRunning"), {
+                                    i: String(Math.min(p.done + 1, p.total)),
+                                    n: String(p.total),
+                                    c: String(p.count),
+                                })
+                            ),
+                            "muted"
+                        ),
+                });
+            } catch (e) {
+                failed = String((e as Error)?.message ?? e);
+            }
+            // 题库重扫（幂等）：追加块入 records、删除块出 records，影子
+            // 专题题单刷新——中止/失败也要扫（已追加部分自愈的入库半场）
+            const bank = v.bankStore();
+            if (bank) {
+                const info = await getDocInfo(quizDocId);
+                await refreshDocFor(bank, quizDocId, info?.title ?? "");
+                await bank.flush();
+            }
+            if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
+            ev.onStatus(
+                esc(
+                    fmt(res!.aborted ? t("incrAborted") : t("incrDone"), {
+                        a: String(res!.added),
+                        d: String(res!.deleted),
+                        s: String(res!.staled),
+                    })
+                ),
+                res!.aborted ? "muted" : "ok",
+                true
+            );
+            await v.reloadView();
+        });
+        if (!started) showStatus(v.el, t("convertBusy"), "err");
+    };
+    if (v.settingsOf()?.convertKeepOld) start(keepOldChoice(plan));
+    else openIncrementDialog({ t, plan, onConfirm: start });
 }

@@ -14,6 +14,7 @@ export enum EApi {
     // ── 块 ──
     AppendBlock = "/api/block/appendBlock",
     UpdateBlock = "/api/block/updateBlock",
+    DeleteBlock = "/api/block/deleteBlock",
     GetBlockKramdown = "/api/block/getBlockKramdown",
     GetChildBlocks = "/api/block/getChildBlocks",
 

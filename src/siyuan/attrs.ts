@@ -51,6 +51,14 @@ export const Attr = {
     totalTime: `${PREFIX}total-time`,
     /** 转换配对（文档级）：习题文档根块记源讲义文档 id；源删则习题随删（OrphanCleaner）。 */
     sourceDoc: `${PREFIX}source-doc`,
+    /** 增量哈希（二期）：题目/材料容器记生成它的源块指纹（questionHash 同款），
+     *  重新导入时三态分类的比对依据（docs/incremental-hash-plan.md §二）。 */
+    srcHash: `${PREFIX}src-hash`,
+    /** 增量哈希（二期）：源块的稳定边界键（标题链 H:a/b 或无标题段 P0，
+     *  超长子块 H:a/b#k）——指纹变了但键还在=「变更」而非「新增」。 */
+    srcKey: `${PREFIX}src-key`,
+    /** 增量哈希（二期，运行时）：源已更新但用户选择保留旧题的块标记（值恒 "1"）。 */
+    srcStale: `${PREFIX}src-stale`,
     /** 子块定位：值为 "answer" 表示该子块是解析侧（闪卡卡背）。 */
     part: `${PREFIX}part`,
 } as const;

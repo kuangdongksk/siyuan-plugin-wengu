@@ -3,7 +3,6 @@ import type { QuestionPreview } from "./ConvertDetect";
 import {
     appendBlockToDoc,
     buildPrompt,
-    chunkKramdown,
     createExerciseDoc,
     extractBatchQuestions,
     extractBlockId,
@@ -15,14 +14,16 @@ import {
     ReplaceInplaceError,
     resolveTarget,
 } from "./ConvertService";
+import { structuralChunks, withSrcAttrs } from "./SrcChunk";
 import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { KernelBlock } from "../../siyuan/block";
 import { fmt } from "../../ui/shared";
 
 /**
- * 分批转换编排（从 ConvertService 拆出）：长文档按空行边界切块逐批
- * 生成，批次结果累积在内存——真机 3.8.0 验证没有可靠的「追加到已有
+ * 分批转换编排（从 ConvertService 拆出）：长文档按**结构切块**（标题
+ * 边界 + 指纹，SrcChunk，20260831 二期起替代空行偏移切块）逐批生成，
+ * 批次结果累积在内存——真机 3.8.0 验证没有可靠的「追加到已有
  * 文档」通道（updateBlock 多块并一段/丢内容、transactions insert
  * 无效），所以只能删旧重建式落盘。
  *
@@ -186,7 +187,7 @@ export async function convertDocBatched(
     // （跑检测、全量批；20260830「重新导入」踩坑，「继续生成」路径
     // 渐进文档被手动删时同病）
     const resume = opts.resume && existing.trim() ? opts.resume : undefined;
-    const allChunks = chunkKramdown(kramdown);
+    const allChunks = structuralChunks(kramdown);
     // 进度偏移越过当前源文档末尾（记录残留的完成态/源文档被改短）：
     // 按已完成收口到旧文档，不再走生成循环——否则 chunks 为空会走到
     // 末尾「!created 兜底新建」，把旧文档内容原样复制成第二份
@@ -370,7 +371,8 @@ export async function convertDocBatched(
                 qs = applied.out;
                 knowLinked += applied.linked;
             }
-            results[i] = qs;
+            // 源块键与指纹随容器落盘（增量哈希二期：重转换三态分类依据）
+            results[i] = qs.map((u) => withSrcAttrs(u, chunks[i].key, chunks[i].hash));
             // 落盘失败（append/建文档内核错误）与 AI 失败同权重：记
             // firstError 收口成 failed 带部分内容——原直接抛出会把整轮
             // 结果丢给最外层 catch，进度不记账、不可续跑（20260829 审查）

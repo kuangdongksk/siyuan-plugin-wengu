@@ -263,6 +263,45 @@ export function stopConvertRun(): void {
     active?.abort();
 }
 
+/** 独占运行槽（增量重转换等非整卷流程共用）：占住 active 单例防并发
+ *  开跑（convertRunActive 对所有入口生效），执行体自带进度与收尾；
+ *  「停止」走同一条 stopConvertRun → signal 中止，由执行体自行收口
+ *  （增量已追加部分自带指纹，重跑分类即跳过，无需抉择态）。 */
+export function startExclusiveConvertRun(
+    ev: ConvertRunEvents,
+    srcDocId: string,
+    run: (signal: AbortSignal) => Promise<void>
+): boolean {
+    if (active || aborted) return false;
+    const controller = new AbortController();
+    active = {
+        cfg: {
+            srcDocId,
+            modelId: "",
+            fillToChoice: false,
+            bigToSteps: false,
+            parallel: 1,
+            writeMode: "newdoc",
+            targetRaw: "",
+            knowRoots: [],
+        },
+        ev,
+        abort: () => controller.abort(),
+    };
+    ev.setConverting(true);
+    notify();
+    void run(controller.signal)
+        .catch((e) => {
+            ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true);
+        })
+        .finally(() => {
+            active = undefined;
+            ev.setConverting(false);
+            notify();
+        });
+    return true;
+}
+
 /** 页内/面板「保留已生成」：另存=渐进文档已在只记进度；原位=kramdown 进记录；首批前终止现写一份。 */
 export function keepConvertRun(): Promise<void> {
     const a = aborted;

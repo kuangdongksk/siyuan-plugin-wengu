@@ -62,6 +62,8 @@ interface WenguSettings {
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（可分解的工科大题 → 多步引导题）。 */
     bigToSteps?: boolean;
+    /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块。 */
+    convertKeepOld?: boolean;
     /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
     convertTargetMode?: "same" | "custom";
     /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */

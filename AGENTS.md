@@ -26,7 +26,15 @@
       数字；超时统一按 SSE 空闲计）、`agentPanel.ts` 智能体面板
       DOM 自动化与「面板优先、页内降级」按钮帮手。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
-      （AI 转换，`index.ts`=转换编排）、`src/review/`（错题复习）、
+      （AI 转换，`index.ts`=转换编排；**增量重转换**（20260831 增量哈希
+      二期）：`SrcChunk.ts` 结构切块（标题链键 H:章/节 + questionHash
+      指纹，替代空行偏移切块）+ 两阶段三态分类（全局指纹匹配→键配对：
+      相同/新增/变更/消失），生成时容器 IAL 随题写 src-key/src-hash，
+      重新导入入口（DocOps.runIncrementalReimport）对带指纹题集走
+      增量——IncrementDialog 逐块选、ConvertIncrement 落盘执行
+      （删旧/标 stale/串行补生成追加到既有题集，中止自愈无需续跑
+      记录）、设置 convertKeepOld=省费模式；方案与分期见
+      docs/incremental-hash-plan.md）、`src/review/`（错题复习）、
       `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器
       在 `WordView.ts`，**UI 是 Svelte 组件**（`word/component/`，2026-08-26
       起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
