@@ -8,6 +8,8 @@ import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
 import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
+import { generateKnowledgeOutline } from "../../convert/service/KnowOutline";
+import { convertRunActive } from "../../convert/service/ConvertRun";
 import {
     buildKnowTree,
     groupKnowByDoc,
@@ -174,6 +176,48 @@ export class KnowPanelCtl {
             modelId: this.v.aiModelId(),
             onDone: () => void this.load(),
         });
+    }
+
+    /* ── AI 建知识树（docs/knowledge-tree.md □1）：归纳章节 → 落盘
+     *  `{章节}·知识树` 独立文档 → 自动登记进 knowRoots。运行中再点=
+     *  中止；转换写窗口不开（createDocWithMd 与转换 append 并发互吞）。 ── */
+
+    private outlineCtrl: AbortController | undefined;
+
+    outline(d: KnowDocView): void {
+        const bank = this.bank();
+        if (!bank) return;
+        if (this.ui.outlining === d.docId) {
+            this.outlineCtrl?.abort(); // 再点=中止（catch 复位状态）
+            return;
+        }
+        if (this.ui.outlining) return; // 同时只跑一份
+        // 转换运行中不开第二条内核写流（createByMd/remove 与转换 append 并发互吞）
+        if (convertRunActive()) {
+            this.ui.outlineErr = this.v.t("convertBusy");
+            return;
+        }
+        this.ui.outlineErr = undefined;
+        this.ui.outlining = d.docId;
+        const ctrl = new AbortController();
+        this.outlineCtrl = ctrl;
+        void generateKnowledgeOutline(d.docId, this.v.aiModelId(), ctrl.signal)
+            .then(async (r): Promise<void> => {
+                // 树文档自动登记（登记后词表/路由/关联全链路即包含树节点）
+                const cur = await knowRootsOf(bank);
+                if (!cur.includes(r.docId)) await setKnowRoots(bank, [...cur, r.docId]);
+                await bank.flush();
+                if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
+                this.ui.outlining = undefined;
+                await this.load();
+            })
+            .catch((e: unknown): void => {
+                if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
+                this.ui.outlining = undefined;
+                this.ui.outlineErr = ctrl.signal.aborted
+                    ? undefined
+                    : `${this.v.t("knowOutlineFail")}${String((e as Error)?.message ?? e)}`;
+            });
     }
 
     /* ── 「移除」两击确认（3s 复位；armed 与渲染同源，重拉后不漂移） ── */
