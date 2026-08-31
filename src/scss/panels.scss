@@ -134,8 +134,9 @@
   margin-top: 8px;
 }
 
-/* 文档选择器树行（variant-and-doctree §二 T2）：行样式已归 base.scss
-   .wengu-tree 共享一份（20260830 TreeList 收拢），此处只留勾位图标 */
+/* 文档选择器树行（variant-and-doctree §二 T2）：行样式走 SiYuan 原生
+   b3-list-item / --file-toggle-width（TreeList 与 ColTreeLevel 同款），
+   base.scss 只留 .wengu-tree ul 重置；此处只留勾位图标 */
 
 /* 转换弹窗：次要选项折叠（原生 details），控制常驻高度。
    箭头用内置 iconRight 随开合旋转（UI 标准：禁原生三角 marker） */

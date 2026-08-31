@@ -169,64 +169,21 @@
   color: var(--b3-theme-on-surface-light);
 }
 
-/* ── 树通用件（TreeList 共享组件 20260830：toggle/缩进辅助线/两行行主区）── */
+/* ── 树通用件（TreeList 共享组件 20260830：行壳走 SiYuan 原生
+   b3-list-item + --file-toggle-width，toggle 走 b3-list-item__toggle；
+   此处只留宿主 <ul> 重置 + 行主区 flex 容器）── */
 .wengu-tree-main {
   flex: 1;
   min-width: 0;
 }
 
-.wengu-tree-toggle {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--b3-theme-on-surface-light);
-}
-
-/* 可点折叠箭头给手型（各树共用） */
-.wengu-tree-toggle-btn {
-  cursor: pointer;
-}
-
-.wengu-tree-toggle svg {
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
-  transition: transform 0.1s ease-out;
-}
-
-.wengu-tree-open > .wengu-tree-toggle svg,
-.wengu-tree-toggle.wengu-tree-open svg {
-  transform: rotate(90deg);
-}
-
-.wengu-tree-children {
-  margin-left: 16px;
-  border-left: 1px solid var(--b3-border-color);
-}
-
-/* ── 树行内容（TreeList 共享组件，20260830 收拢：知识面板/文档选择器
-   两份同款宿主规则合一；行壳 b3-list-item--narrow）── */
-.wengu-tree .wengu-kp-branch {
-  padding-left: 4px;
-  padding-right: 8px;
-}
-
-.wengu-tree .wengu-kp-branch:hover {
-  background: var(--b3-theme-background-light);
-}
-
-.wengu-tree .wengu-kp-branch .b3-list-item__text {
-  color: var(--b3-theme-on-surface-light);
-  font-size: 12px;
-}
-
-.wengu-tree .wengu-kp-doc,
-.wengu-tree .wengu-kp-sec-row {
-  padding-left: 4px;
-  padding-right: 8px;
+/* TreeList host 内所有 <ul>：清 UA 默认 list-style:disc 与
+   padding-inline-start:~40px（顶层 b3-list b3-list--background + 裸递归
+   子项一并兜），缩进由每行 liVars + toggle padding-left 接管。 */
+.wengu-tree ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 /* 刷题侧栏树（TreeList 化 20260830）：文档行=两行（标题+元信息，

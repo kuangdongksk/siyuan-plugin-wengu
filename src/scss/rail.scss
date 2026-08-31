@@ -204,8 +204,7 @@
 /* 知识文档面板行尾（宿主特有，20260830：通用行样式已归 base.scss
    .wengu-tree 一份；计数贴右、动作钮 hover 才显——选择器勾位常驻
    不可走 hover 隐藏，故留面板作用域） */
-.wengu-cp-list .wengu-kp-doc .wengu-cp-meta,
-.wengu-cp-list .wengu-kp-sec-row .wengu-cp-meta {
+.wengu-cp-list .wengu-kp-doc .wengu-cp-meta {
   flex: none;
 }
 
