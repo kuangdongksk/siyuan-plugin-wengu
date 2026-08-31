@@ -48,7 +48,12 @@
       行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
       →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
       与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=
-      该文档）；**标签归一**（KnowledgeNorm，20260831）：knowledge
+      该文档）；**文本关联/批量关联**（KnowLinkText，20260831）：
+      knowledge 标签 ↔ 小节标题归一精确相等即确定性挂引用（零 AI、
+      歧义宁漏勿错）——「导入文档」登记后自动跑（导入即关联）、面板
+      头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 +
+      可选 AI 路由兜底，落库共用 applyRefsToRecord；**标签归一**
+      （KnowledgeNorm，20260831）：knowledge
       文本的 kn 聚合键剥命名性后缀归词干（「洛必达」=「洛必达法则」），
       只动键不动数据，四处聚合点统一 knKey；专题/知识文档管理面板
       CollectionPanel/KnowledgePanel 挂页签左栏 rail）、

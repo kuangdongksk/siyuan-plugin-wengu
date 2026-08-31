@@ -104,6 +104,9 @@
         <div class="wengu-ws-title">
             {t("knowPanelTitle")}
             <span class="wengu-ws-titlebtns">
+                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.batchLink()}
+                    >{t("knowBatchBtn")}</button
+                >
                 <button
                     type="button"
                     class="b3-button b3-button--outline"

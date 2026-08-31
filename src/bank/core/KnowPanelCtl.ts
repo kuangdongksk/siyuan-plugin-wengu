@@ -4,6 +4,8 @@ import { kpRootMap } from "../data/BankReconcile";
 import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
+import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
+import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import {
     buildKnowTree,
     groupKnowByDoc,
@@ -105,7 +107,9 @@ export class KnowPanelCtl {
         window.open(`siyuan://blocks/${docId}`);
     }
 
-    /** 头部「导入」：文档选择浮层（多选，锚定按钮）。 */
+    /** 头部「导入」：文档选择浮层（多选，锚定按钮）。导入即关联——
+     *  登记后自动跑零 AI 文本关联（knowledge 标签 ↔ 新根小节标题归一
+     *  匹配），命中的题挂上引用，面板重载即可见计数。 */
     importRoots(anchor: HTMLElement): void {
         const bank = this.bank();
         if (!bank) return;
@@ -119,10 +123,26 @@ export class KnowPanelCtl {
                 onConfirm: (ids) => {
                     void setKnowRoots(bank, ids)
                         .then(() => bank.flush())
+                        .then(async () => {
+                            const lex = await lexiconOfRoots(ids);
+                            if (lex.size > 0) await linkBankByText(bank, lex, {});
+                        })
                         .then(() => this.load());
                 },
             });
         })();
+    }
+
+    /** 头部「批量关联」：全部登记根 × 全库题，文本优先、可选 AI 兜底。 */
+    batchLink(): void {
+        const bank = this.bank();
+        if (!bank) return;
+        void openBatchLinkDialog({
+            t: this.v.t,
+            bank,
+            modelId: this.v.aiModelId(),
+            onDone: () => void this.load(),
+        });
     }
 
     /* ── 「移除」两击确认（3s 复位；armed 与渲染同源，重拉后不漂移） ── */

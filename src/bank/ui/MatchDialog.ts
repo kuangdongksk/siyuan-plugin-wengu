@@ -4,20 +4,17 @@ import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
     classifyMatchFail,
-    injectKnowledgeRefs,
     routeKnowledgeDiag,
-    stripKnowledgeRefs,
     type KnowRouteFail,
     type MatchFailKind,
 } from "../../convert/service/KnowledgeLink";
-import { KernelBlock } from "../../siyuan/block";
 import { KernelDoc } from "../../siyuan/doc";
 import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
-import { mergeRecordKpRefs } from "../data/KnowRoots";
+import { applyRefsToRecord } from "../data/KnowLinkText";
 
 /**
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
@@ -195,19 +192,9 @@ async function runMatch(
             }
             if (ctrl.signal.aborted) break;
             if (refs.length > 0) {
-                const merged = [...r.kpRefs];
-                for (const x of refs) if (!merged.some((m) => m.id === x.id)) merged.push(x);
-                const next = injectKnowledgeRefs(stripKnowledgeRefs(r.kramdown), merged);
-                if (next !== r.kramdown) {
-                    await bank.replaceRecordKramdown(r.qid, next);
-                    await mergeRecordKpRefs(bank, r.qid, refs);
-                    try {
-                        await KernelBlock.update({ id: r.qid, dataType: "markdown", data: next });
-                    } catch (_) {
-                        // 源块同步失败：题库已是主记录
-                    }
-                    hit++;
-                } else miss++;
+                // strip+inject 落库 + 源块尽力同步（批量关联共用同一原语）
+                if (await applyRefsToRecord(bank, r, refs)) hit++;
+                else miss++;
             } else miss++;
             show(
                 fmt(t("matchRunning"), {
