@@ -89,17 +89,76 @@ export async function applyRefsToRecord(
     return true;
 }
 
-/** 全库文本关联（导入即关联 / 批量关联 phase1）：遍历题库记录，带
- *  knowledge 标签且（默认）未挂引用的题走确定性匹配。返回计数与
- *  未命中的记录（供 AI 兜底层接着跑）。 */
-export async function linkBankByText(
+/** 容器 IAL 上写/改 knowledge 属性（纯函数）：已有则替换值，没有则在
+ *  容器属性行（custom-plugin-wengu-q 所在行）末尾追加。值里的引号/反
+ *  斜杠剥掉（属性值不该含）。 */
+export function setKnowledgeAttr(kd: string, knowledge: string): string {
+    const attr = "custom-plugin-wengu-knowledge";
+    const val = knowledge.replace(/["\\]/g, "").trim();
+    if (!val) return kd;
+    if (kd.includes(`${attr}="`)) return kd.replace(new RegExp(`${attr}="[^"]*"`), `${attr}="${val}"`);
+    return kd.replace(
+        /\{:[^\n]*custom-plugin-wengu-q="[^"]*"[^\n]*\}/,
+        (ial: string) => ial.slice(0, -1) + ` ${attr}="${val}"}`
+    );
+}
+
+/** 标签生成结果的落库：写 knowledge 属性（IAL + 记录字段）并挂引用。
+ *  r 是题库里的活引用（recordsOfDoc/values 直出），knowledge 字段就地
+ *  更新后 markDirty。返回是否有改动。 */
+export async function applyTagToRecord(
+    bank: QuestionBank,
+    r: BankRecord,
+    knowledge: string,
+    refs: { id: string; title: string }[]
+): Promise<boolean> {
+    const tagged = setKnowledgeAttr(r.kramdown, knowledge);
+    const merged = [...r.kpRefs];
+    for (const x of refs) {
+        if (!merged.some((m) => m.id === x.id)) merged.push(x);
+    }
+    const next = injectKnowledgeRefs(stripKnowledgeRefs(tagged), merged);
+    if (next !== r.kramdown) {
+        await bank.replaceRecordKramdown(r.qid, next);
+        await mergeRecordKpRefs(bank, r.qid, refs);
+        try {
+            await KernelBlock.update({ id: r.qid, dataType: "markdown", data: next });
+        } catch (_) {
+            // 源块同步失败：题库已是主记录
+        }
+    }
+    let changed = next !== r.kramdown;
+    if (r.knowledge !== knowledge) {
+        r.knowledge = knowledge;
+        changed = true;
+    }
+    if (changed && next === r.kramdown) bank.markDirty();
+    return changed;
+}
+
+/** AI 自由标签输出解析（纯函数）：`N|标签` 行 → qid 无关的编号→标签
+ *  映射；`N|-` 表示该题无合适标签（跳过）。标签截 24 字防跑飞。 */
+export function parseFreeTags(reply: string): Map<number, string> {
+    const out = new Map<number, string>();
+    for (const m of reply.matchAll(/^\s*(\d+)\s*[|｜:：]\s*(.+?)\s*$/gm)) {
+        const n = Number(m[1]);
+        const tag = m[2].trim();
+        if (!Number.isFinite(n) || n < 1) continue;
+        if (tag === "-" || tag === "－") continue;
+        out.set(n, tag.slice(0, 24));
+    }
+    return out;
+}
+
+/** 记录集的文本关联（核对/批量共用原语）：带 knowledge 标签且（默认）
+ *  未挂引用的题走确定性匹配。返回计数与未命中的记录。 */
+export async function linkRecordsByText(
     bank: QuestionBank,
     lex: Map<string, LexSection[]>,
+    records: BankRecord[],
     opts: { skipLinked?: boolean; signal?: AbortSignal } = {}
 ): Promise<{ hit: number; miss: number; skip: number; missed: BankRecord[] }> {
     const skipLinked = opts.skipLinked ?? true;
-    const data = await bank.all();
-    const records = Object.values(data.records).sort((a, b) => a.qid.localeCompare(b.qid));
     let hit = 0;
     let miss = 0;
     let skip = 0;
@@ -118,4 +177,15 @@ export async function linkBankByText(
         }
     }
     return { hit, miss, skip, missed };
+}
+
+/** 全库文本关联（导入即关联 / 批量关联 phase1）。 */
+export async function linkBankByText(
+    bank: QuestionBank,
+    lex: Map<string, LexSection[]>,
+    opts: { skipLinked?: boolean; signal?: AbortSignal } = {}
+): Promise<{ hit: number; miss: number; skip: number; missed: BankRecord[] }> {
+    const data = await bank.all();
+    const records = Object.values(data.records).sort((a, b) => a.qid.localeCompare(b.qid));
+    return linkRecordsByText(bank, lex, records, opts);
 }

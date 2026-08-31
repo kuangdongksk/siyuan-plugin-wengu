@@ -26,6 +26,7 @@ import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./service/QuizLoader";
 import { openVariantDrillDialog } from "../bank/ui/VariantDrill";
+import { openTagDialog } from "../bank/ui/TagDialog";
 import {
     detachRoundReport,
     lockAllCards,
@@ -319,6 +320,19 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             docId,
             doc.title
         );
+    };
+
+    /** 目录文档右键「生成标签」：已有标签核对挂引用、缺失标签 AI 生成。 */
+    readonly genTagsOf = (docId: string): void => {
+        const doc = this.docs.find((d) => d.id === docId);
+        if (!doc || !this.bank) return;
+        void openTagDialog({
+            t: this.t,
+            bank: this.bank,
+            modelId: this.aiModelId(),
+            docId,
+            docTitle: doc.title,
+        });
     };
 
     finishSession(): void {

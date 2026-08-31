@@ -52,8 +52,11 @@
       knowledge 标签 ↔ 小节标题归一精确相等即确定性挂引用（零 AI、
       歧义宁漏勿错）——「导入文档」登记后自动跑（导入即关联）、面板
       头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 +
-      可选 AI 路由兜底，落库共用 applyRefsToRecord；**标签归一**
-      （KnowledgeNorm，20260831）：knowledge
+      可选 AI 路由兜底，落库共用 applyRefsToRecord；**生成标签**
+      （TagDialog，20260831）：侧栏文档右键入口，已有标签核对挂引用、
+      缺失标签 AI 生成（有知识文档逐题路由按小节标题命名、无则整批
+      自由生成），setKnowledgeAttr 写 IAL + applyTagToRecord 落库；
+      **标签归一**（KnowledgeNorm，20260831）：knowledge
       文本的 kn 聚合键剥命名性后缀归词干（「洛必达」=「洛必达法则」），
       只动键不动数据，四处聚合点统一 knKey；专题/知识文档管理面板
       CollectionPanel/KnowledgePanel 挂页签左栏 rail）、

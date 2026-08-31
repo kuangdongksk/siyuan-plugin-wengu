@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionLexicon, linkBankByText, textRefsFor } from "./KnowLinkText";
+import { buildSectionLexicon, linkBankByText, parseFreeTags, setKnowledgeAttr, textRefsFor } from "./KnowLinkText";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
 
 // QuestionBank.markDirty 走 window.setTimeout 防抖（浏览器全局），node
@@ -101,5 +101,54 @@ describe("linkBankByText（全库文本关联）", () => {
         ctrl.abort();
         const out = await linkBankByText(bank, lex, { signal: ctrl.signal });
         expect(out.hit).toBe(0);
+    });
+});
+
+describe("setKnowledgeAttr（容器 IAL 写标签）", () => {
+    // eslint-disable-next-line quotes -- kramdown 多行模板必须反引号
+    const bare = `{{{row\n题干\n{: custom-plugin-wengu-part="stem"}\n\n> 解析\n{: custom-plugin-wengu-part="solution"}\n}}}\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single"}`;
+
+    it("无属性：容器属性行末尾追加", () => {
+        const out = setKnowledgeAttr(bare, "洛必达法则");
+        expect(out).toContain('custom-plugin-wengu-knowledge="洛必达法则"}');
+        expect(out).toContain(
+            'custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-knowledge'
+        );
+    });
+
+    it("已有属性：原位替换值", () => {
+        const tagged = setKnowledgeAttr(bare, "旧标签");
+        const out = setKnowledgeAttr(tagged, "新标签");
+        expect(out).toContain('custom-plugin-wengu-knowledge="新标签"');
+        expect(out).not.toContain("旧标签");
+    });
+
+    it("空值原样返回（不写空属性）", () => {
+        expect(setKnowledgeAttr(bare, "  ")).toBe(bare);
+    });
+});
+
+describe("parseFreeTags（AI 自由标签输出解析）", () => {
+    it("编号|标签 行 → 映射；『-』跳过", () => {
+        const out = parseFreeTags("1|洛必达法则\n2|-\n3|等价无穷小\n废话行");
+        expect(out.get(1)).toBe("洛必达法则");
+        expect(out.has(2)).toBe(false);
+        expect(out.get(3)).toBe("等价无穷小");
+        expect(out.size).toBe(2);
+    });
+
+    it("超长标签截 24 字", () => {
+        const long = "概".repeat(30);
+        expect(parseFreeTags("1|" + long).get(1)?.length).toBe(24);
+    });
+
+    it("容错分隔符（全角｜冒号）与前后空白", () => {
+        const out = parseFreeTags(" 1 ｜ 极限 \n2：导数");
+        expect(out.get(1)).toBe("极限");
+        expect(out.get(2)).toBe("导数");
+    });
+
+    it("空输出 → 空映射", () => {
+        expect(parseFreeTags("没有合适标签")).toEqual(new Map());
     });
 });

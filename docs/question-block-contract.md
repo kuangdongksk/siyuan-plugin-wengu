@@ -656,6 +656,14 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
   头部按钮，BatchLinkDialog）——全部登记根 × 全库题，phase1 文本关联，
   phase2 可选 AI 两级路由兜底文本未命中的题（同「匹配」逐题路由）。
   落库共用 applyRefsToRecord（strip+inject + kpRefs 合并 + 源块尽力同步）。
+* **生成标签（侧栏文档右键，TagDialog，2026-08-31 起）**：对一份习题
+  文档的题单分两相——①**核对**（已有 knowledge 标签的题）：文本关联
+  同款归一匹配挂引用，未匹配（标签在知识文档无对应小节）计数上报；
+  ②**生成**（无标签的题，可关）：登记了知识文档时逐题两级 AI 路由，
+  **标签=命中小节标题**（词表受控不造新词）+ 挂全部命中小节引用；
+  无知识文档时整批自由生成（一次 AI 调用出「N|标签」编号表，
+  parseFreeTags 解析，≤24 字）。写标签走 setKnowledgeAttr（容器 IAL
+  原位改值/末尾追加）+ applyTagToRecord（IAL+记录字段+引用+源块同步）。
 
 ## 七、英语材料组（E0-E4 已落地，2026-08-24；设计见 docs/english-question-review.md）
 

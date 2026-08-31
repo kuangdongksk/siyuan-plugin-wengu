@@ -83,6 +83,11 @@ function bindDocContextMenu(v: QuizView): void {
                 label: v.t("variantDrillMenuLabel"),
                 click: () => v.variantDrillOf(docId),
             });
+            menu.addItem({
+                icon: "iconTags",
+                label: v.t("genTagsMenuLabel"),
+                click: () => v.genTagsOf(docId),
+            });
             menu.open({ x: pos.clientX, y: pos.clientY });
         })();
     });
