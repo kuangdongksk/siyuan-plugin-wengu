@@ -603,6 +603,7 @@
   "colNewFolder": "新建文件夹",
   "colNewSub": "新建子文件夹",
   "colDelFolder": "删除文件夹（连同其下专题）",
+  "colDelFolderConfirm": "确认删除（含 {n} 个专题）",
   "colFolderPh": "文件夹名，可用 / 分级",
   "colLastDrill": "最近刷题",
   "colNever": "还没刷过",

@@ -164,8 +164,9 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
         }
     };
 
+    // 平铺只隐藏树不卸载：树组件是多选勾选的事实源（平铺行/确定钮经
+    // 实例导出读写），卸了=勾不上+确定回空（多选下还反向清空已有登记）
     const showFlat = (docs: PickerDoc[]): void => {
-        unmountTree();
         treeHost.hidden = true;
         flatHost.hidden = false;
         flatHost.innerHTML = docs.length

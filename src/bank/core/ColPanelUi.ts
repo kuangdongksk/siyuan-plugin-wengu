@@ -30,6 +30,8 @@ export interface ColPanelUi {
     editing: ColEditing | undefined;
     /** 两击确认删除的 key（专题 cid 或文件夹 path；3s 自动复位）。 */
     armed: string | undefined;
+    /** 确认态文案（删文件夹时明示连带专题数；undefined=通用「确认」）。 */
+    armedNote: string | undefined;
     /** 新建文件夹内联输入行（prefix 定位插入层级；undefined=无）。 */
     folderInput: ColFolderInput | undefined;
 }
@@ -58,6 +60,7 @@ export function initialColPanelUi(): ColPanelUi {
         closedDirs: new Set(),
         editing: undefined,
         armed: undefined,
+        armedNote: undefined,
         folderInput: undefined,
     };
 }

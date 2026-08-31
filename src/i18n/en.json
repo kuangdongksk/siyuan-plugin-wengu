@@ -602,6 +602,7 @@
   "colNewFolder": "New folder",
   "colNewSub": "New subfolder",
   "colDelFolder": "Delete folder (with collections inside)",
+  "colDelFolderConfirm": "Confirm delete ({n} collections)",
   "colFolderPh": "Folder name, use / for levels",
   "colLastDrill": "Last drill",
   "colNever": "Not drilled yet",
