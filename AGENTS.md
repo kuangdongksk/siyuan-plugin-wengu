@@ -64,9 +64,10 @@
   模式样板/暗雷清单/路线图见 `docs/svelte-migration.md`（各域开工前
   必读）；已迁 word 域、companion 看板娘+管理面板、bank 工作区面板
   （专题/知识文档）、review 错题本主区、stats 统计面板、convert 两弹窗、
-  quiz 6-1~6-3（开刷面板/轮次报告/rail/题号栏）与 6-4a 题卡渲染层
-  （三类题卡+材料组壳逐单元 mount，2026-08-31），剩 quiz 6-4b（三流程
-  作答态收敛进卡内响应态）与 side/head 壳。组件零 `<style>`，
+  quiz 6-1~6-3（开刷面板/轮次报告/rail/题号栏）、6-4a 题卡渲染层
+  （三类题卡+材料组壳逐单元 mount）与 6-4b 作答态收敛（三写统一进
+  卡内 CardUi 响应态，三流程只写状态不碰 DOM，2026-08-31），剩
+  side/head 壳。组件零 `<style>`，
   类名与迁移前逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
 - **硬性约束：仓库内单文件 ≤500 行**；界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
