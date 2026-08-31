@@ -1,5 +1,5 @@
 import { generateQuestion } from "./GenQuestion";
-import { injectKnowledgeRefs } from "../../convert/service/KnowledgeLink";
+import { injectKnowledgeRefs } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 
 /**

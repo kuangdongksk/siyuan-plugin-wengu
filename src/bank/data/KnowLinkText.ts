@@ -1,4 +1,5 @@
-import { expandKnowDocs, injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/KnowledgeLink";
+import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
+import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/KnowRef";
 import { KernelBlock } from "../../siyuan/block";
 import { normalizeKnowledge } from "./KnowledgeNorm";
 import { mergeRecordKpRefs } from "./KnowRoots";

@@ -2,7 +2,8 @@ import { Attr } from "../../siyuan/attrs";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelQuery } from "../../siyuan/query";
 import { appendBlockToDoc, buildPrompt, extractBatchQuestions } from "./ConvertService";
-import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import { applyKnowLinks } from "./KnowRef";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { structuralChunks, withSrcAttrs, type StructChunk, type SrcGroup } from "./SrcChunk";
 

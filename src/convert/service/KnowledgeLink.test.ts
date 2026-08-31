@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-    buildSectionTree,
-    classifyMatchFail,
-    injectKnowledgeRefs,
-    routeKnowledgeDiag,
-    stripKnowledgeRefs,
-    type KnowledgeIndex,
-} from "./KnowledgeLink";
+import { buildSectionTree, classifyMatchFail, routeKnowledgeDiag, type KnowledgeIndex } from "./KnowledgeLink";
+import { injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowRef";
 
 /** 带解析引述块的最小题目 kramdown（契约 §一：容器 + part IAL 行）。 */
 const KD = `{{{row

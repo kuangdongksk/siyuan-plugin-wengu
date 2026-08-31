@@ -3,7 +3,7 @@ import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBlockId, extractBatchQuestions } from "../../convert/service/ConvertService";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
-import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowledgeLink";
+import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";

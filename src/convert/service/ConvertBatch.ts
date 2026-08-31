@@ -15,7 +15,8 @@ import {
     resolveTarget,
 } from "./ConvertService";
 import { structuralChunks, withSrcAttrs } from "./SrcChunk";
-import { applyKnowLinks, buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
+import { applyKnowLinks } from "./KnowRef";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { KernelBlock } from "../../siyuan/block";
 import { fmt } from "../../ui/shared";
