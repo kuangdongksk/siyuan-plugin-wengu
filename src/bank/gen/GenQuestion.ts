@@ -27,6 +27,7 @@ export async function generateQuestion(
     mode: "variant" | "concept",
     modelId: string
 ): Promise<string> {
+    const track = { kind: "regen", title: `出题 · ${point.title}` };
     const kpId = point.key.startsWith("kp:") ? point.key.slice(3) : "";
     const section = mode === "concept" && kpId ? await sectionKramdown(kpId) : "";
     let template = "";
@@ -54,14 +55,14 @@ export async function generateQuestion(
 
 【知识点：${point.title}${statLine}】
 ${section}`;
-    return genWithVerify(prompt, modelId);
+    return genWithVerify(prompt, modelId, track);
 }
 
 /** 按题变式（V1，docs/variant-and-doctree.md §一）：以指定题自己为模板
  *  出变式（整卷/仅错题变式重练用），prompt 与自检和知识点变式同款。 */
 export async function generateVariantOf(templateKramdown: string, modelId: string): Promise<string> {
     if (!templateKramdown) return "";
-    return genWithVerify(variantPrompt(templateKramdown, ""), modelId);
+    return genWithVerify(variantPrompt(templateKramdown, ""), modelId, { kind: "regen", title: "变式重练" });
 }
 
 function variantPrompt(template: string, statLine: string): string {
@@ -74,9 +75,10 @@ ${template}`;
 }
 
 /** 发 prompt 出题 + AI 自检（独立重做校验答案，不过检丢弃返回空串）。
- *  独立会话通道（20260830）：出题/自检天然并发，不再过共享串行队列。 */
-async function genWithVerify(prompt: string, modelId: string): Promise<string> {
-    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long);
+ *  独立会话通道（20260830）：出题/自检天然并发，不再过共享串行队列；
+ *  track 登记进 AI 会话面板（自检标「自检」后缀区分）。 */
+async function genWithVerify(prompt: string, modelId: string, track: { kind: string; title: string }): Promise<string> {
+    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, undefined, track);
     const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
     if (qs.length === 0) return "";
     const kd = qs[0];
@@ -86,7 +88,9 @@ VERIFY: yes 或 no（答案与解析自洽为 yes；算不平/矛盾为 no）
 
 ${kd}`,
         modelId,
-        AI_TIMEOUT.mid
+        AI_TIMEOUT.mid,
+        undefined,
+        { kind: track.kind, title: `${track.title} · 自检` }
     );
     if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) return "";
     return kd;

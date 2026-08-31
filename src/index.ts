@@ -13,6 +13,7 @@ import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
 import { initRouteCache } from "./bank/data/RouteCache";
+import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { runDriftCheck } from "./bank/data/DriftWatch";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 
@@ -150,6 +151,12 @@ export default class WenguPlugin extends Plugin {
         initRouteCache({
             load: () => this.loadData("route-cache"),
             save: (v) => this.saveData("route-cache", v),
+        });
+        // AI 会话登记簿（20260831）：判题/转换/标签等带 track 的 AI 调用
+        // 自动登记，「AI 会话」面板回看产出 + 继续追问
+        initAiSessions({
+            load: () => this.loadData("ai-sessions"),
+            save: (v) => this.saveData("ai-sessions", v),
         });
         // 知识小节内容哈希基线（自托管三期）：面板 stale 徽标 + 路由
         // 缓存代数指纹的小节内容维度
@@ -309,6 +316,7 @@ export default class WenguPlugin extends Plugin {
         document.removeEventListener("click", WenguPlugin.onBlockRefClick);
         this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
+        aiSessions()?.flushNow(); // 登记簿去抖窗口内的尾笔立即落盘（重载不丢）
     }
 
     /** 题干内嵌块引用（查看原文）的 document 级委托：静态渲染是字符串

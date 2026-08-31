@@ -1,14 +1,16 @@
 import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
 import { resolveModelId } from "./models";
+import { aiSessions, type AiTurn } from "./data/AiSessions";
 
 /**
  * 思源内置 AI 的调用通道（2026-08-27 从 convert/AgentClient 抽离成
  * 独立域——convert/bank/quiz/word/stats/companion 六域共用的基础设施，
- * 不再隶属任何业务域）。**全仓唯一对外通道是 agentChatOnce**（一次性
- * 独立会话，天然并发 + 可按次指定模型）；旧 chatGPT 直答与共享空会话
- * 两条路已于 2026-08-30 弃用（见 AGENTS.md），并发靠独立 sessionID
- * 而非换端点/全局串行队列（queue.ts 已随之退役）。
+ * 不再隶属任何业务域）。**对外通道两条：agentChatOnce**（一次性独立
+ * 会话，天然并发 + 可按次指定模型，可选 track 参数登记进 AI 会话面板）
+ * **与 agentChatContinued**（面板继续追问：历史轮次回放播种新会话）；
+ * 旧 chatGPT 直答与共享空会话两条路已于 2026-08-30 弃用（见 AGENTS.md），
+ * 并发靠独立 sessionID 而非换端点/全局串行队列（queue.ts 已随之退役）。
  */
 
 /**
@@ -126,6 +128,56 @@ export function newSessionId(now = new Date()): string {
     return `${stamp}-${rand}`;
 }
 
+/** 会话登记元数据（agentChatOnce 可选参数）：kind 进「AI 会话」面板的
+ *  过滤与徽标，title 缺省取消息前 24 字。带上即登记（收口后可回看
+ *  产出并继续追问，见 data/AiSessions），不带则与旧版行为一致。 */
+export interface AiTrack {
+    kind: string;
+    title?: string;
+}
+
+/** saveSession 会话标题：消息前 24 字压平空白（内核面板列表同款观感）。 */
+function titleOf(message: string): string {
+    return message.replace(/\s+/g, " ").trim().slice(0, 24) || "温故";
+}
+
+/** 播种会话条目（user/assistant 交替回放；type 值与思源前端同源，
+ *  20260831 于 stage/common 的智能体实现核实）。 */
+interface SeededEntry {
+    id: string;
+    type: "user" | "assistant";
+    content: string;
+}
+
+/** saveSession 落盘（一次性会话与继续会话共用；code≠0 抛错）。 */
+async function seedSession(sid: string, title: string, entries: SeededEntry[], signal?: AbortSignal): Promise<void> {
+    const resp = await fetch(EApi.AgentSaveSession, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: sid, revision: 0, title, entries }),
+        signal,
+    });
+    const text = await resp.text();
+    let j: { code?: number; msg?: string };
+    try {
+        j = JSON.parse(text) as { code?: number; msg?: string };
+    } catch (e) {
+        const err = new Error(`saveSession HTTP ${resp.status}`);
+        (err as Error & { cause?: unknown }).cause = e;
+        throw err;
+    }
+    if (j.code !== 0) throw new Error(j.msg || `saveSession ${j.code}`);
+}
+
+/** 会话清仓（失败静默——堆积文件无功能影响）。 */
+function removeSession(sid: string): void {
+    void fetch(EApi.AgentRemoveSession, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: sid }),
+    }).catch((): void => undefined);
+}
+
 /**
  * 一次性智能体会话（全仓唯一 AI 对外通道）：saveSession 落盘一条
  * user 条目 → chat（并发锁按 sessionID 键控，不同会话互不 busy）→
@@ -133,45 +185,61 @@ export function newSessionId(now = new Date()): string {
  * 20260830 起判分/出题/匹配/转换等原共享 "" 会话与 chatGPT 直答的
  * 调用点全部收拢至此——调用方无需任何串行队列，需要限流的场景
  * （转换并发池）自带 worker 池。
+ * 带 track 的调用同步登记进 AI 会话面板（data/AiSessions）：起点
+ * running、成功追加 ai 轮、失败记 error——弹层不等结果也能事后回看。
  */
 export async function agentChatOnce(
+    message: string,
+    modelId: string,
+    timeoutMs: number,
+    signal?: AbortSignal,
+    track?: AiTrack
+): Promise<string> {
+    const sid = newSessionId();
+    const sessions = aiSessions();
+    if (sessions && track) sessions.begin(sid, track.kind, track.title ?? titleOf(message), modelId, message);
+    try {
+        if (signal?.aborted) throw new DOMException("aborted", "AbortError"); // 已终止不设防会白建会话
+        await seedSession(sid, titleOf(message), [{ id: "u1", type: "user", content: message }], signal);
+        const reply = await agentChat(message, modelId, timeoutMs, signal, sid);
+        if (sessions && track) sessions.succeed(sid, reply);
+        return reply;
+    } catch (e) {
+        if (sessions && track) sessions.fail(sid, String((e as Error)?.message ?? e));
+        throw e;
+    } finally {
+        removeSession(sid);
+    }
+}
+
+/**
+ * 继续已有会话（AI 会话面板用）：把登记簿里的历史轮次播种进新的一次性
+ * 会话（user/assistant 条目交替回放，思源前端续聊同款形态），再带新
+ * 追问调用。不复用旧 sessionID——旧会话早已 removeSession 清仓，内核
+ * 侧 revision/commitTurn 状态也无从对齐；回放条目即完整上下文，对
+ * 模型等价。返回 AI 回答全文（追问轮的登记由面板侧 appendTurns 落）。
+ */
+export async function agentChatContinued(
+    turns: AiTurn[],
     message: string,
     modelId: string,
     timeoutMs: number,
     signal?: AbortSignal
 ): Promise<string> {
     const sid = newSessionId();
+    const first = turns.find((t) => t.role === "user")?.text ?? message;
+    const entries: SeededEntry[] = turns.map((t, i) => ({
+        id: `h${i}`,
+        type: t.role === "user" ? "user" : "assistant",
+        content: t.text,
+    }));
+    entries.push({ id: "u1", type: "user", content: message });
     try {
-        if (signal?.aborted) throw new DOMException("aborted", "AbortError"); // 已终止不设防会白建会话
-        const resp = await fetch(EApi.AgentSaveSession, {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({
-                id: sid,
-                revision: 0,
-                title: message.replace(/\s+/g, " ").trim().slice(0, 24) || "温故",
-                entries: [{ id: "u1", type: "user", content: message }],
-            }),
-            signal,
-        });
-        const text = await resp.text();
-        let j: { code?: number; msg?: string };
-        try {
-            j = JSON.parse(text) as { code?: number; msg?: string };
-        } catch (e) {
-            const err = new Error(`saveSession HTTP ${resp.status}`);
-            (err as Error & { cause?: unknown }).cause = e;
-            throw err;
-        }
-        if (j.code !== 0) throw new Error(j.msg || `saveSession ${j.code}`);
+        if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+        await seedSession(sid, titleOf(first), entries, signal);
         return await agentChat(message, modelId, timeoutMs, signal, sid);
     } finally {
-        // 会话清仓（失败静默——堆积文件无功能影响）
-        void fetch(EApi.AgentRemoveSession, {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ id: sid }),
-        }).catch((): void => undefined);
+        removeSession(sid);
     }
 }
 

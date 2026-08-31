@@ -137,7 +137,11 @@ async function runTag(
                             text: routeTextOf(r),
                             index: index!,
                             modelId,
-                            call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                            call: (m) =>
+                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
+                                    kind: "route",
+                                    title: `标签路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
+                                }),
                             onFail: (f) => fails.push(f),
                         });
                         if (secs.length > 0) done = await applyTagToRecord(bank, r, secs[0].title, secs);
@@ -212,7 +216,8 @@ async function genFreeTags(
 ${list}`,
                 modelId,
                 AI_TIMEOUT.batch,
-                ctrl.signal
+                ctrl.signal,
+                { kind: "tag", title: `自由生成标签 · ${batch.length} 题` }
             );
             tags = parseFreeTags(reply);
         } catch (_) {

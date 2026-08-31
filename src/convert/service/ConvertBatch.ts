@@ -290,6 +290,7 @@ export async function convertDocBatched(
         modelId: opts.modelId,
         signal: internal.signal,
         knowIndex,
+        label: info.title,
         buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),
     });
     /** 连续前缀推进：按文档序拼装、计数、渐进追加与进度上报。

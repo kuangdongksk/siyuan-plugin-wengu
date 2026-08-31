@@ -4,7 +4,7 @@ import RailApp from "../components/RailApp.svelte";
 
 /**
  * 左侧工作区导航栏（三栏格局的第一栏）：刷题/专题管理/知识文档/
- * 学伴管理四个图标钮。Svelte 化（20260830）：渲染在
+ * 学伴管理/AI 会话五个图标钮。Svelte 化（20260830）：渲染在
  * components/RailApp.svelte，本文件是挂载编排——四处壳拼接
  * （做题主壳/错误兜底/工作区分支/复习分支）都在 innerHTML 最前放
  * RAIL_ANCHOR_HTML 锚，mountRailFor 以 anchor 法把组件根插到 v.el
@@ -13,11 +13,11 @@ import RailApp from "../components/RailApp.svelte";
  */
 
 /** 工作区（rail 顶层的视图维度；mode 是刷题工作区内部的渲染模式）。 */
-export type WenguWorkspace = "drill" | "companion" | "collection" | "knowledge";
+export type WenguWorkspace = "drill" | "companion" | "collection" | "knowledge" | "ai";
 
 /** prefs 读入规整（未知值回落刷题）。 */
 export function normalizeWorkspace(raw?: string): WenguWorkspace {
-    return raw === "companion" || raw === "collection" || raw === "knowledge" ? raw : "drill";
+    return raw === "companion" || raw === "collection" || raw === "knowledge" || raw === "ai" ? raw : "drill";
 }
 
 /** rail 挂载锚（壳 innerHTML 拼接用；mountRailFor 随后删锚）。 */

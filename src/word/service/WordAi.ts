@@ -88,7 +88,10 @@ async function analyzeBatch(
 ): Promise<number> {
     // 一次性独立会话：独立 sessionID 天然并发——单词复盘与判分/转换
     // 互不阻塞（20260829 起走 agentChatOnce；20260830 全仓统一此通道）
-    const reply = await agentChatOnce(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid);
+    const reply = await agentChatOnce(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid, undefined, {
+        kind: "word",
+        title: `单词复盘 · ${inputs.length} 词`,
+    });
     const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
     const items: { key: string; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];
     for (const it of parseReply(reply)) {

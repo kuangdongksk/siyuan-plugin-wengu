@@ -186,7 +186,11 @@ async function runMatch(
                     text: routeTextOf(r),
                     index,
                     modelId,
-                    call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                    call: (m) =>
+                        agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
+                            kind: "route",
+                            title: `匹配路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
+                        }),
                     onFail: (f) => fails.push(f),
                 });
             } catch (_) {

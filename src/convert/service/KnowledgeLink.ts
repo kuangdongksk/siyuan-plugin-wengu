@@ -410,11 +410,19 @@ export function makeKnowAwareAi(opts: {
     modelId: string;
     signal: AbortSignal;
     knowIndex: KnowledgeIndex | undefined;
-    buildPrompt: (source: string, knowRuleBlock: string, knowList: string) => string;
+    /** 会话登记标题前缀（目标文档标题；AI 会话面板识别批次归属用）。 */
+    label?: string;
+    buildPrompt: (source: string, knowRuleBlock: string, knowListBlock: string) => string;
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     const call = (message: string): Promise<string> =>
-        agentChatOnce(message, opts.modelId, AI_TIMEOUT.quick, opts.signal);
+        agentChatOnce(message, opts.modelId, AI_TIMEOUT.quick, opts.signal, {
+            kind: "route",
+            title: opts.label ? `路由 · ${opts.label}` : undefined,
+        });
     const generate = (prompt: string): Promise<string> =>
-        agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.batch, opts.signal);
+        agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.batch, opts.signal, {
+            kind: "convert",
+            title: opts.label ? `转换 · ${opts.label}` : undefined,
+        });
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }

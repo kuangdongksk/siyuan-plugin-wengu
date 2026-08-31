@@ -17,14 +17,24 @@
       等非块文件走它））+ 题目契约属性常量
       `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
     - `src/ai/`——**AI 基础设施域**（2026-08-27 从 convert/AgentClient
-      抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` **唯一
-      对外通道 agentChatOnce**（一次性独立会话：saveSession→chat→
-      removeSession，独立 sessionID 天然并发+可按次指定模型；20260830
+      抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` 对外通道
+      两条——**agentChatOnce**（一次性独立会话：saveSession→chat→
+      removeSession，独立 sessionID 天然并发+可按次指定模型；可选
+      `track{kind,title}` 参数把调用登记进 AI 会话面板；20260830
       起 chatGPT 直答与共享 "" 会话两条路已弃用——agentChat 收为模块
-      私有，queue.ts/enqueueAi 整体退役）、`models.ts` 模型
+      私有，queue.ts/enqueueAi 整体退役）与 **agentChatContinued**
+      （继续追问：历史轮次以 user/assistant 条目回放播种新会话）、
+      `models.ts` 模型
       清单与默认、`timeouts.ts` AI_TIMEOUT 档位（调用点禁自造超时
       数字；超时统一按 SSE 空闲计）、`agentPanel.ts` 智能体面板
-      DOM 自动化与「面板优先、页内降级」按钮帮手。
+      DOM 自动化与「面板优先、页内降级」按钮帮手；**AI 会话登记与
+      管理面板**（20260831）：`data/AiSessions.ts` 登记簿
+      （saveData("ai-sessions")，LRU 双上限全局 150/单类 40、600ms 去抖
+      +串行链落盘、重载时 running 改判「已中断」；index.ts onload
+      initAiSessions 接线）+ rail 第五钮「AI 会话」工作区面板
+      （components/SessionPanelApp.svelte 四件套，挂载编排
+      `SessionPanel.ts`）——判题/转换/检测/标签/路由/出题/单词复盘等
+      带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排；**增量重转换**（20260831 增量哈希
       二期）：`SrcChunk.ts` 结构切块（标题链键 H:章/节 + questionHash

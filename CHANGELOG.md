@@ -2,6 +2,21 @@
 
 ## v0.1.1 unreleased
 
+- AI 会话管理面板（20260831）：判题/转换/检测/标签/路由/出题/单词复盘
+  等 AI 任务都是一次性独立会话，跑完即弃、弹层关掉就看不到问了什么
+  答了什么——agentChatOnce 新增可选 track 参数（kind+title），带元数据
+  的调用自动登记进 data/AiSessions（saveData("ai-sessions")，LRU 双上限
+  全局 150/单类 40、轮次文本 2 万字封顶、脏标记 600ms 去抖+串行链落盘，
+  重载时在途 running 改判「已中断」）；页签左栏 rail 第五钮「AI 会话」
+  工作区（Svelte 四件套 components/SessionPanelApp + core/SessionPanel
+  {Ui,Ctl} + SessionPanel.ts 挂载编排）列表按类别过滤/状态徽标/两击删除，
+  明细完整回看 user prompt 与 ai 产出，底部输入条**继续追问**——
+  agentChatContinued 把历史轮次以 user/assistant 条目交替回放播种进新
+  一次性会话（思源前端续聊同款形态；不复用旧 sessionID，内核侧
+  revision/commitTurn 状态无从对齐，回放条目即完整上下文），追问轮
+  登记回原记录；onload initAiSessions 接线、onunload flushNow 冲尾笔；
+  十处调用点补 track 元数据，补 11 例单测。
+
 - 数据自托管三线收口（20260831，运行时统计停写块属性 + 题目/小节
   哈希对账）：① 作答运行时统计（attempts/wrong-count/right/
   last-answer/step-_/slot-_/文档级 total-time）**停写思源块属性**，

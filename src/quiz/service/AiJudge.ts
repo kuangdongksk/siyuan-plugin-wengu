@@ -16,6 +16,10 @@ import { normalizeCause } from "../../bank/data/WeaknessStore";
 
 /* ── brief 思路验证 ── */
 
+/** 会话登记标题：动作 · 题干前 16 字（AI 会话面板列表识别用）。 */
+const trackTitle = (label: string, q: WenguQuestion): string =>
+    `${label} · ${(q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16)}`;
+
 /** brief 判分三态：partial=方向对但有缺口（统计记错，展示单列）。 */
 export type BriefVerdictState = "right" | "partial" | "wrong";
 
@@ -39,7 +43,10 @@ export async function judgeBrief(q: WenguQuestion, mine: string, modelId: string
             : q.type === QuestionType.Trans
               ? buildTransPrompt(q, mine)
               : buildBriefPrompt(q, mine, thought);
-    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.quick);
+    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.quick, undefined, {
+        kind: "judge",
+        title: trackTitle("判题", q),
+    });
     return parseBriefVerdict(reply);
 }
 
@@ -135,7 +142,16 @@ export async function judgeClue(
     clues: string[],
     modelId: string
 ): Promise<ClueVerdict> {
-    const reply = await agentChatOnce(buildCluePrompt(materialBody, q, submitted, clues), modelId, AI_TIMEOUT.quick);
+    const reply = await agentChatOnce(
+        buildCluePrompt(materialBody, q, submitted, clues),
+        modelId,
+        AI_TIMEOUT.quick,
+        undefined,
+        {
+            kind: "judge",
+            title: trackTitle("线索复核", q),
+        }
+    );
     const m = /CLUE\s*[:：]\s*(hit|near|miss|对|近似|错)/i.exec(reply);
     if (!m) throw new Error("AI 未按格式返回线索复核");
     const raw = m[1].toLowerCase();
@@ -180,7 +196,9 @@ export async function attributeWrongCauses(items: CauseItem[], modelId: string):
 题目：
 ${lines}`,
         modelId,
-        AI_TIMEOUT.quick
+        AI_TIMEOUT.quick,
+        undefined,
+        { kind: "judge", title: `错因归因 · ${items.length} 题` }
     );
     const out = new Map<string, WeakCause>();
     const jm = /\{[\s\S]*\}/.exec(reply);
@@ -217,7 +235,10 @@ export async function appealMethodStep(
     chosen: string,
     modelId: string
 ): Promise<MethodAppealVerdict> {
-    const reply = await agentChatOnce(buildAppealPrompt(q, step, chosen), modelId, AI_TIMEOUT.quick);
+    const reply = await agentChatOnce(buildAppealPrompt(q, step, chosen), modelId, AI_TIMEOUT.quick, undefined, {
+        kind: "judge",
+        title: trackTitle("方法申诉", q),
+    });
     const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
     if (!m) throw new Error("AI 未按格式返回复核");
     const v = m[1].toLowerCase();
@@ -271,7 +292,10 @@ export async function nextRealtimeStep(
     history: RealtimeHistoryItem[],
     modelId: string
 ): Promise<RealtimeStep> {
-    const reply = await agentChatOnce(buildRealtimePrompt(q, history), modelId, AI_TIMEOUT.quick);
+    const reply = await agentChatOnce(buildRealtimePrompt(q, history), modelId, AI_TIMEOUT.quick, undefined, {
+        kind: "judge",
+        title: trackTitle("实时引导", q),
+    });
     return parseRealtimeStep(reply);
 }
 

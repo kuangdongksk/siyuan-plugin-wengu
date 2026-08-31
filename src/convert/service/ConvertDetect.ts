@@ -71,7 +71,10 @@ export async function detectQuestions(source: string, modelId: string, signal?: 
             const i = cursor++;
             if (i >= wins.length) return;
             try {
-                const reply = await agentChatOnce(windowPrompt(wins[i], i === 0), modelId, AI_TIMEOUT.quick, signal);
+                const reply = await agentChatOnce(windowPrompt(wins[i], i === 0), modelId, AI_TIMEOUT.quick, signal, {
+                    kind: "detect",
+                    title: `前段检测 · ${i + 1}/${wins.length}`,
+                });
                 if (i === 0) headReply = reply;
                 counts[i] = parseCount(reply);
             } catch (e) {

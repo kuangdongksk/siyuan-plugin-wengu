@@ -1,0 +1,297 @@
+/**
+ * AI 会话登记簿（20260831）：全仓 AI 任务走 agentChatOnce 一次性独立
+ * 会话，跑完即 removeSession——弹层关掉就看不到「问了什么、答了什么」。
+ * 本模块把带 track 元数据的每次 AI 调用登记成一条记录（完整轮次/状态/
+ * 模型），供「AI 会话」工作区面板回看产出并继续追问（继续 = 把历史
+ * 轮次播种进新会话重放，见 client.ts agentChatContinued）。
+ *
+ * 存储放 saveData("ai-sessions")：LRU 双上限——全局 {@link AI_SESSIONS_CAP}
+ * 条、单类别 {@link AI_SESSION_KIND_CAP} 条（判题/转换这类高频调用不至
+ * 冲掉其他类别的记录），轮次文本单条 2 万字封顶（防御超长 prompt 撑爆
+ * 存储）。写走「脏标记 + 600ms 尾随去抖 + 串行链」（内核 fetchSyncPost
+ * 并发互吞响应，见 AGENTS.md；转换并发池一秒内多次收口只落一次盘）。
+ * 插件重载时在途的 running 记录永远等不到收口——hydrate 一律改判
+ * error({@link AI_INTERRUPTED})，面板显示「已中断」。
+ */
+
+/** 会话轮次：user=发给 AI 的完整 prompt，ai=AI 回答全文（即「产出」）。 */
+export interface AiTurn {
+    role: "user" | "ai";
+    text: string;
+}
+
+/** 一条登记记录：对应一次 agentChatOnce 调用（继续追问的追加轮也在内）。 */
+export interface AiSessionRecord {
+    /** 首次调用的内核 sessionID（继续追问播种新会话，此 id 仅作记录锚点）。 */
+    id: string;
+    /** 业务类别（judge/convert/detect/tag/route/regen/word/ask，面板过滤徽标）。 */
+    kind: string;
+    title: string;
+    /** 调用时指定的模型 id（继续追问的默认模型，resolveModelId 总闸仍生效）。 */
+    model: string;
+    createdAt: number;
+    endedAt?: number;
+    status: "running" | "done" | "error";
+    error?: string;
+    turns: AiTurn[];
+}
+
+/** 插件存储（saveData("ai-sessions")）里的登记簿。 */
+export interface AiSessionsData {
+    version: 1;
+    items: AiSessionRecord[];
+}
+
+/** 全局保留条数（超出按最旧淘汰）。 */
+export const AI_SESSIONS_CAP = 150;
+/** 单类别保留条数（高频类别不冲掉别的类）。 */
+export const AI_SESSION_KIND_CAP = 40;
+/** 重载时在途记录的收口标记（面板映射为「已中断」文案）。 */
+export const AI_INTERRUPTED = "interrupted";
+
+/** 单轮文本封顶（防御超长 prompt 撑爆存储）。 */
+const TURN_TEXT_CAP = 20_000;
+/** 落盘去抖窗口（ms）。 */
+const FLUSH_DELAY_MS = 600;
+
+function validTurns(v: unknown): AiTurn[] {
+    return Array.isArray(v)
+        ? v.filter(
+              (x): x is AiTurn =>
+                  !!x && typeof x === "object" && (x.role === "user" || x.role === "ai") && typeof x.text === "string"
+          )
+        : [];
+}
+
+function validItems(raw: unknown): AiSessionRecord[] {
+    if (!raw || typeof raw !== "object") return [];
+    const items = (raw as { items?: unknown }).items;
+    if (!Array.isArray(items)) return [];
+    const out: AiSessionRecord[] = [];
+    for (const x of items) {
+        if (!x || typeof x !== "object") continue;
+        const r = x as Partial<AiSessionRecord>;
+        if (
+            typeof r.id !== "string" ||
+            typeof r.kind !== "string" ||
+            typeof r.title !== "string" ||
+            typeof r.model !== "string" ||
+            typeof r.createdAt !== "number" ||
+            (r.status !== "running" && r.status !== "done" && r.status !== "error")
+        ) {
+            continue;
+        }
+        out.push({ ...r, status: r.status, turns: validTurns(r.turns) } as AiSessionRecord);
+    }
+    return out;
+}
+
+function capText(text: string): string {
+    return text.length > TURN_TEXT_CAP ? text.slice(0, TURN_TEXT_CAP) : text;
+}
+
+function cloneTurns(turns: AiTurn[]): AiTurn[] {
+    return turns.map((t) => ({ role: t.role, text: t.text }));
+}
+
+function cloneRecord(r: AiSessionRecord): AiSessionRecord {
+    return { ...r, turns: cloneTurns(r.turns) };
+}
+
+export class AiSessionStore {
+    /** 头新尾旧（begin 头插；hydrate 后统一按 createdAt 降序排）。 */
+    private items: AiSessionRecord[] = [];
+    private readyPromise?: Promise<void>;
+    private dirty = false;
+    private flushTimer?: ReturnType<typeof setTimeout>;
+    /** 串行落盘链（同 ChatStore/RouteCache 模式：并发 saveData 互吞）。 */
+    private chain: Promise<unknown> = Promise.resolve();
+    private listeners = new Set<() => void>();
+
+    constructor(
+        private readonly loadRaw: () => Promise<unknown>,
+        private readonly saveRaw: (v: AiSessionsData) => Promise<unknown>
+    ) {
+        void this.ensure();
+    }
+
+    /** 首次加载（幂等，多次调用共享同一 Promise；坏数据按空处理）。 */
+    ready(): Promise<void> {
+        return this.ensure();
+    }
+
+    private ensure(): Promise<void> {
+        this.readyPromise ??= this.loadRaw()
+            .catch((): unknown => undefined)
+            .then((raw) => {
+                const stored = validItems(raw);
+                if (this.items.length === 0) {
+                    this.items = stored;
+                } else {
+                    // 极端竞态：构造后 hydrate 完成前已有新调用登记（内存
+                    // 记录必不在盘上）——按 id 合并，在途记录优先
+                    const ids = new Set(this.items.map((r) => r.id));
+                    this.items = [...this.items, ...stored.filter((s) => !ids.has(s.id))];
+                }
+                let changed = false;
+                for (const r of this.items) {
+                    if (r.status === "running") {
+                        r.status = "error";
+                        r.error = AI_INTERRUPTED;
+                        r.endedAt = Date.now();
+                        changed = true;
+                    }
+                }
+                this.items.sort((a, b) => b.createdAt - a.createdAt);
+                if (this.trim()) changed = true;
+                if (changed) this.schedule();
+            });
+        return this.readyPromise;
+    }
+
+    /** 变更订阅（登记/收口/删除都同步通知；面板据此重拉快照）。 */
+    subscribe(fn: () => void): () => void {
+        this.listeners.add(fn);
+        return () => this.listeners.delete(fn);
+    }
+
+    private notify(): void {
+        for (const fn of [...this.listeners]) fn();
+    }
+
+    /** 登记一次调用的起点（running + 首轮 user prompt）。 */
+    begin(id: string, kind: string, title: string, model: string, prompt: string): void {
+        const rec: AiSessionRecord = {
+            id,
+            kind,
+            title,
+            model,
+            createdAt: Date.now(),
+            status: "running",
+            turns: [{ role: "user", text: capText(prompt) }],
+        };
+        this.items = [rec, ...this.items.filter((r) => r.id !== id)];
+        this.trim();
+        this.schedule();
+        this.notify();
+    }
+
+    /** 调用成功收口（追加 ai 轮 = 产出；仅 running 态可收口，防错序双写）。 */
+    succeed(id: string, reply: string): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || r.status !== "running") return;
+        r.status = "done";
+        r.endedAt = Date.now();
+        delete r.error;
+        r.turns.push({ role: "ai", text: capText(reply) });
+        this.schedule();
+        this.notify();
+    }
+
+    /** 调用失败收口（中止/超时/报错都算 error，原样记消息）。 */
+    fail(id: string, message: string): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || r.status !== "running") return;
+        r.status = "error";
+        r.error = message || "error";
+        r.endedAt = Date.now();
+        this.schedule();
+        this.notify();
+    }
+
+    /** 继续追问：追加轮（user 先进、ai 随回复到——失败时只留 user 轮）。 */
+    appendTurns(id: string, ...turns: AiTurn[]): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || turns.length === 0) return;
+        for (const t of turns) r.turns.push({ role: t.role, text: capText(t.text) });
+        this.schedule();
+        this.notify();
+    }
+
+    /** 删除一条（面板行内动作）。 */
+    remove(id: string): void {
+        const before = this.items.length;
+        this.items = this.items.filter((r) => r.id !== id);
+        if (this.items.length === before) return;
+        this.schedule();
+        this.notify();
+    }
+
+    /** 清空全部。 */
+    clear(): void {
+        if (this.items.length === 0) return;
+        this.items = [];
+        this.schedule();
+        this.notify();
+    }
+
+    /** 全部记录快照（头新尾旧；返回副本，读方改不动登记簿）。 */
+    list(): AiSessionRecord[] {
+        return this.items.map(cloneRecord);
+    }
+
+    /** 单条快照（无则 undefined）。 */
+    peek(id: string): AiSessionRecord | undefined {
+        const r = this.items.find((x) => x.id === id);
+        return r ? cloneRecord(r) : undefined;
+    }
+
+    /** 容量收口：先单类别（从头新尾旧序数起，超出上限的旧记录淘汰）、
+     *  后全局截断（保留头部=最新）。 */
+    private trim(): boolean {
+        const before = this.items.length;
+        const byKind = new Map<string, number>();
+        for (let i = 0; i < this.items.length; i++) {
+            const k = this.items[i].kind;
+            const c = (byKind.get(k) ?? 0) + 1;
+            byKind.set(k, c);
+            if (c > AI_SESSION_KIND_CAP) {
+                this.items.splice(i, 1);
+                i--;
+            }
+        }
+        if (this.items.length > AI_SESSIONS_CAP) this.items.length = AI_SESSIONS_CAP;
+        return this.items.length !== before;
+    }
+
+    /** 脏了安排去抖落盘。 */
+    private schedule(): void {
+        this.dirty = true;
+        this.flushTimer ??= setTimeout(() => {
+            this.flushTimer = undefined;
+            this.flushNow();
+        }, FLUSH_DELAY_MS);
+    }
+
+    /** 立即落盘（去抖窗口合并多笔；插件卸载/单测直调）。 */
+    flushNow(): void {
+        if (this.flushTimer) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = undefined;
+        }
+        if (!this.dirty) return;
+        this.dirty = false;
+        const snap: AiSessionsData = { version: 1, items: this.items.map(cloneRecord) };
+        const run = this.chain.then(() => this.saveRaw(snap));
+        const noop = (): void => undefined;
+        this.chain = run.then(noop, noop); // 链面吞错保后续可排（落盘失败静默，内存为准）
+    }
+}
+
+/** 模块级单例（index.ts onload 注入内核 IO；未初始化=测试环境，
+ *  agentChatOnce 的 track 自动裸跑不登记）。 */
+let instance: AiSessionStore | undefined;
+
+/** 插件装载时接线。 */
+export function initAiSessions(io: {
+    load: () => Promise<unknown>;
+    save: (v: AiSessionsData) => Promise<unknown>;
+}): AiSessionStore {
+    instance = new AiSessionStore(io.load, io.save);
+    return instance;
+}
+
+/** 取共享登记簿单例（面板与 client 共用）。 */
+export function aiSessions(): AiSessionStore | undefined {
+    return instance;
+}

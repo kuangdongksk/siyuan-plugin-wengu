@@ -70,7 +70,8 @@ export async function runAgentTextOrPanel(opts: {
     out.textContent = opts.loadingText;
     out.removeAttribute("hidden");
     try {
-        const text = await agentChatOnce(opts.prompt, opts.modelId, AI_TIMEOUT.quick); // 独立会话，页内降级路径
+        // 独立会话，页内降级路径（登记进 AI 会话面板，标题取 prompt 前缀）
+        const text = await agentChatOnce(opts.prompt, opts.modelId, AI_TIMEOUT.quick, undefined, { kind: "ask" });
         out.textContent = text.trim() || opts.emptyText;
     } catch (e) {
         out.textContent = `${opts.failPrefix}${String((e as Error)?.message ?? e)}`;
