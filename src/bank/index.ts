@@ -4,10 +4,10 @@ import { GROUP_PREV } from "../siyuan/attrs";
 import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
 import { listMaterials, resolveGroupPlaceholders } from "../quiz/service/MaterialService";
 import type { CollectionRow, QuestionBank } from "./data/QuestionBank";
+import { refreshLiveCollections } from "./data/LiveCols";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
 import type { QuizView } from "../quiz";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
-import CollectionPanelApp from "./components/CollectionPanelApp.svelte";
 import KnowledgePanelApp from "./components/KnowledgePanelApp.svelte";
 
 /**
@@ -77,9 +77,11 @@ export class CollectionFlow {
         if (rows.some((c) => c.id === id)) this.collectionId = id;
     }
 
-    /** 拉侧栏清单（load 尾部与迁移完成后调用）。 */
+    /** 拉侧栏清单（load 尾部与迁移完成后调用）。活视图专题先对账
+     *  （□3：按 subKeys 重算 qids，侧栏计数不漂）。 */
     async refresh(): Promise<void> {
         const bank = this.v.bank();
+        if (bank) await refreshLiveCollections(bank);
         this.rows = bank ? await bank.collectionsView() : [];
     }
 
@@ -96,13 +98,15 @@ export class CollectionFlow {
         refreshSideCols(this.rows, this.collectionId);
     }
 
-    /** 打开专题管理（按知识点收集/补题/删除/切换）。 */
-    openDialog(): void {
+    /** 打开专题管理（按知识点收集/补题/删除/切换）。preset=预勾知识点
+     *  （知识树节点行「针对此节点生成」入口，0 题节点合成 0 计数行）。 */
+    openDialog(preset?: { key: string; title: string }[]): void {
         const bank = this.v.bank();
         if (!bank) return;
         openCollectionDialog({
             t: this.v.t,
             bank,
+            preset,
             modelId: () => this.v.modelId(),
             docTitle: (docId) => this.v.docs().find((d) => d.id === docId)?.title ?? "",
             onChanged: () => {
@@ -128,25 +132,19 @@ export function colSessionId(colId: string): string {
     return `col:${colId}`;
 }
 
-/* ── 工作区面板挂载（Svelte 化，companion 同款单例+detach 模式） ── */
+/* ── 工作区面板挂载（Svelte 化，companion 同款单例+detach 模式；
+   20260831 rail 合并（□4）：专题清单并入知识面板下半区，
+   CollectionPanelApp 退役为内嵌 ColListSection，独立挂载入口删除 ── */
 
-let colPanelApp: MountedSvelteApp | undefined;
 let knowPanelApp: MountedSvelteApp | undefined;
-
-export function mountCollectionPanel(v: QuizView, root: HTMLElement): void {
-    detachBankPanels();
-    colPanelApp = mountSvelteApp(CollectionPanelApp, root, { v });
-}
 
 export function mountKnowledgePanel(v: QuizView, root: HTMLElement): void {
     detachBankPanels();
     knowPanelApp = mountSvelteApp(KnowledgePanelApp, root, { v });
 }
 
-/** 卸载两个工作区面板（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
+/** 卸载知识工作区面板（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
 export function detachBankPanels(): void {
-    colPanelApp?.unmount();
-    colPanelApp = undefined;
     knowPanelApp?.unmount();
     knowPanelApp = undefined;
 }

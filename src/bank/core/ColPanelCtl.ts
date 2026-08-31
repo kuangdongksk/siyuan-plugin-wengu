@@ -1,6 +1,7 @@
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { createFolder, deleteFolder, renameFolder } from "../data/BankFolders";
+import { refreshLiveCollections } from "../data/LiveCols";
 import { summarizeSessions, type ColRowView, type ColTreeNode } from "../ui/CollectionPanel";
 import { fmt } from "../../ui/shared";
 import type { ColPanelUi } from "./ColPanelUi";
@@ -42,6 +43,7 @@ export class ColPanelCtl {
         this.ui.editing = undefined;
         this.disarm();
         this.ui.folderInput = undefined;
+        await refreshLiveCollections(bank); // 活视图专题题单对账（□3），计数先于渲染落准
         const rows = (await bank.collectionsView()).filter((r) => !r.id.startsWith("doc:"));
         const history = this.v.historyStore();
         const view: ColRowView[] = [];

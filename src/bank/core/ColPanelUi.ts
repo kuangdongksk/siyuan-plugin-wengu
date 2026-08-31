@@ -51,7 +51,7 @@ export interface ColFolderInput {
     depth: number;
 }
 
-/** 初始态（$state 包装在 CollectionPanelApp 内完成）。 */
+/** 初始态（$state 包装在 ColListSection 内完成）。 */
 export function initialColPanelUi(): ColPanelUi {
     return {
         phase: "loading",

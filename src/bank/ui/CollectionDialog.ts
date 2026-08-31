@@ -24,6 +24,9 @@ export interface CollectionDialogDeps {
     onEdited(collectionId: string): void;
     /** 创建/点击后直接切过去开刷。 */
     onSelect(collectionId: string): void;
+    /** 预勾知识点（知识树节点行「针对此节点生成」入口）：不在索引里
+     *  的键（0 题节点）合成 0 计数行展示，生成点位同样包含它们。 */
+    preset?: { key: string; title: string }[];
 }
 
 /** 单次补题上限（串行 AI 调用，防 token/时长失控）。 */
@@ -69,9 +72,12 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     const genBtn = root.querySelector<HTMLButtonElement>("[data-act='col-gen']");
     const genStatus = root.querySelector<HTMLElement>("[data-act='col-gen-status']");
 
-    const selected = new Set<string>();
+    const selected = new Set<string>((deps.preset ?? []).map((p) => p.key));
     /** 默认标题 = 第一个勾选的知识点标题（可改）。 */
-    let defaultTitle = "";
+    let defaultTitle = deps.preset?.[0]?.title ?? "";
+    if (defaultTitle && titleInput) titleInput.value = defaultTitle;
+    /** 预设里不在索引中的键（0 题节点）：合成 0 计数行，展示与生成点位共用。 */
+    let presetRows: KnowledgeRow[] = [];
     /** 生成进行中锁（防重复触发）。 */
     let generating = false;
     const show = (text: string, kind: "ok" | "err" | "muted") => {
@@ -212,7 +218,11 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     };
 
     const refresh = async (): Promise<void> => {
-        renderKnowledge(await bank.knowledgeIndex());
+        const idx = await bank.knowledgeIndex();
+        presetRows = (deps.preset ?? [])
+            .filter((p) => !idx.some((r) => r.key === p.key))
+            .map((p): KnowledgeRow => ({ key: p.key, title: p.title, count: 0 }));
+        renderKnowledge([...idx, ...presetRows]);
         renderExisting(await bank.collectionsView());
     };
 
@@ -239,18 +249,28 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
             GEN_MAX_PER_RUN,
             Number(root.querySelector<HTMLSelectElement>("[data-act='col-gen-count']")?.value ?? 5) || 5
         );
-        void runCollectGen(
-            deps,
-            [...selected],
-            (root.querySelector<HTMLInputElement>("[data-act='col-title']")?.value ?? "").trim() ||
-                defaultTitle ||
-                t("collectDefaultTitle"),
-            mode,
-            count,
-            show,
-            () => (generating = false),
-            dialog
-        );
+        // 生成点位 = 索引行 ∪ 合成行（0 题节点），都限定在勾选内
+        void bank
+            .knowledgeIndex()
+            .then((idx) => [
+                ...idx.filter((r) => selected.has(r.key)),
+                ...presetRows.filter((r) => selected.has(r.key)),
+            ])
+            .then((points) =>
+                runCollectGen(
+                    deps,
+                    [...selected],
+                    points,
+                    (root.querySelector<HTMLInputElement>("[data-act='col-title']")?.value ?? "").trim() ||
+                        defaultTitle ||
+                        t("collectDefaultTitle"),
+                    mode,
+                    count,
+                    show,
+                    () => (generating = false),
+                    dialog
+                )
+            );
         generating = true;
     });
     root.querySelector("[data-act='col-close']")?.addEventListener("click", () => dialog.destroy());
@@ -261,6 +281,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
 async function runCollectGen(
     deps: CollectionDialogDeps,
     keys: string[],
+    points: { key: string; title: string }[],
     title: string,
     mode: "variant" | "concept",
     count: number,
@@ -271,7 +292,6 @@ async function runCollectGen(
     const { t, bank } = deps;
     const modelId = deps.modelId();
     try {
-        const points = (await bank.knowledgeIndex()).filter((r) => keys.includes(r.key));
         const qids = await bank.collectQids(keys);
         const row = await bank.createCollection(title, qids, "knowledge");
         const { made, degraded } = await genIntoCollection(bank, points, {

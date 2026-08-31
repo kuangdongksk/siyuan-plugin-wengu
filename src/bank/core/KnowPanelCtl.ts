@@ -16,8 +16,10 @@ import {
     importedKnowDocs,
     mergeKnowDocs,
     type KnowDocView,
+    type KnowSectionTreeView,
     type KnowTreeNode,
 } from "../ui/KnowledgePanel";
+import { ensureLiveCollection, subKeysOf } from "../data/LiveCols";
 import { openKnowPicker } from "../../ui/KnowPicker";
 import { KernelDoc } from "../../siyuan/doc";
 import type { KnowPanelUi } from "./KnowPanelUi";
@@ -123,6 +125,34 @@ export class KnowPanelCtl {
     related(d: KnowDocView): void {
         const bank = this.bank();
         if (bank) void openRelatedDialog(bank, this.v.t, d.docId);
+    }
+
+    /* ── 小节节点行动作（docs/knowledge-tree.md □3/□4） ── */
+
+    /** 「刷此知识点」：物化活视图专题（确定性 id，qids 读取时实时刷新）
+     *  直接切题库模式开刷——题库后续补题/转换回流同节点，轮次历史连续。 */
+    drillNode(s: KnowSectionTreeView): void {
+        const bank = this.bank();
+        if (!bank) return;
+        void ensureLiveCollection(bank, s, subKeysOf(s)).then(async (row): Promise<void> => {
+            await bank.flush();
+            await this.v
+                .colFlowOf()
+                .refresh()
+                .then((): void => this.v.colFlowOf().refreshSide());
+            this.v.colFlowOf().switchTo(row.id);
+            this.v.switchWorkspace("drill");
+        });
+    }
+
+    /** 「针对此节点生成」：收集弹窗预勾该节点子树（0 题节点合成行），
+     *  生成模式/数量沿用弹窗既有控件。 */
+    genNode(s: KnowSectionTreeView): void {
+        const entriesOf = (n: KnowSectionTreeView): { key: string; title: string }[] => [
+            { key: `kp:${n.id}`, title: n.title },
+            ...n.children.flatMap(entriesOf),
+        ];
+        this.v.colFlowOf().openDialog(entriesOf(s));
     }
 
     open(docId: string): void {

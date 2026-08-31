@@ -229,6 +229,11 @@
   font-size: 12px;
 }
 
+/* 知识工作区下半区（□4 rail 合并）：专题清单区段与上半知识树分隔 */
+.wengu-know-cols {
+  margin-top: 20px;
+}
+
 /* ── AI 会话面板（rail「AI 会话」工作区；登记簿见 ai/data/AiSessions） ── */
 .wengu-ai-kinds {
   display: flex;

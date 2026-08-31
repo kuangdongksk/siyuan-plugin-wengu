@@ -13,14 +13,16 @@
     import TreeList from "../../ui/TreeList.svelte";
     import type { TreeListNode } from "../../ui/TreeListTypes";
     import { fmt } from "../../ui/shared";
+    import ColListSection from "./ColListSection.svelte";
 
     /**
-     * 知识文档管理工作区面板根组件（四件套之一）：屏幕路由=phase 三态，
-     * 树由 docs/info 现算（buildKnowTree）。旧实现折叠切换要 paintTree
-     * 整树重绘，现在 openPaths 进响应态，细粒度更新；20260830 行渲染
-     * 收敛共享组件 TreeList（与文档选择器同源，行尾计数/动作钮走
-     * trailing snippet，载荷经 key 回查表携带）。挂载编排见 bank/index.ts
-     * mountKnowledgePanel。
+     * 知识工作区面板根组件（四件套之一）：屏幕路由=phase 三态，树由
+     * docs/info 现算（buildKnowTree）。旧实现折叠切换要 paintTree 整树
+     * 重绘，现在 openPaths 进响应态，细粒度更新；20260830 行渲染收敛
+     * 共享组件 TreeList（与文档选择器同源，行尾计数/动作钮走 trailing
+     * snippet，载荷经 key 回查表携带）。20260831 rail 合并（□4）：专题
+     * 清单并入下半区（ColListSection）；小节节点行新增「开刷/补题」
+     * （□3 活视图专题）。挂载编排见 bank/index.ts mountKnowledgePanel。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -147,6 +149,20 @@
                                         >{t("knowSecStale")}</span
                                     >{/if}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(s.count) })}</span>
+                                <span class="b3-list-item__action">
+                                    <button
+                                        type="button"
+                                        class="b3-button b3-button--text"
+                                        title={t("knowDrillNodeTip")}
+                                        onclick={() => ctl.drillNode(s)}>{t("knowDrillNode")}</button
+                                    >
+                                    <button
+                                        type="button"
+                                        class="b3-button b3-button--text"
+                                        title={t("knowGenNodeTip")}
+                                        onclick={() => ctl.genNode(s)}>{t("knowGenNode")}</button
+                                    >
+                                </span>
                             {:else if d}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(d.total) })}</span>
                                 <span class="b3-list-item__action">
@@ -199,5 +215,7 @@
                 <div class="wengu-muted">{t("knowEmpty")}</div>
             {/if}
         </div>
+        <!-- 下半区：专题清单（□4 rail 合并，原「专题管理」工作区整段照搬） -->
+        <ColListSection {v} />
     </div>
 {/if}
