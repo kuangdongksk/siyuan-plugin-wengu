@@ -31,7 +31,7 @@
       管理面板**（20260831）：`data/AiSessions.ts` 登记簿
       （saveData("ai-sessions")，LRU 双上限全局 150/单类 40、600ms 去抖
       +串行链落盘、重载时 running 改判「已中断」；index.ts onload
-      initAiSessions 接线）+ rail 第五钮「AI 会话」工作区面板
+      initAiSessions 接线）+ rail「AI 会话」工作区面板
       （components/SessionPanelApp.svelte 四件套，挂载编排
       `SessionPanel.ts`）——判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
@@ -80,8 +80,10 @@
       20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
       路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
       LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
-      分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
-      CollectionPanel/KnowledgePanel 挂页签左栏 rail；**数据自托管**
+      分期见 docs/incremental-hash-plan.md）；知识工作区面板 KnowledgePanel 挂页签左栏 rail（20260831 □4
+      合并：专题清单=下半区 ColListSection 内嵌、rail 收敛四钮；小节
+      节点行「开刷」=活视图专题 col-kp-{块id}，data/LiveCols 读取时
+      实时刷新题单）；**数据自托管**
       （20260831 三线收口）：作答运行时统计（attempts/wrong-count/
       right/last-answer/step-_/slot-_/文档级 total-time）**停写块
       属性**唯一真相在题库 stats/docStats（作答记账在 data/

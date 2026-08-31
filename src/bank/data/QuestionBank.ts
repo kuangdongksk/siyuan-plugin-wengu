@@ -52,6 +52,11 @@ export interface BankCollection {
     qids: string[];
     origin: "manual" | "knowledge";
     createdAt: number;
+    /** 活视图绑定（□3）：知识树节点主键（kp:{块id}）。缺省=死快照。 */
+    nodeKey?: string;
+    /** 活视图刷新入参：节点子树引用键并集（含自身；questionsOf 读取时
+     *  按 collectQids 口径重算 qids，题库变化自动回流）。 */
+    subKeys?: string[];
 }
 
 /** 插件存储（saveData("bank")）里的题库。 */
@@ -222,11 +227,19 @@ export class QuestionBank {
         this.markDirty();
     }
 
-    /** 专题的题目列表（解析缓存按 hash 失效；统计镜像覆盖）。 */
+    /** 专题的题目列表（解析缓存按 hash 失效；统计镜像覆盖）。活视图
+     *  专题（subKeys 绑定）读取时先实时刷新题单——题库后续变化回流。 */
     async questionsOf(collectionId: string): Promise<ParsedQuestion[]> {
         const data = await this.all();
         const col = data.collections.find((c) => c.id === collectionId);
         if (!col) return [];
+        if (col.subKeys?.length) {
+            const live = await this.collectQids(col.subKeys);
+            if (live.join("\u0000") !== col.qids.join("\u0000")) {
+                col.qids = live;
+                this.markDirty();
+            }
+        }
         const out: ParsedQuestion[] = [];
         for (const qid of col.qids) {
             const r = data.records[qid];

@@ -37,6 +37,10 @@ export interface KnowPanelUi {
     /** 内容已变更的小节（标题块 id）：装载后台 diffDocs 比对小节哈希
      *  基线得出（一次性提示——基线自推进，重开面板不重复报）。 */
     staleSecs: Set<string>;
+    /** AI 归纳进行中的 docId（行按钮转「归纳中」，再点=中止）。 */
+    outlining: string | undefined;
+    /** 归纳失败信息（一行展示；undefined=无）。 */
+    outlineErr: string | undefined;
 }
 
 /** 初始态（$state 包装在 KnowledgePanelApp 内完成）。 */
@@ -49,5 +53,7 @@ export function initialKnowPanelUi(): KnowPanelUi {
         rmArmed: undefined,
         dlArmed: undefined,
         staleSecs: new Set(),
+        outlining: undefined,
+        outlineErr: undefined,
     };
 }

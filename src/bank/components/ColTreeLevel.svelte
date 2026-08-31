@@ -75,7 +75,7 @@
                 if (e.key === "Enter") void ctl.confirmFolderEl(e.currentTarget);
                 if (e.key === "Escape") ctl.closeFolderInput();
             }}
-            onblur={() => ctl.closeFolderInput()}
+            onblur={(e) => void ctl.confirmFolderEl(e.currentTarget)}
         />
     </li>
 {/if}
@@ -195,7 +195,7 @@
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <span
                     class="b3-list-item__action b3-tooltips b3-tooltips__w wengu-cp-armed"
-                    onclick={() => ctl.armDeleteDir(c.path)}>{t("collectConfirm")}</span
+                    onclick={() => ctl.armDeleteDir(c.path)}>{ui.armedNote ?? t("collectConfirm")}</span
                 >
             {:else}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->

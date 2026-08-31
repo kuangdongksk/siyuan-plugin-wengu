@@ -1,5 +1,7 @@
 import { generateQuestion } from "./GenQuestion";
 import { injectKnowledgeRefs } from "../../convert/service/KnowRef";
+import { knowRootsOf } from "../data/KnowRoots";
+import { lexiconOfRoots, textRefsFor, type LexSection } from "../data/KnowLinkText";
 import type { QuestionBank } from "../data/QuestionBank";
 
 /**
@@ -40,6 +42,13 @@ export async function genIntoCollection(
     let made = 0;
     let attempt = 0;
     let degraded = false;
+    // kn:/ch: 自由文本键的引用来源：登记根词表按标题归一匹配（零 AI、
+    // 唯一命中才挂，同「导入即关联」语义）。词表 SQL 较重，惰性建一次。
+    let lex: Map<string, LexSection[]> | undefined;
+    const lexOf = async (): Promise<Map<string, LexSection[]>> => {
+        if (!lex) lex = await lexiconOfRoots(await knowRootsOf(bank));
+        return lex;
+    };
     for (const p of points) {
         let madeHere = 0;
         while (madeHere < perPoint && made < opts.count && attempt < opts.count * 3) {
@@ -53,7 +62,11 @@ export async function genIntoCollection(
             const kd = await generateQuestion(bank, p, mode, opts.modelId);
             if (!kd) continue;
             const kpId = p.key.startsWith("kp:") ? p.key.slice(3) : "";
-            const refs = kpId ? [{ id: kpId, title: p.title }] : [];
+            let refs = kpId ? [{ id: kpId, title: p.title }] : [];
+            if (refs.length === 0) {
+                const hits = textRefsFor(p.title, await lexOf());
+                if (hits.length === 1) refs = [{ id: hits[0].id, title: hits[0].title }];
+            }
             const qid = await bank.addGenerated(injectKnowledgeRefs(kd, refs), refs, opts.title);
             await opts.append(qid);
             madeHere++;

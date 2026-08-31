@@ -1,7 +1,9 @@
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { createFolder, deleteFolder, renameFolder } from "../data/BankFolders";
+import { refreshLiveCollections } from "../data/LiveCols";
 import { summarizeSessions, type ColRowView, type ColTreeNode } from "../ui/CollectionPanel";
+import { fmt } from "../../ui/shared";
 import type { ColPanelUi } from "./ColPanelUi";
 
 /**
@@ -41,6 +43,7 @@ export class ColPanelCtl {
         this.ui.editing = undefined;
         this.disarm();
         this.ui.folderInput = undefined;
+        await refreshLiveCollections(bank); // 活视图专题题单对账（□3），计数先于渲染落准
         const rows = (await bank.collectionsView()).filter((r) => !r.id.startsWith("doc:"));
         const history = this.v.historyStore();
         const view: ColRowView[] = [];
@@ -133,14 +136,19 @@ export class ColPanelCtl {
             void this.deleteDir(path);
             return;
         }
-        this.arm(path);
+        // 删文件夹连带删严格前缀下的全部专题（含派生挂进来的）——确认
+        // 文案明示连带数，避免「删空壳目录却清了一片专题」的误伤
+        const n = this.ui.rows.filter((r) => r.title.startsWith(`${path}/`)).length;
+        this.arm(path, n > 0 ? fmt(this.v.t("colDelFolderConfirm"), { n: String(n) }) : undefined);
     }
 
-    private arm(key: string): void {
+    private arm(key: string, note?: string): void {
         this.disarm();
         this.ui.armed = key;
+        this.ui.armedNote = note;
         this.armTimer = setTimeout((): void => {
             this.ui.armed = undefined;
+            this.ui.armedNote = undefined;
             this.armTimer = undefined;
         }, 3000);
     }
@@ -149,6 +157,7 @@ export class ColPanelCtl {
         if (this.armTimer) clearTimeout(this.armTimer);
         this.armTimer = undefined;
         this.ui.armed = undefined;
+        this.ui.armedNote = undefined;
     }
 
     private async deleteCol(id: string): Promise<void> {

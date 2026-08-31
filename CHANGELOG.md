@@ -2,6 +2,27 @@
 
 ## v0.1.1 unreleased
 
+- 知识树方案收口（20260831，docs/knowledge-tree.md 四块全落地）：□1
+  AI 建知识树——结构单薄章节（小节 <6 或顶层 <3）行「建知识树」，AI
+  归纳 h1~h3 大纲（知识大类/方法解法/细分，24000 字预算超限按标题段
+  压缩）落盘 `{章节}·知识树` 独立文档（原文不动，同名先进回收站=覆盖
+  式重建）并自动登记 knowRoots（词表/路由/关联全链路即含树节点，
+  KnowOutline）；□2 生成题打标——GenCore 对 kn:/ch: 自由文本键生成
+  的题按登记根词表归一唯一命中挂引用（零 AI，同「导入即关联」语义；
+  变式重练模板 kpRefs 直传路径既有）；□3 活视图专题——小节节点行
+  「开刷」物化确定性 id 专题（col-kp-{块id}，data/LiveCols），Bank-
+  Collection 记 nodeKey+subKeys（子树引用键并集），questionsOf 读取时
+  按 collectQids 口径实时刷新 qids（转换/补题/重新挂引用自动回流），
+  清单装载前 refreshLiveCollections 对账计数；历史/轮次沿用 col: 机制
+  零新账，id 确定性=删了重建轮次仍连续；手动快照专题行为不变、无迁移。
+  节点行「补题」=收集弹窗预勾该节点子树（preset 通道，0 题节点合成
+  0 计数行可直生成）；□4 rail 合并——「专题管理」并入「知识」工作区
+  下半区（ColListSection=原 CollectionPanelApp 区段化，文件夹组织/
+  改名/两击删除/按知识点收集逐项照搬），rail 收敛四钮（刷题/知识/
+  AI 会话/学伴），WenguWorkspace 枚举 collection 退役、prefs 旧值
+  normalize 落「知识」。补 7 例单测（LiveCols 确定性 id/回流/快照
+  不动 + normalizeWorkspace 规整）。
+
 - AI 会话管理面板（20260831）：判题/转换/检测/标签/路由/出题/单词复盘
   等 AI 任务都是一次性独立会话，跑完即弃、弹层关掉就看不到问了什么
   答了什么——agentChatOnce 新增可选 track 参数（kind+title），带元数据
@@ -34,8 +55,9 @@
   徽标（基线自推进一次性提示），并进路由缓存索引代数指纹——小节
   正文变更即整表作废，宁漏勿错。新文件 BankRecording/DriftWatch/
   KnowHash，补 27 例单测（questionHash 归一化、记账语义、三态比对、
-  切段哈希、代数指纹）；QuestionBank 558 行超红线挂账（存量 529 +
-  DriftEntry/docStats 类型扩展，同 KnowledgeLink 540 先例）。
+  切段哈希、代数指纹）；QuestionBank 超红线挂账（数据自托管后 558，活视图 □3 后 571：
+  存量 529 + DriftEntry/docStats 类型扩展 + questionsOf 活刷新内联，
+  同 KnowledgeLink 540 先例）。
 
 - 知识点引用注入拆分 + 增量哈希三期定论（20260831）：KnowledgeLink.ts
   超 500 行硬限（540），把引用注入与生成后处理（strip/injectKnowledgeRefs、

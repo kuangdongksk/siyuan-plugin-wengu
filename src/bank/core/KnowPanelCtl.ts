@@ -8,14 +8,18 @@ import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
 import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
+import { generateKnowledgeOutline } from "../../convert/service/KnowOutline";
+import { convertRunActive } from "../../convert/service/ConvertRun";
 import {
     buildKnowTree,
     groupKnowByDoc,
     importedKnowDocs,
     mergeKnowDocs,
     type KnowDocView,
+    type KnowSectionTreeView,
     type KnowTreeNode,
 } from "../ui/KnowledgePanel";
+import { ensureLiveCollection, subKeysOf } from "../data/LiveCols";
 import { openKnowPicker } from "../../ui/KnowPicker";
 import { KernelDoc } from "../../siyuan/doc";
 import { SvelteSet } from "svelte/reactivity";
@@ -118,6 +122,34 @@ export class KnowPanelCtl {
         if (bank) void openRelatedDialog(bank, this.v.t, d.docId);
     }
 
+    /* ── 小节节点行动作（docs/knowledge-tree.md □3/□4） ── */
+
+    /** 「刷此知识点」：物化活视图专题（确定性 id，qids 读取时实时刷新）
+     *  直接切题库模式开刷——题库后续补题/转换回流同节点，轮次历史连续。 */
+    drillNode(s: KnowSectionTreeView): void {
+        const bank = this.bank();
+        if (!bank) return;
+        void ensureLiveCollection(bank, s, subKeysOf(s)).then(async (row): Promise<void> => {
+            await bank.flush();
+            await this.v
+                .colFlowOf()
+                .refresh()
+                .then((): void => this.v.colFlowOf().refreshSide());
+            this.v.colFlowOf().switchTo(row.id);
+            this.v.switchWorkspace("drill");
+        });
+    }
+
+    /** 「针对此节点生成」：收集弹窗预勾该节点子树（0 题节点合成行），
+     *  生成模式/数量沿用弹窗既有控件。 */
+    genNode(s: KnowSectionTreeView): void {
+        const entriesOf = (n: KnowSectionTreeView): { key: string; title: string }[] => [
+            { key: `kp:${n.id}`, title: n.title },
+            ...n.children.flatMap(entriesOf),
+        ];
+        this.v.colFlowOf().openDialog(entriesOf(s));
+    }
+
     open(docId: string): void {
         window.open(`siyuan://blocks/${docId}`);
     }
@@ -169,6 +201,48 @@ export class KnowPanelCtl {
             modelId: this.v.aiModelId(),
             onDone: () => void this.load(),
         });
+    }
+
+    /* ── AI 建知识树（docs/knowledge-tree.md □1）：归纳章节 → 落盘
+     *  `{章节}·知识树` 独立文档 → 自动登记进 knowRoots。运行中再点=
+     *  中止；转换写窗口不开（createDocWithMd 与转换 append 并发互吞）。 ── */
+
+    private outlineCtrl: AbortController | undefined;
+
+    outline(d: KnowDocView): void {
+        const bank = this.bank();
+        if (!bank) return;
+        if (this.ui.outlining === d.docId) {
+            this.outlineCtrl?.abort(); // 再点=中止（catch 复位状态）
+            return;
+        }
+        if (this.ui.outlining) return; // 同时只跑一份
+        // 转换运行中不开第二条内核写流（createByMd/remove 与转换 append 并发互吞）
+        if (convertRunActive()) {
+            this.ui.outlineErr = this.v.t("convertBusy");
+            return;
+        }
+        this.ui.outlineErr = undefined;
+        this.ui.outlining = d.docId;
+        const ctrl = new AbortController();
+        this.outlineCtrl = ctrl;
+        void generateKnowledgeOutline(d.docId, this.v.aiModelId(), ctrl.signal)
+            .then(async (r): Promise<void> => {
+                // 树文档自动登记（登记后词表/路由/关联全链路即包含树节点）
+                const cur = await knowRootsOf(bank);
+                if (!cur.includes(r.docId)) await setKnowRoots(bank, [...cur, r.docId]);
+                await bank.flush();
+                if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
+                this.ui.outlining = undefined;
+                await this.load();
+            })
+            .catch((e: unknown): void => {
+                if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
+                this.ui.outlining = undefined;
+                this.ui.outlineErr = ctrl.signal.aborted
+                    ? undefined
+                    : `${this.v.t("knowOutlineFail")}${String((e as Error)?.message ?? e)}`;
+            });
     }
 
     /* ── 「移除」两击确认（3s 复位；armed 与渲染同源，重拉后不漂移） ── */
