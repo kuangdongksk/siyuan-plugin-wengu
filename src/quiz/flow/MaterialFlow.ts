@@ -1,126 +1,76 @@
-import type { AnswerHost } from "./AnswerFlow";
-import type { DrillUnit } from "../render/DrillUnits";
 import { chaseScrollIntoView } from "../render/NumRail";
-import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
 
 /**
- * 材料组交互（E1，M3 分栏壳的组内编排）：组单元一次一题（上材料下题），
- * 导航按钮/题号导航联动、材料滚动位置按组记忆（重渲染后恢复）、
- * 材料折叠、译文随组内全判分揭示（syncGroupReveal）。
- * 题卡渲染与判分全部复用既有流程（卡都在 DOM，非当前 hidden）。
+ * 材料组交互（E1，6-4b 状态化）：组内导航/材料折叠/滚动记忆已收进
+ * component/GroupUnitApp（qi 响应态），本文件持有跨重渲染存活的组
+ * 运行态（当前题下标与材料滚动位置）+ 组登记表（题号导航定位用）
+ * + 组级揭示/线索行。
  */
-
-/** 组内导航回调：切题后同步 activeQIdx/逐题计时（QuizView 传入）。 */
-export interface GroupFlowOpts {
-    onActive(idx: number): void;
-    /** 切换后新显示的卡需要挂 Protyle（QuizView 触发增量 mount）。 */
-    onShown(): void;
-}
 
 /** 组运行态：当前题下标与材料滚动位置（跨重渲染存活）。 */
 const qiByMid = new Map<string, number>();
 const scrollByMid = new Map<string, number>();
 
-/** 渲染后绑定全部组单元（QuizView.renderListInner 在 bindAll 里调用）。 */
-export function bindGroupUnits(root: HTMLElement, units: DrillUnit[], host: AnswerHost, opts: GroupFlowOpts): void {
-    for (const unit of root.querySelectorAll<HTMLElement>(".wengu-gunit")) {
-        const u = units.find((x) => x.kind === "group" && x.mid === unit.dataset.mid);
-        if (!u?.qs?.length) continue;
-        bindOneGroupUnit(unit, u, opts);
-    }
+export function getGroupQi(mid: string): number | undefined {
+    return qiByMid.get(mid);
 }
 
-/** 绑定一个组单元（静态分片管线逐片插入时复用；host 参数保留给
- *  未来组级交互，与 bindGroupUnits 同签名语义）。 */
-export function bindOneGroupUnit(unit: HTMLElement, u: DrillUnit, opts: GroupFlowOpts): void {
-    if (!u.qs?.length) return;
-    const cur = clampQi(qiByMid.get(u.mid ?? "") ?? 0, u.qs.length);
-    showQuestion(unit, u, cur, opts, false);
-    unit.querySelector("[data-act='gq-prev']")?.addEventListener("click", () => {
-        stepQuestion(unit, u, -1, opts);
-    });
-    unit.querySelector("[data-act='gq-next']")?.addEventListener("click", () => {
-        stepQuestion(unit, u, 1, opts);
-    });
-    unit.querySelector("[data-act='gmat-fold']")?.addEventListener("click", () => {
-        unit.toggleAttribute("data-collapsed");
-    });
-    const mat = unit.querySelector<HTMLElement>(".wengu-gmat");
-    mat?.addEventListener("scroll", () => {
-        if (u.mid) scrollByMid.set(u.mid, mat.scrollTop);
-    });
+export function setGroupQi(mid: string, qi: number): void {
+    qiByMid.set(mid, qi);
 }
 
-/** 材料挂载完成（ProtyleHost.mount 之后）恢复各组滚动位置。 */
-export function restoreGroupScrolls(root: HTMLElement): void {
-    for (const unit of root.querySelectorAll<HTMLElement>(".wengu-gunit")) {
-        const top = scrollByMid.get(unit.dataset.mid ?? "");
-        const mat = unit.querySelector<HTMLElement>(".wengu-gmat");
-        if (mat && top !== undefined) mat.scrollTop = top;
-    }
+export function getGroupScroll(mid: string): number | undefined {
+    return scrollByMid.get(mid);
 }
 
-/** 组内上一题/下一题。 */
-function stepQuestion(unit: HTMLElement, u: DrillUnit, dir: number, opts: GroupFlowOpts): void {
-    const cur = clampQi(Number(unit.dataset.qi ?? 0), u.qs!.length);
-    const next = clampQi(cur + dir, u.qs!.length);
-    if (next !== cur) showQuestion(unit, u, next, opts, true);
+export function setGroupScroll(mid: string, top: number): void {
+    scrollByMid.set(mid, top);
 }
 
-/** 显示组内第 qi 题：挪 hidden、更新标签、联动 activeQIdx/计时/挂载。 */
-function showQuestion(unit: HTMLElement, u: DrillUnit, qi: number, opts: GroupFlowOpts, scrollCard: boolean): void {
-    const qs = u.qs!;
-    const cards = [...unit.querySelectorAll<HTMLElement>(".wengu-gqs .wengu-card")];
-    cards.forEach((c, i) => {
-        if (i === qi) c.removeAttribute("hidden");
-        else c.setAttribute("hidden", "");
-    });
-    unit.dataset.qi = String(qi);
-    if (u.mid) qiByMid.set(u.mid, qi);
-    const label = unit.querySelector<HTMLElement>("[data-gq-label]");
-    if (label) label.textContent = `${qi + 1}/${qs.length}`;
-    const active = cards[qi];
-    if (active) {
-        opts.onActive(qs[qi].idx);
-        opts.onShown();
-        if (scrollCard) active.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
+export function clampGroupQi(qi: number, n: number): number {
+    return Math.max(0, Math.min(n - 1, qi));
 }
 
-/** 题号导航/滚动跟踪入口：idx 属于某组时切到该题并滚到组单元。
- *  滚动走追赶式（NumRail）：组单元材料 Protyle 挂载中持续撑高，
+/* ── 组登记表（GroupUnitApp 挂载自登记，focusQuestion 消费） ── */
+
+/** 组单元实例导出（*.svelte 实例导出类型在 ts 侧收口）。 */
+export interface GroupUnitExports {
+    /** 题号导航定位：idx 属本组则切到该题并返回 true。 */
+    focusIdx(idx: number): boolean;
+    /** 组根元素（追赶滚动目标）。 */
+    unitEl(): HTMLElement | undefined;
+}
+
+const groupApps = new Map<string, GroupUnitExports>();
+
+export function registerGroup(mid: string, e: GroupUnitExports): void {
+    groupApps.set(mid, e);
+}
+
+export function unregisterGroup(mid: string): void {
+    groupApps.delete(mid);
+}
+
+/** 题号导航/滚动跟踪入口：idx 属某组时切到该题并滚到组单元，
+ *  否则滚到普通题卡。滚动走追赶式（NumRail）：材料渲染中持续撑高，
  *  scrollIntoView 一次定标会停在过时像素。 */
-export function focusQuestion(root: HTMLElement, units: DrillUnit[], list: WenguQuestion[], idx: number): void {
+export function focusQuestion(root: HTMLElement, idx: number): void {
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (!scroller) return;
-    for (const unit of root.querySelectorAll<HTMLElement>(".wengu-gunit")) {
-        const u = units.find((x) => x.kind === "group" && x.mid === unit.dataset.mid);
-        const hit = u?.qs?.find((gq) => gq.idx === idx);
-        if (!hit || !u) continue;
-        const qi = u.qs!.indexOf(hit);
-        if (Number(unit.dataset.qi ?? 0) !== qi) {
-            // 直接操作 DOM（不触发 onActive 回环），再滚动到组单元
-            const cards = [...unit.querySelectorAll<HTMLElement>(".wengu-gqs .wengu-card")];
-            cards.forEach((c, i) => {
-                if (i === qi) c.removeAttribute("hidden");
-                else c.setAttribute("hidden", "");
-            });
-            unit.dataset.qi = String(qi);
-            if (u.mid) qiByMid.set(u.mid, qi);
-            const label = unit.querySelector<HTMLElement>("[data-gq-label]");
-            if (label) label.textContent = `${qi + 1}/${u.qs!.length}`;
-        }
-        chaseScrollIntoView(scroller, unit, "start");
+    for (const e of groupApps.values()) {
+        if (!e.focusIdx(idx)) continue;
+        const el = e.unitEl();
+        if (el) chaseScrollIntoView(scroller, el, "start");
         return;
     }
-    // 非组题：滚到普通题卡
     const card = root.querySelector<HTMLElement>(`.wengu-card[data-idx="${idx}"]:not([hidden])`);
     if (card) chaseScrollIntoView(scroller, card, "center");
 }
 
-/** 组内题目全部判分后揭示材料译文（判分/恢复/统一揭示路径都会调）。 */
-export function syncGroupReveal(root: HTMLElement, list: WenguQuestion[]): void {
+/** 组内题目全部判分后揭示材料译文（判分/恢复/统一揭示路径都会调；
+ *  data-graded 属性仍由卡组件按状态回写 DOM，此处照旧扫描）。 */
+export function syncGroupReveal(root: HTMLElement, list: { id: string; group?: string }[]): void {
     const units = [...root.querySelectorAll<HTMLElement>(".wengu-gunit")];
     if (units.length === 0) return;
     const graded = new Set(
@@ -153,8 +103,4 @@ export function renderClueRow(el: HTMLElement, t: (k: string) => string, clues: 
             )
             .join("") +
         `<button class="wengu-btn" data-act="clue-judge">${esc(t("clueJudge"))}</button>`;
-}
-
-function clampQi(qi: number, n: number): number {
-    return Math.max(0, Math.min(n - 1, qi));
 }

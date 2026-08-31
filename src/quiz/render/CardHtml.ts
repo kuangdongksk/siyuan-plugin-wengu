@@ -1,17 +1,15 @@
 import { svgIcon } from "../../ui/FormHtml";
-import type { WenguStep } from "../../types";
-import { AUTO_GRADE_TYPES, LETTERS, optionDisplayMd, QuestionType } from "../../types";
+import { AUTO_GRADE_TYPES, QuestionType } from "../../types";
 import type { WenguDoc, WenguQuestion } from "../../types";
-import { mdFragmentHtml, optionInline, renderMathIn } from "../service/ProtyleHost";
 import { esc, fmt, mmss } from "../../ui/shared";
 import { remountSideTree } from "../flow/SideTreeMount";
 
 /**
  * 纯 HTML 构建层（design-review 拆分）：目录/头部/壳拼接。
  * 只做字符串拼接与谓词判断，不持有状态；QuizView 消费这些函数。
- * 题卡/多步/逐空卡的渲染已组件化（component/QuizCardApp，6-4a），
- * 本文件保留：题型谓词、题号态、步骤作答区小件（StepsFlow 实时
- * 模式仍在 DOM 轨追加，6-4b 随三写收敛一并入组件）、目录/头部/壳。
+ * 题卡/多步/逐空卡的渲染已组件化（component/QuizCardApp，6-4a；
+ * 步骤区运行时 DOM 小件 6-4b 随三写收敛退役），本文件保留：
+ * 题型谓词、题号态、目录/头部/壳。
  */
 
 /** 该题是否用字母 chip 作答（单选/多选且转换出了选项子块）。 */
@@ -31,64 +29,6 @@ export function numState(q: WenguQuestion, showPast: boolean): string {
     if (q.right === "1") return " wengu-num-right";
     if (q.attempts > 0 && q.right === "0") return " wengu-num-wrong";
     return "";
-}
-
-/** 收集各题卡「思路」输入（qid→思路，空值跳过；收卷快照用）。 */
-export function collectCardThoughts(root: ParentNode): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const ta of root.querySelectorAll<HTMLTextAreaElement>("[data-field='thought']")) {
-        const v = ta.value.trim();
-        const card = ta.closest<HTMLElement>(".wengu-card");
-        if (v && card?.dataset.qid) out[card.dataset.qid] = v;
-    }
-    return out;
-}
-
-/** 步骤作答区 HTML（StepsFlow 实时模式追加单步与离线回落重建用）。
- *  引导语/选项文本留空占位（data-step-stem / data-opt-text），由
- *  fillOneStep 填 Lute HTML 以渲染公式。组件化说明见 QuizCardApp
- *  头注（静态步骤走组件渲染，此处只服务运行时 DOM 轨）。 */
-export function renderStepsInnerHtml(q: WenguQuestion, t: (k: string) => string): string {
-    return (q.steps ?? []).map((s, k) => renderOneStepHtml(s, k, t)).join("");
-}
-
-/** 单步作答区 HTML（StepsFlow 实时模式逐步追加用）。 */
-export function renderOneStepHtml(step: WenguStep, k: number, t: (k2: string) => string): string {
-    return `<div class="wengu-step" data-step="${k}"${k > 0 ? " hidden" : ""}>
-        <div class="wengu-step-head">
-          <span class="wengu-badge wengu-step-kind">${esc(
-              step.kind === "method" ? t("stepMethodBadge") : t("stepResultBadge")
-          )}</span>
-          <span class="wengu-step-stem" data-step-stem></span>
-        </div>
-        <div class="wengu-step-opts">${step.optionMd
-            .map(
-                (_, i) =>
-                    `<button class="wengu-step-opt" data-letter="${LETTERS[i] ?? ""}">
-              <span class="wengu-step-letter">${LETTERS[i] ?? ""}</span>
-              <span class="wengu-step-text" data-opt-text></span>
-            </button>`
-            )
-            .join("")}</div>
-        <button class="wengu-btn wengu-step-next" data-act="step-next">${esc(t("stepNext"))}</button>
-        <div class="wengu-step-result" data-step-result hidden></div>
-      </div>`;
-}
-
-/** 往一步的占位里填内容：引导语 + 各选项文本（Lute 渲染公式后高亮）。 */
-export function fillOneStep(stepEl: HTMLElement, step: WenguStep): void {
-    const stem = stepEl.querySelector<HTMLElement>("[data-step-stem]");
-    if (stem && step.stemMd) stem.innerHTML = mdFragmentHtml(step.stemMd);
-    for (const opt of stepEl.querySelectorAll<HTMLElement>(".wengu-step-opt")) {
-        const idx = LETTERS.indexOf(opt.dataset.letter ?? "");
-        const text = opt.querySelector<HTMLElement>("[data-opt-text]");
-        if (text && step.optionMd[idx]) {
-            const { body, tier } = optionInline(optionDisplayMd(step.optionMd[idx]));
-            text.innerHTML = body;
-            if (tier) opt.classList.add(tier); // 短选项多列档类（opt-compact）
-        }
-    }
-    renderMathIn(stepEl);
 }
 
 /** 目录渲染入参。 */

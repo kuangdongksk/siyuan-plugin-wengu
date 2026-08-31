@@ -1,42 +1,56 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
     import { typeKey } from "../render/CardParts";
     import type { CardHtmlModel } from "../render/CardParts";
     import { isChoice, isObjective } from "../render/CardHtml";
-    import { optionInline } from "../service/ProtyleHost";
+    import { buildCardInit, chipMarkOf, resultRowHtml, type CardInitCtx } from "../render/CardState";
+    import { CardCtl } from "../render/CardCtl";
+    import { registerCard, unregisterCard } from "../render/CardRegistry";
+    import { fallbackQuestionHtml, optionInline, renderMathWhenVisible } from "../service/ProtyleHost";
+    import { renderMdHtml } from "../../ui/MdRender";
+    import { markNumRailAnswered } from "../render/NumRail";
     import { hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../../types";
     import type { WenguQuestion } from "../../types";
+    import type { AnswerHost } from "../flow/AnswerFlow";
+    import { pickLetter, pickJudge, selfAssess, submitQuestion } from "../flow/AnswerFlow";
+    import { bindStepsMode } from "../flow/StepsFlow";
+    import CardStepsArea from "./CardStepsArea.svelte";
+    import CardSlotsArea from "./CardSlotsArea.svelte";
 
     /**
-     * 单张题卡（6-4a 渲染层组件化）：普通/多步(steps)/逐空(slots)三形态，
-     * DOM 与旧 renderCardHtml/renderStepsCardHtml/renderSlotsCardHtml
-     * 逐字一致——类名、data-* 契约、hidden 初始态全保留，三流程
-     * （Answer/Steps/Slot）与 PreviewFlow 的 DOM 读写、全局 scss 零改动。
-     * 组件无自有状态、props 挂载后不变，外部（判分/恢复/预览装饰）直改
-     * DOM 不会被覆写；作答态收敛为卡内响应态是 6-4b。
-     * 步骤引导语/选项留占位（data-step-stem/data-opt-text）由
-     * StepsFlow.fillOneStep 填充渲染公式；cloze 当前空选项由
-     * SlotFlow.fillClozeSlot 按空重灌——见各 Flow。
+     * 单张题卡（6-4b 状态化）：三写收敛的落点——初始渲染/恢复继续/判分
+     * 揭示统一为 CardUi 响应态（buildCardInit 纯函数构建，恢复卡与新卡
+     * 同一条路），作答/判分经 flow/* 写 ctl.ui 即细粒度更新。
+     * DOM 契约（类名/data 属性/hidden）与旧字符串渲染逐字一致——
+     * PreviewFlow 装饰与全局 scss 仍按这些钩子工作。
+     * 事件仅 interactive（quiz 已开刷非渐进）时绑；挂载自登记进
+     * CardRegistry（收卷锁卡、思路快照、收口检查按表遍历）。
      */
     let {
         q,
         idx,
         m,
+        ctx,
+        host,
         hidden = false,
     }: {
         q: WenguQuestion;
         idx: number;
         m: CardHtmlModel;
-        /** 材料组内非当前题初始隐藏（MaterialFlow 切题时挪 hidden）。 */
+        ctx: CardInitCtx;
+        host: AnswerHost;
+        /** 材料组内非当前题初始隐藏（组导航切换）。 */
         hidden?: boolean;
     } = $props();
 
-    // 以下派生值刻意只取挂载时快照：组件无自有状态，props（题目/设置
-    // 开关）整壳重建才变——重建=卸载重挂，非响应更新（NumRail 同款）
+    // 快照语义：props（题目/开关/恢复源）整壳重建才变=卸载重挂（NumRail 同款）
     // svelte-ignore state_referenced_locally
+    const ui = $state(buildCardInit(q, ctx));
+    const ctl = new CardCtl(host, q, idx, ui, ctx.interactive);
     const t = m.t;
-    // svelte-ignore state_referenced_locally
+    const on = ctx.interactive;
     // 卡头自评徽标口径：steps 卡恒带（false）、slots 卡恒不带（true）
     // svelte-ignore state_referenced_locally
     const headObjective = hasSteps(q) ? false : hasSlots(q) ? true : isObjective(q);
@@ -50,9 +64,31 @@
         const { body, tier } = optionInline(optionDisplayMd(md));
         return { letter: LETTERS[i] ?? "", body, tier };
     });
+
+    let rootEl = $state<HTMLElement | undefined>(undefined);
+    let protoEl = $state<HTMLElement | undefined>(undefined);
+
+    onMount(() => {
+        ctl.el = rootEl;
+        registerCard(ctl);
+        // 题干静态填充（旧 ProtyleHost.mountStatic 单节点语义）+ 解析区
+        // （CSS 随 wengu-graded 显隐）；KaTeX 惰性到接近视口
+        if (protoEl) {
+            const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
+            protoEl.innerHTML =
+                fallbackQuestionHtml(q) +
+                (sol ? `<div class="wengu-static-sol" data-static-sol">${renderMdHtml(sol)}</div>` : "");
+            if (rootEl) renderMathWhenVisible(rootEl);
+        }
+        // after 恢复的已答题：题号标「已答」不透对错（旧 restore 路径补标）
+        if (ui.graded && ui.resultStatus === "warn") markNumRailAnswered(idx + 1);
+        // steps 模式分派：AI 实时引导开跑（离线初始态已含内容）
+        if (on && hasSteps(q)) bindStepsMode(host, q, ctl);
+        return () => unregisterCard(ctl);
+    });
 </script>
 
-<!-- 卡头：题号 + 题型徽标 + 知识点标题 + 难度/来源/次数 + 重新生成（零样式差异） -->
+<!-- 卡头：题号 + 题型徽标 + 知识点标题 + 难度/来源/次数 + 重新生成 -->
 {#snippet head(obj: boolean)}
     <div class="wengu-card-head">
         <span class="wengu-card-num">{idx + 1}</span>
@@ -77,94 +113,64 @@
 
 <!-- 「思路」折叠输入区（收卷快照进会话 thoughts） -->
 {#snippet thoughtArea()}
-    <button class="wengu-thought-toggle" data-act="thought-toggle"
-        >{@html svgIcon("iconEdit")} {t("thoughtToggle")}</button
+    <button
+        class="wengu-thought-toggle"
+        data-act="thought-toggle"
+        onclick={on ? () => (ui.thoughtOpen = !ui.thoughtOpen) : undefined}
     >
-    <div class="wengu-thought" data-thought-wrap hidden>
-        <textarea class="wengu-input" data-field="thought" rows="3" placeholder={t("thoughtPlaceholder")}></textarea>
+        {@html svgIcon("iconEdit")}
+        {t("thoughtToggle")}
+    </button>
+    <div class="wengu-thought" data-thought-wrap hidden={!ui.thoughtOpen}>
+        <textarea
+            class="wengu-input"
+            data-field="thought"
+            rows="3"
+            placeholder={t("thoughtPlaceholder")}
+            disabled={ui.locked}
+            value={ui.thought}
+            oninput={(e) => (ui.thought = e.currentTarget.value)}></textarea>
     </div>
 {/snippet}
 
-<!-- 题干静态渲染占位（ProtyleHost.mountStatic 填 MdRender 产物 + 解析区） -->
+<!-- 题干静态渲染占位（onMount 填 MdRender 产物 + 解析区） -->
 {#snippet protyle()}
-    <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
+    <div class="wengu-qprotyle" data-qprotyle bind:this={protoEl}><span class="wengu-muted">…</span></div>
 {/snippet}
 
-<!-- 静态 Protyle 占位 + 结果/提示行（steps/slots/普通卡尾部件） -->
+<!-- 结果/提示行（steps/slots/普通卡尾部件） -->
 {#snippet tailRows()}
-    <div class="wengu-result" data-result hidden></div>
-    <div class="wengu-note" data-note hidden></div>
+    <div
+        class="wengu-result{ui.resultStatus === 'warn'
+            ? ' wengu-muted'
+            : ui.resultStatus
+              ? ` wengu-${ui.resultStatus}`
+              : ''}"
+        data-result
+        hidden={!ui.resultStatus}
+    >
+        {@html resultRowHtml(ui)}
+    </div>
+    <div class="wengu-note" data-note hidden={!ui.note}>{ui.note}</div>
 {/snippet}
 
-<div class="wengu-card" data-qid={q.id} data-idx={idx} {hidden}>
+<div
+    class="wengu-card{ui.graded ? ' wengu-graded' : ''}"
+    data-qid={q.id}
+    data-idx={idx}
+    data-graded={ui.graded ? "1" : undefined}
+    bind:this={rootEl}
+    {hidden}
+>
     {@render head(headObjective)}
     {#if hasSteps(q)}
-        <!-- 多步引导卡：Protyle 题干 + 逐步解锁作答区（step-* 子块在静态
-             渲染里被 CSS 隐藏防剧透，选项解锁后由 fillOneStep 填充） -->
         {@render protyle()}
-        <div class="wengu-steps" data-steps>
-            {#each q.steps ?? [] as step, k (k)}
-                <div class="wengu-step" data-step={k} hidden={k > 0}>
-                    <div class="wengu-step-head">
-                        <span class="wengu-badge wengu-step-kind">
-                            {step.kind === "method" ? t("stepMethodBadge") : t("stepResultBadge")}
-                        </span>
-                        <span class="wengu-step-stem" data-step-stem></span>
-                    </div>
-                    <div class="wengu-step-opts">
-                        {#each step.optionMd as _, i (i)}
-                            <button class="wengu-step-opt" data-letter={LETTERS[i] ?? ""}>
-                                <span class="wengu-step-letter">{LETTERS[i] ?? ""}</span>
-                                <span class="wengu-step-text" data-opt-text></span>
-                            </button>
-                        {/each}
-                    </div>
-                    <button class="wengu-btn wengu-step-next" data-act="step-next">{t("stepNext")}</button>
-                    <div class="wengu-step-result" data-step-result hidden></div>
-                </div>
-            {/each}
-        </div>
+        <CardStepsArea {ctl} {q} {t} {on} />
         {@render thoughtArea()}
         {@render tailRows()}
     {:else if hasSlots(q)}
-        <!-- 逐空卡：cloze=空号条+当前空选项；match=候选池+槽位行 -->
         {@render protyle()}
-        <div class="wengu-slots" data-slots>
-            {#if q.type === QuestionType.Match}
-                <div class="wengu-matchpool">
-                    {#each pool as p, i (i)}
-                        <div class="wengu-match-poolitem{p.tier ? ` ${p.tier}` : ''}">
-                            <span class="wengu-match-letter">{p.letter}</span><span>{@html p.body}</span>
-                        </div>
-                    {/each}
-                </div>
-                <div class="wengu-matchrows">
-                    {#each q.slots ?? [] as _, k (k)}
-                        <div class="wengu-match-row" data-matchrow={k}>
-                            <span class="wengu-match-k">{k + 1}</span>
-                            <select class="b3-select wengu-match-sel" data-matchsel={k}>
-                                <option value="">—</option>
-                                {#each letters as L, i (i)}<option value={L}>{L}</option>{/each}
-                            </select>
-                            <button class="wengu-btn wengu-match-go" data-act="match-submit" data-k={k}>
-                                {t("slotSubmit")}
-                            </button>
-                        </div>
-                    {/each}
-                </div>
-            {:else}
-                <div class="wengu-slotbar" data-slotbar>
-                    {#each q.slots ?? [] as _, k (k)}
-                        <button class="wengu-slotbtn" data-slotbtn={k}>{k + 1}</button>
-                    {/each}
-                </div>
-                <div class="wengu-slotcur" data-slotcur>
-                    <span class="wengu-badge" data-slot-stem></span>
-                    <div class="wengu-slot-opts" data-slot-opts></div>
-                    <button class="wengu-btn" data-act="slot-submit">{t("slotSubmit")}</button>
-                </div>
-            {/if}
-        </div>
+        <CardSlotsArea {ctl} {q} {t} {on} {letters} {pool} />
         {@render thoughtArea()}
         {@render tailRows()}
     {:else}
@@ -173,35 +179,90 @@
         {#if isChoice(q)}
             <div class="wengu-chips">
                 {#each letters as L, i (i)}
-                    <button class="wengu-chip" data-letter={L}>{L}</button>
+                    <button
+                        class="wengu-chip{ui.letters.includes(L) ? ' wengu-chip-selected' : ''}{chipMarkOf(q, ui, i) ===
+                        1
+                            ? ' wengu-chip-right'
+                            : chipMarkOf(q, ui, i) === 2
+                              ? ' wengu-chip-wrong'
+                              : ''}"
+                        data-letter={L}
+                        disabled={ui.locked}
+                        onclick={on ? () => pickLetter(ctl, L) : undefined}
+                    >
+                        {L}
+                    </button>
                 {/each}
             </div>
         {:else if q.type === QuestionType.Judge}
             <div class="wengu-judge">
-                <button class="wengu-btn" data-judge="√">{t("judgeYes")}</button>
-                <button class="wengu-btn" data-judge="×">{t("judgeNo")}</button>
+                <button
+                    class="wengu-btn{ui.judge === '√' ? ' wengu-selected' : ''}"
+                    data-judge="√"
+                    disabled={ui.locked}
+                    onclick={on ? () => pickJudge(ctl, "√") : undefined}
+                >
+                    {t("judgeYes")}
+                </button>
+                <button
+                    class="wengu-btn{ui.judge === '×' ? ' wengu-selected' : ''}"
+                    data-judge="×"
+                    disabled={ui.locked}
+                    onclick={on ? () => pickJudge(ctl, "×") : undefined}
+                >
+                    {t("judgeNo")}
+                </button>
             </div>
         {:else if isBriefLike(q)}
             <textarea
                 class="wengu-input"
                 data-field="mine"
                 rows={q.type === QuestionType.Essay ? 10 : 4}
-                placeholder={t("inputPlaceholder")}></textarea>
-            {#if q.type === QuestionType.Essay}<div class="wengu-wordcount" data-wordcount>0 words</div>{/if}
+                placeholder={t("inputPlaceholder")}
+                disabled={ui.locked}
+                value={ui.mine}
+                oninput={(e) => (ui.mine = e.currentTarget.value)}></textarea>
+            {#if q.type === QuestionType.Essay}
+                <div class="wengu-wordcount" data-wordcount>
+                    {ui.mine.trim() ? ui.mine.trim().split(/\s+/).length : 0} words
+                </div>
+            {/if}
         {:else}
-            <input class="wengu-input" data-field="mine" placeholder={t("inputPlaceholder")} />
+            <input
+                class="wengu-input"
+                data-field="mine"
+                placeholder={t("inputPlaceholder")}
+                disabled={ui.locked}
+                value={ui.mine}
+                oninput={(e) => (ui.mine = e.currentTarget.value)}
+            />
         {/if}
         {@render thoughtArea()}
-        <button class="wengu-btn" data-act="submit">{t("submit")}</button>
+        <button
+            class="wengu-btn"
+            data-act="submit"
+            disabled={ui.locked}
+            onclick={on ? () => void submitQuestion(host, q, ctl) : undefined}
+        >
+            {t("submit")}
+        </button>
         {@render tailRows()}
-        <div class="wengu-ai-comment" data-ai-comment hidden></div>
-        <div class="wengu-self" data-self hidden>
-            <span>{t("selfAssess")}</span>
-            <button class="wengu-btn wengu-btn-success" data-act="self-right">
+        <div class="wengu-ai-comment" data-ai-comment hidden={!ui.aiComment}>{ui.aiComment}</div>
+        <div class="wengu-self" data-self hidden={!ui.selfOn}>
+            <span>{ui.selfLabel}</span>
+            <button
+                class="wengu-btn wengu-btn-success"
+                data-act="self-right"
+                onclick={on ? () => void selfAssess(host, q, ctl, true) : undefined}
+            >
                 {@html svgIcon("iconCheck")}
                 {t("selfRight")}
             </button>
-            <button class="wengu-btn wengu-btn-error" data-act="self-wrong">
+            <button
+                class="wengu-btn wengu-btn-error"
+                data-act="self-wrong"
+                onclick={on ? () => void selfAssess(host, q, ctl, false) : undefined}
+            >
                 {@html svgIcon("iconClose")}
                 {t("selfWrong")}
             </button>

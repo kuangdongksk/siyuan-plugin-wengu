@@ -1,4 +1,3 @@
-import { fillOneStep } from "../render/CardHtml";
 import { typeKey } from "../render/CardParts";
 import { mdFragmentHtml, renderMathWhenVisible } from "../service/ProtyleHost";
 import { optionIsRight } from "../service/QuestionGrading";
@@ -101,7 +100,7 @@ function revealSteps(q: WenguQuestion, card: HTMLElement, t: (k: string) => stri
             continue;
         }
         el.removeAttribute("hidden");
-        fillOneStep(el, step);
+        // 步骤引导语/选项在组件挂载时已填充（6-4b），此处不再重灌
         el.querySelector("[data-act='step-next']")?.remove();
         markStepOptions(step, el);
         const result = el.querySelector<HTMLElement>("[data-step-result]");

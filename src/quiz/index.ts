@@ -4,7 +4,7 @@ import { revealAll } from "./flow/AnswerFlow";
 import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { detachBankPanels } from "../bank";
 import { detachReviewApp, filterReviewDocFor } from "../review";
-import { collectCardThoughts } from "./render/CardHtml";
+import { collectThoughts } from "./render/CardRegistry";
 import { reimportDocFrom, unregisterDocAsQuiz } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
 import { normalizeWorkspace, type WenguWorkspace } from "./render/RailMount";
@@ -100,6 +100,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 收卷后的会话快照（总结报告/揭示仍要读它）。 */
     private finished?: WenguSession;
     rounds: WenguSession[] = [];
+    /** 本轮静态分片挂载任务（revealAnsweredNow 手动收卷揭示等它）。 */
+    renderTask: Promise<void> | undefined;
 
     constructor(
         element: HTMLElement,
@@ -324,7 +326,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.session = undefined;
         s.endedAt = Date.now();
         s.elapsedSec = Math.max(s.elapsedSec, this.timer.elapsed());
-        s.thoughts = collectCardThoughts(this.el); // 思路随卷快照（未作答的题也保得住）
+        s.thoughts = collectThoughts(); // 思路随卷快照（未作答的题也保得住；6-4b 走题卡登记表）
         this.finished = s;
         void this.history?.upsert(s);
     }
@@ -417,7 +419,10 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly finishedSession = (): WenguSession | undefined => this.finished;
     readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
-    readonly revealAnsweredNow = (): void => void revealAll(this);
+    /** 手动收卷统一揭示（after 模式）：等静态分片全部挂载后按表揭示——
+     *  在途分片未挂时直接揭示会漏卡，且卡片初始态按未收口渲染、恢复
+     *  口径各异（6-4b 与旧「分片插入后即绑」语义对齐）。 */
+    readonly revealAnsweredNow = (): void => void this.renderTask?.then((): void => void revealAll(this));
     readonly stopRoundNow = (): void => {
         this.started = false;
         this.flushTime(); // 收卷即落库（未满 15s 的秒数不清零）

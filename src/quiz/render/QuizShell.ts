@@ -3,15 +3,15 @@ import { destroyStatsPanel } from "../../stats";
 import { renderReviewFor, detachReviewApp } from "../../review";
 import { detachCompanionPanel } from "../../companion";
 import { detachBankPanels } from "../../bank";
-import { bindCardEvents, restoreAnsweredCards } from "../flow/AnswerFlow";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, type DrillUnit } from "./DrillUnits";
 import { detachCardApps, mountDrillUnit } from "./CardMount";
-import { bindGroupUnits, bindOneGroupUnit, focusQuestion, restoreGroupScrolls } from "../flow/MaterialFlow";
+import { restoreContextFor, type CardInitCtx } from "./CardState";
+import { focusQuestion } from "../flow/MaterialFlow";
 import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
-import { detachRoundReport, lockAllCards } from "./RoundReport";
+import { detachRoundReport } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { detachRail, mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
 import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
@@ -28,16 +28,14 @@ import { esc, yieldToBrowser } from "../../ui/shared";
  */
 
 /** renderList 主体（自 QuizView 拆出压 500 行红线）：整壳渲染 + 错误
- *  兜底 + 落幕统一恢复已答锁定（renderList 是整壳 innerHTML 重建——
- *  收起目录/设置变更/切工作区/继续上轮全走它，不恢复的话已答题回到
- *  未答外观、可重复提交。渐进/预览/复习不绑作答，started 未开的装载
- *  也不需要。静态路径题卡分片插入——恢复必须等全部就绪
- *  （restoreAnsweredCards 幂等，多轮渲染的在途 then 重复执行无害）。 */
+ *  兜底。6-4b 起已答恢复收敛进题卡初始态（buildCardInit 恢复源由
+ *  renderStaticChunked 挂第一张卡前一次算好）——renderList 是整壳
+ *  innerHTML 重建（收起目录/设置变更/切工作区/继续上轮全走它），
+ *  恢复态随组件挂载自然回位，无需落幕统一恢复。 */
 export function renderListFor(v: QuizView): void {
     v.el.classList.add("wengu-panel");
-    let ready: Promise<void> | undefined;
     try {
-        ready = renderQuizShellFor(v);
+        v.renderTask = renderQuizShellFor(v); // 手动收卷揭示等分片就绪（revealAnsweredNow）
     } catch (e) {
         v.protyleHost.destroyAll(v.el);
         v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-head"></div>
@@ -47,16 +45,11 @@ export function renderListFor(v: QuizView): void {
         bindHeadFor(v);
         mountRailFor(v); // 错误兜底 rail 一并挂载（旧路径渲染了 rail 却漏绑事件，顺修）
     }
-    const restore = (): void => {
-        if (v.mode === "quiz" && v.started && !v.progressive.active) restoreAnsweredCards(v);
-    };
-    if (ready) void ready.then(restore);
-    else restore();
 }
 
 /** renderListInner 主体（QuizView.renderList 调；错误兜底留在视图）。
- *  静态路径（题库/长卷）返回「题卡全部就绪」的 Promise——已答锁定
- *  恢复、预览装饰等收尾须等它；其余路径同步完成返回 undefined。 */
+ *  静态路径（题库/长卷）返回「题卡全部就绪」的 Promise——预览装饰等
+ *  收尾须等它；其余路径同步完成返回 undefined。 */
 export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     v.protyleHost.destroyAll(v.el);
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
@@ -179,10 +172,12 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     });
 }
 
-/** 静态路径分片管线：壳已落、题卡列表空——单元逐片插入 + 绑定 +
- *  MdRender 填充（16ms 帧预算 yield），头下挂「题目渲染中 n/m」胶囊，
- *  填完摘除并恢复材料组滚动。代数变更（整壳重建）或中途异常 resolve
- *  false，收尾方据此跳过预览装饰等后续。 */
+/** 静态路径分片管线：壳已落、题卡列表空——单元逐片以组件挂载
+ * （16ms 帧预算 yield），头下挂「题目渲染中 n/m」胶囊，填完摘除。
+ * 题干/材料静态填充与 KaTeX 惰性已收进组件 onMount（6-4b）；已答
+ * 恢复收敛进卡初始态（buildCtx 首挂前一次算好），收卷后的在途
+ * 分片以 locked=true 初始态直锁。代数变更（整壳重建）或中途异常
+ * resolve false，收尾方据此跳过预览装饰等后续。 */
 async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
     if (!container) return false;
@@ -192,6 +187,19 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boole
     const counter = pill?.querySelector<HTMLElement>("[data-rendering-count]") ?? undefined;
     const gen = v.protyleHost.currentGen();
     const stale = () => gen !== v.protyleHost.currentGen();
+    // 卡初始态上下文（全部卡共用一份）：interactive=可作答（做题已开刷
+    // 非渐进）；locked=收卷后（stopRoundNow 置 started=false）在途分片
+    // 直锁；restore=继续上轮/收卷重渲染的恢复源（预览/渐进不传——预览
+    // 无会话、渐进文档每批重建块 id 失效不可续答）
+    const ctx: CardInitCtx = {
+        t: v.t,
+        interactive: v.mode === "quiz" && !v.progressive.active && v.started,
+        locked: v.mode === "quiz" && !v.progressive.active && !v.started,
+        restore:
+            v.mode === "quiz" && !v.progressive.active
+                ? restoreContextFor(v.list, v.currentSession(), v.revealMode)
+                : undefined,
+    };
     // 节点口径：独立题单元=1 个题卡节点；组单元=组内题+材料。原只算
     // 组口径，纯独立题长卷全程显示「渲染中 0/0」（20260829 审查）。
     const nodesOf = (u: DrillUnit) => (u.kind === "group" ? (u.qs?.length ?? 0) + (u.mid ? 1 : 0) : 1);
@@ -206,39 +214,7 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boole
                 if (stale()) return false;
                 deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
-            mountDrillUnit(container, u, m); // 组件根追加到容器尾（旧字符串插入同位）
-            const el = container.lastElementChild as HTMLElement | null;
-            if (el) {
-                // 作答绑定守卫与 bindQuizFor 同口径（预览/渐进不绑：预览
-                // 装饰只摘按钮不摘 chip，误绑会让预览态选项可选）；再加
-                // started——收卷后（stopRoundNow 置 false）在途分片不再
-                // 绑新卡，防收卷竞态窗口内重复提交
-                const bindable = v.mode === "quiz" && !v.progressive.active && v.started;
-                if (u.kind === "group") {
-                    bindOneGroupUnit(el, u, {
-                        onActive: (idx) => v.onActiveQ(idx),
-                        onShown: () => void v.protyleHost.mountStatic(v.el, v.list, v.materials),
-                    });
-                    // 组内题卡与独立题同权绑作答（原组分支漏绑：题库/长卷
-                    // 静态路径的材料组题全部点不动，20260829 审查）
-                    if (bindable) {
-                        for (const node of el.querySelectorAll<HTMLElement>(".wengu-gqs .wengu-card")) {
-                            const q = v.list.find((x) => x.id === node.dataset.qid);
-                            if (q) bindCardEvents(v, node, q);
-                        }
-                    }
-                } else if (u.q && bindable) {
-                    bindCardEvents(v, el, u.q);
-                }
-                await v.protyleHost.mountStatic(el, v.list, v.materials); // 本单元内容填充（KaTeX 惰性）
-                if (v.mode === "quiz" && !v.progressive.active) {
-                    // 已答锁定逐单元就地恢复（幂等）：不等全卷成像——分片
-                    // 窗口内已答题呈现未答外观、事件已绑，可重复提交；收卷
-                    // 后插入的卡无新会话可续，直接整卡上锁
-                    if (v.currentSession()) restoreAnsweredCards(v, el);
-                    if (!v.started) lockAllCards(el);
-                }
-            }
+            mountDrillUnit(container, u, m, ctx, v); // 组件根追加到容器尾（恢复/作答态随挂载就位）
             done += nodesOf(u);
             if (counter) counter.textContent = `${done}/${total}`;
         }
@@ -248,7 +224,6 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boole
     } finally {
         pill?.remove();
     }
-    restoreGroupScrolls(v.el);
     return true;
 }
 
@@ -259,24 +234,15 @@ function renderingPillHtml(t: (key: string) => string): string {
     )}</span><span class="wengu-rendering-count" data-rendering-count></span></div>`;
 }
 
-/** 视图级绑定：头部/题号/题卡/材料组单元（开刷面板为 Svelte 组件，
- *  由 renderQuizShellFor 壳落后挂载，无 DOM 绑定）。 */
+/** 视图级绑定：头部/题号（题卡与材料组单元 6-4b 起组件自管——作答
+ *  事件组件直调流程、组导航收进 GroupUnitApp，此层无卡级 DOM 绑定）。 */
 function bindQuizFor(v: QuizView): void {
     bindHeadFor(v);
     bindNumRail(v.el, v.list, {
         onActive: (idx) => v.onActiveQ(idx),
-        onFocus: (idx) => focusQuestion(v.el, v.units, v.list, idx),
+        onFocus: (idx) => focusQuestion(v.el, idx),
         numsTitle: v.t("qnumsTitle"),
         showNums: v.settings?.showNums !== false,
         showPast: v.mode !== "preview" && v.settings?.showWrong !== false && v.revealMode === "instant",
     });
-    bindGroupUnits(v.el, v.units, v, {
-        onActive: (idx) => v.onActiveQ(idx),
-        onShown: () => void v.protyleHost.mountStatic(v.el, v.list, v.materials),
-    });
-    if (v.progressive.active || v.mode === "preview") return; // 渐进/预览不绑作答（预览事件由 decoratePreview 绑）
-    for (const node of v.el.querySelectorAll<HTMLElement>(".wengu-card")) {
-        const q = v.list.find((x) => x.id === node.dataset.qid);
-        if (q) bindCardEvents(v, node, q);
-    }
 }
