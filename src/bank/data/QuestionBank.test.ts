@@ -33,14 +33,14 @@ function rec(qid: string, knowledge?: string, chapter?: string): BankRecord {
 }
 
 describe("knowledgeIndex 标签归一（洛必达 = 洛必达法则）", () => {
-    it("同考点两措辞并成一行，计数合并，显示名取词干", async () => {
+    it("同考点两措辞并成一行，计数合并，显示名取标准名（正式写法）", async () => {
         const bank = bankWith([rec("q1", "洛必达"), rec("q2", "洛必达法则"), rec("q3", "极限")]);
         const idx = await bank.knowledgeIndex();
         const kn = idx.filter((r) => r.key.startsWith("kn:"));
         expect(kn).toHaveLength(2); // 洛必达两行并一行 + 极限一行
         const lhp = kn.find((r) => r.key === "kn:洛必达");
         expect(lhp?.count).toBe(2);
-        expect(lhp?.title).toBe("洛必达");
+        expect(lhp?.title).toBe("洛必达法则"); // 标准名=信息最全写法，不是词干短名
     });
 
     it("collectQids 按归一键命中两措辞的全部题", async () => {

@@ -51,3 +51,17 @@ export function knKey(rawKnowledge: string): string {
     const stem = normalizeKnowledge(rawKnowledge);
     return stem ? `kn:${stem}` : "";
 }
+
+/** 同义簇里的**标准显示名**（20260831 用户定：用正式名不用短名）：
+ *  归并把「洛必达」「洛必达法则」并进同键后，显示名取**信息最全的
+ *  写法**（剥装饰后最长者——通常就是带后缀的正式名「洛必达法则」），
+ *  并列取字典序小者（确定性）。candidates 是同簇的全部原文写法。 */
+export function pickStandardName(candidates: string[]): string {
+    let best = "";
+    for (const raw of candidates) {
+        const c = stripDecor(raw);
+        if (!c) continue;
+        if (!best || c.length > best.length || (c.length === best.length && c < best)) best = c;
+    }
+    return best;
+}

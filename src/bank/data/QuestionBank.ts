@@ -1,7 +1,7 @@
 import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import { ensureMigratedFor, refreshDocFor } from "./BankMigrate";
-import { knKey, normalizeKnowledge } from "./KnowledgeNorm";
+import { knKey, pickStandardName } from "./KnowledgeNorm";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -219,24 +219,38 @@ export class QuestionBank {
     }
 
     /** 全库知识点索引（kp 引用优先，降级 knowledge/chapter 文本；kn 键
-     *  走归一词干——「洛必达」与「洛必达法则」并成一行，显示名取词干）。 */
+     *  走归一词干——「洛必达」与「洛必达法则」并成一行；显示名取同簇
+     *  标准名 pickStandardName，即信息最全的正式写法「洛必达法则」）。 */
     async knowledgeIndex(): Promise<KnowledgeRow[]> {
         const data = await this.all();
         const acc = new Map<string, KnowledgeRow>();
+        /** kn 键 → 同簇原文写法（选标准名用）。 */
+        const knNames = new Map<string, string[]>();
         for (const r of Object.values(data.records)) {
             const keys =
                 r.kpRefs.length > 0
                     ? r.kpRefs.map((k) => ({ key: `kp:${k.id}`, title: k.title }))
                     : r.knowledge && knKey(r.knowledge)
-                      ? [{ key: knKey(r.knowledge), title: normalizeKnowledge(r.knowledge) }]
+                      ? [{ key: knKey(r.knowledge), title: r.knowledge }]
                       : r.chapter
                         ? [{ key: `ch:${r.chapter}`, title: r.chapter }]
                         : [];
             for (const k of keys) {
+                if (k.key.startsWith("kn:") && r.knowledge) {
+                    const names = knNames.get(k.key) ?? [];
+                    names.push(r.knowledge);
+                    knNames.set(k.key, names);
+                }
                 const row = acc.get(k.key) ?? { key: k.key, title: k.title, count: 0 };
                 row.count++;
                 acc.set(k.key, row);
             }
+        }
+        // kn 键显示名替换为同簇标准名（正式名）
+        for (const [key, names] of knNames) {
+            const row = acc.get(key);
+            const std = pickStandardName(names);
+            if (row && std) row.title = std;
         }
         return [...acc.values()].sort((a, b) => b.count - a.count);
     }

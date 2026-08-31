@@ -172,7 +172,9 @@ AI 判卷把薄弱处沉淀为跨轮次结构化档案（`weakness` 文件）：
   只动聚合键、不动存储数据（题卡角标仍显示 AI 原话）；宁漏并勿错并，
   动作/范畴后缀（计算/求法/性质…）不剥防误并。四处聚合点（knowledgeIndex
   /collectQids/recordsByKeys/weakKeys）统一走 knKey，传入键双向归一；
-  weakness 存量旧 kn 键加载时折叠进词干键。
+  weakness 存量旧 kn 键加载时折叠进词干键。**显示名取标准名**
+  （pickStandardName=同簇信息最全的正式写法，如「洛必达法则」，不用
+  词干短名）。
 - **条目**：`{key, title, wrong(错+半对), total, lastWrongAt,
 causes{错因键→次数}, aiNote(最近评语)}`。
 - **错因键**（AI 输出规整为规范键，展示走 i18n）：concept/calc/

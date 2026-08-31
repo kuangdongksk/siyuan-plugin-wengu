@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { knKey, normalizeKnowledge } from "./KnowledgeNorm";
+import { knKey, normalizeKnowledge, pickStandardName } from "./KnowledgeNorm";
 
 describe("normalizeKnowledge", () => {
     it("命名性后缀剥离：洛必达法则 → 洛必达", () => {
@@ -54,5 +54,25 @@ describe("knKey", () => {
 
     it("空 knowledge → 空串（不落 kn: 键）", () => {
         expect(knKey("")).toBe("");
+    });
+});
+
+describe("pickStandardName（显示名取标准名，不用短名）", () => {
+    it("同簇取信息最全写法：洛必达/洛必达法则 → 洛必达法则", () => {
+        expect(pickStandardName(["洛必达", "洛必达法则"])).toBe("洛必达法则");
+        expect(pickStandardName(["洛必达法则", "洛必达"])).toBe("洛必达法则"); // 与顺序无关
+    });
+
+    it("剥装饰后比较：《洛必达法则》与 洛必达 → 洛必达法则", () => {
+        expect(pickStandardName(["《洛必达法则》", "洛必达"])).toBe("洛必达法则");
+    });
+
+    it("等长取字典序小者（确定性）；单写法原样", () => {
+        expect(pickStandardName(["勾股定理", "勾股"])).toBe("勾股定理");
+        expect(pickStandardName(["极限"])).toBe("极限");
+    });
+
+    it("全空 → 空串", () => {
+        expect(pickStandardName(["", "  "])).toBe("");
     });
 });

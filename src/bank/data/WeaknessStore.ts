@@ -1,5 +1,5 @@
 import { parseKpRefs } from "./BankParse";
-import { knKey, normalizeKnowledge } from "./KnowledgeNorm";
+import { knKey, pickStandardName } from "./KnowledgeNorm";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import { baseQid } from "../../types";
 import type { WenguQuestion } from "../../types";
@@ -65,11 +65,12 @@ export interface WeakTopRow {
 }
 
 /** 题目的聚合键列表（知识点引用优先，多个引用全计入；kn 键走归一
- *  词干——「洛必达」与「洛必达法则」并成一行，显示名取词干）。 */
+ *  词干——「洛必达」与「洛必达法则」并成一行；显示名用本题原文写法，
+ *  条目侧合并时取标准名 pickStandardName=信息最全的正式写法）。 */
 export function weakKeys(q: WenguQuestion): { key: string; title: string }[] {
     const out = parseKpRefs(q.solutionMd ?? "").map((k) => ({ key: `kp:${k.id}`, title: k.title }));
     if (out.length === 0 && q.knowledge && knKey(q.knowledge))
-        out.push({ key: knKey(q.knowledge), title: normalizeKnowledge(q.knowledge) });
+        out.push({ key: knKey(q.knowledge), title: q.knowledge });
     if (out.length === 0 && q.chapter) out.push({ key: `ch:${q.chapter}`, title: q.chapter });
     const seen = new Set<string>();
     return out.filter((k) => (seen.has(k.key) ? false : (seen.add(k.key), true)));
@@ -127,7 +128,8 @@ export class WeaknessStore {
 
     /** 存量 kn: 键归并（20260831 标签归一）：旧数据里「洛必达法则」与
      *  「洛必达」是两行，归一键上线后新计数都落词干键——加载时把可归并
-     *  的旧键折叠进词干键（统计合并，同 remapKey），避免新旧键并存两行。 */
+     *  的旧键折叠进词干键（统计合并，同 remapKey；显示名取标准名），
+     *  避免新旧键并存两行。 */
     private migrateKnKeys(): void {
         const data = this.cache!;
         const mergeInto = (oldKey: string, newKey: string, newTitle: string): void => {
@@ -142,8 +144,9 @@ export class WeaknessStore {
                     cur.causes[c as WeakCause] = (cur.causes[c as WeakCause] ?? 0) + n;
                 }
                 if (old.aiNote) cur.aiNote = old.aiNote;
+                cur.title = pickStandardName([cur.title, old.title, newTitle]);
             } else {
-                data.points[newKey] = { ...old, key: newKey, title: newTitle };
+                data.points[newKey] = { ...old, key: newKey, title: pickStandardName([old.title, newTitle]) };
             }
             delete data.points[oldKey];
         };
@@ -151,7 +154,7 @@ export class WeaknessStore {
             if (!key.startsWith("kn:")) continue;
             const stem = key.slice(3);
             const canonical = knKey(stem); // 词干键（与 weakKeys 现口径一致）
-            if (canonical && canonical !== key) mergeInto(key, canonical, stem ? normalizeKnowledge(stem) : stem);
+            if (canonical && canonical !== key) mergeInto(key, canonical, stem);
         }
     }
 
@@ -197,7 +200,8 @@ export class WeaknessStore {
                     lastWrongAt: 0,
                     causes: {},
                 });
-                e.title = k.title;
+                // 显示名收敛到标准名（同簇取信息最全的正式写法，不随后刷题抖动）
+                e.title = pickStandardName([e.title, k.title]);
                 e.total++;
                 if (!ok) {
                     e.wrong++;
