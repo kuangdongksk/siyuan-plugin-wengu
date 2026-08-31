@@ -57,7 +57,15 @@
     ): TreeListNode[] =>
         ns.map((n): TreeListNode => {
             if (!n.doc) {
-                return { key: n.path, name: n.name, tip: n.path, kind: "branch", children: [] };
+                // 分支也要递归子级：嵌套路径的知识文档挂在无文档分支下
+                // （20260831 修复：此前 children:[] 把整棵子树丢掉不渲染）
+                return {
+                    key: n.path,
+                    name: n.name,
+                    tip: n.path,
+                    kind: "branch",
+                    children: toRows(n.children, docByKey, secByKey),
+                };
             }
             const key = secKeyOf(n.path);
             docByKey.set(key, n.doc);

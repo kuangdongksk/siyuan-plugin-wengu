@@ -10,9 +10,10 @@
      * 渲染结构对齐 SiYuan 自身目录树（与 src/bank/components/
      * ColTreeLevel.svelte 走同款 SiYuan 原生方案）：
      * - 顶层 `<ul class="b3-list b3-list--background">`，递归子项裸 `<ul>`
-     * - 行壳 `<li class="b3-list-item b3-list-item--hide-action">` 注入
-     *   `style={liVars(depth)}` 喂 SiYuan 原生 `--file-toggle-width` /
-     *   `--file-action-offset` 拖拽高亮留位
+     * - 行壳 `<li class="b3-list-item">`（节点 hideAction 才补
+     *   `--hide-action`——选择器勾位要常驻可见，不能全树 hover 才显）
+     *   注入 `style={liVars(depth)}` 喂 SiYuan 原生
+     *   `--file-toggle-width` / `--file-action-offset` 拖拽高亮留位
      * - toggle 用 `b3-list-item__toggle b3-list-item__toggle--hl` + SVG
      *   `b3-list-item__arrow`/`--open`；缩进在 toggle 上以
      *   `padding-left:${depth * INDENT}px` 表达（与 ColTreeLevel 同公式）
@@ -88,10 +89,11 @@
         {@const open = openKeys.has(n.key)}
         {@const expandable = n.children.length > 0}
         {@const indentStyle = depth > 0 ? `padding-left:${depth * INDENT}px` : undefined}
+        {@const focus = !!(current && n.id && current === n.id)}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <li
-            class="b3-list-item b3-list-item--hide-action wengu-kp-doc{current && n.id && current === n.id
+            class="b3-list-item{n.hideAction ? ' b3-list-item--hide-action' : ''} wengu-kp-doc{focus
                 ? ' b3-list-item--focus'
                 : ''}"
             style={liVars(depth)}
@@ -132,20 +134,18 @@
             {/if}
         </li>
         {#if open && expandable}
-            <ul>
-                <Self
-                    depth={depth + 1}
-                    topLevel={false}
-                    nodes={n.children}
-                    {openKeys}
-                    {current}
-                    {selected}
-                    {onrowclick}
-                    {ontoggle}
-                    {main}
-                    {trailing}
-                />
-            </ul>
+            <Self
+                depth={depth + 1}
+                topLevel={false}
+                nodes={n.children}
+                {openKeys}
+                {current}
+                {selected}
+                {onrowclick}
+                {ontoggle}
+                {main}
+                {trailing}
+            />
         {/if}
     {/each}
 </ul>
