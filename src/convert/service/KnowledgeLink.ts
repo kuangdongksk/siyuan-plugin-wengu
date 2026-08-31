@@ -215,11 +215,30 @@ export async function expandKnowDocs(rootId: string): Promise<KnowDocEntry[]> {
     });
 }
 
-/** 从路由回复里抽数字（JSON 或裸列表都行），保序去重并限界 [1,max]。 */
+/** 从路由回复里抽编号：优先解析约定 JSON（"chapters"/"sections" 数组），
+ *  解析不出再按裸数字兜底。保序去重并限界 [1,max]。
+ *  裸数字兜底会把多位编号拆散（"12" → 1、2 误判为 1、2 号章），故只在
+ *  JSON 解析失败时启用，且只收以分隔符/首尾为边界的完整数字。 */
 function parseNums(reply: string, max: number): number[] {
+    const pick = (nums: number[]): number[] => {
+        const out: number[] = [];
+        for (const n of nums) {
+            if (Number.isInteger(n) && n >= 1 && n <= max && !out.includes(n)) out.push(n);
+        }
+        return out;
+    };
+    const m = /"(?:chapters|sections)"\s*:\s*\[([\d\s,]*)\]/.exec(reply);
+    if (m) {
+        const nums = m[1]
+            .split(",")
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isInteger(n));
+        if (nums.length > 0) return pick(nums);
+    }
+    // 兜底：数字两侧必须是分隔边界（非标点/数字），避免拆散多位编号
     const out: number[] = [];
-    for (const m of reply.matchAll(/\d+/g)) {
-        const n = Number(m[0]);
+    for (const b of reply.matchAll(/(?<![\d.,])\d+(?![\d.,])/g)) {
+        const n = Number(b[0]);
         if (n >= 1 && n <= max && !out.includes(n)) out.push(n);
     }
     return out;

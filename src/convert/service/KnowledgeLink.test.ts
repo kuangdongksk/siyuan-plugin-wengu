@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionTree, classifyMatchFail, injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowledgeLink";
+import {
+    buildSectionTree,
+    classifyMatchFail,
+    injectKnowledgeRefs,
+    routeKnowledgeDiag,
+    stripKnowledgeRefs,
+    type KnowledgeIndex,
+} from "./KnowledgeLink";
 
 /** 带解析引述块的最小题目 kramdown（契约 §一：容器 + part IAL 行）。 */
 const KD = `{{{row
@@ -139,5 +146,91 @@ describe("buildSectionTree（20260831 知识导入层级树）", () => {
 
     it("空文档 → 空树", () => {
         expect(buildSectionTree([])).toEqual([]);
+    });
+});
+
+/** 造 N 章索引：path=「章i」，sections 各挂两小节（路由两级都用得到）。 */
+function makeIndex(n: number): KnowledgeIndex {
+    const chapters = [];
+    for (let i = 1; i <= n; i++) {
+        chapters.push({
+            docId: `doc${i}`,
+            title: `章${i}`,
+            path: `章${i}`,
+            sections: [
+                { id: `s${i}a`, title: `节${i}甲`, path: `章${i}/节${i}甲` },
+                { id: `s${i}b`, title: `节${i}乙`, path: `章${i}/节${i}乙` },
+            ],
+        });
+    }
+    return { chapters };
+}
+
+describe("routeKnowledgeDiag 编号解析（20260831 修复：多位编号不再被拆散）", () => {
+    it("JSON 章选择：编号 ≥10 按整体取值，不拆成单个数字", async () => {
+        // 12 章索引下 AI 选 12 号章；旧实现 matchAll(/\d+/) 会拆成 1、2 选错章
+        const index = makeIndex(12);
+        const seen: string[] = [];
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                seen.push(msg);
+                if (msg.includes("章节清单")) return '{"chapters":[12]}';
+                return '{"sections":[1]}';
+            },
+        });
+        // 第二级收到的小节清单必须来自第 12 章（path 含「章12」）
+        expect(seen[1]).toContain("章12/节12甲");
+        expect(seen[1]).not.toContain("章1/节1甲");
+        expect([...out.values()].map((s) => s.id)).toEqual(["s12a"]);
+    });
+
+    it("JSON 带解释文字/越界编号：只收数组内的合法编号", async () => {
+        const index = makeIndex(3);
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                if (msg.includes("章节清单")) return '分析后认为 {"chapters":[2, 99]} 完毕';
+                return '{"sections":[2]}';
+            },
+        });
+        // 99 越界丢弃；第二级只在第 2 章小节里选
+        expect([...out.values()].map((s) => s.id)).toEqual(["s2b"]);
+    });
+
+    it("裸数字兜底（AI 没按约定输出 JSON）：完整数字仍可取", async () => {
+        const index = makeIndex(5);
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                if (msg.includes("章节清单")) return "3";
+                return "2";
+            },
+        });
+        expect([...out.values()].map((s) => s.id)).toEqual(["s3b"]);
+    });
+
+    it("空选择：chapters 为空 → 不调第二级，返回空映射", async () => {
+        const index = makeIndex(4);
+        let calls = 0;
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async () => {
+                calls++;
+                return '{"chapters":[]}';
+            },
+        });
+        expect(calls).toBe(1);
+        expect(out.size).toBe(0);
+    });
+
+    it("单章索引跳过第一级：直接进小节选择", async () => {
+        const index = makeIndex(1);
+        const seen: string[] = [];
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                seen.push(msg);
+                return '{"sections":[2]}';
+            },
+        });
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toContain("知识点小节清单");
+        expect([...out.values()].map((s) => s.id)).toEqual(["s1b"]);
     });
 });
