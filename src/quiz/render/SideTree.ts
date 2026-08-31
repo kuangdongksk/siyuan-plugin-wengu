@@ -3,8 +3,8 @@ import type { WenguDoc } from "../../types";
 /**
  * 刷题侧栏文档树·建树（docs/variant-and-doctree.md §三 S1~S3）：
  * WenguDoc[] 按 hPath 切分建树——中间路径是纯容器分支，叶子/有题
- * 节点挂文档行（父文档自身带题则行兼作文档行）。渲染已收敛共享组件
- * TreeList（挂 SideTreeApp，20260830），本文件只剩纯建树逻辑；
+ * 节点挂文档行（父文档自身带题则行兼作文档行）。渲染收敛共享组件
+ * TreeList（6-5 起由 SidePanelApp 内嵌），本文件只剩纯建树逻辑；
  * 展开集合由 QuizView 持有并持久化 prefs.sideTreeOpen。
  */
 

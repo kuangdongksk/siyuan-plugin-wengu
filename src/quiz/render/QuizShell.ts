@@ -1,6 +1,6 @@
 import type { QuizView } from "../index";
 import { destroyStatsPanel } from "../../stats";
-import { renderReviewFor, detachReviewApp } from "../../review";
+import { renderReviewFor, detachReviewApp, reviewHeadSummary } from "../../review";
 import { detachCompanionPanel } from "../../companion";
 import { detachBankPanels } from "../../bank";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
@@ -15,8 +15,7 @@ import { detachRoundReport } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { detachRail, mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
 import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
-import { bindHeadFor } from "../flow/ViewBindings";
-import { detachSideTree, mountSideTreeFor } from "../flow/SideTreeMount";
+import { detachSideHead, mountHeadFor, mountSideFor } from "../flow/SideMount";
 import { renderWorkspaceFor } from "./WorkspaceShell";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc, yieldToBrowser } from "../../ui/shared";
@@ -42,7 +41,6 @@ export function renderListFor(v: QuizView): void {
     <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(
         String((e as Error)?.message ?? e)
     )}</div>`;
-        bindHeadFor(v);
         mountRailFor(v); // 错误兜底 rail 一并挂载（旧路径渲染了 rail 却漏绑事件，顺修）
     }
 }
@@ -60,7 +58,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     detachRoundReport(); // 轮次报告同款（Svelte 化 20260830）
     detachRail(); // 工作区 rail 同款（Svelte 化 20260830）
     detachNumRail(); // 题号栏同款（Svelte 化 20260830）
-    detachSideTree(); // 侧栏树同款（TreeList 化 20260830；回调一并作废）
+    detachSideHead(); // 侧栏/头部同款（Svelte 化 6-5；原 SideTreeMount 并入侧栏）
     detachCardApps(); // 题卡/组单元组件同款（6-4a 渲染层组件化）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
     // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828
@@ -75,23 +73,12 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     // 壳（题卡全揭示、不作答）；study 仍预留
     if (v.mode === "review") {
         renderReviewFor(v);
-        bindHeadFor(v);
         mountRailFor(v);
         // 复习侧栏同样有树（点行=筛选错题本到该文档，selectDoc 分流）；
-        // docId 传空=不亮行（旧 renderSideHtml 同款）
-        mountSideTreeFor({
-            el: v.el,
-            docs: () => v.docs,
-            docId: () => "",
-            t: v.t,
-            activeCollection: () => "",
-            sideTreeOpen: () => v.sideTreeOpen,
-            selectDoc: (id) => v.selectDoc(id),
-            setSideTreeOpen: (open) => {
-                v.sideTreeOpen = open;
-                v.persistPrefs();
-            },
-        });
+        // docId 传空=不亮行（旧 renderSideHtml 同款，经 sideReviewAccess 适配）；
+        // 次头部待刷/已掌握计数经 reviewHeadSummary 喂 QuizHeadApp
+        mountSideFor(sideReviewAccess(v), "drill");
+        mountHeadFor(sideReviewAccess(v), "drill", reviewHeadSummary(v.t), false);
         return;
     }
     if (v.mode !== "quiz" && v.mode !== "preview") return;
@@ -114,13 +101,6 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         RAIL_ANCHOR_HTML +
         renderMainShell({
             t: v.t,
-            docs: v.docs,
-            docId: v.docId,
-            sideCollapsed: v.sideCollapsed,
-            filter: v.sideFilter,
-            hasSettingsButton: !!v.openSettings,
-            collections: v.colFlow.rowsView(),
-            activeCollection: v.colFlow.id(),
             loading: v.loading,
             loadError: v.loadError,
             // 预览视为常开：不落开刷面板，直接展示全部题卡
@@ -129,9 +109,6 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
             hasDoc: !!doc,
             listCount: v.list.length,
             startPanelHtml: "<div data-startpanel-host></div>",
-            subheadHtml: colMode
-                ? `<span class="wengu-muted">${esc(v.colFlow.activeTitle() ?? "")} · ${esc(String(v.list.length))}</span>`
-                : renderSubheadHtml({ t: v.t, doc, listCount: v.list.length, rounds: v.rounds }),
             cardsHtml: "",
             // 题号栏改 Svelte 挂载锚（bindNumRail 以 anchor 法插入；
             // 设置关闭/无题不放锚=不挂栏，旧 renderNumsHtml 同款守卫）
@@ -144,20 +121,13 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     if (!v.loading && !v.loadError && doc && v.list.length > 0 && !v.started && !pv && !v.progressive.active) {
         mountStartPanelFor(v);
     }
-    mountSideTreeFor({
-        // 侧栏树挂载适配（回调记进 SideTreeMount，重灌后 remount 复用）
-        el: v.el,
-        docs: () => v.docs,
-        docId: () => v.docId,
-        t: v.t,
-        activeCollection: () => v.colFlow.id(),
-        sideTreeOpen: () => v.sideTreeOpen,
-        selectDoc: (id) => v.selectDoc(id),
-        setSideTreeOpen: (open) => {
-            v.sideTreeOpen = open;
-            v.persistPrefs();
-        },
-    });
+    // 侧栏/头部组件挂载（6-5；原 SideTreeMount/renderSideHtml/renderHeadHtml
+    // 退役——树/搜索/专题/次头部全进组件，计时器/转换条等命令式钩子走 DOM 契约）
+    const subhead = colMode
+        ? `<span class="wengu-muted">${esc(v.colFlow.activeTitle() ?? "")} · ${esc(String(v.list.length))}</span>`
+        : renderSubheadHtml({ t: v.t, doc, listCount: v.list.length, rounds: v.rounds });
+    mountSideFor(sideQuizAccess(v), "drill");
+    mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv);
     v.timerBinder.updateLabel();
     const task = renderStaticChunked(v, cardModel);
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
@@ -234,10 +204,10 @@ function renderingPillHtml(t: (key: string) => string): string {
     )}</span><span class="wengu-rendering-count" data-rendering-count></span></div>`;
 }
 
-/** 视图级绑定：头部/题号（题卡与材料组单元 6-4b 起组件自管——作答
- *  事件组件直调流程、组导航收进 GroupUnitApp，此层无卡级 DOM 绑定）。 */
+/** 视图级绑定：题号栏（头部 6-5 起组件化，此层只剩题号；题卡与
+ *  材料组单元 6-4b 起组件自管——作答事件组件直调流程、组导航收进
+ *  GroupUnitApp，无卡级 DOM 绑定）。 */
 function bindQuizFor(v: QuizView): void {
-    bindHeadFor(v);
     bindNumRail(v.el, v.list, {
         onActive: (idx) => v.onActiveQ(idx),
         onFocus: (idx) => focusQuestion(v.el, idx),
@@ -245,4 +215,34 @@ function bindQuizFor(v: QuizView): void {
         showNums: v.settings?.showNums !== false,
         showPast: v.mode !== "preview" && v.settings?.showWrong !== false && v.revealMode === "instant",
     });
+}
+
+/** 侧栏/头部挂载入参适配（quiz/preview 主路径）：QuizView 已实现的
+ *  箭头属性直接复用；sideAct 统一出口在 QuizView（侧栏/头部按钮）。 */
+function sideQuizAccess(v: QuizView): import("../flow/SideMount").SideViewAccess {
+    return {
+        el: v.el,
+        t: v.t,
+        docsOf: () => v.docs,
+        docIdOf: () => v.docId,
+        sideCollapsedOf: () => v.sideCollapsed,
+        sideFilterOf: () => v.sideFilter,
+        hasSettingsBtn: () => !!v.openSettings,
+        sideTreeOpenOf: () => v.sideTreeOpen,
+        colFlowOf: () => v.colFlow,
+        convertingOf: () => v.convertingOf(),
+        setSideFilter: (text) => v.setSideFilter(text),
+        selectDoc: (id) => v.selectDoc(id),
+        setSideTreeOpen: (open) => {
+            v.sideTreeOpen = open;
+            v.persistPrefs();
+        },
+        sideAct: (act) => v.sideAct(act),
+    };
+}
+
+/** 侧栏/头部挂载入参适配（review 路径）：docId 传空=不亮行，selectDoc
+ *  分流为筛选错题本（selectDoc 内部按 mode==="review" 路由）。 */
+function sideReviewAccess(v: QuizView): import("../flow/SideMount").SideViewAccess {
+    return { ...sideQuizAccess(v), docIdOf: () => "" };
 }

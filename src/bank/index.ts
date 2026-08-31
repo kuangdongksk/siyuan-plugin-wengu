@@ -1,4 +1,4 @@
-import { applySideFilter } from "../quiz/render/CardHtml";
+import { refreshSideCols } from "../quiz/flow/SideMount";
 import { openCollectionDialog } from "./ui/CollectionDialog";
 import { GROUP_PREV } from "../siyuan/attrs";
 import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
@@ -90,18 +90,10 @@ export class CollectionFlow {
         return bank ? await bank.questionsOf(this.collectionId) : [];
     }
 
-    /** 只刷新侧栏清单块（迁移完成补专题，不打断作答中的界面）。 */
+    /** 只刷新侧栏专题清单块（迁移完成补专题，不打断作答中的界面）。
+     *  6-5 侧栏组件化后走 SidePanelApp 实例导出，不重灌树与搜索。 */
     refreshSide(): void {
-        applySideFilter(
-            this.v.container(),
-            this.v.docs(),
-            this.v.docId(),
-            (key) => this.v.t(key),
-            this.v.sideFilter(),
-            this.rows,
-            this.collectionId,
-            this.v.sideTreeOpen()
-        );
+        refreshSideCols(this.rows, this.collectionId);
     }
 
     /** 打开专题管理（按知识点收集/补题/删除/切换）。 */

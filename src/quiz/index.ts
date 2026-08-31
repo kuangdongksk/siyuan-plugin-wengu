@@ -42,6 +42,7 @@ import { beginDrillFor, detachStartPanel, startPanelModelFor } from "./render/St
 import { destroyStatsPanel, openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
+import { sideActFor } from "./flow/SideMount";
 import { TimerController } from "./service/TimerController";
 import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "../types";
 
@@ -509,4 +510,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 带预填打开转换弹窗（知识面板「转习题」：源/知识点根=该文档）。 */
     readonly openConvertPrefilled = (docId: string, know: string) =>
         openConvertForView(this.convertAccess, docId, know);
+
+    /** 侧栏/头部按钮统一出口（6-5 Svelte 化后 SidePanelApp/QuizHeadApp
+     *  经 SideMount 的 onAct 汇到这里，act 名同 data-act；实现体在
+     *  flow/SideMount 的 sideActFor）。 */
+    readonly sideAct = sideActFor(this);
 }
