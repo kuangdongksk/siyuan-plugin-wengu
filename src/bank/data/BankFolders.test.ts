@@ -20,6 +20,7 @@ function data(titles: string[], folders: string[]): BankData {
         knowRoots: [],
         folders,
         knowHidden: [],
+        docStats: {},
     };
 }
 

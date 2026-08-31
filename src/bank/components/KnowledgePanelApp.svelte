@@ -134,6 +134,9 @@
                             {@const d = tree.docByKey.get(n.key)}
                             {@const s = tree.secByKey.get(n.key)}
                             {#if s}
+                                {#if ui.staleSecs.has(s.id)}<span class="wengu-cp-meta wengu-know-stale"
+                                        >{t("knowSecStale")}</span
+                                    >{/if}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(s.count) })}</span>
                             {:else if d}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(d.total) })}</span>

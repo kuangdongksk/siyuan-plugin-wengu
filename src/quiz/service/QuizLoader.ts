@@ -1,5 +1,6 @@
 import { GROUP_PREV } from "../../siyuan/attrs";
 import type { ConvertProgressRecord } from "../../convert/service/ConvertBatch";
+import type { BankData, QuestionBank } from "../../bank/data/QuestionBank";
 import type { HistoryStore } from "./HistoryStore";
 import { listMaterials, resolveGroupPlaceholders } from "./MaterialService";
 import { cleanOrphanExerciseDocs } from "../../convert/service/OrphanCleaner";
@@ -30,6 +31,9 @@ export interface QuizLoadDeps {
     settings?: SettingsDialogShape;
     timer: TimerController;
     history?: HistoryStore;
+    /** 题库（文档模式装载后用 stats 覆盖块属性侧读数——自托管后运行时
+     *  统计唯一真相在题库，与专题模式 overlayStats 同口径）。 */
+    bank?: QuestionBank;
     /** 之前的选中（仍存在则保持）。 */
     docId: string;
     /** 顶栏带来的活动文档（无历史选择时优先）。 */
@@ -65,6 +69,23 @@ export interface QuizLoadResult {
     loadError: string;
 }
 
+/** 题库 stats 覆盖到文档模式题目视图（与专题模式 overlayStats 同口径，
+ *  细粒度编码原样透传）。 */
+function overlayBankStats(list: WenguQuestion[], data: BankData): void {
+    for (const q of list) {
+        const r = data.records[q.id];
+        if (!r) continue;
+        q.attempts = r.stats.attempts;
+        q.wrongCount = r.stats.wrongCount;
+        q.right = r.stats.right;
+        q.lastAnswer = r.stats.lastAnswer;
+        q.stepRight = r.stats.stepRight;
+        q.stepLast = r.stats.stepLast;
+        q.slotRight = r.stats.slotRight;
+        q.slotLast = r.stats.slotLast;
+    }
+}
+
 export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult> {
     const r: QuizLoadResult = {
         docs: [],
@@ -98,7 +119,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         } catch (_) {
             // 清理失败不阻断装载，下次装载再试
         }
-        r.docs = await listQuestionDocs();
+        r.docs = await listQuestionDocs(deps.bank);
         if (r.pendingDoc && r.docs.some((d) => d.id === r.pendingDoc.id)) {
             r.pendingDoc = undefined;
         } else if (r.pendingDoc) {
@@ -123,6 +144,11 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         }
         r.docTotalSec = r.docs.find((d) => d.id === r.docId)?.totalTime ?? 0;
         r.fullList = r.docId ? await listQuestions(r.docId) : [];
+        if (r.fullList.length > 0 && deps.bank) {
+            // 运行时统计 overlay（自托管后题库为唯一真相；块属性侧读数
+            // 可能是回灌前的存量残值或缺省零）
+            overlayBankStats(r.fullList, await deps.bank.all());
+        }
         // 材料组：转换写的 group="prev" 占位按文档序解析回写真实材料块 id
         // （渐进重建期间不解析，装载即最终文档，幂等）
         if (r.docId && r.fullList.some((q) => q.group === GROUP_PREV)) {

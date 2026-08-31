@@ -31,6 +31,7 @@ function bankWith(records: BankRecord[]): QuestionBank {
         knowRoots: [],
         folders: [],
         knowHidden: [],
+        docStats: {},
     };
     return new QuestionBank(
         async () => data,

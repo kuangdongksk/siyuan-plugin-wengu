@@ -6,6 +6,8 @@ import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
+import { knowHash } from "../data/KnowHash";
+import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
 import {
     buildKnowTree,
     groupKnowByDoc,
@@ -79,6 +81,15 @@ export class KnowPanelCtl {
         // 分支默认全展开（知识树浅、文档即叶子）；小节容器不进集合=默认收起
         this.ui.openPaths = new Set(collectBranchPaths(buildKnowTree(docs, info)));
         this.ui.phase = "ready";
+        // 后台小节漂移检测（自托管三期）：比对内容哈希基线出 stale 徽标，
+        // 基线自推进（一次性提示）；面板打开时新鲜，重开不重复报
+        const kh = knowHash();
+        const docIds = this.ui.docs.map((d) => d.docId);
+        if (kh && docIds.length > 0) {
+            void kh.diffDocs(docIds).then((stale) => {
+                if (this.alive) this.ui.staleSecs = stale;
+            });
+        }
     }
 
     /** 折叠切换（分支 key=树路径；文档行的箭头 key=小节容器）。 */
@@ -135,6 +146,17 @@ export class KnowPanelCtl {
                         .then(async () => {
                             const lex = await lexiconOfRoots(ids);
                             if (lex.size > 0) await linkBankByText(bank, lex, {});
+                            // 导入即基线：小节内容哈希起点（stale 检测的比对基准）
+                            const kh = knowHash();
+                            if (kh) {
+                                for (const rid of ids) {
+                                    const docs = await expandKnowDocs(rid);
+                                    await kh.baselineDocs(
+                                        rid,
+                                        docs.map((d) => d.docId)
+                                    );
+                                }
+                            }
                         })
                         .then(() => this.load());
                 },

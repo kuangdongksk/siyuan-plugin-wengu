@@ -30,6 +30,9 @@ export interface KnowPanelUi {
     /** 「删除」两击确认中的 docId（3s 自动复位；与 rmArmed 独立追踪，
      *  同一行可同时/先后被 arm 不同动作）。 */
     dlArmed: string | undefined;
+    /** 内容已变更的小节（标题块 id）：装载后台 diffDocs 比对小节哈希
+     *  基线得出（一次性提示——基线自推进，重开面板不重复报）。 */
+    staleSecs: Set<string>;
 }
 
 /** 初始态（$state 包装在 KnowledgePanelApp 内完成）。 */
@@ -41,5 +44,6 @@ export function initialKnowPanelUi(): KnowPanelUi {
         openPaths: new Set(),
         rmArmed: undefined,
         dlArmed: undefined,
+        staleSecs: new Set(),
     };
 }

@@ -4,6 +4,7 @@ import type { TimerController } from "../service/TimerController";
 import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } from "../../types";
 import { baseQid } from "../../types";
 import { clampMinutes } from "../../ui/shared";
+import { resolveDrift } from "../../bank/data/DriftWatch";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
 import StartPanelApp from "../components/StartPanelApp.svelte";
 
@@ -280,22 +281,38 @@ export function beginDrillFor(v: DrillViewAccess, override?: { scope?: WenguRoun
 
 let startApp: MountedSvelteApp | undefined;
 
-/** 挂载开刷面板（QuizShell 壳落后、renderMainShell 的面板态条件下调）。 */
+/** 挂载开刷面板（QuizShell 壳落后、renderMainShell 的面板态条件下调）。
+ *  当前文档有镜像漂移时面板顶部出提示行（更新镜像/忽略，DriftWatch）。 */
 export function mountStartPanelFor(
     v: DrillViewAccess & {
         el: HTMLElement;
         enterPreviewMode(): void;
         enterReviewMode(opt: { docId?: string; qid?: string }): void;
+        bankStore?(): import("../../bank/data/QuestionBank").QuestionBank | undefined;
+        reloadView(): Promise<void>;
     }
 ): void {
     detachStartPanel();
     const host = v.el.querySelector<HTMLElement>("[data-startpanel-host]");
     if (!host) return;
+    const bank = v.bankStore?.();
+    const docId = v.docIdOf();
+    const entry = bank && docId && !docId.startsWith("col:") ? bank.peek()?.driftDocs?.[docId] : undefined;
+    const driftCount = entry ? entry.changed.length + entry.fresh.length + entry.gone.length : 0;
     startApp = mountSvelteApp(StartPanelApp, host, {
         model: startPanelModelFor(v),
         onStart: (cfg: RoundConfig) => beginDrillFor(v, undefined, cfg),
         onPreview: () => v.enterPreviewMode(),
         onReview: () => v.enterReviewMode({}),
+        ...(driftCount > 0 && bank && docId
+            ? {
+                  drift: {
+                      count: driftCount,
+                      onAdopt: (): void => void resolveDrift(bank, docId, "adopt").then(() => v.reloadView()),
+                      onIgnore: (): void => void resolveDrift(bank, docId, "ignore").then(() => v.reloadView()),
+                  },
+              }
+            : {}),
     });
 }
 

@@ -13,6 +13,8 @@ import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
 import { initRouteCache } from "./bank/data/RouteCache";
+import { runDriftCheck } from "./bank/data/DriftWatch";
+import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -148,6 +150,12 @@ export default class WenguPlugin extends Plugin {
         initRouteCache({
             load: () => this.loadData("route-cache"),
             save: (v) => this.saveData("route-cache", v),
+        });
+        // 知识小节内容哈希基线（自托管三期）：面板 stale 徽标 + 路由
+        // 缓存代数指纹的小节内容维度
+        initKnowHash({
+            load: () => this.loadData("know-hash"),
+            save: (v) => this.saveData("know-hash", v),
         });
         // 看板娘学伴（全局悬浮层挂 body，与页签渲染解耦；事件由各域收口
         // 一行接入，20260828 定稿）
@@ -313,15 +321,29 @@ export default class WenguPlugin extends Plugin {
     /** 树删除/移动事件的防抖对账定时器（onunload 清）。 */
     private static reconcileTimer: number | undefined;
 
-    /** ws 事务流过滤：出现 delete/move 操作才排程对账（其余零成本忽略）。 */
+    /** ws 事务流里攒下的待对账文档根（防抖窗口内聚簇，update 漂移检测用）。 */
+    private static pendingRoots = new Set<string>();
+
+    /** ws 事务流过滤：delete/move 排程存活对账；update 记下文档根、
+     *  防抖后对题库登记文档跑镜像漂移检测（内核无独立事件面，官方
+     *  广播即信号源；op 字段名 rootID 系 3.8.x 前端源码验证）。 */
     private static readonly onWsReconcile = (ev: {
-        detail: { data?: { doOperations?: { action?: string }[] } };
+        detail: { data?: { doOperations?: { action?: string; rootID?: string }[] } };
     }): void => {
         const ops = ev.detail?.data?.doOperations ?? [];
-        if (ops.some((o) => o.action === "delete" || o.action === "move")) WenguPlugin.scheduleBankReconcile();
+        let hit = false;
+        for (const o of ops) {
+            if (o.action === "delete" || o.action === "move" || o.action === "update") {
+                if (o.rootID) WenguPlugin.pendingRoots.add(o.rootID);
+                hit = true;
+            }
+        }
+        if (hit) WenguPlugin.scheduleBankReconcile();
     };
 
-    /** 防抖对账题库登记文档的存活性（ws-main 的 delete/move 触发）。 */
+    /** 防抖对账：①delete/move→题库登记文档存活性核对；②update→
+     *  命中 migratedDocs 的文档镜像漂移检测（插件自身写先更新题库
+     *  hash 再落块，dry-run 得「相同」天然免疫）。 */
     private static readonly scheduleBankReconcile = (): void => {
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
         WenguPlugin.reconcileTimer = window.setTimeout((): void => {
@@ -330,6 +352,8 @@ export default class WenguPlugin extends Plugin {
                 const plugin = WenguPlugin.instance;
                 const bank = plugin?.bank();
                 if (!plugin || !bank) return;
+                const roots = [...WenguPlugin.pendingRoots];
+                WenguPlugin.pendingRoots.clear();
                 const docIds = [...(await bank.all()).migratedDocs];
                 for (let i = 0; i < docIds.length; i += 50) {
                     const chunk = docIds
@@ -343,6 +367,10 @@ export default class WenguPlugin extends Plugin {
                     for (const id of docIds.slice(i, i + 50)) {
                         if (!alive.has(id)) await bank.removeDocData(id);
                     }
+                }
+                for (const id of roots) {
+                    if (docIds.includes(id)) await runDriftCheck(bank, id);
+                    else await knowHash()?.refreshDoc(id); // 知识域文档：小节哈希基线顺路刷新
                 }
                 await bank.flush();
             })().catch((): void => undefined); // 对账尽力而为，失败等下次事件/装载

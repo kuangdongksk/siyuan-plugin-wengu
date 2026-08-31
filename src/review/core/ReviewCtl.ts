@@ -1,9 +1,10 @@
-import { ATTR_PREFIX, Attr } from "../../siyuan/attrs";
-import { KernelQuery } from "../../siyuan/query";
-import type { ReviewViewAccess } from "../index";
 import { mdFragmentHtml, optionRowHtml } from "../../quiz/service/ProtyleHost";
 import { copyQuestionText } from "../../quiz/flow/PreviewFlow";
-import { hydrate, rowToQuestion, type AttrsRow } from "../../quiz/service/QuestionService";
+import { hydrate } from "../../quiz/service/QuestionService";
+import { stripIal } from "../../bank/data/BankParse";
+import type { BankRecord, QuestionBank } from "../../bank/data/QuestionBank";
+import { normalizeType } from "../../types";
+import type { ReviewViewAccess } from "../index";
 import { renderTimelineHtml, type ReviewDetailModel } from "../ReviewHtml";
 import type { ReviewAttempt, ReviewItem, ReviewUi } from "./ReviewUi";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
@@ -14,8 +15,9 @@ import { esc } from "../../ui/shared";
  * 错题本控制器（四件套之一，模块级单例——外部域在视图外也要读写
  * 筛选/定位/缓存，状态必须跨视图生命周期存活）。attach/detach 对齐
  * 「视图重挂」节奏：renderList 全量重绘会 unmount 组件，持久字段留在
- * ctl，下次 attach 同步进新 ui。数据事实源=块属性 SQL（不碰题库镜像），
- * 「看」是全局的、「刷」按文档进行（组头重刷按钮）。
+ * ctl，下次 attach 同步进新 ui。数据事实源=题库 records 统计（20260831
+ * 自托管后块属性停写，原 wrong-count SQL 直查随之退役），「看」是全局
+ * 的、「刷」按文档进行（组头重刷按钮）。
  */
 export class ReviewCtl {
     private ui?: ReviewUi;
@@ -130,7 +132,8 @@ export class ReviewCtl {
     private async reload(): Promise<void> {
         if (!this.alive) return;
         const seq = ++this.cacheSeq;
-        const rows = await listWrongRows();
+        const bank = this.v?.bankStore();
+        const rows = bank ? await wrongRecordsOf(bank) : [];
         const sessions = (await this.v?.historyStore()?.allSessions()) ?? [];
         if (seq !== this.cacheSeq || !this.alive) return; // 已有更新的装载在途/视图已切走
         this.docTitles = new Map((this.v?.docsOf() ?? []).map((d) => [d.id, d.title || d.id]));
@@ -208,28 +211,15 @@ export class ReviewCtl {
 
 const CACHE_TTL_MS = 60_000;
 
-/** SQL 直查 wrong-count>0 的题块（仿 listQuestions 的聚合，附带
- *  blocks.content 做摘要；不 hydrate——详情点开才取；rowsAll 自动分页）。 */
-async function listWrongRows(): Promise<(AttrsRow & { content?: string })[]> {
-    const rows = await KernelQuery.rowsAll<AttrsRow & { content?: string }>(`
-            SELECT
-                b.id AS block_id,
-                b.root_id,
-                b.content AS content,
-                '{' || GROUP_CONCAT('"' || a.name || '":"' || a.value || '"', ',') || '}' AS attrs
-            FROM attributes AS a, blocks AS b
-            WHERE a.name LIKE '${ATTR_PREFIX}%'
-              AND a.block_id = b.id
-              AND b.id IN (
-                  SELECT block_id FROM attributes
-                  WHERE name = '${Attr.wrongCount}' AND CAST(value AS INTEGER) > 0
-              )
-            GROUP BY b.id`);
-    return rows.filter((r) => typeof r.attrs === "string");
+/** 题库 wrongCount>0 的记录清单（原 wrong-count 块属性 SQL 直查的自托管
+ *  等位；摘要用 kramdown 剥 IAL 后截断，详情点开才 hydrate）。 */
+async function wrongRecordsOf(bank: QuestionBank): Promise<BankRecord[]> {
+    const data = await bank.all();
+    return Object.values(data.records).filter((r) => r.stats.wrongCount > 0);
 }
 
-/** 块属性行 × 会话索引 → 清单条目（掌握口径 D4：最近一次对即掌握）。 */
-function mergeItems(rows: (AttrsRow & { content?: string })[], sessions: WenguSession[]): ReviewItem[] {
+/** 题库记录 × 会话索引 → 清单条目（掌握口径 D4：最近一次对即掌握）。 */
+function mergeItems(records: BankRecord[], sessions: WenguSession[]): ReviewItem[] {
     const timeline = new Map<string, ReviewAttempt[]>();
     for (const s of sessions) {
         for (const r of s.results) {
@@ -246,21 +236,20 @@ function mergeItems(rows: (AttrsRow & { content?: string })[], sessions: WenguSe
             timeline.set(qid, arr);
         }
     }
-    return rows.map((row) => {
-        const q = rowToQuestion(row);
-        const attempts = timeline.get(q.id) ?? [];
+    return records.map((r) => {
+        const attempts = timeline.get(r.qid) ?? [];
         const wrongs = attempts.filter((a) => !a.ok);
         const lastWrong = wrongs[wrongs.length - 1];
         return {
-            qid: q.id,
-            docId: row.root_id,
-            type: q.type,
-            wrongCount: q.wrongCount,
-            right: q.right,
-            lastAnswer: q.lastAnswer,
-            knowledge: q.knowledge,
-            stemSummary: plainSummary(row.content ?? q.lastAnswer ?? q.id),
-            mastered: q.right === "1",
+            qid: r.qid,
+            docId: r.sourceDocId,
+            type: normalizeType(r.type),
+            wrongCount: r.stats.wrongCount,
+            right: r.stats.right,
+            lastAnswer: r.stats.lastAnswer,
+            knowledge: r.knowledge,
+            stemSummary: plainSummary(stripIal(r.kramdown)),
+            mastered: r.stats.right === "1",
             lastWrongAt: lastWrong?.ts,
             cause: lastWrong?.cause,
             attempts,

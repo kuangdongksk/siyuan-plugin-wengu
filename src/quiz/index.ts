@@ -3,6 +3,7 @@ import type { AnswerHost } from "./flow/AnswerFlow";
 import { revealAll } from "./flow/AnswerFlow";
 import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { detachBankPanels } from "../bank";
+import { detachAiSessionPanel } from "../ai/SessionPanel";
 import { detachReviewApp, filterReviewDocFor } from "../review";
 import { collectThoughts } from "./render/CardRegistry";
 import { reimportDocFrom, unregisterDocAsQuiz } from "./service/DocOps";
@@ -13,6 +14,7 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { refreshDocFor } from "../bank/data/BankMigrate";
+import { overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "../bank/data/BankRecording";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
@@ -82,7 +84,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     units: DrillUnit[] = [];
     /** M6 多模式开口：做题（现有）/复习/预览/学习预留，主区渲染按它路由。 */
     mode: "quiz" | "review" | "study" | "preview" = "quiz";
-    /** 左栏工作区（rail 维度）：刷题=现有界面，其余三个是管理面板。 */
+    /** 左栏工作区（rail 维度）：刷题=现有界面，其余四个是管理面板。 */
     workspace: WenguWorkspace = "drill";
     /** 标注层解绑与背单词存储（生词→复习队列，index.ts 注入共享单例）。 */
     private annoCleanup?: () => void;
@@ -187,9 +189,32 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
 
     /** 整题收口镜像（steps/slots 用）：题库按整题记一次——逐 #k 的
      *  recordAnswer 刻意跳过题库，整题结果在此补（契约「调用方剥后缀」，
-     *  20260828 审查：原整题从不进镜像，专题错题重刷对这类题失效）。 */
-    readonly bankMirror = (qid: string, submitted: string, ok: boolean): void => {
-        void this.bank?.recordAnswer(qid, submitted, ok);
+     *  20260828 审查：原整题从不进镜像，专题错题重刷对这类题失效）。
+     *  detail 携带细粒度（自托管后题库是运行时统计唯一落点）。 */
+    readonly bankMirror = (
+        qid: string,
+        submitted: string,
+        ok: boolean,
+        detail?: { kind: "steps" | "slots"; letters: string[]; oks: boolean[]; persist?: boolean }
+    ): void => {
+        const bank = this.bank;
+        if (!bank) return;
+        if (detail?.kind === "steps")
+            void recordStepsResult(bank, qid, detail.letters, detail.oks, detail.persist === true);
+        else if (detail?.kind === "slots") void recordSlotsResult(bank, qid, detail.letters, detail.oks);
+        else void bank.recordAnswer(qid, submitted, ok);
+    };
+
+    /** 改判镜像（brief 纠错/steps 申诉复核）：只翻 right 微调 wrongCount。 */
+    readonly bankOverride = (
+        qid: string,
+        correct: boolean,
+        detail?: { kind: "steps"; letters: string[]; oks: boolean[] }
+    ): void => {
+        const bank = this.bank;
+        if (!bank) return;
+        if (detail?.kind === "steps") void overrideStepsResult(bank, qid, detail.letters, detail.oks);
+        else void overrideAnswer(bank, qid, correct);
     };
 
     /** 设置页开关变更后由插件调用：立即按新设置重渲染。 */
@@ -221,6 +246,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         destroyStatsPanel(); // 浮层 echarts 防 leak（此前 destroy 漏清，挂账项）
         detachCompanionPanel();
         detachBankPanels();
+        detachAiSessionPanel();
         detachReviewApp();
         detachStartPanel();
         detachRoundReport();
@@ -369,6 +395,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             settings: this.settings,
             timer: this.timer,
             history: this.history,
+            bank: this.bank,
             docId: this.docId,
             activeDocId: this.activeDocId,
             pendingDoc: this.pendingDoc,

@@ -186,14 +186,23 @@ export function parseKpRefs(text: string): { id: string; title: string }[] {
     return out;
 }
 
-/** 内容指纹：剥掉块 id/updated 属性后哈希（跨卷同题去重用）。双种子
- *  DJB2 拼 64 位（万级题目下 32 位生日碰撞约 1%，碰撞即静默丢题，
- *  20260829 三轮审查）；旧记录的单段 36 进制指纹格式不同、永不与新
- *  指纹相等——存量重复题首次重扫会再入一条，一次性代价可接受。 */
+/** 运行时统计属性（自托管后停写，但存量题块/题库 kramdown 的容器 IAL
+ *  里仍嵌着旧值）——指纹归一必须剥除，否则一次作答就触发假漂移；
+ *  契约属性（type/knowledge/src-hash 等）保留参与哈希：它们变了=内容
+ *  真变了（docs/incremental-hash-plan.md §三口径）。 */
+const RUNTIME_ATTR_HASH_RE =
+    /\s*custom-plugin-wengu-(?:attempts|wrong-count|right|last-answer|step-right|step-last|slot-right|slot-last|total-time)="[^"]*"/g;
+
+/** 内容指纹：剥掉块 id/updated 与运行时统计属性后哈希（跨卷同题去重、
+ *  题库镜像对账共用）。双种子 DJB2 拼 64 位（万级题目下 32 位生日碰撞
+ *  约 1%，碰撞即静默丢题，20260829 三轮审查）；旧记录的单段 36 进制
+ *  指纹格式不同、永不与新指纹相等——存量重复题首次重扫会再入一条，
+ *  一次性代价可接受。 */
 export function questionHash(kd: string): string {
     const norm = kd
         .replace(/\s+id="[^"]*"/g, "")
         .replace(/\s+updated="[^"]*"/g, "")
+        .replace(RUNTIME_ATTR_HASH_RE, "")
         .replace(/\s+/g, " ")
         .trim();
     let h1 = 5381;

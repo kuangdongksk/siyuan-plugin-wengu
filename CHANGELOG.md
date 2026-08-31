@@ -2,6 +2,26 @@
 
 ## v0.1.1 unreleased
 
+- 数据自托管三线收口（20260831，运行时统计停写块属性 + 题目/小节
+  哈希对账）：① 作答运行时统计（attempts/wrong-count/right/
+  last-answer/step-_/slot-_/文档级 total-time）**停写思源块属性**，
+  唯一真相收敛进题库 stats/docStats——QuestionService 六个「读块写块」
+  记账函数退役、AnswerFlow/StepsFlow/SlotFlow/TimerBinder 改走
+  bankMirror/bankOverride 扩签名，错题本清单与文档列表聚合从块属性
+  SQL 改题库归并，文档模式装载后 stats overlay（与专题模式同口径）；
+  存量由 backfillV2 一次性全量重扫回灌并清块上残留属性（属性面板
+  彻底干净）；② 题目镜像漂移检测（DriftWatch）：题库 hash 即文档
+  题块指纹基线，questionHash 归一化剥运行时属性（作答不扰动指纹），
+  ws-main update 事务防抖 5s 对已迁移文档 dry-run 三态比对
+  （changed/fresh/gone），开刷面板顶部提示行「更新镜像/忽略」；
+  ③ 知识小节内容哈希（KnowHash，saveData("know-hash")）：包含式
+  切段指纹，导入写基线、面板装载比对出 stale 小节「内容已变更」
+  徽标（基线自推进一次性提示），并进路由缓存索引代数指纹——小节
+  正文变更即整表作废，宁漏勿错。新文件 BankRecording/DriftWatch/
+  KnowHash，补 27 例单测（questionHash 归一化、记账语义、三态比对、
+  切段哈希、代数指纹）；QuestionBank 558 行超红线挂账（存量 529 +
+  DriftEntry/docStats 类型扩展，同 KnowledgeLink 540 先例）。
+
 - 知识点引用注入拆分 + 增量哈希三期定论（20260831）：KnowledgeLink.ts
   超 500 行硬限（540），把引用注入与生成后处理（strip/injectKnowledgeRefs、
   applyKnowLinks、sectionKramdown）拆到 convert/service/KnowRef.ts

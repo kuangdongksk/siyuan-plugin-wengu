@@ -3,7 +3,7 @@ import { checkAllDone } from "./AnswerFlow";
 import { markNum } from "../render/FlowDom";
 import { fillClozeCur, markClozeOpts } from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
-import { gradeSlot, recordSlotsResult } from "../service/QuestionService";
+import { gradeSlot } from "../service/QuestionService";
 import type { WenguQuestion } from "../../types";
 import { slotQid } from "../../types";
 import { esc } from "../../ui/shared";
@@ -93,8 +93,8 @@ async function finishSlots(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Pr
     const s = ctl.ui.slots!;
     const letters = s.marks.map((m) => m.letter);
     const oks = s.marks.map((m) => m.ok);
-    const allOk = await recordSlotsResult(q, letters, oks);
-    host.bankMirror?.(q.id, letters.join(""), allOk); // 题库整题镜像
+    const allOk = oks.length > 0 && oks.every(Boolean);
+    host.bankMirror?.(q.id, letters.join(""), allOk, { kind: "slots", letters, oks });
     ctl.setGraded();
     const right = oks.filter(Boolean).length;
     ctl.setResult(

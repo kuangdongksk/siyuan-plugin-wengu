@@ -71,7 +71,18 @@
       路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
       LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
       分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
-      CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
+      CollectionPanel/KnowledgePanel 挂页签左栏 rail；**数据自托管**
+      （20260831 三线收口）：作答运行时统计（attempts/wrong-count/
+      right/last-answer/step-_/slot-_/文档级 total-time）**停写块
+      属性**唯一真相在题库 stats/docStats（作答记账在 data/
+      BankRecording，QuestionService 记账函数退役），存量 backfillV2
+      一次性重扫回灌+清块残留属性；**镜像漂移检测**（data/DriftWatch）：
+      题库 hash 即文档题块指纹基线（questionHash 归一化剥运行时
+      属性——作答不扰动指纹），ws-main update 事务防抖 dry-run 三态
+      比对（changed/fresh/gone→driftDocs），开刷面板提示行「更新镜像/
+      忽略」；**知识小节哈希**（data/KnowHash，saveData("know-hash")）：
+      包含式切段指纹，导入写基线、面板装载出 stale 徽标（基线自推进
+      一次性提示），并进路由缓存 indexGenOf——小节正文变更整表作废）、
       `src/companion/`
       （伴学看板娘「小书童」：规则层表情+台词/AI 增强与聊天走智能体
       agentChatOnce 独立会话并发，双宿主=刷题页签挂载层+单词 dock

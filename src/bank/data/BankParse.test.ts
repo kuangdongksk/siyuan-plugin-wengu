@@ -141,4 +141,21 @@ describe("questionHash", () => {
     it("内容不同指纹不同", () => {
         expect(questionHash("题干甲")).not.toBe(questionHash("题干乙"));
     });
+    it("运行时统计属性剥除（自托管二期）：作答/改判不扰动指纹，存量残值不假漂移", () => {
+        const base = '题干\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single"}';
+        const answered =
+            '题干\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-attempts="9" custom-plugin-wengu-wrong-count="3" custom-plugin-wengu-right="0" custom-plugin-wengu-last-answer="A" custom-plugin-wengu-step-right="10" custom-plugin-wengu-step-last="A|B" custom-plugin-wengu-slot-right="1" custom-plugin-wengu-slot-last="A" custom-plugin-wengu-total-time="120"}';
+        expect(questionHash(base)).toBe(questionHash(answered));
+    });
+    it("契约属性保留参与指纹：type/knowledge/src-hash 变=内容真变了", () => {
+        const a = '题干\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single"}';
+        const b = '题干\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="judge"}';
+        const c =
+            '题干\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-knowledge="极限"}';
+        const d =
+            '题干\n{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-src-hash="abc-1"}';
+        expect(questionHash(a)).not.toBe(questionHash(b));
+        expect(questionHash(a)).not.toBe(questionHash(c));
+        expect(questionHash(a)).not.toBe(questionHash(d));
+    });
 });

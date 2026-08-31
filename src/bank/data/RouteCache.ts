@@ -1,5 +1,6 @@
 import { routeKnowledgeDiag, type KnowRouteFail, type KnowledgeIndex } from "../../convert/service/KnowledgeLink";
 import { questionHash } from "./BankParse";
+import { knowHash } from "./KnowHash";
 
 /**
  * 路由结果按题哈希缓存（增量哈希一期，docs/incremental-hash-plan.md §二）：
@@ -29,14 +30,16 @@ export interface RouteCacheData {
     entries: Record<string, { id: string; title: string }[]>;
 }
 
-/** 索引代数指纹：全部章节 docId+path 与小节 id+path 拼接后过
- *  questionHash——结构级变更（增删/改名/移动章或小节）必改变指纹。
- *  根集合不需要单独进指纹：根决定章集合，章 docId 已覆盖。纯函数。 */
-export function indexGenOf(index: KnowledgeIndex): string {
+/** 索引代数指纹：全部章节 docId+path 与小节 id+path（+内容哈希，自托管
+ *  三期起——小节正文变了路由缓存也整表作废，宁漏勿错；哈希表由 KnowHash
+ *  维护、ws-main update 链顺路刷新）拼接后过 questionHash——结构级与
+ *  小节内容级变更必改变指纹。根集合不需要单独进指纹：根决定章集合，
+ *  章 docId 已覆盖。纯函数。 */
+export function indexGenOf(index: KnowledgeIndex, secHashes?: Map<string, string>): string {
     const parts: string[] = [];
     for (const c of index.chapters) {
         parts.push(`C|${c.docId}|${c.path}`);
-        for (const s of c.sections) parts.push(`S|${s.id}|${s.path}`);
+        for (const s of c.sections) parts.push(`S|${s.id}|${s.path}|${secHashes?.get(s.id) ?? ""}`);
     }
     return questionHash(parts.join("\n"));
 }
@@ -156,7 +159,7 @@ export async function routeKnowledgeCached(opts: {
     onFail?: (f: KnowRouteFail) => void;
 }): Promise<{ id: string; title: string }[]> {
     const c = routeCache();
-    const gen = indexGenOf(opts.index);
+    const gen = indexGenOf(opts.index, knowHash()?.peekHashes());
     const key = `${opts.modelId}|${questionHash(opts.text)}`;
     if (c) {
         const hit = await c.get(key, gen);

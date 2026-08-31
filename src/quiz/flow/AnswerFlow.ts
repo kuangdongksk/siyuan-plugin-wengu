@@ -3,7 +3,7 @@ import { isObjective } from "../render/CardHtml";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import { syncGroupReveal } from "./MaterialFlow";
-import { overrideAttemptResult, recordAttempt, recordAttemptResult } from "../service/QuestionService";
+import { gradeQuestion } from "../service/QuestionService";
 import { markNum } from "../render/FlowDom";
 import { markNumRailAnswered } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
@@ -14,8 +14,9 @@ import { esc, fmt, mmss } from "../../ui/shared";
 
 /**
  * 作答流程（6-4b 状态化）：卡片事件由 QuizCardApp 组件直调本流程
- * （pickLetter/pickJudge/submitQuestion/selfAssess），判定数据源是块
- * 属性（recordAttempt）+ 当前会话（host.recordAnswer）；DOM 只做展示
+ * （pickLetter/pickJudge/submitQuestion/selfAssess），判定走纯函数判分
+ * （gradeQuestion）+ 当前会话与题库镜像（host.recordAnswer——20260831
+ * 起运行时统计自托管，块属性停写）；DOM 只做展示
  * → 全部写 CardCtl.ui 响应态。多步（steps）与逐空（slots）题分别
  * 委派给 StepsFlow/SlotFlow；brief 的 AI 判分委派 AiJudge。
  */
@@ -37,8 +38,16 @@ export interface AnswerHost {
         ok: boolean,
         extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
     ): void;
-    /** 整题收口镜像（steps/slots）：题库按整题记一次（可选，QuizView 提供）。 */
-    bankMirror?(qid: string, submitted: string, ok: boolean): void;
+    /** 整题收口镜像（steps/slots）：题库按整题记一次，detail 携带
+     *  逐空/逐步细粒度（自托管后块属性停写，统计唯一落点在题库）。 */
+    bankMirror?(
+        qid: string,
+        submitted: string,
+        ok: boolean,
+        detail?: { kind: "steps" | "slots"; letters: string[]; oks: boolean[]; persist?: boolean }
+    ): void;
+    /** 改判镜像（brief 纠错/steps 申诉复核）：只翻 right 微调 wrongCount。 */
+    bankOverride?(qid: string, correct: boolean, detail?: { kind: "steps"; letters: string[]; oks: boolean[] }): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
     flushTime(): void;
@@ -93,7 +102,7 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
         ctl.showSelf(); // 缺题型/答案属性的题：揭示后自评
         return;
     }
-    const ok = await recordAttempt(q, submitted);
+    const ok = gradeQuestion(q, submitted);
     host.recordAnswer(q.id, submitted, ok);
     if (batch) {
         // 统一展示：先只记「已作答」，不揭对错（避免剧透）
@@ -116,7 +125,6 @@ export async function selfAssess(host: AnswerHost, q: WenguQuestion, ctl: CardCt
 /** brief 自评：对错由用户判定，同样记账。 */
 async function selfGrade(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, correct: boolean): Promise<void> {
     const mine = ctl.submitted();
-    await recordAttemptResult(q.id, mine, correct);
     markNum(host, q, correct);
     host.recordAnswer(q.id, mine, correct);
     ctl.hideSelf();
@@ -143,7 +151,6 @@ async function judgeBriefAnswer(
         const v = await judgeBrief(q, submitted, host.aiModelId(), thought);
         ctl.ui.aiJudged = true;
         ctl.setAi(v.verdict, v.comment);
-        await recordAttemptResult(q.id, submitted, v.ok);
         host.recordAnswer(q.id, submitted, v.ok, { verdict: v.verdict, comment: v.comment, cause: v.cause });
         if (batch) {
             markNumAnswered(host, q);
@@ -186,10 +193,10 @@ export function appealSessionResult(host: AnswerHost, qid: string, correct: bool
     if (r?.verdict) r.verdict = correct ? "right" : "wrong";
 }
 
-/** brief 改判（AI 误判纠错）：翻块属性 right、微调 wrong-count，
+/** brief 改判（AI 误判纠错）：翻题库 right、微调 wrongCount，
  *  会话结果原位改写（不动 attempts/answered）。 */
 async function appealGrade(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, correct: boolean): Promise<void> {
-    await overrideAttemptResult(q.id, correct);
+    host.bankOverride?.(q.id, correct);
     appealSessionResult(host, q.id, correct);
     markNum(host, q, correct);
     ctl.hideSelf();

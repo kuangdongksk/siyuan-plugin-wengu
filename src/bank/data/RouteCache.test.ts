@@ -54,6 +54,24 @@ describe("indexGenOf（索引代数指纹）", () => {
         b.chapters[0].docId = "docX";
         expect(indexGenOf(b)).not.toBe(indexGenOf(a));
     });
+
+    it("小节内容哈希进代数（自托管三期）：同结构不同内容指纹必变；缺表=旧口径兼容", () => {
+        const a = makeIndex(2);
+        const h1 = new Map([
+            ["s1a", "hash-a"],
+            ["s1b", "hash-b"],
+            ["s2a", "hash-c"],
+            ["s2b", "hash-d"],
+        ]);
+        const h2 = new Map(h1);
+        h2.set("s1a", "hash-changed");
+        expect(indexGenOf(a, h1)).toBe(indexGenOf(makeIndex(2), h1)); // 同内容稳定
+        expect(indexGenOf(a, h2)).not.toBe(indexGenOf(a, h1)); // 小节正文变 → 整表作废
+        // 部分表（基线只覆盖一半）：缺失按空串参与，仍能区分有无
+        const partial = new Map([["s1a", "hash-a"]]);
+        expect(indexGenOf(a, partial)).not.toBe(indexGenOf(a));
+        expect(indexGenOf(a)).toBe(indexGenOf(a, undefined)); // 无表=旧行为
+    });
 });
 
 describe("RouteCache 存取", () => {

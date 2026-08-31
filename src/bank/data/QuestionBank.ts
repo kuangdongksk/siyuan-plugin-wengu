@@ -14,12 +14,17 @@ import { knKey, pickStandardName } from "./KnowledgeNorm";
  * 落盘按脏标记防抖（记录量可达千级、JSON 整写，不能每次作答都写）。
  */
 
-/** 单题统计（与块属性 attempts/wrong-count/right/last-answer 对应）。 */
+/** 单题统计（作答运行时唯一真相——自托管后停写块属性，细粒度编码
+ *  与原块属性一致：step/slotRight 位图串、step/slotLast 竖线序列）。 */
 export interface BankStats {
     attempts: number;
     wrongCount: number;
     right?: "0" | "1";
     lastAnswer?: string;
+    stepRight?: string;
+    stepLast?: string;
+    slotRight?: string;
+    slotLast?: string;
     updatedAt: number;
 }
 
@@ -65,6 +70,22 @@ export interface BankData {
     /** 软删除的知识文档 id 集合（面板里不再展示；思源文档本体不动，
      *  与 knowRoots 平行；旧数据缺省为 []）。 */
     knowHidden: string[];
+    /** 文档级累计刷题用时（秒，原 total-time 块属性自托管）。 */
+    docStats: Record<string, number>;
+    /** 镜像漂移登记（DriftWatch 写）：习题文档 id → 漂移摘要，UI 徽标
+     *  与「采纳/忽略」弹窗消费；空漂移删条目。 */
+    driftDocs?: Record<string, DriftEntry>;
+    /** 存量块属性统计回灌（一次性全量重扫+清残留属性）完成标记。 */
+    backfillV2?: boolean;
+}
+
+/** 一个习题文档的镜像漂移摘要（changed=内容变、fresh=文档新增未入库、
+ *  gone=题块已删但记录仍在——三类都靠一次重扫（refreshDocFor）收口）。 */
+export interface DriftEntry {
+    changed: string[];
+    fresh: string[];
+    gone: string[];
+    updatedAt: number;
 }
 
 /** 侧栏专题行。 */
@@ -132,15 +153,23 @@ export class QuestionBank {
                       knowRoots: [],
                       folders: [],
                       knowHidden: [],
+                      docStats: {},
                   };
         for (const k of ["knowRoots", "folders", "knowHidden"] as const)
             if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
+        if (!this.cache.docStats) this.cache.docStats = {};
         return this.cache;
     }
 
     /** 启动预热（首次 load 拉缓存；后续调用幂等）。 */
     async preload(): Promise<void> {
         await this.all();
+    }
+
+    /** 已加载缓存的同步窥视（未就绪返回 undefined；UI 快照渲染用，
+     *  load 流程 await preload 之后 renderList 的时序保证 cache 命中）。 */
+    peek(): BankData | undefined {
+        return this.cache;
     }
 
     /** 供 BankMigrate 友元使用（入库与迁移编排）。 */

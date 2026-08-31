@@ -6,7 +6,7 @@ import { appealSessionResult, checkAllDone } from "./AnswerFlow";
 import { markNum } from "../render/FlowDom";
 import { appendRealtimeStep, markStepOpts, resetStepsOffline, setStepResult, stepResultsOf } from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
-import { gradeStep, overrideStepsResult, recordStepsResult } from "../service/QuestionService";
+import { gradeStep } from "../service/QuestionService";
 import type { WenguQuestion, WenguStep } from "../../types";
 import { LETTERS, optionDisplayMd } from "../../types";
 import { esc, fmt, mmss } from "../../ui/shared";
@@ -147,7 +147,7 @@ async function refreshFinishedAppeal(host: AnswerHost, q: WenguQuestion, ctl: Ca
     const oks = baseline.map((ok, i) => ok || appealed.has(i));
     const letters = (ctl.ui.steps ?? []).map((su) => su.selected);
     const allOk = oks.length > 0 && oks.every(Boolean);
-    if (ctl.ui.stepPersist) await overrideStepsResult(q, letters, oks);
+    if (ctl.ui.stepPersist) host.bankOverride?.(q.id, allOk, { kind: "steps", letters, oks });
     markNum(host, q, allOk);
     const firstWrong = oks.findIndex((ok) => !ok);
     ctl.setResult(
@@ -194,8 +194,7 @@ async function finishCard(
     ui.stepPersist = persistStepState;
     for (const su of ui.steps ?? []) su.locked = true;
     const allOk = oks.length > 0 && oks.every(Boolean);
-    await recordStepsResult(q, letters, oks, persistStepState);
-    host.bankMirror?.(q.id, letters.join(""), allOk); // 题库整题镜像
+    host.bankMirror?.(q.id, letters.join(""), allOk, { kind: "steps", letters, oks, persist: persistStepState });
     markNum(host, q, allOk);
     const firstWrong = oks.findIndex((ok) => !ok);
     const wrongLabel = firstWrong >= 0 ? fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) }) : host.t("noAnswer");

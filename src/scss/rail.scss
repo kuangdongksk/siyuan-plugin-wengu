@@ -168,6 +168,11 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* 小节内容已变更徽标（KnowHash 漂移检测命中；一次性提示，基线自推进） */
+.wengu-know-stale {
+  color: var(--b3-card-warning-color, #d97706);
+}
+
 /* ── 专题管理树（官方文档树同款 b3-list 行壳；新文件夹/空文件夹、
    箭头折叠、counter 计数、hover 图标操作均走 stage 全局样式） ── */
 .wengu-cp-tree,

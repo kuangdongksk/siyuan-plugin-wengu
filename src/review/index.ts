@@ -1,4 +1,5 @@
 import type { HistoryStore } from "../quiz/service/HistoryStore";
+import type { QuestionBank } from "../bank/data/QuestionBank";
 import { RAIL_ANCHOR_HTML } from "../quiz/render/RailMount";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
 import { reviewCtl } from "./core/ReviewCtl";
@@ -27,6 +28,8 @@ export interface ReviewViewAccess {
     readonly el: HTMLElement;
     t(key: string): string;
     historyStore(): HistoryStore | undefined;
+    /** 题库（错题清单自托管后走 records，不再直查块属性 SQL）。 */
+    bankStore(): QuestionBank | undefined;
     docsOf(): WenguDoc[];
     /** 侧栏树展开集合（树形渲染与做题模式共用）。 */
     sideTreeOpenOf(): string[];

@@ -20,11 +20,14 @@
         onStart,
         onPreview,
         onReview,
+        drift,
     }: {
         model: StartPanelModel;
         onStart(cfg: RoundConfig): void;
         onPreview?(): void;
         onReview?(): void;
+        /** 当前文档镜像漂移提示（有才出现：更新镜像/忽略）。 */
+        drift?: { count: number; onAdopt(): void; onIgnore(): void };
     } = $props();
 
     // model 是挂载时一次性快照（壳重绘=卸载重挂，编排层重建模型），
@@ -79,6 +82,15 @@
 </script>
 
 <div class="wengu-start">
+    {#if drift}
+        <div class="wengu-status wengu-status-err">
+            <span class="fn__flex-1">{fmt(t("driftLine"), { n: String(drift.count) })}</span>
+            <button class="b3-button b3-button--small" onclick={() => drift.onAdopt()}>{t("driftAdopt")}</button>
+            <button class="b3-button b3-button--small b3-button--outline" onclick={() => drift.onIgnore()}
+                >{t("driftIgnore")}</button
+            >
+        </div>
+    {/if}
     {#if model.unfinishedAnswered !== undefined || scopeOptions.length > 0}
         <div class="config-group">
             <div class="config-title">{t("progressScopeTitle")}</div>

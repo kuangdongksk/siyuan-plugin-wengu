@@ -1,7 +1,7 @@
 import { ATTR_PREFIX, Attr, Q_FLAG } from "../../siyuan/attrs";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelQuery } from "../../siyuan/query";
-import { gradeQuestion } from "./QuestionGrading";
+import type { QuestionBank } from "../../bank/data/QuestionBank";
 import { fetchChildParts, hydrateAll } from "./QuestionBatch";
 import {
     cleanStemMd,
@@ -131,49 +131,50 @@ export async function listQuestions(docId?: string): Promise<WenguQuestion[]> {
 }
 
 /**
- * 已生成习题文档的聚合列表（题量/已刷/答对）——习题文档是真实保存的
- * 文档，此列表随文档持久存在，页签据此选择要刷的习题。
- * 真机验证过的 SQL（attributes 自联接容器块运行时属性）。
+ * 已生成习题文档的聚合列表（题量/已刷/答对）。题量与标题走 SQL（attributes
+ * 表 q 标记聚合，随文档持久存在）；已刷/答对/用时三组运行时数字自托管后
+ * （20260831）从题库 stats/docStats 内存归并——有 bank 即覆盖，无则归零。
  */
-export async function listQuestionDocs(): Promise<WenguDoc[]> {
+export async function listQuestionDocs(bank?: QuestionBank): Promise<WenguDoc[]> {
     const stmt = `
         SELECT
             q.root_id AS docId,
             d.content AS title,
             d.hpath AS hPath,
-            COUNT(*) AS total,
-            SUM(CASE WHEN r.block_id IS NOT NULL THEN 1 ELSE 0 END) AS rightCount,
-            SUM(CASE WHEN t.block_id IS NOT NULL THEN 1 ELSE 0 END) AS attempted,
-            MAX(CAST(tt.value AS INTEGER)) AS totalTime
+            COUNT(*) AS total
         FROM attributes AS q
         LEFT JOIN blocks AS d ON d.id = q.root_id
-        LEFT JOIN attributes AS r
-            ON r.block_id = q.block_id AND r.name = '${Attr.right}' AND r.value = '1'
-        LEFT JOIN attributes AS t
-            ON t.block_id = q.block_id AND t.name = '${Attr.attempts}'
-        LEFT JOIN attributes AS tt
-            ON tt.block_id = q.root_id AND tt.name = '${Attr.totalTime}'
         WHERE q.name = '${Attr.q}' AND q.value = '${Q_FLAG}'
         GROUP BY q.root_id, d.content, d.hpath
         ORDER BY total DESC
         LIMIT 256;`;
-    return (await KernelQuery.rows<Record<string, unknown>>(stmt)).map((row) => ({
-        id: String(row.docId ?? ""),
-        title: String(row.title ?? ""),
-        hPath: String(row.hPath ?? ""),
-        total: Number(row.total) || 0,
-        attempted: Number(row.attempted) || 0,
-        rightCount: Number(row.rightCount) || 0,
-        totalTime: Number(row.totalTime) || 0,
-    }));
-}
-
-/** 给习题文档块累加刷题用时（秒）。 */
-export async function addDocTotalTime(docId: string, addSeconds: number): Promise<void> {
-    if (addSeconds <= 0) return;
-    const attrs = await getBlockAttrs(docId);
-    const cur = Number(attrs[Attr.totalTime]) || 0;
-    await setBlockAttrs(docId, { [Attr.totalTime]: String(cur + addSeconds) });
+    const rows = await KernelQuery.rows<Record<string, unknown>>(stmt);
+    let acc: Map<string, { attempted: number; right: number }> | undefined;
+    let docStats: Record<string, number> | undefined;
+    if (bank) {
+        const data = await bank.all();
+        acc = new Map();
+        for (const r of Object.values(data.records)) {
+            if (!r.sourceDocId) continue;
+            const a = acc.get(r.sourceDocId) ?? { attempted: 0, right: 0 };
+            if (r.stats.attempts > 0) a.attempted++;
+            if (r.stats.right === "1") a.right++;
+            acc.set(r.sourceDocId, a);
+        }
+        docStats = data.docStats;
+    }
+    return rows.map((row) => {
+        const id = String(row.docId ?? "");
+        return {
+            id,
+            title: String(row.title ?? ""),
+            hPath: String(row.hPath ?? ""),
+            total: Number(row.total) || 0,
+            attempted: acc?.get(id)?.attempted ?? 0,
+            rightCount: acc?.get(id)?.right ?? 0,
+            totalTime: docStats?.[id] ?? 0,
+        };
+    });
 }
 
 /** 轮询直到习题文档进入 SQL 聚合列表（内核 attributes 索引有数秒延迟）。 */
@@ -361,122 +362,4 @@ export async function getBlockAttrs(id: string): Promise<AttrsObject> {
 export async function getBlockKramdown(id: string): Promise<string> {
     const { data } = await KernelBlock.kramdown(id);
     return String((data as { kramdown?: string } | null)?.kramdown ?? "");
-}
-
-/** 写入单块的若干属性（合并到现有属性上）。 */
-export async function setBlockAttrs(id: string, attrs: AttrsObject): Promise<void> {
-    await KernelBlock.setAttrs(id, attrs);
-}
-
-/**
- * 作答记账：写 attempts / wrong-count / last-answer / right 到容器块。
- * 累计答错次数答错 +1、答对不清零（历史统计）。
- * brief 自评题不经过 grade，直接传 correct 调这里。
- */
-export async function recordAttemptResult(id: string, submitted: string, correct: boolean): Promise<void> {
-    const attrs = await getBlockAttrs(id);
-    const attempts = (Number(attrs[Attr.attempts]) || 0) + 1;
-    const wrongCount = (Number(attrs[Attr.wrongCount]) || 0) + (correct ? 0 : 1);
-    await setBlockAttrs(id, {
-        [Attr.attempts]: String(attempts),
-        [Attr.wrongCount]: String(wrongCount),
-        [Attr.lastAnswer]: submitted,
-        [Attr.right]: correct ? "1" : "0",
-    });
-}
-
-/**
- * 客观题作答：gradeQuestion 自动判分并记账。
- * @returns 本次是否正确。
- */
-export async function recordAttempt(q: WenguQuestion, submitted: string): Promise<boolean> {
-    const correct = gradeQuestion(q, submitted);
-    await recordAttemptResult(q.id, submitted, correct);
-    return correct;
-}
-
-/**
- * 多步题整题记账：整题 right=全步对，同时写逐步运行态。
- * AI 实时模式的步骤序列不落盘（persistStepState=false，只记整题）。
- */
-export async function recordStepsResult(
-    q: WenguQuestion,
-    letters: string[],
-    oks: boolean[],
-    persistStepState: boolean
-): Promise<boolean> {
-    const allOk = oks.length > 0 && oks.every(Boolean);
-    const attrs = await getBlockAttrs(q.id);
-    const attempts = (Number(attrs[Attr.attempts]) || 0) + 1;
-    const wrongCount = (Number(attrs[Attr.wrongCount]) || 0) + (allOk ? 0 : 1);
-    const payload: AttrsObject = {
-        [Attr.attempts]: String(attempts),
-        [Attr.wrongCount]: String(wrongCount),
-        [Attr.lastAnswer]: letters.join("|"),
-        [Attr.right]: allOk ? "1" : "0",
-    };
-    if (persistStepState) {
-        payload[Attr.stepRight] = oks.map((ok) => (ok ? "1" : "0")).join("");
-        payload[Attr.stepLast] = letters.join("|");
-    }
-    await setBlockAttrs(q.id, payload);
-    return allOk;
-}
-
-/**
- * slots 题整题记账（完形/新题型一整轮做完时）：整题 right=全空对
- * （同 steps「全步对」口径），逐空运行态写 slot-right/slot-last。
- */
-export async function recordSlotsResult(q: WenguQuestion, letters: string[], oks: boolean[]): Promise<boolean> {
-    const allOk = oks.length > 0 && oks.every(Boolean);
-    const attrs = await getBlockAttrs(q.id);
-    const attempts = (Number(attrs[Attr.attempts]) || 0) + 1;
-    const wrongCount = (Number(attrs[Attr.wrongCount]) || 0) + (allOk ? 0 : 1);
-    await setBlockAttrs(q.id, {
-        [Attr.attempts]: String(attempts),
-        [Attr.wrongCount]: String(wrongCount),
-        [Attr.lastAnswer]: letters.join("|"),
-        [Attr.right]: allOk ? "1" : "0",
-        [Attr.slotRight]: oks.map((ok) => (ok ? "1" : "0")).join(""),
-        [Attr.slotLast]: letters.join("|"),
-    });
-    return allOk;
-}
-
-/**
- * 改判（brief 的 AI 判分纠错 / 自评更正）：只翻 right，不动 attempts；
- * 错改对时回退一次 wrong-count，对改错时补记一次。
- */
-export async function overrideAttemptResult(id: string, correct: boolean): Promise<void> {
-    const attrs = await getBlockAttrs(id);
-    const cur = Number(attrs[Attr.wrongCount]) || 0;
-    if (correct) {
-        await setBlockAttrs(id, {
-            [Attr.right]: "1",
-            ...(cur > 0 ? { [Attr.wrongCount]: String(cur - 1) } : {}),
-        });
-    } else {
-        await setBlockAttrs(id, { [Attr.right]: "0", [Attr.wrongCount]: String(cur + 1) });
-    }
-}
-
-/**
- * steps 改判落盘（方法步申诉复核通过）：翻逐步 step-right 与整题
- * right，不动 attempts；整题由错翻对时回退一次 wrong-count。
- */
-export async function overrideStepsResult(q: WenguQuestion, letters: string[], oks: boolean[]): Promise<boolean> {
-    const allOk = oks.length > 0 && oks.every(Boolean);
-    const attrs = await getBlockAttrs(q.id);
-    const payload: AttrsObject = {
-        [Attr.stepRight]: oks.map((ok) => (ok ? "1" : "0")).join(""),
-        [Attr.stepLast]: letters.join("|"),
-        [Attr.lastAnswer]: letters.join("|"),
-        [Attr.right]: allOk ? "1" : "0",
-    };
-    const wrongCount = Number(attrs[Attr.wrongCount]) || 0;
-    if (attrs[Attr.right] !== "1" && allOk && wrongCount > 0) {
-        payload[Attr.wrongCount] = String(wrongCount - 1);
-    }
-    await setBlockAttrs(q.id, payload);
-    return allOk;
 }
