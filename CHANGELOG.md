@@ -2,6 +2,14 @@
 
 ## v0.1.1 unreleased
 
+- 知识点引用注入拆分 + 增量哈希三期定论（20260831）：KnowledgeLink.ts
+  超 500 行硬限（540），把引用注入与生成后处理（strip/injectKnowledgeRefs、
+  applyKnowLinks、sectionKramdown）拆到 convert/service/KnowRef.ts
+  （541→420 行，纯文件搬移零行为变化，7 处 import 改指）；增量哈希
+  三期（题级 src-hash 回写）评估后**搁置**——题级来源段只能靠 AI 回显
+  （动核心生成 prompt 风险不成比例），且「源没变还重生成」的浪费路径
+  已被二期块级三态分类拦住，结论记 docs/incremental-hash-plan.md。
+
 - 树渲染三处修复（20260831，8b9db76 复审收尾）：① TreeList 行壳的
   `b3-list-item--hide-action` 恢复按节点 hideAction 条件挂——上一版
   改成无条件后，多选文档选择器的勾位被思源原生规则 hover 才显，
