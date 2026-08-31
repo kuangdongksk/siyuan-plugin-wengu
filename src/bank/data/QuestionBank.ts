@@ -62,6 +62,9 @@ export interface BankData {
     knowRoots: string[];
     /** 手动建的目录文件夹路径（空文件夹落盘；旧数据缺省为 []）。 */
     folders: string[];
+    /** 软删除的知识文档 id 集合（面板里不再展示；思源文档本体不动，
+     *  与 knowRoots 平行；旧数据缺省为 []）。 */
+    knowHidden: string[];
 }
 
 /** 侧栏专题行。 */
@@ -128,8 +131,9 @@ export class QuestionBank {
                       hashed: {},
                       knowRoots: [],
                       folders: [],
+                      knowHidden: [],
                   };
-        for (const k of ["knowRoots", "folders"] as const) if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
+        for (const k of ["knowRoots", "folders", "knowHidden"] as const) if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
         return this.cache;
     }
 

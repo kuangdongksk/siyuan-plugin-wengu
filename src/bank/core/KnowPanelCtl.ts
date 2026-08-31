@@ -1,7 +1,7 @@
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
-import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
+import { hideKnowDoc, knowHiddenOf, knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
@@ -21,13 +21,18 @@ import type { KnowPanelUi } from "./KnowPanelUi";
 /**
  * 知识文档面板控制器（四件套之一）：装载聚合（kp 引用 → 根文档映射 →
  * 递归展开手动导入，详见 ui/KnowledgePanel 的纯函数层）、折叠/两击退册
- * 状态机、行内五动作（匹配/转习题/关联/打开/移除）。旧 paintTree 整树
- * innerHTML 重绘换成 ui 字段写入；卸载后 load 作废（alive 标志，对应
- * 旧 root.isConnected 竞态守卫——装载期间骨架可能被 refreshSide 重建）。
+ * 状态机、行内六动作（匹配/转习题/关联/打开/删除/移除）。
+ * 删除 = 软隐藏（bank.knowHidden + 顺手退册 knowRoots，2026-08-31 改
+ * 「只清面板」口径，思源文档不动）；移除 = 仅退册整个登记子树（仅登记
+ * 根行可用，保留为轻量退路）。
+ * 旧 paintTree 整树 innerHTML 重绘换成 ui 字段写入；卸载后 load 作废
+ * （alive 标志，对应旧 root.isConnected 竞态守卫——装载期间骨架可能被
+ * refreshSide 重建）。
  */
 export class KnowPanelCtl {
     private alive = true;
     private rmTimer: ReturnType<typeof setTimeout> | undefined;
+    private dlTimer: ReturnType<typeof setTimeout> | undefined;
 
     constructor(
         private readonly ui: KnowPanelUi,
@@ -38,6 +43,8 @@ export class KnowPanelCtl {
         this.alive = false;
         if (this.rmTimer) clearTimeout(this.rmTimer);
         this.rmTimer = undefined;
+        if (this.dlTimer) clearTimeout(this.dlTimer);
+        this.dlTimer = undefined;
     }
 
     private bank(): QuestionBank | undefined {
@@ -56,6 +63,7 @@ export class KnowPanelCtl {
         const refs = await bank.collectKpRefs();
         const rootsMap = await kpRootMap([...refs.keys()]);
         const registered = await knowRootsOf(bank);
+        const hidden = new Set(await knowHiddenOf(bank));
         const info = await KernelDoc.infoOf([...new Set([...rootsMap.values(), ...registered])]);
         const titles = new Map([...info].map(([k, v]) => [k, v.title]));
         let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
@@ -65,7 +73,8 @@ export class KnowPanelCtl {
             docs = mergeKnowDocs(docs, imp.docs, imp.manualAll, new Set(registered));
         }
         if (!this.alive) return; // 骨架已被重建，本次结果作废
-        this.ui.docs = docs;
+        // 软隐藏过滤：knowHidden 集合里的 docId 整行从面板摘掉（思源文档不动）
+        this.ui.docs = hidden.size > 0 ? docs.filter((d) => !hidden.has(d.docId)) : docs;
         this.ui.info = info;
         // 分支默认全展开（知识树浅、文档即叶子）；小节容器不进集合=默认收起
         this.ui.openPaths = new Set(collectBranchPaths(buildKnowTree(docs, info)));
@@ -165,6 +174,10 @@ export class KnowPanelCtl {
         if (this.rmTimer) clearTimeout(this.rmTimer);
         this.rmTimer = undefined;
         this.ui.rmArmed = undefined;
+        // 同步复位「删除」armed：load 顶部清场避免状态机漂移
+        if (this.dlTimer) clearTimeout(this.dlTimer);
+        this.dlTimer = undefined;
+        this.ui.dlArmed = undefined;
     }
 
     /** 退册整个登记子树。 */
@@ -172,6 +185,39 @@ export class KnowPanelCtl {
         const bank = this.bank();
         if (!bank) return;
         await removeKnowRoot(bank, docId);
+        await bank.flush();
+        await this.load();
+    }
+
+    /* ── 「删除」两击确认（所有知识文档行可用；只清面板不动思源） ── */
+
+    armDelete(docId: string): void {
+        if (this.ui.dlArmed === docId) {
+            this.disarm();
+            void this.deleteDoc(docId);
+            return;
+        }
+        // 不影响「移除」armed——两动独立，撤销 delete 仅清 dlArmed
+        if (this.dlTimer) clearTimeout(this.dlTimer);
+        this.dlTimer = undefined;
+        this.ui.dlArmed = undefined;
+        this.ui.dlArmed = docId;
+        this.dlTimer = setTimeout((): void => {
+            this.ui.dlArmed = undefined;
+            this.dlTimer = undefined;
+        }, 3000);
+    }
+
+    /** 「只清面板」删除（2026-08-31 改）：思源文档不进回收站——加进
+     *  bank.knowHidden 软隐藏集合；登记根顺手退册 knowRoots 防死链。
+     *  同一 doc 幂等。题库 kpRef 仍指原块，下次 BankReconcile 自动对账。 */
+    private async deleteDoc(docId: string): Promise<void> {
+        const bank = this.bank();
+        if (!bank) return;
+        await hideKnowDoc(bank, docId);
+        if (this.ui.docs.some((d) => d.docId === docId && d.registered)) {
+            await removeKnowRoot(bank, docId);
+        }
         await bank.flush();
         await this.load();
     }

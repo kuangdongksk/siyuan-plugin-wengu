@@ -27,9 +27,12 @@ export interface KnowPanelUi {
     openPaths: Set<string>;
     /** 「移除」两击确认中的 docId（3s 自动复位）。 */
     rmArmed: string | undefined;
+    /** 「删除」两击确认中的 docId（3s 自动复位；与 rmArmed 独立追踪，
+     *  同一行可同时/先后被 arm 不同动作）。 */
+    dlArmed: string | undefined;
 }
 
 /** 初始态（$state 包装在 KnowledgePanelApp 内完成）。 */
 export function initialKnowPanelUi(): KnowPanelUi {
-    return { phase: "loading", docs: [], info: new Map(), openPaths: new Set(), rmArmed: undefined };
+    return { phase: "loading", docs: [], info: new Map(), openPaths: new Set(), rmArmed: undefined, dlArmed: undefined };
 }

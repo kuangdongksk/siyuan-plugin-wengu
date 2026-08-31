@@ -19,6 +19,7 @@ function data(titles: string[], folders: string[]): BankData {
         hashed: {},
         knowRoots: [],
         folders,
+        knowHidden: [],
     };
 }
 

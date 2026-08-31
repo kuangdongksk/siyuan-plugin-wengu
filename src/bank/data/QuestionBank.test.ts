@@ -11,6 +11,7 @@ function bankWith(records: BankRecord[]): QuestionBank {
         hashed: {},
         knowRoots: [],
         folders: [],
+        knowHidden: [],
     };
     return new QuestionBank(
         async () => data,
