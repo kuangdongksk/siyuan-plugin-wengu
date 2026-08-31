@@ -101,9 +101,13 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 | 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                                                                   | ✅ 2026-08-30                                   |
 | 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（~~Protyle 壳~~静态管线，9a53a63 退役）→ Steps/AnswerFlow（三写痛点终结）→ side/head 壳 | ✅ 6-1~6-3 2026-08-30；6-4a/6-4b/6-5 2026-08-31 |
 
-**不迁清单**：`ui/FormHtml.ts`（两轨公共地基）；ModelPicker/KnowPicker
-浮层（body 单例，保持字符串模板，Svelte 侧用 action 桥接）；
-SettingsDialog（低频稳定，路线图末尾再评估）。
+**不迁清单**（六批收官后复核定论 2026-08-31）：`ui/FormHtml.ts`
+（两轨公共地基）；ModelPicker/KnowPicker 浮层（body 单例，保持
+字符串模板，Svelte 侧用 action 桥接）；SettingsDialog（**评估后
+决定不迁**——modal 开一次挂一次无跨重建状态、11 个 change 监听
+一次性绑定无重绘重绑、值直写 settings 单源无三写，三条迁移驱动
+的痛点都不沾；且观感强绑思源原生 config__* 类名、内建依赖不迁的
+FormHtml/ModelPicker 积木，迁移无视觉/交互收益反增工程量）。
 
 ## 首批落地记录（2026-08-27）
 
