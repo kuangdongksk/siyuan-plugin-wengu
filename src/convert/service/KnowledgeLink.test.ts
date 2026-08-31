@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyMatchFail, injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowledgeLink";
+import { buildSectionTree, classifyMatchFail, injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowledgeLink";
 
 /** 带解析引述块的最小题目 kramdown（契约 §一：容器 + part IAL 行）。 */
 const KD = `{{{row
@@ -90,5 +90,54 @@ describe("classifyMatchFail（20260829 匹配诊断：失败归类供状态栏�
     it("其余归 other", () => {
         expect(classifyMatchFail("agent error")).toBe("other");
         expect(classifyMatchFail("")).toBe("other");
+    });
+});
+
+describe("buildSectionTree（20260831 知识导入层级树）", () => {
+    it("嵌套：低级标题挂到前方最近的高级标题下", () => {
+        const tree = buildSectionTree([
+            { id: "1", title: "极限", level: 1 },
+            { id: "2", title: "极限计算", level: 2 },
+            { id: "3", title: "0/0 与 ∞/∞", level: 3 },
+            { id: "4", title: "洛必达法则", level: 4 },
+        ]);
+        expect(tree).toHaveLength(1);
+        expect(tree[0].id).toBe("1");
+        expect(tree[0].children[0].id).toBe("2");
+        expect(tree[0].children[0].children[0].id).toBe("3");
+        expect(tree[0].children[0].children[0].children[0].id).toBe("4");
+    });
+
+    it("同级并列：回到同级的标题开启新分支，不互相嵌套", () => {
+        const tree = buildSectionTree([
+            { id: "1", title: "极限", level: 1 },
+            { id: "2", title: "极限计算", level: 2 },
+            { id: "3", title: "洛必达", level: 3 },
+            { id: "4", title: "泰勒展开", level: 3 },
+            { id: "5", title: "导数", level: 1 },
+        ]);
+        expect(tree.map((n) => n.id)).toEqual(["1", "5"]);
+        expect(tree[0].children[0].children.map((n) => n.id)).toEqual(["3", "4"]);
+        expect(tree[1].children).toEqual([]);
+    });
+
+    it("跳级收编：h1 直下 h3 照常挂为子级（就近挂靠，与大纲一致）", () => {
+        const tree = buildSectionTree([
+            { id: "1", title: "极限", level: 1 },
+            { id: "2", title: "洛必达", level: 3 },
+        ]);
+        expect(tree[0].children[0].id).toBe("2");
+    });
+
+    it("无更高级标题：h2 起头的文档平层挂根", () => {
+        const tree = buildSectionTree([
+            { id: "1", title: "绪论", level: 2 },
+            { id: "2", title: "正文", level: 2 },
+        ]);
+        expect(tree.map((n) => n.id)).toEqual(["1", "2"]);
+    });
+
+    it("空文档 → 空树", () => {
+        expect(buildSectionTree([])).toEqual([]);
     });
 });

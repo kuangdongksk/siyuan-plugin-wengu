@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { groupKnowByDoc, mergeKnowDocs, type KnowDocView } from "./KnowledgePanel";
+import { groupKnowByDoc, mergeKnowDocs, type KnowDocView, type KnowSectionTreeView } from "./KnowledgePanel";
+import type { KnowSectionNode } from "../../convert/service/KnowledgeLink";
+
+/** 题数扁平化（树 → "id:count" 清单，便于断言）。 */
+function flatCounts(ns: KnowSectionTreeView[]): string[] {
+    return ns.flatMap((n) => [`${n.id}:${n.count}`, ...flatCounts(n.children)]);
+}
 
 describe("groupKnowByDoc", () => {
     const refs = new Map([
@@ -18,7 +24,7 @@ describe("groupKnowByDoc", () => {
         { key: "kp:kp3", title: "文言虚词", count: 3 },
     ];
 
-    it("按根文档分组，文档与小节都按题数降序", () => {
+    it("按根文档分组，文档与顶层小节都按题数降序", () => {
         const docs = groupKnowByDoc(
             refs,
             roots,
@@ -32,10 +38,10 @@ describe("groupKnowByDoc", () => {
         expect(docs[0].docId).toBe("docMath");
         expect(docs[0].title).toBe("数学讲义");
         expect(docs[0].total).toBe(19);
-        expect(docs[0].sections[0].title).toBe("函数的单调性");
-        expect(docs[0].sections[1].count).toBe(7);
+        expect(docs[0].sectionTree[0].title).toBe("函数的单调性");
+        expect(docs[0].sectionTree[1].count).toBe(7);
         expect(docs[1].docId).toBe("docChinese");
-        expect(docs[1].sections.length).toBe(1);
+        expect(docs[1].sectionTree.length).toBe(1);
     });
 
     it("悬空引用不计入；缺索引的键按至少 1 题兜底；标题缺失用 id", () => {
@@ -44,7 +50,7 @@ describe("groupKnowByDoc", () => {
         const bare = groupKnowByDoc(new Map([["kpz", "新节"]]), new Map([["kpz", "doc9"]]), [], new Map());
         expect(bare[0].docId).toBe("doc9");
         expect(bare[0].title).toBe("doc9"); // 标题缺失用 id 兜底
-        expect(bare[0].sections[0].count).toBe(1); // 缺索引键兜底 1
+        expect(bare[0].sectionTree[0].count).toBe(1); // 缺索引键兜底 1
     });
 
     it("空题库 → 空清单", () => {
@@ -57,37 +63,46 @@ describe("mergeKnowDocs", () => {
         {
             docId: "docMath",
             title: "数学讲义",
-            sections: [
-                { id: "kp1", title: "函数的单调性", count: 12 },
-                { id: "kp2", title: "导数与切线", count: 7 },
+            sectionTree: [
+                { id: "kp1", title: "函数的单调性", count: 12, children: [] },
+                { id: "kp2", title: "导数与切线", count: 7, children: [] },
             ],
             total: 19,
         },
     ];
 
-    it("纯导入文档追加为 0 题行并沉底", () => {
+    it("纯导入文档追加为 0 题行并沉底（小节树原样保留嵌套）", () => {
+        const tree: KnowSectionNode[] = [
+            { id: "s1", title: "力学", children: [{ id: "s1a", title: "牛顿三定律", children: [] }] },
+        ];
         const out = mergeKnowDocs(
             derived,
-            [{ docId: "docPhys", title: "物理手册", sections: [{ id: "s1", title: "力学" }] }],
+            [{ docId: "docPhys", title: "物理手册", sectionTree: tree }],
             new Set(["docPhys"]),
             new Set(["docPhys"])
         );
         expect(out).toHaveLength(2);
         expect(out[0].docId).toBe("docMath");
         expect(out[1]).toMatchObject({ docId: "docPhys", total: 0, manual: true, registered: true });
-        expect(out[1].sections[0]).toEqual({ id: "s1", title: "力学", count: 0 });
+        expect(out[1].sectionTree[0].id).toBe("s1");
+        expect(out[1].sectionTree[0].children[0].id).toBe("s1a");
+        expect(out[1].sectionTree[0].count).toBe(0);
     });
 
-    it("同文档合并：节并集去重、题数保留推导侧、manual 跟登记走", () => {
+    it("同文档合并：导入树为骨架，推导题数按 id 回填、树外推导节平层补尾", () => {
         const out = mergeKnowDocs(
             derived,
             [
                 {
                     docId: "docMath",
                     title: "数学讲义",
-                    sections: [
-                        { id: "kp1", title: "函数的单调性" }, // 已有 → 去重
-                        { id: "kp9", title: "中值定理" }, // 新节 → 0 题并入
+                    sectionTree: [
+                        {
+                            id: "kp1",
+                            title: "函数的单调性",
+                            children: [{ id: "kp1a", title: "单调区间", children: [] }],
+                        },
+                        { id: "kp9", title: "中值定理", children: [] }, // 新节 → 0 题并入
                     ],
                 },
             ],
@@ -97,9 +112,8 @@ describe("mergeKnowDocs", () => {
         expect(out).toHaveLength(1);
         expect(out[0].manual).toBe(true);
         expect(out[0].total).toBe(19);
-        expect(out[0].sections.map((s) => s.id)).toEqual(["kp1", "kp2", "kp9"]);
-        expect(out[0].sections.find((s) => s.id === "kp1")?.count).toBe(12); // 推导题数不被 0 覆盖
-        expect(out[0].sections.find((s) => s.id === "kp9")?.count).toBe(0);
+        // 骨架 = 导入层级树：kp1 带子节、kp9 平层；kp2 树外推导节补尾
+        expect(flatCounts(out[0].sectionTree)).toEqual(["kp1:12", "kp1a:0", "kp9:0", "kp2:7"]);
     });
 
     it("未登记的推导行不带 manual 标记", () => {
@@ -111,9 +125,13 @@ describe("mergeKnowDocs", () => {
         const out = mergeKnowDocs(
             derived,
             [
-                { docId: "shelf", title: "书架", sections: [] },
-                { docId: "bookA", title: "书A", sections: [{ id: "s1", title: "章一" }] },
-                { docId: "bookB", title: "书B", sections: [] },
+                { docId: "shelf", title: "书架", sectionTree: [] },
+                {
+                    docId: "bookA",
+                    title: "书A",
+                    sectionTree: [{ id: "s1", title: "章一", children: [] }],
+                },
+                { docId: "bookB", title: "书B", sectionTree: [] },
             ],
             new Set(["shelf", "bookA", "bookB"]),
             new Set(["shelf"])
@@ -123,6 +141,6 @@ describe("mergeKnowDocs", () => {
         expect(byId.get("shelf")).toMatchObject({ manual: true, registered: true });
         expect(byId.get("bookA")).toMatchObject({ manual: true, registered: undefined });
         expect(byId.get("bookB")?.manual).toBe(true);
-        expect(byId.get("bookA")?.sections[0]).toEqual({ id: "s1", title: "章一", count: 0 });
+        expect(byId.get("bookA")?.sectionTree[0]).toEqual({ id: "s1", title: "章一", count: 0, children: [] });
     });
 });

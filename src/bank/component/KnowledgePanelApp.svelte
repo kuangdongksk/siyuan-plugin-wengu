@@ -7,7 +7,7 @@
         buildKnowTree,
         secKeyOf,
         type KnowDocView,
-        type KnowSectionView,
+        type KnowSectionTreeView,
         type KnowTreeNode,
     } from "../ui/KnowledgePanel";
     import TreeList from "../../ui/TreeList.svelte";
@@ -32,18 +32,28 @@
     setContext(KNOW_PANEL_CTX, { ctl, ui, t });
 
     const docTip = (d: KnowDocView): string => {
+        const n = (function count(ns: KnowSectionTreeView[]): number {
+            return ns.reduce((a, s) => a + 1 + count(s.children), 0);
+        })(d.sectionTree);
         const tag = d.manual ? ` · ${t("knowImportTag")}` : "";
-        return `${d.title}\n${fmt(t("knowSections"), { n: String(d.sections.length) })} · ${fmt(t("knowQCount"), {
+        return `${d.title}\n${fmt(t("knowSections"), { n: String(n) })} · ${fmt(t("knowQCount"), {
             n: String(d.total),
         })}${tag}`;
     };
 
+    /** 小节树节点 → 通用树行（嵌套子节递归；节点本身 kind=sec 可点）。 */
+    const secRows = (ns: KnowSectionTreeView[], secByKey: Map<string, KnowSectionTreeView>): TreeListNode[] =>
+        ns.map((s): TreeListNode => {
+            secByKey.set(s.id, s);
+            return { key: s.id, name: s.title, tip: s.title, kind: "sec", children: secRows(s.children, secByKey) };
+        });
+
     /** KnowTreeNode → 通用树行：分支 key=树路径，文档行 key=小节容器
-     * （secKeyOf 后缀防撞，折叠语义同旧实现）；小节叶子插在文档子级头部。 */
+     * （secKeyOf 后缀防撞，折叠语义同旧实现）；小节树插在文档子级头部。 */
     const toRows = (
         ns: KnowTreeNode[],
         docByKey: Map<string, KnowDocView>,
-        secByKey: Map<string, KnowSectionView>
+        secByKey: Map<string, KnowSectionTreeView>
     ): TreeListNode[] =>
         ns.map((n): TreeListNode => {
             if (!n.doc) {
@@ -51,23 +61,19 @@
             }
             const key = secKeyOf(n.path);
             docByKey.set(key, n.doc);
-            const kids = n.doc.sections.map((s): TreeListNode => {
-                secByKey.set(s.id, s);
-                return { key: s.id, name: s.title, tip: s.title, kind: "sec", children: [] };
-            });
             return {
                 key,
                 name: n.doc.title,
                 tip: docTip(n.doc),
                 kind: "doc",
                 hideAction: true,
-                children: [...kids, ...toRows(n.children, docByKey, secByKey)],
+                children: [...secRows(n.doc.sectionTree, secByKey), ...toRows(n.children, docByKey, secByKey)],
             };
         });
 
     const tree = $derived.by(() => {
         const docByKey = new Map<string, KnowDocView>();
-        const secByKey = new Map<string, KnowSectionView>();
+        const secByKey = new Map<string, KnowSectionTreeView>();
         const rows = toRows(buildKnowTree(ui.docs, ui.info), docByKey, secByKey);
         return { rows, docByKey, secByKey };
     });

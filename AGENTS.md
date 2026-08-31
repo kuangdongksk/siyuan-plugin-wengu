@@ -41,7 +41,10 @@
       「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath
       规范化、CollectionPanel buildColTree 树形展示）；知识文档
       （KnowledgePanel）：手动导入**递归展开**（KnowRoots 登记 +
-      KnowledgeLink.expandKnowDocs 根+全部后代逐行，小节 h1~h6）、
+      KnowledgeLink.expandKnowDocs 根+全部后代逐行；小节按 h1~h6
+      **层级树**展示——20260831 起 headingsByRoot 取 subtype 建
+      buildSectionTree 真树，路由 path=祖先标题链，不再是「文档路径/
+      本标题」两段假层级）、
       行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
       →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
       与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=

@@ -21,7 +21,8 @@ export interface KnowSection {
     id: string;
     /** 小节标题。 */
     title: string;
-    /** 展示路径：书架/书/章节/小节。 */
+    /** 展示路径：文档标题路径 + 祖先标题链 + 本标题（buildSectionTree 建树后
+     *  才有真层级——同文档不同 h1 下的同名小节不再撞车）。 */
     path: string;
 }
 
@@ -72,17 +73,24 @@ async function knowDocRows(rootId: string): Promise<{ root: KnowRow; rows: KnowR
     return { root, rows };
 }
 
-/** 批量拉文档的 h1~h6 标题块（按 root_id 分组、sort 保序）。 */
-async function headingsByRoot(docIds: string[]): Promise<Map<string, { id: string; content: string }[]>> {
-    const byRoot = new Map<string, { id: string; content: string }[]>();
+/** 批量拉文档的 h1~h6 标题块（按 root_id 分组、sort 保序；subtype 供建树与
+ *  祖先链——20260831 前只取 content，层级信息在 SQL 阶段就丢了）。 */
+async function headingsByRoot(
+    docIds: string[]
+): Promise<Map<string, { id: string; content: string; level: number }[]>> {
+    const byRoot = new Map<string, { id: string; content: string; level: number }[]>();
     if (docIds.length === 0) return byRoot;
     const ids = docIds.map((x) => `'${x}'`).join(",");
     for (const h of await KernelQuery.rowsMapAll(
-        `SELECT root_id, id, content FROM blocks WHERE type = 'h' AND subtype IN ('h1','h2','h3','h4','h5','h6') AND root_id IN (${ids}) ORDER BY root_id, sort`
+        `SELECT root_id, id, content, subtype FROM blocks WHERE type = 'h' AND subtype IN ('h1','h2','h3','h4','h5','h6') AND root_id IN (${ids}) ORDER BY root_id, sort`
     )) {
         const k = h.get("root_id");
         const arr = byRoot.get(k) ?? [];
-        arr.push({ id: h.get("id"), content: h.get("content") });
+        arr.push({
+            id: h.get("id"),
+            content: h.get("content"),
+            level: Number(h.get("subtype")?.replace("h", "")) || 1,
+        });
         byRoot.set(k, arr);
     }
     return byRoot;
@@ -92,7 +100,8 @@ async function headingsByRoot(docIds: string[]): Promise<Map<string, { id: strin
  * 建知识点索引。rootIds 是用户填的知识点根文档（书架那层或直接一本
  * 书/一章）：取其下所有叶子文档为章节（书名空壳层自动排除），根自身
  * 无叶子后代时（用户直接指到章节）把根当唯一章节。无小节结构的章节
- * 引用文档根块本身。
+ * 引用文档根块本身。小节 path = 文档标题路径 + 祖先标题链（同级同名
+ * 小节靠链区分，不再是假的两段拼接）。
  */
 export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeIndex> {
     const chapters: KnowChapter[] = [];
@@ -111,11 +120,20 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
         const byRoot = await headingsByRoot(leaves.map((r) => r.get("id")));
         for (const leaf of leaves) {
             const hp = leaf.get("hpath");
-            const secs = (byRoot.get(leaf.get("id")) ?? []).map((h) => ({
-                id: h.id,
-                title: h.content,
-                path: `${hp}/${h.content}`,
-            }));
+            const secs: KnowSection[] = [];
+            const walk = (nodes: KnowSectionNode[], prefix: string): void => {
+                for (const n of nodes) {
+                    const path = `${prefix}/${n.title}`;
+                    secs.push({ id: n.id, title: n.title, path });
+                    walk(n.children, path);
+                }
+            };
+            walk(
+                buildSectionTree(
+                    (byRoot.get(leaf.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }))
+                ),
+                hp
+            );
             chapters.push({
                 docId: leaf.get("id"),
                 title: leaf.get("content") || hp,
@@ -133,26 +151,68 @@ export interface KnowDocEntry {
     title: string;
     hPath: string;
     sections: { id: string; title: string }[];
+    /** 小节层级树（20260831 树化）：按 h1~h6 嵌套建的真树，知识面板
+     *  按文档树观感逐层折叠展示。 */
+    sectionTree: KnowSectionNode[];
+}
+
+/** 小节层级树节点：一个标题块 + 嵌套子标题（h1~h6 按级别挂父）。 */
+export interface KnowSectionNode {
+    id: string;
+    title: string;
+    children: KnowSectionNode[];
+}
+
+/**
+ * 文档内标题平铺列表 → 层级树（纯函数）。思源标题块只存 subtype
+ * （h1~h6）不存父子关系，嵌套按「更低级（数字更大）挂到前方最近的
+ * 更高级标题下」的规则派生；跳级（h1 直下 h3）照常收编为子级——
+ * 即与大纲/文档树的「就近挂靠」语义一致。
+ */
+export function buildSectionTree(heads: { id: string; title: string; level: number }[]): KnowSectionNode[] {
+    const roots: KnowSectionNode[] = [];
+    /** 各级别最近一个节点（栈式：新同级顶替、更深级清空）。 */
+    const last: (KnowSectionNode | undefined)[] = [];
+    for (const h of heads) {
+        const node: KnowSectionNode = { id: h.id, title: h.title, children: [] };
+        last[h.level] = node;
+        for (let lv = h.level + 1; lv < last.length; lv++) last[lv] = undefined;
+        // 父级 = 比本标题高级（数字小）的最近一个；没有则挂根层
+        let parent: KnowSectionNode | undefined;
+        for (let lv = h.level - 1; lv >= 1; lv--) {
+            if (last[lv]) {
+                parent = last[lv];
+                break;
+            }
+        }
+        (parent ? parent.children : roots).push(node);
+    }
+    return roots;
 }
 
 /**
  * 递归展开登记根的知识文档树（知识面板「导入文档」20260828 用）：根
  * 自身 + 全部后代文档（含书/章中间层）各一条，每条带自己的 h1~h6 小节
  * ——与 buildKnowledgeIndex 的分工：路由索引只要叶子章节，这里保留
- * 完整层级供面板按原生文档树观感逐文档展示。根查无/SQL 失败返回空
- * 数组（调用方按标题兜底区分「已删跳过」与「保留空节登记行」）。
+ * 完整层级供面板按原生文档树观感逐文档展示（20260831 起小节再按标题
+ * 级别建成 sectionTree 真树）。根查无/SQL 失败返回空数组（调用方按
+ * 标题兜底区分「已删跳过」与「保留空节登记行」）。
  */
 export async function expandKnowDocs(rootId: string): Promise<KnowDocEntry[]> {
     const hit = await knowDocRows(rootId);
     if (!hit) return [];
     const docs = [hit.root, ...hit.rows];
     const byRoot = await headingsByRoot(docs.map((d) => d.get("id")));
-    return docs.map((d) => ({
-        docId: d.get("id"),
-        title: d.get("content") || d.get("hpath") || d.get("id"),
-        hPath: d.get("hpath") ?? "",
-        sections: (byRoot.get(d.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content })),
-    }));
+    return docs.map((d) => {
+        const heads = (byRoot.get(d.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }));
+        return {
+            docId: d.get("id"),
+            title: d.get("content") || d.get("hpath") || d.get("id"),
+            hPath: d.get("hpath") ?? "",
+            sections: heads.map((h) => ({ id: h.id, title: h.title })),
+            sectionTree: buildSectionTree(heads),
+        };
+    });
 }
 
 /** 从路由回复里抽数字（JSON 或裸列表都行），保序去重并限界 [1,max]。 */

@@ -1,4 +1,4 @@
-import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/KnowledgeLink";
+import { expandKnowDocs, type KnowDocEntry, type KnowSectionNode } from "../../convert/service/KnowledgeLink";
 
 /**
  * 知识文档面板的视图模型层（Svelte 化前的渲染/绑定已删，20260830）：
@@ -7,6 +7,8 @@ import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/Knowled
  * groupKnowByDoc/mergeKnowDocs。面板语义：两个来源合并展示——①题库
  * 推导（kp 块→标题→根文档）②手动导入（bank.knowRoots 登记，
  * expandKnowDocs 递归展开：登记根+全部后代文档各一条），无题也展示。
+ * 20260831 起小节从平铺升级为 h1~h6 层级树（KnowSectionNode），
+ * 与文档层级对齐成一棵真树。
  */
 
 export interface KnowSectionView {
@@ -15,10 +17,19 @@ export interface KnowSectionView {
     count: number;
 }
 
+/** 小节树节点（视图侧：带题数 + 嵌套子节）。 */
+export interface KnowSectionTreeView {
+    id: string;
+    title: string;
+    count: number;
+    children: KnowSectionTreeView[];
+}
+
 export interface KnowDocView {
     docId: string;
     title: string;
-    sections: KnowSectionView[];
+    /** 小节层级树（文档标题下的 h1~h6 真树；合并后推导题数挂在对应节点上）。 */
+    sectionTree: KnowSectionTreeView[];
     total: number;
     /** 手动导入涉及的文档（登记根或其后代；行上标「手动导入」）。 */
     manual?: boolean;
@@ -26,7 +37,29 @@ export interface KnowDocView {
     registered?: boolean;
 }
 
-/** 按根文档聚合知识覆盖（文档按关联题数降序，小节同理）。 */
+/** 平铺小节清单（推导侧）→ 挂题数的树（无层级信息时全部平层）。 */
+function flatToTree(sections: KnowSectionView[]): KnowSectionTreeView[] {
+    return sections.map((s): KnowSectionTreeView => ({ ...s, children: [] }));
+}
+
+/** 把推导题数回填进导入侧层级树（同 id 节覆盖 count；树里没有的
+ *  推导节——对账前悬空或层级对不上——平层补在树尾，不丢）。 */
+function overlayCounts(tree: KnowSectionTreeView[], counts: Map<string, number>): KnowSectionTreeView[] {
+    const covered = new Set<string>();
+    const clone = (ns: KnowSectionTreeView[]): KnowSectionTreeView[] =>
+        ns.map(function mark(n): KnowSectionTreeView {
+            if (counts.has(n.id)) covered.add(n.id);
+            return { ...n, count: counts.get(n.id) ?? n.count, children: n.children.map(mark) };
+        });
+    const out = clone(tree);
+    for (const [id, count] of counts) {
+        if (!covered.has(id)) out.push({ id, title: id, count, children: [] });
+    }
+    return out;
+}
+
+/** 按根文档聚合知识覆盖（文档按关联题数降序；小节树=推导节的平层，
+ *  待 mergeKnowDocs 与导入层级树合并后才有真嵌套）。 */
 export function groupKnowByDoc(
     refs: Map<string, string>,
     roots: Map<string, string>,
@@ -46,22 +79,22 @@ export function groupKnowByDoc(
         .map(([docId, sections]) => ({
             docId,
             title: docTitles.get(docId) ?? docId,
-            sections: sections.sort((a, b) => b.count - a.count),
+            sectionTree: flatToTree(sections.sort((a, b) => b.count - a.count)),
             total: sections.reduce((n, s) => n + s.count, 0),
         }))
         .sort((a, b) => b.total - a.total);
 }
 
-/** 手动导入的知识文档（登记 id + 拉到的小节结构，题数为 0）。 */
+/** 手动导入的知识文档（登记 id + 拉到的小节层级树，题数为 0）。 */
 export interface ImportedKnowDoc {
     docId: string;
     title: string;
-    sections: { id: string; title: string }[];
+    sectionTree: KnowSectionNode[];
 }
 
-/** 推导行 × 导入行合并：同文档节并集（题数保留推导侧）、manual 跟
- *  登记子树走、registered 只跟直接登记走、按关联题数降序（纯导入的
- *  0 题沉底）。 */
+/** 推导行 × 导入行合并：同文档以导入层级树为骨架、推导题数回填
+ * （overlayCounts）；manual 跟登记子树走、registered 只跟直接登记走、
+ * 按关联题数降序（纯导入的 0 题沉底）。 */
 export function mergeKnowDocs(
     derived: KnowDocView[],
     imported: ImportedKnowDoc[],
@@ -72,37 +105,41 @@ export function mergeKnowDocs(
         manual: manual.has(docId) || undefined,
         registered: registered.has(docId) || undefined,
     });
-    const out: KnowDocView[] = derived.map((d) => ({
-        ...d,
-        ...flagsOf(d.docId),
-        sections: [...d.sections],
-    }));
+    const out: KnowDocView[] = derived.map((d) => ({ ...d, ...flagsOf(d.docId) }));
     const byId = new Map(out.map((d) => [d.docId, d]));
     for (const imp of imported) {
-        const secs = imp.sections.map((s) => ({ id: s.id, title: s.title, count: 0 }));
+        const impTree: KnowSectionTreeView[] = imp.sectionTree.map(function toView(n): KnowSectionTreeView {
+            return { id: n.id, title: n.title, count: 0, children: n.children.map(toView) };
+        });
         const hit = byId.get(imp.docId);
         if (hit) {
-            const seen = new Set(hit.sections.map((s) => s.id));
-            hit.sections.push(...secs.filter((s) => !seen.has(s.id)));
+            // 同文档：导入树为骨架，推导侧题数按 id 回填
+            const counts = new Map<string, number>();
+            const collect = (ns: KnowSectionTreeView[]): void => {
+                for (const n of ns) {
+                    counts.set(n.id, n.count);
+                    collect(n.children);
+                }
+            };
+            collect(hit.sectionTree);
+            hit.sectionTree = overlayCounts(impTree, counts);
             continue;
         }
-        const doc: KnowDocView = {
+        out.push({
             docId: imp.docId,
             title: imp.title,
-            sections: secs,
+            sectionTree: impTree,
             total: 0,
             ...flagsOf(imp.docId),
-        };
-        out.push(doc);
-        byId.set(imp.docId, doc);
+        });
     }
     return out.sort((a, b) => b.total - a.total);
 }
 
 /** 手动导入的递归展开（expandKnowDocs：登记根 → 根 + 全部后代文档
- *  各一条，各带自己的 h1~h6 小节）。manualAll=登记∪展开后代（供合并
- *  标「手动导入」）；info 带回标题/hPath 供树化。根已删（查无标题）
- *  不展示；展开失败但文档还在 → 保留空节登记行，退册入口不丢。 */
+ *  各一条，各带自己的 h1~h6 小节层级树）。manualAll=登记∪展开后代
+ * （供合并标「手动导入」）；info 带回标题/hPath 供树化。根已删（查无
+ *  标题）不展示；展开失败但文档还在 → 保留空节登记行，退册入口不丢。 */
 export async function importedKnowDocs(
     rootIds: string[],
     titles: Map<string, string>
@@ -112,11 +149,7 @@ export async function importedKnowDocs(
     const manualAll = new Set<string>();
     const absorb = (entries: KnowDocEntry[]): void => {
         for (const e of entries) {
-            docs.push({
-                docId: e.docId,
-                title: e.title,
-                sections: e.sections.map((s) => ({ id: s.id, title: s.title })),
-            });
+            docs.push({ docId: e.docId, title: e.title, sectionTree: e.sectionTree });
             info.set(e.docId, { title: e.title, hPath: e.hPath });
             manualAll.add(e.docId);
         }
@@ -131,7 +164,7 @@ export async function importedKnowDocs(
         if (entries.length === 0) {
             const title = titles.get(rid);
             if (!title) continue; // 根已删（查无标题）不展示
-            docs.push({ docId: rid, title, sections: [] });
+            docs.push({ docId: rid, title, sectionTree: [] });
             manualAll.add(rid);
             continue;
         }
