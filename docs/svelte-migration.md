@@ -92,14 +92,14 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 
 ## 路线图（练手优先序，每批真机验证后进下一批）
 
-| 批  | 目标                  | 规模    | 要点                                                                                                                  | 状态                                              |
-| --- | --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                                                         | ✅ 2026-08-27                                     |
-| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                                                | ✅ 2026-08-30                                     |
-| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                                                     | ✅ 2026-08-30                                     |
-| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                                                | ✅ 2026-08-30                                     |
-| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                                                     | ✅ 2026-08-30                                     |
-| 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（~~Protyle 壳~~静态管线，9a53a63 退役）→ Steps/AnswerFlow（三写痛点终结） | 🔶 6-1~6-3 ✅ 2026-08-30；6-4a/6-4b ✅ 2026-08-31 |
+| 批  | 目标                  | 规模    | 要点                                                                                                                                | 状态                                            |
+| --- | --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                                                                       | ✅ 2026-08-27                                   |
+| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                                                              | ✅ 2026-08-30                                   |
+| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                                                                   | ✅ 2026-08-30                                   |
+| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                                                              | ✅ 2026-08-30                                   |
+| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                                                                   | ✅ 2026-08-30                                   |
+| 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（~~Protyle 壳~~静态管线，9a53a63 退役）→ Steps/AnswerFlow（三写痛点终结）→ side/head 壳 | ✅ 6-1~6-3 2026-08-30；6-4a/6-4b/6-5 2026-08-31 |
 
 **不迁清单**：`ui/FormHtml.ts`（两轨公共地基）；ModelPicker/KnowPicker
 浮层（body 单例，保持字符串模板，Svelte 侧用 action 桥接）；
@@ -353,3 +353,37 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   renderOneStepHtml+fillOneStep DOM 轨并入响应态 appendRealtimeStep）；
   match 提交钮描色后由 marks 派生隐藏（旧直接 setAttribute）；逐题
   计时/思路快照/AI 判分三态/申诉改判全部走状态，无 DOM 读取。
+
+## 批次 6-5 落地记录（2026-08-31，侧栏/头部壳 Svelte 化——quiz 域收尾）
+
+- **范围裁定**：本批迁 quiz 域最后的字符串壳——侧栏（目录树/搜索/
+  专题区/工具区）与主区头部（次头部/结束本轮/计时器）。至此 quiz
+  域（除不迁清单）整体 Svelte 化，六批路线图收官。
+- 两组件：**SidePanelApp**（侧栏壳+头部图标操作+顶部工具区+主体
+  清单）+ **QuizHeadApp**（目录开关/次头部/结束本轮/计时器壳）。
+  编排收进 flow/SideMount（mountSideFor/mountHeadFor/detachSideHead/
+  refreshSideCols/sideActFor），壳占位从 renderMainShell 的
+  data-side-host/data-head-host 进，组件根即布局直接子元素。
+- 侧栏主体三态（树/搜索平铺/专题区）统一为 $derived 切片：同一份
+  docs 派生源，空搜索=TreeList（展开态组件内 Set+onPersistOpen
+  回写 prefs）、有词=按父路径平铺分组、专题区恒顶。原
+  renderSideBodyHtml+applySideFilter 重灌+remountSideTree 重挂三件套
+  退役——搜索不再重灌 DOM、输入框不重建、焦点天然不丢。
+  专题清单/选中轻量刷新走实例导出 updateCols（bank.refreshSide 改道
+  refreshSideCols，不打断作答）。
+- 头部次头部是导航时一次性渲染的静态串（文档信息/轮次成绩，
+  renderSubheadHtml 留编排侧算 rounds），作 prop {@html} 喂入。
+  跨重建命令式钩子保留 DOM 契约、组件只产壳不接管写：计时器
+  [data-timer]（TimerBinder 每秒）、倒计时归零 [data-timeup-slot]、
+  转换进度 [data-status]、转换按钮文案 [data-convert-label]、
+  文档行右键菜单（ViewBindings 委托 data-docid/data-id，带 async
+  livingSourceOf 门控，组件右键语义弱于原生 contextmenu 故保留）。
+- 退役：renderSideHtml/renderHeadHtml/renderSideBodyHtml/applySideFilter、
+  ViewBindings 的 bindViewEvents/bindHeadFor/HeadAccess（refresh/
+  convert/settings/side-fold/side-toggle/end-round/stats/collections
+  逐钮绑定收进 sideActFor 单 switch）、SideTreeMount/SideTreeApp
+  （树并入 SidePanelApp）。review 壳改占位宿主、side/head 由
+  QuizShell 统一挂载（次头部待刷/已掌握经 reviewHeadSummary 喂）；
+  MainShellModel 剥掉不再透传的侧栏/头部字段。
+- 红线备注：src/quiz/index.ts 518 行略超 500——本批新增的 sideAct
+  访问器簇属 QuizView 紧凑访问器表，强行外移破坏内聚，豁免并记此。
