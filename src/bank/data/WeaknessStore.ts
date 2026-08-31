@@ -1,4 +1,5 @@
 import { parseKpRefs } from "./BankParse";
+import { knKey, normalizeKnowledge } from "./KnowledgeNorm";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import { baseQid } from "../../types";
 import type { WenguQuestion } from "../../types";
@@ -63,10 +64,12 @@ export interface WeakTopRow {
     aiNote?: string;
 }
 
-/** 题目的聚合键列表（知识点引用优先，多个引用全计入）。 */
+/** 题目的聚合键列表（知识点引用优先，多个引用全计入；kn 键走归一
+ *  词干——「洛必达」与「洛必达法则」并成一行，显示名取词干）。 */
 export function weakKeys(q: WenguQuestion): { key: string; title: string }[] {
     const out = parseKpRefs(q.solutionMd ?? "").map((k) => ({ key: `kp:${k.id}`, title: k.title }));
-    if (out.length === 0 && q.knowledge) out.push({ key: `kn:${q.knowledge}`, title: q.knowledge });
+    if (out.length === 0 && q.knowledge && knKey(q.knowledge))
+        out.push({ key: knKey(q.knowledge), title: normalizeKnowledge(q.knowledge) });
     if (out.length === 0 && q.chapter) out.push({ key: `ch:${q.chapter}`, title: q.chapter });
     const seen = new Set<string>();
     return out.filter((k) => (seen.has(k.key) ? false : (seen.add(k.key), true)));
@@ -118,7 +121,38 @@ export class WeaknessStore {
             data && typeof data === "object" && data.points
                 ? data
                 : { version: 1, points: {}, applied: [], causeApplied: [] };
+        this.migrateKnKeys();
         return this.cache;
+    }
+
+    /** 存量 kn: 键归并（20260831 标签归一）：旧数据里「洛必达法则」与
+     *  「洛必达」是两行，归一键上线后新计数都落词干键——加载时把可归并
+     *  的旧键折叠进词干键（统计合并，同 remapKey），避免新旧键并存两行。 */
+    private migrateKnKeys(): void {
+        const data = this.cache!;
+        const mergeInto = (oldKey: string, newKey: string, newTitle: string): void => {
+            const old = data.points[oldKey];
+            if (!old || oldKey === newKey) return;
+            const cur = data.points[newKey];
+            if (cur) {
+                cur.wrong += old.wrong;
+                cur.total += old.total;
+                cur.lastWrongAt = Math.max(cur.lastWrongAt, old.lastWrongAt);
+                for (const [c, n] of Object.entries(old.causes)) {
+                    cur.causes[c as WeakCause] = (cur.causes[c as WeakCause] ?? 0) + n;
+                }
+                if (old.aiNote) cur.aiNote = old.aiNote;
+            } else {
+                data.points[newKey] = { ...old, key: newKey, title: newTitle };
+            }
+            delete data.points[oldKey];
+        };
+        for (const key of Object.keys(data.points)) {
+            if (!key.startsWith("kn:")) continue;
+            const stem = key.slice(3);
+            const canonical = knKey(stem); // 词干键（与 weakKeys 现口径一致）
+            if (canonical && canonical !== key) mergeInto(key, canonical, stem ? normalizeKnowledge(stem) : stem);
+        }
     }
 
     /** 启动/装载时预热缓存并刷新同步快照。 */

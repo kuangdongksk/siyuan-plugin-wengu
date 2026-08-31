@@ -1,6 +1,7 @@
 import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import { ensureMigratedFor, refreshDocFor } from "./BankMigrate";
+import { knKey, normalizeKnowledge } from "./KnowledgeNorm";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -217,7 +218,8 @@ export class QuestionBank {
             .map((c) => ({ id: c.id, title: c.title, count: c.qids.length }));
     }
 
-    /** 全库知识点索引（kp 引用优先，降级 knowledge/chapter 文本）。 */
+    /** 全库知识点索引（kp 引用优先，降级 knowledge/chapter 文本；kn 键
+     *  走归一词干——「洛必达」与「洛必达法则」并成一行，显示名取词干）。 */
     async knowledgeIndex(): Promise<KnowledgeRow[]> {
         const data = await this.all();
         const acc = new Map<string, KnowledgeRow>();
@@ -225,8 +227,8 @@ export class QuestionBank {
             const keys =
                 r.kpRefs.length > 0
                     ? r.kpRefs.map((k) => ({ key: `kp:${k.id}`, title: k.title }))
-                    : r.knowledge
-                      ? [{ key: `kn:${r.knowledge}`, title: r.knowledge }]
+                    : r.knowledge && knKey(r.knowledge)
+                      ? [{ key: knKey(r.knowledge), title: normalizeKnowledge(r.knowledge) }]
                       : r.chapter
                         ? [{ key: `ch:${r.chapter}`, title: r.chapter }]
                         : [];
@@ -239,15 +241,16 @@ export class QuestionBank {
         return [...acc.values()].sort((a, b) => b.count - a.count);
     }
 
-    /** 按知识点键收集题目 id（勾选的键做并集）。 */
+    /** 按知识点键收集题目 id（勾选的键做并集；kn 键按归一词干比对，
+     *  传入键也归一——新旧键都能命中）。 */
     async collectQids(keys: string[]): Promise<string[]> {
         const data = await this.all();
-        const set = new Set(keys);
+        const set = new Set(keys.map(normKn));
         return Object.values(data.records)
             .filter(
                 (r) =>
                     r.kpRefs.some((k) => set.has(`kp:${k.id}`)) ||
-                    (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
+                    (r.knowledge && set.has(knKey(r.knowledge))) ||
                     (r.chapter && set.has(`ch:${r.chapter}`))
             )
             .sort((a, b) =>
@@ -416,14 +419,15 @@ export class QuestionBank {
         return out.sort((a, b) => b.wrongCount - a.wrongCount || b.attempts - a.attempts).slice(0, 50);
     }
 
-    /** 按薄弱键取记录（针对性生成找错题模板用；键含 kp:/kn:/ch: 前缀）。 */
+    /** 按薄弱键取记录（针对性生成找错题模板用；键含 kp:/kn:/ch: 前缀，
+     *  kn 键双向归一——传入新旧键都能命中归一词干）。 */
     async recordsByKeys(keys: string[]): Promise<BankRecord[]> {
         const data = await this.all();
-        const set = new Set(keys);
+        const set = new Set(keys.map(normKn));
         return Object.values(data.records).filter(
             (r) =>
                 r.kpRefs.some((k) => set.has(`kp:${k.id}`)) ||
-                (r.knowledge && set.has(`kn:${r.knowledge}`)) ||
+                (r.knowledge && set.has(knKey(r.knowledge))) ||
                 (r.chapter && set.has(`ch:${r.chapter}`))
         );
     }
@@ -497,4 +501,10 @@ function overlayStats(p: ParsedQuestion, r: BankRecord): ParsedQuestion {
     p.right = r.stats.right;
     p.lastAnswer = r.stats.lastAnswer;
     return p;
+}
+
+/** 传入聚合键归一：kn: 键的词干化（新旧键都能与 knKey 产出对齐）；
+ *  kp:/ch: 键原样透传。 */
+function normKn(key: string): string {
+    return key.startsWith("kn:") ? knKey(key.slice(3)) || key : key;
 }

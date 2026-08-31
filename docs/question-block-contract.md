@@ -165,8 +165,14 @@ verdict?, comment?, cause?}], thoughts?{qid→思路文本}, clues?{qid→选段
 AI 判卷把薄弱处沉淀为跨轮次结构化档案（`weakness` 文件）：
 
 - **聚合键**：题目解析里的知识点块引用（`kp:标题块id`，转换挂反链时
-  注入，多个引用全计入）→ 无引用退化 `kn:knowledge属性` → `ch:chapter
-属性`；一条都不会落（无锚点的题不进画像）。
+  注入，多个引用全计入）→ 无引用退化 `kn:knowledge词干` → `ch:chapter
+属性`；一条都不会落（无锚点的题不进画像）。**kn 键走归一词干**
+  （KnowledgeNorm，20260831 起）：「洛必达」与「洛必达法则」剥命名性
+  后缀（法则/定理/定律/公式/原理/效应/现象/规则/准则/律）后同键——
+  只动聚合键、不动存储数据（题卡角标仍显示 AI 原话）；宁漏并勿错并，
+  动作/范畴后缀（计算/求法/性质…）不剥防误并。四处聚合点（knowledgeIndex
+  /collectQids/recordsByKeys/weakKeys）统一走 knKey，传入键双向归一；
+  weakness 存量旧 kn 键加载时折叠进词干键。
 - **条目**：`{key, title, wrong(错+半对), total, lastWrongAt,
 causes{错因键→次数}, aiNote(最近评语)}`。
 - **错因键**（AI 输出规整为规范键，展示走 i18n）：concept/calc/
