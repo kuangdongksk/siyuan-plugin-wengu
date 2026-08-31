@@ -4,7 +4,6 @@ import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
     classifyMatchFail,
-    routeKnowledgeDiag,
     type KnowRouteFail,
     type MatchFailKind,
 } from "../../convert/service/KnowledgeLink";
@@ -14,6 +13,7 @@ import { esc, fmt } from "../../ui/shared";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyTagToRecord, lexiconOfRoots, linkRecordsByText, parseFreeTags } from "../data/KnowLinkText";
+import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
 /**
@@ -116,11 +116,13 @@ async function runTag(
         const verified = await linkRecordsByText(bank, lex, tagged, { signal: ctrl.signal });
         const linked = verified.hit;
         const unmatched = verified.miss;
-        // 阶段二 生成：无标签 → AI 打标签
+        // 阶段二 生成：无标签 → AI 打标签（逐题两级路由带按题指纹缓存，
+        // 未变的题重跑零 AI 调用）
         let genOk = 0;
         let genMiss = 0;
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
+        const cache = routeCache();
         if (doGen && !ctrl.signal.aborted && untagged.length > 0 && dialog.element.isConnected) {
             const index = roots.length > 0 ? await buildKnowledgeIndex(roots) : undefined;
             const useRoute = (index?.chapters.length ?? 0) > 0;
@@ -131,16 +133,14 @@ async function runTag(
                     show(fmt(t("tagGenRunning"), { c: String(i + 1), n: String(untagged.length) }), "muted");
                     let done = false;
                     try {
-                        const routed = await routeKnowledgeDiag(
-                            routeTextOf(r),
-                            index!,
-                            { call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal) },
-                            (f) => fails.push(f)
-                        );
-                        if (routed.size > 0) {
-                            const secs = [...routed.values()];
-                            done = await applyTagToRecord(bank, r, secs[0].title, secs);
-                        }
+                        const secs = await routeKnowledgeCached({
+                            text: routeTextOf(r),
+                            index: index!,
+                            modelId,
+                            call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                            onFail: (f) => fails.push(f),
+                        });
+                        if (secs.length > 0) done = await applyTagToRecord(bank, r, secs[0].title, secs);
                     } catch (_) {
                         // 路由失败按未生成，不阻断后续题
                     }
@@ -153,6 +153,7 @@ async function runTag(
             }
         }
         await bank.flush();
+        await cache?.flush();
         for (const f of fails) {
             const k = classifyMatchFail(String(f.error?.message ?? f.error ?? ""));
             failCount.set(k, (failCount.get(k) ?? 0) + 1);

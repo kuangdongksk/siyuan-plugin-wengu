@@ -12,6 +12,7 @@ import { WordStore } from "./word/core/WordStore";
 import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
+import { initRouteCache } from "./bank/data/RouteCache";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -140,6 +141,12 @@ export default class WenguPlugin extends Plugin {
         // 词书房（多词书，redesign §五）：内核文件通道，onload 先于任何
         // 单词面板挂载初始化
         initWordLib();
+        // 路由结果缓存（增量哈希一期）：两级 AI 路由按题指纹缓存，
+        // 匹配/批量关联/生成标签三弹窗共用
+        initRouteCache({
+            load: () => this.loadData("route-cache"),
+            save: (v) => this.saveData("route-cache", v),
+        });
         // 看板娘学伴（全局悬浮层挂 body，与页签渲染解耦；事件由各域收口
         // 一行接入，20260828 定稿）
         initCompanion({

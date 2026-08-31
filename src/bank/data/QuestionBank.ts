@@ -133,7 +133,8 @@ export class QuestionBank {
                       folders: [],
                       knowHidden: [],
                   };
-        for (const k of ["knowRoots", "folders", "knowHidden"] as const) if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
+        for (const k of ["knowRoots", "folders", "knowHidden"] as const)
+            if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
         return this.cache;
     }
 

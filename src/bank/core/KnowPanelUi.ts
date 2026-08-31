@@ -34,5 +34,12 @@ export interface KnowPanelUi {
 
 /** 初始态（$state 包装在 KnowledgePanelApp 内完成）。 */
 export function initialKnowPanelUi(): KnowPanelUi {
-    return { phase: "loading", docs: [], info: new Map(), openPaths: new Set(), rmArmed: undefined, dlArmed: undefined };
+    return {
+        phase: "loading",
+        docs: [],
+        info: new Map(),
+        openPaths: new Set(),
+        rmArmed: undefined,
+        dlArmed: undefined,
+    };
 }

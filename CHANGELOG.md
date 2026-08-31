@@ -2,6 +2,18 @@
 
 ## v0.1.1 unreleased
 
+- 路由结果按题指纹缓存（20260831，增量哈希一期，
+  docs/incremental-hash-plan.md）：知识文档「匹配」/「批量关联」AI
+  兜底/「生成标签」逐题路由三处共用的两级 AI 路由（每题两次调用）
+  接上按题指纹的缓存——同一题在知识索引结构（全部章/小节 id+path
+  指纹）与模型未变时重跑零 AI 调用；索引增删章/改小节/退册根或换
+  模型即整表作废重建（宁漏勿错，不复用过期路由）；AI 明确判「零
+  命中」的空结果同样缓存，但调用失败（超时/网络/模型失效）不缓存
+  下次再试。存储 saveData("route-cache")，LRU 上限 2000 条，与题库
+  同款 markDirty/flush 串行落盘。新增 bank/data/RouteCache（含
+  routeKnowledgeCached 共用入口 + 模块级单例 initRouteCache/routeCache），
+  三弹窗换调不动流程语义。
+
 - 题卡渲染层组件化（20260831，Svelte 批次 6-4a）：三类题卡（普通/
   多步 steps/逐空 slots）与材料组壳的字符串渲染退役为组件
   （component/QuizCardApp + GroupUnitApp），静态分片管线逐单元以

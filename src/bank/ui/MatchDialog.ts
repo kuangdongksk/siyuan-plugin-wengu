@@ -4,7 +4,6 @@ import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
     classifyMatchFail,
-    routeKnowledgeDiag,
     type KnowRouteFail,
     type MatchFailKind,
 } from "../../convert/service/KnowledgeLink";
@@ -15,11 +14,13 @@ import { esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { applyRefsToRecord } from "../data/KnowLinkText";
+import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
 
 /**
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
  * 选一份已入库的习题文档（题库源卷，存量/新建同权），对其题目逐题走
- * 转换同款两级 AI 路由（routeKnowledge），把「相关知识点」块引用确定
+ * 转换同款两级 AI 路由（带按题指纹缓存，未变的题重跑零 AI 调用），把
+ * 「相关知识点」块引用确定
  * 性注入题库记录（strip+inject=替换语义，默认跳过已关联题），源文档块
  * 尽力同步（题库为主记录，模式同 RegenDialog）。内核调用全程串行；AI
  * 路由走独立会话（agentChatOnce，逐题 await 天然串行）。
@@ -168,6 +169,7 @@ async function runMatch(
         // 网络），不再被 catch 静默吞成「未命中」。
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
+        const cache = routeCache();
         for (let i = 0; i < records.length; i++) {
             if (ctrl.signal.aborted || !dialog.element.isConnected) break;
             const r = records[i];
@@ -178,15 +180,15 @@ async function runMatch(
             let refs: { id: string; title: string }[] = [];
             try {
                 // 独立会话路由（20260830）：每题一次性 sessionID，逐题 await
-                const routed = await routeKnowledgeDiag(
-                    routeTextOf(r),
+                // 天然串行；路由结果按题指纹缓存（增量哈希一期），未变的题
+                // 重跑零 AI 调用
+                refs = await routeKnowledgeCached({
+                    text: routeTextOf(r),
                     index,
-                    {
-                        call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
-                    },
-                    (f) => fails.push(f)
-                );
-                refs = [...routed.values()].map((s) => ({ id: s.id, title: s.title }));
+                    modelId,
+                    call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                    onFail: (f) => fails.push(f),
+                });
             } catch (_) {
                 // 路由失败按未命中，不阻断后续题
             }
@@ -208,6 +210,7 @@ async function runMatch(
             );
         }
         await bank.flush();
+        await cache?.flush();
         // 汇总失败类别（路由失败原因归类计数，hit=0 时挑最多的一类提示）
         for (const f of fails) {
             const k = classifyMatchFail(String(f.error?.message ?? f.error ?? ""));

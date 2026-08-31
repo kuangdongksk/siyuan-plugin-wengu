@@ -58,7 +58,11 @@
       自由生成），setKnowledgeAttr 写 IAL + applyTagToRecord 落库；
       **标签归一**（KnowledgeNorm，20260831）：knowledge
       文本的 kn 聚合键剥命名性后缀归词干（「洛必达」=「洛必达法则」），
-      只动键不动数据，四处聚合点统一 knKey；专题/知识文档管理面板
+      只动键不动数据，四处聚合点统一 knKey；**路由缓存**（RouteCache，
+      20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
+      路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
+      LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
+      分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
       CollectionPanel/KnowledgePanel 挂页签左栏 rail）、
       `src/companion/`
       （伴学看板娘「小书童」：规则层表情+台词/AI 增强与聊天走智能体

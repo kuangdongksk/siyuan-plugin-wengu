@@ -4,7 +4,6 @@ import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
     classifyMatchFail,
-    routeKnowledgeDiag,
     type KnowRouteFail,
     type MatchFailKind,
 } from "../../convert/service/KnowledgeLink";
@@ -14,6 +13,7 @@ import { esc, fmt } from "../../ui/shared";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyRefsToRecord, lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
+import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
 /**
@@ -112,9 +112,11 @@ async function runBatch(
         let miss = p1.miss;
         const skip = p1.skip;
         let aiHit = 0;
-        // phase2：AI 兜底（可选，只跑文本未命中的题）
+        // phase2：AI 兜底（可选，只跑文本未命中的题；带按题指纹缓存，
+        // 未变的题重跑零 AI 调用）
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
+        const cache = routeCache();
         if (useAi && !ctrl.signal.aborted && p1.missed.length > 0 && dialog.element.isConnected) {
             const index = await buildKnowledgeIndex(roots);
             if (index.chapters.length > 0) {
@@ -125,13 +127,13 @@ async function runBatch(
                     show(fmt(t("batchAiRunning"), { c: String(i + 1), n: String(pending.length) }), "muted");
                     let refs: { id: string; title: string }[] = [];
                     try {
-                        const routed = await routeKnowledgeDiag(
-                            routeTextOf(r),
+                        refs = await routeKnowledgeCached({
+                            text: routeTextOf(r),
                             index,
-                            { call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal) },
-                            (f) => fails.push(f)
-                        );
-                        refs = [...routed.values()].map((s) => ({ id: s.id, title: s.title }));
+                            modelId,
+                            call: (m) => agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal),
+                            onFail: (f) => fails.push(f),
+                        });
                     } catch (_) {
                         // 路由失败按未命中，不阻断后续题
                     }
@@ -145,6 +147,7 @@ async function runBatch(
         }
         miss = p1.missed.length > 0 ? p1.missed.length - aiHit : 0;
         await bank.flush();
+        await cache?.flush();
         for (const f of fails) {
             const k = classifyMatchFail(String(f.error?.message ?? f.error ?? ""));
             failCount.set(k, (failCount.get(k) ?? 0) + 1);
