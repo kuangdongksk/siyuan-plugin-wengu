@@ -3,7 +3,7 @@ import { esc } from "../../ui/shared";
 
 /**
  * 材料组交互（E1，6-4b 状态化）：组内导航/材料折叠/滚动记忆已收进
- * component/GroupUnitApp（qi 响应态），本文件持有跨重渲染存活的组
+ * components/GroupUnitApp（qi 响应态），本文件持有跨重渲染存活的组
  * 运行态（当前题下标与材料滚动位置）+ 组登记表（题号导航定位用）
  * + 组级揭示/线索行。
  */

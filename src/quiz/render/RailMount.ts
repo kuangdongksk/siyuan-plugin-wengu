@@ -1,11 +1,11 @@
 import type { QuizView } from "../index";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import RailApp from "../component/RailApp.svelte";
+import RailApp from "../components/RailApp.svelte";
 
 /**
  * 左侧工作区导航栏（三栏格局的第一栏）：刷题/专题管理/知识文档/
  * 学伴管理四个图标钮。Svelte 化（20260830）：渲染在
- * component/RailApp.svelte，本文件是挂载编排——四处壳拼接
+ * components/RailApp.svelte，本文件是挂载编排——四处壳拼接
  * （做题主壳/错误兜底/工作区分支/复习分支）都在 innerHTML 最前放
  * RAIL_ANCHOR_HTML 锚，mountRailFor 以 anchor 法把组件根插到 v.el
  * 直下后删锚（rail 的 flex:none 三栏布局依赖直接子元素，不能包

@@ -11,11 +11,11 @@ import type { WeakCause, WeakTopRow, WeaknessStore } from "../../bank/data/Weakn
 import { openWeakDrill } from "../../bank/ui/WeakDrill";
 import { roundAggByQid } from "../../bank/data/WeaknessStore";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import RoundReportApp from "../component/RoundReportApp.svelte";
+import RoundReportApp from "../components/RoundReportApp.svelte";
 
 /**
  * 一轮完成后的总结报告（纯 CSS 条形图，不引图表库）：渲染在
- * component/RoundReportApp.svelte（Svelte 化 20260830），本文件保留
+ * components/RoundReportApp.svelte（Svelte 化 20260830），本文件保留
  * 模型与收卷编排（showRoundReportNow）+ AI 分析 prompt 构建 +
  * 错因沉淀；AI 通道走 ai 域客户端。
  */
@@ -134,7 +134,7 @@ function roundsWithCurrent(rounds: WenguSession[], cur?: WenguSession): WenguSes
     return cur && !rounds.some((x) => x.id === cur.id) ? [...rounds, cur] : rounds;
 }
 
-/* ── 报告挂载编排（Svelte 化 20260830，组件在 component/RoundReportApp） ── */
+/* ── 报告挂载编排（Svelte 化 20260830，组件在 components/RoundReportApp） ── */
 
 let reportApp: MountedSvelteApp | undefined;
 

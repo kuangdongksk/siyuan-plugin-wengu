@@ -1,7 +1,7 @@
 import type { WenguDoc } from "../../types";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import SidePanelApp from "../component/SidePanelApp.svelte";
-import QuizHeadApp from "../component/QuizHeadApp.svelte";
+import SidePanelApp from "../components/SidePanelApp.svelte";
+import QuizHeadApp from "../components/QuizHeadApp.svelte";
 import type { CollectionFlow } from "../../bank";
 import { updateConvertBtn } from "../../convert";
 import type { WenguWorkspace } from "../render/RailMount";

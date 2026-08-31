@@ -7,7 +7,7 @@ import type { WenguMaterial, WenguQuestion } from "../../types";
  * 渲染（非当前的 hidden），恢复/揭示/收卷等既有流程按 .wengu-card
  * 遍历的语义全部保持。
  *
- * 渲染层在 component/QuizCardApp + component/GroupUnitApp（6-4a
+ * 渲染层在 components/QuizCardApp + components/GroupUnitApp（6-4a
  * 组件化，本文件只剩单元组装纯函数）；挂载编排在 render/CardMount。
  */
 

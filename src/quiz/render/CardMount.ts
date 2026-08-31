@@ -1,6 +1,6 @@
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import QuizCardApp from "../component/QuizCardApp.svelte";
-import GroupUnitApp from "../component/GroupUnitApp.svelte";
+import QuizCardApp from "../components/QuizCardApp.svelte";
+import GroupUnitApp from "../components/GroupUnitApp.svelte";
 import type { CardHtmlModel } from "./CardParts";
 import type { CardInitCtx } from "./CardState";
 import type { DrillUnit } from "./DrillUnits";

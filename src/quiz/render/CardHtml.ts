@@ -5,7 +5,7 @@ import { esc, fmt } from "../../ui/shared";
 /**
  * 纯 HTML 构建层（design-review 拆分）：壳拼接与次头部。
  * 只做字符串拼接与谓词判断，不持有状态；QuizView 消费这些函数。
- * 题卡/多步/逐空卡的渲染已组件化（component/QuizCardApp，6-4a；
+ * 题卡/多步/逐空卡的渲染已组件化（components/QuizCardApp，6-4a；
  * 步骤区运行时 DOM 小件 6-4b 随三写收敛退役），目录/头部 6-5
  * 随 SideMount 组件化退役（SidePanelApp/QuizHeadApp），本文件
  * 保留：题型谓词、题号态、次头部信息行、主区外壳。

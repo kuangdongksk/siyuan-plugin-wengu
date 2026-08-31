@@ -2,7 +2,7 @@ import type { HistoryStore } from "../quiz/service/HistoryStore";
 import { RAIL_ANCHOR_HTML } from "../quiz/render/RailMount";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
 import { reviewCtl } from "./core/ReviewCtl";
-import ReviewApp from "./component/ReviewApp.svelte";
+import ReviewApp from "./components/ReviewApp.svelte";
 import type { WenguDoc } from "../types";
 import { esc, fmt } from "../ui/shared";
 
@@ -15,7 +15,7 @@ export function reviewHeadSummary(t: (key: string) => string): string {
 
 /**
  * 错题本（复习模式，M6 mode="review"）编排：主区（工具行+清单+详情）
- * Svelte 化挂载（20260830，四件套见 core/component/）；rail/side/head
+ * Svelte 化挂载（20260830，四件套见 core/components/）；rail/side/head
  * 壳 6-5 起与 quiz 主路径同款——本函数只落占位宿主（data-side-host/
  * data-head-host），组件由 QuizShell 的 SideMount 统一挂载。筛选/排序/
  * 选中/缓存持久在 ReviewCtl 单例——外部域（quiz 侧栏/统计面板）在

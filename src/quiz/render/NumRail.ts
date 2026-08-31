@@ -3,7 +3,7 @@
  * 高亮当前题。当前题下标通过 onActive 回调上报——逐题计时的计时
  * 对象跟随它，即使题号栏被设置关闭也保持滚动跟踪。
  *
- * Svelte 化（20260830）：渲染与标色状态在 component/NumRailApp.svelte
+ * Svelte 化（20260830）：渲染与标色状态在 components/NumRailApp.svelte
  * （三写收敛：初始态/判分描色/已答态原散在 renderNumsHtml、
  * FlowDom.markNum、AnswerFlow.markNumAnswered 三处直改 DOM，现统一为
  * 组件 marks 响应态），本文件保留全部实测调优的行为代码——滚动跟踪/
@@ -25,7 +25,7 @@
 import type { WenguQuestion } from "../../types";
 import { numState } from "./CardHtml";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import NumRailApp from "../component/NumRailApp.svelte";
+import NumRailApp from "../components/NumRailApp.svelte";
 
 interface Chase {
     stop: () => void;

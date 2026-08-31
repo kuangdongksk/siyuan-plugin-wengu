@@ -5,11 +5,11 @@ import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } 
 import { baseQid } from "../../types";
 import { clampMinutes } from "../../ui/shared";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import StartPanelApp from "../component/StartPanelApp.svelte";
+import StartPanelApp from "../components/StartPanelApp.svelte";
 
 /**
  * 开刷面板（design-review P1-1；Svelte 化 20260830——渲染在
- * component/StartPanelApp.svelte，挂载编排见文末 mountStartPanelFor）：
+ * components/StartPanelApp.svelte，挂载编排见文末 mountStartPanelFor）：
  * 四组选择收敛为一张表单——①上次进度（继续上次/重新开始，有未完成轮
  * 才出现）②刷题范围（全部/只刷上次错题/错题重刷=历史未掌握，有错题才
  * 出现）③答案展示 ④多步题模式（离线参考路径 / AI 实时跟随）⑤计时方式
@@ -276,7 +276,7 @@ export function beginDrillFor(v: DrillViewAccess, override?: { scope?: WenguRoun
     );
 }
 
-/* ── 开刷面板挂载编排（Svelte 化 20260830，组件在 component/StartPanelApp） ── */
+/* ── 开刷面板挂载编排（Svelte 化 20260830，组件在 components/StartPanelApp） ── */
 
 let startApp: MountedSvelteApp | undefined;
 
