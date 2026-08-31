@@ -2,6 +2,17 @@
 
 ## v0.1.1 unreleased
 
+- 题卡渲染层组件化（20260831，Svelte 批次 6-4a）：三类题卡（普通/
+  多步 steps/逐空 slots）与材料组壳的字符串渲染退役为组件
+  （component/QuizCardApp + GroupUnitApp），静态分片管线逐单元以
+  组件挂载替代 insertAdjacentHTML——DOM 契约逐字一致（类名/data-*/
+  hidden 全保留），作答/判分/恢复/预览装饰各流程与全局样式零改动，
+  行为无变化；为 6-4b「三流程作答态收敛进卡内响应态」铺挂载与卸载
+  地基（detachCardApps 补进整壳重建 detach 块与视图 destroy）。
+  退役字符串渲染函数七枚 + SlotHtml.ts，DrillUnits 只剩单元组装
+  纯函数；StepsFlow 实时模式的步骤 DOM 追加轨（renderOneStepHtml/
+  fillOneStep）暂留守，6-4b 随状态化并入组件。
+
 - 题集右键两改（20260829，用户反馈「网络中断会导入一半停止」+「不要
   提供删除文档」）：①侧栏文档右键新增**「重新导入」**——配对源讲义
   （source-doc）仍存活才露出；先查该源的续跑进度记录，**有则接着

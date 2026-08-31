@@ -1,19 +1,17 @@
 import { svgIcon } from "../../ui/FormHtml";
-import { renderCardHead, renderThoughtArea } from "./CardParts";
-import type { CardHtmlModel } from "./CardParts";
-import { mdFragmentHtml, optionInline, renderMathIn } from "../service/ProtyleHost";
-import { renderSlotsCardHtml } from "./SlotHtml";
-import type { WenguQuestion } from "../../types";
 import type { WenguStep } from "../../types";
-import { AUTO_GRADE_TYPES, hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../../types";
-import type { WenguDoc } from "../../types";
+import { AUTO_GRADE_TYPES, LETTERS, optionDisplayMd, QuestionType } from "../../types";
+import type { WenguDoc, WenguQuestion } from "../../types";
+import { mdFragmentHtml, optionInline, renderMathIn } from "../service/ProtyleHost";
 import { esc, fmt, mmss } from "../../ui/shared";
 import { remountSideTree } from "../flow/SideTreeMount";
 
 /**
- * 纯 HTML 构建层（design-review 拆分）：题卡/作答位/目录/头部。
+ * 纯 HTML 构建层（design-review 拆分）：目录/头部/壳拼接。
  * 只做字符串拼接与谓词判断，不持有状态；QuizView 消费这些函数。
- * 共享部件（卡头/思路区）在 CardParts；slots 卡渲染在 SlotHtml。
+ * 题卡/多步/逐空卡的渲染已组件化（component/QuizCardApp，6-4a），
+ * 本文件保留：题型谓词、题号态、步骤作答区小件（StepsFlow 实时
+ * 模式仍在 DOM 轨追加，6-4b 随三写收敛一并入组件）、目录/头部/壳。
  */
 
 /** 该题是否用字母 chip 作答（单选/多选且转换出了选项子块）。 */
@@ -35,47 +33,6 @@ export function numState(q: WenguQuestion, showPast: boolean): string {
     return "";
 }
 
-/** 一张题卡：头部元信息 + Protyle 占位（题目内容）+ 作答位。 */
-export function renderCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
-    if (hasSteps(q)) return renderStepsCardHtml(q, idx, m);
-    if (hasSlots(q)) return renderSlotsCardHtml(q, idx, m);
-    const objective = isObjective(q);
-    const { t } = m;
-    return `<div class="wengu-card" data-qid="${esc(q.id)}" data-idx="${idx}">
-      ${renderCardHead(q, idx, m, objective, m.t)}
-      <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
-      ${renderAnswerArea(q, m.t)}
-      ${renderThoughtArea(m.t)}
-      <button class="wengu-btn" data-act="submit">${esc(t("submit"))}</button>
-      <div class="wengu-result" data-result hidden></div>
-      <div class="wengu-note" data-note hidden></div>
-      <div class="wengu-ai-comment" data-ai-comment hidden></div>
-      <div class="wengu-self" data-self hidden>
-        <span>${esc(t("selfAssess"))}</span>
-        <button class="wengu-btn wengu-btn-success" data-act="self-right">${svgIcon("iconCheck")} ${esc(
-            t("selfRight")
-        )}</button>
-        <button class="wengu-btn wengu-btn-error" data-act="self-wrong">${svgIcon("iconClose")} ${esc(
-            t("selfWrong")
-        )}</button>
-      </div>
-    </div>`;
-}
-
-/** 一张多步引导卡：头部 + Protyle 题干 + 逐步解锁作答区。
- *  步骤引导语/选项内容由 StepsFlow 用 Lute 填充——step-* 子块在
- *  Protyle 渲染里被 CSS 隐藏（防剧透），选项只在解锁后出现。 */
-export function renderStepsCardHtml(q: WenguQuestion, idx: number, m: CardHtmlModel): string {
-    return `<div class="wengu-card" data-qid="${esc(q.id)}" data-idx="${idx}">
-      ${renderCardHead(q, idx, m, false, m.t)}
-      <div class="wengu-qprotyle" data-qprotyle><span class="wengu-muted">…</span></div>
-      <div class="wengu-steps" data-steps>${renderStepsInnerHtml(q, m.t)}</div>
-      ${renderThoughtArea(m.t)}
-      <div class="wengu-result" data-result hidden></div>
-      <div class="wengu-note" data-note hidden></div>
-    </div>`;
-}
-
 /** 收集各题卡「思路」输入（qid→思路，空值跳过；收卷快照用）。 */
 export function collectCardThoughts(root: ParentNode): Record<string, string> {
     const out: Record<string, string> = {};
@@ -87,14 +44,15 @@ export function collectCardThoughts(root: ParentNode): Record<string, string> {
     return out;
 }
 
-/** 步骤作答区 HTML（实时模式回落离线时 StepsFlow 重建用）。
+/** 步骤作答区 HTML（StepsFlow 实时模式追加单步与离线回落重建用）。
  *  引导语/选项文本留空占位（data-step-stem / data-opt-text），由
- *  fillOneStep 填 Lute HTML 以渲染公式。 */
+ *  fillOneStep 填 Lute HTML 以渲染公式。组件化说明见 QuizCardApp
+ *  头注（静态步骤走组件渲染，此处只服务运行时 DOM 轨）。 */
 export function renderStepsInnerHtml(q: WenguQuestion, t: (k: string) => string): string {
     return (q.steps ?? []).map((s, k) => renderOneStepHtml(s, k, t)).join("");
 }
 
-/** 单步作答区 HTML（离线静态渲染与 AI 实时逐步追加共用）。 */
+/** 单步作答区 HTML（StepsFlow 实时模式逐步追加用）。 */
 export function renderOneStepHtml(step: WenguStep, k: number, t: (k2: string) => string): string {
     return `<div class="wengu-step" data-step="${k}"${k > 0 ? " hidden" : ""}>
         <div class="wengu-step-head">
@@ -131,33 +89,6 @@ export function fillOneStep(stepEl: HTMLElement, step: WenguStep): void {
         }
     }
     renderMathIn(stepEl);
-}
-
-/** 作答位：选择题字母 chip / 判断按钮 / 填空输入 / 简答·作文·翻译多行。 */
-export function renderAnswerArea(q: WenguQuestion, t: (k: string) => string): string {
-    if (isChoice(q)) {
-        const chips = (q.optionMd ?? [])
-            .map((_, i) => `<button class="wengu-chip" data-letter="${LETTERS[i] ?? ""}">${LETTERS[i] ?? ""}</button>`)
-            .join("");
-        return `<div class="wengu-chips">${chips}</div>`;
-    }
-    const ph = esc(t("inputPlaceholder"));
-    if (q.type === QuestionType.Judge) {
-        return `<div class="wengu-judge">
-        <button class="wengu-btn" data-judge="√">${esc(t("judgeYes"))}</button>
-        <button class="wengu-btn" data-judge="×">${esc(t("judgeNo"))}</button>
-      </div>`;
-    }
-    if (isBriefLike(q)) {
-        // 作文给更高的输入区 + 实时词数（E3；AnswerFlow 绑定 input 更新）
-        const area = `<textarea class="wengu-input" data-field="mine" rows="${
-            q.type === QuestionType.Essay ? 10 : 4
-        }" placeholder="${ph}"></textarea>`;
-        return q.type === QuestionType.Essay
-            ? `${area}<div class="wengu-wordcount" data-wordcount>0 words</div>`
-            : area;
-    }
-    return `<input class="wengu-input" data-field="mine" placeholder="${ph}" />`;
 }
 
 /** 目录渲染入参。 */
@@ -278,7 +209,9 @@ export function renderSideHtml(m: SideHtmlModel): string {
         <input class="b3-text-field wengu-side-search" data-act="side-search" type="search" spellcheck="false"
           placeholder="${esc(t("sideSearch"))}" value="${esc(m.filter)}">
         <div class="wengu-side-actions">
-          <button class="wengu-side-iconbtn" data-act="stats" title="${esc(t("statsTitle"))}">${svgIcon("iconInfo")}</button>
+          <button class="wengu-side-iconbtn" data-act="stats" title="${esc(t("statsTitle"))}">${svgIcon(
+              "iconInfo"
+          )}</button>
           <button class="wengu-side-iconbtn" data-act="collections" title="${esc(
               t("collectionsBtn")
           )}">${svgIcon("iconList")}</button>
@@ -438,34 +371,6 @@ export function renderMainShell(m: MainShellModel): string {
         m.previewing ? " wengu-previewing" : ""
     }">${m.cardsHtml}</div></div>
     <div data-report hidden></div>`);
-}
-
-/** 题卡列表 HTML（单卡渲染失败给占位卡，不拖垮整个列表）。 */
-export function renderCardsHtml(list: WenguQuestion[], m: CardHtmlModel): string {
-    return list
-        .map((q, i) => {
-            try {
-                return renderCardHtml(q, i, m);
-            } catch (e) {
-                return `<div class="wengu-card"><div class="wengu-status wengu-status-err">${esc(
-                    String((e as Error)?.message ?? e)
-                )}</div></div>`;
-            }
-        })
-        .join("");
-}
-
-/** 题号导航 HTML（设置关闭或无题时为空）。 */
-export function renderNumsHtml(
-    list: WenguQuestion[],
-    t: (k: string) => string,
-    showNums: boolean,
-    showPast: boolean
-): string {
-    if (!showNums || list.length === 0) return "";
-    return `<nav class="wengu-nums" data-nums title="${esc(t("qnumsTitle"))}">${list
-        .map((q, i) => `<button class="wengu-num${numState(q, showPast)}" data-num="${i + 1}">${i + 1}</button>`)
-        .join("")}</nav>`;
 }
 
 /** 目录搜索：只重绘清单块（输入框不重建、焦点不丢）。 */

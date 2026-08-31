@@ -92,14 +92,14 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 
 ## 路线图（练手优先序，每批真机验证后进下一批）
 
-| 批  | 目标                  | 规模    | 要点                                                                                                                  | 状态                     |
-| --- | --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                                                         | ✅ 2026-08-27            |
-| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                                                | ✅ 2026-08-30            |
-| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                                                     | ✅ 2026-08-30            |
-| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                                                | ✅ 2026-08-30            |
-| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                                                     | ✅ 2026-08-30            |
-| 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（~~Protyle 壳~~静态管线，9a53a63 退役）→ Steps/AnswerFlow（三写痛点终结） | 🔶 6-1~6-3 ✅ 2026-08-30 |
+| 批  | 目标                  | 规模    | 要点                                                                                                                  | 状态                                         |
+| --- | --------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1   | 地基 + CompanionPanel | 218 行  | 首个面板样板（mountApp/FormRow/svelte-check）                                                                         | ✅ 2026-08-27                                |
+| 2   | bank 工作区面板       | ~740 行 | 同 WorkspaceShell 挂载链，复用面板样板；两棵递归树组件                                                                | ✅ 2026-08-30                                |
+| 3   | review 域             | 550 行  | ~~先抽 quiz 借用的 rail/side/head~~（修订：留批次 6，见落地记录）                                                     | ✅ 2026-08-30                                |
+| 4   | stats 域              | 827 行  | echarts action 壳；顺手修 destroy 不清 statsPanel 泄漏                                                                | ✅ 2026-08-30                                |
+| 5   | convert 域（两弹窗）  | ~800 行 | Dialog 壳保留 `new Dialog` 只换内容；setBusy/lastBar 重放自然消失                                                     | ✅ 2026-08-30                                |
+| 6   | quiz 域（拆多批）     | 6807 行 | StartPanel → RoundReport → rail/Nums → 题卡（~~Protyle 壳~~静态管线，9a53a63 退役）→ Steps/AnswerFlow（三写痛点终结） | 🔶 6-1~6-3 ✅ 2026-08-30；6-4a ✅ 2026-08-31 |
 
 **不迁清单**：`ui/FormHtml.ts`（两轨公共地基）；ModelPicker/KnowPicker
 浮层（body 单例，保持字符串模板，Svelte 侧用 action 桥接）；
@@ -284,10 +284,40 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   KnowPicker 同款）；bindNumRail 保留全部实测调优行为（追赶滚动/
   滚动跟踪/吸顶封顶实测），activeBtn 差分手写退役。showPast 守卫
   （预览保密/统一揭示）从渲染入参挪进挂载入参，语义不变。
-- **待办（6-4+，按「每批真机验证后进下一批」纪律候验后动）**：题卡
-  渲染（CardHtml 486 行 + DrillUnits 分片管线）与 Steps/AnswerFlow/
-  Slot 三流程的渲染收敛（三写痛点：初始渲染/恢复/判分三处写卡 DOM
-  统一为卡内响应态）。长卷性能（分片插入+帧预算 yield+content-
-  visibility，20260830 真机调优）是硬约束——Svelte 化须保住分片
-  节奏（逐单元 mount 组件替代 insertAdjacentHTML）或先真机验证
-  6-1~6-3 再评估切法。
+- **待办（6-4b，按「每批真机验证后进下一批」纪律候验后动）**：三流程
+  渲染收敛——作答/恢复/判分三处写卡 DOM（AnswerFlow/StepsFlow/SlotFlow
+  与 restoreAnsweredCards/revealCard 等）统一为卡内响应态，卡组件
+  （QuizCardApp）从无状态渲染层升级为持 CardUi 状态 + 实例导出写入
+  （NumRail marks 同款），steps 实时模式的 DOM 追加轨（renderOneStepHtml/
+  fillOneStep 留守 CardHtml）一并并入。长卷性能（分片插入+帧预算
+  yield+content-visibility，20260830 真机调优）是硬约束——6-4a 已验证
+  组件挂载不破坏分片节奏，6-4b 须保持逐单元 mount 口径。
+
+## 批次 6-4a 落地记录（2026-08-31，题卡渲染层组件化）
+
+- **范围裁定**：本批只迁「渲染层」——三类题卡（普通/steps/slots）与
+  材料组壳的字符串模板退役为组件，**DOM 契约逐字一致**（类名/
+  data-*/hidden 初始态全部保留），Answer/Steps/Slot 三流程、
+  PreviewFlow 装饰、restoreAnsweredCards 恢复、MaterialFlow 组交互、
+  NumRail 滚动跟踪（DOM 扫描）、标注层/重新生成（委托）全部零改动。
+  作答态收敛（三写痛点）留 6-4b——一次性同时动渲染源与状态源在
+  做题主流程上回归面过大，先真机验证组件产物的 DOM 等价性。
+- 四件（件数减一，无状态渲染层没有 ui/ctl）：component/QuizCardApp
+  （三形态 {#if} 路由 + snippet 复用卡头/思路区/尾行）+ component/
+  GroupUnitApp（组壳+组内卡 hidden）+ render/CardMount（逐单元挂载
+  编排 + 模块级 apps 清单 + detachCardApps）。挂载：renderStaticChunked
+  的 `insertAdjacentHTML(renderOneUnitHtml)` 换 `mountDrillUnit`
+  （mount 追加容器尾=组件根顶替原字符串节点）；组件无自有状态、
+  props 挂载后不变，外部直改 DOM 不被覆写（state_referenced_locally
+  警告按 NumRail 先例 svelte-ignore 并注明快照语义）。
+- 卸载链：renderQuizShellFor 的 detach 块与 QuizView.destroy 补
+  detachCardApps（innerHTML 覆盖不触发 Svelte 卸载，暗雷 §7）；分片
+  管线 stale 检查在挂载前、挂载点间无 await 间隙，整壳重建不会漏卸。
+- 退役：renderCardHtml/renderStepsCardHtml（字符串版）/renderAnswerArea/
+  renderCardsHtml/renderUnitsHtml/renderOneUnitHtml/renderCardHead/
+  renderThoughtArea、SlotHtml.ts 整文件、DrillUnits 渲染半（只剩
+  buildDrillUnits 纯函数）。**留守**：renderOneStepHtml/
+  renderStepsInnerHtml/fillOneStep（StepsFlow 实时模式仍走 DOM 追加轨，
+  与组件静态步骤markup暂双轨——6-4b 随状态化合一）。
+- 单元渲染失败兜底：mountDrillUnit try/catch 回退占位卡字符串
+  （旧 tryCard 同策）。

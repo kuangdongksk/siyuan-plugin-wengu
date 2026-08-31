@@ -6,7 +6,8 @@ import { detachBankPanels } from "../../bank";
 import { bindCardEvents, restoreAnsweredCards } from "../flow/AnswerFlow";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
-import { buildDrillUnits, renderOneUnitHtml, type DrillUnit } from "./DrillUnits";
+import { buildDrillUnits, type DrillUnit } from "./DrillUnits";
+import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { bindGroupUnits, bindOneGroupUnit, focusQuestion, restoreGroupScrolls } from "../flow/MaterialFlow";
 import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
@@ -67,6 +68,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     detachRail(); // 工作区 rail 同款（Svelte 化 20260830）
     detachNumRail(); // 题号栏同款（Svelte 化 20260830）
     detachSideTree(); // 侧栏树同款（TreeList 化 20260830；回调一并作废）
+    detachCardApps(); // 题卡/组单元组件同款（6-4a 渲染层组件化）
     // 预览类打在持久根 el 上、不随 innerHTML 重建消亡——任何重渲染先摘，
     // 否则退出预览后残留的 pointer-events:none 会锁死做题选项（20260828
     // 审查；预览模式稍后由 decoratePreview 重新加回）
@@ -204,7 +206,7 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boole
                 if (stale()) return false;
                 deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
-            container.insertAdjacentHTML("beforeend", renderOneUnitHtml(u, m));
+            mountDrillUnit(container, u, m); // 组件根追加到容器尾（旧字符串插入同位）
             const el = container.lastElementChild as HTMLElement | null;
             if (el) {
                 // 作答绑定守卫与 bindQuizFor 同口径（预览/渐进不绑：预览

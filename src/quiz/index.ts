@@ -35,6 +35,7 @@ import {
 } from "./render/RoundReport";
 import { detachNumRail } from "./render/NumRail";
 import { detachRail } from "./render/RailMount";
+import { detachCardApps } from "./render/CardMount";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import { beginDrillFor, detachStartPanel, startPanelModelFor } from "./render/StartPanel";
@@ -221,6 +222,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         detachRoundReport();
         detachRail();
         detachNumRail();
+        detachCardApps(); // 题卡/组单元组件（6-4a 渲染层组件化）
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */
