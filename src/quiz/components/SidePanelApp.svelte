@@ -1,6 +1,7 @@
 <script lang="ts">
     import TreeList from "../../ui/TreeList.svelte";
     import type { TreeListNode } from "../../ui/TreeListTypes";
+    import { SvelteSet } from "svelte/reactivity";
     import { svgIcon } from "../../ui/FormHtml";
     import { buildSideTree, type SideTreeNode } from "../render/SideTree";
     import { fmt, mmss } from "../../ui/shared";
@@ -92,7 +93,9 @@
     let activeCol = $state(activeCollection);
     // svelte-ignore state_referenced_locally
     const treeRows = toRows(buildSideTree(docs));
-    const openKeys = $state(new Set<string>(sideTreeOpen));
+    // 展开集合必须 SvelteSet：$state 不深代理 Set，裸集合增删不重渲
+    // （20260831 三树折叠失灵根因），SvelteSet 自带信号无需再裹 $state
+    const openKeys = new SvelteSet<string>(sideTreeOpen);
     let query = $state(filter);
 
     /** 专题清单/选中轻量刷新（CollectionFlow.refreshSide 用；不重灌树与搜索）。 */

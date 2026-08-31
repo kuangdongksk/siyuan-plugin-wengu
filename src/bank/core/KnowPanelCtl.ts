@@ -18,6 +18,7 @@ import {
 } from "../ui/KnowledgePanel";
 import { openKnowPicker } from "../../ui/KnowPicker";
 import { KernelDoc } from "../../siyuan/doc";
+import { SvelteSet } from "svelte/reactivity";
 import type { KnowPanelUi } from "./KnowPanelUi";
 
 /**
@@ -79,7 +80,7 @@ export class KnowPanelCtl {
         this.ui.docs = hidden.size > 0 ? docs.filter((d) => !hidden.has(d.docId)) : docs;
         this.ui.info = info;
         // 分支默认全展开（知识树浅、文档即叶子）；小节容器不进集合=默认收起
-        this.ui.openPaths = new Set(collectBranchPaths(buildKnowTree(docs, info)));
+        this.ui.openPaths = new SvelteSet(collectBranchPaths(buildKnowTree(docs, info)));
         this.ui.phase = "ready";
         // 后台小节漂移检测（自托管三期）：比对内容哈希基线出 stale 徽标，
         // 基线自推进（一次性提示）；面板打开时新鲜，重开不重复报
@@ -90,12 +91,6 @@ export class KnowPanelCtl {
                 if (this.alive) this.ui.staleSecs = stale;
             });
         }
-    }
-
-    /** 折叠切换（分支 key=树路径；文档行的箭头 key=小节容器）。 */
-    toggle(path: string): void {
-        if (this.ui.openPaths.has(path)) this.ui.openPaths.delete(path);
-        else this.ui.openPaths.add(path);
     }
 
     /* ── 行内动作（匹配/转习题/关联/打开） ── */

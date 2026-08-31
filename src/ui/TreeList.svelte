@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import type { SvelteSet } from "svelte/reactivity";
     import { svgIcon } from "./FormHtml";
     import type { TreeListNode } from "./TreeListTypes";
     import Self from "./TreeList.svelte";
@@ -46,8 +47,11 @@
         depth = 0,
     }: {
         nodes: TreeListNode[];
-        /** 共享可变展开集合（宿主 $state 深代理，组件内增删即响应）。 */
-        openKeys: Set<string>;
+        /** 共享可变展开集合。必须 svelte/reactivity 的 SvelteSet（自带
+         *  信号，组件内 add/delete 即重渲）：$state 不深代理 Set——裸
+         *  Set 增删不触发任何更新，折叠全树失灵（20260831 踩坑），
+         *  故此处类型收紧为 SvelteSet 由 tsc 把关。 */
+        openKeys: SvelteSet<string>;
         /** 单选当前 id（行高亮）；多选/无选中不传。 */
         current?: string;
         /** 多选已选 id 集合（传了才渲染勾位）。 */

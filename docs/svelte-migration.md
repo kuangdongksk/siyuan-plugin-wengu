@@ -89,6 +89,13 @@ wengu-formrow` 类名串与 `.b3-label.wengu-formrow` 特异性补丁
 12. **`use:action` 的名字必须与 import 的标识符一致**：模板里
     `use:modelPick` 而 import 的是 `modelPickAction` 会报「Cannot
     find name」（svelte-check 可拦住，tsc 看不见 .svelte）。
+13. **`$state` 不深代理 Set/Map（类实例不代理）**：`$state(new Set())`
+    或 `$state` 对象里的 Set 成员，`add/delete` 后模板的 `.has()` 不
+    重算——20260831 三树（TreeList 折叠集合 openKeys/选择器勾选
+    selected）展开收起全失灵的根因。集合类响应成员一律用
+    `svelte/reactivity` 的 `SvelteSet/SvelteMap`（自带信号，跨组件
+    传递仍响应，无需再裹 `$state`）；共享组件把 prop 类型收紧为
+    `SvelteSet<T>` 可让 tsc 拦住裸 Set 溜进来（TreeList 先例）。
 
 ## 路线图（练手优先序，每批真机验证后进下一批）
 

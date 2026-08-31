@@ -1,6 +1,7 @@
 <script lang="ts">
     import TreeList from "./TreeList.svelte";
     import type { TreeListNode } from "./TreeListTypes";
+    import { SvelteSet } from "svelte/reactivity";
     import { buildPickerTree, type PickerDocLite, type PickerTreeNode } from "./PickerTree";
 
     /**
@@ -41,11 +42,13 @@
     // docs 冻结：建树与展开种子只算一次，无需 $derived
     // svelte-ignore state_referenced_locally
     const rows = toRows(buildPickerTree(docs));
-    const openKeys = $state(new Set<string>());
+    // 集合响应态必须 SvelteSet：$state 不深代理 Set，裸集合 add/delete
+    // 不触发重渲（20260831 三树折叠/勾选失灵根因），SvelteSet 自带信号
+    const openKeys = new SvelteSet<string>();
     for (const n of rows) if (n.children.length > 0) openKeys.add(n.key);
 
     // svelte-ignore state_referenced_locally
-    const selected = $state(new Set<string>(initialSelected));
+    const selected = new SvelteSet<string>(initialSelected);
 
     /** 勾选切换（组件内点行与宿主平铺行共用）。 */
     export function toggleSelected(id: string): void {
