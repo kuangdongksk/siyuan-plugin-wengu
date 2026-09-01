@@ -2,6 +2,7 @@ import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
 import { hideKnowDoc, knowHiddenOf, knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
@@ -172,7 +173,10 @@ export class KnowPanelCtl {
                         .then(() => bank.flush())
                         .then(async () => {
                             const lex = await lexiconOfRoots(ids);
-                            if (lex.size > 0) await linkBankByText(bank, lex, {});
+                            if (lex.size > 0) {
+                                const r = await linkBankByText(bank, lex, {});
+                                if (r.hit > 0) notifyInfo({ key: "notifyAutoLinkDone", vars: { n: String(r.hit) } });
+                            }
                             // 导入即基线：小节内容哈希起点（stale 检测的比对基准）
                             const kh = knowHash();
                             if (kh) {
@@ -185,7 +189,15 @@ export class KnowPanelCtl {
                                 }
                             }
                         })
-                        .then(() => this.load());
+                        .then(() => this.load())
+                        .catch((e: unknown): void => {
+                            // 整链原为 unhandled rejection（面板连重载都不发生）
+                            notifyError({
+                                key: "notifyAutoLinkFail",
+                                vars: { msg: String((e as Error)?.message ?? e) },
+                            });
+                            void this.load();
+                        });
                 },
             });
         })();
@@ -234,6 +246,7 @@ export class KnowPanelCtl {
                 await bank.flush();
                 if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
                 this.ui.outlining = undefined;
+                notifyInfo({ key: "notifyOutlineDone" }); // AI 长任务，用户可能已离开知识面板
                 await this.load();
             })
             .catch((e: unknown): void => {
@@ -242,6 +255,8 @@ export class KnowPanelCtl {
                 this.ui.outlineErr = ctrl.signal.aborted
                     ? undefined
                     : `${this.v.t("knowOutlineFail")}${String((e as Error)?.message ?? e)}`;
+                if (!ctrl.signal.aborted)
+                    notifyError({ key: "notifyOutlineFail", vars: { msg: String((e as Error)?.message ?? e) } });
             });
     }
 

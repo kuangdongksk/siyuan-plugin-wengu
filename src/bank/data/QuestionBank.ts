@@ -2,6 +2,7 @@ import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import { ensureMigratedFor, refreshDocFor } from "./BankMigrate";
 import { knKey, pickStandardName } from "./KnowledgeNorm";
+import { notifyError } from "../../ui/Notify";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -192,9 +193,11 @@ export class QuestionBank {
         this.dirty = false;
         try {
             await this.saveRaw(this.cache);
-        } catch (_) {
+        } catch (e) {
             // 尽力而为：写失败保留脏标记并重排防抖——原只保留标记不清
-            // 定时器，得等下一次 markDirty 才会再试（20260829 审查）
+            // 定时器，得等下一次 markDirty 才会再试（20260829 审查）；
+            // 不再静默：落盘失败走思源通知（Notify 同文案 60s 冷却）
+            notifyError({ key: "notifySaveFailBank", vars: { msg: String((e as Error)?.message ?? e) } });
             this.dirty = true;
             this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
         }

@@ -1,5 +1,6 @@
 import { Dialog } from "siyuan";
 import { agentChatOnce } from "../../ai/client";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildKnowledgeIndex,
@@ -59,7 +60,13 @@ export async function openTagDialog(deps: TagDeps): Promise<void> {
     const root = dialog.element;
     const status = root.querySelector<HTMLElement>("[data-act='tag-status']");
     const show = (text: string, kind: "ok" | "err" | "muted"): void => {
-        if (!status || !status.isConnected) return;
+        if (!status) return;
+        // 弹窗已销毁：终态改走思源通知（muted=运行中/中止态，不打扰）
+        if (!status.isConnected) {
+            if (kind === "err") notifyError(text);
+            else if (kind === "ok") notifyInfo(text);
+            return;
+        }
         status.textContent = text;
         status.className = `wengu-status wengu-status-${kind}`;
         status.removeAttribute("hidden");

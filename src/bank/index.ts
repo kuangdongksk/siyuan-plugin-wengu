@@ -8,6 +8,7 @@ import { refreshLiveCollections } from "./data/LiveCols";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
 import type { QuizView } from "../quiz";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
+import CollectionPanelApp from "./components/CollectionPanelApp.svelte";
 import KnowledgePanelApp from "./components/KnowledgePanelApp.svelte";
 
 /**
@@ -133,18 +134,26 @@ export function colSessionId(colId: string): string {
 }
 
 /* ── 工作区面板挂载（Svelte 化，companion 同款单例+detach 模式；
-   20260831 rail 合并（□4）：专题清单并入知识面板下半区，
-   CollectionPanelApp 退役为内嵌 ColListSection，独立挂载入口删除 ── */
+   20260901 拆分：专题管理与知识文档回两个独立工作区（20260831 □4
+   曾把专题清单并入知识面板下半区，用户改回分立） ── */
 
+let colPanelApp: MountedSvelteApp | undefined;
 let knowPanelApp: MountedSvelteApp | undefined;
+
+export function mountCollectionPanel(v: QuizView, root: HTMLElement): void {
+    detachBankPanels();
+    colPanelApp = mountSvelteApp(CollectionPanelApp, root, { v });
+}
 
 export function mountKnowledgePanel(v: QuizView, root: HTMLElement): void {
     detachBankPanels();
     knowPanelApp = mountSvelteApp(KnowledgePanelApp, root, { v });
 }
 
-/** 卸载知识工作区面板（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
+/** 卸载两个工作区面板（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
 export function detachBankPanels(): void {
+    colPanelApp?.unmount();
+    colPanelApp = undefined;
     knowPanelApp?.unmount();
     knowPanelApp = undefined;
 }

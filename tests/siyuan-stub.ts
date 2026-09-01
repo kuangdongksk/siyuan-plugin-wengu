@@ -30,3 +30,6 @@ export class Menu {
 /** 内嵌编辑器（测试不应触碰）。 */
 export const Protyle: unknown = undefined;
 export const ProtyleMethod: Record<string, unknown> = {};
+
+/** 思源通知浮层（宿主注入，见 src/ui/Notify.ts；测试环境静默放行）。 */
+export function showMessage(_text: string, _timeout?: number, _type?: "info" | "error"): void {}

@@ -229,12 +229,47 @@
   font-size: 12px;
 }
 
-/* 知识工作区下半区（□4 rail 合并）：专题清单区段与上半知识树分隔 */
-.wengu-know-cols {
-  margin-top: 20px;
+/* ── AI 会话面板（rail「AI 会话」工作区；登记簿见 ai/data/AiSessions） ── */
+
+/* 两栏式（20260901 改版）：左会话清单固定宽自滚 / 右明细+追问输入 */
+.wengu-ai-two {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
 }
 
-/* ── AI 会话面板（rail「AI 会话」工作区；登记簿见 ai/data/AiSessions） ── */
+.wengu-ai-side {
+  flex: none;
+  width: 320px;
+  min-width: 0;
+}
+
+.wengu-ai-side .wengu-ai-list {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* 当前展示中的会话行（右栏即它的明细） */
+.wengu-ai-row-active {
+  background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+  }
+}
+
+.wengu-ai-pane {
+  flex: 1;
+  min-width: 0;
+}
+
+.wengu-ai-empty {
+  padding: 32px 0;
+  text-align: center;
+}
+
 .wengu-ai-kinds {
   display: flex;
   flex-wrap: wrap;
@@ -261,13 +296,14 @@
     background: var(--b3-list-hover);
 
     .b3-list-item__action {
-      visibility: visible;
+      display: inline-flex;
     }
   }
 
+  /* 删除钮按思源原生 --hide-action 同款：隐藏不占位（visibility
+     保留布局会把 320px 行宽吃掉 ~45px，标题被截成两三字） */
   .b3-list-item__action {
-    visibility: hidden;
-    display: inline-flex;
+    display: none;
   }
 }
 
@@ -353,7 +389,9 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 46vh;
+  /* 两栏式右栏主体：贴满可用高（标题/过滤/头部约 300px），短窗兜底 */
+  max-height: calc(100vh - 300px);
+  min-height: 200px;
   overflow-y: auto;
   padding: 4px 0;
 }

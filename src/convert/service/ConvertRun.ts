@@ -3,6 +3,7 @@ import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "./Co
 import { getDocInfo, removeDoc, toConvertResult, writeExerciseDoc } from "./ConvertService";
 import { waitForDocInList } from "../../quiz/service/QuestionService";
 import { esc, fmt } from "../../ui/shared";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 
 /**
  * 转换执行器（从转换弹窗拆出的单例运行器）：弹窗只负责收集参数，
@@ -196,7 +197,9 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
             // 意外异常同样必须清 active，否则单例卡死（见文件头注释）
             active = undefined;
             ev.setConverting(false);
-            ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true); // 终态：状态条不再带终止钮/replay
+            const msg = String((e as Error)?.message ?? e);
+            ev.onStatus(esc(msg), "err", true); // 终态：状态条不再带终止钮/replay
+            notifyError({ key: "notifyConvertFail", vars: { msg } }); // 用户可能已切走页签
             notify();
             return;
         }
@@ -231,6 +234,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
         ev.setConverting(false);
         const partial = r.count > 0 ? `<br>${esc(t("convertPartialKept"))}` : "";
         ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
+        notifyError({ key: "notifyConvertFail", vars: { msg: r.message || t("convertNoQuestions") } });
         if (r.count > 0) {
             ev.saveProgress(
                 cfg.srcDocId,
@@ -370,5 +374,6 @@ async function finishRun(ev: ConvertRunEvents, r: BatchedResult): Promise<void> 
     ev.onStatus(esc(ev.t("settling")), "muted");
     await waitForDocInList(r.docId, 15000);
     const c = toConvertResult(r);
+    notifyInfo({ key: "notifyConvertDone", vars: { n: String(r.count) } }); // 长任务完成，用户可能已切走
     ev.onDone({ docId: c.docId ?? "", title: c.title ?? "", count: c.count, message: c.message });
 }

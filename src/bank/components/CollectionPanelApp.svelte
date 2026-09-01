@@ -8,10 +8,11 @@
     import ColTreeLevel from "./ColTreeLevel.svelte";
 
     /**
-     * 专题清单区段（20260831 rail 合并 □4：原「专题管理」工作区面板
-     * 整体降级为知识面板下半区的内嵌组件，操作逐项照搬——文件夹
-     * 组织/改名/两击删除/按知识点收集/点击开刷）。四件套结构保留
-     * （独立 ui/ctl/context），挂载由外层 KnowledgePanelApp 完成。
+     * 专题管理工作区面板根组件（四件套之一）：屏幕路由=phase 三态
+     * （nobank/loading/ready），树由 rows/folders 现算。旧实现刷新即
+     * innerHTML 全量重绘（折叠态重置）；现在折叠/编辑/确认态都在 ui，
+     * 刷新只重赋数据。挂载编排见 bank/index.ts mountCollectionPanel
+     * （20260901 拆回独立工作区：20260831 □4 曾并入知识面板下半区）。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -33,11 +34,11 @@
 </script>
 
 {#if ui.phase === "nobank"}
-    <div class="wengu-know-cols"><div class="wengu-muted">{t("colEmpty")}</div></div>
+    <div class="wengu-ws-page"><div class="wengu-muted">{t("colEmpty")}</div></div>
 {:else if ui.phase === "loading"}
-    <div class="wengu-know-cols"><div class="wengu-muted">{t("loading")}</div></div>
+    <div class="wengu-ws-page"><div class="wengu-muted">{t("loading")}</div></div>
 {:else}
-    <div class="wengu-know-cols">
+    <div class="wengu-ws-page">
         <div class="wengu-ws-title">
             {t("colPanelTitle")}
             <span class="wengu-ws-titlebtns">

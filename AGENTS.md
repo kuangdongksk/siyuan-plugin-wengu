@@ -33,7 +33,9 @@
       +串行链落盘、重载时 running 改判「已中断」；index.ts onload
       initAiSessions 接线）+ rail「AI 会话」工作区面板
       （components/SessionPanelApp.svelte 四件套，挂载编排
-      `SessionPanel.ts`）——判题/转换/检测/标签/路由/出题/单词复盘等
+      `SessionPanel.ts`；**两栏式**（20260901 改版）：左栏=会话清单
+      常驻（类别过滤/状态徽标/两击删除/选中高亮），点行右栏出完整
+      轮次明细+继续追问输入条）——判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排；**增量重转换**（20260831 增量哈希
@@ -80,8 +82,10 @@
       20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
       路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
       LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
-      分期见 docs/incremental-hash-plan.md）；知识工作区面板 KnowledgePanel 挂页签左栏 rail（20260831 □4
-      合并：专题清单=下半区 ColListSection 内嵌、rail 收敛四钮；小节
+      分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
+      CollectionPanel/KnowledgePanel 挂页签左栏 rail（20260901 拆分回
+      两个独立工作区、rail 五钮——20260831 □4 曾把专题清单并入知识
+      面板下半区，用户改回分立；小节
       节点行「开刷」=活视图专题 col-kp-{块id}，data/LiveCols 读取时
       实时刷新题单）；**数据自托管**
       （20260831 三线收口）：作答运行时统计（attempts/wrong-count/
@@ -105,7 +109,14 @@
       列表至少保留一个）、
       `src/ui/`
       （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具/Svelte 迁移
-      公共积木：`mountApp.ts` 挂载帮手 + `FormRow.svelte` 表单行）。
+      公共积木：`mountApp.ts` 挂载帮手 + `FormRow.svelte` 表单行 +
+      `Notify.ts` 思源通知帮手（20260901）：后台任务的静默失败/完成
+      走内核级 showMessage 浮层——`initNotify(i18n)` 由 index.ts onload
+      注入、深层模块用 `{key,vars}` 取词，错误同文案 60s 冷却防重试
+      风暴；已接 AiSessions/QuestionBank 落盘失败、导入即关联、
+      建知识树、转换/增量终态、四弹窗被销毁后的 ok/err、启动迁移
+      链 catch；**页面已可见的反馈不重复通知**（判题/词书导入/学伴
+      AI 等），新增后台流照此口径接）。
     - **各域 `index.ts` 必须是该域的入口编排代码，禁止纯 re-export barrel**；
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：
@@ -291,7 +302,9 @@ message, language, references, model?}`；`userEntryID` 是
   全量查询必须显式 `LIMIT n OFFSET k` 分页（见 KnowledgeLink.sqlAll）。
 - Lute：**只能用全局 `window.Lute`**——插件加载器给 `"siyuan"` 模块
   注入的固定对象里没有 Lute（3.8.1 加载器实测：window.eval 包合成
-  require，模块表只有 fetch*/Protyle/ProtyleMethod/Dialog 等），
+  require，模块表只有 fetch*/Protyle/ProtyleMethod/Dialog 等；
+  **showMessage/hideMessage 在表内**（3.8.2 common.js 实测），
+  `import { showMessage } from "siyuan"` 可用——ui/Notify.ts 即此路），
   `import { Lute } from "siyuan"` 得 undefined，`New()` 抛异常被
   safeLute 吞掉→整体退 `<pre>` 纯文本，公式显成裸 `$...$`
   （20260825 踩坑，ProtyleHost.luteToHtml）。自建实例还必须

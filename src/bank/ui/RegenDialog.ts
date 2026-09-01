@@ -1,5 +1,6 @@
 import { Dialog } from "siyuan";
 import { agentChatOnce } from "../../ai/client";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBlockId, extractBatchQuestions } from "../../convert/service/ConvertService";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
@@ -96,6 +97,12 @@ export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
     const noteInput = root.querySelector<HTMLInputElement>("[data-act='regen-note']");
     const show = (text: string, kind: "ok" | "err" | "muted") => {
         if (!status) return;
+        // 弹窗已销毁（X/取消不中止在途 AI）：终态改走思源通知
+        if (!status.isConnected) {
+            if (kind === "err") notifyError(text);
+            else if (kind === "ok") notifyInfo(text);
+            return;
+        }
         status.textContent = text;
         status.className = `wengu-status wengu-status-${kind}`;
         status.removeAttribute("hidden");

@@ -5,9 +5,9 @@ import type { SessionPanelUi } from "./SessionPanelUi";
 
 /**
  * AI 会话面板控制器（四件套之一）：装载（订阅登记簿变更 → 快照进
- * ui.recs）、列表/明细切换、继续追问（agentChatContinued 历史回放播种
- * 新会话，成功后轮次登记回原记录）、删除/清空两击确认（3s 复位，同
- * bank 面板口径）。卸载退订 + 清定时器。
+ * ui.recs）、两栏选择（selId 驱动右栏明细）、继续追问
+ * （agentChatContinued 历史回放播种新会话，成功后轮次登记回原记录）、
+ * 删除/清空两击确认（3s 复位，同 bank 面板口径）。卸载退订 + 清定时器。
  */
 export class SessionPanelCtl {
     private alive = true;

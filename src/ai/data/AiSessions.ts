@@ -14,6 +14,8 @@
  * error({@link AI_INTERRUPTED})，面板显示「已中断」。
  */
 
+import { notifyError } from "../../ui/Notify";
+
 /** 会话轮次：user=发给 AI 的完整 prompt，ai=AI 回答全文（即「产出」）。 */
 export interface AiTurn {
     role: "user" | "ai";
@@ -274,7 +276,11 @@ export class AiSessionStore {
         const snap: AiSessionsData = { version: 1, items: this.items.map(cloneRecord) };
         const run = this.chain.then(() => this.saveRaw(snap));
         const noop = (): void => undefined;
-        this.chain = run.then(noop, noop); // 链面吞错保后续可排（落盘失败静默，内存为准）
+        // 链面吞错保后续可排（内存为准），但不再静默：落盘失败走思源
+        // 通知（Notify 错误冷却防重试风暴）
+        this.chain = run.then(noop, (e: unknown): void => {
+            notifyError({ key: "notifySaveFailAi", vars: { msg: String((e as Error)?.message ?? e) } });
+        });
     }
 }
 

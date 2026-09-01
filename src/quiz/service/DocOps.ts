@@ -10,6 +10,7 @@ import { convertIncremental, readSrcGroups, sourceChunksOf } from "../../convert
 import { keepOldChoice, openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { refreshDocFor } from "../../bank/data/BankMigrate";
 import { esc, fmt } from "../../ui/shared";
+import { notifyInfo } from "../../ui/Notify";
 import type { QuizView } from "../index";
 
 /**
@@ -307,6 +308,10 @@ async function runIncrementalReimport(
                 res!.aborted ? "muted" : "ok",
                 true
             );
+            if (!res!.aborted)
+                notifyInfo(
+                    fmt(t("incrDone"), { a: String(res!.added), d: String(res!.deleted), s: String(res!.staled) })
+                );
             await v.reloadView();
         });
         if (!started) showStatus(v.el, t("convertBusy"), "err");

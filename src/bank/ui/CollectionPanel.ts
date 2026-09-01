@@ -1,7 +1,7 @@
 /**
  * 专题面板的视图模型层（Svelte 化前的渲染/绑定已删，20260830）：
- * 类型 + 树化/统计纯函数 + 行样式辅助，供 comp/ColListSection 与
- * core/ColPanelCtl 消费，单测覆盖 buildColTree/summarizeSessions。
+ * 类型 + 树化/统计纯函数 + 行样式辅助，供 components/CollectionPanelApp
+ * 与 core/ColPanelCtl 消费，单测覆盖 buildColTree/summarizeSessions。
  * 面板语义：官方文档树同款树形（目录=标题含「/」派生 + 手动新建的
  * 空文件夹合并展示），行操作=点击进刷题、行内改名、两击确认删除；
  * 文件夹另有新建子文件夹/改名/删除（删=清严格前缀下全部专题并联动

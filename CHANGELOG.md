@@ -2,6 +2,49 @@
 
 ## v0.1.1 unreleased
 
+- UI 走查三修（20260901 发布前走查 0.0.1/0.1.1）：①单词面板头部
+  挤压——窄 dock（350px）下主标题「温故单词」折行、书名副位与
+  统计行文字直接重叠：标题/统计 nowrap+flex:none，切书钮改弹性
+  中段（flex:1+display:flex）先收书名省略号；②AI 会话左栏行标题
+  被截成两三字——删除钮 visibility:hidden 仍占位 ~45px，改思源
+  原生 b3-list-item--hide-action 同款 display:none（hover 才显）、
+  左栏 300→320px，「建知识树 · 4-常微分方程」完整可见；③题卡解析
+  行中 `$$…$$` 原样漏出——kramdown 读回把段中块公式写成双美元
+  （如「且> $$f(x)…$$」，SQL content 字段显示单 $ 是假象），
+  MdRender 行内规则只认行首块规则/单美元行内，两边都不接；改为
+  mathInline 兼容行中 `$$…$$` 按行内公式收（行首仍归块规则、
+  未闭合保持字面），补 2 例单测。改前：tsc/svelte-check/eslint/
+  vitest 359 例全绿；改后真机回验三处（解析公式渲染、AI 行标题
+  完整、词头单行无重叠 gap+8px）。
+- 思源通知接入（20260901 静默失败/完成收口）：新增 `ui/Notify.ts`
+  统一帮手——`import { showMessage } from "siyuan"`（loader 模块表
+  实测含此项，3.8.2）、index.ts onload `initNotify(i18n)` 注入取词、
+  深层模块用 `{key,vars}`、错误同文案 60s 冷却去重（题库落盘失败
+  每 5s 防抖重试不冷却会刷屏）；vitest 桩补 showMessage 放行。九处
+  接线：AiSessions 落盘失败与 QuestionBank flush 失败（原注释自认
+  静默、数据丢失无感）、导入即关联（原整链 unhandled rejection——
+  补 catch+面板兜底重载；完成时命中>0 通知 N 题）、建知识树完成/
+  失败（AI 长任务，用户可能已离开知识面板）、转换意外异常与中途
+  失败/finishRun 完成、增量重导入完成（复用 incrDone 文案）、匹配/
+  批量关联/生成标签/重生成四弹窗在弹窗已销毁后的 ok/err 终态改走
+  通知（muted 运行态不打扰；RegenDialog 原本写进脱离文档的 DOM）、
+  启动迁移链补 catch（原 unhandled rejection）。页面已可见的反馈
+  （判题失败/词书导入/学伴 AI）不重复通知；补 2 例 Notify 单测、
+  i18n 九键（notify* 前缀）。
+
+- 管理面板两处布局改版（20260901 用户反馈）：①专题管理与知识文档
+  拆回两个独立工作区——撤销 20260831 □4 rail 合并，ColListSection
+  改名回 CollectionPanelApp 独立挂载（bank/index.ts 恢复
+  mountCollectionPanel），rail 回五钮（刷题/专题/知识/AI 会话/学伴），
+  WenguWorkspace 枚举 collection 复活、知识面板下半区内嵌移除、
+  .wengu-know-cols 样式删除、railCollection i18n 键补回；
+  ②AI 会话面板改两栏式——左栏会话清单常驻（300px 固定宽自滚，
+  类别过滤置顶整行，选中行高亮，两击删除照旧），点行右栏出完整
+  轮次明细+继续追问输入条（原「返回」按钮与主从切换视图退役，
+  aiBack 键删除、右栏空态提示 aiPickHint 新增），明细日志高度改
+  calc(100vh-300px) 贴满可用高。顺手补 en 缺失的 wordImportDone 键；
+  RailMount 规整单测更新（五值透传）。
+
 - 知识树方案收口（20260831，docs/knowledge-tree.md 四块全落地）：□1
   AI 建知识树——结构单薄章节（小节 <6 或顶层 <3）行「建知识树」，AI
   归纳 h1~h3 大纲（知识大类/方法解法/细分，24000 字预算超限按标题段

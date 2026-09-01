@@ -3,25 +3,22 @@ import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
 import RailApp from "../components/RailApp.svelte";
 
 /**
- * 左侧工作区导航栏（三栏格局的第一栏）：刷题/知识/AI 会话/学伴四个
- * 图标钮（20260831 □4 rail 合并：专题管理并入知识工作区，枚举收敛）。
- * Svelte 化（20260830）：渲染在 components/RailApp.svelte，本文件是
- * 挂载编排——四处壳拼接（做题主壳/错误兜底/工作区分支/复习分支）都在
- * innerHTML 最前放 RAIL_ANCHOR_HTML 锚，mountRailFor 以 anchor 法把
- * 组件根插到 v.el 直下后删锚（rail 的 flex:none 三栏布局依赖直接子元素，
- * 不能包宿主 div，CSS 零改动）。rail 随壳重绘，每次渲染重挂。
+ * 左侧工作区导航栏（三栏格局的第一栏）：刷题/专题/知识/AI 会话/学伴
+ * 五个图标钮（20260901 拆分：专题管理与知识文档回两个独立工作区，
+ * 20260831 □4 曾收敛四钮）。Svelte 化（20260830）：渲染在
+ * components/RailApp.svelte，本文件是挂载编排——四处壳拼接（做题主壳/
+ * 错误兜底/工作区分支/复习分支）都在 innerHTML 最前放 RAIL_ANCHOR_HTML
+ * 锚，mountRailFor 以 anchor 法把组件根插到 v.el 直下后删锚（rail 的
+ * flex:none 三栏布局依赖直接子元素，不能包宿主 div，CSS 零改动）。rail
+ * 随壳重绘，每次渲染重挂。
  */
 
 /** 工作区（rail 顶层的视图维度；mode 是刷题工作区内部的渲染模式）。 */
-export type WenguWorkspace = "drill" | "knowledge" | "ai" | "companion";
+export type WenguWorkspace = "drill" | "collection" | "knowledge" | "ai" | "companion";
 
-/** prefs 读入规整（未知值回落刷题；旧「专题管理」值落知识——清单已并入）。 */
+/** prefs 读入规整（未知值回落刷题）。 */
 export function normalizeWorkspace(raw?: string): WenguWorkspace {
-    return raw === "knowledge" || raw === "collection"
-        ? "knowledge"
-        : raw === "ai" || raw === "companion"
-          ? raw
-          : "drill";
+    return raw === "collection" || raw === "knowledge" || raw === "ai" || raw === "companion" ? raw : "drill";
 }
 
 /** rail 挂载锚（壳 innerHTML 拼接用；mountRailFor 随后删锚）。 */

@@ -14,6 +14,7 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { refreshDocFor } from "../bank/data/BankMigrate";
+import { notifyError } from "../ui/Notify";
 import { overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "../bank/data/BankRecording";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
@@ -433,11 +434,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.loading = false;
         await this.colFlow.refresh();
         this.renderList();
-        // 后台链：知识引用对账 → 存量/新文档迁移入库 → 补侧栏专题清单
+        // 后台链：知识引用对账 → 习题文档首扫入库 → 补侧栏专题清单
         if (this.bank) {
             void (this.weakness ? reconcileKnowledgeRefs(this.bank, this.weakness) : Promise.resolve(0))
                 .then((): Promise<void> => this.bank!.ensureMigrated(this.docs))
-                .then((): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide()));
+                .then((): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide()))
+                .catch((e: unknown): void => {
+                    // 原为 unhandled rejection：启动迁移/回灌失败无人知
+                    notifyError({ key: "notifyMigrateFail", vars: { msg: String((e as Error)?.message ?? e) } });
+                });
         }
         if (this.reopenStatsTab) {
             const tab = this.reopenStatsTab;
