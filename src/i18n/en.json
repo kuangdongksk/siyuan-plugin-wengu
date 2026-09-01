@@ -581,6 +581,7 @@
   "aiPickHint": "Pick a session on the left to view its transcript",
   "notifySaveFailAi": "Failed to save AI session log: {msg}",
   "notifySaveFailBank": "Failed to save question bank (auto-retry scheduled): {msg}",
+  "notifyStoreForeign": "\"{store}\" was written by a newer version of Wengu and is now write-protected: changes this session won't be saved. Upgrade the plugin first to avoid losing data",
   "notifyAutoLinkDone": "Knowledge docs imported; {n} questions linked by text",
   "notifyAutoLinkFail": "Auto-link after import failed: {msg}",
   "notifyOutlineDone": "Knowledge tree generated and registered",

@@ -209,7 +209,13 @@ export function buildKnowTree(
             siblings = node.children;
             if (i === segs.length - 1) {
                 if (node.doc) {
-                    siblings.push({ path: `${path}#${d.docId}`, name: d.title || seg, doc: d, children: [], subTotal: 0 });
+                    siblings.push({
+                        path: `${path}#${d.docId}`,
+                        name: d.title || seg,
+                        doc: d,
+                        children: [],
+                        subTotal: 0,
+                    });
                 } else {
                     node.doc = d;
                 }

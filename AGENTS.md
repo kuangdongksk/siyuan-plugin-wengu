@@ -146,6 +146,44 @@
   所有 formRow 都需要这条复合规则。
 - 改行为必须同步 `docs/question-block-contract.md`。
 
+## 数据演进守则（20260901 存储前瞻审查定稿）
+
+存量用户数据兼容是最高约束——插件目录与 data/storage 随思源同步在两台
+机器间流转，任何格式变更都同时面对「升级」与「版本错位」两个方向。全部
+持久化存储（saveData 十店 + 词书工作区文件 `data/wengu/` + 题目块 IAL）
+一律遵守：
+
+- **字段只加不改名不删**：新字段一律 optional + 装载 backfill
+  （QuestionBank/WordStore.backfill 同款）；`version` 字段只作标记，
+  **不参与装载判据、加字段不 bump**——装载只认业务字段存在性，
+  改名等于静默清库（读成空起步、下次落盘覆写）。
+- **版本闩**（words/bank/history/weakness 四店 20260901 已装）：
+  装载遇 `version` **大于**本版已知 → 内存按空起步 + **拒绝一切
+  落盘**（save/markDirty/flush 全闸）+ notifyStoreForeign 浮层告知
+  升级——堵死「未来 bump 版本」与「机器 B 新版写盘、机器 A 旧版
+  读到即覆写」两类清库通道。新持久化存储上线即配同款闩。
+- **冻结清单**（输出已嵌进落盘数据/用户文档，改了就孤儿化存量或
+  全量假漂移；确需演进一律新旧并存双写双查，禁原地替换）：
+    - `BankParse.questionHash` 及其归一化（剥 id/updated、剥运行时
+      属性、空白折叠）——指纹已渗透 bank.hashed/record.hash/
+      DriftWatch 基线/know-hash/route-cache indexGen 与**文档题块
+      IAL src-hash**（用户文档里，最难迁）；
+    - `WordBook.wordKey` 归一化（words.json 九个 Record 与音标表、
+      易混组、confKey 的共同 key）；
+    - `attrs.ts` 属性名（`custom-plugin-wengu-*`）与题块 kramdown
+      结构（容器超级块 + part 子块）——改名=重写用户全部习题文档；
+    - `SrcChunk.structuralChunks` 的 srcKey 键格式（`H:链/P0/#k/~n`）
+      与切块确定性；
+    - `KnowledgeNorm.knKey`（聚合键裂开=薄弱画像/知识点索引分裂，
+      有 remapKey 对账兜底但别依赖它）。
+- **往题块写任何新的非内容属性，必须同步加进 BankParse 的
+  RUNTIME_ATTR_HASH_RE 剥除名单**——否则作答即变指纹，DriftWatch
+  与增量重转换全量误报「变更」（当前已停写块属性，此条防复发）。
+- **规模预警**：bank.json / history.json 单文件整写、无上限增长
+  （words 的 reviews 流水同理，设计如此）；到万级题/数 MB 拆分时走
+  「**新存储键 + 读时 fallback 老键**」（如 bank2→bank），老文件
+  原样只读保留，禁原地改格式。
+
 ## 通用调试流程（两台机器一致）
 
 1. `pnpm exec tsc --noEmit && pnpm run check:svelte && pnpm exec eslint src --ext .ts && pnpm exec prettier --write . && pnpm test && pnpm run build`

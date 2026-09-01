@@ -1,5 +1,6 @@
 import type { WenguWordUnitMeta } from "../service/WordBook";
 import { wordLib } from "../service/WordLib";
+import { notifyError } from "../../ui/Notify";
 
 /**
  * 单词复习的进度存储（schema v3，20260828 redesign §五）：**进度 key 从
@@ -415,6 +416,10 @@ export function unitOf(index: number): WenguWordUnitMeta | undefined {
 /** 进度存取：整文件读写 + 内存缓存（同 HistoryStore 模式）。 */
 export class WordStore {
     private cache?: WenguWordProgress;
+    /** 版本闩（数据演进守则，见 AGENTS.md）：盘上 version 大于本版已知
+     *  （3）= 更新版插件写的进度——本版不识别其形态，内存按空起步但
+     *  拒绝一切落盘，防两机插件版本错位时旧版覆写清库。 */
+    private foreign?: boolean;
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -429,7 +434,18 @@ export class WordStore {
         // loadRaw「文件不存在」约定返回空串/undefined，走 warn 分支不受影响）
         const data = (await this.loadRaw()) as unknown;
         const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
-        // 仅认 v3（词头 key）；非 v3 按空进度起步
+        if (typeof ver === "number" && ver > 3) {
+            // 版本闩：数据来自更新版插件，停写保护（升级后自然解除）
+            this.foreign = true;
+            notifyError({ key: "notifyStoreForeign", vars: { store: "words.json" } });
+            this.cache = defaultProgress();
+            this.backfill(this.cache);
+            const k = todayKey();
+            if (this.cache.today.key !== k) this.cache.today = { key: k, newCount: 0, revCount: 0 };
+            return this.cache;
+        }
+        // 仅认 v3（词头 key）；v3 之前的存量（v2 下标 key）按空起步——
+        // 一次性切割已随存量确认（459f071 删迁移），不走版本闩
         this.cache = ver === 3 ? (data as WenguWordProgress) : defaultProgress();
         this.backfill(this.cache);
         const key = todayKey();
@@ -450,6 +466,7 @@ export class WordStore {
         if (!p.confNotes) p.confNotes = {};
         if (!p.notes) p.notes = {};
         if (!p.words) p.words = {};
+        if (!p.today) p.today = { key: todayKey(), newCount: 0, revCount: 0 }; // 手工截断的 v3 档兜底
     }
 
     /** 串行落盘链（同 ChatStore 模式）：调用方全是 void save()（不 await），
@@ -458,6 +475,7 @@ export class WordStore {
     private saveChain: Promise<unknown> = Promise.resolve();
 
     async save(p: WenguWordProgress): Promise<void> {
+        if (this.foreign) return; // 版本闩：停写保护
         const run = this.saveChain.then(() => this.saveRaw(p));
         const noop = (): void => undefined;
         this.saveChain = run.then(noop, noop);

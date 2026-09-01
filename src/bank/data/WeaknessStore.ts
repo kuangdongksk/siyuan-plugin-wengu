@@ -3,6 +3,7 @@ import { knKey, pickStandardName } from "./KnowledgeNorm";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import { baseQid } from "../../types";
 import type { WenguQuestion } from "../../types";
+import { notifyError } from "../../ui/Notify";
 
 /**
  * 薄弱画像存储（插件数据 weakness 文件）：跨轮次按知识点聚合错/做题
@@ -104,6 +105,10 @@ function markApplied(ids: string[], id: string, count: number): void {
 
 export class WeaknessStore {
     private cache?: WeaknessData;
+    /** 版本闩（数据演进守则，见 AGENTS.md）：盘上 version 大于本版已知
+     *  （1）= 更新版插件写的画像——本版不识别其形态，内存按空起步但
+     *  拒绝落盘，防两机插件版本错位时旧版覆写清库。 */
+    private foreign?: boolean;
     private snapshot: WeakTopRow[] = [];
 
     constructor(
@@ -118,6 +123,14 @@ export class WeaknessStore {
         // （HistoryStore 同坑 20260828 已修，20260829 三轮审查补齐本店；
         // loadRaw「文件不存在」约定返回空串/undefined，进 then 归空不受影响）
         const data = (await this.loadRaw()) as WeaknessData | "" | null | undefined;
+        const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
+        if (typeof ver === "number" && ver > 1) {
+            // 版本闩：数据来自更新版插件，停写保护（升级后自然解除）
+            this.foreign = true;
+            notifyError({ key: "notifyStoreForeign", vars: { store: "weakness.json" } });
+            this.cache = { version: 1, points: {}, applied: [], causeApplied: [] };
+            return this.cache;
+        }
         this.cache =
             data && typeof data === "object" && data.points
                 ? data
@@ -236,6 +249,7 @@ export class WeaknessStore {
     }
 
     private async save(data: WeaknessData): Promise<void> {
+        if (this.foreign) return; // 版本闩：停写保护
         try {
             await this.saveRaw(data);
         } catch (_) {

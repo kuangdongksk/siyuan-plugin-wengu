@@ -174,7 +174,8 @@
                                     >
                                 </span>
                             {:else if d}
-                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub ?? d.total) })}</span>
+                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub ?? d.total) })}</span
+                                >
                                 <span class="b3-list-item__action">
                                     {#if outlineable(d)}
                                         <button

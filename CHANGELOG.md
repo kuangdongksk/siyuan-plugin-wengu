@@ -2,6 +2,19 @@
 
 ## v0.1.1 unreleased
 
+- 数据演进守则 + 版本闩（20260901 存储前瞻审查收口，不改任何存量
+  数据）：审查全仓 10 个 saveData 存储、词书工作区文件与题目块 IAL
+  契约后立规进 AGENTS.md——字段只加不改名、version 不参与装载
+  判据不 bump、questionHash/wordKey/IAL 属性名/切块键/knKey 冻结
+  清单（确需演进新旧并存双写双查）、新写题块非内容属性必须同步
+  RUNTIME_ATTR_HASH_RE 剥除名单、bank/history 规模预警与
+  「新存储键+fallback」拆分预案（条款同步进题目块契约文档）。
+  落地防御：words/bank/history/weakness 四个用户资产存储装
+  **版本闩**——装载遇 version 大于本版已知（数据来自更新版插件，
+  两机同步版本错位场景）时内存按空起步但拒绝一切落盘并浮层告知
+  升级（notifyStoreForeign），堵死「旧版读到新版数据→归空起步→
+  下次落盘覆写清库」通道；此前 words 的 ver===3 硬门是未来 bump
+  版本即清库的模板暗雷。补 9 例单测。
 - 裸插图标修复（20260901 用户截图报障「相关题」弹窗大放大镜）：
   svgIcon 输出无 width/height，必须落在有 svg 尺寸规则的容器——
   RelatedDialog 把 iconSearch 裸插在 .wengu-muted 提示行，SVG 按

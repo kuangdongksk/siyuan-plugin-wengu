@@ -1,4 +1,5 @@
 import type { WenguRevealMode, WenguStepsMode, WenguTimingMode } from "../../types";
+import { notifyError } from "../../ui/Notify";
 
 /** 一轮的刷题范围：全部 / 上轮错题 / 历史未掌握错题（复习模式 D5）。 */
 export type WenguRoundScope = "all" | "wrong" | "wrongAll";
@@ -67,6 +68,10 @@ export interface WenguHistory {
 export class HistoryStore {
     private cache?: WenguHistory;
     private loading?: Promise<WenguHistory>;
+    /** 版本闩（数据演进守则，见 AGENTS.md）：盘上 version 大于本版已知
+     *  （1）= 更新版插件写的历史——本版不识别其形态，内存按空起步但
+     *  拒绝落盘，防两机插件版本错位时旧版覆写清库。 */
+    private foreign?: boolean;
     /** 串行落盘链（同 WordStore/ChatStore 模式）：逐题 void upsert 全是
      *  fire-and-forget，快速连答并发 saveData 撞「内核 fetchSyncPost 并发
      *  互吞响应」——一轮最后一次落库被吞则封卷数据（endedAt/最终计数）
@@ -84,6 +89,15 @@ export class HistoryStore {
         if (!this.loading) {
             this.loading = this.loadRaw()
                 .then((data) => {
+                    // 版本闩（数据演进守则）：version 大于本版已知 = 更新版
+                    // 插件写的历史，停写保护（升级后自然解除）
+                    const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
+                    if (typeof ver === "number" && ver > 1) {
+                        this.foreign = true;
+                        notifyError({ key: "notifyStoreForeign", vars: { store: "history.json" } });
+                        this.cache = { version: 1, sessions: [] };
+                        return this.cache;
+                    }
                     // 只把「读到的东西不是合法历史」当空库；**读异常上抛不落
                     // 缓存**——原 catch 一切失败归空库，随后 upsert 把
                     // 「空库+单轮」写回 history.json，全部历史永久丢失
@@ -111,6 +125,7 @@ export class HistoryStore {
 
     /** 挂到串行链落盘（写失败吞错：内存态仍在，下次写入自愈）。 */
     private enqueueSave(h: WenguHistory): Promise<void> {
+        if (this.foreign) return Promise.resolve(); // 版本闩：停写保护
         const run = this.saveChain.then(() => this.saveRaw(h));
         const noop = (): void => undefined;
         this.saveChain = run.then(noop, noop);

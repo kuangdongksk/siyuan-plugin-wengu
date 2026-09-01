@@ -126,6 +126,10 @@ const SAVE_DEBOUNCE_MS = 2000;
 export class QuestionBank {
     private cache?: BankData;
     private dirty = false;
+    /** 版本闩（数据演进守则，见 AGENTS.md）：盘上 version 大于本版已知
+     *  （1）= 更新版插件写的题库——本版不识别其形态，内存按空起步但
+     *  拒绝一切落盘，防两机插件版本错位时旧版覆写清库。 */
+    private foreign?: boolean;
     private flushTimer?: number;
     /** 供 BankMigrate 友元使用（迁移互斥闸）。 */
     migrating?: Promise<void>;
@@ -145,6 +149,24 @@ export class QuestionBank {
         // 20260829 三轮审查补齐本店与 WeaknessStore；loadRaw「文件不
         // 存在」约定返回空串/undefined，进下方三元归空不受影响）
         const data = (await this.loadRaw()) as BankData | "" | null | undefined;
+        const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
+        if (typeof ver === "number" && ver > 1) {
+            // 版本闩：数据来自更新版插件，停写保护（升级后自然解除）
+            this.foreign = true;
+            notifyError({ key: "notifyStoreForeign", vars: { store: "bank.json" } });
+            this.cache = {
+                version: 1,
+                records: {},
+                collections: [],
+                migratedDocs: [],
+                hashed: {},
+                knowRoots: [],
+                folders: [],
+                knowHidden: [],
+                docStats: {},
+            };
+            return this.cache;
+        }
         this.cache =
             data && typeof data === "object" && data.records
                 ? data
@@ -178,6 +200,7 @@ export class QuestionBank {
 
     /** 供 BankMigrate 友元使用（入库与迁移编排）。 */
     markDirty(): void {
+        if (this.foreign) return; // 版本闩：停写保护
         this.dirty = true;
         if (this.flushTimer) window.clearTimeout(this.flushTimer);
         this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
@@ -189,7 +212,7 @@ export class QuestionBank {
             window.clearTimeout(this.flushTimer);
             this.flushTimer = undefined;
         }
-        if (!this.dirty || !this.cache) return;
+        if (!this.dirty || !this.cache || this.foreign) return;
         this.dirty = false;
         try {
             await this.saveRaw(this.cache);

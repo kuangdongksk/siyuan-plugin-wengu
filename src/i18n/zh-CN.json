@@ -581,6 +581,7 @@
   "aiPickHint": "点击左侧会话查看完整对话",
   "notifySaveFailAi": "AI 会话记录落盘失败：{msg}",
   "notifySaveFailBank": "题库落盘失败（稍后自动重试）：{msg}",
+  "notifyStoreForeign": "「{store}」来自更新版本的温故，已停写保护：本次改动不会保存，请先升级插件以免覆写丢失数据",
   "notifyAutoLinkDone": "知识文档导入完成，文本关联命中 {n} 题",
   "notifyAutoLinkFail": "导入后自动关联失败：{msg}",
   "notifyOutlineDone": "知识树已生成并登记",
