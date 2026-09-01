@@ -279,6 +279,7 @@ export async function convertDocBatched(
     let contiguous = 0;
     let firstError = "";
     let userAborted = false;
+    let emptyBatches = 0; // AI 该批返回可解析题目数为 0 的批数（完成消息附警告，原静默跳过漏题难排查）
     const internal = new AbortController();
     const relayAbort = (): void => {
         userAborted = true;
@@ -368,6 +369,7 @@ export async function convertDocBatched(
                 return;
             }
             let qs = extractBatchQuestions(gen.reply);
+            if (qs.length === 0) emptyBatches++;
             if (gen.byAlias && qs.length > 0) {
                 const applied = applyKnowLinks(qs, gen.byAlias);
                 qs = applied.out;
@@ -414,6 +416,9 @@ export async function convertDocBatched(
     // 插图自检：完成消息里附警告提示重新转换
     const missingImgs = countMissingImages(kramdown, markdown);
     const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), { n: String(missingImgs) })}` : "";
+    // 批级空产出自检：AI 某批返回空/不可解析时对应源段被跳过——原静默
+    // 「成功」漏题难排查，完成消息附警告（复用 imgWarn 拼接模式）
+    const emptyWarn = emptyBatches > 0 ? ` ${fmt(t("convertBatchEmpty"), { n: String(emptyBatches) })}` : "";
     const detectedMsg = detectedText(detected, detectedTruncated, t);
     /** done 终态结果（两落盘模式共用形态）。 */
     const done = (message: string, doc: { id: string; title: string }): BatchedResult => ({
@@ -474,7 +479,7 @@ export async function convertDocBatched(
         // 临时文档在终态替换后删除
         if (resume?.docId && resume.docId !== created?.id) await removeDoc(resume.docId);
         if (created) await removeDoc(created.id);
-        return done(detectedMsg + imgWarn, replaced);
+        return done(detectedMsg + imgWarn + emptyWarn, replaced);
     }
     if (!created) {
         // 末尾兜底落盘失败同样按 failed 收口（kramdown 进进度记录，
@@ -496,5 +501,5 @@ export async function convertDocBatched(
     const doneMsg: string[] = [];
     if (detectedMsg) doneMsg.push(detectedMsg);
     if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
-    return done(doneMsg.join(" · ") + imgWarn, created);
+    return done(doneMsg.join(" · ") + imgWarn + emptyWarn, created);
 }
