@@ -586,6 +586,8 @@
   "notifyOutlineFail": "Failed to build knowledge tree: {msg}",
   "notifyConvertDone": "Conversion finished: {n} questions",
   "notifyConvertFail": "Conversion failed: {msg}",
+  "notifyModelFallback": "The selected model is no longer valid — fell back to \"{name}\" for this call",
+  "notifyModelFallbackDefault": "The selected model is no longer valid — fell back to SiYuan's default model for this call",
   "notifyMigrateFail": "Question bank migration/backfill failed: {msg}",
   "aiKindAll": "All",
   "aiKindJudge": "Judge",

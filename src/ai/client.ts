@@ -1,7 +1,26 @@
 import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
-import { resolveModelId } from "./models";
+import { resolveModelId, listAiModels } from "./models";
 import { aiSessions, type AiTurn } from "./data/AiSessions";
+import { notifyInfo } from "../ui/Notify";
+
+/** 模型失效回落通知的冷却（同一失效 id 60s 内只报一次——转换并发池
+ *  每批都过闸口，不冷却会连发十几条同文案）。 */
+const fallbackNotifiedAt = new Map<string, number>();
+const FALLBACK_COOLDOWN_MS = 60_000;
+
+/** 闸口校正模型 id：传入的 id 失效被回落时浮层告知（原静默降级——用户
+ *  为长转换选的高档模型被悄悄换成默认，产出质量落差无从归因）。 */
+function resolveAndNotify(preferred: string): string {
+    const resolved = resolveModelId(preferred);
+    if (!preferred || resolved === preferred) return resolved;
+    const now = Date.now();
+    if (now - (fallbackNotifiedAt.get(preferred) ?? 0) < FALLBACK_COOLDOWN_MS) return resolved;
+    fallbackNotifiedAt.set(preferred, now);
+    const name = listAiModels().find((m) => m.id === resolved)?.name ?? "";
+    notifyInfo(name ? { key: "notifyModelFallback", vars: { name } } : { key: "notifyModelFallbackDefault" });
+    return resolved;
+}
 
 /**
  * 思源内置 AI 的调用通道（2026-08-27 从 convert/AgentClient 抽离成
@@ -34,8 +53,9 @@ async function agentChat(
     sessionId: string
 ): Promise<string> {
     // 总闸口校正（20260829）：失效/存量 model id 内核一律报「请先参考
-    // 用户指南进行配置」——不在当前可用清单的回落默认，覆盖全部调用点
-    modelId = resolveModelId(modelId);
+    // 用户指南进行配置」——不在当前可用清单的回落默认，覆盖全部调用点；
+    // 回落时浮层告知（原静默降级）
+    modelId = resolveAndNotify(modelId);
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const armTimer = (): void => {

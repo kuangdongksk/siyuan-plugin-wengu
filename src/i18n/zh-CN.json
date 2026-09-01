@@ -586,6 +586,8 @@
   "notifyOutlineFail": "建知识树失败：{msg}",
   "notifyConvertDone": "转换完成：共 {n} 题",
   "notifyConvertFail": "转换失败：{msg}",
+  "notifyModelFallback": "所选模型已失效，本次已改用可用模型「{name}」",
+  "notifyModelFallbackDefault": "所选模型已失效，本次已改用思源默认模型",
   "notifyMigrateFail": "题库迁移/回灌失败：{msg}",
   "aiKindAll": "全部",
   "aiKindJudge": "判题",
