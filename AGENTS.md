@@ -246,8 +246,21 @@
 - 思源前端源码（读实现用）：`/Volumes/baiWeiNV7200/app/SiYuan.app/
 Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   压缩单行，先 `tr ';{' '\n\n'` 分行再 grep）
-- 工具链：node v24 + pnpm 11 均可用，tsc/eslint/dprint/webpack 构建链
+- 工具链：node v24 + pnpm 11 均可用，tsc/eslint/prettier/webpack 构建链
   全部验证通过
+- ⚠️ **pnpm 崩溃根因与铁律（20260901 定论）**：曾报
+  `TypeError: Cannot set property message … only has a getter
+  at RetryOperation._fn` ——全局 pnpm 与 package.json 的
+  `packageManager` 锁定版**不一致**时，每次 `pnpm` 启动先经版本托管
+  联网拉 registry 元数据（本机网络时好时坏）；11.17.0 抓取失败的
+  错误脱敏会**赋值** `error.message`，而超时抛的 DOMException
+  （AbortError）message 是原型 getter-only，严格模式赋值即崩——
+  真网络错误被这个二次崩溃掩盖。11.4.0 同路径只读不赋值无此雷。
+  **修复：全局装与锁定版一致的 pnpm（`pnpm add -g pnpm@<锁定版>`，
+  20260901 已对齐 11.4.0）**——版本托管短路、启动零联网。铁律：
+  bump `packageManager` 版本时必须同步升级全局 pnpm，否则坏网络下
+  复发（届时任何 pnpm 命令都可能崩，编辑器保存触发的格式化任务
+  也在内）。
 - **插件目录随思源同步在两台机器间流转**（temp/ 有同步冲突记录）：
   另一台机器装了旧版同步过来会盖掉本机新装——每次调试前先比对
   `md5 dist/index.js` 与插件目录里的是否一致，不一致就重装
