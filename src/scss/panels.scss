@@ -57,7 +57,10 @@
   color: var(--b3-theme-on-surface-light);
 }
 
-/* 全局图标尺寸（svgIcon 输出的内置 SVG symbol） */
+/* 全局图标尺寸（svgIcon 输出的内置 SVG symbol）。**新容器里裸插
+   svgIcon 必须把容器选择器加进本表**——SVG 无 width 属性时按替换
+   元素默认尺寸渲染（块内铺满/行内 300×150），相关题弹窗的大放大镜
+   即漏加后果（20260901 走查） */
 .wengu-btn svg,
 .wengu-iconbtn svg,
 .wengu-side-iconbtn svg,
@@ -68,7 +71,10 @@
 .wengu-report-summary svg,
 .wengu-review-tl-mark svg,
 .wengu-rendering svg,
-.wengu-col-row-title svg {
+.wengu-col-row-title svg,
+.wengu-muted svg,
+.wengu-meta svg,
+.wengu-annobar-btn svg {
   width: 14px;
   height: 14px;
   flex: none;
@@ -76,7 +82,10 @@
 }
 
 /* 行内图标与标题文字基线对齐（专题行 iconList 等） */
-.wengu-col-row-title svg {
+.wengu-col-row-title svg,
+.wengu-muted svg,
+.wengu-meta svg,
+.wengu-annobar-btn svg {
   margin-right: 4px;
   vertical-align: -2px;
 }

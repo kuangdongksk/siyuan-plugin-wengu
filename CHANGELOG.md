@@ -2,6 +2,26 @@
 
 ## v0.1.1 unreleased
 
+- 裸插图标修复（20260901 用户截图报障「相关题」弹窗大放大镜）：
+  svgIcon 输出无 width/height，必须落在有 svg 尺寸规则的容器——
+  RelatedDialog 把 iconSearch 裸插在 .wengu-muted 提示行，SVG 按
+  替换元素默认尺寸铺满整个弹窗。全仓扫描同类裸插点，.wengu-meta
+  （轮次报告头时钟）与 .wengu-annobar-btn（划词标注条）同病，统一
+  补进 panels.scss「全局图标尺寸」14px 表；§〇 约束补规则「新容器
+  裸插 svgIcon 必须把选择器加进该表」防复发。真机回验弹窗图标
+  14×14 与提示文字同行。
+- 词头音标自带（20260901，听音选义展示读音——词典 API 在本机网络
+  不通，dictionaryapi.dev 不可达，改为离线自带）：scripts/
+  gen-phonetics.mjs 从 ECDICT(MIT) ecdict.csv 提取 word→英式IPA
+  （音标归一 '→ˈ、:→ː；口径=学习词标签 zk/gk/cet4/cet6/ky/toefl/
+  ielts/gre ∪ 有词频 bnc/frq>0 ∪ 内置书词全量兜底，~4.7 万条
+  ~0.9MB 生成文件 data/phonetics-data.ts 勿手改），service/
+  WordPhonetics 惰性解析（bundle 内一段字符串，首次展示才建 Map）
+  按 wordKey 查（与进度 key 同归一，跨书通用）；QuizCard 三处
+  展示——听音选义卡（喇叭下音标辅助辨音，词面仍隐藏）、英选中
+  词面下、词条详情行内（词条名旁），中选英/回想面不展示防泄底；
+  补 2 例单测（行集解析/归一化命中）。
+
 - 「结束本次」无反应修复（20260901 用户确认复现）：收卷其实成功，
   但报告宿主在题卷文档尾（197 题长卷要滚很多屏）+ 题卡
   content-visibility 折叠屏外高度使 scrollIntoView smooth/nearest

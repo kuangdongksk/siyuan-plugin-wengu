@@ -7,6 +7,7 @@
     import { keyOf } from "../core/WordStore";
     import { ladderOf } from "../flow/FreshFlow";
     import { buildMeaningOptions, buildWordOptions, meaningLine, MODE_KEY } from "../flow/WordQuiz";
+    import { phoneticsOf, phoneticsReady } from "../service/WordPhonetics";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
 
@@ -58,6 +59,15 @@
     const ladder = $derived(ladderOf(view, idx));
     // 自述框出现条件：「记错了」已点 / 正面选了「忘记」（对应参考流三态）
     const confessPending = $derived(ui.mistakeClaimed || ui.selfGrade === "no");
+    // 词头音标（自带 ECDICT 表惰性解析）：听音卡/英选面/词条详情展示
+    let phon = $state<string | undefined>();
+    $effect(() => {
+        const w = entry.w;
+        phon = undefined;
+        void phoneticsReady().then(() => {
+            phon = phoneticsOf(w);
+        });
+    });
 
     function optCls(i: number): string {
         if (!answered) return "";
@@ -129,6 +139,7 @@
         <div class="wengu-word-detail">
             <div class="wengu-word-detail-word">
                 {entry.w}
+                {#if phon}<span class="wengu-word-phonetic">{phon}</span>{/if}
                 {@render ladderDots()}
                 <button
                     class="wengu-iconbtn wengu-word-say"
@@ -192,7 +203,7 @@
             </div>
         {:else}
             {#if mode === "listen"}
-                <!-- 梯③听音：词面隐藏，喇叭进卡自动播、点击重听（空格同） -->
+                <!-- 梯③听音：词面隐藏，喇叭进卡自动播、点击重听（空格同）；音标辅助辨音 -->
                 <button
                     class="wengu-iconbtn wengu-word-say"
                     title={t("wordRelisten")}
@@ -203,11 +214,13 @@
                 >
                     <svg><use xlink:href="#iconVolume"></use></svg>
                 </button>
+                {#if phon}<div class="wengu-word-phonetic">{phon}</div>{/if}
             {:else}
                 <div class={mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh"}>
                     {mode === "choiceEn" ? entry.w : meaningLine(idx)}
                     {@render ladderDots()}
                 </div>
+                {#if mode === "choiceEn" && phon}<div class="wengu-word-phonetic">{phon}</div>{/if}
             {/if}
             <div class="wengu-word-hint">{t("wordPickHint")}</div>
             <button class="b3-button b3-button--outline wengu-word-peek" onclick={() => view.peekAnswer()}

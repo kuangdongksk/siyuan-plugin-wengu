@@ -44,6 +44,17 @@
   white-space: nowrap;
 }
 
+/* 词头音标（自带 ECDICT 表）：听音卡喇叭下/英选词面下/词条行内弱化展示 */
+.wengu-word-phonetic {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.wengu-word-detail-word .wengu-word-phonetic {
+  margin-left: 4px;
+}
+
 /* ── 书名副位与切书浮层（redesign §四/§五）── */
 .wengu-word-bookpick {
   position: relative;
