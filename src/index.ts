@@ -72,8 +72,6 @@ interface WenguSettings {
     convertTargetMode?: "same" | "custom";
     /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
     convertTargetId?: string;
-    /** MinerU API Token（mineru.net 注册获取，PDF 导入用）。 */
-    mineruToken?: string;
     /** 看板娘学伴：全局开关/兜底台词人设/AI 台词与对话/多套学伴配置。 */
     companionEnabled?: boolean;
     companionPersona?: string;

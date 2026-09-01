@@ -7,11 +7,7 @@ import {
     extractBatchQuestions,
     extractBlockId,
     getDocInfo,
-    hasChildDocs,
     isMaterialKramdown,
-    removeDoc,
-    replaceDocInPlace,
-    ReplaceInplaceError,
     resolveTarget,
 } from "./ConvertService";
 import { structuralChunks, withSrcAttrs } from "./SrcChunk";
@@ -28,13 +24,11 @@ import { fmt } from "../../ui/shared";
  * 文档」通道（updateBlock 多块并一段/丢内容、transactions insert
  * 无效），所以只能删旧重建式落盘。
  *
- * 落盘双模式（writeMode）：两模式都**渐进式落盘**（每批删旧重建累积
- * 文档，文档树实时长大，页签渐进呈现）；inplace 的渐进文档是原文档
- * 旁边的临时《·习题》，终态一次性原位替换（删旧同路径同标题重建，
- * 写盘时刻重查位置/子文档，见 ConvertService.replaceDocInPlace）后
- * 删除临时文档——转换期间原文档始终不动；newdoc=另存《标题·习题》
- * 即渐进文档本身。并发池（parallel>1 走 chatGPT 通道）按「连续完成
- * 前缀」拼装，题目顺序始终是原文档的忠实前缀。
+ * 落盘（20260901 起固定另存）：**渐进式落盘**（每批删旧重建累积文档，
+ * 文档树实时长大，页签渐进呈现），《标题·习题》文档本身就是成果——
+ * **原文档全程不动**（原「原位替换」模式已随 PDF 导入一并移除，存量
+ * 原位形态题集照常刷题/增量重转换，不受影响）。并发池（parallel>1）
+ * 按「连续完成前缀」拼装，题目顺序始终是原文档的忠实前缀。
  */
 
 /** 插图自检：源文档的图片行没被带进生成结果的条数（0=无缺，真机
@@ -74,15 +68,14 @@ export interface ConvertProgress {
     detectedTruncated?: boolean;
     /** 刚完成那批的题目预览（弹窗渐进展示）。 */
     newStems?: QuestionPreview[];
-    /** 渐进落盘的习题文档（每批重建，id 会变；页签据此渐进呈现，
-     *  原位模式无渐进文档、不出现）。 */
+    /** 渐进落盘的习题文档（每批重建，id 会变；页签据此渐进呈现）。 */
     docId?: string;
     title?: string;
 }
 
-/** 终止/失败保留的进度记录（prefs 持久化，重开思源后可继续生成）。
- *  渐进/另存模式保留部分习题文档（docId）；原位模式原文档不动，
- *  已生成 kramdown 直接存进记录（kramdown）。 */
+/** 终止/失败保留的进度记录（prefs 持久化，重开思源后可继续生成）：
+ *  保留的（部分）习题文档记 docId；存量原位形态记录只存已生成
+ *  kramdown（无 docId），续跑时读回并入。 */
 export interface ConvertProgressRecord {
     /** 保留的（部分）习题文档 id（渐进/另存模式）。 */
     docId?: string;
@@ -119,9 +112,9 @@ export interface BatchedResult {
 export interface ResumeInfo {
     /** 已生成覆盖到的源文档偏移。 */
     offset: number;
-    /** 上次保留的部分习题文档（渐进/另存模式，内容并入本次结果）。 */
+    /** 上次保留的部分习题文档（内容并入本次结果）。 */
     docId?: string;
-    /** 上次保留的题目 kramdown（原位模式，内容并入本次结果）。 */
+    /** 上次保留的题目 kramdown（存量原位形态记录才有，内容并入本次结果）。 */
     kramdown?: string;
 }
 
@@ -137,9 +130,7 @@ export async function convertDocBatched(
         parallel?: number;
         signal?: AbortSignal;
         resume?: ResumeInfo;
-        /** 落盘模式：inplace=原位替换原文档；newdoc=另存《·习题》（默认）。 */
-        writeMode?: "inplace" | "newdoc";
-        /** 生成位置（仅 newdoc）：空=原文档同目录；否则指定父文档下面。 */
+        /** 生成位置：空=原文档同目录；否则指定父文档下面。 */
         targetRaw?: string;
         /** 知识点根文档 id（书架/书/章），非空时路由小节并注入知识点反链。 */
         knowRoots?: string[];
@@ -147,7 +138,6 @@ export async function convertDocBatched(
     }
 ): Promise<BatchedResult> {
     const { t } = opts;
-    const inplace = opts.writeMode === "inplace";
     const docId = extractBlockId(docIdRaw);
     /** 零进度早退（各前置拦截的清一色形态；kramdown 供终止续跑带出）。 */
     const zero = (status: BatchedResult["status"], message: string, total = 0, kramdown = ""): BatchedResult => ({
@@ -161,8 +151,6 @@ export async function convertDocBatched(
     });
     const info = await getDocInfo(docId);
     if (!info?.notebook) return zero("failed", t("convertNoDoc"));
-    // 原位替换会连子文档一起删——开始即拦（写盘时刻 replaceDocInPlace 还会重查）
-    if (inplace && (await hasChildDocs(docId))) return zero("failed", t("convertInplaceChildren"));
     const kd = await KernelBlock.kramdown(docId);
     // 剥原文的块 id IAL 行（含引用前缀变体）：AI 出题用不到块 id，
     // 留着会被原样抄进解析/题干落成裸文本（真机踩坑）
@@ -172,8 +160,8 @@ export async function convertDocBatched(
     );
     if (!kramdown.trim()) return zero("failed", t("convertEmptyDoc"));
 
-    // 继续生成：上次保留内容并入累积（渐进/另存=旧部分文档 kramdown，
-    // 原位=记录里的 kramdown），只跑剩余批
+    // 继续生成：上次保留内容并入累积（渐进文档 kramdown，或存量原位
+    // 时代记录里的裸 kramdown），只跑剩余批
     let existing = "";
     if (opts.resume) {
         if (opts.resume.kramdown) {
@@ -244,13 +232,11 @@ export async function convertDocBatched(
     let lastBatch = 0;
     /** 累积 kramdown（旧保留 + 已完成批，落盘/续跑共用一份拼装口径）。 */
     const joined = (): string => [existing, ...parts].filter(Boolean).join("\n\n");
-    // 渐进落盘目标（两模式共用）：另存按生成位置解析；原位=原文档同目录
-    // 的临时《·习题》文档（每批重建流式展示，终态替换原文档后删除）
-    const loc = await resolveTarget(info, inplace ? "" : (opts.targetRaw ?? ""), t);
+    /** 渐进落盘目标：按生成位置解析（空=原文档同目录）。 */
+    const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
     if (loc && !loc.ok) return zero("failed", loc.message, chunks.length);
-    // 渐进式落盘（两模式共用）：首批 createExerciseDoc 建文档（IAL 整体
-    // 解析），之后每题一次 appendBlock 尾插（块 id 稳定、无删旧重建；
-    // 原位模式这份是临时文档，原文档始终不动，终态一次性替换后删除）。
+    // 渐进式落盘：首批 createExerciseDoc 建文档（IAL 整体解析），之后
+    // 每题一次 appendBlock 尾插（块 id 稳定、无删旧重建）。
     let created: { id: string; title: string } | undefined;
     // 继续生成：旧渐进文档在跑批前就接管为落盘目标（原等首批 flush 才
     // 挂上——detect/首批期间终止会丢 docId，保留分支另建重复文档、
@@ -420,7 +406,7 @@ export async function convertDocBatched(
     // 「成功」漏题难排查，完成消息附警告（复用 imgWarn 拼接模式）
     const emptyWarn = emptyBatches > 0 ? ` ${fmt(t("convertBatchEmpty"), { n: String(emptyBatches) })}` : "";
     const detectedMsg = detectedText(detected, detectedTruncated, t);
-    /** done 终态结果（两落盘模式共用形态）。 */
+    /** done 终态结果。 */
     const done = (message: string, doc: { id: string; title: string }): BatchedResult => ({
         status: "done",
         message,
@@ -432,55 +418,7 @@ export async function convertDocBatched(
         doneOffset: kramdown.length,
         kramdown: markdown,
     });
-    // 落盘：原位=写盘时刻重查后删旧同路径同标题重建（不加 source-doc
-    // 配对——源即本文档；旧配对改指新 id 见 replaceDocInPlace）；
-    // 另存=渐进重建已落盘则直接用，中途失败过才在这里兜底创建
-    if (inplace) {
-        let replaced: { id: string; title: string };
-        try {
-            replaced = await replaceDocInPlace(info, markdown);
-        } catch (e) {
-            if (e instanceof ReplaceInplaceError) {
-                // 写盘时刻状态已变（原文档被删/中途建了子文档）：按终止
-                // 处理，已生成内容不丢——渐进临时文档已在，挪走子文档后
-                // 可继续生成剩余部分
-                return {
-                    status: "aborted",
-                    message:
-                        e.reason === "hasChildren"
-                            ? t("convertInplaceChildren")
-                            : e.reason === "createFailed"
-                              ? `${t("convertWriteFailed")}${e.detail ? `（${e.detail}）` : ""}`
-                              : t("convertNoDoc"),
-                    count,
-                    batches: chunks.length,
-                    total: chunks.length,
-                    doneOffset,
-                    docId: created?.id,
-                    title: created?.title,
-                    kramdown: markdown,
-                };
-            }
-            // 其它写盘异常不再上抛（上抛=进度不记账不可续跑）：按 failed
-            // 收口带全部内容，kramdown 落进度记录（20260829 三轮审查）
-            return {
-                status: "failed",
-                message: String((e as Error)?.message ?? e),
-                count,
-                batches: contiguous,
-                total: chunks.length,
-                doneOffset,
-                docId: created?.id,
-                title: created?.title,
-                kramdown: markdown,
-            };
-        }
-        // resume 文档即续写文档时不能删（它就是成果）；原位模式的渐进
-        // 临时文档在终态替换后删除
-        if (resume?.docId && resume.docId !== created?.id) await removeDoc(resume.docId);
-        if (created) await removeDoc(created.id);
-        return done(detectedMsg + imgWarn + emptyWarn, replaced);
-    }
+    // 落盘：渐进重建已落盘则直接用，中途失败过才在这里兜底创建
     if (!created) {
         // 末尾兜底落盘失败同样按 failed 收口（kramdown 进进度记录，
         // 可续跑重建），不上抛丢整轮（20260829 三轮审查）

@@ -12,7 +12,7 @@
       rowsMap，**rowsAll/rowsMapAll 自动 LIMIT/OFFSET 分页——全量查询
       一律走它，别手写循环**）薄封装，迁自 sy-lively 构建工厂；
       2026-08-26 已把全仓 ~33 处散落内核调用收拢进来，SSE/putFile
-      multipart/forwardProxy 三类特殊通道例外（工作区文件读写/删在
+      multipart 两类特殊通道例外（工作区文件读写/删在
       `files.ts`：getFile 裸内容/putFile multipart/removeFile 信封，词书
       等非块文件走它））+ 题目契约属性常量
       `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
@@ -250,7 +250,7 @@ Contents/Resources/stage/build/app/`（同机器 A：`common.*.js`
   全部验证通过
 - ⚠️ **pnpm 崩溃根因与铁律（20260901 定论）**：曾报
   `TypeError: Cannot set property message … only has a getter
-  at RetryOperation._fn` ——全局 pnpm 与 package.json 的
+at RetryOperation._fn` ——全局 pnpm 与 package.json 的
   `packageManager` 锁定版**不一致**时，每次 `pnpm` 启动先经版本托管
   联网拉 registry 元数据（本机网络时好时坏）；11.17.0 抓取失败的
   错误脱敏会**赋值** `error.message`，而超时抛的 DOMException
@@ -307,7 +307,8 @@ updated="…"}A. …`）、条目自身 IAL 缩进独立成行、块引用子块
       多块 → **只保留第一段**（危险）。
 
 - **putFile 不吃 JSON**：上传文件必须 multipart（path/isDir/file），
-  fetch + `window.siyuan.config.api.token` 鉴权（见 PdfImport.putAsset）。
+  fetch + `window.siyuan.config.api.token` 鉴权（见 `siyuan/files.ts`
+  kernelWriteText）。
   **3.8.1 路由迁移**：端点变为 `POST /api/file/putFile`（旧 `/api/putFile`
   返回 200+空 body 假成功），且 path 必须工作区相对（带前导 `/` 会拼出
   `…\C::` 非法路径报 mkdir 错）（20260825 真机实测）。
@@ -356,8 +357,8 @@ message, language, references, model?}`；`userEntryID` 是
   内核 dock 布局初始化里 `.startsWith` undefined 直接崩，且是 onload 级
   崩溃（整个插件不可用，20260823 真机踩坑）。
 - **SQL API 无 LIMIT 静默截断 64 行**（20260823 真机验证）：
-  `/api/query/sql` 不带 LIMIT 最多返回 64 行且 code=0 无异常（/MinerU
-  书架 94 篇文档只回 64 篇的假象）；子查询不支持（返回空）。批量/
+  `/api/query/sql` 不带 LIMIT 最多返回 64 行且 code=0 无异常（书架
+  94 篇文档只回 64 篇的假象）；子查询不支持（返回空）。批量/
   全量查询必须显式 `LIMIT n OFFSET k` 分页（见 KnowledgeLink.sqlAll）。
 - Lute：**只能用全局 `window.Lute`**——插件加载器给 `"siyuan"` 模块
   注入的固定对象里没有 Lute（3.8.1 加载器实测：window.eval 包合成
@@ -377,25 +378,15 @@ message, language, references, model?}`；`userEntryID` 是
     要取内联内容剥壳得按这个形态（ProtyleHost.unwrapSingleBlock），
     朴素取 innerHTML 会把块级壳漏进去。
 
-## 外部 API：MinerU（PDF 解析，20260823 接入）
+## 外部 API：无（MinerU/PDF 导入 20260901 移除）
 
-- **浏览器直连 mineru.net API 被 CORS 拦**（OPTIONS 405、响应无
-  ACAO 头）：JSON 请求一律走内核 `/api/network/forwardProxy`
-  `{url, method, headers, payload?, timeout}`，上游响应在
-  `data.body`（3.8.0 真机验证可用）。
-- forwardProxy 的 payload 只收 **string，二进制过不去**：PUT 上传
-  PDF、下载结果 zip 这两步浏览器直连 OSS 预签名地址。PUT **绝不能
-  带 Content-Type**（官方 issue #4145：预签名按无该头计算，File/Blob
-  body 会被 fetch 自动补类型——用 ArrayBuffer body）。
-- 流程（v4 批量接口）：`POST /api/v4/file-urls/batch`
-  `{files:[{name,is_ocr}], enable_formula, enable_table, language}` →
-  `batch_id` + `file_urls[0]` → PUT 文件 → 轮询 `GET
-/api/v4/extract-results/batch/{batch_id}`（state：waiting-file/
-  pending/running/converting → done/failed；running 带
-  extract_progress 页码）→ 下载 `full_zip_url`（full.md + images/，
-  fflate 前端解压）。鉴权 `Authorization: Bearer <token>`。
-- 用户 token 存 `settings.mineruToken`；插图落笔记本
-  `assets/wengu/{时间戳}/` 再建原文档（PdfImport）。
+- 转换固定「另存一份自己的数据、绝不动原文档」（原「原位替换」双模式
+  同日移除）后，PDF 中间产物文档会永久留在文档树，MinerU 管线失去
+  意义——PdfImport/MinerUClient/PdfImportRow 三文件与 settings.
+  mineruToken、fflate 依赖、EApi.ForwardProxy 一并删除。若将来重接
+  外部 JSON API，内核 `/api/network/forwardProxy` `{url, method,
+headers, payload?, timeout}`（上游响应在 `data.body`）仍可用，但
+  payload 只收 **string，二进制过不去**（20260823 真机验证）。
 
 ## Shell/工具坑（本机）
 

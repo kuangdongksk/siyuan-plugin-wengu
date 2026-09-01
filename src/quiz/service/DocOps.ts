@@ -99,8 +99,8 @@ export function unregisterDocAsQuiz(v: QuizView, docId: string): void {
 }
 
 /** 重新导入的读回计划（纯决策，IO 由调用方执行）：续跑记录的渐进文档
- *  就是当前题集本身（newdoc 中途终止「保留已生成」的常态——渐进文档
- *  即《源·习题》）时，读回目标同样是它、但不单独删（题集稍后统一删除，
+ *  就是当前题集本身（中途终止「保留已生成」的常态——渐进文档即
+ *  《源·习题》）时，读回目标同样是它、但不单独删（题集稍后统一删除，
  *  漏读=前半截随删除消失、续跑只剩后半截，20260830 踩坑）；渐进文档
  *  另有其人则读它并单独删，防孤儿。 */
 export function planReimportRead(
@@ -114,7 +114,7 @@ export function planReimportRead(
 
 /** 重新导入的续跑参数（纯决策）：读得回已生成内容才带断点——读不回还
  *  硬按 offset 跳批，只会产出「只有后半截」的文档，宁可从头全量重转；
- *  读回为空时回落记录里的 kramdown（原位形态残留）。 */
+ *  读回为空时回落记录里的 kramdown（首批前中断的裸 kramdown 记录）。 */
 export function reimportResume(
     rec: { offset: number; kramdown?: string } | undefined,
     readBack: string
@@ -137,7 +137,6 @@ export function reimportCfg(
         fillToChoice: last.fill || settings?.fillToChoice === true,
         bigToSteps: last.steps || settings?.bigToSteps === true,
         parallel: Math.max(1, Math.min(4, Math.floor(settings?.convertParallel ?? 1))),
-        writeMode: "newdoc",
         targetRaw: "",
         knowRoots: last.know
             .split(/[\s,;，；]+/)

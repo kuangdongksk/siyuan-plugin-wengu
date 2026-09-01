@@ -20,7 +20,7 @@ export interface DocInfo {
     id: string;
     /** 笔记本 id。 */
     notebook?: string;
-    /** 标题路径（如 /MinerU/书名/章节）。定位父级必须用它：内核按
+    /** 标题路径（如 /讲义/书名/章节）。定位父级必须用它：内核按
      *  **标题**匹配 createDocWithMd 的路径段，用 .sy 文件路径拼段会让
      *  导入文档（文件名≠标题）被重建一串空父文档（真机踩坑）。 */
     hPath?: string;
@@ -352,86 +352,6 @@ async function createDocWithTitles(
         lastMsg = res.msg;
     }
     throw new Error(lastMsg || "createDocWithMd failed");
-}
-
-/** 文档是否有子文档（任一后代层级）。原位替换会连子文档一起删，必须先拦。 */
-export async function hasChildDocs(docId: string): Promise<boolean> {
-    const row = (
-        await KernelQuery.rows<{ box?: string; path?: string }>(
-            `SELECT box, path FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`
-        )
-    )[0];
-    if (!row?.box || !row.path) return false;
-    const children = await KernelQuery.rows<{ n?: number }>(`SELECT COUNT(*) AS n FROM blocks
-            WHERE type = 'd' AND box = '${row.box}' AND path LIKE '${row.path}/%' LIMIT 1`);
-    return Number(children[0]?.n ?? 0) > 0;
-}
-
-/** 原位替换失败原因：原文档已删 / 写盘时刻发现有子文档 / 备份后重建失败。 */
-export type ReplaceInplaceReason = "noDoc" | "hasChildren" | "createFailed";
-
-export class ReplaceInplaceError extends Error {
-    /** 附加细节（createFailed：底层错误与备份文档标题）。 */
-    public readonly detail?: string;
-    constructor(
-        public readonly reason: ReplaceInplaceReason,
-        detail?: string
-    ) {
-        super(detail || reason);
-        this.detail = detail;
-    }
-}
-
-/**
- * 原位替换：删除原文档（进回收站，可恢复）→ 同路径同标题重建为题目版。
- * 内核没有可靠的「改写已有文档内容」通道（updateBlock 多块并段/丢段、
- * transactions insert 静默无效，20260822 真机验证），原位只能删旧重建，
- * 文档 id 会变——这些文档只作插件的题库底座，无外部引用场景。
- *
- * 转换耗时数分钟，调用方传入的 info 是开始时的快照——写盘时刻
- * **重查**文档当前位置与子文档（中途移动/重命名/建子文档都按当下
- * 状态处理：位置与标题跟新，发现子文档抛 hasChildren 拒绝）。
- * 另把旧「另存」习题文档的 source-doc 配对改指到新文档 id，否则
- * 旧 id 消失会让 OrphanCleaner 误判源已删、连删旧习题文档。
- */
-export async function replaceDocInPlace(oldInfo: DocInfo, markdown: string): Promise<{ id: string; title: string }> {
-    const fresh = await getDocInfo(oldInfo.id);
-    if (!fresh?.notebook) throw new ReplaceInplaceError("noDoc");
-    if (await hasChildDocs(fresh.id)) throw new ReplaceInplaceError("hasChildren");
-    const safe = fresh.title.replace(/[\\/:*?"<>|]/g, "-").trim() || "习题";
-    const parent = parentOf(fresh.hPath ?? "/");
-    // 先建备份再删旧（「先删后建」挂账清偿，20260829）：删与建之间失败
-    // 的话原文档已进回收站、新内容只在内存。先在旁边落一份同内容备份，
-    // 任意时刻磁盘上都有完整内容；终态成功才删备份，失败路径保留备份
-    // （标题带「替换备份」，用户可自行改名顶替）。
-    const stamp = Date.now().toString(36);
-    const backup = await createDocWithTitles(fresh.notebook, parent, [`${safe}·替换备份${stamp}`], markdown);
-    let created: { id: string; title: string };
-    try {
-        await KernelDoc.remove(fresh.id);
-        created = await createDocWithTitles(fresh.notebook, parent, [safe, `${safe}·${stamp}`], markdown);
-    } catch (e) {
-        throw new ReplaceInplaceError(
-            "createFailed",
-            `${e instanceof Error ? e.message : String(e)}｜备份：${backup.title}`
-        );
-    }
-    await repointSourcePairs(fresh.id, created.id);
-    await removeDoc(backup.id);
-    return created;
-}
-
-/** 旧「另存」习题文档的配对源改指到原位重建后的新文档。rowsAll 分页：
- *  >64 条配对被截断的话，漏改的旧 id 下次装载会被 OrphanCleaner 误删。 */
-async function repointSourcePairs(oldDocId: string, newDocId: string): Promise<void> {
-    const rows = await KernelQuery.rowsAll<{ id?: string }>(
-        `SELECT block_id AS id FROM attributes WHERE name = '${Attr.sourceDoc}' AND value = '${oldDocId}'`
-    );
-    for (const row of rows) {
-        if (row.id) {
-            await KernelBlock.setAttrs(row.id, { [Attr.sourceDoc]: newDocId });
-        }
-    }
 }
 
 /** 终止保留 / 继续生成完成后的落盘：把累积 kramdown 建成习题文档。 */

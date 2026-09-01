@@ -2,6 +2,17 @@
 
 ## v0.1.1 unreleased
 
+- 转换固定另存 + PDF 导入移除（20260901 用户定夺「根据原文档保存一份
+  自己的数据，完全不动原文档」）：删「转换方式」下拉（原位替换/另存
+  双模式）与弹窗内「从 PDF 导入（MinerU）」行；落盘固定 newdoc——
+  《标题·习题》渐进文档即成品，原文档全程不动。连带清理：
+  ConvertService 的 replaceDocInPlace/hasChildDocs/ReplaceInplaceError/
+  repointSourcePairs、ConvertRunCfg.writeMode、弹窗 busy 态（PDF 导入
+  独占）与右上角 X 接管、PdfImport/MinerUClient/PdfImportRow 三文件、
+  settings.mineruToken 设置项、fflate 依赖、EApi.ForwardProxy、
+  i18n 双语 25 死键。「生成位置」表单常显（父文档行改仅 custom 时
+  显示）。存量兼容：原位时代题集照常刷题/增量重转换；进度记录的裸
+  kramdown 形态续跑读回路径保留（首批前失败仍会产出该形态）。
 - QuestionBank 拆分压 500 行红线（20260901）：「对账/重生成/反查/
   生成入库」段（recordOf/replaceRecordKramdown/collectKpRefs/
   remapKpRef/questionsRelatedToDoc/recordsByKeys/recordsOfDoc/

@@ -25,7 +25,6 @@ export interface ConvertRunCfg {
     fillToChoice: boolean;
     bigToSteps: boolean;
     parallel: number;
-    writeMode: "inplace" | "newdoc";
     targetRaw: string;
     knowRoots: string[];
     resume?: { offset: number; docId?: string; kramdown?: string };
@@ -168,7 +167,6 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
                 parallel: cfg.parallel,
                 signal: controller.signal,
                 resume: cfg.resume,
-                writeMode: cfg.writeMode,
                 targetRaw: cfg.targetRaw,
                 knowRoots: cfg.knowRoots,
                 onProgress: (p) => {
@@ -285,7 +283,6 @@ export function startExclusiveConvertRun(
             fillToChoice: false,
             bigToSteps: false,
             parallel: 1,
-            writeMode: "newdoc",
             targetRaw: "",
             knowRoots: [],
         },
@@ -306,7 +303,7 @@ export function startExclusiveConvertRun(
     return true;
 }
 
-/** 页内/面板「保留已生成」：另存=渐进文档已在只记进度；原位=kramdown 进记录；首批前终止现写一份。 */
+/** 页内/面板「保留已生成」：渐进文档已在只记进度；首批前终止现写一份。 */
 export function keepConvertRun(): Promise<void> {
     const a = aborted;
     if (!a) return Promise.resolve();
@@ -324,19 +321,6 @@ export function keepConvertRun(): Promise<void> {
                 count: a.r.count,
             });
             await finishRun(a.ev, a.r);
-            return;
-        }
-        if (a.cfg.writeMode === "inplace") {
-            const info = await getDocInfo(a.cfg.srcDocId);
-            saveProgress(a.cfg.srcDocId, {
-                title: info?.title ?? "",
-                offset: a.r.doneOffset,
-                batches: a.r.batches,
-                total: a.r.total,
-                count: a.r.count,
-                kramdown: a.r.kramdown,
-            });
-            a.ev.onStatus(esc(fmt(t("convertKeepProgress"), { c: String(a.r.count) })), "muted", true);
             return;
         }
         const info = await getDocInfo(a.cfg.srcDocId);

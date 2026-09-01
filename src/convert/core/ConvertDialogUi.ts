@@ -14,7 +14,6 @@ export interface ConvertDialogUi {
     fillToChoice: boolean;
     bigToSteps: boolean;
     parallel: number;
-    writeMode: "inplace" | "newdoc";
     targetMode: "same" | "custom";
     targetId: string;
     knowRoots: string;
@@ -23,8 +22,6 @@ export interface ConvertDialogUi {
     targetEcho: string;
     knowEcho: string;
     /* 动态状态 */
-    /** PDF 导入中（表单全禁用、终止按钮露出）。 */
-    busy: boolean;
     /** 打开时已有转换在跑（「查看进行中的转换」按钮露出）。 */
     running: boolean;
     status: ConvertDlgStatus | undefined;
@@ -47,14 +44,12 @@ export function initialConvertDialogUi(): ConvertDialogUi {
         fillToChoice: false,
         bigToSteps: false,
         parallel: 1,
-        writeMode: "inplace",
         targetMode: "same",
         targetId: "",
         knowRoots: "",
         docEcho: "",
         targetEcho: "",
         knowEcho: "",
-        busy: false,
         running: false,
         status: undefined,
         resumeRec: undefined,

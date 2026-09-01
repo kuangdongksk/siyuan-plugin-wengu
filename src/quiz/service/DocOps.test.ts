@@ -60,9 +60,8 @@ describe("reimportCfg", () => {
         expect(c.parallel).toBe(1);
     });
 
-    it("另存模式、生成在源旁、默认无续跑（从头重转）", () => {
+    it("生成在源旁、默认无续跑（从头重转）", () => {
         const c = reimportCfg(src, { modelId: "", fill: false, steps: false, know: "" });
-        expect(c.writeMode).toBe("newdoc");
         expect(c.targetRaw).toBe("");
         expect(c.resume).toBeUndefined();
     });

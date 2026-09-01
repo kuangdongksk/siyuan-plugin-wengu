@@ -2,22 +2,20 @@ import type { ConvertProgressRecord } from "../service/ConvertBatch";
 import type { ConvertRunCfg } from "../service/ConvertRun";
 import { extractBlockId, getDocInfo } from "../service/ConvertService";
 import type { ConvertDialogDeps } from "../ui/ConvertDialog";
-import { runPdfImport } from "../ui/PdfImportRow";
 import { openKnowPicker, parseKnowIds } from "../../ui/KnowPicker";
 import type { ConvertDialogUi } from "./ConvertDialogUi";
 
 /**
  * 转换弹窗控制器（四件套之一，每开一次弹窗 new 一个——attach 时同步
  * deps 预选值进 ui）。旧实现散在 DOM 控件上的状态（值收集/回显/resume
- * 探查/busy 联动）全部收进本类；弹窗只收集参数，点「开始转换」即关窗，
- * 批次循环交给 ConvertRun 单例运行器。
+ * 探查）全部收进本类；弹窗只收集参数，点「开始转换」即关窗，批次循环
+ * 交给 ConvertRun 单例运行器。
  */
 export class ConvertDialogCtl {
     private ui?: ConvertDialogUi;
     private deps?: ConvertDialogDeps;
     private alive = false;
     private closeFn?: () => void;
-    private importAbort?: AbortController;
     /** 回显解析的竞态序号（输入又变了/已重挂则旧结果丢弃）。 */
     private echoSeq = 0;
     private targetDebounce = 0;
@@ -32,7 +30,6 @@ export class ConvertDialogCtl {
         ui.fillToChoice = deps.initialFillToChoice;
         ui.bigToSteps = deps.initialBigToSteps;
         ui.parallel = deps.initialParallel;
-        ui.writeMode = "inplace";
         ui.targetMode = deps.initialTargetMode;
         ui.targetId = deps.initialTargetId;
         ui.knowRoots = deps.initialKnowRoots;
@@ -46,10 +43,6 @@ export class ConvertDialogCtl {
     detach(): void {
         this.alive = false;
         window.clearTimeout(this.targetDebounce);
-    }
-
-    isBusy(): boolean {
-        return this.ui?.busy ?? false;
     }
 
     private showStatus(html: string, kind: "ok" | "err" | "muted", keptPartial = false): void {
@@ -78,10 +71,6 @@ export class ConvertDialogCtl {
 
     setParallel(v: number): void {
         if (this.ui) this.ui.parallel = v;
-    }
-
-    setWriteMode(v: "inplace" | "newdoc"): void {
-        if (this.ui) this.ui.writeMode = v;
     }
 
     setTargetMode(v: "same" | "custom"): void {
@@ -222,38 +211,6 @@ export class ConvertDialogCtl {
         }
     }
 
-    /* ── PDF 导入（MinerU） ── */
-
-    /** 终止导入（终止按钮 / busy 期间右上角 X）。 */
-    stopImport(): void {
-        this.importAbort?.abort(); // pollResult 每轮检查点接住，流程即刻收口
-    }
-
-    runPdf(file: File): Promise<void> {
-        const d = this.deps;
-        const ui = this.ui;
-        if (!d || !ui) return Promise.resolve();
-        return runPdfImport(file, {
-            t: d.t,
-            mineruToken: d.mineruToken,
-            hookStop: (c) => {
-                this.importAbort = c;
-            },
-            resolveTarget: () => {
-                const custom = ui.targetId.trim();
-                return ui.targetMode === "custom" && custom
-                    ? { parentDocId: custom }
-                    : { siblingDocId: ui.docId.trim() || d.activeDocId };
-            },
-            showStatus: (html, kind) => this.showStatus(html, kind),
-            setBusy: (v) => {
-                ui.busy = v;
-                d.setConverting(v);
-            },
-            onImported: (r) => this.setDocId(r.docId),
-        });
-    }
-
     /* ── 动作 ── */
 
     /** 开始转换：收集参数交运行器（页面接管状态与渐进呈现），随即关窗。 */
@@ -267,7 +224,7 @@ export class ConvertDialogCtl {
             return;
         }
         const genTarget = ui.targetMode === "custom" ? ui.targetId.trim() : "";
-        if (ui.writeMode === "newdoc" && ui.targetMode === "custom" && !genTarget) {
+        if (ui.targetMode === "custom" && !genTarget) {
             this.showStatus(d.t("convertTargetMissing"), "err");
             return;
         }
@@ -278,7 +235,6 @@ export class ConvertDialogCtl {
             fillToChoice: ui.fillToChoice,
             bigToSteps: ui.bigToSteps,
             parallel: Math.max(1, Math.min(4, ui.parallel || 1)),
-            writeMode: ui.writeMode,
             targetRaw: genTarget,
             knowRoots: ui.knowRoots
                 .split(/[\s,;，；]+/)

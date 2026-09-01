@@ -59,7 +59,6 @@
   },
   "dependencies": {
     "echarts": "^6.1.0",
-    "fflate": "^0.8.3",
     "markdown-it": "^14.3.1",
     "ts-fsrs": "^5.4.1"
   }

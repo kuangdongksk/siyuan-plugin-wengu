@@ -3,8 +3,8 @@ import { EApi } from "./api";
 /**
  * 内核文件特殊通道（词书等工作区文件，redesign §五）：putFile 走
  * multipart、getFile 回裸内容（无 {code,data} 信封）、removeFile 走
- * JSON 信封——三类都不合 api.ts 工厂的信封约定，故独立成模块
- * （同 PdfImport.putAsset 的先例）。path 一律工作区相对、不带前导 /。
+ * JSON 信封——三类都不合 api.ts 工厂的信封约定，故独立成模块。
+ * path 一律工作区相对、不带前导 /。
  */
 
 /** 取内核访问令牌头（鉴权开启的环境里裸 fetch 会 401，ai/client 同用）。 */
