@@ -57,41 +57,50 @@
         });
 
     /** KnowTreeNode → 通用树行：分支 key=树路径，文档行 key=小节容器
-     * （secKeyOf 后缀防撞，折叠语义同旧实现）；小节树插在文档子级头部。 */
+     * （secKeyOf 后缀防撞，折叠语义同旧实现）；小节树插在文档子级头部。
+     *  分支节点的子树题数 subTotal 也登记进 branchByKey——父文档/分支
+     *  自身没直接关联题、但子文档有题时，trailing 显示累计覆盖量。 */
     const toRows = (
         ns: KnowTreeNode[],
         docByKey: Map<string, KnowDocView>,
-        secByKey: Map<string, KnowSectionTreeView>
+        secByKey: Map<string, KnowSectionTreeView>,
+        branchByKey: Map<string, number>
     ): TreeListNode[] =>
         ns.map((n): TreeListNode => {
             if (!n.doc) {
                 // 分支也要递归子级：嵌套路径的知识文档挂在无文档分支下
                 // （20260831 修复：此前 children:[] 把整棵子树丢掉不渲染）
+                branchByKey.set(n.path, n.subTotal);
                 return {
                     key: n.path,
                     name: n.name,
                     tip: n.path,
                     kind: "branch",
-                    children: toRows(n.children, docByKey, secByKey),
+                    children: toRows(n.children, docByKey, secByKey, branchByKey),
                 };
             }
             const key = secKeyOf(n.path);
             docByKey.set(key, n.doc);
+            branchByKey.set(key, n.subTotal); // 文档行也登记子树汇总——自身有题且挂子文档时，显示累计覆盖量
             return {
                 key,
                 name: n.doc.title,
                 tip: docTip(n.doc),
                 kind: "doc",
                 hideAction: true,
-                children: [...secRows(n.doc.sectionTree, secByKey), ...toRows(n.children, docByKey, secByKey)],
+                children: [
+                    ...secRows(n.doc.sectionTree, secByKey),
+                    ...toRows(n.children, docByKey, secByKey, branchByKey),
+                ],
             };
         });
 
     const tree = $derived.by(() => {
         const docByKey = new Map<string, KnowDocView>();
         const secByKey = new Map<string, KnowSectionTreeView>();
-        const rows = toRows(buildKnowTree(ui.docs, ui.info), docByKey, secByKey);
-        return { rows, docByKey, secByKey };
+        const branchByKey = new Map<string, number>();
+        const rows = toRows(buildKnowTree(ui.docs, ui.info), docByKey, secByKey, branchByKey);
+        return { rows, docByKey, secByKey, branchByKey };
     });
 
     const rowclick = (n: TreeListNode, e: MouseEvent): void => {
@@ -144,6 +153,7 @@
                         {#snippet trailing(n)}
                             {@const d = tree.docByKey.get(n.key)}
                             {@const s = tree.secByKey.get(n.key)}
+                            {@const bsub = tree.branchByKey.get(n.key)}
                             {#if s}
                                 {#if ui.staleSecs.has(s.id)}<span class="wengu-cp-meta wengu-know-stale"
                                         >{t("knowSecStale")}</span
@@ -164,7 +174,7 @@
                                     >
                                 </span>
                             {:else if d}
-                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(d.total) })}</span>
+                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub ?? d.total) })}</span>
                                 <span class="b3-list-item__action">
                                     {#if outlineable(d)}
                                         <button
@@ -207,6 +217,8 @@
                                         >
                                     {/if}
                                 </span>
+                            {:else if bsub}
+                                <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub) })}</span>
                             {/if}
                         {/snippet}
                     </TreeList>

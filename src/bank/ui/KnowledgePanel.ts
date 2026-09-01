@@ -181,6 +181,10 @@ export interface KnowTreeNode {
     name: string;
     doc?: KnowDocView;
     children: KnowTreeNode[];
+    /** 子树题数汇总（自身 doc.total + 全部后代子树）。父文档/分支没直接
+     *  关联题、但子文档有题时，靠它显示累计题数——否则父行光秃秃看不到
+     *  子树覆盖量（buildKnowTree 自底向上累加）。 */
+    subTotal: number;
 }
 
 /** 知识文档按 hPath 建树（同路径撞名以 docId 后缀子行挂载不丢）。 */
@@ -198,14 +202,14 @@ export function buildKnowTree(
             path = `${path}/${seg}`;
             let node = byPath.get(path);
             if (!node) {
-                node = { path, name: seg, children: [] };
+                node = { path, name: seg, children: [], subTotal: 0 };
                 byPath.set(path, node);
                 siblings.push(node);
             }
             siblings = node.children;
             if (i === segs.length - 1) {
                 if (node.doc) {
-                    siblings.push({ path: `${path}#${d.docId}`, name: d.title || seg, doc: d, children: [] });
+                    siblings.push({ path: `${path}#${d.docId}`, name: d.title || seg, doc: d, children: [], subTotal: 0 });
                 } else {
                     node.doc = d;
                 }
@@ -217,6 +221,16 @@ export function buildKnowTree(
         for (const n of nodes) sortRec(n.children);
     };
     sortRec(roots);
+    // 自底向上累加子树题数：父分支=自身文档题数+全部后代（含撞名 #id 子行）
+    const sumRec = (nodes: KnowTreeNode[]): number => {
+        let sum = 0;
+        for (const n of nodes) {
+            n.subTotal = (n.doc?.total ?? 0) + sumRec(n.children);
+            sum += n.subTotal;
+        }
+        return sum;
+    };
+    sumRec(roots);
     return roots;
 }
 

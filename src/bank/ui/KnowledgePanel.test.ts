@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { groupKnowByDoc, mergeKnowDocs, type KnowDocView, type KnowSectionTreeView } from "./KnowledgePanel";
+import {
+    buildKnowTree,
+    groupKnowByDoc,
+    mergeKnowDocs,
+    type KnowDocView,
+    type KnowSectionTreeView,
+} from "./KnowledgePanel";
 import type { KnowSectionNode } from "../../convert/service/KnowledgeLink";
 
 /** 题数扁平化（树 → "id:count" 清单，便于断言）。 */
@@ -142,5 +148,57 @@ describe("mergeKnowDocs", () => {
         expect(byId.get("bookA")).toMatchObject({ manual: true, registered: undefined });
         expect(byId.get("bookB")?.manual).toBe(true);
         expect(byId.get("bookA")?.sectionTree[0]).toEqual({ id: "s1", title: "章一", count: 0, children: [] });
+    });
+});
+
+describe("buildKnowTree.subTotal", () => {
+    /** 构造最小 KnowDocView（题数只关心 total）。 */
+    const doc = (docId: string, title: string, total: number): KnowDocView => ({
+        docId,
+        title,
+        sectionTree: [],
+        total,
+    });
+    const findSub = (nodes: ReturnType<typeof buildKnowTree>, path: string): number | undefined =>
+        nodes.find((n) => n.path === path)?.subTotal;
+
+    it("父路径无文档、子文档有题：分支汇总子树题数", () => {
+        // 「高数」自身无文档、无题；「高数/极限」有 5 题——父分支应显示 5
+        const info = new Map([["docA", { title: "极限", hPath: "/高数/极限" }]]);
+        const tree = buildKnowTree([doc("docA", "极限", 5)], info);
+        expect(findSub(tree, "/高数")).toBe(5);
+        expect(tree[0].children[0].subTotal).toBe(5); // 文档行自身
+    });
+
+    it("父文档自身有题且挂子文档：父文档行汇总自身+子树", () => {
+        // 「高数」自己有 3 题，又是「高数/极限」(5 题) 的父路径——父文档行应显示 8
+        const info = new Map([
+            ["docP", { title: "高数", hPath: "/高数" }],
+            ["docC", { title: "极限", hPath: "/高数/极限" }],
+        ]);
+        const tree = buildKnowTree([doc("docP", "高数", 3), doc("docC", "极限", 5)], info);
+        const parent = tree.find((n) => n.path === "/高数")!;
+        expect(parent.doc?.docId).toBe("docP");
+        expect(parent.subTotal).toBe(8); // 自身 3 + 子 5
+        expect(parent.children[0].subTotal).toBe(5);
+    });
+
+    it("多层嵌套自底向上累加：根=全部后代之和", () => {
+        const info = new Map([
+            ["a", { title: "a", hPath: "/书/章/节/a" }],
+            ["b", { title: "b", hPath: "/书/章/b" }],
+            ["c", { title: "c", hPath: "/书/c" }],
+        ]);
+        const tree = buildKnowTree([doc("a", "a", 1), doc("b", "b", 2), doc("c", "c", 4)], info);
+        const book = tree.find((n) => n.path === "/书")!;
+        expect(book.subTotal).toBe(7); // 1+2+4
+        const chapter = book.children.find((n) => n.path === "/书/章")!;
+        expect(chapter.subTotal).toBe(3); // 1+2
+    });
+
+    it("零题子树汇总为 0（trailing 据此不显示）", () => {
+        const info = new Map([["x", { title: "x", hPath: "/父/x" }]]);
+        const tree = buildKnowTree([doc("x", "x", 0)], info);
+        expect(findSub(tree, "/父")).toBe(0);
     });
 });
