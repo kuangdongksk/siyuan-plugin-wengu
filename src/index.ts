@@ -12,6 +12,7 @@ import { WordStore } from "./word/core/WordStore";
 import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
+import { initNotify } from "./ui/Notify";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { runDriftCheck } from "./bank/data/DriftWatch";
@@ -146,6 +147,9 @@ export default class WenguPlugin extends Plugin {
         // 词书房（多词书，redesign §五）：内核文件通道，onload 先于任何
         // 单词面板挂载初始化
         initWordLib();
+        // 思源通知（20260901）：后台任务的静默失败/完成走 showMessage
+        // 浮层（深层存储模块经 i18n 键取词），先于各存储 init
+        initNotify(this.i18n ?? {});
         // 路由结果缓存（增量哈希一期）：两级 AI 路由按题指纹缓存，
         // 匹配/批量关联/生成标签三弹窗共用
         initRouteCache({
@@ -202,7 +206,7 @@ export default class WenguPlugin extends Plugin {
             callback: async () => {
                 // 记录当前活动文档，页签据此渲染该文档的题目
                 const editor = getActiveEditor();
-                targetDocId = editor?.protyle.block.rootID ?? "";
+                targetDocId = editor?.protyle?.block?.rootID ?? "";
                 const tab = await openTab({
                     app: this.app,
                     custom: {
@@ -242,21 +246,7 @@ export default class WenguPlugin extends Plugin {
         }
 
         // 知识文档右键「温故：查相关题目」（⑤）：映射在插件数据里，本地反查
-        this.eventBus.on("open-menu-content", (ev) => {
-            const detail = ev.detail as {
-                menu?: { addItem: (item: { icon: string; label: string; click: () => void }) => void };
-                blockElements?: Record<string, unknown>;
-            };
-            const ids = Object.keys(detail.blockElements ?? {});
-            if (!detail.menu || ids.length !== 1) return;
-            const bank = this.bank();
-            if (!bank) return;
-            detail.menu.addItem({
-                icon: "iconSearch",
-                label: this.tKey("relatedMenu"),
-                click: () => void openRelatedDialog(bank, this.tKey, ids[0]),
-            });
-        });
+        this.eventBus.on("open-menu-content", this.onOpenMenuContent);
 
         // 用户在思源树里删/移文档时对账题库：内核事务经 ws-main 广播
         // （doOperations.action=delete/move），官方事件面没有独立的
@@ -315,9 +305,29 @@ export default class WenguPlugin extends Plugin {
         unmountCompanionGlobal();
         document.removeEventListener("click", WenguPlugin.onBlockRefClick);
         this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
+        this.eventBus.off("open-menu-content", this.onOpenMenuContent);
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
         aiSessions()?.flushNow(); // 登记簿去抖窗口内的尾笔立即落盘（重载不丢）
+        void this.bankStore?.flush(); // 题库 2s 防抖窗口内的作答记账尾笔（刷完题即重载不丢）
     }
+
+    /** 文档右键菜单注入（onunload 需配对退订，故必须是命名方法——
+     *  匿名箭头订阅重载一次叠一份监听器且旧实例无法回收）。 */
+    private readonly onOpenMenuContent = (ev: CustomEvent): void => {
+        const detail = ev.detail as {
+            menu?: { addItem: (item: { icon: string; label: string; click: () => void }) => void };
+            blockElements?: Record<string, unknown>;
+        };
+        const ids = Object.keys(detail.blockElements ?? {});
+        if (!detail.menu || ids.length !== 1) return;
+        const bank = this.bank();
+        if (!bank) return;
+        detail.menu.addItem({
+            icon: "iconSearch",
+            label: this.tKey("relatedMenu"),
+            click: () => void openRelatedDialog(bank, this.tKey, ids[0]),
+        });
+    };
 
     /** 题干内嵌块引用（查看原文）的 document 级委托：静态渲染是字符串
      *  管线（md → HTML 串），引用 span 只能带 data 标记由这里统一跳转。 */
@@ -403,6 +413,7 @@ export default class WenguPlugin extends Plugin {
     private mountWordView(custom: { element?: Element }): void {
         const el = custom.element as HTMLElement | undefined;
         if (!el || !WenguPlugin.instance) return;
+        wordUnmount?.(); // dock init 重入（布局恢复竞态）先卸旧实例——否则旧 WordTimer 间隔器泄漏
         const m = mountWordView(el, this.i18n ?? {}, this.getWordStore());
         (custom as unknown as { wenguWordView?: WordView }).wenguWordView = m.view;
         wordUnmount = m.unmount;
@@ -413,7 +424,7 @@ export default class WenguPlugin extends Plugin {
         openWenguSetting({
             i18n: this.i18n,
             pluginName: this.i18n.pluginName || this.name,
-            version: (this as unknown as { manifest?: { version?: string } }).manifest?.version ?? "0.1.0",
+            version: (this as unknown as { manifest?: { version?: string } }).manifest?.version ?? "0.1.1",
             settings: this.settings,
             onSettingsChange: () => {
                 this.activeView?.applySettings();

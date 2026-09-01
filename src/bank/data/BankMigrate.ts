@@ -155,17 +155,21 @@ export async function ensureMigratedFor(bank: QuestionBank, docs: { id: string; 
     if (fresh.length === 0 && data.backfillV2) return;
     if (bank.migrating) return bank.migrating;
     bank.migrating = (async () => {
-        for (const d of fresh) {
-            await refreshDocFor(bank, d.id, d.title ?? "");
-        }
-        if (!data.backfillV2) {
-            for (const id of [...data.migratedDocs]) {
-                await refreshDocFor(bank, id, "");
+        try {
+            for (const d of fresh) {
+                await refreshDocFor(bank, d.id, d.title ?? "");
             }
-            data.backfillV2 = true;
+            if (!data.backfillV2) {
+                for (const id of [...data.migratedDocs]) {
+                    await refreshDocFor(bank, id, "");
+                }
+                data.backfillV2 = true;
+            }
+            await bank.flush();
+        } finally {
+            // 闸必须复位：异常（如 flush 上抛）不复位会把后续迁移永久短路
+            bank.migrating = undefined;
         }
-        await bank.flush();
-        bank.migrating = undefined;
     })();
     return bank.migrating;
 }
