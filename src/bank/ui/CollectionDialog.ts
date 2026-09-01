@@ -2,6 +2,7 @@ import { Dialog } from "siyuan";
 import { formOption, svgIcon } from "../../ui/FormHtml";
 import { genIntoCollection } from "../gen/GenCore";
 import type { CollectionRow, KnowledgeRow, QuestionBank } from "../data/QuestionBank";
+import { recordOf } from "../data/BankRegen";
 import { esc } from "../../ui/shared";
 
 /**
@@ -126,7 +127,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         const parsed = await bank.questionsOf(colId);
         const rows = await Promise.all(
             parsed.map(async (p) => {
-                const src = (await bank.recordOf(p.id))?.sourceDocId ?? "";
+                const src = (await recordOf(bank, p.id))?.sourceDocId ?? "";
                 const srcTitle = src ? deps.docTitle(src) : "";
                 return { qid: p.id, stem: (p.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 60), srcTitle };
             })

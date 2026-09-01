@@ -3,6 +3,7 @@ import { injectKnowledgeRefs } from "../../convert/service/KnowRef";
 import { knowRootsOf } from "../data/KnowRoots";
 import { lexiconOfRoots, textRefsFor, type LexSection } from "../data/KnowLinkText";
 import type { QuestionBank } from "../data/QuestionBank";
+import { addGenerated } from "../data/BankRegen";
 
 /**
  * 逐点生成核（薄弱加练 WeakDrill 与收集补题 CollectionDialog 共用，
@@ -67,7 +68,7 @@ export async function genIntoCollection(
                 const hits = textRefsFor(p.title, await lexOf());
                 if (hits.length === 1) refs = [{ id: hits[0].id, title: hits[0].title }];
             }
-            const qid = await bank.addGenerated(injectKnowledgeRefs(kd, refs), refs, opts.title);
+            const qid = await addGenerated(bank, injectKnowledgeRefs(kd, refs), refs, opts.title);
             await opts.append(qid);
             madeHere++;
             made++;

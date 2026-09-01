@@ -12,6 +12,7 @@ import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
 import { esc, fmt } from "../../ui/shared";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
+import { recordsOfDoc } from "../data/BankRegen";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyTagToRecord, lexiconOfRoots, linkRecordsByText, parseFreeTags } from "../data/KnowLinkText";
 import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
@@ -112,7 +113,7 @@ async function runTag(
     okBtn.textContent = t("matchStop");
     show(t("matchPreparing"), "muted");
     try {
-        const records = (await bank.recordsOfDoc(deps.docId)).slice();
+        const records = (await recordsOfDoc(bank, deps.docId)).slice();
         if (records.length === 0) throw new Error(t("tagNoQuestions"));
         const tagged = records.filter((r) => r.knowledge);
         const untagged = records.filter((r) => !r.knowledge);

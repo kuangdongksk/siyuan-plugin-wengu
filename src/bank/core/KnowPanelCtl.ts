@@ -1,6 +1,7 @@
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
+import { collectKpRefs } from "../data/BankRegen";
 import { hideKnowDoc, knowHiddenOf, knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { openRelatedDialog } from "../ui/RelatedDialog";
@@ -68,7 +69,7 @@ export class KnowPanelCtl {
         }
         this.ui.phase = "loading";
         this.disarm();
-        const refs = await bank.collectKpRefs();
+        const refs = await collectKpRefs(bank);
         const rootsMap = await kpRootMap([...refs.keys()]);
         const registered = await knowRootsOf(bank);
         const hidden = new Set(await knowHiddenOf(bank));

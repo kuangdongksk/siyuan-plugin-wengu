@@ -2,6 +2,15 @@
 
 ## v0.1.1 unreleased
 
+- QuestionBank 拆分压 500 行红线（20260901）：「对账/重生成/反查/
+  生成入库」段（recordOf/replaceRecordKramdown/collectKpRefs/
+  remapKpRef/questionsRelatedToDoc/recordsByKeys/recordsOfDoc/
+  addGenerated/ensureCollection/appendToCollection 十方法）从
+  QuestionBank 类外移 data/BankRegen——同 BankMigrate/BankRecording
+  的函数式友元模式（接 bank 实例，读写走 all()/markDirty()，调用形
+  `bank.foo(x)`→`foo(bank,x)`），语义零变化；解析缓存访问经
+  parsedOf/invalidateParse 两个友元钩子，normKn 导出共用。
+  QuestionBank 595→461 行达标，13 个调用点文件同步改写。
 - 数据演进守则 + 版本闩（20260901 存储前瞻审查收口，不改任何存量
   数据）：审查全仓 10 个 saveData 存储、词书工作区文件与题目块 IAL
   契约后立规进 AGENTS.md——字段只加不改名、version 不参与装载

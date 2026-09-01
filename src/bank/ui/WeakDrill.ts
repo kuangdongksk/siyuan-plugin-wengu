@@ -2,6 +2,7 @@ import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
 import { genIntoCollection } from "../gen/GenCore";
 import type { QuestionBank } from "../data/QuestionBank";
+import { appendToCollection, ensureCollection } from "../data/BankRegen";
 import type { WeakTopRow, WeaknessStore } from "../data/WeaknessStore";
 import { esc, fmt } from "../../ui/shared";
 
@@ -108,14 +109,14 @@ async function runDrill(
     if (rows.length === 0) return;
     const now = new Date();
     const title = fmt(t("drillColTitle"), { m: String(now.getMonth() + 1), d: String(now.getDate()) });
-    await bank.ensureCollection(title);
+    await ensureCollection(bank, title);
     try {
         const { made } = await genIntoCollection(bank, rows, {
             title,
             mode,
             count,
             modelId,
-            append: (qid) => bank.appendToCollection(title, qid),
+            append: (qid) => appendToCollection(bank, title, qid),
             progress: (n, pointTitle) => show(`${t("drillRunning")} ${n}/${count} · ${pointTitle}`, "muted"),
             t,
         });

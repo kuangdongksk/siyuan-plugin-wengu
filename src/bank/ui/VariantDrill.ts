@@ -2,6 +2,7 @@ import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
 import { generateVariantOf } from "../gen/GenQuestion";
 import type { QuestionBank } from "../data/QuestionBank";
+import { addGenerated, recordsOfDoc } from "../data/BankRegen";
 import { esc, fmt } from "../../ui/shared";
 
 /**
@@ -95,7 +96,7 @@ async function runVariantDrill(
 ): Promise<void> {
     const { t, bank } = deps;
     try {
-        const records = await bank.recordsOfDoc(docId);
+        const records = await recordsOfDoc(bank, docId);
         const pool = shuffle(range === "wrong" ? records.filter((r) => r.stats.wrongCount > 0) : records).slice(
             0,
             count
@@ -117,7 +118,8 @@ async function runVariantDrill(
             show(`${t("drillRunning")} ${i + 1}/${pool.length} · ${t("variantMode")}`, "muted");
             const kd = await generateVariantOf(r.kramdown, deps.modelId());
             if (!kd) continue; // 单题失败/不过检跳过，不中断整轮
-            const qid = await bank.addGenerated(
+            const qid = await addGenerated(
+                bank,
                 kd,
                 r.kpRefs.map((k) => ({ id: k.id, title: k.title })),
                 title

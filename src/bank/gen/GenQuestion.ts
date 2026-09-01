@@ -3,6 +3,7 @@ import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBatchQuestions } from "../../convert/service/ConvertService";
 import { sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
+import { recordsByKeys } from "../data/BankRegen";
 
 /**
  * 单题生成核（薄弱加练与知识点补题共用）：变式=以该点入库题（错得
@@ -32,7 +33,7 @@ export async function generateQuestion(
     const section = mode === "concept" && kpId ? await sectionKramdown(kpId) : "";
     let template = "";
     if (mode === "variant") {
-        const records = await bank.recordsByKeys([point.key]);
+        const records = await recordsByKeys(bank, [point.key]);
         const wrongMost =
             records.filter((r) => r.stats.wrongCount > 0).sort((a, b) => b.stats.wrongCount - a.stats.wrongCount)[0] ??
             records[0];

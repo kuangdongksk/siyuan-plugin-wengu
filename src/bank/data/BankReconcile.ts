@@ -1,5 +1,6 @@
 import { KernelQuery } from "../../siyuan/query";
 import type { QuestionBank } from "./QuestionBank";
+import { collectKpRefs, remapKpRef } from "./BankRegen";
 import type { WeaknessStore } from "./WeaknessStore";
 
 /**
@@ -35,7 +36,7 @@ export async function kpRootMap(ids: string[]): Promise<Map<string, string>> {
 /** 对账主流程：返回重挂数。失败静默（下次再试）。 */
 export async function reconcileKnowledgeRefs(bank: QuestionBank, weakness: WeaknessStore): Promise<number> {
     try {
-        const refs = await bank.collectKpRefs();
+        const refs = await collectKpRefs(bank);
         if (refs.size === 0) return 0;
         const roots = await kpRootMap([...refs.keys()]);
         const dangling = [...refs.keys()].filter((id) => !roots.has(id));
@@ -51,7 +52,7 @@ export async function reconcileKnowledgeRefs(bank: QuestionBank, weakness: Weakn
             if (rows.length !== 1) continue;
             const newId = rows[0].get("id");
             if (newId === oldId) continue;
-            remapped += await bank.remapKpRef(oldId, newId, title);
+            remapped += await remapKpRef(bank, oldId, newId, title);
             await weakness.remapKey(`kp:${oldId}`, `kp:${newId}`, title);
         }
         if (remapped > 0) await bank.flush();

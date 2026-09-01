@@ -92,7 +92,10 @@
       两个独立工作区、rail 五钮——20260831 □4 曾把专题清单并入知识
       面板下半区，用户改回分立；小节
       节点行「开刷」=活视图专题 col-kp-{块id}，data/LiveCols 读取时
-      实时刷新题单）；**数据自托管**
+      实时刷新题单；题库「对账/重生成/反查/生成入库」段在 data/
+      BankRegen 函数式友元——20260901 从 QuestionBank 类拆出压 500
+      行红线，调用形 `foo(bank,…)`，解析缓存经 parsedOf/
+      invalidateParse 友元钩子）；**数据自托管**
       （20260831 三线收口）：作答运行时统计（attempts/wrong-count/
       right/last-answer/step-_/slot-_/文档级 total-time）**停写块
       属性**唯一真相在题库 stats/docStats（作答记账在 data/

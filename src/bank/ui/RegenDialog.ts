@@ -6,6 +6,7 @@ import { extractBlockId, extractBatchQuestions } from "../../convert/service/Con
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
+import { recordOf, replaceRecordKramdown } from "../data/BankRegen";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
 import { KernelBlock } from "../../siyuan/block";
@@ -126,7 +127,7 @@ async function runRegen(
     // 先禁用再进首个 await：原「recordOf 之后才禁用」，异步窗口内可
     // 双击并发两轮重生成（20260829 审查）
     if (okBtn) okBtn.disabled = true;
-    const record = await bank.recordOf(q.id);
+    const record = await recordOf(bank, q.id);
     if (!record) {
         show(t("regenNoRecord"), "err");
         if (okBtn) okBtn.disabled = false;
@@ -159,7 +160,7 @@ async function runRegen(
             if (tail) kd = kd.slice(0, tail.index) + "\n" + oldIal;
         }
         kd = injectKnowledgeRefs(kd, record.kpRefs);
-        const replaced = await bank.replaceRecordKramdown(q.id, kd);
+        const replaced = await replaceRecordKramdown(bank, q.id, kd);
         if (!replaced) throw new Error(t("regenNoRecord"));
         await bank.flush();
         // 源文档块尽力同步（updateBlock 单块；失败不阻断，题库为主记录）

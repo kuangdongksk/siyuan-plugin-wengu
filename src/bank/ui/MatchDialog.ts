@@ -14,6 +14,7 @@ import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui
 import { esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
+import { recordsOfDoc } from "../data/BankRegen";
 import { applyRefsToRecord } from "../data/KnowLinkText";
 import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
 
@@ -167,7 +168,7 @@ async function runMatch(
     try {
         const index = await buildKnowledgeIndex([deps.knowDocId]);
         if (index.chapters.length === 0) throw new Error(t("matchNoIndex"));
-        const records = (await bank.recordsOfDoc(srcDocId)).slice();
+        const records = (await recordsOfDoc(bank, srcDocId)).slice();
         let hit = 0;
         let miss = 0;
         let skip = 0;

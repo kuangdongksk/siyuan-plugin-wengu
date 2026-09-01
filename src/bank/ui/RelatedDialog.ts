@@ -3,6 +3,7 @@ import { svgIcon } from "../../ui/FormHtml";
 import { KernelQuery } from "../../siyuan/query";
 import { kpRootMap } from "../data/BankReconcile";
 import type { QuestionBank } from "../data/QuestionBank";
+import { collectKpRefs, questionsRelatedToDoc } from "../data/BankRegen";
 import { esc, fmt } from "../../ui/shared";
 
 /**
@@ -22,9 +23,9 @@ export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => st
     } catch (_) {
         // 查不到就按原 id 试
     }
-    const refs = await bank.collectKpRefs();
+    const refs = await collectKpRefs(bank);
     const roots = await kpRootMap([...refs.keys()]);
-    const rows = await bank.questionsRelatedToDoc(docId, roots);
+    const rows = await questionsRelatedToDoc(bank, docId, roots);
     const items =
         rows.length > 0
             ? rows

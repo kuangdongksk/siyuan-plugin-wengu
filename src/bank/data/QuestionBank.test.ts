@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
+import { recordsByKeys } from "./BankRegen";
 
 /** node 测试环境无 window（vitest 不启 jsdom），markDirty 的防抖定时器
  *  需要它——挂全局自指即可（同 BankRecording.test.ts）。 */
@@ -57,7 +58,7 @@ describe("knowledgeIndex 标签归一（洛必达 = 洛必达法则）", () => {
 
     it("recordsByKeys 同样归并（针对性生成取模板）", async () => {
         const bank = bankWith([rec("q1", "洛必达"), rec("q2", "洛必达法则"), rec("q3", "极限")]);
-        const recs = await bank.recordsByKeys(["kn:洛必达法则"]); // 旧键也能命中
+        const recs = await recordsByKeys(bank, ["kn:洛必达法则"]); // 旧键也能命中
         expect(recs.map((r) => r.qid).sort()).toEqual(["q1", "q2"]);
     });
 

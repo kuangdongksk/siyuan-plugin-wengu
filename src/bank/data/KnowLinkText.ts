@@ -4,6 +4,7 @@ import { KernelBlock } from "../../siyuan/block";
 import { normalizeKnowledge } from "./KnowledgeNorm";
 import { mergeRecordKpRefs } from "./KnowRoots";
 import type { BankRecord, QuestionBank } from "./QuestionBank";
+import { replaceRecordKramdown } from "./BankRegen";
 
 /**
  * 知识点文本关联（2026-08-31）：题库记录上的 knowledge 标签（AI 出题时
@@ -80,7 +81,7 @@ export async function applyRefsToRecord(
     }
     const next = injectKnowledgeRefs(stripKnowledgeRefs(r.kramdown), merged);
     if (next === r.kramdown) return false;
-    await bank.replaceRecordKramdown(r.qid, next);
+    await replaceRecordKramdown(bank, r.qid, next);
     await mergeRecordKpRefs(bank, r.qid, refs);
     try {
         await KernelBlock.update({ id: r.qid, dataType: "markdown", data: next });
@@ -120,7 +121,7 @@ export async function applyTagToRecord(
     }
     const next = injectKnowledgeRefs(stripKnowledgeRefs(tagged), merged);
     if (next !== r.kramdown) {
-        await bank.replaceRecordKramdown(r.qid, next);
+        await replaceRecordKramdown(bank, r.qid, next);
         await mergeRecordKpRefs(bank, r.qid, refs);
         try {
             await KernelBlock.update({ id: r.qid, dataType: "markdown", data: next });
