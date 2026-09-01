@@ -122,40 +122,7 @@ export class WeaknessStore {
             data && typeof data === "object" && data.points
                 ? data
                 : { version: 1, points: {}, applied: [], causeApplied: [] };
-        this.migrateKnKeys();
         return this.cache;
-    }
-
-    /** 存量 kn: 键归并（20260831 标签归一）：旧数据里「洛必达法则」与
-     *  「洛必达」是两行，归一键上线后新计数都落词干键——加载时把可归并
-     *  的旧键折叠进词干键（统计合并，同 remapKey；显示名取标准名），
-     *  避免新旧键并存两行。 */
-    private migrateKnKeys(): void {
-        const data = this.cache!;
-        const mergeInto = (oldKey: string, newKey: string, newTitle: string): void => {
-            const old = data.points[oldKey];
-            if (!old || oldKey === newKey) return;
-            const cur = data.points[newKey];
-            if (cur) {
-                cur.wrong += old.wrong;
-                cur.total += old.total;
-                cur.lastWrongAt = Math.max(cur.lastWrongAt, old.lastWrongAt);
-                for (const [c, n] of Object.entries(old.causes)) {
-                    cur.causes[c as WeakCause] = (cur.causes[c as WeakCause] ?? 0) + n;
-                }
-                if (old.aiNote) cur.aiNote = old.aiNote;
-                cur.title = pickStandardName([cur.title, old.title, newTitle]);
-            } else {
-                data.points[newKey] = { ...old, key: newKey, title: pickStandardName([old.title, newTitle]) };
-            }
-            delete data.points[oldKey];
-        };
-        for (const key of Object.keys(data.points)) {
-            if (!key.startsWith("kn:")) continue;
-            const stem = key.slice(3);
-            const canonical = knKey(stem); // 词干键（与 weakKeys 现口径一致）
-            if (canonical && canonical !== key) mergeInto(key, canonical, stem);
-        }
     }
 
     /** 启动/装载时预热缓存并刷新同步快照。 */

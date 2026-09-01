@@ -80,8 +80,6 @@ export interface BankData {
     /** 镜像漂移登记（DriftWatch 写）：习题文档 id → 漂移摘要，UI 徽标
      *  与「采纳/忽略」弹窗消费；空漂移删条目。 */
     driftDocs?: Record<string, DriftEntry>;
-    /** 存量块属性统计回灌（一次性全量重扫+清残留属性）完成标记。 */
-    backfillV2?: boolean;
 }
 
 /** 一个习题文档的镜像漂移摘要（changed=内容变、fresh=文档新增未入库、
@@ -208,7 +206,7 @@ export class QuestionBank {
         return refreshDocFor(this, docId, title);
     }
 
-    /** 存量迁移（后台一次）：实现在 BankMigrate.ensureMigratedFor。 */
+    /** 习题文档首次入库（后台一次）：实现在 BankMigrate.ensureMigratedFor。 */
     async ensureMigrated(docs: { id: string; title?: string }[]): Promise<void> {
         return ensureMigratedFor(this, docs);
     }

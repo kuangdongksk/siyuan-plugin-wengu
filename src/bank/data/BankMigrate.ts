@@ -7,10 +7,10 @@ import { questionHash } from "./BankParse";
 import type { WenguQuestion } from "../../types";
 
 /**
- * 题库入库与存量迁移（自 QuestionBank 拆出压 500 行红线）：
- * refreshDoc 把一个习题文档同步入库（迁移与转换后同步同一条路，幂等），
- * ensureMigrated 对存量文档后台跑一次。串行内核调用，量大时由调用方
- * 放后台。all/markDirty/migrating 对本模块友元开放。
+ * 题库入库（自 QuestionBank 拆出压 500 行红线）：refreshDoc 把一个习题
+ *  文档同步入库（转换后同步与首扫同一条路，幂等），ensureMigrated 对
+ *  未扫过的习题文档后台首扫一次。串行内核调用，量大时由调用方放后台。
+ *  all/markDirty/migrating 对本模块友元开放。
  */
 
 /** 块属性运行时统计 → 题库 stats 播种/回灌（细粒度编码原样透传）。 */
@@ -146,28 +146,22 @@ export async function refreshDocFor(bank: QuestionBank, docId: string, title = "
     return added;
 }
 
-/** 存量迁移（后台一次）：listQuestionDocs 里有而未迁移过的文档；
- *  backfillV2 未置时对已迁移文档补一次全量重扫（块属性统计回灌 +
- *  清残留属性，数据自托管一次性收口），跑完置标记。 */
+/** 习题文档首次入库（后台一次）：listQuestionDocs 里有而未扫过的文档
+ *  逐个 refreshDocFor 入题库（migratedDocs 防重）。串行内核调用，量大
+ *  时由调用方放后台。 */
 export async function ensureMigratedFor(bank: QuestionBank, docs: { id: string; title?: string }[]): Promise<void> {
     const data = await bank.all();
     const fresh = docs.filter((d) => d.id && !data.migratedDocs.includes(d.id));
-    if (fresh.length === 0 && data.backfillV2) return;
+    if (fresh.length === 0) return;
     if (bank.migrating) return bank.migrating;
     bank.migrating = (async () => {
         try {
             for (const d of fresh) {
                 await refreshDocFor(bank, d.id, d.title ?? "");
             }
-            if (!data.backfillV2) {
-                for (const id of [...data.migratedDocs]) {
-                    await refreshDocFor(bank, id, "");
-                }
-                data.backfillV2 = true;
-            }
             await bank.flush();
         } finally {
-            // 闸必须复位：异常（如 flush 上抛）不复位会把后续迁移永久短路
+            // 闸必须复位：异常（如 flush 上抛）不复位会把后续入库永久短路
             bank.migrating = undefined;
         }
     })();
