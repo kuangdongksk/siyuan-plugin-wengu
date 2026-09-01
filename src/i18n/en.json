@@ -304,6 +304,7 @@
   "finishRound": "Finish round",
   "endRoundBtn": "End sitting",
   "endRoundHint": "Grade what you answered and show this round report; continue next time via Resume",
+  "endRoundEmpty": "Nothing answered yet this round",
   "reportTitle": "Round summary",
   "reportScore": "Score {c}/{a}",
   "reportOvertime": "overtime",

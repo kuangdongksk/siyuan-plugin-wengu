@@ -40,18 +40,21 @@ function blockMathHtml(content: string): string {
     return `<div class="render-node" data-type="NodeMathBlock" data-content="${esc(content)}"></div>`;
 }
 
-/** 行内 `$...$` 规则：不跨行、内容非空、`$$` 让位块规则。 */
+/** 行内 `$...$` 规则：不跨行、内容非空；`$$` 行首让位块规则，行中
+ *  `$$...$$`（kramdown 读回常把段中块公式写成双美元，如
+ *  「文字> $$x$$」）按行内公式收——块规则只认行首，不接就会原样
+ *  漏出美元符。 */
 function mathInline(state: StateInline, silent: boolean): boolean {
     const start = state.pos;
     if (state.src[start] !== "$") return false;
-    if (state.src[start + 1] === "$") return false;
-    let pos = start + 1;
+    const double = state.src[start + 1] === "$";
+    let pos = start + (double ? 2 : 1);
     let found = -1;
     const max = state.posMax;
     while (pos < max) {
         const ch = state.src[pos];
         if (ch === "\\") pos += 2;
-        else if (ch === "$") {
+        else if (ch === "$" && (!double || state.src[pos + 1] === "$")) {
             found = pos;
             break;
         } else if (ch === "\n")
@@ -59,10 +62,10 @@ function mathInline(state: StateInline, silent: boolean): boolean {
         else pos++;
     }
     if (found < 0) return false;
-    const content = state.src.slice(start + 1, found);
+    const content = state.src.slice(start + (double ? 2 : 1), found);
     if (!content.trim()) return false;
     if (!silent) state.push("wengu_math_inline", "", 0).content = content;
-    state.pos = found + 1;
+    state.pos = found + (double ? 2 : 1);
     return true;
 }
 

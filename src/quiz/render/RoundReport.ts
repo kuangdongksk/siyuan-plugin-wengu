@@ -181,7 +181,10 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
                 );
         },
     });
-    host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    /* 报告宿主在卷首（头部之下、题卷之上，renderMainShell）：收卷即见，
+       不再依赖 scrollIntoView——题卡 content-visibility 折叠屏外高度，
+       smooth/nearest 常误判「已在视口」一步不滚，197 题长卷的报告在
+       文档尾，用户看起来就是「点了没反应」（20260901 走查实锤）。 */
     if (ctx.weakness) void settleWeakness(ctx.weakness, s, ctx.list, ctx.aiModelId);
 }
 

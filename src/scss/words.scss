@@ -16,25 +16,43 @@
 }
 
 .wengu-word-head {
+  /* 两行头（20260901 用户反馈）：350px dock 单行挤不下标题+切书+统计 */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 16px;
+}
+
+.wengu-word-head-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
+  min-width: 0;
 }
 
 .wengu-word-title {
   font-weight: 600;
+  flex: none;
+  white-space: nowrap;
 }
 
 .wengu-word-stats {
   color: var(--b3-theme-on-surface-light);
   font-size: 12px;
+  /* 次行宽裕仍不换行：极窄时让切书钮（flex:1）先收 */
+  flex: none;
+  white-space: nowrap;
 }
 
 /* ── 书名副位与切书浮层（redesign §四/§五）── */
 .wengu-word-bookpick {
   position: relative;
   min-width: 0;
+  /* 占次行弹性中段：极窄面板先收书名（省略号） */
+  flex: 1 1 auto;
+  /* 自身成 flex 容器：bookbtn 才会跟着收缩（否则行内按钮按内容
+     宽外溢，书名直接压到统计行上） */
+  display: flex;
 }
 
 .wengu-word-bookbtn {

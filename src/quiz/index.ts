@@ -14,7 +14,7 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { refreshDocFor } from "../bank/data/BankMigrate";
-import { notifyError } from "../ui/Notify";
+import { notifyError, notifyInfo } from "../ui/Notify";
 import { overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "../bank/data/BankRecording";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
@@ -305,8 +305,21 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.renderList();
     };
 
-    /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。 */
-    readonly endRound = (): void => void ((this.session?.answered ?? 0) > 0 && manualFinishRound(roundFinishCtx(this)));
+    /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。
+     *  空轮不收卷但给通知（原静默返回像「点了没反应」）；报告已出的
+     *  残留按钮再点=重展报告（头部组件不随 started 重挂，收卷后按钮
+     *  仍在，原二次点击静默成死钮——20260901 走查实锤）。 */
+    readonly endRound = (): void => {
+        if (this.session) {
+            if (this.session.answered <= 0) {
+                notifyInfo({ key: "endRoundEmpty" });
+                return;
+            }
+            manualFinishRound(roundFinishCtx(this));
+            return;
+        }
+        if (this.finished) showRoundReportNow(roundFinishCtx(this));
+    };
 
     /** 复习模式组头「重刷本文档」：切做题 + scope=wrongAll 直落开轮。 */
     readonly startReviewDrill = (docId: string): void => {

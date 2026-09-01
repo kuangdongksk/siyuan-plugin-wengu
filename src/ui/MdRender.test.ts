@@ -40,6 +40,19 @@ describe("renderMdHtml：数学桥（$ 占位形态）", () => {
         expect(renderMdHtml("$$\nx = 1\ny = 2\n$$")).toContain('data-type="NodeMathBlock"');
     });
 
+    it("行中 $$...$$ → 行内公式占位（kramdown 读回的段中块公式，真机 0.0.1 走查案例）", () => {
+        const html = renderMdHtml("且> $$f(x) = 2x^3-9x^2+12x-4,$$\n零点为两个。");
+        expect(html).toContain('data-type="inline-math"');
+        expect(html).toContain('data-content="f(x) = 2x^3-9x^2+12x-4,"');
+        expect(html).not.toContain("$$");
+    });
+
+    it("行中未闭合 $$ 不吞文本（保持字面）", () => {
+        const html = renderMdHtml("甲 $$x 乙");
+        expect(html).not.toContain("inline-math");
+        expect(html).toContain("$$x 乙");
+    });
+
     it("未闭合 $ 不吞文本；空公式 $$ 不产出占位", () => {
         expect(renderMdHtml("价格 5$ 美元")).toContain("5$");
         expect(renderMdHtml("甲 $ 乙")).not.toContain("inline-math");

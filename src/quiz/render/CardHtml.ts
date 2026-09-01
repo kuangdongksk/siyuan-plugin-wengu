@@ -127,8 +127,8 @@ export function renderMainShell(m: MainShellModel): string {
               ? `<div class="wengu-muted">${esc(m.t("quizNone"))}</div>`
               : ""
     }
+    <div data-report hidden></div>
     <div class="wengu-body">${m.numsHtml}<div class="wengu-card-list${
         m.previewing ? " wengu-previewing" : ""
-    }">${m.cardsHtml}</div></div>
-    <div data-report hidden></div>`);
+    }">${m.cardsHtml}</div></div>`);
 }

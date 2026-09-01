@@ -35,49 +35,55 @@
 <svelte:window onclick={bookOpen ? closeOnOuter : undefined} />
 
 <div class="wengu-word-head">
-    <span class="wengu-word-title">{t("wordAppTitle")}</span>
-    <div class="wengu-word-bookpick" bind:this={wrapEl}>
-        <button
-            type="button"
-            class="wengu-word-bookbtn"
-            title={t("wordBookSwitch")}
-            onclick={() => (bookOpen = !bookOpen)}
-        >
-            <span class="wengu-word-bookname">{view.ui.book.title}</span>
-            <span class="wengu-word-bookcaret">{@html svgIcon("iconDown")}</span>
-        </button>
-        {#if bookOpen}
-            <div class="b3-list--background wengu-word-bookmenu" role="menu">
-                {#each books as b (b.id)}
-                    <button
-                        type="button"
-                        class="b3-list-item b3-list-item--narrow"
-                        class:b3-list-item--focus={b.id === view.ui.book.id}
-                        role="menuitem"
-                        onclick={() => {
-                            bookOpen = false;
-                            view.switchBook(b.id);
-                        }}
-                    >
-                        <span class="wengu-word-bookname">{b.name}</span>
-                        <span class="wengu-word-bookcount">{b.count}</span>
-                    </button>
-                {/each}
-            </div>
+    <!-- 两行头（20260901 用户反馈：350px dock 单行挤压折行/重叠）：
+         首行=标题+屏内操作钮，次行=切书+统计行 -->
+    <div class="wengu-word-head-row">
+        <span class="wengu-word-title">{t("wordAppTitle")}</span>
+        <span class="fn__flex-1"></span>
+        {@render extra?.()}
+        {#if showHome}
+            <button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
+                >{@html svgIcon("iconList")}</button
+            >
+        {/if}
+        {#if showSet}
+            <button class="wengu-iconbtn" title={t("wordSetStart")} onclick={() => view.setStart()}
+                >{@html svgIcon("iconSettings")}</button
+            >
         {/if}
     </div>
-    {#if stats}<span class="wengu-word-stats">{stats}</span>{/if}
-    {@render mid?.()}
-    <span class="fn__flex-1"></span>
-    {@render extra?.()}
-    {#if showHome}
-        <button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
-            >{@html svgIcon("iconList")}</button
-        >
-    {/if}
-    {#if showSet}
-        <button class="wengu-iconbtn" title={t("wordSetStart")} onclick={() => view.setStart()}
-            >{@html svgIcon("iconSettings")}</button
-        >
-    {/if}
+    <div class="wengu-word-head-row wengu-word-head-sub">
+        <div class="wengu-word-bookpick" bind:this={wrapEl}>
+            <button
+                type="button"
+                class="wengu-word-bookbtn"
+                title={t("wordBookSwitch")}
+                onclick={() => (bookOpen = !bookOpen)}
+            >
+                <span class="wengu-word-bookname">{view.ui.book.title}</span>
+                <span class="wengu-word-bookcaret">{@html svgIcon("iconDown")}</span>
+            </button>
+            {#if bookOpen}
+                <div class="b3-list--background wengu-word-bookmenu" role="menu">
+                    {#each books as b (b.id)}
+                        <button
+                            type="button"
+                            class="b3-list-item b3-list-item--narrow"
+                            class:b3-list-item--focus={b.id === view.ui.book.id}
+                            role="menuitem"
+                            onclick={() => {
+                                bookOpen = false;
+                                view.switchBook(b.id);
+                            }}
+                        >
+                            <span class="wengu-word-bookname">{b.name}</span>
+                            <span class="wengu-word-bookcount">{b.count}</span>
+                        </button>
+                    {/each}
+                </div>
+            {/if}
+        </div>
+        {#if stats}<span class="wengu-word-stats">{stats}</span>{/if}
+        {@render mid?.()}
+    </div>
 </div>

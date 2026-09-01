@@ -2,10 +2,25 @@
 
 ## v0.1.1 unreleased
 
+- 「结束本次」无反应修复（20260901 用户确认复现）：收卷其实成功，
+  但报告宿主在题卷文档尾（197 题长卷要滚很多屏）+ 题卡
+  content-visibility 折叠屏外高度使 scrollIntoView smooth/nearest
+  误判「已在视口」一步不滚——看起来就是没反应；且头部组件不随
+  started 重挂，收卷后按钮残留，再点时 session 已清空、
+  `answered>0` 守卫静默返回成死钮，空轮（answered=0）点击同样
+  零反馈。三处收口：①报告宿主移到卷首（头部之下、题卷之上，
+  renderMainShell）收卷即见，scrollIntoView 删除；②endRound 重写
+  ——空轮走 notifyInfo 提示不收卷（endRoundEmpty 键），已收卷后
+  再点=重展报告（showRoundReportNow 对 finished 幂等）；
+  ③single-click 真机回验：报告 367px 在主区可视范围、残留按钮
+  再点重展、空轮提示文案正确且轮次保持进行态。
 - UI 走查三修（20260901 发布前走查 0.0.1/0.1.1）：①单词面板头部
   挤压——窄 dock（350px）下主标题「温故单词」折行、书名副位与
   统计行文字直接重叠：标题/统计 nowrap+flex:none，切书钮改弹性
-  中段（flex:1+display:flex）先收书名省略号；②AI 会话左栏行标题
+  中段（flex:1+display:flex）先收书名省略号；随后按用户反馈定稿
+  **两行头**——首行=标题+屏内操作钮、次行=切书+统计行
+  （WordHead 拆 .wengu-word-head-row 双行容器），书名副位与统计
+  完整可见零省略；②AI 会话左栏行标题
   被截成两三字——删除钮 visibility:hidden 仍占位 ~45px，改思源
   原生 b3-list-item--hide-action 同款 display:none（hover 才显）、
   左栏 300→320px，「建知识树 · 4-常微分方程」完整可见；③题卡解析
