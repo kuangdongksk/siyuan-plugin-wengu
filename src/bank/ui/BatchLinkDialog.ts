@@ -1,5 +1,5 @@
 import { Dialog } from "siyuan";
-import { agentChatOnce } from "../../ai/client";
+import { agentChatOnce, newAiGroupId } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
@@ -128,6 +128,8 @@ async function runBatch(
             const index = await buildKnowledgeIndex(roots);
             if (index.chapters.length > 0) {
                 const pending: BankRecord[] = p1.missed;
+                // 动作分组（AI 会话面板树归并）：本次批量关联的 AI 兜底挂同组
+                const group = { id: newAiGroupId(), title: `批量关联 · ${pending.length} 题` };
                 for (let i = 0; i < pending.length; i++) {
                     if (ctrl.signal.aborted || !dialog.element.isConnected) break;
                     const r = pending[i];
@@ -142,6 +144,7 @@ async function runBatch(
                                 agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
                                     kind: "route",
                                     title: `批量关联 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
+                                    group,
                                 }),
                             onFail: (f) => fails.push(f),
                         });

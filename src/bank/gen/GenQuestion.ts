@@ -1,4 +1,4 @@
-import { agentChatOnce } from "../../ai/client";
+import { agentChatOnce, newAiGroupId } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { hasStemPart, parseDrafts, protocolSpec, renderUnit } from "../../convert/service/QuestionDraft";
 import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
@@ -80,9 +80,11 @@ ${template}`;
 
 /** 发 prompt 出题 + AI 自检（独立重做校验答案，不过检丢弃返回空串）。
  *  独立会话通道（20260830）：出题/自检天然并发，不再过共享串行队列；
- *  track 登记进 AI 会话面板（自检标「自检」后缀区分）。 */
+ *  track 登记进 AI 会话面板（自检标「自检」后缀区分）；两发挂同组
+ *  （20260902 树状分组：一次出题动作=面板一棵子树）。 */
 async function genWithVerify(prompt: string, modelId: string, track: { kind: string; title: string }): Promise<string> {
-    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, undefined, track);
+    const group = { id: newAiGroupId(), title: track.title };
+    const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, undefined, { ...track, group });
     const drafts = parseDrafts(reply).filter(hasStemPart);
     if (drafts.length === 0) return "";
     shuffleDraftOptions(drafts[0]);
@@ -95,7 +97,7 @@ ${kd}`,
         modelId,
         AI_TIMEOUT.mid,
         undefined,
-        { kind: track.kind, title: `${track.title} · 自检` }
+        { kind: track.kind, title: `${track.title} · 自检`, group }
     );
     if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) return "";
     return kd;

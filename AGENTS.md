@@ -20,7 +20,10 @@
       抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` 对外通道
       两条——**agentChatOnce**（一次性独立会话：saveSession→chat→
       removeSession，独立 sessionID 天然并发+可按次指定模型；可选
-      `track{kind,title}` 参数把调用登记进 AI 会话面板；20260830
+      `track{kind,title,group?}` 参数把调用登记进 AI 会话面板，
+      group={id,title} 把一次动作触发的多次调用挂同组（id 由动作
+      入口 `newAiGroupId` 生成，**AiTrack 接口定义在 data/AiSessions**，
+      client 转发导出；20260830
       起 chatGPT 直答与共享 "" 会话两条路已弃用——agentChat 收为模块
       私有，queue.ts/enqueueAi 整体退役）与 **agentChatContinued**
       （继续追问：历史轮次以 user/assistant 条目回放播种新会话）、
@@ -30,12 +33,19 @@
       DOM 自动化与「面板优先、页内降级」按钮帮手；**AI 会话登记与
       管理面板**（20260831）：`data/AiSessions.ts` 登记簿
       （saveData("ai-sessions")，LRU 双上限全局 150/单类 40、600ms 去抖
-      +串行链落盘、重载时 running 改判「已中断」；index.ts onload
+      +串行链落盘、重载时 running 改判「已中断」；记录可选
+      group/groupTitle 字段随组冗余落盘；index.ts onload
       initAiSessions 接线）+ rail「AI 会话」工作区面板
       （components/SessionPanelApp.svelte 四件套，挂载编排
       `SessionPanel.ts`；**两栏式**（20260901 改版）：左栏=会话清单
       常驻（类别过滤/状态徽标/两击删除/选中高亮），点行右栏出完整
-      轮次明细+继续追问输入条）——判题/转换/检测/标签/路由/出题/单词复盘等
+      轮次明细+继续追问输入条；**树状分组**（20260902）：同组记录在
+      左栏归并成一个可展开组行（归并纯函数 `core/SessionTree.ts`——
+      孤儿组退平铺、类别过滤组内透镜式生效、状态聚合
+      running>error>done），组行两击删整组（removeGroup），子会话行
+      缩进；已接组：整卷转换（检测/路由/生成）、增量补生成、匹配/
+      批量关联/生成标签逐题路由、出题自检；判题等单发动作不分组）——
+      判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排；**生成输出行协议**（20260902）：

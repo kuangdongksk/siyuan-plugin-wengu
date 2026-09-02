@@ -1,4 +1,4 @@
-import { agentChatOnce } from "../../ai/client";
+import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { chunkKramdown, isMaterialKramdown, parseVerdict } from "./ConvertService";
 import { esc } from "../../ui/shared";
@@ -59,7 +59,13 @@ ${win}`;
 /** 分段并行计数（独立会话天然并发，小池限流）。首段失败=整个检测
  *  失败上抛（调用方不阻断转换）；其余段失败留空计 truncated，
  *  count 仍是成功段之和（N+ 下限）。 */
-export async function detectQuestions(source: string, modelId: string, signal?: AbortSignal): Promise<DetectResult> {
+export async function detectQuestions(
+    source: string,
+    modelId: string,
+    signal?: AbortSignal,
+    /** 动作分组（AI 会话面板树归并）：整卷转换入口把检测与后续生成挂同组。 */
+    group?: AiSessionGroup
+): Promise<DetectResult> {
     const wins = chunkKramdown(source, DETECT_CHARS).map((c) => c.text);
     if (wins.length === 0) return { can: true, reason: "" };
     const counts: (number | undefined)[] = new Array(wins.length).fill(undefined);
@@ -74,6 +80,7 @@ export async function detectQuestions(source: string, modelId: string, signal?: 
                 const reply = await agentChatOnce(windowPrompt(wins[i], i === 0), modelId, AI_TIMEOUT.quick, signal, {
                     kind: "detect",
                     title: `前段检测 · ${i + 1}/${wins.length}`,
+                    group,
                 });
                 if (i === 0) headReply = reply;
                 counts[i] = parseCount(reply);

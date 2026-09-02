@@ -1,5 +1,5 @@
 import { Dialog } from "siyuan";
-import { agentChatOnce } from "../../ai/client";
+import { agentChatOnce, newAiGroupId } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
@@ -134,6 +134,8 @@ async function runTag(
         if (doGen && !ctrl.signal.aborted && untagged.length > 0 && dialog.element.isConnected) {
             const index = roots.length > 0 ? await buildKnowledgeIndex(roots) : undefined;
             const useRoute = (index?.chapters.length ?? 0) > 0;
+            // 动作分组（AI 会话面板树归并）：路由生成/自由生成分批挂同组
+            const group = { id: newAiGroupId(), title: `生成标签 · ${untagged.length} 题` };
             if (useRoute) {
                 for (let i = 0; i < untagged.length; i++) {
                     if (ctrl.signal.aborted || !dialog.element.isConnected) break;
@@ -149,6 +151,7 @@ async function runTag(
                                 agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
                                     kind: "route",
                                     title: `标签路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
+                                    group,
                                 }),
                             onFail: (f) => fails.push(f),
                         });
@@ -160,7 +163,7 @@ async function runTag(
                     else genMiss++;
                 }
             } else {
-                genOk = await genFreeTags(bank, modelId, untagged, ctrl, show, t);
+                genOk = await genFreeTags(bank, modelId, untagged, ctrl, show, t, group);
                 genMiss = untagged.length - genOk;
             }
         }
@@ -204,7 +207,9 @@ async function genFreeTags(
     records: BankRecord[],
     ctrl: AbortController,
     show: (text: string, kind: "ok" | "err" | "muted") => void,
-    t: (key: string) => string
+    t: (key: string) => string,
+    /** 动作分组（AI 会话面板树归并）：与本弹窗其他 AI 调用挂同组。 */
+    group: { id: string; title: string }
 ): Promise<number> {
     let ok = 0;
     for (let base = 0; base < records.length; base += FREE_BATCH) {
@@ -225,7 +230,7 @@ ${list}`,
                 modelId,
                 AI_TIMEOUT.batch,
                 ctrl.signal,
-                { kind: "tag", title: `自由生成标签 · ${batch.length} 题` }
+                { kind: "tag", title: `自由生成标签 · ${batch.length} 题`, group }
             );
             tags = parseFreeTags(reply);
         } catch (_) {

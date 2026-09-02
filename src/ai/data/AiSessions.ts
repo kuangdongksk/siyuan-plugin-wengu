@@ -12,6 +12,11 @@
  * 并发互吞响应，见 AGENTS.md；转换并发池一秒内多次收口只落一次盘）。
  * 插件重载时在途的 running 记录永远等不到收口——hydrate 一律改判
  * error({@link AI_INTERRUPTED})，面板显示「已中断」。
+ *
+ * 动作分组（20260902）：一次用户动作触发的多次调用（导入转换的
+ * 检测/路由/转换、匹配的逐题路由等）由动作入口发一个组 id，各调用
+ * 经 track.group 带上——面板左栏把同组记录归并成一棵可展开子树，
+ * 树状呈现「动作 → 多个会话」。
  */
 
 import { notifyError } from "../../ui/Notify";
@@ -36,6 +41,30 @@ export interface AiSessionRecord {
     status: "running" | "done" | "error";
     error?: string;
     turns: AiTurn[];
+    /** 动作分组 id（可选，20260902）：一次用户动作触发的多次调用共享同组
+     *  （如一次导入转换的 检测/路由/转换 全部调用），面板左栏归并成一棵
+     *  子树。空 = 不分组（判题这类单发动作平铺显示）。 */
+    group?: string;
+    /** 分组标题（随每条记录冗余落盘，组节点标题取最新成员的；组员同批
+     *  必同值，LRU 淘汰部分成员也不丢标题）。 */
+    groupTitle?: string;
+}
+
+/** 动作分组（agentChatOnce 的 track 可选参数）：id 由动作入口生成
+ *  （newAiGroupId），title 为人读的组名（如「转换 · 文档名」）。 */
+export interface AiSessionGroup {
+    id: string;
+    title: string;
+}
+
+/** 会话登记元数据（agentChatOnce 可选参数，client.ts 转发导出）：kind
+ *  进「AI 会话」面板的过滤与徽标，title 缺省取消息前 24 字，group 把
+ *  该调用挂进一次动作的分组树。带上即登记（收口后可回看产出并继续
+ *  追问），不带则不登记。 */
+export interface AiTrack {
+    kind: string;
+    title?: string;
+    group?: AiSessionGroup;
 }
 
 /** 插件存储（saveData("ai-sessions")）里的登记簿。 */
@@ -83,9 +112,16 @@ function validItems(raw: unknown): AiSessionRecord[] {
         ) {
             continue;
         }
-        out.push({ ...r, status: r.status, turns: validTurns(r.turns) } as AiSessionRecord);
+        out.push(validGroupFields({ ...r, status: r.status, turns: validTurns(r.turns) } as AiSessionRecord));
     }
     return out;
+}
+
+/** 组字段宽容装载：string 原样保留，其他类型剥掉（可选字段，旧盘无）。 */
+function validGroupFields(r: AiSessionRecord): AiSessionRecord {
+    if (typeof r.group !== "string" || !r.group) delete r.group;
+    if (typeof r.groupTitle !== "string" || !r.groupTitle) delete r.groupTitle;
+    return r;
 }
 
 function capText(text: string): string {
@@ -161,8 +197,8 @@ export class AiSessionStore {
         for (const fn of [...this.listeners]) fn();
     }
 
-    /** 登记一次调用的起点（running + 首轮 user prompt）。 */
-    begin(id: string, kind: string, title: string, model: string, prompt: string): void {
+    /** 登记一次调用的起点（running + 首轮 user prompt；group=所属动作组）。 */
+    begin(id: string, kind: string, title: string, model: string, prompt: string, group?: AiSessionGroup): void {
         const rec: AiSessionRecord = {
             id,
             kind,
@@ -171,6 +207,7 @@ export class AiSessionStore {
             createdAt: Date.now(),
             status: "running",
             turns: [{ role: "user", text: capText(prompt) }],
+            ...(group ? { group: group.id, groupTitle: group.title } : {}),
         };
         this.items = [rec, ...this.items.filter((r) => r.id !== id)];
         this.trim();
@@ -214,6 +251,15 @@ export class AiSessionStore {
     remove(id: string): void {
         const before = this.items.length;
         this.items = this.items.filter((r) => r.id !== id);
+        if (this.items.length === before) return;
+        this.schedule();
+        this.notify();
+    }
+
+    /** 删除一个动作组的全部记录（面板组行删除；含在途 running）。 */
+    removeGroup(groupId: string): void {
+        const before = this.items.length;
+        this.items = this.items.filter((r) => r.group !== groupId);
         if (this.items.length === before) return;
         this.schedule();
         this.notify();

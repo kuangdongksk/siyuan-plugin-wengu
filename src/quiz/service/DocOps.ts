@@ -259,6 +259,8 @@ async function runIncrementalReimport(
         const ev = convertRunEventsFor(v.convertAccess);
         const started = startExclusiveConvertRun(ev, srcId, async (signal) => {
             ev.onStatus(esc(t("incrPreparing")), "muted");
+            // 题集标题提前取（AI 会话分组的组名用；失败不阻断）
+            const qinfo = await getDocInfo(quizDocId).catch((): undefined => undefined);
             let res;
             let failed = "";
             try {
@@ -267,6 +269,7 @@ async function runIncrementalReimport(
                     staleBlockIds: choice.staleBlockIds,
                     chunks: choice.chunks,
                     quizDocId,
+                    title: qinfo?.title,
                     modelId: cfg.modelId,
                     fillToChoice: cfg.fillToChoice,
                     bigToSteps: cfg.bigToSteps,

@@ -54,6 +54,11 @@ export class SessionPanelCtl {
         this.ui.filter = kind;
     }
 
+    /** 组行展开/收起（展开态仅视图内存，不持久化）。 */
+    toggleGroup(gid: string): void {
+        this.ui.openGroups[gid] = !this.ui.openGroups[gid];
+    }
+
     select(id: string): void {
         this.ui.selId = id;
         this.ui.draft = "";
@@ -89,7 +94,8 @@ export class SessionPanelCtl {
         }
     }
 
-    /* ── 「删除」两击确认（3s 复位，与 bank 面板同口径） ── */
+    /* ── 「删除」两击确认（3s 复位，与 bank 面板同口径）；组行删除用
+        `g:{组id}` 前缀复用同一确认位，二次点击删整组 ── */
 
     armRemove(id: string): void {
         if (this.ui.rmArmed === id) {
@@ -97,8 +103,22 @@ export class SessionPanelCtl {
             aiSessions()?.remove(id);
             return;
         }
+        this.armWith(id);
+    }
+
+    armRemoveGroup(gid: string): void {
+        const key = `g:${gid}`;
+        if (this.ui.rmArmed === key) {
+            this.disarmRemove();
+            aiSessions()?.removeGroup(gid);
+            return;
+        }
+        this.armWith(key);
+    }
+
+    private armWith(key: string): void {
         if (this.rmTimer) clearTimeout(this.rmTimer);
-        this.ui.rmArmed = id;
+        this.ui.rmArmed = key;
         this.rmTimer = setTimeout((): void => {
             this.ui.rmArmed = undefined;
             this.rmTimer = undefined;

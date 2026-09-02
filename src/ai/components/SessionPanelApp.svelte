@@ -4,17 +4,21 @@
     import { SESSION_PANEL_CTX, initialSessionPanelUi } from "../core/SessionPanelUi";
     import { SessionPanelCtl } from "../core/SessionPanelCtl";
     import { AI_INTERRUPTED, type AiSessionRecord } from "../data/AiSessions";
+    import { buildSessionRows } from "../core/SessionTree";
     import { listAiModels } from "../models";
     import { svgIcon } from "../../ui/FormHtml";
+    import { fmt } from "../../ui/shared";
 
     /**
      * AI 会话管理工作区面板根组件（四件套之一）。两栏式（20260901
      * 改版）：左栏=会话清单（类别过滤 + 状态徽标 + 两击删除，固定宽
      * 自滚），右栏=选中会话的明细（完整轮次回看——user prompt 与 ai
-     * 产出都在——+ 继续追问输入条），点左侧行即切右栏内容。登记簿
-     * 本体在 data/AiSessions（全仓共享单例，agentChatOnce 带 track 的
-     * 调用自动登记），本组件只吃快照；挂载编排见 ai/SessionPanel.ts。
-     * 零 <style>，类名走全局 scss。
+     * 产出都在——+ 继续追问输入条），点左侧行即切右栏内容。左栏树状
+     * 分组（20260902）：一次动作触发的多次调用归并成一个可展开组行
+     * （归并逻辑在 core/SessionTree 纯函数），组行=聚合状态+组名+条数，
+     * 点行展开/收起子会话。登记簿本体在 data/AiSessions（全仓共享单例，
+     * agentChatOnce 带 track 的调用自动登记），本组件只吃快照；挂载
+     * 编排见 ai/SessionPanel.ts。零 <style>，类名走全局 scss。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -56,7 +60,8 @@
         r.status === "running" ? t("aiStatusRunning") : r.status === "done" ? t("aiStatusDone") : t("aiStatusError");
     const errText = (r: AiSessionRecord): string => (r.error === AI_INTERRUPTED ? t("aiInterrupted") : (r.error ?? ""));
 
-    const filtered = $derived.by(() => (ui.filter ? ui.recs.filter((r) => r.kind === ui.filter) : ui.recs));
+    /** 快照 → 树行（同组归并 + 类别过滤，纯函数见 core/SessionTree）。 */
+    const rows = $derived.by(() => buildSessionRows(ui.recs, ui.filter));
     const kinds = $derived.by(() => {
         const present = new Set(ui.recs.map((r) => r.kind));
         return [...Object.keys(KIND_KEYS).filter((k) => present.has(k)), ...[...present].filter((k) => !KIND_KEYS[k])];
@@ -116,12 +121,14 @@
         <div class="wengu-ai-two">
             <div class="wengu-ai-side">
                 <div class="wengu-ai-list">
-                    {#if filtered.length === 0}
+                    {#if rows.length === 0}
                         <div class="wengu-muted">{t("aiEmpty")}</div>
                     {:else}
-                        {#each filtered as r (r.id)}
+                        {#snippet sessionRow(r: AiSessionRecord, child: boolean)}
                             <div
-                                class="wengu-ai-row{ui.selId === r.id ? ' wengu-ai-row-active' : ''}"
+                                class="wengu-ai-row{child ? ' is-child' : ''}{ui.selId === r.id
+                                    ? ' wengu-ai-row-active'
+                                    : ''}"
                                 role="button"
                                 tabindex="0"
                                 onclick={() => ctl.select(r.id)}
@@ -145,6 +152,52 @@
                                     >
                                 </span>
                             </div>
+                        {/snippet}
+                        {#each rows as row (row.type === "group" ? `g:${row.id}` : row.rec.id)}
+                            {#if row.type === "group"}
+                                {@const open = !!ui.openGroups[row.id]}
+                                <div
+                                    class="wengu-ai-row is-group"
+                                    role="button"
+                                    tabindex="0"
+                                    onclick={() => ctl.toggleGroup(row.id)}
+                                    onkeydown={(e) => {
+                                        if (e.key === "Enter") ctl.toggleGroup(row.id);
+                                    }}
+                                >
+                                    <span class="wengu-ai-caret">{@html svgIcon(open ? "iconDown" : "iconRight")}</span>
+                                    <span class="wengu-ai-status is-{row.status}"
+                                        >{@html svgIcon(STATUS_ICON[row.status])}</span
+                                    >
+                                    <span class="wengu-ai-name">{row.title}</span>
+                                    <span class="wengu-ai-meta"
+                                        >{fmt(t("aiGroupMeta"), {
+                                            n: String(row.recs.length),
+                                            time: fmtTime(row.createdAt),
+                                        })}</span
+                                    >
+                                    <span class="b3-list-item__action">
+                                        <button
+                                            type="button"
+                                            class="b3-button b3-button--text"
+                                            onclick={(e) => {
+                                                e.stopPropagation();
+                                                ctl.armRemoveGroup(row.id);
+                                            }}
+                                            >{ui.rmArmed === `g:${row.id}`
+                                                ? t("collectConfirm")
+                                                : t("aiDelete")}</button
+                                        >
+                                    </span>
+                                </div>
+                                {#if open}
+                                    {#each row.recs as r (r.id)}
+                                        {@render sessionRow(r, true)}
+                                    {/each}
+                                {/if}
+                            {:else}
+                                {@render sessionRow(row.rec, false)}
+                            {/if}
                         {/each}
                     {/if}
                 </div>

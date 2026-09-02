@@ -305,6 +305,27 @@
   .b3-list-item__action {
     display: none;
   }
+
+  /* 组行（20260902 树状分组）：组名加重，子会话行缩进挂组下 */
+  &.is-group .wengu-ai-name {
+    font-weight: 500;
+  }
+
+  &.is-child {
+    padding-left: 26px;
+  }
+}
+
+/* 组行折叠箭头（iconRight 收起 / iconDown 展开，随子会话行一起缩进） */
+.wengu-ai-caret {
+  flex: none;
+  display: inline-flex;
+  color: var(--b3-theme-on-surface-light);
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
 }
 
 .wengu-ai-status {

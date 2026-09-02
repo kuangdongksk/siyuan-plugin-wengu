@@ -1,4 +1,4 @@
-import { agentChatOnce } from "../../ai/client";
+import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
 
@@ -413,17 +413,21 @@ export function makeKnowAwareAi(opts: {
     knowIndex: KnowledgeIndex | undefined;
     /** 会话登记标题前缀（目标文档标题；AI 会话面板识别批次归属用）。 */
     label?: string;
+    /** 动作分组（AI 会话面板树归并）：路由+生成与同批检测挂同一组。 */
+    group?: AiSessionGroup;
     buildPrompt: (source: string, knowRuleBlock: string, knowListBlock: string) => string;
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     const call = (message: string): Promise<string> =>
         agentChatOnce(message, opts.modelId, AI_TIMEOUT.quick, opts.signal, {
             kind: "route",
             title: opts.label ? `路由 · ${opts.label}` : undefined,
+            group: opts.group,
         });
     const generate = (prompt: string): Promise<string> =>
         agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.batch, opts.signal, {
             kind: "convert",
             title: opts.label ? `转换 · ${opts.label}` : undefined,
+            group: opts.group,
         });
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }

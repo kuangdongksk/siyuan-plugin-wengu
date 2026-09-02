@@ -1,8 +1,12 @@
 import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
 import { resolveModelId, listAiModels } from "./models";
-import { aiSessions, type AiTurn } from "./data/AiSessions";
+import { aiSessions, type AiTurn, type AiTrack } from "./data/AiSessions";
 import { notifyInfo } from "../ui/Notify";
+
+/** 会话登记元数据（agentChatOnce 可选参数）：定义在 data/AiSessions
+ *  （数据层持有形状，client 只是通道），此处转发导出保调用方 import 路径。 */
+export type { AiTrack, AiSessionGroup } from "./data/AiSessions";
 
 /** 模型失效回落通知的冷却（同一失效 id 60s 内只报一次——转换并发池
  *  每批都过闸口，不冷却会连发十几条同文案）。 */
@@ -148,17 +152,23 @@ export function newSessionId(now = new Date()): string {
     return `${stamp}-${rand}`;
 }
 
-/** 会话登记元数据（agentChatOnce 可选参数）：kind 进「AI 会话」面板的
- *  过滤与徽标，title 缺省取消息前 24 字。带上即登记（收口后可回看
- *  产出并继续追问，见 data/AiSessions），不带则与旧版行为一致。 */
-export interface AiTrack {
-    kind: string;
-    title?: string;
-}
-
 /** saveSession 会话标题：消息前 24 字压平空白（内核面板列表同款观感）。 */
 function titleOf(message: string): string {
     return message.replace(/\s+/g, " ").trim().slice(0, 24) || "温故";
+}
+
+/** 动作分组 id：动作入口（转换/匹配/批量关联等）在一次动作开始时生成，
+ *  该动作触发的所有 agentChatOnce 调用共用（面板树归并的键；格式无内核
+ *  约束，仅登记簿内唯一即可，形如 g{时间戳}-{随机}）。 */
+export function newAiGroupId(now = new Date()): string {
+    const p = (n: number): string => String(n).padStart(2, "0");
+    const stamp =
+        `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}` +
+        `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+    const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let rand = "";
+    for (let i = 0; i < 7; i++) rand += abc[Math.floor(Math.random() * abc.length)];
+    return `g${stamp}-${rand}`;
 }
 
 /** 播种会话条目（user/assistant 交替回放；type 值与思源前端同源，
@@ -217,7 +227,8 @@ export async function agentChatOnce(
 ): Promise<string> {
     const sid = newSessionId();
     const sessions = aiSessions();
-    if (sessions && track) sessions.begin(sid, track.kind, track.title ?? titleOf(message), modelId, message);
+    if (sessions && track)
+        sessions.begin(sid, track.kind, track.title ?? titleOf(message), modelId, message, track.group);
     try {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError"); // 已终止不设防会白建会话
         await seedSession(sid, titleOf(message), [{ id: "u1", type: "user", content: message }], signal);
