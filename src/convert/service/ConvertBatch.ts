@@ -1,26 +1,34 @@
 import { detectQuestions, questionPreview } from "./ConvertDetect";
 import type { QuestionPreview } from "./ConvertDetect";
-import { buildPrompt, extractBlockId, getDocInfo } from "./ConvertService";
+import {
+    appendBlockToDoc,
+    buildPrompt,
+    createExerciseDoc,
+    extractBlockId,
+    getDocInfo,
+    isMaterialKramdown,
+    resolveTarget,
+} from "./ConvertService";
 import { isHeadingOnlyChunk, structuralChunks } from "./SrcChunk";
-import { applyKnowDrafts, parseDrafts } from "./QuestionDraft";
-import type { DraftUnit } from "./QuestionDraft";
+import { applyKnowDrafts, parseDrafts, renderUnit } from "./QuestionDraft";
 import { shuffleDraftOptions } from "./OptionShuffle";
 import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
-import { newAiGroupId, type AiSessionGroup } from "../../ai/client";
-import { SetWriter } from "./SetWriter";
-import type { QuestionBank } from "../../bank/data/QuestionBank";
-import type { WenguMaterial, WenguQuestion } from "../../types";
 import { KernelBlock } from "../../siyuan/block";
 import { fmt } from "../../ui/shared";
 
 /**
  * 分批转换编排（从 ConvertService 拆出）：长文档按**结构切块**（标题
- * 边界 + 指纹，SrcChunk）逐批生成，批结果按「连续完成前缀」经 SetWriter
- * **直写题库**（20260903 起不再落文档——题目内容唯一真相在题库，
- * BankRecord.kramdown 契约形态不变）。并发池（parallel>1）按连续前缀
- * 拼装，题目顺序始终是原文档的忠实前缀；每批落库即 flush（崩溃安全，
- * 终止「保留」零额外动作、「丢弃」按写入 qid 清单回收）。
+ * 边界 + 指纹，SrcChunk，20260831 二期起替代空行偏移切块）逐批生成，
+ * 批次结果累积在内存——真机 3.8.0 验证没有可靠的「追加到已有
+ * 文档」通道（updateBlock 多块并一段/丢内容、transactions insert
+ * 无效），所以只能删旧重建式落盘。
+ *
+ * 落盘（20260901 起固定另存）：**渐进式落盘**（每批删旧重建累积文档，
+ * 文档树实时长大，页签渐进呈现），《标题·习题》文档本身就是成果——
+ * **原文档全程不动**（原「原位替换」模式已随 PDF 导入一并移除，存量
+ * 原位形态题集照常刷题/增量重转换，不受影响）。并发池（parallel>1）
+ * 按「连续完成前缀」拼装，题目顺序始终是原文档的忠实前缀。
  */
 
 /** 插图自检：源文档的图片行没被带进生成结果的条数（0=无缺，真机
@@ -60,20 +68,17 @@ export interface ConvertProgress {
     detectedTruncated?: boolean;
     /** 刚完成那批的题目预览（弹窗渐进展示）。 */
     newStems?: QuestionPreview[];
-    /** 本转换的题集 id（首批落库起有值；页签据此渐进呈现）。 */
-    setId?: string;
+    /** 渐进落盘的习题文档（每批重建，id 会变；页签据此渐进呈现）。 */
+    docId?: string;
     title?: string;
-    /** 已落库题目的累积解析视图（渐进预览直用，无内核 IO）。 */
-    questions?: WenguQuestion[];
-    /** 已落库材料的累积视图（材料组预览）。 */
-    materials?: WenguMaterial[];
 }
 
 /** 终止/失败保留的进度记录（prefs 持久化，重开思源后可继续生成）：
- *  已生成部分是题库里的真实记录（每批已 flush），记录只欠断点偏移。 */
+ *  保留的（部分）习题文档记 docId；存量原位形态记录只存已生成
+ *  kramdown（无 docId），续跑时读回并入。 */
 export interface ConvertProgressRecord {
-    /** 保留的（部分）题集 id。 */
-    setId?: string;
+    /** 保留的（部分）习题文档 id（渐进/另存模式）。 */
+    docId?: string;
     title: string;
     /** 已生成覆盖到的源文档字符偏移。 */
     offset: number;
@@ -82,14 +87,16 @@ export interface ConvertProgressRecord {
     total: number;
     /** 已生成题数。 */
     count: number;
+    /** 已生成的题目 kramdown（原位模式续跑并入）。 */
+    kramdown?: string;
 }
 
-/** 批式转换结果：done=全部完成；aborted=用户终止（已落库部分待抉择）。 */
+/** 批式转换结果：done=全部完成；aborted=用户终止（未落盘）。 */
 export interface BatchedResult {
     status: "done" | "aborted" | "failed";
     message: string;
-    /** 本转换的题集 id（有落库产物时）。 */
-    setId?: string;
+    /** done 时的新习题文档。 */
+    docId?: string;
     title?: string;
     count: number;
     /** 已完成批数 / 总批数。 */
@@ -97,19 +104,21 @@ export interface BatchedResult {
     total: number;
     /** 已生成覆盖到的源文档字符偏移（继续生成的断点）。 */
     doneOffset: number;
-    /** 本次运行写入的题目 id（「全部丢弃」按它回收）。 */
-    writtenQids: string[];
+    /** 已累积的题目 kramdown（aborted 时由弹窗决定保留/丢弃）。 */
+    kramdown: string;
 }
 
-/** 继续生成的入参：上次终止保留的进度（题集已在题库里，接续写入）。 */
+/** 继续生成的入参：上次终止保留的进度。 */
 export interface ResumeInfo {
     /** 已生成覆盖到的源文档偏移。 */
     offset: number;
-    /** 上次保留的（部分）题集 id。 */
-    setId?: string;
+    /** 上次保留的部分习题文档（内容并入本次结果）。 */
+    docId?: string;
+    /** 上次保留的题目 kramdown（存量原位形态记录才有，内容并入本次结果）。 */
+    kramdown?: string;
 }
 
-/** 分批转换主流程。终止时返回 aborted + 已写入 qid（待抉择）。 */
+/** 分批转换主流程。终止时返回 aborted + 已累积内容（不落盘）。 */
 export async function convertDocBatched(
     docIdRaw: string,
     opts: {
@@ -117,31 +126,31 @@ export async function convertDocBatched(
         modelId: string;
         fillToChoice: boolean;
         bigToSteps: boolean;
-        /** 并发批次数（1=串行）。 */
+        /** 并发批次数（1=串行 agent/chat；2~4=chatGPT 并发通道）。 */
         parallel?: number;
         signal?: AbortSignal;
         resume?: ResumeInfo;
+        /** 生成位置：空=原文档同目录；否则指定父文档下面。 */
+        targetRaw?: string;
         /** 知识点根文档 id（书架/书/章），非空时路由小节并注入知识点反链。 */
         knowRoots?: string[];
-        /** 题库（落库唯一通道）。 */
-        bank: QuestionBank;
-        /** 动作分组（AI 会话面板树归并）：检测/生成/路由挂同组；缺省=
-         *  本流程自生成一组。 */
-        trackGroup?: AiSessionGroup;
+        /** 动作分组 id（AI 会话面板树归并）：本次转换的检测/路由/生成
+         *  全部调用挂同组；组标题由本流程用文档标题补齐。 */
+        trackGroup?: string;
         onProgress(p: ConvertProgress): void;
     }
 ): Promise<BatchedResult> {
     const { t } = opts;
     const docId = extractBlockId(docIdRaw);
-    /** 零进度早退（各前置拦截的清一色形态）。 */
-    const zero = (status: BatchedResult["status"], message: string, total = 0): BatchedResult => ({
+    /** 零进度早退（各前置拦截的清一色形态；kramdown 供终止续跑带出）。 */
+    const zero = (status: BatchedResult["status"], message: string, total = 0, kramdown = ""): BatchedResult => ({
         status,
         message,
         count: 0,
         batches: 0,
         total,
         doneOffset: 0,
-        writtenQids: [],
+        kramdown,
     });
     const info = await getDocInfo(docId);
     if (!info?.notebook) return zero("failed", t("convertNoDoc"));
@@ -154,41 +163,44 @@ export async function convertDocBatched(
     );
     if (!kramdown.trim()) return zero("failed", t("convertEmptyDoc"));
 
-    const writer = new SetWriter(opts.bank);
-    // 继续生成：开跑前接管既有题集（detect/首批期间终止也有 setId 可
-    // 保留/丢弃；题集已不存在=记录失效，归一为全新转换）
-    let resume: ResumeInfo | undefined;
-    let setId: string | undefined;
-    if (opts.resume?.setId) {
-        const data = await opts.bank.all();
-        if (data.sets?.[opts.resume.setId]) {
-            setId = await writer.openSet({
-                setId: opts.resume.setId,
-                title: info.title,
-                srcId: docId,
-                hPath: info.hPath,
-            });
-            resume = { offset: opts.resume.offset, setId };
+    // 继续生成：上次保留内容并入累积（渐进文档 kramdown，或存量原位
+    // 时代记录里的裸 kramdown），只跑剩余批
+    let existing = "";
+    if (opts.resume) {
+        if (opts.resume.kramdown) {
+            existing = opts.resume.kramdown;
+        } else if (opts.resume.docId) {
+            const old = await KernelBlock.kramdown(opts.resume.docId);
+            existing = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
         }
     }
+    // 断点总闸：旧内容一点都读不回（渐进文档已删且记录无 kramdown）仍
+    // 按 offset 跳批，只会产出「只有后半截」的文档——归一为全新转换
+    // （跑检测、全量批；20260830「重新导入」踩坑，「继续生成」路径
+    // 渐进文档被手动删时同病）
+    const resume = opts.resume && existing.trim() ? opts.resume : undefined;
     const allChunks = structuralChunks(kramdown);
     // 进度偏移越过当前源文档末尾（记录残留的完成态/源文档被改短）：
-    // 按已完成收口到旧题集，不再走生成循环——否则 chunks 为空会走
-    // 到末尾「零产物」分支，把续跑语义搞混
-    if (resume?.setId && allChunks.length > 0) {
+    // 按已完成收口到旧文档，不再走生成循环——否则 chunks 为空会走到
+    // 末尾「!created 兜底新建」，把旧文档内容原样复制成第二份
+    // （20260829 三轮审查 P1）
+    if (resume?.docId && allChunks.length > 0) {
         const last = allChunks[allChunks.length - 1];
         if (resume.offset >= last.offset + last.text.length) {
-            return {
-                status: "done",
-                message: t("convertResumeSettled"),
-                setId: resume.setId,
-                title: info.title,
-                count: 0,
-                batches: 0,
-                total: 0,
-                doneOffset: kramdown.length,
-                writtenQids: [],
-            };
+            const old = await getDocInfo(resume.docId);
+            if (old?.notebook) {
+                return {
+                    status: "done",
+                    message: t("convertResumeSettled"),
+                    docId: old.id,
+                    title: old.title,
+                    count: 0,
+                    batches: 0,
+                    total: 0,
+                    doneOffset: kramdown.length,
+                    kramdown: existing,
+                };
+            }
         }
     }
     const chunks = resume ? allChunks.filter((c) => c.offset >= resume.offset) : allChunks;
@@ -202,25 +214,59 @@ export async function convertDocBatched(
 
     let detected: number | undefined;
     let detectedTruncated = false;
+    // 动作分组：id 来自入口（ConvertRun），标题这里补上文档名（检测/
+    // 生成/路由全挂同组，AI 会话面板归并成一棵子树）
+    const trackGroup = opts.trackGroup ? { id: opts.trackGroup, title: `转换 · ${info.title}` } : undefined;
     if (!resume) {
         opts.onProgress({ phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0 });
         try {
-            const d = await detectQuestions(kramdown, opts.modelId, opts.signal, opts.trackGroup);
+            const d = await detectQuestions(kramdown, opts.modelId, opts.signal, trackGroup);
             if (!d.can) return zero("failed", d.reason || t("convertRefused"), chunks.length);
             detected = d.count;
             detectedTruncated = !!d.truncated;
         } catch (e) {
             if ((e as Error)?.name === "AbortError") {
-                return zero("aborted", "", chunks.length);
+                return zero("aborted", "", chunks.length, existing.trim() ? existing : "");
             }
             // 检测失败不阻断：继续逐批生成（批内仍有 CAN_CONVERT 兜底）
         }
     }
 
-    // 结果按「连续完成前缀」拼装，题目顺序与落库顺序始终是原文档的忠实
+    const parts: string[] = [];
+    let doneOffset = resume?.offset ?? 0;
+    let count = 0;
+    let lastBatch = 0;
+    /** 累积 kramdown（旧保留 + 已完成批，落盘/续跑共用一份拼装口径）。 */
+    const joined = (): string => [existing, ...parts].filter(Boolean).join("\n\n");
+    /** 渐进落盘目标：按生成位置解析（空=原文档同目录）。 */
+    const loc = await resolveTarget(info, opts.targetRaw ?? "", t);
+    if (loc && !loc.ok) return zero("failed", loc.message, chunks.length);
+    // 渐进式落盘：首批 createExerciseDoc 建文档（IAL 整体解析），之后
+    // 每题一次 appendBlock 尾插（块 id 稳定、无删旧重建）。
+    let created: { id: string; title: string } | undefined;
+    // 继续生成：旧渐进文档在跑批前就接管为落盘目标（原等首批 flush 才
+    // 挂上——detect/首批期间终止会丢 docId，保留分支另建重复文档、
+    // 丢弃分支删不到旧文档成孤儿，20260829 三轮审查 P1）
+    if (resume?.docId) {
+        const old = await getDocInfo(resume.docId);
+        if (old?.notebook) created = { id: resume.docId, title: old.title };
+    }
+    // 检测完成即报一次（batch=0：第 1 批即将开始），让「检测共 N 题」尽早可见
+    opts.onProgress({
+        phase: "generating",
+        batch: 0,
+        total: chunks.length,
+        count: 0,
+        lastBatch: 0,
+        detected,
+        detectedTruncated,
+    });
+    // 并发池（20260830 起统一走独立会话 agentChatOnce：可按次指定模型、
+    // 天然并发——原并行分支走 chatGPT 直答会忽略用户选的模型，已弃用）。
+    // 结果按「连续完成前缀」拼装，题目顺序与渐进文档始终是原文档的忠实
     // 前缀；并发度受供应商限流约束，由弹窗选择。
     const parallel = Math.max(1, Math.min(4, Math.floor(opts.parallel ?? 1)));
-    const results: (DraftUnit[] | undefined)[] = new Array(chunks.length).fill(undefined);
+    const results: (string[] | undefined)[] = new Array(chunks.length).fill(undefined);
     let cursor = 0;
     let contiguous = 0;
     let firstError = "";
@@ -232,59 +278,50 @@ export async function convertDocBatched(
         internal.abort();
     };
     opts.signal?.addEventListener("abort", relayAbort);
-    // 批调用 = 知识点路由（有配置时）+ 生成，独立会话通道见 makeKnowAwareAi；
-    // 动作分组（AI 会话面板树归并）：入参未带则本流程自生成一组
+    // 批调用 = 知识点路由（有配置时）+ 生成，独立会话通道见 makeKnowAwareAi
     const callAi = makeKnowAwareAi({
         modelId: opts.modelId,
         signal: internal.signal,
         knowIndex,
         label: info.title,
-        group: opts.trackGroup ?? { id: newAiGroupId(), title: `转换 · ${info.title}` },
+        group: trackGroup,
         buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),
     });
-    /** 已落库累积视图（渐进预览直用）与本次运行写入清单（丢弃回收）。 */
-    const previewList: WenguQuestion[] = [];
-    const previewMats: WenguMaterial[] = [];
-    const writtenQids: string[] = [];
-    const generatedKds: string[] = [];
-    let count = 0;
-    let lastBatch = 0;
-    let doneOffset = resume?.offset ?? 0;
-    /** 连续前缀推进：按文档序拼装、计数、逐批落库与进度上报。
-     *  材料单元随题目一起入库（材料正文进 bank.materials），但不占题数
-     *  与预览行号。经 flushChain 互斥串行执行：并发池下多 worker 同时进
-     *  openSet/append 会两段前缀乱序插入、首建窗口重叠建出两份题集。 */
+    /** 连续前缀推进：按文档序拼装、计数、渐进追加与进度上报。
+     *  材料块随题目一起落盘（group="prev" 依赖顺序），但不占题数与预览行号。
+     *  经 flushChain 互斥串行执行：并发池下多 worker 同时进 appendBlock/
+     *  createDoc 会并发 fetchSyncPost（内核并发互吞响应）且两段前缀乱序
+     *  插入、首建窗口重叠建出两份文档（20260828 审查）。 */
     const runFlushPrefix = async (): Promise<void> => {
         const newStems: QuestionPreview[] = [];
-        const batchUnits: { draft: DraftUnit; srcKey?: string; srcHash?: string }[] = [];
+        const newUnits: string[] = [];
         while (contiguous < chunks.length && results[contiguous]) {
-            const ds = results[contiguous]!;
-            batchUnits.push(
-                ...ds.map((d) => ({ draft: d, srcKey: chunks[contiguous].key, srcHash: chunks[contiguous].hash }))
-            );
-            const nq = ds.filter((d) => !d.material);
-            count += nq.length;
-            lastBatch = nq.length;
+            const qs = results[contiguous]!;
+            if (qs.length > 0) {
+                parts.push(qs.join("\n\n"));
+                newUnits.push(...qs); // 题目/材料单元逐个追加（appendBlock 一次一块）
+                const nq = qs.filter((kd) => !isMaterialKramdown(kd));
+                count += nq.length;
+                lastBatch = nq.length;
+                nq.forEach((kd, j) => newStems.push(questionPreview(kd, count - nq.length + j + 1)));
+            }
             doneOffset = chunks[contiguous].offset + chunks[contiguous].text.length;
             contiguous++;
         }
-        if (batchUnits.length === 0) return;
-        if (!setId) {
-            setId = await writer.openSet({ title: info.title, srcId: docId, hPath: info.hPath });
+        if (newStems.length === 0) return;
+        const markdown = joined();
+        if (created) {
+            // 续批：逐块尾插（失败抛出按批次失败收口，已落盘部分保留）
+            for (const unit of newUnits) await appendBlockToDoc(created.id, unit);
         }
-        const out = await writer.append(setId, batchUnits);
-        writtenQids.push(...out.qids);
-        previewList.push(...out.questions);
-        previewMats.push(...out.materials);
-        let qno = count - out.units.filter((u) => !u.material).length;
-        for (const u of out.units) {
-            generatedKds.push(u.kd);
-            if (!u.material) {
-                qno++;
-                newStems.push(questionPreview(u.kd, qno));
+        if (!created) {
+            // 首批：整文档落盘（IAL 随 createDocWithMd 一次解析全落）
+            try {
+                created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
+            } catch (_) {
+                created = undefined; // 末尾兜底落盘
             }
         }
-        await opts.bank.flush(); // 每批即落盘（崩溃安全，终止/丢弃语义都建立在已落库上）
         opts.onProgress({
             phase: contiguous >= chunks.length ? "writing" : "generating",
             batch: contiguous,
@@ -294,10 +331,7 @@ export async function convertDocBatched(
             detected,
             detectedTruncated,
             newStems,
-            setId,
-            title: info.title,
-            questions: [...previewList],
-            materials: [...previewMats],
+            ...(created ? { docId: created.id, title: created.title } : {}),
         });
     };
     let flushChain: Promise<void> = Promise.resolve();
@@ -333,16 +367,16 @@ export async function convertDocBatched(
                 }
                 return;
             }
-            // 行协议 → draft（洗牌/知识点在 draft 层）→ SetWriter 落库
+            // 行协议 → draft（洗牌/知识点在 draft 层）→ 确定性渲染 kramdown
             const drafts = parseDrafts(gen.reply);
             if (drafts.length === 0) emptyBatches++;
             drafts.forEach(shuffleDraftOptions);
             if (gen.byAlias && drafts.length > 0) knowLinked += applyKnowDrafts(drafts, gen.byAlias);
-            // 源块键与指纹随记录落库（增量重转换三态分类依据）
-            results[i] = drafts;
-            // 落库失败与 AI 失败同权重：记 firstError 收口成 failed 带部分
-            // 内容——原直接抛出会把整轮结果丢给最外层 catch，进度不记账、
-            // 不可续跑（20260829 审查）
+            // 源块键与指纹随容器落盘（增量哈希二期：重转换三态分类依据）
+            results[i] = drafts.map((d) => renderUnit(d, { srcKey: chunks[i].key, srcHash: chunks[i].hash }));
+            // 落盘失败（append/建文档内核错误）与 AI 失败同权重：记
+            // firstError 收口成 failed 带部分内容——原直接抛出会把整轮
+            // 结果丢给最外层 catch，进度不记账、不可续跑（20260829 审查）
             try {
                 await flushPrefix();
             } catch (e) {
@@ -361,7 +395,6 @@ export async function convertDocBatched(
         opts.signal?.removeEventListener("abort", relayAbort); // 原仅成功路径解除，异常路径监听器残留
     }
     if (userAborted || firstError) {
-        await opts.bank.flush().catch((): void => undefined); // 已落库部分先保住（保留抉择的标的）
         return {
             status: userAborted ? "aborted" : "failed",
             message: userAborted ? "" : `${t("convertAiFailed")}${firstError}`,
@@ -369,49 +402,53 @@ export async function convertDocBatched(
             batches: contiguous,
             total: chunks.length,
             doneOffset,
-            setId,
-            title: setId ? info.title : undefined,
-            writtenQids,
+            docId: created?.id,
+            title: created?.title,
+            kramdown: joined(),
         };
     }
 
-    // 全程零产物（含续跑零新增）：续跑时题集保持原样按完成收口，全新
-    // 转换按无题失败
-    if (writtenQids.length === 0 && previewMats.length === 0) {
-        if (setId) {
-            return {
-                status: "done",
-                message: t("convertResumeSettled"),
-                setId,
-                title: info.title,
-                count: 0,
-                batches: chunks.length,
-                total: chunks.length,
-                doneOffset: kramdown.length,
-                writtenQids,
-            };
-        }
-        return zero("failed", t("convertNoQuestions"));
-    }
+    const markdown = joined();
+    if (!markdown.trim()) return zero("failed", t("convertNoQuestions"));
     // 插图自检：完成消息里附警告提示重新转换
-    const missingImgs = countMissingImages(kramdown, generatedKds.join("\n\n"));
+    const missingImgs = countMissingImages(kramdown, markdown);
     const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), { n: String(missingImgs) })}` : "";
     // 批级空产出自检：AI 某批返回空/不可解析时对应源段被跳过——原静默
     // 「成功」漏题难排查，完成消息附警告（复用 imgWarn 拼接模式）
     const emptyWarn = emptyBatches > 0 ? ` ${fmt(t("convertBatchEmpty"), { n: String(emptyBatches) })}` : "";
     const detectedMsg = detectedText(detected, detectedTruncated, t);
-    const doneMsg: string[] = [];
-    if (detectedMsg) doneMsg.push(detectedMsg);
-    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
-    return {
+    /** done 终态结果。 */
+    const done = (message: string, doc: { id: string; title: string }): BatchedResult => ({
         status: "done",
-        message: doneMsg.join(" · ") + imgWarn + emptyWarn,
-        setId: setId!,
-        title: info.title,
+        message,
+        docId: doc.id,
+        title: doc.title,
         count,
         batches: chunks.length,
         total: chunks.length,
         doneOffset: kramdown.length,
-        writtenQids,
-    };
+        kramdown: markdown,
+    });
+    // 落盘：渐进重建已落盘则直接用，中途失败过才在这里兜底创建
+    if (!created) {
+        // 末尾兜底落盘失败同样按 failed 收口（kramdown 进进度记录，
+        // 可续跑重建），不上抛丢整轮（20260829 三轮审查）
+        try {
+            created = await createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, docId);
+        } catch (e) {
+            return {
+                status: "failed",
+                message: String((e as Error)?.message ?? e),
+                count,
+                batches: contiguous,
+                total: chunks.length,
+                doneOffset,
+                kramdown: markdown,
+            };
+        }
+    }
+    const doneMsg: string[] = [];
+    if (detectedMsg) doneMsg.push(detectedMsg);
+    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
+    return done(doneMsg.join(" · ") + imgWarn + emptyWarn, created);
 }
