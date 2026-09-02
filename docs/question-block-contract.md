@@ -541,11 +541,21 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
 
 页签内「AI 转习题」按钮把所选文档交给思源自带 AI 转换（真机 3.8.0 验证）：
 
-- **AI 通道**：`POST /api/ai/chatGPT` `{msg}` → `{code, data: 回复全文}`
-  （模型/密钥取自用户 设置→AI，插件不自带 key）。
-- **输出协议**（prompt 强约束，格式外不许输出）：
-  `CAN_CONVERT: yes|no` + `REASON: 一句话` + `QUESTIONS:` 后跟题目超级块。
+- **AI 通道**：`POST /api/ai/agent/chat`（SSE，独立 sessionID 并发+可按次
+  指定模型，见 AGENTS.md；旧 `/api/ai/chatGPT` 直答 20260830 起弃用）。
+- **输出协议（行协议，2026-09-02 起）**：prompt 强约束，格式外不许输出。
+  先 `CAN_CONVERT: yes|no` + `REASON: 一句话`；可出题时每道题一个
+  `@@Q … @@END` 块（QuestionDraft 行协议：@@Q 行带 type/knowledge/
+  chapter/difficulty/steps/group/material 属性，@@P 部件标记
+  stem/opt/ans/sol/body/trans/step/step-opt/step-ans/slot-opt/slot-ans，
+  **选项只写内容不写字母**——字母由渲染按落盘顺序自动编 A、B、C…）。
   AI 判定不能出题（素材不足/无知识点）时插件展示原因，不生成文档。
+  AI 不再手写 kramdown——`QuestionDraft.renderUnit` 把协议**确定性渲染**
+  成 §一 的超级块形态落盘（格式正确性由代码保证；选行协议而非 JSON/
+  YAML 的原因：数学 LaTeX 零转义、无缩进语义、漏 END 自动收口坏一题
+  不坏一批，详见 src/convert/service/QuestionDraft.ts 文件头）。
+  **纯标题块跳过**：结构切块里「标题行下无正文」的段（章标题直接挂
+  子标题）不发 AI（isHeadingOnlyChunk），省白耗调用。
 
 * **插图随题走**（2026-08-22 起 prompt 硬性规则；2026-08-23 补第 9 条
   +转换后自检）：源文档的图片行 `![](assets/…)` 是某题依赖的插图

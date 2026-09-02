@@ -4,15 +4,15 @@ import {
     appendBlockToDoc,
     buildPrompt,
     createExerciseDoc,
-    extractBatchQuestions,
     extractBlockId,
     getDocInfo,
     isMaterialKramdown,
     resolveTarget,
 } from "./ConvertService";
-import { structuralChunks, withSrcAttrs } from "./SrcChunk";
+import { isHeadingOnlyChunk, structuralChunks } from "./SrcChunk";
+import { applyKnowDrafts, parseDrafts, renderUnit } from "./QuestionDraft";
+import { shuffleDraftOptions } from "./OptionShuffle";
 import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
-import { applyKnowLinks } from "./KnowRef";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { KernelBlock } from "../../siyuan/block";
 import { fmt } from "../../ui/shared";
@@ -339,6 +339,12 @@ export async function convertDocBatched(
             if (firstError || userAborted) return;
             const i = cursor++;
             if (i >= chunks.length) return;
+            // 纯标题块（章标题下直接挂子标题）零内容：不发 AI（发了也只是
+            // CAN_CONVERT:no 白耗一次调用），按空批记账推进断点
+            if (isHeadingOnlyChunk(chunks[i].text)) {
+                results[i] = [];
+                continue;
+            }
             let gen: { reply: string; byAlias?: Map<string, KnowSection> };
             try {
                 gen = await callAi(chunks[i].text);
@@ -354,15 +360,13 @@ export async function convertDocBatched(
                 }
                 return;
             }
-            let qs = extractBatchQuestions(gen.reply);
-            if (qs.length === 0) emptyBatches++;
-            if (gen.byAlias && qs.length > 0) {
-                const applied = applyKnowLinks(qs, gen.byAlias);
-                qs = applied.out;
-                knowLinked += applied.linked;
-            }
+            // 行协议 → draft（洗牌/知识点在 draft 层）→ 确定性渲染 kramdown
+            const drafts = parseDrafts(gen.reply);
+            if (drafts.length === 0) emptyBatches++;
+            drafts.forEach(shuffleDraftOptions);
+            if (gen.byAlias && drafts.length > 0) knowLinked += applyKnowDrafts(drafts, gen.byAlias);
             // 源块键与指纹随容器落盘（增量哈希二期：重转换三态分类依据）
-            results[i] = qs.map((u) => withSrcAttrs(u, chunks[i].key, chunks[i].hash));
+            results[i] = drafts.map((d) => renderUnit(d, { srcKey: chunks[i].key, srcHash: chunks[i].hash }));
             // 落盘失败（append/建文档内核错误）与 AI 失败同权重：记
             // firstError 收口成 failed 带部分内容——原直接抛出会把整轮
             // 结果丢给最外层 catch，进度不记账、不可续跑（20260829 审查）

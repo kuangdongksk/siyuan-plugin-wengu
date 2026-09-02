@@ -1,6 +1,7 @@
 import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import { extractBatchQuestions } from "../../convert/service/ConvertService";
+import { hasStemPart, parseDrafts, protocolSpec, renderUnit } from "../../convert/service/QuestionDraft";
+import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
 import { sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { recordsByKeys } from "../data/BankRegen";
@@ -52,7 +53,8 @@ export async function generateQuestion(
             ? variantPrompt(template, statLine)
             : `你是考研刷题的概念辨析出题助手。依据知识点小节出一道概念/辨析题（单选或判断）。
 要求：只考概念辨析（不考计算）；干扰项来自常见误解；正确答案与解析自洽。
-只输出一个题目超级块的 kramdown（{{{row … }}} + 容器属性行 custom-plugin-wengu-q="1" 和 custom-plugin-wengu-type），格式之外不要输出任何文字。
+只输出一道题的行协议（格式如下），格式之外不要输出任何文字。
+${protocolSpec()}
 
 【知识点：${point.title}${statLine}】
 ${section}`;
@@ -69,7 +71,8 @@ export async function generateVariantOf(templateKramdown: string, modelId: strin
 function variantPrompt(template: string, statLine: string): string {
     return `你是考研刷题的变式出题助手。以原题为模板，改数字/换条件/反向提问出一道同知识点的变式题。
 要求：结构、题型与原题一致；新数据必须凑巧（答案干净可验算）；正确答案与解析自洽完整。
-只输出一个题目超级块的 kramdown（{{{row … }}} + 容器属性行 custom-plugin-wengu-q="1" 和 custom-plugin-wengu-type），格式之外不要输出任何文字。
+只输出一道题的行协议（格式如下），格式之外不要输出任何文字。
+${protocolSpec()}
 
 【原题${statLine}】
 ${template}`;
@@ -80,9 +83,10 @@ ${template}`;
  *  track 登记进 AI 会话面板（自检标「自检」后缀区分）。 */
 async function genWithVerify(prompt: string, modelId: string, track: { kind: string; title: string }): Promise<string> {
     const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, undefined, track);
-    const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
-    if (qs.length === 0) return "";
-    const kd = qs[0];
+    const drafts = parseDrafts(reply).filter(hasStemPart);
+    if (drafts.length === 0) return "";
+    shuffleDraftOptions(drafts[0]);
+    const kd = renderUnit(drafts[0]);
     const check = await agentChatOnce(
         `你是解题验算助手。独立解下面的题，再与题内给出的答案比对。只输出一行：
 VERIFY: yes 或 no（答案与解析自洽为 yes；算不平/矛盾为 no）

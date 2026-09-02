@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyChunks, srcAttrsOf, structuralChunks, withSrcAttrs, type SrcGroup } from "./SrcChunk";
+import { classifyChunks, isHeadingOnlyChunk, structuralChunks, type SrcGroup } from "./SrcChunk";
 
 /** 造一份带标题结构的源 markdown（两个章节 + 前导段）。 */
 const MD = `开头引言，不属于任何章节。
@@ -17,18 +17,20 @@ const MD = `开头引言，不属于任何章节。
 导数的定义。
 `;
 
-/** 最小题目单元（容器 + 容器 IAL 行）。 */
-const UNIT = `{{{row
-题干
-{: custom-plugin-wengu-part="stem"}
-}}}
-{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single"}`;
-
-const MATERIAL = `{{{row
-材料正文
-{: custom-plugin-wengu-part="body"}
-}}}
-{: custom-plugin-wengu-material="1"}`;
+describe("isHeadingOnlyChunk（纯标题块）", () => {
+    it("只有标题行/空白=纯标题块（章标题下直接挂子标题的层级）", () => {
+        expect(isHeadingOnlyChunk("## 随机事件和概率")).toBe(true);
+        expect(isHeadingOnlyChunk("## 随机事件和概率\n\n### 习题256\n\n# 文档总标题")).toBe(true);
+    });
+    it("有任何非标题正文=可出题块", () => {
+        expect(isHeadingOnlyChunk("## 章\n正文内容")).toBe(false);
+        expect(isHeadingOnlyChunk("## 章\n### 习题1\n某系统中有三个元件")).toBe(false);
+    });
+    it("空文本=纯标题块（跳过无害）", () => {
+        expect(isHeadingOnlyChunk("")).toBe(true);
+        expect(isHeadingOnlyChunk("   \n\n  ")).toBe(true);
+    });
+});
 
 describe("structuralChunks（结构切块）", () => {
     it("按标题切：前导段 P0 + 各标题区间一块（含标题行本身），键=标题链", () => {
@@ -79,39 +81,6 @@ describe("structuralChunks（结构切块）", () => {
             expect(byKey.get(c.key)?.hash).toBe(c.hash);
         }
         expect(byKey.get("H:第二章 导数")?.hash).not.toBe(before[3].hash);
-    });
-});
-
-describe("withSrcAttrs / srcAttrsOf（容器 IAL 注入）", () => {
-    it("题目与材料容器的 IAL 行末尾追加键与指纹；幂等（重写先剥旧）", () => {
-        const out1 = withSrcAttrs(UNIT, "H:第一章", "abc-123");
-        expect(out1).toContain('custom-plugin-wengu-src-key="H:第一章"');
-        expect(out1).toContain('custom-plugin-wengu-src-hash="abc-123"');
-        const out2 = withSrcAttrs(out1, "H:第二章", "def-456");
-        expect(out2).not.toContain("abc-123");
-        expect(srcAttrsOf(out2)).toEqual({ key: "H:第二章", hash: "def-456" });
-        // 原 q 属性仍在，容器结构未被破坏
-        expect(out2).toContain('custom-plugin-wengu-q="1"');
-        expect(srcAttrsOf(withSrcAttrs(MATERIAL, "P0", "h1-h2")).hash).toBe("h1-h2");
-    });
-
-    it("键值消毒：引号/换行剥掉、限长", () => {
-        const out = withSrcAttrs(UNIT, 'a"b\nc', "x");
-        expect(out).not.toContain('""');
-        expect(srcAttrsOf(out).key).toBe("a b c");
-    });
-
-    it("无容器 IAL 行原样返回（防御）", () => {
-        expect(withSrcAttrs("普通文本", "k", "h")).toBe("普通文本");
-    });
-
-    it("stale 旧标记随重写一起剥掉", () => {
-        const stale = withSrcAttrs(UNIT, "k", "h").replace(
-            /custom-plugin-wengu-src-hash="h"/,
-            'custom-plugin-wengu-src-hash="h" custom-plugin-wengu-src-stale="1"'
-        );
-        const rewritten = withSrcAttrs(stale, "k", "h2");
-        expect(rewritten).not.toContain("src-stale");
     });
 });
 

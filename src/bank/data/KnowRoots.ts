@@ -26,32 +26,6 @@ export async function removeKnowRoot(bank: QuestionBank, id: string): Promise<vo
     bank.markDirty();
 }
 
-/** 软隐藏集合（仅清面板的 knowHidden 增删，2026-08-31）：思源文档
- *  本体不动，知识面板下次装载按此集合过滤；不带其它语义，knowRoots
- *  上的 id 是否要同时退册由调用方决定（删除按钮：登记根一并退册防死链）。 */
-
-/** 软隐藏的 docId 列表（顺序保持隐藏序，调试用）。 */
-export async function knowHiddenOf(bank: QuestionBank): Promise<string[]> {
-    return [...(await bank.all()).knowHidden];
-}
-
-/** 软隐藏（幂等）。 */
-export async function hideKnowDoc(bank: QuestionBank, id: string): Promise<void> {
-    const data = await bank.all();
-    if (data.knowHidden.includes(id)) return;
-    data.knowHidden = [...data.knowHidden, id];
-    bank.markDirty();
-}
-
-/** 反隐藏（清理死链或调试用）。 */
-export async function unhideKnowDoc(bank: QuestionBank, id: string): Promise<void> {
-    const data = await bank.all();
-    const next = data.knowHidden.filter((x) => x !== id);
-    if (next.length === data.knowHidden.length) return;
-    data.knowHidden = next;
-    bank.markDirty();
-}
-
 /** 匹配面板把新挂的知识引用并入题库记录（按 id 去重保序；kramdown 由
  *  replaceRecordKramdown 先行更新，这里同步 kpRefs 供面板计数/反查）。 */
 export async function mergeRecordKpRefs(

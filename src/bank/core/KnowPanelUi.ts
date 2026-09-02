@@ -31,9 +31,6 @@ export interface KnowPanelUi {
     openPaths: SvelteSet<string>;
     /** 「移除」两击确认中的 docId（3s 自动复位）。 */
     rmArmed: string | undefined;
-    /** 「删除」两击确认中的 docId（3s 自动复位；与 rmArmed 独立追踪，
-     *  同一行可同时/先后被 arm 不同动作）。 */
-    dlArmed: string | undefined;
     /** 内容已变更的小节（标题块 id）：装载后台 diffDocs 比对小节哈希
      *  基线得出（一次性提示——基线自推进，重开面板不重复报）。 */
     staleSecs: Set<string>;
@@ -51,7 +48,6 @@ export function initialKnowPanelUi(): KnowPanelUi {
         info: new Map(),
         openPaths: new SvelteSet(),
         rmArmed: undefined,
-        dlArmed: undefined,
         staleSecs: new Set(),
         outlining: undefined,
         outlineErr: undefined,

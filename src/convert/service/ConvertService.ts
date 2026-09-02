@@ -2,12 +2,16 @@ import { Attr } from "../../siyuan/attrs";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelDoc } from "../../siyuan/doc";
 import { KernelQuery } from "../../siyuan/query";
-import { shuffleChoiceOptions } from "./OptionShuffle";
+import { protocolSpec } from "./QuestionDraft";
 
 /**
  * AI 转换服务：把一篇笔记文档交给思源内置智能体（ai/client，
  * 可指定用户在 设置→AI 配置的任一模型），按 docs/question-block-contract.md
  * 的契约生成题目块，落成独立的《原标题·习题》文档。
+ *
+ * 20260902 起 AI 返回**行协议**（QuestionDraft：@@ 标记行定界的结构化
+ * 文本），由代码确定性渲染成契约 kramdown——AI 不再手写超级块/IAL，
+ * 格式修补层（extractQuestions）整体退役。
  *
  * 全部机制已在真机（思源 3.8.0）验证：
  * - /api/filetree/createDocWithMd 会用内核 Lute 解析 kramdown，
@@ -103,8 +107,37 @@ export function extractBlockId(input: string): string {
     return m ? m[1] : input.trim().replace(/['"\\]/g, "");
 }
 
-/** 出题 prompt（格式规则全部真机验证，改动前先回归 createDocWithMd 落盘）。
- *  knowRule/knowList 是知识点反链的追加插槽（KnowledgeLink 路由出小节时才有值）。 */
+/** 多步引导题的行协议示例（bigToSteps 开启时随 prompt 附带）。 */
+const STEPS_EXAMPLE = `@@Q type=steps steps=method|result knowledge=考点 chapter=章节
+@@P stem
+计算大题题干……求 $\\lim_{x \\to 0}\\frac{\\sin x}{x}$
+@@P step
+第 1 步 · 选择方法：求解本题可行的方法是（ ）
+@@P step-opt
+洛必达法则
+@@P step-opt
+等价无穷小代换
+@@P step-ans
+AB
+@@P step
+第 2 步 · 等价无穷小代换：本步化简得（ ）
+@@P step-opt
+$1$
+@@P step-opt
+$0$
+@@P step-opt
+$\\infty$
+@@P step-opt
+$x$
+@@P step-ans
+A
+@@P sol
+完整解析（含每一步的推导）
+@@END`;
+
+/** 出题 prompt（20260902 起输出走行协议，kramdown 由代码渲染——格式
+ *  规则只剩内容语义，超级块/IAL 语法全部消失）。knowRule/knowList 是
+ *  知识点反链的追加插槽（KnowledgeLink 路由出小节时才有值）。 */
 export function buildPrompt(
     source: string,
     fillToChoice = false,
@@ -115,99 +148,34 @@ export function buildPrompt(
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
     const fillRule = fillToChoice
         ? `
-11. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。`
+8. 填空转选择：原文中的填空题一律改写为 type="single" 的单选题——题干中的空格（____/（ ））改为（ ），正确答案即原空格答案，再编写 3 个与正确答案同类、似是而非但有明确错误的干扰项作为其余选项；解析里说明原填空答案。`
         : "";
     // 大题拆多步：可分解的工科大题 → 多步引导题（method/result 步）
     const stepsRule = bigToSteps
         ? `
-
-多步引导题（type="steps"）的 kramdown 格式（方法步 + 结果步，作答在插件里逐步进行）：
-{{{row
-计算大题题干……求 $\\lim_{x \\to 0}\\frac{\\sin x}{x}$
-{: custom-plugin-wengu-part="stem"}
-
-第 1 步 · 选择方法：求解本题可行的方法是（ ）
-{: custom-plugin-wengu-part="step-0-stem"}
-
-- A. 洛必达法则
-- B. 等价无穷小代换
-{: custom-plugin-wengu-part="step-0-option-0"}
-
-> AB
-{: custom-plugin-wengu-part="step-0-answer"}
-
-第 2 步 · 等价无穷小代换：本步化简得（ ）
-{: custom-plugin-wengu-part="step-1-stem"}
-
-- A. $1$
-- B. $0$
-- C. $\\infty$
-- D. $x$
-{: custom-plugin-wengu-part="step-1-option-0"}
-
-> A
-{: custom-plugin-wengu-part="step-1-answer"}
-
-> 完整解析（含每一步的推导）
-{: custom-plugin-wengu-part="solution"}
-}}}
-{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="steps" custom-plugin-wengu-steps="method|result" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节"}
-
-13. 大题拆多步：原文中可分解的工科大题（计算/求值/化简，每步有确定的中间结果）改写为 type="steps" 的多步引导题——选定一条典型参考路径拆 2~5 步；方法分歧处设 method 步（选项为候选方法，answer 写**全部可行方法**的字母集合如 AB，任选可行即对）；其余为 result 步考该步的中间结果，answer 写唯一正确字母，干扰项来自常见计算错误；每步 3~4 个选项，结果步的引导语写明所用方法（如「第 2 步 · 等价无穷小代换：本步得（ ）」）；容器必须带 custom-plugin-wengu-steps="method|result|…" 属性按序声明每步类型；论述/证明/开放等不可分解的题仍用 type="brief"。`
+9. 大题拆多步：原文中可分解的工科大题（计算/求值/化简，每步有确定的中间结果）改写为 type="steps" 的多步引导题——选定一条典型参考路径拆 2~5 步；方法分歧处设 method 步（选项为候选方法，@@P step-ans 写**全部可行方法**的字母集合如 AB，任选可行即对）；其余为 result 步考该步的中间结果，@@P step-ans 写唯一正确字母，干扰项来自常见计算错误；每步 3~4 个选项，结果步的引导语写明所用方法（如「第 2 步 · 等价无穷小代换：本步得（ ）」）；@@Q 行的 steps 按序声明每步类型（如 steps=method|result）；论述/证明/开放等不可分解的题仍用 type="brief"。示例：
+${STEPS_EXAMPLE}`
         : "";
-    return `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目块。
+    return `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目。
 
-判断该文档是否适合出题（有可考查的知识点、内容足够具体）。
-
-输出严格遵守以下格式，格式之外不要输出任何文字：
+判断该文档内容是否适合出题（有可考查的知识点、内容足够具体），先输出两行判定：
 CAN_CONVERT: yes 或 no
 REASON: 一句话说明（不能转换时说明原因，能转换时概括题目覆盖范围）
-QUESTIONS:
-（每道题一个超级块，直接输出 kramdown）
 
-题目块 kramdown 格式（必须逐字符遵守，注意：不需要「我的答案」块，作答在插件里进行）：
-{{{row
-题干文字，公式用 $...$
-{: custom-plugin-wengu-part="stem"}
-
-- A. 选项一
-- B. 选项二
-{: custom-plugin-wengu-part="option-0"}
-
-> 正确答案：B
-{: custom-plugin-wengu-part="answer"}
-
-> 解析文字
-{: custom-plugin-wengu-part="solution"}
-}}}
-{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single" custom-plugin-wengu-knowledge="考点" custom-plugin-wengu-chapter="章节"}
-${stepsRule}
-10. **共享材料组（试卷中多篇小题共用的原文：阅读文章、完形语篇、翻译原文、新题型文章）**：先把材料输出成材料超级块，随后紧跟依附它的小题；这些小题的容器属性必须加 custom-plugin-wengu-group="prev"（表示材料=文中紧邻其前的材料块），独立成题（作文等无共享原文）不写 group。材料块格式（正文可多段，都用 part="body"；参考译文原文档有才写，用 part="trans"）：
-{{{row
-共享原文……
-{: custom-plugin-wengu-part="body"}
-
-参考译文全文（原文档没有就省略这一段）
-{: custom-plugin-wengu-part="trans"}
-}}}
-{: custom-plugin-wengu-material="1"}
-英语题型约定：完形填空用 type="cloze"（材料正文里保留空位编号如 __1__；题块内每空一组子块——slot-{k}-option-0 一块可含多个列表条目选项、slot-{k}-answer 写该空正确字母，k 从 0 递增，组内顺序即空号顺序）；新题型（七选五/排序/标题匹配/多项对应）用 type="match"（候选池写 option-0/option-1… 各一块，answer 写槽位顺序对应的字母串如 D|A|G|E|B）；作文（大小作文/应用文）用 type="essay"（题干=题目要求，图片随题走，answer 省略，solution 写范文）；翻译用 type="trans"（题干=原句/原段，answer=参考译文，solution 写采分点解析；逐句考查的每句一个题块、共用同一材料块并写 group="prev"）。分批转换时若本批只有材料没有题目、或只有题目没有材料，仍照常输出（题块 group="prev" 引用的是最终文档里其前的材料块）。
+可出题时，随后每道题按以下${protocolSpec()}
 硬性规则：
-1. 容器超级块以 {{{row 开始、}}} 结束；容器属性 {: ...} 必须另起一行紧跟在 }}} 之后，该行只包含 {: ...}。
-2. type 取 single/multiple/judge/fill/brief/steps/cloze/match/essay/trans（steps 见第 13 条格式，材料组与英语题型见第 10 条）；单选多选 answer 写字母（如 B / AD），判断写 √ 或 ×，填空用 | 分隔多个可接受答案，简答写要点。
-3. 子块 part 取 stem/option-0/answer/solution（steps 题另有 step-{k}-stem/step-{k}-option-0/step-{k}-answer，见第 13 条；材料块另有 body/trans，cloze 题另有 slot-{k}-option-0/slot-{k}-answer，见第 10 条；不要生成 mine 作答块）；题干可多段（都用 part="stem"）。
-4. difficulty 为可选项：原文档/题目有明确难度线索才写（1~5），没有就整个省略，不要编造。
-5. 公式写法：行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
-6. 保留原文的公式与代码；一个选项块里可以写多个选项。
-7. 题量：若原文档本身是试卷/题库（已有现成题目），必须**逐题全部**转换——不得限量、不得合并、不得漏题，也不得自行新造题目；若是讲义/笔记，按知识点出题：内容少时至少 1 道，丰富时 5~12 道，覆盖主要知识点。
-8. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**进对应题——单独成段、路径与文件名一个字符都不能改。题目本身依赖的图（原理示意图/结构图，题干常写「如图/下图/图所示」）放**题干**（紧跟题干文字段之后，标记 part="stem"）；答案/解析里给出的图（如解答画出的方框图）放**解析**（标记 part="solution"），不放题干。没有插图的题**不要**编造图片行。
-9. **禁止跳过带图题**：题干含「如图/下图/图所示」或题目相关段落配有图片行的题，必须与所有题一样逐题转换（插图按第 8 条处理）；因为题里有图、读不了图就跳过整道题，是比漏选项严重得多的错误。
-
+1. type 取 single/multiple/judge/fill/brief/steps/cloze/match/essay/trans；@@P ans 按题型约定写（字母/字母串/√或×/| 分隔多答案/要点或范文）。
+2. 公式行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
+3. 保留原文的公式与代码。
+4. 题量：若原文档本身是试卷/题库（已有现成题目），必须**逐题全部**转换——不得限量、不得合并、不得漏题，也不得自行新造题目；若是讲义/笔记，按知识点出题：内容少时至少 1 道，丰富时 5~12 道，覆盖主要知识点。
+5. **插图必须随题走**：原文档里的图片行（![](...assets/...)）是该题依赖的插图（电路图/方框图/几何图等）时，把图片行**原样逐字复制**进对应部件——单独成段、路径与文件名一个字符都不能改。题目本身依赖的图（原理示意图/结构图，题干常写「如图/下图/图所示」）放题干（@@P stem）；答案/解析里给出的图（如解答画出的方框图）放解析（@@P sol）。没有插图的题**不要**编造图片行。
+6. **禁止跳过带图题**：题干含「如图/下图/图所示」或题目相关段落配有图片行的题，必须与所有题一样逐题转换（插图按第 5 条处理）；因为题里有图、读不了图就跳过整道题，是比漏选项严重得多的错误。
+7. **共享材料组**（试卷中多篇小题共用的原文：阅读文章、完形语篇、翻译原文、新题型文章）：先输出材料块（@@Q material=1 + @@P body，原文档有参考译文才加 @@P trans），随后紧跟依附它的小题，小题 @@Q 行加 group=prev；独立成题（作文等无共享原文）不加 group。英语题型约定：完形填空用 type="cloze"（材料正文里保留空位编号如 __1__；每空一组 @@P slot-opt（该空选项）/@@P slot-ans（该空正确字母），组内顺序即空号顺序）；新题型（七选五/排序/标题匹配/多项对应）用 type="match"（候选池每个候选一个 @@P opt，@@P ans 写槽位顺序对应的字母串如 D|A|G|E|B）；作文用 type="essay"（题干=题目要求，图片随题走，省略 @@P ans，解析写范文）；翻译用 type="trans"（题干=原句/原段，@@P ans=参考译文，解析写采分点解析；逐句考查的每句一个题块、共用同一材料块并加 group=prev）。分批转换时若本批只有材料没有题目、或只有题目没有材料，仍照常输出（group=prev 引用的是最终文档里其前的材料块）。
 内容筛选（只出可考查的练习题，以下内容一律跳过、不得转成题目）：
 - 讲义正文里夹带的**例题**（「例 1」「例 2」「【例】」「例题」等）及其示范解答——例题是讲解演示，不是练习，整段跳过；
 - 章节开头的**引言/导读/学习目标**（「本章将介绍…」「学习目标」「导读」）——开场白没有可考知识点；
 - 章末的**小结/重点回顾/知识框架/思维导图**（「本章小结」「重点回顾」「知识框架」）——收尾总结不出题；
-判断依据是内容性质而非标题字面：夹在讲解里、附完整示范解答的题目即例题；只对知识做归纳梳理、无新考点的首尾段落即引言或小结。跳过这些内容后，按剩余正文的知识点正常出题。${fillRule}${knowRuleBlock}
+判断依据是内容性质而非标题字面：夹在讲解里、附完整示范解答的题目即例题；只对知识做归纳梳理、无新考点的首尾段落即引言或小结。跳过这些内容后，按剩余正文的知识点正常出题。${fillRule}${stepsRule}${knowRuleBlock}
 
 文档内容：
 ${source}${knowList}`;
@@ -216,58 +184,14 @@ ${source}${knowList}`;
 /** 解析 AI 的判定（CAN_CONVERT / REASON 行）。 */
 export function parseVerdict(reply: string): { can: boolean; reason: string } {
     const vm = /CAN_CONVERT\s*[:：]\s*(yes|no|是|否|true|false)/i.exec(reply);
-    const can = vm !== null ? /^(yes|是|true)$/i.test(vm[1]) : /QUESTIONS\s*[:：]/.test(reply);
+    const can = vm !== null ? /^(yes|是|true)$/i.test(vm[1]) : /@@Q\b/.test(reply);
     const rm = /REASON\s*[:：]\s*([^\n]+)/i.exec(reply);
     return { can, reason: (rm?.[1] ?? "").trim() };
-}
-
-/**
- * 抽取回复里所有带 q 容器属性的题目超级块与材料超级块
- * （custom-plugin-wengu-material="1"，材料组见第 10 条），并做几处规整
- * （真机实测 AI 的高频偏差）：
- * - q 属性自增（q="2"、q="3"…）→ 统一改回契约的 q="1"（SQL 按 '1' 检测）；
- * - 子块 part 属性漏右引号（part="solution}）→ 补上；
- * - 题干带「题干A：」前缀标签（及紧随的悬空 `**`）→ 入库前剥掉；
- * - AI 从原文 kramdown 抄来的噪声行（块 id IAL、嵌套超级块定界）→ 剥掉。
- * 材料块与题目块按出现顺序混排（group="prev" 依赖「材料在前、题目紧随」）。
- */
-function extractQuestions(reply: string): string[] {
-    const idx = reply.search(/QUESTIONS\s*[:：]/);
-    const body = idx >= 0 ? reply.slice(idx) : reply;
-    const re = /\{\{\{row[\s\S]*?\}\}\}\s*\n\s*\{:[^\n]*custom-plugin-wengu-(?:q|material)="[^"]+"[^\n]*\}/g;
-    const out: string[] = [];
-    for (const m of body.matchAll(re)) {
-        out.push(m[0].trim());
-    }
-    return out
-        .map((q) =>
-            q
-                .replace(/custom-plugin-wengu-q="\d+"/, 'custom-plugin-wengu-q="1"')
-                .replace(/custom-plugin-wengu-part="([a-z0-9-]+)\}/g, 'custom-plugin-wengu-part="$1"}')
-                .replace(/^[ \t]*题干\s*[A-Za-z0-9]?[ \t]*[：:][ \t]*(?:\*\*[ \t]*)?/gm, "")
-                .replace(/^[ \t]*(?:>[ \t]*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm, (line) =>
-                    /custom-plugin-wengu-/.test(line) ? line : ""
-                )
-                .split("\n")
-                .filter((line, i) => !/^[ \t]*(?:>[ \t]*)?\{\{\{/.test(line) || i === 0)
-                .filter((line, i, ls) => {
-                    if (!/^[ \t]*(?:>[ \t]*)?\}\}\}/.test(line)) return true;
-                    // 容器自身的收尾 }}}（其后紧跟容器 IAL）保留，嵌套的剥掉
-                    return /^\s*\{:[^}]*custom-plugin-wengu-(?:q|material)=/.test(ls[i + 1] ?? "");
-                })
-                .join("\n")
-        )
-        .map(shuffleChoiceOptions);
 }
 
 /** 该块 kramdown 是否是材料超级块（不占题目数）。 */
 export function isMaterialKramdown(kd: string): boolean {
     return kd.includes('custom-plugin-wengu-material="1"');
-}
-
-/** 抽取并规整一批回复里的题目块与材料块（AI 偏差规整见上）。 */
-export function extractBatchQuestions(reply: string): string[] {
-    return extractQuestions(reply).filter((q) => q.includes('part="stem"') || isMaterialKramdown(q));
 }
 
 /** "/a/b.sy" → "/a"；"/x.sy" → "/"。 */

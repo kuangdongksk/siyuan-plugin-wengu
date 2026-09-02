@@ -627,7 +627,6 @@
   "knowOutlineBtn": "Build tree",
   "knowOutlineRunning": "Summarizing…",
   "knowOutlineFail": "Build knowledge tree failed: ",
-  "knowDeleteBtn": "Delete",
   "knowHint": "Docs linked by question refs appear automatically (derived from the bank); importing a shelf/book recursively expands all its sub-docs, shown even without questions.",
   "knowEmpty": "No knowledge docs yet: link via conversion (check the knowledge root), or import one manually.",
   "batchTitle": "Batch link knowledge",

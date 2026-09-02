@@ -2,7 +2,9 @@ import { Dialog } from "siyuan";
 import { agentChatOnce } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import { extractBlockId, extractBatchQuestions } from "../../convert/service/ConvertService";
+import { extractBlockId } from "../../convert/service/ConvertService";
+import { hasStemPart, parseDrafts, protocolSpec, renderUnit } from "../../convert/service/QuestionDraft";
+import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
@@ -150,9 +152,10 @@ async function runRegen(
         const section = sourceBlock ? "" : kp ? await sectionKramdown(kp.id) : "";
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
         const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long);
-        const qs = extractBatchQuestions(reply).filter((x) => x.includes('part="stem"'));
-        if (qs.length === 0) throw new Error(t("convertEmptyReply"));
-        let kd = qs[0];
+        const drafts = parseDrafts(reply).filter(hasStemPart);
+        if (drafts.length === 0) throw new Error(t("convertEmptyReply"));
+        shuffleDraftOptions(drafts[0]);
+        let kd = renderUnit(drafts[0]);
         // 保留原容器的其余属性（q/type/steps/knowledge/chapter…），只换内容
         const oldIal = /\n(\{:[^\n]*custom-plugin-wengu-q="1"[^\n]*\})\s*$/.exec(record.kramdown)?.[1] ?? "";
         if (oldIal) {
@@ -187,7 +190,8 @@ function buildRegenPrompt(kd: string, sourceBlock: string, section: string, note
     return `你是思源笔记的题目修复助手。下面这道题存在问题（OCR 缺失/转换错误/答案算错），请重出这一道题。
 ${srcPart || secPart ? "以补充材料为准修正；没有依据的部分不要编造，宁可保守。" : "依据题目自身与解析保守修复。"}${notePart}
 要求：输出与原题相同的题型结构（客观题保持客观题）；公式行内 $...$、块级 $$...$$；题干依赖的图片行（![](...assets/...)）原样逐字保留；正确答案与解析必须自洽。
-只输出一个题目超级块的 kramdown（{{{row … }}} + 容器属性行），格式之外不要输出任何文字。
+只输出一道题的行协议（格式如下），格式之外不要输出任何文字。
+${protocolSpec()}
 
 【原题 kramdown】
 ${kd}${srcPart}${secPart}${notePart}`;

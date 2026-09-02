@@ -364,10 +364,11 @@ ${chunk}`
     return out;
 }
 
-/** 生成 prompt 的第 12 条规则（仅在路由出小节时追加）。 */
+/** 生成 prompt 的知识点标注规则（仅在路由出小节时追加；20260902 起
+ *  标注挂在 @@Q 行 know= 上，渲染时由代码解析成真实引用并入解析块）。 */
 export function knowRule(): string {
     return `
-12. 知识点标注：文末「知识点清单」列出本批内容可能涉及的知识点（K 编号）。每道题按考查内容在容器属性行末尾追加 custom-plugin-wengu-know="K1,K3"（1~3 个最相关编号，逗号分隔；只能用清单里的编号，不得编造；没有合适的不加该属性）。`;
+知识点标注：文末「知识点清单」列出本批内容可能涉及的知识点（K 编号）。每道题按考查内容在 @@Q 行末尾追加 know="K1,K3"（1~3 个最相关编号，逗号分隔；只能用清单里的编号，不得编造；没有合适的不加）。`;
 }
 
 /** 生成 prompt 文末的知识点清单（K 别号 → 展示路径）。 */
@@ -375,7 +376,7 @@ export function knowListBlock(map: Map<string, KnowSection>): string {
     const lines = [...map.entries()].map(([k, s]) => `${k}|${s.path}`);
     return `
 
-知识点清单（供第 12 条规则标注用）：
+知识点清单（供知识点标注规则用）：
 ${lines.join("\n")}`;
 }
 

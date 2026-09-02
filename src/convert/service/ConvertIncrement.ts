@@ -1,11 +1,12 @@
 import { Attr } from "../../siyuan/attrs";
 import { KernelBlock } from "../../siyuan/block";
 import { KernelQuery } from "../../siyuan/query";
-import { appendBlockToDoc, buildPrompt, extractBatchQuestions } from "./ConvertService";
+import { appendBlockToDoc, buildPrompt } from "./ConvertService";
 import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
-import { applyKnowLinks } from "./KnowRef";
+import { applyKnowDrafts, parseDrafts, renderUnit } from "./QuestionDraft";
+import { isHeadingOnlyChunk, structuralChunks, type StructChunk, type SrcGroup } from "./SrcChunk";
+import { shuffleDraftOptions } from "./OptionShuffle";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
-import { structuralChunks, withSrcAttrs, type StructChunk, type SrcGroup } from "./SrcChunk";
 
 /**
  * 增量重转换执行（增量哈希二期，docs/incremental-hash-plan.md §二）：
@@ -134,6 +135,8 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
             break;
         }
         const chunk = run.chunks[i];
+        // 纯标题块零内容：不发 AI，无产物（断点自愈不受影响）
+        if (isHeadingOnlyChunk(chunk.text)) continue;
         run.onProgress?.({ done: i, total: run.chunks.length, count: out.added });
         let gen: { reply: string; byAlias?: Map<string, KnowSection> };
         try {
@@ -145,15 +148,13 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
             }
             throw e; // 单块 AI 失败整体收口（已追加部分保留，重跑自愈）
         }
-        let qs = extractBatchQuestions(gen.reply);
-        if (gen.byAlias && qs.length > 0) {
-            const applied = applyKnowLinks(qs, gen.byAlias);
-            qs = applied.out;
-            out.knowLinked += applied.linked;
-        }
-        for (const unit of qs) {
-            await appendBlockToDoc(run.quizDocId, withSrcAttrs(unit, chunk.key, chunk.hash));
-            if (!unit.includes("custom-plugin-wengu-material=")) out.added++;
+        const drafts = parseDrafts(gen.reply);
+        drafts.forEach(shuffleDraftOptions);
+        if (gen.byAlias && drafts.length > 0) out.knowLinked += applyKnowDrafts(drafts, gen.byAlias);
+        for (const d of drafts) {
+            const unit = renderUnit(d, { srcKey: chunk.key, srcHash: chunk.hash });
+            await appendBlockToDoc(run.quizDocId, unit);
+            if (!d.material) out.added++;
         }
     }
     run.onProgress?.({ done: run.chunks.length, total: run.chunks.length, count: out.added });

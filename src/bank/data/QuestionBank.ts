@@ -73,8 +73,8 @@ export interface BankData {
     knowRoots: string[];
     /** 手动建的目录文件夹路径（空文件夹落盘；旧数据缺省为 []）。 */
     folders: string[];
-    /** 软删除的知识文档 id 集合（面板里不再展示；思源文档本体不动，
-     *  与 knowRoots 平行；旧数据缺省为 []）。 */
+    /** 已停用（20260902「删除」按钮移除，字段按数据演进守则保留兼容
+     *  存量数据；不再读写，存量隐藏行重新出现在面板）。 */
     knowHidden: string[];
     /** 文档级累计刷题用时（秒，原 total-time 块属性自托管）。 */
     docStats: Record<string, number>;

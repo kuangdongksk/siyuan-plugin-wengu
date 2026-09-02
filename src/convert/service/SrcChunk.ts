@@ -9,7 +9,7 @@ import { chunkKramdown, CHUNK_CHARS } from "./ConvertService";
  * 再按空行二切（子块键挂父块名下）。重转换时对源文档重新切块比对指纹，
  * 三态分类：相同跳过（保原题与刷题统计）、新增生成、变更/消失逐块选。
  *
- * 本模块纯函数（切块/注入/分类），内核 IO 在 ConvertIncrement。
+ * 本模块纯函数（切块/分类），内核 IO 在 ConvertIncrement。
  */
 
 /** 结构块：稳定边界键 + 内容指纹 + 原文与偏移（续跑断点沿用 offset）。 */
@@ -177,28 +177,9 @@ export function classifyChunks(groups: SrcGroup[], chunks: StructChunk[]): Incre
     return plan;
 }
 
-/** 容器 IAL 行正则（题目 q / 材料块 material 容器收尾属性行）。 */
-const IAL_RE = /\{:[^\n]*custom-plugin-wengu-(?:q|material)="[^"]+"[^\n]*\}/;
-
-/**
- * 把源块键与指纹写进单元（题目/材料容器）的容器 IAL 行末尾。
- * 幂等：已带 src-hash 先剥旧再写新。找不到容器 IAL 行原样返回
- * （extractBatchQuestions 的产物必带，防御手工输入）。
- */
-export function withSrcAttrs(unit: string, key: string, hash: string): string {
-    const clean = unit.replace(/\s*custom-plugin-wengu-(?:src-hash|src-key|src-stale)="[^"]*"/g, "");
-    const k = safeKey(key);
-    const m = IAL_RE.exec(clean);
-    if (!m) return unit;
-    return clean.replace(
-        m[0],
-        m[0].slice(0, -1) + ` custom-plugin-wengu-src-key="${k}" custom-plugin-wengu-src-hash="${hash}"}`
-    );
-}
-
-/** 解析一条单元 kramdown 的 src 属性（读旧分组用；无 src-hash 返回空）。 */
-export function srcAttrsOf(unit: string): { key: string; hash: string } {
-    const hash = /custom-plugin-wengu-src-hash="([^"]*)"/.exec(unit)?.[1] ?? "";
-    const key = /custom-plugin-wengu-src-key="([^"]*)"/.exec(unit)?.[1] ?? "";
-    return { key, hash };
+/** 纯标题块：去掉标题行与空白后无内容（「章标题下直接挂子标题」的
+ *  层级结构常见，20260902 真机：一篇 159 批的题解文档有 9 批）——
+ *  发批前跳过，省掉必然 CAN_CONVERT:no 的空调用与面板噪音。 */
+export function isHeadingOnlyChunk(text: string): boolean {
+    return !text.split(/\r?\n/).some((l) => l.trim() && !HEAD_RE.test(l));
 }

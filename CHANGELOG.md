@@ -2,6 +2,32 @@
 
 ## v0.1.1 unreleased
 
+- AI 生成返回格式改行协议 + 纯标题块跳过（20260902，转块域）：
+  AI 不再手写 kramdown 超级块，改输出 @@ 标记行定界的结构化文本
+  （QuestionDraft：@@Q/@@P/@@END，LaTeX 零转义、无缩进语义、漏 END
+  自动收口坏一题不坏一批），由代码**确定性渲染**成契约 kramdown
+  落盘——格式正确性从「AI 概率事件」变「代码保证」，ConvertService
+  extractQuestions 五条 kramdown 偏差修补规则整体退役，prompt 规则
+  瘦身（超级块/IAL 语法说明全删，字母由渲染按序自动编、正确项写最前
+  由 OptionShuffle draft 层洗牌消剧透）。四生成入口统一切换：转换
+  主流程/增量重转换/题库出题变式（GenQuestion）/单题重生成
+  （RegenDialog）；知识点标注改 @@Q 行 know=，渲染时解析成真实引用
+  并入解析块（applyKnowLinks→applyKnowDrafts）。**纯标题块跳过**
+  （isHeadingOnlyChunk）：章标题下直接挂子标题的结构段零内容不发
+  AI——真机题解文档 159 批里 9 批纯标题（总标题+7 个章标题+1 个
+  空题），9 次白耗调用与「空内容转换」面板噪音一并消除，emptyBatches
+  不再误计。落盘 kramdown 形态逐字不变（渲染器兼容 BankParse/
+  questionHash/增量指纹，冻结清单零触碰）；withSrcAttrs/srcAttrsOf
+  退役（渲染器收 src-key/src-hash），旧 extractBatchQuestions 相关
+  测试改写为协议解析/渲染往返测试（QuestionDraft.test 27 例）。
+- 知识文档「删除」按钮移除（20260902）：2026-08-31 删除改「只清面板」
+  口径后与「移除」语义撞车——对登记根是严格更差的移除（多拉黑一步），
+  且软隐藏（bank.knowHidden）无反悔出口（unhide 零调用，误删只能手改
+  bank.json）；对推导行只是美观过滤、留下看不见的关联。连带清理：
+  KnowPanelCtl 的 armDelete/deleteDoc/dlTimer、KnowPanelUi 的 dlArmed、
+  KnowRoots 的 knowHiddenOf/hideKnowDoc/unhideKnowDoc、装载期隐藏过滤、
+  i18n 双语 knowDeleteBtn。bank.knowHidden 字段按数据演进守则保留兼容
+  存量（不再读写，存量隐藏行重新出现在面板）。
 - 转换固定另存 + PDF 导入移除（20260901 用户定夺「根据原文档保存一份
   自己的数据，完全不动原文档」）：删「转换方式」下拉（原位替换/另存
   双模式）与弹窗内「从 PDF 导入（MinerU）」行；落盘固定 newdoc——

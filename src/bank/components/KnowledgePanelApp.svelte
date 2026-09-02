@@ -203,12 +203,6 @@
                                         class="b3-button b3-button--text"
                                         onclick={() => ctl.open(d.docId)}>{t("knowOpen")}</button
                                     >
-                                    <button
-                                        type="button"
-                                        class="b3-button b3-button--text"
-                                        onclick={() => ctl.armDelete(d.docId)}
-                                        >{ui.dlArmed === d.docId ? t("collectConfirm") : t("knowDeleteBtn")}</button
-                                    >
                                     {#if d.registered}
                                         <button
                                             type="button"

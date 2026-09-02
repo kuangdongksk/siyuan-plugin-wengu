@@ -38,7 +38,16 @@
       轮次明细+继续追问输入条）——判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
-      （AI 转换，`index.ts`=转换编排；**增量重转换**（20260831 增量哈希
+      （AI 转换，`index.ts`=转换编排；**生成输出行协议**（20260902）：
+      AI 不手写 kramdown，改输出 `@@Q/@@P/@@END` 标记行定界文本
+      （`service/QuestionDraft.ts` 解析成 DraftUnit、`renderUnit`
+      **确定性渲染**成契约 kramdown 落盘——选项字母按序自动编、
+      正确项写最前由 `OptionShuffle.ts` draft 层洗牌消剧透；选行协议
+      非 JSON/YAML 因数学 LaTeX 零转义+无缩进+坏一题不坏一批；
+      四生成入口共用：转换/增量/题库出题（GenQuestion）/单题重生成
+      （RegenDialog）；`extractQuestions` 修补层已退役；**纯标题块
+      跳过** `isHeadingOnlyChunk`（章标题直挂子标题的零内容段不发
+      AI）；**增量重转换**（20260831 增量哈希
       二期）：`SrcChunk.ts` 结构切块（标题链键 H:章/节 + questionHash
       指纹，替代空行偏移切块）+ 两阶段三态分类（全局指纹匹配→键配对：
       相同/新增/变更/消失），生成时容器 IAL 随题写 src-key/src-hash，
