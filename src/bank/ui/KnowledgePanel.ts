@@ -1,4 +1,5 @@
 import { expandKnowDocs, type KnowDocEntry, type KnowSectionNode } from "../../convert/service/KnowledgeLink";
+import type { KnowTreesMap } from "../data/KnowTrees";
 
 /**
  * 知识文档面板的视图模型层（Svelte 化前的渲染/绑定已删，20260830）：
@@ -35,6 +36,8 @@ export interface KnowDocView {
     manual?: boolean;
     /** 直接登记的根（行上显示「移除」，退册整个登记子树）。 */
     registered?: boolean;
+    /** 已有内部知识树（sectionTree 即树节点；「重新归纳」入口常显）。 */
+    hasTree?: boolean;
 }
 
 /** 平铺小节清单（推导侧）→ 挂题数的树（无层级信息时全部平层）。 */
@@ -90,6 +93,8 @@ export interface ImportedKnowDoc {
     docId: string;
     title: string;
     sectionTree: KnowSectionNode[];
+    /** 已有内部知识树（小节整体替换为树节点）。 */
+    hasTree?: boolean;
 }
 
 /** 推导行 × 导入行合并：同文档以导入层级树为骨架、推导题数回填
@@ -123,6 +128,7 @@ export function mergeKnowDocs(
             };
             collect(hit.sectionTree);
             hit.sectionTree = overlayCounts(impTree, counts);
+            if (imp.hasTree) hit.hasTree = true;
             continue;
         }
         out.push({
@@ -130,6 +136,7 @@ export function mergeKnowDocs(
             title: imp.title,
             sectionTree: impTree,
             total: 0,
+            ...(imp.hasTree ? { hasTree: true } : {}),
             ...flagsOf(imp.docId),
         });
     }
@@ -142,14 +149,20 @@ export function mergeKnowDocs(
  *  标题）不展示；展开失败但文档还在 → 保留空节登记行，退册入口不丢。 */
 export async function importedKnowDocs(
     rootIds: string[],
-    titles: Map<string, string>
+    titles: Map<string, string>,
+    trees?: KnowTreesMap
 ): Promise<{ docs: ImportedKnowDoc[]; info: Map<string, { title: string; hPath: string }>; manualAll: Set<string> }> {
     const docs: ImportedKnowDoc[] = [];
     const info = new Map<string, { title: string; hPath: string }>();
     const manualAll = new Set<string>();
     const absorb = (entries: KnowDocEntry[]): void => {
         for (const e of entries) {
-            docs.push({ docId: e.docId, title: e.title, sectionTree: e.sectionTree });
+            docs.push({
+                docId: e.docId,
+                title: e.title,
+                sectionTree: e.sectionTree,
+                ...(trees?.[e.docId] ? { hasTree: true } : {}),
+            });
             info.set(e.docId, { title: e.title, hPath: e.hPath });
             manualAll.add(e.docId);
         }
@@ -157,7 +170,7 @@ export async function importedKnowDocs(
     for (const rid of rootIds) {
         let entries: KnowDocEntry[] = [];
         try {
-            entries = await expandKnowDocs(rid);
+            entries = await expandKnowDocs(rid, trees);
         } catch (_) {
             // 展开失败：下面按标题兜底
         }

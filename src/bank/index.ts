@@ -1,8 +1,7 @@
 import { refreshSideCols } from "../quiz/flow/SideMount";
 import { openCollectionDialog } from "./ui/CollectionDialog";
-import { GROUP_PREV } from "../siyuan/attrs";
 import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
-import { listMaterials, resolveGroupPlaceholders } from "../quiz/service/MaterialService";
+import { setMaterials } from "./data/BankSets";
 import type { CollectionRow, QuestionBank } from "./data/QuestionBank";
 import { refreshLiveCollections } from "./data/LiveCols";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
@@ -158,31 +157,22 @@ export function detachBankPanels(): void {
     knowPanelApp = undefined;
 }
 
-/** col 模式装载上下文：专题轮次（col:<id> 归档）+ 来源文档的材料并集。
- *  group="prev" 占位按来源文档解析回写（同 QuizLoader 文档模式手法），
- *  请求串行（fetchSyncPost 并发互吞，真机踩坑）。 */
+/** col 模式装载上下文：专题轮次（col:<id> 归档）+ 来源题集的材料并集
+ *  （材料正文在 bank.materials，20260903 起零内核 IO；group 占位解析
+ *  通道随文档模式退役——记录字段已直配材料 id）。 */
 export async function colLoadContext(
     history: HistoryStore | undefined,
     bank: QuestionBank | undefined,
-    colId: string,
-    questions: WenguQuestion[]
+    colId: string
 ): Promise<{ rounds: WenguSession[]; materials: WenguMaterial[] }> {
     const rounds = history ? await history.docSessions(colSessionId(colId)) : [];
     const materials: WenguMaterial[] = [];
     if (!bank) return { rounds, materials };
-    const pending = questions.filter((q) => q.group === GROUP_PREV);
-    for (const docId of await bank.collectionSourceDocs(colId)) {
+    for (const setId of await bank.collectionSourceDocs(colId)) {
         try {
-            if (pending.length > 0) {
-                const patches = await resolveGroupPlaceholders(docId);
-                for (const q of pending) {
-                    const mid = patches.get(q.id);
-                    if (mid) q.group = mid;
-                }
-            }
-            materials.push(...(await listMaterials(docId)));
+            materials.push(...(await setMaterials(bank, setId)));
         } catch (_) {
-            // 单文档失败按缺材料降级（该卷题按独立题渲染）
+            // 单题集失败按缺材料降级（该卷题按独立题渲染）
         }
     }
     return { rounds, materials };

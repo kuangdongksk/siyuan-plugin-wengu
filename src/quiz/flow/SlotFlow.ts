@@ -3,7 +3,7 @@ import { checkAllDone } from "./AnswerFlow";
 import { markNum } from "../render/FlowDom";
 import { fillClozeCur, markClozeOpts } from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
-import { gradeSlot } from "../service/QuestionService";
+import { gradeSlot } from "../service/QuestionGrading";
 import type { WenguQuestion } from "../../types";
 import { slotQid } from "../../types";
 import { esc } from "../../ui/shared";

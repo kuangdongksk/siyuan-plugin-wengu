@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseOutlineNodes } from "./KnowOutline";
 import { buildOutlinePrompt, chapterTextOf, extractOutlineMd } from "./KnowOutline";
 
 describe("buildOutlinePrompt", () => {
@@ -65,5 +66,22 @@ describe("chapterTextOf", () => {
         );
         expect(text.length).toBeLessThanOrEqual(1100);
         expect(text.startsWith("长")).toBe(true);
+    });
+});
+
+describe("parseOutlineNodes", () => {
+    it("标题层级+紧跟说明行成节点，非标题后续行并入上一节点说明（只收首个）", () => {
+        const md = "# 求极限\n大类说明\n## 洛必达法则\n0/0 型适用\n### 适用条件\n## 夹逼准则";
+        expect(parseOutlineNodes(md)).toEqual([
+            { id: "", title: "求极限", level: 1, note: "大类说明" },
+            { id: "", title: "洛必达法则", level: 2, note: "0/0 型适用" },
+            { id: "", title: "适用条件", level: 3 },
+            { id: "", title: "夹逼准则", level: 2 },
+        ]);
+    });
+
+    it("超三级标题不入表；空标题滤除；无标题返回空", () => {
+        expect(parseOutlineNodes("#### 太深\n# 一级").map((n) => n.title)).toEqual(["一级"]);
+        expect(parseOutlineNodes("纯正文没有标题")).toEqual([]);
     });
 });

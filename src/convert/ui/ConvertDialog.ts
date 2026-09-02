@@ -29,10 +29,6 @@ export interface ConvertDialogDeps {
     initialBigToSteps: boolean;
     /** 并发批数预选值（设置默认，1=串行）。 */
     initialParallel: number;
-    /** 生成位置预选：same=原文档同目录；custom=指定父文档下面。 */
-    initialTargetMode: "same" | "custom";
-    /** 指定父文档 id 预选（生成位置=custom 时用）。 */
-    initialTargetId: string;
     /** 知识点根文档预选（prefs 上次，多个 id 空格分隔的原始串）。 */
     initialKnowRoots: string;
     /** 用户本次的选择（记入 prefs；knowRoots 为原始输入串）。 */

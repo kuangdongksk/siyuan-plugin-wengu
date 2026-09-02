@@ -1,6 +1,6 @@
 import { mdFragmentHtml, optionRowHtml } from "../../quiz/service/ProtyleHost";
 import { copyQuestionText } from "../../quiz/flow/PreviewFlow";
-import { hydrate } from "../../quiz/service/QuestionService";
+import { questionOf } from "../../bank/data/BankSets";
 import { stripIal } from "../../bank/data/BankParse";
 import type { BankRecord, QuestionBank } from "../../bank/data/QuestionBank";
 import { normalizeType } from "../../types";
@@ -168,9 +168,11 @@ export class ReviewCtl {
         ui.detail = { phase: "loading" };
         const run = this.detailChain.then(async (): Promise<void> => {
             if (seq !== this.detailSeq || !this.alive) return;
-            const q: WenguQuestion = { id: item.qid, attempts: 0, wrongCount: item.wrongCount, type: item.type };
+            // 单题详情直取题库记录解析（零内核 IO；记录缺失保留已知信息）
+            let q: WenguQuestion = { id: item.qid, attempts: 0, wrongCount: item.wrongCount, type: item.type };
             try {
-                await hydrate(q);
+                const bank = this.v?.bankStore();
+                if (bank) q = (await questionOf(bank, item.qid)) ?? q;
             } catch (_) {
                 // 保留已知信息（时间线/摘要），题目正文缺省
             }

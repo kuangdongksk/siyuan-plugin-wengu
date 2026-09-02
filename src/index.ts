@@ -4,7 +4,6 @@ import { HistoryStore } from "./quiz/service/HistoryStore";
 import { QuestionBank } from "./bank/data/QuestionBank";
 import { QuizView } from "./quiz";
 import { openRelatedDialog } from "./bank/ui/RelatedDialog";
-import { KernelQuery } from "./siyuan/query";
 import { openWenguSetting } from "./ui/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/data/WeaknessStore";
@@ -15,8 +14,8 @@ import { initWordLib } from "./word/service/WordLib";
 import { initNotify } from "./ui/Notify";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
-import { runDriftCheck } from "./bank/data/DriftWatch";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
+import { knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -68,10 +67,6 @@ interface WenguSettings {
     bigToSteps?: boolean;
     /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块。 */
     convertKeepOld?: boolean;
-    /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
-    convertTargetMode?: "same" | "custom";
-    /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
-    convertTargetId?: string;
     /** 看板娘学伴：全局开关/兜底台词人设/AI 台词与对话/多套学伴配置。 */
     companionEnabled?: boolean;
     companionPersona?: string;
@@ -328,21 +323,35 @@ export default class WenguPlugin extends Plugin {
     };
 
     /** 题干内嵌块引用（查看原文）的 document 级委托：静态渲染是字符串
-     *  管线（md → HTML 串），引用 span 只能带 data 标记由这里统一跳转。 */
+     *  管线（md → HTML 串），引用 span 只能带 data 标记由这里统一跳转。
+     *  内部知识树节点无真实块——降级跳到源章节文档。 */
     private static readonly onBlockRefClick = (ev: MouseEvent): void => {
         const el = (ev.target as HTMLElement | null)?.closest<HTMLElement>("[data-wengu-blockref]");
-        if (el?.dataset.wenguBlockref) window.open(`siyuan://blocks/${el.dataset.wenguBlockref}`);
+        const id = el?.dataset.wenguBlockref;
+        if (!id) return;
+        void (async (): Promise<void> => {
+            const bank = WenguPlugin.instance?.bank();
+            if (bank) {
+                const hit = knowTreeByNode(await knowTreesOf(bank), id);
+                if (hit) {
+                    window.open(`siyuan://blocks/${hit.tree.srcId}`);
+                    return;
+                }
+            }
+            window.open(`siyuan://blocks/${id}`);
+        })();
     };
 
-    /** 树删除/移动事件的防抖对账定时器（onunload 清）。 */
+    /** 知识文档变更事件的防抖对账定时器（onunload 清）。 */
     private static reconcileTimer: number | undefined;
 
-    /** ws 事务流里攒下的待对账文档根（防抖窗口内聚簇，update 漂移检测用）。 */
+    /** ws 事务流里攒下的待刷新文档根（防抖窗口内聚簇）。 */
     private static pendingRoots = new Set<string>();
 
-    /** ws 事务流过滤：delete/move 排程存活对账；update 记下文档根、
-     *  防抖后对题库登记文档跑镜像漂移检测（内核无独立事件面，官方
-     *  广播即信号源；op 字段名 rootID 系 3.8.x 前端源码验证）。 */
+    /** ws 事务流过滤：delete/move/update 记下文档根，防抖后刷新知识
+     *  小节哈希基线（题目内容 20260903 起唯一真相在题库，镜像漂移检测
+     *  与习题文档存活性核对整体退役；内核无独立事件面，官方广播即信号
+     *  源；op 字段名 rootID 系 3.8.x 前端源码验证）。 */
     private static readonly onWsReconcile = (ev: {
         detail: { data?: { doOperations?: { action?: string; rootID?: string }[] } };
     }): void => {
@@ -357,38 +366,16 @@ export default class WenguPlugin extends Plugin {
         if (hit) WenguPlugin.scheduleBankReconcile();
     };
 
-    /** 防抖对账：①delete/move→题库登记文档存活性核对；②update→
-     *  命中 migratedDocs 的文档镜像漂移检测（插件自身写先更新题库
-     *  hash 再落块，dry-run 得「相同」天然免疫）。 */
+    /** 防抖对账：知识域文档的小节哈希基线顺路刷新（尽力而为）。 */
     private static readonly scheduleBankReconcile = (): void => {
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
         WenguPlugin.reconcileTimer = window.setTimeout((): void => {
             WenguPlugin.reconcileTimer = undefined;
             void (async () => {
-                const plugin = WenguPlugin.instance;
-                const bank = plugin?.bank();
-                if (!plugin || !bank) return;
                 const roots = [...WenguPlugin.pendingRoots];
                 WenguPlugin.pendingRoots.clear();
-                const docIds = [...(await bank.all()).migratedDocs];
-                for (let i = 0; i < docIds.length; i += 50) {
-                    const chunk = docIds
-                        .slice(i, i + 50)
-                        .map((x) => `'${x}'`)
-                        .join(",");
-                    const rows = await KernelQuery.rows<{ id: string }>(
-                        `SELECT id FROM blocks WHERE type = 'd' AND id IN (${chunk})`
-                    );
-                    const alive = new Set(rows.map((r) => r.id));
-                    for (const id of docIds.slice(i, i + 50)) {
-                        if (!alive.has(id)) await bank.removeDocData(id);
-                    }
-                }
-                for (const id of roots) {
-                    if (docIds.includes(id)) await runDriftCheck(bank, id);
-                    else await knowHash()?.refreshDoc(id); // 知识域文档：小节哈希基线顺路刷新
-                }
-                await bank.flush();
+                const kh = await knowHash();
+                for (const id of roots) await kh?.refreshDoc(id);
             })().catch((): void => undefined); // 对账尽力而为，失败等下次事件/装载
         }, 5000);
     };

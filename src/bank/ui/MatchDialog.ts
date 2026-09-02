@@ -8,6 +8,7 @@ import {
     type KnowRouteFail,
     type MatchFailKind,
 } from "../../convert/service/KnowledgeLink";
+import { knowTreesOf } from "../data/KnowTrees";
 import { KernelDoc } from "../../siyuan/doc";
 import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
@@ -166,7 +167,7 @@ async function runMatch(
     okBtn.textContent = t("matchStop");
     show(t("matchPreparing"), "muted");
     try {
-        const index = await buildKnowledgeIndex([deps.knowDocId]);
+        const index = await buildKnowledgeIndex([deps.knowDocId], await knowTreesOf(bank));
         if (index.chapters.length === 0) throw new Error(t("matchNoIndex"));
         const records = (await recordsOfDoc(bank, srcDocId)).slice();
         // 动作分组（AI 会话面板树归并）：本次匹配的逐题路由挂同组

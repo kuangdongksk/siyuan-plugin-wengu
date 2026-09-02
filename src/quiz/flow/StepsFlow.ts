@@ -6,7 +6,7 @@ import { appealSessionResult, checkAllDone } from "./AnswerFlow";
 import { markNum } from "../render/FlowDom";
 import { appendRealtimeStep, markStepOpts, resetStepsOffline, setStepResult, stepResultsOf } from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
-import { gradeStep } from "../service/QuestionService";
+import { gradeStep } from "../service/QuestionGrading";
 import type { WenguQuestion, WenguStep } from "../../types";
 import { LETTERS, optionDisplayMd } from "../../types";
 import { esc, fmt, mmss } from "../../ui/shared";

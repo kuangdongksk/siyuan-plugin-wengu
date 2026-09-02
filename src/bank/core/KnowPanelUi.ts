@@ -34,6 +34,9 @@ export interface KnowPanelUi {
     /** 内容已变更的小节（标题块 id）：装载后台 diffDocs 比对小节哈希
      *  基线得出（一次性提示——基线自推进，重开面板不重复报）。 */
     staleSecs: Set<string>;
+    /** 源已变更的内部知识树（源文档 id）：装载时比 srcHash 得出，
+     *  行上出「源已变更·重新归纳」徽标。 */
+    staleTrees: Set<string>;
     /** AI 归纳进行中的 docId（行按钮转「归纳中」，再点=中止）。 */
     outlining: string | undefined;
     /** 归纳失败信息（一行展示；undefined=无）。 */
@@ -49,6 +52,7 @@ export function initialKnowPanelUi(): KnowPanelUi {
         openPaths: new SvelteSet(),
         rmArmed: undefined,
         staleSecs: new Set(),
+        staleTrees: new Set(),
         outlining: undefined,
         outlineErr: undefined,
     };

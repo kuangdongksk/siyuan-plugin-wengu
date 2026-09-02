@@ -12,8 +12,8 @@
      * AI 转习题弹窗内容（四件套之一，Dialog 壳见 ui/ConvertDialog.ts）：
      * 常显 AI 模型/源文档，其余收进「更多选项」details 折叠区（类名与
      * 旧字符串模板逐字一致）。表单状态全在 ui（旧实现散在 DOM 控件、
-     * start 时逐个 querySelector 收集）。落盘固定另存《标题·习题》、
-     * 原文档不动（原「转换方式」双模式与 PDF 导入已移除）。
+     * start 时逐个 querySelector 收集）。产物直写题库（20260903 起不落
+     * 文档，无「生成位置」选项）。
      */
     let { ctl, deps, onClose }: { ctl: ConvertDialogCtl; deps: ConvertDialogDeps; onClose: () => void } = $props();
 
@@ -80,38 +80,6 @@
                         <option value="4">{fmt(t("convertParallelN"), { n: "4" })}</option>
                     </select>
                 </FormRow>
-                <div>
-                    <FormRow label={t("convertTarget")} desc={t("convertTargetHint")}>
-                        <select
-                            class="b3-select fn__flex-center fn__size200"
-                            value={ui.targetMode}
-                            onchange={(e) => ctl.setTargetMode(e.currentTarget.value === "custom" ? "custom" : "same")}
-                        >
-                            <option value="same">{t("convertTargetSame")}</option>
-                            <option value="custom">{t("convertTargetCustom")}</option>
-                        </select>
-                    </FormRow>
-                    {#if ui.targetMode === "custom"}
-                        <div class="fn__flex b3-label config__item wengu-formrow">
-                            <div class="fn__flex-1 fn__flex-center">
-                                {t("convertTargetDoc")}
-                                <div class="b3-label__text">{ui.targetEcho || t("convertTargetDocHint")}</div>
-                            </div>
-                            <div class="fn__space"></div>
-                            <input
-                                class="b3-text-field fn__flex-center fn__size200"
-                                spellcheck="false"
-                                placeholder={t("docIdPlaceholder")}
-                                value={ui.targetId}
-                                oninput={(e) => ctl.setTargetId(e.currentTarget.value)}
-                            />
-                            <button
-                                class="b3-button b3-button--outline"
-                                onclick={(e) => ctl.pickTarget(e.currentTarget)}>{t("knowPickBtn")}</button
-                            >
-                        </div>
-                    {/if}
-                </div>
                 <FormRow label={t("convertKnowLabel")}>
                     <button
                         class="b3-button b3-button--outline fn__size200 wengu-pick"

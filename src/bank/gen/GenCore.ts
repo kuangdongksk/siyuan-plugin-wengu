@@ -2,6 +2,7 @@ import { generateQuestion } from "./GenQuestion";
 import { injectKnowledgeRefs } from "../../convert/service/KnowRef";
 import { knowRootsOf } from "../data/KnowRoots";
 import { lexiconOfRoots, textRefsFor, type LexSection } from "../data/KnowLinkText";
+import { knowTreesOf } from "../data/KnowTrees";
 import type { QuestionBank } from "../data/QuestionBank";
 import { addGenerated } from "../data/BankRegen";
 
@@ -47,7 +48,7 @@ export async function genIntoCollection(
     // 唯一命中才挂，同「导入即关联」语义）。词表 SQL 较重，惰性建一次。
     let lex: Map<string, LexSection[]> | undefined;
     const lexOf = async (): Promise<Map<string, LexSection[]>> => {
-        if (!lex) lex = await lexiconOfRoots(await knowRootsOf(bank));
+        if (!lex) lex = await lexiconOfRoots(await knowRootsOf(bank), await knowTreesOf(bank));
         return lex;
     };
     for (const p of points) {

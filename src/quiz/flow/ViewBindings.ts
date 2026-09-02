@@ -66,7 +66,7 @@ function bindDocContextMenu(v: QuizView): void {
                 label: v.t("reviewMenuLabel"),
                 click: () => v.enterReviewMode({ docId }),
             });
-            if (await livingSourceOf(docId)) {
+            if (await livingSourceOf(v, docId)) {
                 menu.addItem({
                     icon: "iconRefresh",
                     label: v.t("reimportMenuLabel"),

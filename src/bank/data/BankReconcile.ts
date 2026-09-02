@@ -1,6 +1,7 @@
 import { KernelQuery } from "../../siyuan/query";
 import type { QuestionBank } from "./QuestionBank";
 import { collectKpRefs, remapKpRef } from "./BankRegen";
+import { internalRootMap, knowTreesOf } from "./KnowTrees";
 import type { WeaknessStore } from "./WeaknessStore";
 
 /**
@@ -8,14 +9,17 @@ import type { WeaknessStore } from "./WeaknessStore";
  * 薄弱画像 kp: 键会悬空。每次会话后台跑一次——分块查存在性，悬空的按
  * 标题在同库唯一命中时重挂（块 id 编辑不变，只有删除才悬空），挂不上
  * 保留原样（静态引用渲染为锚文本，无害）。检测全自动、零 AI。
+ * 内部知识树节点先经 internalRootMap 视为存在（归到源章节文档）——
+ * 不被误判悬空、不被同名单标题劫持重挂。
  */
 
 /** SQL 帮手（工厂 rowsMap；无 LIMIT 截 64 行的约束见 KernelQuery）。 */
 const sql = KernelQuery.rowsMap;
 
-/** kp 块 id → 所在文档 id（分块 IN；⑤反查也用）。 */
-export async function kpRootMap(ids: string[]): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+/** kp 引用 id → 所在文档 id（内部树节点→源章节文档；真实块→root_id；
+ *  ⑤反查/面板聚合也用）。 */
+export async function kpRootMap(bank: QuestionBank, ids: string[]): Promise<Map<string, string>> {
+    const out = internalRootMap(await knowTreesOf(bank));
     for (let i = 0; i < ids.length; i += 50) {
         const chunk = ids
             .slice(i, i + 50)
@@ -38,7 +42,7 @@ export async function reconcileKnowledgeRefs(bank: QuestionBank, weakness: Weakn
     try {
         const refs = await collectKpRefs(bank);
         if (refs.size === 0) return 0;
-        const roots = await kpRootMap([...refs.keys()]);
+        const roots = await kpRootMap(bank, [...refs.keys()]);
         const dangling = [...refs.keys()].filter((id) => !roots.has(id));
         if (dangling.length === 0) return 0;
         let remapped = 0;

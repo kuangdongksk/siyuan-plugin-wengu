@@ -1,16 +1,14 @@
 import { convertDocBatched } from "./ConvertBatch";
 import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "./ConvertBatch";
-import { getDocInfo, removeDoc, toConvertResult, writeExerciseDoc } from "./ConvertService";
-import { waitForDocInList } from "../../quiz/service/QuestionService";
-import { newAiGroupId } from "../../ai/client";
+import { SetWriter } from "./SetWriter";
 import { esc, fmt } from "../../ui/shared";
 import { notifyError, notifyInfo } from "../../ui/Notify";
-
+import type { QuestionBank } from "../../bank/data/QuestionBank";
 /**
  * 转换执行器（从转换弹窗拆出的单例运行器）：弹窗只负责收集参数，
  * 点「开始转换」即关窗，批次循环在这里跑完。状态条/停止/终止后的
  * 保留-丢弃二选一都渲染在温故页签内（ConvertHost.convertBar），
- * 页签每批渐进呈现（ProgressivePreview）照旧。
+ * 页签每批渐进呈现（题库直写后的内存视图，无内核轮询）。
  *
  * 状态机注意：failed/异常收口必须清 active——批次超时等失败若不清，
  * convertRunActive 永远为 true，之后任何「开始/继续转换」都被拒，
@@ -26,23 +24,25 @@ export interface ConvertRunCfg {
     fillToChoice: boolean;
     bigToSteps: boolean;
     parallel: number;
-    targetRaw: string;
     knowRoots: string[];
-    resume?: { offset: number; docId?: string; kramdown?: string };
+    resume?: { offset: number; setId?: string };
 }
 
 /** 页面侧事件（ConvertHost 组装：页内转换条 + 渐进呈现 + 收尾）。 */
 export interface ConvertRunEvents {
     t: (k: string) => string;
+    /** 题库（转换产物落库与终止丢弃都走它）。 */
+    bank?: QuestionBank;
     setConverting(v: boolean): void;
     /** 状态条 HTML（进度文案由这里拼好，条上的按钮由渲染方加）。 */
     onStatus(html: string, kind: "ok" | "err" | "muted", terminal?: boolean): void;
-    onBatch(docId: string, title: string, count: number, batch: number, total: number): void;
+    /** 一批已落库（渐进呈现：切题集 + 应用内存题目视图）。 */
+    onBatch(p: ConvertProgress): void;
     /** 终止后的二选一：页面渲染「保留进度/全部丢弃」。 */
     onStopChoice(info: { count: number; batches: number; total: number; message?: string }): void;
     /** 全部丢弃后的页面复位。 */
     onCancel?(): void;
-    onDone(r: { docId: string; title: string; count: number; message: string }): void;
+    onDone(r: { setId: string; title: string; count: number; message: string }): void;
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
 }
 
@@ -53,7 +53,7 @@ interface ActiveRun {
     abort: () => void;
     /** 面板快照用：最近一次进度。 */
     progress?: ConvertProgress;
-    /** 渐进文档标题（onBatch 里累积，面板展示用）。 */
+    /** 题集标题（onBatch 里累积，面板展示用）。 */
     title?: string;
 }
 
@@ -90,7 +90,7 @@ export interface ConvertRunSnapshot {
     parallel: number;
     /** 最近一次进度（面板进度行）。 */
     progress?: ConvertProgress;
-    /** 渐进文档标题。 */
+    /** 题集标题。 */
     title?: string;
     /** 待抉择部分结果（pendingChoice 时有）。 */
     pending?: { count: number; batches: number; total: number };
@@ -160,6 +160,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
     void (async () => {
         let r: BatchedResult;
         try {
+            if (!ev.bank) throw new Error("bank unavailable");
             r = await convertDocBatched(cfg.srcDocId, {
                 t,
                 modelId: cfg.modelId,
@@ -168,9 +169,8 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
                 parallel: cfg.parallel,
                 signal: controller.signal,
                 resume: cfg.resume,
-                targetRaw: cfg.targetRaw,
                 knowRoots: cfg.knowRoots,
-                trackGroup: newAiGroupId(), // 检测/生成/路由挂同组（AI 会话面板树归并）
+                bank: ev.bank,
                 onProgress: (p) => {
                     if (active) {
                         active.progress = p;
@@ -183,12 +183,12 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
                     }
                     if (p.phase === "writing") {
                         ev.onStatus(esc(t("settling")), "muted");
-                        if (p.docId) ev.onBatch(p.docId, p.title ?? "", p.count, p.batch, p.total);
+                        if (p.setId) ev.onBatch(p);
                         notify();
                         return;
                     }
                     // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
-                    if (p.docId) ev.onBatch(p.docId, p.title ?? "", p.count, p.batch, p.total);
+                    if (p.setId) ev.onBatch(p);
                     ev.onStatus(progressStatusText(t, cfg.parallel, p), "muted");
                     notify();
                 },
@@ -207,8 +207,8 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
             active = undefined;
             ev.setConverting(false);
             // 完成即清进度记录：残留会让面板永远显示「有未完成转换」，
-            // 「丢弃」按钮更会直接删掉已完成的整本文档、「继续生成」会
-            // 复制/重删同一文档（20260829 三轮审查 P1）
+            // 「丢弃」按钮更会直接删掉已完成的题集、「继续生成」会重复
+            // 收口（20260829 三轮审查 P1）
             ev.saveProgress(cfg.srcDocId, undefined);
             notify();
             await finishRun(ev, r);
@@ -217,7 +217,8 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
         if (r.status === "aborted") {
             active = undefined;
             ev.setConverting(false);
-            if (!r.kramdown.trim()) {
+            if (!r.setId) {
+                // 首批前终止：题库零产物，无保留/丢弃可言
                 ev.onStatus(esc(t("convertStoppedEmpty")), "err", true);
                 notify();
                 return;
@@ -228,34 +229,23 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
             notify();
             return;
         }
-        // 中途失败但已有部分内容：保留 + 记进度（可继续生成）。
-        // active 必须清（失败收口，转换管理面板/继续生成都依赖它复位）
+        // 中途失败但已有部分内容：题库记录已在（每批已 flush），记进度
+        // 可继续生成。active 必须清（失败收口，转换管理面板/继续生成
+        // 都依赖它复位）
         active = undefined;
         ev.setConverting(false);
         const partial = r.count > 0 ? `<br>${esc(t("convertPartialKept"))}` : "";
         ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
         notifyError({ key: "notifyConvertFail", vars: { msg: r.message || t("convertNoQuestions") } });
-        if (r.count > 0) {
-            ev.saveProgress(
-                cfg.srcDocId,
-                r.docId && r.title
-                    ? {
-                          docId: r.docId,
-                          title: r.title,
-                          offset: r.doneOffset,
-                          batches: r.batches,
-                          total: r.total,
-                          count: r.count,
-                      }
-                    : {
-                          title: "",
-                          offset: r.doneOffset,
-                          batches: r.batches,
-                          total: r.total,
-                          count: r.count,
-                          kramdown: r.kramdown,
-                      }
-            );
+        if (r.count > 0 && r.setId) {
+            ev.saveProgress(cfg.srcDocId, {
+                setId: r.setId,
+                title: r.title ?? "",
+                offset: r.doneOffset,
+                batches: r.batches,
+                total: r.total,
+                count: r.count,
+            });
         }
         notify();
     })();
@@ -270,7 +260,7 @@ export function stopConvertRun(): void {
 /** 独占运行槽（增量重转换等非整卷流程共用）：占住 active 单例防并发
  *  开跑（convertRunActive 对所有入口生效），执行体自带进度与收尾；
  *  「停止」走同一条 stopConvertRun → signal 中止，由执行体自行收口
- *  （增量已追加部分自带指纹，重跑分类即跳过，无需抉择态）。 */
+ *  （增量已落库部分自带指纹，重跑分类即跳过，无需抉择态）。 */
 export function startExclusiveConvertRun(
     ev: ConvertRunEvents,
     srcDocId: string,
@@ -285,7 +275,6 @@ export function startExclusiveConvertRun(
             fillToChoice: false,
             bigToSteps: false,
             parallel: 1,
-            targetRaw: "",
             knowRoots: [],
         },
         ev,
@@ -305,61 +294,47 @@ export function startExclusiveConvertRun(
     return true;
 }
 
-/** 页内/面板「保留已生成」：渐进文档已在只记进度；首批前终止现写一份。 */
+/** 页内/面板「保留已生成」：题目记录已在题库（每批已 flush），只记
+ *  断点进度供「继续生成」。 */
 export function keepConvertRun(): Promise<void> {
     const a = aborted;
     if (!a) return Promise.resolve();
     aborted = undefined;
     notify();
-    const { t, saveProgress } = a.ev;
+    const { saveProgress } = a.ev;
     return (async () => {
-        if (a.r.docId && a.r.title) {
-            saveProgress(a.cfg.srcDocId, {
-                docId: a.r.docId,
-                title: a.r.title,
-                offset: a.r.doneOffset,
-                batches: a.r.batches,
-                total: a.r.total,
-                count: a.r.count,
-            });
-            await finishRun(a.ev, a.r);
-            return;
-        }
-        const info = await getDocInfo(a.cfg.srcDocId);
-        if (!info) return;
-        const created = await writeExerciseDoc(info, a.r.kramdown, a.cfg.srcDocId, a.cfg.targetRaw, t);
+        if (!a.r.setId) return; // 无产物无保留（入口已拦，防御）
         saveProgress(a.cfg.srcDocId, {
-            docId: created.id,
-            title: created.title,
+            setId: a.r.setId,
+            title: a.r.title ?? "",
             offset: a.r.doneOffset,
             batches: a.r.batches,
             total: a.r.total,
             count: a.r.count,
         });
-        await finishRun(a.ev, { ...a.r, status: "done", docId: created.id, title: created.title });
+        await finishRun(a.ev, a.r);
     })()
         .catch((e) => a.ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true))
         .then(() => notify());
 }
 
-/** 页内/面板「全部丢弃」：删渐进文档、清进度、页面复位。 */
+/** 页内/面板「全部丢弃」：按本次写入 qid 回收题库记录（题集清空连
+ *  元数据一起删）、清进度、页面复位。 */
 export function discardConvertRun(): void {
     const a = aborted;
     if (!a) return;
     aborted = undefined;
-    void (a.r.docId ? removeDoc(a.r.docId) : Promise.resolve());
+    if (a.ev.bank) void new SetWriter(a.ev.bank).discard(a.r.setId, a.r.writtenQids);
     a.ev.saveProgress(a.cfg.srcDocId, undefined);
     a.ev.onCancel?.();
     a.ev.onStatus(esc(a.ev.t("convertDiscarded")), "muted", true);
     notify();
 }
 
-/** 转换收尾：等索引可见 → 通知宿主（切文档/重载/状态条）。 */
+/** 转换收尾：题库最终 flush → 通知宿主（切题集/重载/状态条）。 */
 async function finishRun(ev: ConvertRunEvents, r: BatchedResult): Promise<void> {
-    if (!r.docId) return;
-    ev.onStatus(esc(ev.t("settling")), "muted");
-    await waitForDocInList(r.docId, 15000);
-    const c = toConvertResult(r);
+    if (!r.setId) return;
+    await ev.bank?.flush().catch((): void => undefined);
     notifyInfo({ key: "notifyConvertDone", vars: { n: String(r.count) } }); // 长任务完成，用户可能已切走
-    ev.onDone({ docId: c.docId ?? "", title: c.title ?? "", count: c.count, message: c.message });
+    ev.onDone({ setId: r.setId, title: r.title ?? "", count: r.count, message: r.message });
 }

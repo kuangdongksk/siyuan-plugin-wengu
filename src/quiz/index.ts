@@ -6,14 +6,13 @@ import { detachBankPanels } from "../bank";
 import { detachAiSessionPanel } from "../ai/SessionPanel";
 import { detachReviewApp, filterReviewDocFor } from "../review";
 import { collectThoughts } from "./render/CardRegistry";
-import { reimportDocFrom, unregisterDocAsQuiz } from "./service/DocOps";
+import { reimportDocFrom, unregisterSetAsQuiz } from "./service/DocOps";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
 import { normalizeWorkspace, type WenguWorkspace } from "./render/RailMount";
 import { buildSideTree } from "./render/SideTree";
 import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
-import { refreshDocFor } from "../bank/data/BankMigrate";
 import { notifyError, notifyInfo } from "../ui/Notify";
 import { overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "../bank/data/BankRecording";
 import { CollectionFlow, colLoadContext } from "../bank";
@@ -331,8 +330,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 目录文档右键「重新导入」：实现见 DocOps（删旧题集+源讲义重转替换）。 */
     readonly reimportDocOf = (docId: string): void => reimportDocFrom(this, docId);
 
-    /** 目录文档右键「删除此题集」：实现见 DocOps（剥属性留文档+联动清理）。 */
-    readonly removeSetOf = (docId: string): void => unregisterDocAsQuiz(this, docId);
+    /** 目录题集右键「删除此题集」：实现见 DocOps（清题库记录/题集/材料+联动清理）。 */
+    readonly removeSetOf = (docId: string): void => unregisterSetAsQuiz(this, docId);
 
     persistPrefs(): void {
         savePrefs(this.storage, {
@@ -436,8 +435,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.materials = r.materials;
         this.rounds = r.rounds;
         if (colQuestions) {
-            // 专题上下文：会话独立归档（col:<id>）轮次可续，材料按来源文档并集
-            const col = await colLoadContext(this.history, this.bank, this.colFlow.id(), colQuestions);
+            // 专题上下文：会话独立归档（col:<id>）轮次可续，材料按来源题集并集
+            const col = await colLoadContext(this.history, this.bank, this.colFlow.id());
             this.list = this.fullList = colQuestions;
             this.rounds = col.rounds;
             this.materials = col.materials;
@@ -447,13 +446,13 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.loading = false;
         await this.colFlow.refresh();
         this.renderList();
-        // 后台链：知识引用对账 → 习题文档首扫入库 → 补侧栏专题清单
+        // 后台链：知识引用对账 → 补侧栏专题清单（题集推导在装载链
+        // ensureSets 已完成，无文档首扫步骤）
         if (this.bank) {
             void (this.weakness ? reconcileKnowledgeRefs(this.bank, this.weakness) : Promise.resolve(0))
-                .then((): Promise<void> => this.bank!.ensureMigrated(this.docs))
                 .then((): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide()))
                 .catch((e: unknown): void => {
-                    // 原为 unhandled rejection：启动迁移/回灌失败无人知
+                    // 原为 unhandled rejection：对账失败无人知
                     notifyError({ key: "notifyMigrateFail", vars: { msg: String((e as Error)?.message ?? e) } });
                 });
         }
@@ -556,14 +555,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
     readonly reloadView = (): Promise<void> => this.load();
 
-    /** 转换完成后同步该文档入题库（ConvertAccessHost；refreshDoc 幂等
-     *  增量：续跑追加/手工改题都重扫，已删题块记录剔除）。 */
-    readonly refreshBankDoc = (docId: string, title: string): void => {
-        if (!this.bank || !docId || docId.startsWith("col:")) return;
-        void refreshDocFor(this.bank, docId, title)
-            .then(() => this.bank?.flush())
-            .catch((): void => undefined); // 后台尽力而为，失败走下次装载迁移
-    };
+    /** 题库访问（ConvertAccess 丢弃半成品题集用；bankStore 同体）。 */
+    readonly bankOf = (): QuestionBank | undefined => this.bank;
 
     readonly openConvert = () => openConvertForView(this.convertAccess);
     /** 带预填打开转换弹窗（知识面板「转习题」：源/知识点根=该文档）。 */

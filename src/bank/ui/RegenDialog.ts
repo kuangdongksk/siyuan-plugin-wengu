@@ -8,6 +8,7 @@ import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
+import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
 import { recordOf, replaceRecordKramdown } from "../data/BankRegen";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
@@ -17,8 +18,7 @@ import { KernelBlock } from "../../siyuan/block";
  * 题卡「重新生成」（④）：题错了/OCR 坏了时按题重出。
  * 两种模式——提供原文链接（改好的原文块，含图片行）；不提供（AI 依
  * 知识点小节正文判断缺失并补全，图补不了——端点纯文本，只能从原文来）。
- * 产物确定性注回原知识点引用；题库记录替换为主，源文档块尽力同步
- * （updateBlock 单块，失败不阻断——题库是主记录）。
+ * 产物确定性注回原知识点引用；题库记录替换即生效（唯一内容真相）。
  */
 
 export interface RegenDeps {
@@ -149,7 +149,11 @@ async function runRegen(
             }
         }
         const kp = record.kpRefs[0];
-        const section = sourceBlock ? "" : kp ? await sectionKramdown(kp.id) : "";
+        const section = sourceBlock
+            ? ""
+            : kp
+              ? (await sectionKramdown(kp.id)) || knowNodeText(await knowTreesOf(bank), kp.id)
+              : "";
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
         const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long);
         const drafts = parseDrafts(reply).filter(hasStemPart);
@@ -166,12 +170,6 @@ async function runRegen(
         const replaced = await replaceRecordKramdown(bank, q.id, kd);
         if (!replaced) throw new Error(t("regenNoRecord"));
         await bank.flush();
-        // 源文档块尽力同步（updateBlock 单块；失败不阻断，题库为主记录）
-        try {
-            await KernelBlock.update({ id: q.id, dataType: "markdown", data: kd });
-        } catch (_) {
-            // 文档块同步失败：题库已是新内容
-        }
         show(t("regenDone"), "ok");
         window.setTimeout(() => {
             dialog.destroy();

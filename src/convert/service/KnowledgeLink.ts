@@ -1,6 +1,7 @@
 import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
+import type { KnowTreesMap } from "../../bank/data/KnowTrees";
 
 /**
  * 知识点反链（从 ConvertBatch 拆出的独立关注点）：
@@ -97,14 +98,28 @@ async function headingsByRoot(
     return byRoot;
 }
 
+/** 内部知识树命中文档 → 伪标题行（id=节点 id、level=节点层级）。树是
+ *  对单薄章节的更好归纳，命中即**整体替换**该文档的 SQL 小节；未命中
+ *  返回 undefined 走原路径。20260903 起树不落文档，面板/路由/词表经
+ *  本并流点统一消费。 */
+function treeHeads(
+    trees: KnowTreesMap | undefined,
+    docId: string
+): { id: string; title: string; level: number }[] | undefined {
+    const tree = trees?.[docId];
+    if (!tree) return undefined;
+    return tree.nodes.map((n) => ({ id: n.id, title: n.title, level: n.level }));
+}
+
 /**
  * 建知识点索引。rootIds 是用户填的知识点根文档（书架那层或直接一本
  * 书/一章）：取其下所有叶子文档为章节（书名空壳层自动排除），根自身
  * 无叶子后代时（用户直接指到章节）把根当唯一章节。无小节结构的章节
  * 引用文档根块本身。小节 path = 文档标题路径 + 祖先标题链（同级同名
- * 小节靠链区分，不再是假的两段拼接）。
+ * 小节靠链区分，不再是假的两段拼接）。trees=内部知识树（命中章节的
+ * 小节整体替换为树节点）。
  */
-export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeIndex> {
+export async function buildKnowledgeIndex(rootIds: string[], trees?: KnowTreesMap): Promise<KnowledgeIndex> {
     const chapters: KnowChapter[] = [];
     for (const rid of rootIds) {
         const hit = await knowDocRows(rid);
@@ -129,12 +144,10 @@ export async function buildKnowledgeIndex(rootIds: string[]): Promise<KnowledgeI
                     walk(n.children, path);
                 }
             };
-            walk(
-                buildSectionTree(
-                    (byRoot.get(leaf.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }))
-                ),
-                hp
-            );
+            const heads =
+                treeHeads(trees, leaf.get("id")) ??
+                (byRoot.get(leaf.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }));
+            walk(buildSectionTree(heads), hp);
             chapters.push({
                 docId: leaf.get("id"),
                 title: leaf.get("content") || hp,
@@ -199,13 +212,15 @@ export function buildSectionTree(heads: { id: string; title: string; level: numb
  * 级别建成 sectionTree 真树）。根查无/SQL 失败返回空数组（调用方按
  * 标题兜底区分「已删跳过」与「保留空节登记行」）。
  */
-export async function expandKnowDocs(rootId: string): Promise<KnowDocEntry[]> {
+export async function expandKnowDocs(rootId: string, trees?: KnowTreesMap): Promise<KnowDocEntry[]> {
     const hit = await knowDocRows(rootId);
     if (!hit) return [];
     const docs = [hit.root, ...hit.rows];
     const byRoot = await headingsByRoot(docs.map((d) => d.get("id")));
     return docs.map((d) => {
-        const heads = (byRoot.get(d.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }));
+        const heads =
+            treeHeads(trees, d.get("id")) ??
+            (byRoot.get(d.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }));
         return {
             docId: d.get("id"),
             title: d.get("content") || d.get("hpath") || d.get("id"),

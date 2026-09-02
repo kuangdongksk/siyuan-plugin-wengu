@@ -18,7 +18,6 @@ export class ConvertDialogCtl {
     private closeFn?: () => void;
     /** 回显解析的竞态序号（输入又变了/已重挂则旧结果丢弃）。 */
     private echoSeq = 0;
-    private targetDebounce = 0;
 
     attach(ui: ConvertDialogUi, deps: ConvertDialogDeps, close: () => void): void {
         this.ui = ui;
@@ -30,19 +29,15 @@ export class ConvertDialogCtl {
         ui.fillToChoice = deps.initialFillToChoice;
         ui.bigToSteps = deps.initialBigToSteps;
         ui.parallel = deps.initialParallel;
-        ui.targetMode = deps.initialTargetMode;
-        ui.targetId = deps.initialTargetId;
         ui.knowRoots = deps.initialKnowRoots;
         ui.running = deps.isRunning();
         this.syncResume();
         this.resolveDocEcho();
-        this.resolveTargetEcho();
         void this.resolveKnowEcho();
     }
 
     detach(): void {
         this.alive = false;
-        window.clearTimeout(this.targetDebounce);
     }
 
     private showStatus(html: string, kind: "ok" | "err" | "muted", keptPartial = false): void {
@@ -73,19 +68,6 @@ export class ConvertDialogCtl {
         if (this.ui) this.ui.parallel = v;
     }
 
-    setTargetMode(v: "same" | "custom"): void {
-        if (this.ui) this.ui.targetMode = v;
-        this.resolveTargetEcho();
-    }
-
-    /** 父文档输入（300ms 防抖回显）。 */
-    setTargetId(v: string): void {
-        if (!this.ui) return;
-        this.ui.targetId = v;
-        window.clearTimeout(this.targetDebounce);
-        this.targetDebounce = window.setTimeout(() => this.resolveTargetEcho(), 300);
-    }
-
     /* ── 选择器与回显 ── */
 
     pickDoc(anchor: HTMLElement): void {
@@ -98,20 +80,6 @@ export class ConvertDialogCtl {
             current: [extractBlockId(this.ui.docId)].filter(Boolean),
             onConfirm: (ids) => {
                 if (ids[0]) this.setDocId(ids[0]);
-            },
-        });
-    }
-
-    pickTarget(anchor: HTMLElement): void {
-        const d = this.deps;
-        if (!d || !this.ui) return;
-        openKnowPicker({
-            t: d.t,
-            anchor,
-            single: true,
-            current: [extractBlockId(this.ui.targetId)].filter(Boolean),
-            onConfirm: (ids) => {
-                if (ids[0]) this.setTargetId(ids[0]);
             },
         });
     }
@@ -151,22 +119,6 @@ export class ConvertDialogCtl {
         void getDocInfo(raw).then((info) => {
             if (seq !== this.echoSeq || !this.alive) return;
             ui.docEcho = info?.hPath || d.t("convertTargetNotFound");
-        });
-    }
-
-    private resolveTargetEcho(): void {
-        const ui = this.ui;
-        const d = this.deps;
-        if (!ui || !d) return;
-        const seq = ++this.echoSeq;
-        const raw = extractBlockId(ui.targetId.trim());
-        if (!raw || ui.targetMode !== "custom") {
-            ui.targetEcho = "";
-            return;
-        }
-        void getDocInfo(raw).then((info) => {
-            if (seq !== this.echoSeq || !this.alive) return;
-            ui.targetEcho = info?.hPath || d.t("convertTargetNotFound");
         });
     }
 
@@ -223,11 +175,6 @@ export class ConvertDialogCtl {
             this.showStatus(d.t("convertNoDoc"), "err"); // 原静默 return 像按钮失灵
             return;
         }
-        const genTarget = ui.targetMode === "custom" ? ui.targetId.trim() : "";
-        if (ui.targetMode === "custom" && !genTarget) {
-            this.showStatus(d.t("convertTargetMissing"), "err");
-            return;
-        }
         d.saveChoice(ui.modelId, ui.fillToChoice, ui.bigToSteps, ui.knowRoots);
         const cfg: ConvertRunCfg = {
             srcDocId: target,
@@ -235,14 +182,11 @@ export class ConvertDialogCtl {
             fillToChoice: ui.fillToChoice,
             bigToSteps: ui.bigToSteps,
             parallel: Math.max(1, Math.min(4, ui.parallel || 1)),
-            targetRaw: genTarget,
             knowRoots: ui.knowRoots
                 .split(/[\s,;，；]+/)
                 .map((s) => extractBlockId(s))
                 .filter((s) => /^\d{14}-[a-z0-9]+$/i.test(s)),
-            resume: resumeRec
-                ? { offset: resumeRec.offset, docId: resumeRec.docId, kramdown: resumeRec.kramdown }
-                : undefined,
+            resume: resumeRec ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined,
         };
         const started = d.startRun(cfg);
         this.closeFn?.();

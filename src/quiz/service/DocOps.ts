@@ -1,55 +1,44 @@
-import { ATTR_PREFIX, Attr } from "../../siyuan/attrs";
-import { KernelBlock } from "../../siyuan/block";
-import { KernelDoc } from "../../siyuan/doc";
-import { KernelQuery } from "../../siyuan/query";
 import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
 import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/ConvertRun";
 import { extractBlockId, getDocInfo } from "../../convert/service/ConvertService";
 import { classifyChunks, type SrcGroup } from "../../convert/service/SrcChunk";
-import { convertIncremental, readSrcGroups, sourceChunksOf } from "../../convert/service/ConvertIncrement";
+import { convertIncremental, sourceChunksOf } from "../../convert/service/ConvertIncrement";
 import { keepOldChoice, openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
-import { refreshDocFor } from "../../bank/data/BankMigrate";
+import { readRecordSrcGroups } from "../../bank/data/BankSets";
 import { esc, fmt } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
 import type { QuizView } from "../index";
 
 /**
- * 目录文档右键「删除此题集」/「重新导入」（自 QuizView 拆出）：
- * - 删除此题集（20260829 起替代「删除文档」）：只解除题集登记——把
- *   文档内全部 wengu 属性**置空剥离**（内核 setBlockAttrs 空值=删属性，
- *   20260829 真机探针验证）+ 清题库/会话历史，**文档本体与内容原样
- *   保留**、不再进回收站；source-doc 配对随属性一并剥离，此后源讲义
- *   被删也不会被 OrphanCleaner 连带删除。
- * - 重新导入：网络中断等「导一半」的题集一键续做——查该源的续跑
- *   记录（prefs convertProgress），有则接着断点跑（已生成部分不重复
- *   生成、不重复花费）、无则从头重转；删旧题集（回收站可找回）后另存
- *   一份新《源·习题》（生成在源讲义旁，源讲义不动）。
+ * 目录题集右键「删除此题集」/「重新导入」（自 QuizView 拆出）：
+ * - 删除此题集（20260903 起）：题集是题库内实体——清记录/元数据/材料/
+ *   影子专题/会话历史即删净（docStats 一并随 removeDocData 口径保留，
+ *   旧文档形态的存量题集不动文档本体）。
+ * - 重新导入：网络中断等「导一半」的题集一键续做——查该源的续跑记录
+ *   （prefs convertProgress），有则接着断点续写**同一题集**（已生成部分
+ *   是题库里的真实记录，不重复生成、不重复花费）、无则清旧题集从头
+ *   重转（新题集）。
  *
- * fetchSyncPost 必须串行（内核并发互吞响应）；内核调用全程尽力而为，
- * 失败停在中间态由下次操作重试。
+ * 内核调用全程尽力而为，失败停在中间态由下次操作重试。
  */
-
-/** 块 id 字符集校验（拼 SQL 前防脏值，同 OrphanCleaner）。 */
-const ID_RE = /^[\w-]+$/;
 
 /** 严格块 id 形态（知识点根过滤用，同转换弹窗口径）。 */
 const BLOCK_ID_RE = /^\d{14}-[a-z0-9]+$/i;
 
-/** 题集的配对源讲义 id（attributes 表查 source-doc；无配对/自配对为空）。 */
-export async function pairedSourceDoc(docId: string): Promise<string> {
-    if (!ID_RE.test(docId)) return "";
-    const rows = await KernelQuery.rows<{ srcId?: string }>(
-        `SELECT value AS srcId FROM attributes WHERE name = '${Attr.sourceDoc}' AND block_id = '${docId}' LIMIT 1`
-    );
-    const src = String(rows[0]?.srcId ?? "");
-    return src && ID_RE.test(src) && src !== docId ? src : "";
+/** 题集配对的源讲义 id（set.srcId；无配对/自配对为空）。 */
+export async function pairedSourceOf(v: QuizView, setId: string): Promise<string> {
+    const bank = v.bankStore();
+    if (!bank || !setId) return "";
+    const data = await bank.all();
+    const src = data.sets?.[setId]?.srcId ?? "";
+    return src && src !== setId ? src : "";
 }
 
 /** 配对源讲义 id 且仍存活（右键菜单按它决定是否露出「重新导入」；
  *  查询失败按无源收口——fail-closed，不露出不可用的入口）。 */
-export async function livingSourceOf(docId: string): Promise<string> {
+export async function livingSourceOf(v: QuizView, setId: string): Promise<string> {
     try {
-        const src = await pairedSourceDoc(docId);
+        const src = await pairedSourceOf(v, setId);
         if (!src) return "";
         const info = await getDocInfo(extractBlockId(src));
         return info?.notebook ? src : "";
@@ -58,69 +47,28 @@ export async function livingSourceOf(docId: string): Promise<string> {
     }
 }
 
-/** 属性行按块分组（剥离用：一块一次 setAttrs 清掉它的全部 wengu 属性）。 */
-export function groupAttrsByBlock(rows: { id?: string; name?: string }[]): Map<string, string[]> {
-    const byBlock = new Map<string, string[]>();
-    for (const r of rows) {
-        if (!r.id || !r.name) continue;
-        const names = byBlock.get(r.id) ?? [];
-        if (!names.includes(r.name)) names.push(r.name);
-        byBlock.set(r.id, names);
-    }
-    return byBlock;
-}
-
-/** 「删除此题集」：剥离 wengu 属性（文档与内容保留）+ 清插件侧数据后重载。 */
-export function unregisterDocAsQuiz(v: QuizView, docId: string): void {
+/** 「删除此题集」：清题库侧数据（记录/题集/材料/影子专题）+ 清会话
+ *  历史后重载。 */
+export function unregisterSetAsQuiz(v: QuizView, setId: string): void {
     void (async () => {
         if (convertRunActive()) {
             showStatus(v.el, v.t("convertBusy"), "err");
             return;
         }
-        if (!ID_RE.test(docId)) return;
-        try {
-            // rowsAll 自动分页：大卷题目属性行数超 64 会被无 LIMIT 截断
-            const rows = await KernelQuery.rowsAll<{ id?: string; name?: string }>(
-                `SELECT block_id AS id, name FROM attributes WHERE root_id = '${docId}' AND name LIKE '${ATTR_PREFIX}%'`
-            );
-            for (const [id, names] of groupAttrsByBlock(rows)) {
-                const attrs: Record<string, string> = {};
-                for (const n of names) attrs[n] = "";
-                await KernelBlock.setAttrs(id, attrs);
-            }
-        } catch (_) {
-            return; // 剥离失败不动插件数据，下次再试
-        }
-        await v.bankStore()?.removeDocData(docId);
+        if (!setId) return;
+        await v.bankStore()?.removeDocData(setId);
         await v.bankStore()?.flush();
-        await v.historyStore()?.removeDocs([docId]);
+        await v.historyStore()?.removeDocs([setId]);
         await v.reloadView(); // 选中回退链（当前>记住>活动>第一个）自动切离
     })();
 }
 
-/** 重新导入的读回计划（纯决策，IO 由调用方执行）：续跑记录的渐进文档
- *  就是当前题集本身（中途终止「保留已生成」的常态——渐进文档即
- *  《源·习题》）时，读回目标同样是它、但不单独删（题集稍后统一删除，
- *  漏读=前半截随删除消失、续跑只剩后半截，20260830 踩坑）；渐进文档
- *  另有其人则读它并单独删，防孤儿。 */
-export function planReimportRead(
-    rec: { docId?: string } | undefined,
-    quizDocId: string
-): { readId: string; removeId: string } {
-    const keepId = rec?.docId && ID_RE.test(rec.docId) ? rec.docId : "";
-    if (keepId && keepId !== quizDocId) return { readId: keepId, removeId: keepId };
-    return keepId ? { readId: keepId, removeId: "" } : { readId: "", removeId: "" };
-}
-
-/** 重新导入的续跑参数（纯决策）：读得回已生成内容才带断点——读不回还
- *  硬按 offset 跳批，只会产出「只有后半截」的文档，宁可从头全量重转；
- *  读回为空时回落记录里的 kramdown（首批前中断的裸 kramdown 记录）。 */
+/** 重新导入的续跑参数（纯决策）：进度记录带题集 id 才有断点可接——
+ *  已生成部分是题库里的真实记录（每批已 flush），续写同一题集。 */
 export function reimportResume(
-    rec: { offset: number; kramdown?: string } | undefined,
-    readBack: string
-): { offset: number; kramdown: string } | undefined {
-    const carried = readBack.trim() ? readBack : (rec?.kramdown ?? "");
-    return rec && carried.trim() ? { offset: rec.offset, kramdown: carried } : undefined;
+    rec: { offset: number; setId?: string } | undefined
+): { offset: number; setId?: string } | undefined {
+    return rec?.setId ? { offset: rec.offset, setId: rec.setId } : undefined;
 }
 
 /** 重新导入的转换参数（弹窗默认同款解析：prefs 上次 > 设置默认）。
@@ -129,7 +77,7 @@ export function reimportCfg(
     srcDocId: string,
     last: { modelId: string; fill: boolean; steps: boolean; know: string },
     settings?: { convertModelId?: string; fillToChoice?: boolean; bigToSteps?: boolean; convertParallel?: number },
-    resume?: { offset: number; docId?: string; kramdown?: string }
+    resume?: { offset: number; setId?: string }
 ): ConvertRunCfg {
     return {
         srcDocId,
@@ -137,7 +85,6 @@ export function reimportCfg(
         fillToChoice: last.fill || settings?.fillToChoice === true,
         bigToSteps: last.steps || settings?.bigToSteps === true,
         parallel: Math.max(1, Math.min(4, Math.floor(settings?.convertParallel ?? 1))),
-        targetRaw: "",
         knowRoots: last.know
             .split(/[\s,;，；]+/)
             .map((s) => extractBlockId(s))
@@ -148,73 +95,45 @@ export function reimportCfg(
 
 /**
  * 「重新导入」＝检测断点续跑，而非无条件全量重转：
- * 0. **增量重转换**（20260831 二期）：整卷完成态（无续跑记录）且题集
- *    带 src-hash 指纹（二期起生成的题集）→ 不删旧重转——重新结构切块
- *    比对三态分类，相同跳过（保原题与刷题统计）、新增补生成、变更/
- *    消失逐块选（省费模式 convertKeepOld=全保留只补新增）。中止后已
- *    追加块自带指纹，重跑分类即跳过（自愈，无续跑记录负担）。
- * 1. 配对源讲义查得到续跑记录（prefs convertProgress）→ 接着断点跑。
- *    记录保留的渐进文档（rec.docId，含它就是当前题集本身的常态形态）
- *    删除前先把内容读回转进 resume.kramdown——否则它随删除消失，
- *    ConvertBatch 挂不上目标会静默丢掉已生成部分（created 挂不上）；
- *    读不回任何旧内容时不带断点从头重转（硬按 offset 跳批只会产出
- *    「只有后半截」的文档）。清续跑记录防止「全部完成」短路直接把
- *    已删文档当完成态返回。
- * 2. 完全没有续跑记录 → 从头重转（kramdown=空即全量）。
- * 落盘统一另存一份新《源·习题》（源讲义不动），失败自动记回续跑进度。
+ * 0. **增量重转换**（增量哈希二期）：整卷完成态（无续跑记录）且题集
+ *    记录带 src-hash 指纹 → 不删旧重转——重新结构切块比对三态分类，
+ *    相同跳过（保原题与刷题统计）、新增补生成、变更/消失逐块选（省费
+ *    模式 convertKeepOld=全保留只补新增）。中止后已入库记录自带指纹，
+ *    重跑分类即跳过（自愈，无续跑记录负担）。
+ * 1. 配对源讲义查得到续跑记录（prefs convertProgress）→ 接着断点续写
+ *    同一题集（已生成部分是题库真实记录，随取随用，无读回步骤）。
+ * 2. 完全没有续跑记录 → 清旧题集数据后从头重转（新题集）。
  */
-export function reimportDocFrom(v: QuizView, docId: string): void {
+export function reimportDocFrom(v: QuizView, setId: string): void {
     void (async () => {
         if (convertRunActive()) {
             showStatus(v.el, v.t("convertBusy"), "err");
             return;
         }
-        const srcId = await livingSourceOf(docId);
+        const bank = v.bankStore();
+        if (!bank) return;
+        const srcId = await livingSourceOf(v, setId);
         if (!srcId) {
             showStatus(v.el, v.t("reimportNoSource"), "err");
             return;
         }
         const rec = v.convertAccess.convertProgressOf(srcId);
-        // 增量分支（二期）：完成态 + 带指纹的题集走三态分类，不删旧文档
+        // 增量分支（二期）：完成态 + 带指纹的题集走三态分类，不删旧题集
         if (!rec) {
-            const groups = await readSrcGroups(docId).catch((): SrcGroup[] => []);
+            const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
             if (groups.length > 0) {
-                await runIncrementalReimport(v, docId, srcId, groups);
+                await runIncrementalReimport(v, setId, srcId, groups);
                 return;
             }
         }
-        let kramdown = "";
-        let docDeleted = false;
-        const plan = planReimportRead(rec, docId);
-        if (plan.readId) {
-            // 删除前读回已生成内容（续跑 existing 的来源；渐进文档=当前
-            // 题集时读的就是它，必须在下方 remove 之前）
-            const old = await KernelBlock.kramdown(plan.readId);
-            kramdown = String((old.data as { kramdown?: string } | null)?.kramdown ?? "");
-            if (plan.removeId) {
-                try {
-                    await KernelDoc.remove(plan.removeId);
-                } catch (_) {
-                    // 渐进文档删除失败不阻断续跑（可能本就是孤儿）
-                }
-            }
+        // 续跑：保留同一题集接着写；全量重转：先清旧题集侧数据
+        const resume = reimportResume(rec);
+        if (!resume) {
+            await bank.removeDocData(setId);
+            await bank.flush();
+            await v.historyStore()?.removeDocs([setId]);
         }
-        try {
-            const { code } = await KernelDoc.remove(docId);
-            if (code === 0) docDeleted = true;
-        } catch (_) {
-            docDeleted = false;
-        }
-        if (docDeleted) {
-            await v.bankStore()?.removeDocData(docId);
-            await v.bankStore()?.flush();
-            await v.historyStore()?.removeDocs([docId]);
-        }
-        // 删与建之间清续跑记录：防「offset 已覆盖全文」短路把已删/待删
-        // 的保留文档当完成态返回；失败路径会重新记回（延续上下文）
         v.convertAccess.saveConvertProgress(srcId, undefined);
-        // 读不回已生成内容时不带断点（防半截，见 reimportResume）
-        const resume = reimportResume(rec, kramdown);
         await v.reloadView(); // 侧栏先摘掉旧题集，转换条/渐进呈现落在新 DOM 上
         const started = startConvertForView(
             v.convertAccess,
@@ -228,16 +147,12 @@ export function reimportDocFrom(v: QuizView, docId: string): void {
  * 增量重转换分支（二期）：源文档重新结构切块 → 与题集旧分组三态分类。
  * 全部相同=零成本收口；有变更时省费模式（settings.convertKeepOld）
  * 直通「只补新增」，否则弹窗逐块选。执行占独占运行槽（页内转换条
- * 呈现进度、可停止），完成后题库重扫入库（refreshDocFor 幂等，删除/
- * 追加的块同步进 records 与影子专题）+ 视图重载。
+ * 呈现进度、可停止），产物直写题库（SetWriter）+ 视图重载。
  */
-async function runIncrementalReimport(
-    v: QuizView,
-    quizDocId: string,
-    srcId: string,
-    groups: SrcGroup[]
-): Promise<void> {
+async function runIncrementalReimport(v: QuizView, setId: string, srcId: string, groups: SrcGroup[]): Promise<void> {
     const t = v.t;
+    const bank = v.bankStore();
+    if (!bank) return;
     let chunks;
     try {
         chunks = await sourceChunksOf(srcId);
@@ -257,19 +172,19 @@ async function runIncrementalReimport(
     const start = (choice: IncrementChoice): void => {
         const cfg = reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf());
         const ev = convertRunEventsFor(v.convertAccess);
+        const set = bank.peek()?.sets?.[setId];
         const started = startExclusiveConvertRun(ev, srcId, async (signal) => {
             ev.onStatus(esc(t("incrPreparing")), "muted");
-            // 题集标题提前取（AI 会话分组的组名用；失败不阻断）
-            const qinfo = await getDocInfo(quizDocId).catch((): undefined => undefined);
             let res;
             let failed = "";
             try {
                 res = await convertIncremental({
-                    deleteBlockIds: choice.deleteBlockIds,
-                    staleBlockIds: choice.staleBlockIds,
+                    deleteQids: choice.deleteQids,
+                    staleQids: choice.staleQids,
                     chunks: choice.chunks,
-                    quizDocId,
-                    title: qinfo?.title,
+                    setId,
+                    bank,
+                    title: set?.title,
                     modelId: cfg.modelId,
                     fillToChoice: cfg.fillToChoice,
                     bigToSteps: cfg.bigToSteps,
@@ -290,14 +205,8 @@ async function runIncrementalReimport(
             } catch (e) {
                 failed = String((e as Error)?.message ?? e);
             }
-            // 题库重扫（幂等）：追加块入 records、删除块出 records，影子
-            // 专题题单刷新——中止/失败也要扫（已追加部分自愈的入库半场）
-            const bank = v.bankStore();
-            if (bank) {
-                const info = await getDocInfo(quizDocId);
-                await refreshDocFor(bank, quizDocId, info?.title ?? "");
-                await bank.flush();
-            }
+            // 题库写入由 convertIncremental 逐块 flush；中止/失败已入库
+            // 部分自带指纹，重跑分类即跳过（自愈）
             if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
             ev.onStatus(
                 esc(

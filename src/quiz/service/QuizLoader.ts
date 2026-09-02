@@ -1,18 +1,17 @@
-import { GROUP_PREV } from "../../siyuan/attrs";
 import type { ConvertProgressRecord } from "../../convert/service/ConvertBatch";
-import type { BankData, QuestionBank } from "../../bank/data/QuestionBank";
+import type { QuestionBank } from "../../bank/data/QuestionBank";
+import { ensureSets, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
 import type { HistoryStore } from "./HistoryStore";
-import { listMaterials, resolveGroupPlaceholders } from "./MaterialService";
-import { cleanOrphanExerciseDocs } from "../../convert/service/OrphanCleaner";
-import { listQuestionDocs, listQuestions } from "./QuestionService";
 import type { WenguSettingsShape as SettingsDialogShape } from "../../ui/SettingsDialog";
 import type { TimerController } from "./TimerController";
 import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "../../types";
 import { clampMinutes } from "../../ui/shared";
 
 /**
- * 刷题数据装载（从 QuizView 拆出）：一次 load 要拉的文档列表、当前
- * 文档题目、历史轮次，以及从 prefs/设置恢复的会话状态。
+ * 刷题数据装载（从 QuizView 拆出）：一次 load 要拉的题集列表、当前
+ * 题集题目、历史轮次，以及从 prefs/设置恢复的会话状态。
+ * 20260903 起题目内容唯一真相在题库——列表/题目/材料全部出自 bank
+ * （零内核 SQL；存量记录按 sourceDocId 分组推导题集，见 BankSets）。
  */
 
 /** 装载入参（QuizView 的当前状态快照 + 依赖）。 */
@@ -31,14 +30,13 @@ export interface QuizLoadDeps {
     settings?: SettingsDialogShape;
     timer: TimerController;
     history?: HistoryStore;
-    /** 题库（文档模式装载后用 stats 覆盖块属性侧读数——自托管后运行时
-     *  统计唯一真相在题库，与专题模式 overlayStats 同口径）。 */
+    /** 题库（列表/题目/材料的唯一来源）。 */
     bank?: QuestionBank;
     /** 之前的选中（仍存在则保持）。 */
     docId: string;
-    /** 顶栏带来的活动文档（无历史选择时优先）。 */
+    /** 顶栏带来的活动文档（无历史选择时优先；源文档按 set.srcId 反查）。 */
     activeDocId: string;
-    /** 刚生成、索引未可见的习题文档（列表临时补位）。 */
+    /** 刚生成、尚未进列表的题集（转换渐进期临时补位）。 */
     pendingDoc?: { id: string; title: string };
 }
 
@@ -51,7 +49,7 @@ export interface QuizLoadResult {
     /** pendingDoc 是否仍需保留（未进列表）。 */
     pendingDoc: { id: string; title: string } | undefined;
     fullList: WenguQuestion[];
-    /** 当前文档的材料块（材料组渲染用）。 */
+    /** 当前题集的材料（材料组渲染用）。 */
     materials: WenguMaterial[];
     rounds: Awaited<ReturnType<HistoryStore["docSessions"]>>;
     sideCollapsed: boolean;
@@ -69,21 +67,13 @@ export interface QuizLoadResult {
     loadError: string;
 }
 
-/** 题库 stats 覆盖到文档模式题目视图（与专题模式 overlayStats 同口径，
- *  细粒度编码原样透传）。 */
-function overlayBankStats(list: WenguQuestion[], data: BankData): void {
-    for (const q of list) {
-        const r = data.records[q.id];
-        if (!r) continue;
-        q.attempts = r.stats.attempts;
-        q.wrongCount = r.stats.wrongCount;
-        q.right = r.stats.right;
-        q.lastAnswer = r.stats.lastAnswer;
-        q.stepRight = r.stats.stepRight;
-        q.stepLast = r.stats.stepLast;
-        q.slotRight = r.stats.slotRight;
-        q.slotLast = r.stats.slotLast;
-    }
+/** 顶栏活动文档 → 题集选中：直接命中题集 id 优先，否则按 set.srcId
+ *  反查（用户正开着的源讲义，其题集自动选中）。 */
+async function setActiveFallback(bank: QuestionBank, docs: WenguDoc[], activeDocId: string): Promise<string> {
+    if (activeDocId && docs.some((d) => d.id === activeDocId)) return activeDocId;
+    if (!activeDocId) return "";
+    const data = await bank.all();
+    return Object.values(data.sets ?? {}).find((s) => s.srcId === activeDocId)?.id ?? "";
 }
 
 export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult> {
@@ -112,14 +102,11 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         const timing = s?.defaultTiming;
         deps.timer.mode = timing === "countdown" || timing === "none" || timing === "perQuestion" ? timing : "countUp";
         deps.timer.countdownMin = clampMinutes(s?.defaultCountdownMin ?? 20);
-        // 源讲义已删的孤儿习题文档先清理（含其会话历史），再拉列表
-        try {
-            const removed = await cleanOrphanExerciseDocs();
-            if (removed.length > 0 && deps.history) await deps.history.removeDocs(removed);
-        } catch (_) {
-            // 清理失败不阻断装载，下次装载再试
-        }
-        r.docs = await listQuestionDocs(deps.bank);
+        if (!deps.bank) throw new Error("bank unavailable");
+        // 存量题集推导（records 按 sourceDocId 分组补 sets 条目；标题尽力
+        // 从仍在的旧文档读一次——此后本插件零读旧文档）
+        await ensureSets(deps.bank);
+        r.docs = await setDocsView(deps.bank);
         if (r.pendingDoc && r.docs.some((d) => d.id === r.pendingDoc.id)) {
             r.pendingDoc = undefined;
         } else if (r.pendingDoc) {
@@ -133,36 +120,18 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
                 totalTime: 0,
             });
         }
-        // 选中优先级：当前选中（仍存在）> 上次记住的选择 > 活动文档 > 第一个
+        // 选中优先级：当前选中（仍存在）> 上次记住的选择 > 活动文档（含
+        // 源文档反查）> 第一个
         if (r.docId && !r.docs.some((d) => d.id === r.docId)) {
             const remembered = deps.prefs.docId ?? "";
             r.docId = remembered && r.docs.some((d) => d.id === remembered) ? remembered : "";
         }
         if (!r.docId && r.docs.length > 0) {
-            r.docId =
-                deps.activeDocId && r.docs.some((d) => d.id === deps.activeDocId) ? deps.activeDocId : r.docs[0].id;
+            r.docId = (await setActiveFallback(deps.bank, r.docs, deps.activeDocId)) || r.docs[0].id;
         }
         r.docTotalSec = r.docs.find((d) => d.id === r.docId)?.totalTime ?? 0;
-        r.fullList = r.docId ? await listQuestions(r.docId) : [];
-        if (r.fullList.length > 0 && deps.bank) {
-            // 运行时统计 overlay（自托管后题库为唯一真相；块属性侧读数
-            // 可能是回灌前的存量残值或缺省零）
-            overlayBankStats(r.fullList, await deps.bank.all());
-        }
-        // 材料组：转换写的 group="prev" 占位按文档序解析回写真实材料块 id
-        // （渐进重建期间不解析，装载即最终文档，幂等）
-        if (r.docId && r.fullList.some((q) => q.group === GROUP_PREV)) {
-            try {
-                const patches = await resolveGroupPlaceholders(r.docId);
-                for (const q of r.fullList) {
-                    const mid = patches.get(q.id);
-                    if (mid) q.group = mid;
-                }
-            } catch (_) {
-                // 解析失败按无材料降级（下次装载再试）
-            }
-        }
-        r.materials = r.docId ? await listMaterials(r.docId).catch((): WenguMaterial[] => []) : [];
+        r.fullList = r.docId ? await setQuestions(deps.bank, r.docId) : [];
+        r.materials = r.docId ? await setMaterials(deps.bank, r.docId) : [];
         r.rounds = r.docId && deps.history ? await deps.history.docSessions(r.docId) : [];
     } catch (e) {
         r.fullList = [];

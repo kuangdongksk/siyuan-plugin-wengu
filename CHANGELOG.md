@@ -2,6 +2,45 @@
 
 ## v0.1.1 unreleased
 
+- **AI 建知识树不落文档**（20260903，知识域）：结构单薄章节的 AI
+  归纳大纲不再物化成《章节·知识树》文档——归纳产物就是数据，直写
+  bank.knowTrees（新模块 data/KnowTrees，键=源章节文档 id，含
+  outlineMd/nodes/srcHash）。**节点 id 铸内核块 id 形态**：
+  parseKpRefs 与题卡「查看原文」渲染的正则一字不动，树节点的知识点
+  引用经记录 kramdown `((id "标题"))` 往返零兼容成本；重新归纳时
+  **同路径节点复用旧 id**，存量 kpRefs/活视图专题/薄弱画像全不悬空
+  （优于旧「删文档进回收站重建→对账按标题碰运气重挂」）。并流与
+  降级：expandKnowDocs/buildKnowledgeIndex/lexiconOfRoots 增可选
+  trees 参数（命中即整体替换该文档的 SQL 小节——面板/路由两级漏斗/
+  词表/打标自动含树节点，八处调用点传参）；kpRootMap 先并
+  internalRootMap（反查与面板聚合把树节点引用归到源章节文档名下，
+  对账不再误判悬空/劫持重挂）；「查看原文」与面板小节点击对树节点
+  降级跳源章节文档；sectionKramdown 查空回落节点说明+子树标题；
+  staleness=srcHash 比对，面板出「源已变更·重新归纳」徽标（新
+  i18n：knowTreeStale/knowOutlineRedo）。存量《·知识树》文档照旧
+  走文档路径；生成不再与转换互斥（全程零内核写）。
+- **存储收口：题目内容唯一真相=题库，转换零落盘**（20260903，跨域
+  架构级）：AI 转换不再往文档树生成《标题·习题》文档，产物由
+  convert/service/SetWriter **直写题库**——DraftUnit → renderUnit 出
+  契约 kramdown → parseQuestionKramdown 反解 + questionHash 构造
+  BankRecord（与旧「落文档再回读入库」产物同构，渲染/指纹/重生成/
+  匹配注入链零分叉），材料正文进 bank.materials（小题 group 写时直配
+  材料 id，group="prev" 占位与文档序回写通道退役），每批 flush 崩溃
+  安全，终止「保留」零动作/「丢弃」按写入 qid 清单回收。题集成为库内
+  一等实体（bank/data/BankSets：`sets {id,title,hPath,srcId,qids[]}`，
+  新转换 set-* / 存量按 records.sourceDocId 分组推导——零迁移机制，
+  历史轮次/docStats/影子专题键天然延续，标题尽力从仍在的旧文档读一次）；
+  增量指纹 src-key/src-hash 从容器 IAL 迁入记录字段（键格式/算法冻结
+  不变），「重新导入」改按 set.srcId 门控。装载链全走题库
+  （setDocsView/setQuestions/setMaterials 替换 SQL 聚合/hydrate），
+  渐进预览改内存视图直出（无内核索引轮询）。**退役清单**：
+  DriftWatch 镜像漂移、OrphanCleaner 孤儿清理与 source-doc 配对、
+  QuestionService/QuestionBatch/MaterialService 文档管线、
+  ProgressivePreview 轮询、BankMigrate 回扫入库（refreshDocFor/
+  ensureMigrated）、KnowLinkText/RegenDialog 源块尽力同步、转换
+  「生成位置」表单段与设置项。**行为变化**：源讲义删除不再级联删
+  题集（清理走「删除此题集」）；题集名=源文档标题；题目在思源编辑器
+  里不可见；新题 qid 为 gen-*（无源块可跳）。契约文档重写 §〇。
 - AI 会话面板树状分组（20260902，AI 基础设施域）：一次用户动作触发的
   多次 AI 调用（整卷转换的 前段检测×N + 路由×批 + 转换×批、批量关联/
   匹配/生成标签的逐题路由、出题+自检）在左栏归并成一棵**可展开组行

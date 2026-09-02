@@ -30,10 +30,6 @@ export interface WenguSettingsShape {
     convertKeepOld?: boolean;
     /** 默认转换并发批数（1=串行；>1 走内置直连通道）。 */
     convertParallel?: number;
-    /** 默认生成位置：same=原文档同目录；custom=指定父文档下面。 */
-    convertTargetMode?: "same" | "custom";
-    /** 指定父文档 id 或 siyuan:// 链接（convertTargetMode=custom 时用）。 */
-    convertTargetId?: string;
     /** 看板娘学伴（伴学域 companion：开关/AI 台词与对话/多套学伴配置）。 */
     companionEnabled?: boolean;
     companionPersona?: string;
@@ -177,26 +173,6 @@ export function openWenguSetting(opts: {
                   )
               )
           }
-          ${formRow(
-              t("convertTarget"),
-              t("convertTargetHint"),
-              formSelect(
-                  "targetmode",
-                  formOption("same", t("convertTargetSame"), opts.settings.convertTargetMode !== "custom") +
-                      formOption("custom", t("convertTargetCustom"), opts.settings.convertTargetMode === "custom"),
-                  "data-set"
-              )
-          )}
-          ${formRow(
-              t("convertTargetDoc"),
-              t("convertTargetDocHint"),
-              formInput(
-                  "targetid",
-                  opts.settings.convertTargetId ?? "",
-                  `spellcheck="false" placeholder="${esc(t("docIdPlaceholder"))}"`,
-                  "data-set"
-              )
-          )}
         </div>
       </div>
     </div>
@@ -290,13 +266,5 @@ export function openWenguSetting(opts: {
             opts.settings.convertModelId = value;
             opts.settings.save?.();
         },
-    });
-    root.querySelector<HTMLSelectElement>("[data-set='targetmode']")?.addEventListener("change", (ev) => {
-        opts.settings.convertTargetMode = (ev.target as HTMLSelectElement).value === "custom" ? "custom" : "same";
-        opts.settings.save?.();
-    });
-    root.querySelector<HTMLInputElement>("[data-set='targetid']")?.addEventListener("change", (ev) => {
-        opts.settings.convertTargetId = (ev.target as HTMLInputElement).value;
-        opts.settings.save?.();
     });
 }

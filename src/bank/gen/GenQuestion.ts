@@ -4,6 +4,7 @@ import { hasStemPart, parseDrafts, protocolSpec, renderUnit } from "../../conver
 import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
 import { sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
+import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
 import { recordsByKeys } from "../data/BankRegen";
 
 /**
@@ -31,7 +32,8 @@ export async function generateQuestion(
 ): Promise<string> {
     const track = { kind: "regen", title: `出题 · ${point.title}` };
     const kpId = point.key.startsWith("kp:") ? point.key.slice(3) : "";
-    const section = mode === "concept" && kpId ? await sectionKramdown(kpId) : "";
+    const section =
+        mode === "concept" && kpId ? (await sectionKramdown(kpId)) || knowNodeText(await knowTreesOf(bank), kpId) : "";
     let template = "";
     if (mode === "variant") {
         const records = await recordsByKeys(bank, [point.key]);

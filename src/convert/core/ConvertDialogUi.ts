@@ -14,12 +14,9 @@ export interface ConvertDialogUi {
     fillToChoice: boolean;
     bigToSteps: boolean;
     parallel: number;
-    targetMode: "same" | "custom";
-    targetId: string;
     knowRoots: string;
     /* 回显（getDocInfo 解析的标题路径；空=占位「选择…」） */
     docEcho: string;
-    targetEcho: string;
     knowEcho: string;
     /* 动态状态 */
     /** 打开时已有转换在跑（「查看进行中的转换」按钮露出）。 */
@@ -44,11 +41,8 @@ export function initialConvertDialogUi(): ConvertDialogUi {
         fillToChoice: false,
         bigToSteps: false,
         parallel: 1,
-        targetMode: "same",
-        targetId: "",
         knowRoots: "",
         docEcho: "",
-        targetEcho: "",
         knowEcho: "",
         running: false,
         status: undefined,

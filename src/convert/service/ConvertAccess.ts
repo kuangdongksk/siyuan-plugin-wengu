@@ -1,9 +1,9 @@
 import type { ConvertProgressRecord } from "./ConvertBatch";
 import type { ConvertViewAccess } from "../index";
 import { convertDoneText, showStatus, updateConvertBtn } from "../index";
-import { removeDoc } from "./ConvertService";
 import type { ProgressivePreview } from "../../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../../ui/SettingsDialog";
+import type { QuestionBank } from "../../bank/data/QuestionBank";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 
 /**
@@ -19,16 +19,15 @@ export interface ConvertAccessHost {
     activeDocIdOf(): string;
     settingsOf(): SettingsDialogShape | undefined;
     convertParallelOf(): number;
+    /** 题库（丢弃未完成转换的进度时回收已落库的半成品题集）。 */
+    bankOf?(): QuestionBank | undefined;
     progressiveOf(): ProgressivePreview;
     isStarted(): boolean;
     currentDocId(): string;
     persistPrefs(): void;
     stopRoundNow(): void;
-    /** 渐进文档切换（pendingDoc 补位 + 选中 + 旧轮清理）。 */
+    /** 渐进题集切换（pendingDoc 补位 + 选中 + 旧轮清理）。 */
     switchPreviewDoc(id: string, title: string, count: number): void;
-    /** 转换完成后同步该文档入题库（refreshDoc 幂等增量：续跑追加/手工
-     *  改题都能重扫；migratedDocs 防重不再挡增量，20260829 审查）。 */
-    refreshBankDoc?(docId: string, title: string): void;
     applyQuizList(list: WenguQuestion[], materials?: WenguMaterial[]): void;
     reloadView(): Promise<void>;
 }
@@ -99,10 +98,15 @@ export class ConvertAccess implements ConvertViewAccess {
 
     discardProgress(srcDocId: string, rec: ConvertProgressRecord): void {
         this.saveConvertProgress(srcDocId, undefined);
-        // 丢弃=清内部记录 + 删转换新建的文档（带 docId 的记录：非原位
-        // 模式/原位已建临时文档）；原位只存 kramdown 的记录没有新建
-        // 文档，仅清内部数据（已确认语义）
-        if (rec.docId) void removeDoc(rec.docId);
+        // 丢弃=清进度记录 + 回收已落库的半成品题集（该题集整体就是这一
+        // 次未完成转换的产物，removeDocData 连记录/材料/影子专题一起清）
+        const bank = this.host.bankOf?.();
+        if (bank && rec.setId) {
+            void bank
+                .removeDocData(rec.setId)
+                .then(() => bank.flush())
+                .catch((): void => undefined);
+        }
     }
 
     setConvertingState(v: boolean): void {
@@ -138,12 +142,10 @@ export class ConvertAccess implements ConvertViewAccess {
         void this.host.reloadView();
     }
 
-    onConvertDone(r: { docId: string; title: string; count: number; message?: string }): void {
+    onConvertDone(r: { setId: string; title: string; count: number; message?: string }): void {
         this.host.progressiveOf().clear();
-        this.host.switchPreviewDoc(r.docId, r.title, r.count);
-        // 题库增量同步放后台（逐题 kramdown 拉取是 2N+1 次串行内核
-        // 调用，不阻塞视图重载；装载路径 ensureMigrated 对该文档零工作）
-        this.host.refreshBankDoc?.(r.docId, r.title);
+        this.host.switchPreviewDoc(r.setId, r.title, r.count);
+        // 产物已直写题库（每批已 flush），无回扫入库步骤
         void this.host
             .reloadView()
             .then(() => showStatus(this.host.el, convertDoneText(this.host.t, r.title, r.count), "ok"));

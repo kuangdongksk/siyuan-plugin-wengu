@@ -24,7 +24,7 @@ export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => st
         // 查不到就按原 id 试
     }
     const refs = await collectKpRefs(bank);
-    const roots = await kpRootMap([...refs.keys()]);
+    const roots = await kpRootMap(bank, [...refs.keys()]);
     const rows = await questionsRelatedToDoc(bank, docId, roots);
     const items =
         rows.length > 0

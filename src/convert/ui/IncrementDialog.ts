@@ -15,10 +15,10 @@ import type { IncrementPlan, StructChunk } from "../service/SrcChunk";
 export interface IncrementChoice {
     /** 待生成块（新增选中 + 变更选重生成）。 */
     chunks: StructChunk[];
-    /** 待删除旧块（变更重生成的旧块 + 消失选删除的块）。 */
-    deleteBlockIds: string[];
-    /** 保留但源已更新的旧块（打 src-stale 标记）。 */
-    staleBlockIds: string[];
+    /** 待删除旧记录（变更重生成的旧记录 + 消失选删除的记录）。 */
+    deleteQids: string[];
+    /** 保留但源已更新的旧记录（打 src-stale 标记）。 */
+    staleQids: string[];
 }
 
 /** 省费模式的全保留默认选择（设置页 convertKeepOld 开时的直通口径）：
@@ -26,8 +26,8 @@ export interface IncrementChoice {
 export function keepOldChoice(plan: IncrementPlan): IncrementChoice {
     return {
         chunks: [...plan.fresh],
-        deleteBlockIds: [],
-        staleBlockIds: plan.changed.flatMap((c) => c.old.blocks).concat(...plan.removed.map((r) => r.blocks)),
+        deleteQids: [],
+        staleQids: plan.changed.flatMap((c) => c.old.blocks).concat(...plan.removed.map((r) => r.blocks)),
     };
 }
 
@@ -114,7 +114,7 @@ export function openIncrementDialog(deps: {
     root.querySelector("[data-act='incr-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector(".b3-dialog__close")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='incr-ok']")?.addEventListener("click", () => {
-        const choice: IncrementChoice = { chunks: [], deleteBlockIds: [], staleBlockIds: [] };
+        const choice: IncrementChoice = { chunks: [], deleteQids: [], staleQids: [] };
         plan.fresh.forEach((c, i) => {
             if (root.querySelector<HTMLInputElement>(`[data-act='inc-new-${i}']`)?.checked) choice.chunks.push(c);
         });
@@ -122,13 +122,13 @@ export function openIncrementDialog(deps: {
             const v = root.querySelector<HTMLSelectElement>(`[data-act='inc-chg-${i}']`)?.value;
             if (v === "regen") {
                 choice.chunks.push(c.chunk);
-                choice.deleteBlockIds.push(...c.old.blocks);
-            } else choice.staleBlockIds.push(...c.old.blocks);
+                choice.deleteQids.push(...c.old.blocks);
+            } else choice.staleQids.push(...c.old.blocks);
         });
         plan.removed.forEach((r, i) => {
             const v = root.querySelector<HTMLSelectElement>(`[data-act='inc-rm-${i}']`)?.value;
-            if (v === "del") choice.deleteBlockIds.push(...r.blocks);
-            else choice.staleBlockIds.push(...r.blocks);
+            if (v === "del") choice.deleteQids.push(...r.blocks);
+            else choice.staleQids.push(...r.blocks);
         });
         dialog.destroy();
         deps.onConfirm(choice);

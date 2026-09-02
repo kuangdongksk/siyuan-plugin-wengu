@@ -15,6 +15,7 @@ import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyTagToRecord, lexiconOfRoots, linkRecordsByText, parseFreeTags } from "../data/KnowLinkText";
+import { knowTreesOf } from "../data/KnowTrees";
 import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
@@ -118,7 +119,7 @@ async function runTag(
         const tagged = records.filter((r) => r.knowledge);
         const untagged = records.filter((r) => !r.knowledge);
         const roots = await knowRootsOf(bank);
-        const lex = roots.length > 0 ? await lexiconOfRoots(roots) : new Map();
+        const lex = roots.length > 0 ? await lexiconOfRoots(roots, await knowTreesOf(bank)) : new Map();
         // 阶段一 核对：已有标签 → 归一匹配挂引用（零 AI）。已挂引用的题
         // 记 skip（不动），命中的挂引用，没命中的=标签在知识文档无对应小节
         const verified = await linkRecordsByText(bank, lex, tagged, { signal: ctrl.signal });
@@ -132,7 +133,7 @@ async function runTag(
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
         if (doGen && !ctrl.signal.aborted && untagged.length > 0 && dialog.element.isConnected) {
-            const index = roots.length > 0 ? await buildKnowledgeIndex(roots) : undefined;
+            const index = roots.length > 0 ? await buildKnowledgeIndex(roots, await knowTreesOf(bank)) : undefined;
             const useRoute = (index?.chapters.length ?? 0) > 0;
             // 动作分组（AI 会话面板树归并）：路由生成/自由生成分批挂同组
             const group = { id: newAiGroupId(), title: `生成标签 · ${untagged.length} 题` };

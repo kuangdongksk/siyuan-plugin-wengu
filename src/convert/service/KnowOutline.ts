@@ -1,16 +1,22 @@
 import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import { KernelDoc } from "../../siyuan/doc";
 import { KernelQuery } from "../../siyuan/query";
+import { questionHash } from "../../bank/data/BankParse";
+import type { QuestionBank } from "../../bank/data/QuestionBank";
+import { mintKnowNodeId, setKnowTree, treePathsOf } from "../../bank/data/KnowTrees";
+import type { BankKnowNode } from "../../bank/data/KnowTrees";
 
 /**
- * 知识树大纲归纳（docs/knowledge-tree.md □1，20260831）：结构单薄的
- * 章节文档 → AI 归纳成 h1~h3 知识点大纲（h1=知识大类、h2=方法·解法、
- * h3=细分）→ 落盘独立树文档 `{章节标题}·知识树`（与原文同目录，原文
- * 一字不动；同名已存在先入回收站=覆盖式重建）。产物由调用方登记进
- * knowRoots，面板即按 h1~h6 层级树展示；登记根词表（lexiconOfRoots）
- * 随之包含树节点标题，打标链路（导入即关联/生成标签/匹配路由）直接
- * 受益。AI 通道走 agentChatOnce 独立会话（可指定模型/可中止）。
+ * 知识树大纲归纳（docs/knowledge-tree.md □1，20260831；20260903 起不落
+ * 文档）：结构单薄的章节文档 → AI 归纳成 h1~h3 知识点大纲（h1=知识
+ * 大类、h2=方法·解法、h3=细分）→ **直写题库**（bank.knowTrees，键=
+ * 源章节文档 id）——归纳产物就是数据，不再物化成《·知识树》文档、
+ * 不登记 knowRoots。节点 id 铸内核块 id 形态（kpRefs 经 kramdown
+ * ((id "标题")) 往返的硬约束）；重新归纳时同路径节点复用旧 id（存量
+ * kpRefs/活视图/薄弱画像不悬空）。面板/路由/词表经 KnowledgeLink 并流
+ * 消费（expandKnowDocs/buildKnowledgeIndex 传 trees）；词表
+ * （lexiconOfRoots）随之包含树节点标题。AI 走 agentChatOnce 独立会话
+ * （可指定模型/可中止）；全程零内核写（只剩 SQL 读+AI，与转换并发安全）。
  */
 
 /** 章节正文输入的字符预算：预算内全量喂；超限按标题段压缩（保结构
@@ -109,24 +115,41 @@ async function docBlocks(docId: string): Promise<Row[]> {
     );
 }
 
-/** 树文档标题后缀（面板展示与词表对齐用约定名）。 */
+/** 树文档标题后缀（历史形态，20260903 起生成的树不再落文档；常量保留
+ *  供存量《·知识树》文档的识别/清理参考）。 */
 export const OUTLINE_SUFFIX = "·知识树";
 
+/** 大纲 markdown → 节点表（h1~h3 标题 + 标题下首个非空行为说明，可省）。
+ *  纯函数供单测；id 由调用方按「同路径复用旧 id」策略分配。 */
+export function parseOutlineNodes(md: string): BankKnowNode[] {
+    const out: BankKnowNode[] = [];
+    for (const line of md.split(/\r?\n/)) {
+        const h = /^(#{1,3})\s+(.+)$/.exec(line.trim());
+        if (!h) {
+            const note = line.trim();
+            if (note && out.length > 0 && !out[out.length - 1].note) out[out.length - 1].note = note;
+            continue;
+        }
+        out.push({ id: "", title: h[2].trim(), level: h[1].length as 1 | 2 | 3 });
+    }
+    return out.filter((n) => n.title);
+}
+
 /**
- * 归纳并落盘知识树文档。返回新文档 id 与标题（调用方登记 knowRoots）。
- * 任何一步失败抛错（调用方提示）；转换写窗口由调用方闸（convertRunActive）。
+ * 归纳并入库知识树（覆盖语义=重新归纳）。返回节点数（调用方提示）。
+ * 任何一步失败抛错（调用方提示）；全程零内核写，无需与转换互斥。
  */
 export async function generateKnowledgeOutline(
     docId: string,
     modelId: string,
-    signal: AbortSignal
-): Promise<{ docId: string; title: string }> {
+    signal: AbortSignal,
+    bank: QuestionBank
+): Promise<{ count: number }> {
     const root = (
         await KernelQuery.rowsMap(`SELECT box, hpath, content FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`)
     )[0];
     if (!root?.get("box")) throw new Error("source doc not found");
-    const hpath = root.get("hpath") || "";
-    const title = root.get("content") || hpath.split("/").filter(Boolean).pop() || docId;
+    const title = root.get("content") || root.get("hpath")?.split("/").filter(Boolean).pop() || docId;
     const content = chapterTextOf(
         (await docBlocks(docId)).map((r) => ({
             type: r.get("type") ?? "p",
@@ -140,17 +163,33 @@ export async function generateKnowledgeOutline(
         title: `建知识树 · ${title}`,
     });
     const md = extractOutlineMd(reply);
-    // 落盘路径=原文 hPath + 后缀（同目录；createDocWithMd 按 hPath 定位）
-    const treeTitle = `${title}${OUTLINE_SUFFIX}`;
-    const treePath = `${hpath}${OUTLINE_SUFFIX}`;
-    // 覆盖式重建：同名旧树文档先入回收站（可恢复）
-    const old = (
-        await KernelQuery.rowsMap(
-            `SELECT id FROM blocks WHERE type = 'd' AND box = '${root.get("box")}' AND hpath = '${treePath.replace(/'/g, "''")}' LIMIT 1`
-        )
-    )[0];
-    if (old?.get("id")) await KernelDoc.remove(old.get("id"));
-    const res = await KernelDoc.createByMd(root.get("box"), treePath, md);
-    if (res.code !== 0 || !res.data) throw new Error(res.msg || "createDocWithMd failed");
-    return { docId: String(res.data), title: treeTitle };
+    const fresh = parseOutlineNodes(md);
+    if (fresh.length === 0) throw new Error("outline reply has no headings");
+    // id 分配：同路径（祖先标题链/标题）复用旧 id，新路径铸新 id——
+    // 结构未变的节点保 id，存量 kpRefs/活视图/薄弱画像不悬空
+    const old = (await bank.all()).knowTrees?.[docId];
+    const oldPaths = old ? treePathsOf(old.nodes) : new Map<string, BankKnowNode>();
+    const newPaths = treePathsOf(fresh);
+    for (const [path, node] of newPaths) node.id = oldPaths.get(path)?.id ?? mintKnowNodeId();
+    await setKnowTree(bank, {
+        srcId: docId,
+        outlineMd: md,
+        nodes: fresh,
+        srcHash: questionHash(content),
+        createdAt: Date.now(),
+    });
+    await bank.flush();
+    return { count: fresh.length };
+}
+
+/** 源章节的内容指纹（stale 判定：与树记录的 srcHash 比对，源变更→树过期）。 */
+export async function outlineSrcHash(docId: string): Promise<string> {
+    const content = chapterTextOf(
+        (await docBlocks(docId)).map((r) => ({
+            type: r.get("type") ?? "p",
+            subtype: r.get("subtype") ?? undefined,
+            content: r.get("content") ?? "",
+        }))
+    );
+    return questionHash(content);
 }

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt, extractBlockId, isMaterialKramdown, parentOf } from "./ConvertService";
+import { buildPrompt, extractBlockId, isMaterialKramdown } from "./ConvertService";
 
 /**
- * 转换侧纯函数：块 id 提取、路径帮手、prompt 开关（AI 回复解析与
+ * 转换侧纯函数：块 id 提取、prompt 开关（AI 回复解析与
  * kramdown 渲染在 QuestionDraft.test / OptionShuffle.test 覆盖——
- * 20260902 行协议重构后 extractBatchQuestions 整体退役）。
+ * 20260902 行协议重构后 extractBatchQuestions 整体退役；20260903 起
+ * 落文档通道（resolveTarget/createExerciseDoc 等）随「不落文档」退役）。
  */
 
 describe("extractBlockId", () => {
@@ -16,14 +17,6 @@ describe("extractBlockId", () => {
     });
     it("无 id 时返回 trimmed 原文（由后续查询兜底）", () => {
         expect(extractBlockId("  随便文本 ")).toBe("随便文本");
-    });
-});
-
-describe("parentOf", () => {
-    it("按最后的 / 截断，根下回 /", () => {
-        expect(parentOf("/a/b.sy")).toBe("/a");
-        expect(parentOf("/a/b/c.sy")).toBe("/a/b");
-        expect(parentOf("/x.sy")).toBe("/");
     });
 });
 

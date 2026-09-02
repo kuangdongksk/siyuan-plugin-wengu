@@ -44,10 +44,10 @@
     };
 
     /** 结构单薄判定（AI 建树入口只对它显示）：小节总数 <6 或顶层 <3
-     *  ——无标题结构的讲义章节、树文档（结构丰富）自动分流。 */
+     *  ——无标题结构的讲义章节自动分流；已有内部知识树常显（重新归纳）。 */
     const secCount = (ns: KnowSectionTreeView[]): number => ns.reduce((a, s) => a + 1 + secCount(s.children), 0);
     const outlineable = (d: KnowDocView): boolean =>
-        !!d.manual && (secCount(d.sectionTree) < 6 || d.sectionTree.length < 3);
+        !!d.manual && (!!d.hasTree || secCount(d.sectionTree) < 6 || d.sectionTree.length < 3);
 
     /** 小节树节点 → 通用树行（嵌套子节递归；节点本身 kind=sec 可点）。 */
     const secRows = (ns: KnowSectionTreeView[], secByKey: Map<string, KnowSectionTreeView>): TreeListNode[] =>
@@ -174,6 +174,9 @@
                                     >
                                 </span>
                             {:else if d}
+                                {#if ui.staleTrees.has(d.docId)}<span class="wengu-cp-meta wengu-know-stale"
+                                        >{t("knowTreeStale")}</span
+                                    >{/if}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub ?? d.total) })}</span
                                 >
                                 <span class="b3-list-item__action">
@@ -184,7 +187,9 @@
                                             onclick={() => ctl.outline(d)}
                                             >{ui.outlining === d.docId
                                                 ? t("knowOutlineRunning")
-                                                : t("knowOutlineBtn")}</button
+                                                : d.hasTree
+                                                  ? t("knowOutlineRedo")
+                                                  : t("knowOutlineBtn")}</button
                                         >
                                     {/if}
                                     <button type="button" class="b3-button b3-button--text" onclick={() => ctl.match(d)}

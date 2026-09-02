@@ -50,23 +50,30 @@
       判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
-      （AI 转换，`index.ts`=转换编排；**生成输出行协议**（20260902）：
-      AI 不手写 kramdown，改输出 `@@Q/@@P/@@END` 标记行定界文本
-      （`service/QuestionDraft.ts` 解析成 DraftUnit、`renderUnit`
-      **确定性渲染**成契约 kramdown 落盘——选项字母按序自动编、
-      正确项写最前由 `OptionShuffle.ts` draft 层洗牌消剧透；选行协议
-      非 JSON/YAML 因数学 LaTeX 零转义+无缩进+坏一题不坏一批；
-      四生成入口共用：转换/增量/题库出题（GenQuestion）/单题重生成
-      （RegenDialog）；`extractQuestions` 修补层已退役；**纯标题块
-      跳过** `isHeadingOnlyChunk`（章标题直挂子标题的零内容段不发
-      AI）；**增量重转换**（20260831 增量哈希
+      （AI 转换，`index.ts`=转换编排；**20260903 存储收口：转换零落盘，
+      产物直写题库**（`service/SetWriter.ts`：DraftUnit → renderUnit 出
+      契约 kramdown → parseQuestionKramdown 反解 + questionHash 构造
+      BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
+      bank.materials、小题 group 写时直配材料 id；每批 flush 崩溃安全，
+      终止「保留」零动作/「丢弃」按写入 qid 清单回收；渐进呈现改内存
+      视图直出，无内核索引轮询；题集=BankSet 库内实体见 bank 域）；
+      **生成输出行协议**（20260902）：AI 不手写 kramdown，改输出
+      `@@Q/@@P/@@END` 标记行定界文本（`service/QuestionDraft.ts`
+      解析成 DraftUnit、`renderUnit` **确定性渲染**成契约 kramdown
+      入库——选项字母按序自动编、正确项写最前由 `OptionShuffle.ts`
+      draft 层洗牌消剧透；选行协议非 JSON/YAML 因数学 LaTeX 零转义+
+      无缩进+坏一题不坏一批；四生成入口共用：转换/增量/题库出题
+      （GenQuestion）/单题重生成（RegenDialog）；`extractQuestions`
+      修补层已退役；**纯标题块跳过** `isHeadingOnlyChunk`（章标题直挂
+      子标题的零内容段不发 AI）；**增量重转换**（20260831 增量哈希
       二期）：`SrcChunk.ts` 结构切块（标题链键 H:章/节 + questionHash
       指纹，替代空行偏移切块）+ 两阶段三态分类（全局指纹匹配→键配对：
-      相同/新增/变更/消失），生成时容器 IAL 随题写 src-key/src-hash，
-      重新导入入口（DocOps.runIncrementalReimport）对带指纹题集走
-      增量——IncrementDialog 逐块选、ConvertIncrement 落盘执行
-      （删旧/标 stale/串行补生成追加到既有题集，中止自愈无需续跑
-      记录）、设置 convertKeepOld=省费模式；方案与分期见
+      相同/新增/变更/消失），生成时 src-key/src-hash 随 BankRecord
+      字段落库（20260903 起从容器 IAL 迁入记录，键格式/算法冻结不变），
+      重新导入入口（DocOps.runIncrementalReimport）按 `set.srcId` 门控、
+      对带指纹题集走增量——IncrementDialog 逐块选、ConvertIncrement
+      纯题库执行（删旧/标 stale/串行补生成追加到既有题集，中止自愈
+      无需续跑记录）、设置 convertKeepOld=省费模式；方案与分期见
       docs/incremental-hash-plan.md）、`src/review/`（错题复习）、
       `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器
       在 `WordView.ts`，**UI 是 Svelte 组件**（`word/component/`，2026-08-26
@@ -91,6 +98,17 @@
       **层级树**展示——20260831 起 headingsByRoot 取 subtype 建
       buildSectionTree 真树，路由 path=祖先标题链，不再是「文档路径/
       本标题」两段假层级）、
+      **AI 建知识树不落文档**（20260903，data/KnowTrees）：结构单薄
+      章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点
+      id 铸内核块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，
+      kpRefs 经 kramdown ((id "标题")) 往返零兼容成本；重新归纳**同
+      路径复用旧 id**，存量引用/活视图/薄弱画像不悬空），expandKnowDocs/
+      buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
+      词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点
+      引用归到源文档名下、对账不误判悬空）；「查看原文」与面板小节
+      点击对树节点**降级跳源章节文档**；staleness=srcHash 比对出
+      「源已变更·重新归纳」徽标（不走 KnowHash）；存量《·知识树》
+      文档照旧走文档路径（双形态在并流点兼容））、
       行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
       →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
       与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=
@@ -116,16 +134,20 @@
       实时刷新题单；题库「对账/重生成/反查/生成入库」段在 data/
       BankRegen 函数式友元——20260901 从 QuestionBank 类拆出压 500
       行红线，调用形 `foo(bank,…)`，解析缓存经 parsedOf/
-      invalidateParse 友元钩子）；**数据自托管**
-      （20260831 三线收口）：作答运行时统计（attempts/wrong-count/
-      right/last-answer/step-_/slot-_/文档级 total-time）**停写块
-      属性**唯一真相在题库 stats/docStats（作答记账在 data/
-      BankRecording，QuestionService 记账函数退役），存量 backfillV2
-      一次性重扫回灌+清块残留属性；**镜像漂移检测**（data/DriftWatch）：
-      题库 hash 即文档题块指纹基线（questionHash 归一化剥运行时
-      属性——作答不扰动指纹），ws-main update 事务防抖 dry-run 三态
-      比对（changed/fresh/gone→driftDocs），开刷面板提示行「更新镜像/
-      忽略」；**知识小节哈希**（data/KnowHash，saveData("know-hash")）：
+      invalidateParse 友元钩子；**题集实体 BankSets**（20260903 存储
+      pivot）：题目内容唯一真相=题库（BankRecord.kramdown 契约格式），
+      题集 `{id,title,hPath,srcId,qids[]}` 存 bank.sets（data/BankSets
+      函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集
+      ——零迁移机制，历史/docStats/影子专题键天然延续；setQuestions/
+      setDocsView/setMaterials 是装载侧全部供给，quiz 域文档 SQL/hydrate
+      管线 QuestionService/QuestionBatch/MaterialService 整体退役）；
+      **数据自托管**（20260831 三线收口，20260903 收完）：作答运行时
+      统计（attempts/wrong-count/right/last-answer/step-_/slot-_/文档级
+      total-time）唯一真相在题库 stats/docStats（作答记账在 data/
+      BankRecording）；镜像漂移检测 DriftWatch 与孤儿清理 OrphanCleaner
+      随「题库即唯一内容真相」整体退役（ws-main 对账只留知识文档
+      knowHash 分支；源讲义删除不再级联删题集，清理走「删除此题集」）；
+      **知识小节哈希**（data/KnowHash，saveData("know-hash")）：
       包含式切段指纹，导入写基线、面板装载出 stale 徽标（基线自推进
       一次性提示），并进路由缓存 indexGenOf——小节正文变更整表作废）、
       `src/companion/`
@@ -186,23 +208,25 @@
   落盘**（save/markDirty/flush 全闸）+ notifyStoreForeign 浮层告知
   升级——堵死「未来 bump 版本」与「机器 B 新版写盘、机器 A 旧版
   读到即覆写」两类清库通道。新持久化存储上线即配同款闩。
-- **冻结清单**（输出已嵌进落盘数据/用户文档，改了就孤儿化存量或
-  全量假漂移；确需演进一律新旧并存双写双查，禁原地替换）：
+- **冻结清单**（输出已嵌进落盘数据，改了就孤儿化存量或全量假漂移；
+  确需演进一律新旧并存双写双查，禁原地替换）：
     - `BankParse.questionHash` 及其归一化（剥 id/updated、剥运行时
       属性、空白折叠）——指纹已渗透 bank.hashed/record.hash/
-      DriftWatch 基线/know-hash/route-cache indexGen 与**文档题块
-      IAL src-hash**（用户文档里，最难迁）；
+      record.srcHash/know-hash/route-cache indexGen（20260903 起存量
+      文档题块 IAL src-hash 同值共存，读侧不再碰）；
     - `WordBook.wordKey` 归一化（words.json 九个 Record 与音标表、
       易混组、confKey 的共同 key）；
     - `attrs.ts` 属性名（`custom-plugin-wengu-*`）与题块 kramdown
-      结构（容器超级块 + part 子块）——改名=重写用户全部习题文档；
+      结构（容器超级块 + part 子块）——kramdown 是题库记录的内部
+      契约格式（20260903 起不再落用户文档，但全部存量记录与解析器
+      都长这样，改名=重写全库）；
     - `SrcChunk.structuralChunks` 的 srcKey 键格式（`H:链/P0/#k/~n`）
       与切块确定性；
     - `KnowledgeNorm.knKey`（聚合键裂开=薄弱画像/知识点索引分裂，
       有 remapKey 对账兜底但别依赖它）。
-- **往题块写任何新的非内容属性，必须同步加进 BankParse 的
-  RUNTIME_ATTR_HASH_RE 剥除名单**——否则作答即变指纹，DriftWatch
-  与增量重转换全量误报「变更」（当前已停写块属性，此条防复发）。
+- **往记录 kramdown 写任何新的非内容属性，必须同步加进 BankParse 的
+  RUNTIME_ATTR_HASH_RE 剥除名单**——否则作答即变指纹，增量重转换
+  全量误报「变更」（当前已停写块属性，此条防复发）。
 - **规模预警**：bank.json / history.json 单文件整写、无上限增长
   （words 的 reviews 流水同理，设计如此）；到万级题/数 MB 拆分时走
   「**新存储键 + 读时 fallback 老键**」（如 bank2→bank），老文件
@@ -401,13 +425,13 @@ message, language, references, model?}`；`userEntryID` 是
 
 ## 外部 API：无（MinerU/PDF 导入 20260901 移除）
 
-- 转换固定「另存一份自己的数据、绝不动原文档」（原「原位替换」双模式
-  同日移除）后，PDF 中间产物文档会永久留在文档树，MinerU 管线失去
-  意义——PdfImport/MinerUClient/PdfImportRow 三文件与 settings.
-  mineruToken、fflate 依赖、EApi.ForwardProxy 一并删除。若将来重接
-  外部 JSON API，内核 `/api/network/forwardProxy` `{url, method,
-headers, payload?, timeout}`（上游响应在 `data.body`）仍可用，但
-  payload 只收 **string，二进制过不去**（20260823 真机验证）。
+- PDF 导入的中间产物文档无处安放（20260903 起转换零落盘，题库才是
+  内容真相），MinerU 管线失去意义——PdfImport/MinerUClient/PdfImportRow
+  三文件与 settings.mineruToken、fflate 依赖、EApi.ForwardProxy 一并
+  删除（20260901 首删时的动因是「另存文档永久留文档树」，pivot 后
+  更彻底）。若将来重接外部 JSON API，内核 `/api/network/forwardProxy`
+  `{url, method, headers, payload?, timeout}`（上游响应在 `data.body`）
+  仍可用，但 payload 只收 **string，二进制过不去**（20260823 真机验证）。
 
 ## Shell/工具坑（本机）
 

@@ -1,18 +1,14 @@
 import { parseQuestionKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
-import { ensureMigratedFor, refreshDocFor } from "./BankMigrate";
+import type { BankKnowTree } from "./KnowTrees";
 import { knKey, pickStandardName } from "./KnowledgeNorm";
 import { notifyError } from "../../ui/Notify";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
- * 主记录，细粒度管理（删题/组专题/增量同步）都在插件数据上做，不再
- * 受文档结构锁死。存量习题文档按文档粒度自动迁移（refreshDoc 幂等，
- * 已迁移名单防重）；转换完成后对新文档同样走 refreshDoc 同步入库。
- *
- * 跨卷同题去重：内容指纹（questionHash，剥块 id）→ 已存在的 hash 不
- * 再建第二条记录。作答统计镜像在记录上（块属性仍在写，双轨过渡期）。
- * 落盘按脏标记防抖（记录量可达千级、JSON 整写，不能每次作答都写）。
+ * 主记录；20260903 起题目内容唯一真相在题库——转换产物直写（SetWriter），
+ * 题集/材料/知识树都是库内实体（BankSets/KnowTrees）。跨卷同题索引：
+ * 内容指纹→首条 qid；落盘按脏标记防抖（千级记录 JSON 整写不能每次作答写）。
  */
 
 /** 单题统计（作答运行时唯一真相——自托管后停写块属性，细粒度编码
@@ -40,10 +36,44 @@ export interface BankRecord {
     difficulty?: number;
     /** 知识点标题块引用（反链目标，按序去重）。 */
     kpRefs: { id: string; title: string }[];
-    /** 来源习题文档 id。 */
+    /** 所属题集 id（20260903 起题集=bank 内实体；存量记录此值是旧习题
+     *  文档 id，语义等价沿用，历史/docStats 键因此不断）。 */
     sourceDocId: string;
     hash: string;
     stats: BankStats;
+    /** 所属材料块 id（阅读/完形等共享原文；bank.materials 的键）。 */
+    group?: string;
+    /** 源块稳定边界键（增量重转换三态分类；键格式冻结不变）。 */
+    srcKey?: string;
+    /** 源块内容指纹（同 questionHash 归一口径）。 */
+    srcHash?: string;
+    /** 源已更新但用户保留旧题的标记（增量重转换「保留」动作）。 */
+    srcStale?: "1";
+}
+
+/** 一个题集（20260903 起转换不再落文档，题集是题库内一等实体）：有序
+ *  题单 + 展示元数据 + 源讲义配对（重新导入门控用）。 */
+export interface BankSet {
+    id: string;
+    /** 题集名（=源文档标题；存量推导题集尽力从旧文档读一次）。 */
+    title: string;
+    /** 源文档标题路径（侧栏树分组用）。 */
+    hPath?: string;
+    /** 源讲义文档 id（「重新导入」按它重切源块）。 */
+    srcId?: string;
+    /** 题目 id 的有序集合（转换写入序=原卷题序）。 */
+    qids: string[];
+    createdAt: number;
+}
+
+/** 材料块正文（阅读/完形等共享原文；20260903 起随题入库，不再依赖
+ *  文档块回捞）。 */
+export interface BankMaterial {
+    id: string;
+    /** 所属题集 id。 */
+    setId: string;
+    bodyMd?: string;
+    transMd?: string;
 }
 
 /** 专题：题目 id 的有序集合（手动建或按知识点收集）。 */
@@ -78,13 +108,18 @@ export interface BankData {
     knowHidden: string[];
     /** 文档级累计刷题用时（秒，原 total-time 块属性自托管）。 */
     docStats: Record<string, number>;
-    /** 镜像漂移登记（DriftWatch 写）：习题文档 id → 漂移摘要，UI 徽标
-     *  与「采纳/忽略」弹窗消费；空漂移删条目。 */
+    /** 镜像漂移登记（20260903 起停写——题库即唯一内容真相，无镜像
+     *  可漂移；字段按守则保留兼容存量）。 */
     driftDocs?: Record<string, DriftEntry>;
+    /** 题集（20260903 起）：id → 集元数据；存量由 ensureSets 推导补齐。 */
+    sets?: Record<string, BankSet>;
+    /** 材料块正文（20260903 起）：id → 材料内容；缺省为空对象。 */
+    materials?: Record<string, BankMaterial>;
+    /** AI 知识树（20260903 起不落文档）：源章节文档 id → 归纳大纲。 */
+    knowTrees?: Record<string, BankKnowTree>;
 }
 
-/** 一个习题文档的镜像漂移摘要（changed=内容变、fresh=文档新增未入库、
- *  gone=题块已删但记录仍在——三类都靠一次重扫（refreshDocFor）收口）。 */
+/** 一个习题文档的镜像漂移摘要（历史结构，20260903 起停写，存量兼容）。 */
 export interface DriftEntry {
     changed: string[];
     fresh: string[];
@@ -131,8 +166,6 @@ export class QuestionBank {
      *  拒绝一切落盘，防两机插件版本错位时旧版覆写清库。 */
     private foreign?: boolean;
     private flushTimer?: number;
-    /** 供 BankMigrate 友元使用（迁移互斥闸）。 */
-    migrating?: Promise<void>;
     private readonly parsedCache = new Map<string, { hash: string; parsed: ParsedQuestion }>();
 
     constructor(
@@ -140,7 +173,7 @@ export class QuestionBank {
         private readonly saveRaw: (v: BankData) => Promise<unknown>
     ) {}
 
-    /** 供 BankMigrate 友元使用（入库与迁移编排）。 */
+    /** 取缓存数据（装载/落盘/友元模块共用；读异常上抛不落缓存）。 */
     async all(): Promise<BankData> {
         if (this.cache) return this.cache;
         // 只把「读到的东西不是合法题库」当空；**读异常上抛不落缓存**——
@@ -164,6 +197,8 @@ export class QuestionBank {
                 folders: [],
                 knowHidden: [],
                 docStats: {},
+                sets: {},
+                materials: {},
             };
             return this.cache;
         }
@@ -180,10 +215,15 @@ export class QuestionBank {
                       folders: [],
                       knowHidden: [],
                       docStats: {},
+                      sets: {},
+                      materials: {},
                   };
         for (const k of ["knowRoots", "folders", "knowHidden"] as const)
             if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
         if (!this.cache.docStats) this.cache.docStats = {};
+        if (!this.cache.sets) this.cache.sets = {};
+        if (!this.cache.materials) this.cache.materials = {};
+        if (!this.cache.knowTrees) this.cache.knowTrees = {};
         return this.cache;
     }
 
@@ -224,17 +264,6 @@ export class QuestionBank {
             this.dirty = true;
             this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
         }
-    }
-
-    /** 把一个习题文档同步入库（迁移与转换后同步同一条路，幂等）。
-     *  实现在 BankMigrate.refreshDocFor（拆出压 500 行红线）。 */
-    async refreshDoc(docId: string, title = ""): Promise<number> {
-        return refreshDocFor(this, docId, title);
-    }
-
-    /** 习题文档首次入库（后台一次）：实现在 BankMigrate.ensureMigratedFor。 */
-    async ensureMigrated(docs: { id: string; title?: string }[]): Promise<void> {
-        return ensureMigratedFor(this, docs);
     }
 
     /** 作答镜像记账（全题型漏斗在 QuizView.recordAnswer；多步题 qid#k
@@ -376,9 +405,8 @@ export class QuestionBank {
         this.markDirty();
     }
 
-    /** 删除文档侧插件数据：该卷全部记录、内容哈希索引、doc: 影子专题、
-     *  各专题对这批 qid 的引用、迁移标记（文档本体由调用方先删入回收站；
-     *  gen- 生成题不挂 sourceDocId，不受影响）。 */
+    /** 删除题集侧数据：全部记录/哈希索引/影子专题/专题引用/迁移标记/
+     *  题集元数据与材料（gen- 题不挂 sourceDocId，不受影响）。 */
     async removeDocData(docId: string): Promise<void> {
         const data = await this.all();
         const dead = new Set(
@@ -396,6 +424,12 @@ export class QuestionBank {
                 c.qids.some((qid) => dead.has(qid)) ? { ...c, qids: c.qids.filter((qid) => !dead.has(qid)) } : c
             );
         data.migratedDocs = data.migratedDocs.filter((d) => d !== docId);
+        if (data.sets) delete data.sets[docId];
+        if (data.materials) {
+            for (const mid of Object.keys(data.materials)) {
+                if (data.materials[mid].setId === docId) delete data.materials[mid];
+            }
+        }
         this.markDirty();
     }
 
@@ -431,15 +465,20 @@ export class QuestionBank {
         return [...docs];
     }
 
-    /* ── 解析缓存友元钩子（对账/重生成/反查/生成入库段在 BankRegen） ── */
+    /* ── 解析缓存友元钩子（BankRegen/BankSets 消费） ── */
 
-    /** 供 BankRegen 友元使用：命中缓存的解析结果（hash 不符返回 undefined）。 */
+    /** 命中缓存的解析结果（hash 不符返回 undefined）。 */
     parsedOf(qid: string, hash: string): ParsedQuestion | undefined {
         const hit = this.parsedCache.get(qid);
         return hit && hit.hash === hash ? hit.parsed : undefined;
     }
 
-    /** 供 BankRegen 友元使用：失效一题的解析缓存（kramdown 被替换/重挂后）。 */
+    /** 解析结果并入缓存。 */
+    cacheParsed(qid: string, hash: string, parsed: ParsedQuestion): void {
+        this.parsedCache.set(qid, { hash, parsed });
+    }
+
+    /** 失效一题的解析缓存（kramdown 被替换/重挂后）。 */
     invalidateParse(qid: string): void {
         this.parsedCache.delete(qid);
     }

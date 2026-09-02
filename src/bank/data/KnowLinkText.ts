@@ -1,8 +1,8 @@
 import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/KnowRef";
-import { KernelBlock } from "../../siyuan/block";
 import { normalizeKnowledge } from "./KnowledgeNorm";
 import { mergeRecordKpRefs } from "./KnowRoots";
+import type { KnowTreesMap } from "./KnowTrees";
 import type { BankRecord, QuestionBank } from "./QuestionBank";
 import { replaceRecordKramdown } from "./BankRegen";
 
@@ -47,13 +47,14 @@ export function textRefsFor(knowledge: string, lex: Map<string, LexSection[]>): 
 }
 
 /** 登记根 → 词表：expandKnowDocs 递归展开全部后代文档的层级树小节
- *  （含中间层文档——任何标题块都是合法引用目标）。根已删/拉取失败跳过。 */
-export async function lexiconOfRoots(rootIds: string[]): Promise<Map<string, LexSection[]>> {
+ *  （含中间层文档——任何标题块都是合法引用目标）。根已删/拉取失败跳过。
+ *  trees=内部知识树（命中文档的小节整体替换为树节点）。 */
+export async function lexiconOfRoots(rootIds: string[], trees?: KnowTreesMap): Promise<Map<string, LexSection[]>> {
     const sections: LexSection[] = [];
     for (const rid of rootIds) {
         let docs: Awaited<ReturnType<typeof expandKnowDocs>> = [];
         try {
-            docs = await expandKnowDocs(rid);
+            docs = await expandKnowDocs(rid, trees);
         } catch (_) {
             // 单根失败跳过，别的根照常
         }
@@ -68,8 +69,9 @@ export async function lexiconOfRoots(rootIds: string[]): Promise<Map<string, Lex
     return buildSectionLexicon(sections);
 }
 
-/** 把引用落进一条题库记录（strip+inject 替换语义 + kpRefs 合并 + 源块
- *  尽力同步，题库为主记录）；返回是否有改动。MatchDialog 与批量关联共用。 */
+/** 把引用落进一条题库记录（strip+inject 替换语义 + kpRefs 合并；题库
+ *  即唯一真相，无文档同步半边）；返回是否有改动。MatchDialog 与批量
+ *  关联共用。 */
 export async function applyRefsToRecord(
     bank: QuestionBank,
     r: BankRecord,
@@ -83,11 +85,6 @@ export async function applyRefsToRecord(
     if (next === r.kramdown) return false;
     await replaceRecordKramdown(bank, r.qid, next);
     await mergeRecordKpRefs(bank, r.qid, refs);
-    try {
-        await KernelBlock.update({ id: r.qid, dataType: "markdown", data: next });
-    } catch (_) {
-        // 源块同步失败：题库已是主记录（gen- 生成题无源块也走这里）
-    }
     return true;
 }
 
@@ -123,11 +120,6 @@ export async function applyTagToRecord(
     if (next !== r.kramdown) {
         await replaceRecordKramdown(bank, r.qid, next);
         await mergeRecordKpRefs(bank, r.qid, refs);
-        try {
-            await KernelBlock.update({ id: r.qid, dataType: "markdown", data: next });
-        } catch (_) {
-            // 源块同步失败：题库已是主记录
-        }
     }
     let changed = next !== r.kramdown;
     if (r.knowledge !== knowledge) {

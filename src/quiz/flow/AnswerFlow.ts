@@ -3,7 +3,7 @@ import { isObjective } from "../render/CardHtml";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import { syncGroupReveal } from "./MaterialFlow";
-import { gradeQuestion } from "../service/QuestionService";
+import { gradeQuestion } from "../service/QuestionGrading";
 import { markNum } from "../render/FlowDom";
 import { markNumRailAnswered } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";

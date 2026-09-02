@@ -13,6 +13,7 @@ import {
 import type { ProgressivePreview } from "../quiz/service/ProgressivePreview";
 import { showBatchPreview } from "../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
+import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguMaterial, WenguQuestion } from "../types";
 import { esc, fmt } from "../ui/shared";
 
@@ -71,8 +72,6 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         initialFillToChoice: ctx.lastConvertFill || ctx.settings?.fillToChoice === true,
         initialBigToSteps: ctx.lastConvertSteps || ctx.settings?.bigToSteps === true,
         initialParallel: ctx.convertParallel ?? 1,
-        initialTargetMode: ctx.settings?.convertTargetMode === "custom" ? "custom" : "same",
-        initialTargetId: ctx.settings?.convertTargetId ?? "",
         initialKnowRoots: ctx.lastConvertKnow,
         saveChoice: ctx.saveChoice,
         getProgress: ctx.getProgress,
@@ -93,13 +92,15 @@ export interface ConvertViewAccess {
     settingsOf(): SettingsDialogShape | undefined;
     lastConvert(): { modelId: string; fill: boolean; steps: boolean; know: string };
     convertParallelOf(): number;
+    /** 题库（丢弃进度记录时回收半成品题集）。 */
+    bankOf?(): QuestionBank | undefined;
     /** 弹窗选择落 prefs。 */
     saveConvertChoice(modelId: string, fill: boolean, steps: boolean, know: string): void;
     convertProgressOf(docId: string): ConvertProgressRecord | undefined;
     saveConvertProgress(docId: string, rec: ConvertProgressRecord | undefined): void;
     /** 未完成进度记录清单（转换管理面板）。 */
     listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[];
-    /** 丢弃一条进度记录：清 prefs + 删保留的渐进文档。 */
+    /** 丢弃一条进度记录：清 prefs + 回收已落库的半成品题集。 */
     discardProgress(srcDocId: string, rec: ConvertProgressRecord): void;
     setConvertingState(v: boolean): void;
     /** 渐进预览宿主（showBatchPreview 用）。 */
@@ -108,12 +109,12 @@ export interface ConvertViewAccess {
     /** 收卷（渐进呈现接管页签前调用）。 */
     stopRoundNow(): void;
     currentDocId(): string;
-    /** 渐进文档切换（pendingDoc 补位 + 选中）。 */
+    /** 渐进题集切换（pendingDoc 补位 + 选中）。 */
     switchPreviewDoc(id: string, title: string, count: number): void;
     applyQuizList(list: WenguQuestion[], materials?: WenguMaterial[]): void;
     reloadView(): void;
     /** 转换完成收尾（pendingDoc/选中/刷新/状态条）。 */
-    onConvertDone(r: { docId: string; title: string; count: number; message?: string }): void;
+    onConvertDone(r: { setId: string; title: string; count: number; message?: string }): void;
 }
 
 /** 页内转换事件组（弹窗「开始转换」与右键「重新导入」共用的接线：
@@ -124,8 +125,7 @@ export function convertRunEventsFor(v: ConvertViewAccess): ConvertRunEvents {
         setConverting: (flag) => v.setConvertingState(flag),
         onStatus: (html, kind, terminal) =>
             renderConvertBar(v.container(), v.t, html, kind, terminal ? null : "running"),
-        onBatch: (docId, title, count, batch, total) =>
-            showBatchPreview(v.progressiveOf(), previewHostOf(v), docId, title, count, batch, total),
+        onBatch: (p) => showBatchPreview(v.progressiveOf(), previewHostOf(v), p),
         onStopChoice: (info) =>
             renderConvertBar(
                 v.container(),

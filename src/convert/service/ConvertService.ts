@@ -1,22 +1,16 @@
-import { Attr } from "../../siyuan/attrs";
-import { KernelBlock } from "../../siyuan/block";
-import { KernelDoc } from "../../siyuan/doc";
 import { KernelQuery } from "../../siyuan/query";
+import { KernelDoc } from "../../siyuan/doc";
 import { protocolSpec } from "./QuestionDraft";
 
 /**
- * AI 转换服务：把一篇笔记文档交给思源内置智能体（ai/client，
- * 可指定用户在 设置→AI 配置的任一模型），按 docs/question-block-contract.md
- * 的契约生成题目块，落成独立的《原标题·习题》文档。
+ * AI 转换服务的内核侧原语：源文档定位/读取、出题 prompt 与行协议解析。
+ * 20260903 起转换产物**直写题库**（SetWriter），本模块不再含任何落盘
+ * 文档通道（createExerciseDoc/appendBlockToDoc 等已随「不落文档」整体
+ * 退役）。
  *
  * 20260902 起 AI 返回**行协议**（QuestionDraft：@@ 标记行定界的结构化
  * 文本），由代码确定性渲染成契约 kramdown——AI 不再手写超级块/IAL，
  * 格式修补层（extractQuestions）整体退役。
- *
- * 全部机制已在真机（思源 3.8.0）验证：
- * - /api/filetree/createDocWithMd 会用内核 Lute 解析 kramdown，
- *   超级块 IAL 必须另起一行紧跟在 }}} 之后才能落属性；
- * - 块级公式须用 $$...$/$...$ 记法，[ ] 里的 ^ 会丢。
  */
 
 /** 文档定位信息。 */
@@ -30,20 +24,6 @@ export interface DocInfo {
     hPath?: string;
     /** 文档标题。 */
     title: string;
-}
-
-/** AI 转换结果。 */
-export interface ConvertResult {
-    /** AI 判定能否转换。 */
-    canConvert: boolean;
-    /** 给用户看的结果说明（成功摘要 / 拒绝原因 / 失败原因）。 */
-    message: string;
-    /** 生成的习题文档 id（成功时）。 */
-    docId?: string;
-    /** 生成的习题文档标题（成功时）。 */
-    title?: string;
-    /** 生成题目数。 */
-    count: number;
 }
 
 /**
@@ -192,127 +172,4 @@ export function parseVerdict(reply: string): { can: boolean; reason: string } {
 /** 该块 kramdown 是否是材料超级块（不占题目数）。 */
 export function isMaterialKramdown(kd: string): boolean {
     return kd.includes('custom-plugin-wengu-material="1"');
-}
-
-/** "/a/b.sy" → "/a"；"/x.sy" → "/"。 */
-export function parentOf(path: string): string {
-    const cut = path.lastIndexOf("/");
-    return cut <= 0 ? "/" : path.slice(0, cut);
-}
-
-/** 生成位置解析结果：ok=false 时 message 有值。 */
-export interface TargetLocation {
-    ok: boolean;
-    notebook: string;
-    parentPath: string;
-    message: string;
-}
-
-/** 解析生成位置：targetRaw 空=原文档同目录（父级用 hPath 标题路径——
- *  内核按标题匹配路径段，.sy 文件路径会让导入文档被重建空父链）；
- *  指定父文档时生成到它下面（子文档，笔记本跟随目标）。 */
-export async function resolveTarget(
-    info: DocInfo,
-    targetRaw: string,
-    t: (key: string) => string
-): Promise<TargetLocation> {
-    if (!targetRaw) {
-        return { ok: true, notebook: info.notebook ?? "", parentPath: parentOf(info.hPath ?? "/"), message: "" };
-    }
-    const target = await getDocInfo(extractBlockId(targetRaw));
-    if (!target?.notebook || !target.hPath) {
-        return { ok: false, notebook: "", parentPath: "", message: t("convertTargetMissing") };
-    }
-    return { ok: true, notebook: target.notebook, parentPath: target.hPath, message: "" };
-}
-
-/** 生成《标题·习题》文档；先去掉已有的 ·习题 后缀避免「·习题·习题」，同名冲突追加时间戳。
- *  srcDocId 非空时在根块打 source-doc 配对属性（源删则习题随删，见 OrphanCleaner）。 */
-export async function createExerciseDoc(
-    notebook: string,
-    parentPath: string,
-    baseTitle: string,
-    markdown: string,
-    srcDocId = ""
-): Promise<{ id: string; title: string }> {
-    const safe =
-        baseTitle
-            .replace(/[\\/:*?"<>|]/g, "-")
-            .replace(/(·习题)+$/, "")
-            .trim() || "习题";
-    const created = await createDocWithTitles(
-        notebook,
-        parentPath,
-        [`${safe}·习题`, `${safe}·习题${Date.now().toString(36)}`],
-        markdown
-    );
-    if (srcDocId) {
-        await KernelBlock.setAttrs(created.id, { [Attr.sourceDoc]: srcDocId });
-    }
-    return created;
-}
-
-/** 向文档末尾追加单个块（markdown）。IAL 必须独立成行才落块属性；
- *  一次一块——多块数据会散落错位（20260826 真机验证见 AGENTS.md）。 */
-export async function appendBlockToDoc(docId: string, blockMd: string): Promise<void> {
-    const res = await KernelBlock.append({ dataType: "markdown", data: blockMd, parentID: docId });
-    if (res.code !== 0) throw new Error(res.msg || "appendBlock failed");
-}
-
-/** 按候选标题顺序建文档，同名冲突落到下一个（时间戳后缀）。 */
-async function createDocWithTitles(
-    notebook: string,
-    parentPath: string,
-    titles: string[],
-    markdown: string
-): Promise<{ id: string; title: string }> {
-    let lastMsg = "";
-    for (const title of titles) {
-        const path = `${parentPath === "/" ? "" : parentPath}/${title}.sy`;
-        const res = await KernelDoc.createByMd(notebook, path, markdown);
-        if (res.code === 0 && res.data) {
-            return { id: String(res.data), title };
-        }
-        lastMsg = res.msg;
-    }
-    throw new Error(lastMsg || "createDocWithMd failed");
-}
-
-/** 终止保留 / 继续生成完成后的落盘：把累积 kramdown 建成习题文档。 */
-export async function writeExerciseDoc(
-    info: DocInfo,
-    markdown: string,
-    srcDocId = "",
-    targetRaw = "",
-    t: (key: string) => string = () => ""
-): Promise<{ id: string; title: string }> {
-    const loc = await resolveTarget(info, targetRaw, t);
-    if (!loc.ok) throw new Error(loc.message);
-    return createExerciseDoc(loc.notebook, loc.parentPath, info.title, markdown, srcDocId);
-}
-
-/** 继续生成完成后删掉上次终止保留的旧文档（换成完整新文档）。 */
-export async function removeDoc(docId: string): Promise<void> {
-    try {
-        await KernelDoc.remove(docId);
-    } catch (_) {
-        // 删除失败不影响主流程（旧文档保留）
-    }
-}
-
-/** 单发结果包装（兼容弹窗的 onDone 汇报；参数按 BatchResult 结构收）。 */
-export function toConvertResult(r: {
-    status: string;
-    message: string;
-    docId?: string;
-    title?: string;
-    count: number;
-}): ConvertResult {
-    return {
-        canConvert: r.status === "done",
-        message: r.message,
-        docId: r.docId,
-        title: r.title,
-        count: r.count,
-    };
 }

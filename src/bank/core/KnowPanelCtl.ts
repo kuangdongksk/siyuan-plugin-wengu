@@ -3,6 +3,7 @@ import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
 import { collectKpRefs } from "../data/BankRegen";
 import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
+import { knowTreeByNode, knowTreesOf } from "../data/KnowTrees";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
@@ -10,8 +11,7 @@ import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
 import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
-import { generateKnowledgeOutline } from "../../convert/service/KnowOutline";
-import { convertRunActive } from "../../convert/service/ConvertRun";
+import { generateKnowledgeOutline, outlineSrcHash } from "../../convert/service/KnowOutline";
 import {
     buildKnowTree,
     groupKnowByDoc,
@@ -57,7 +57,7 @@ export class KnowPanelCtl {
         return this.v.bankStore();
     }
 
-    /** 装载/重拉（刷新、导入、退册后都走这里）。 */
+    /** 装载/重拉（刷新、导入、退册、归纳后都走这里）。 */
     async load(): Promise<void> {
         const bank = this.bank();
         if (!bank) {
@@ -67,13 +67,14 @@ export class KnowPanelCtl {
         this.ui.phase = "loading";
         this.disarm();
         const refs = await collectKpRefs(bank);
-        const rootsMap = await kpRootMap([...refs.keys()]);
+        const rootsMap = await kpRootMap(bank, [...refs.keys()]);
         const registered = await knowRootsOf(bank);
+        const trees = await knowTreesOf(bank);
         const info = await KernelDoc.infoOf([...new Set([...rootsMap.values(), ...registered])]);
         const titles = new Map([...info].map(([k, v]) => [k, v.title]));
         let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
         if (registered.length > 0) {
-            const imp = await importedKnowDocs(registered, titles);
+            const imp = await importedKnowDocs(registered, titles, trees);
             for (const [k, v] of imp.info) info.set(k, v); // 展开行自带标题/hPath，供树化分支
             docs = mergeKnowDocs(docs, imp.docs, imp.manualAll, new Set(registered));
         }
@@ -83,8 +84,14 @@ export class KnowPanelCtl {
         // 分支默认全展开（知识树浅、文档即叶子）；小节容器不进集合=默认收起
         this.ui.openPaths = new SvelteSet(collectBranchPaths(buildKnowTree(docs, info)));
         this.ui.phase = "ready";
-        // 后台小节漂移检测（自托管三期）：比对内容哈希基线出 stale 徽标，
-        // 基线自推进（一次性提示）；面板打开时新鲜，重开不重复报
+        // 后台：内部知识树 staleness（源内容指纹比对，树行出「源已变更」
+        // 徽标）+ 小节漂移检测（自托管三期：内容哈希基线，基线自推进）
+        const staleTrees = new Set<string>();
+        for (const [srcId, tree] of Object.entries(trees)) {
+            const cur = await outlineSrcHash(srcId).catch((): string => "");
+            if (cur && cur !== tree.srcHash) staleTrees.add(srcId);
+        }
+        if (this.alive) this.ui.staleTrees = staleTrees;
         const kh = knowHash();
         const docIds = this.ui.docs.map((d) => d.docId);
         if (kh && docIds.length > 0) {
@@ -147,8 +154,19 @@ export class KnowPanelCtl {
         this.v.colFlowOf().openDialog(entriesOf(s));
     }
 
-    open(docId: string): void {
-        window.open(`siyuan://blocks/${docId}`);
+    open(id: string): void {
+        // 内部知识树节点无真实块——降级跳到源章节文档
+        void (async (): Promise<void> => {
+            const bank = this.bank();
+            if (bank) {
+                const hit = knowTreeByNode(await knowTreesOf(bank), id);
+                if (hit) {
+                    window.open(`siyuan://blocks/${hit.tree.srcId}`);
+                    return;
+                }
+            }
+            window.open(`siyuan://blocks/${id}`);
+        })();
     }
 
     /** 头部「导入」：文档选择浮层（多选，锚定按钮）。导入即关联——
@@ -168,7 +186,8 @@ export class KnowPanelCtl {
                     void setKnowRoots(bank, ids)
                         .then(() => bank.flush())
                         .then(async () => {
-                            const lex = await lexiconOfRoots(ids);
+                            const trees = await knowTreesOf(bank);
+                            const lex = await lexiconOfRoots(ids, trees);
                             if (lex.size > 0) {
                                 const r = await linkBankByText(bank, lex, {});
                                 if (r.hit > 0) notifyInfo({ key: "notifyAutoLinkDone", vars: { n: String(r.hit) } });
@@ -177,7 +196,7 @@ export class KnowPanelCtl {
                             const kh = knowHash();
                             if (kh) {
                                 for (const rid of ids) {
-                                    const docs = await expandKnowDocs(rid);
+                                    const docs = await expandKnowDocs(rid, trees);
                                     await kh.baselineDocs(
                                         rid,
                                         docs.map((d) => d.docId)
@@ -211,9 +230,9 @@ export class KnowPanelCtl {
         });
     }
 
-    /* ── AI 建知识树（docs/knowledge-tree.md □1）：归纳章节 → 落盘
-     *  `{章节}·知识树` 独立文档 → 自动登记进 knowRoots。运行中再点=
-     *  中止；转换写窗口不开（createDocWithMd 与转换 append 并发互吞）。 ── */
+    /* ── AI 建知识树（docs/knowledge-tree.md □1；20260903 起不落文档）：
+     *  归纳章节 → 大纲直写题库（bank.knowTrees）。运行中再点=中止；
+     *  全程零内核写（只剩 SQL 读+AI），与转换并发安全。 ── */
 
     private outlineCtrl: AbortController | undefined;
 
@@ -225,24 +244,15 @@ export class KnowPanelCtl {
             return;
         }
         if (this.ui.outlining) return; // 同时只跑一份
-        // 转换运行中不开第二条内核写流（createByMd/remove 与转换 append 并发互吞）
-        if (convertRunActive()) {
-            this.ui.outlineErr = this.v.t("convertBusy");
-            return;
-        }
         this.ui.outlineErr = undefined;
         this.ui.outlining = d.docId;
         const ctrl = new AbortController();
         this.outlineCtrl = ctrl;
-        void generateKnowledgeOutline(d.docId, this.v.aiModelId(), ctrl.signal)
+        void generateKnowledgeOutline(d.docId, this.v.aiModelId(), ctrl.signal, bank)
             .then(async (r): Promise<void> => {
-                // 树文档自动登记（登记后词表/路由/关联全链路即包含树节点）
-                const cur = await knowRootsOf(bank);
-                if (!cur.includes(r.docId)) await setKnowRoots(bank, [...cur, r.docId]);
-                await bank.flush();
                 if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
                 this.ui.outlining = undefined;
-                notifyInfo({ key: "notifyOutlineDone" }); // AI 长任务，用户可能已离开知识面板
+                notifyInfo({ key: "notifyOutlineDone", vars: { n: String(r.count) } }); // AI 长任务，用户可能已离开
                 await this.load();
             })
             .catch((e: unknown): void => {

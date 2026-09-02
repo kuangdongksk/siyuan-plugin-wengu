@@ -14,6 +14,7 @@ import { esc, fmt } from "../../ui/shared";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyRefsToRecord, lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
+import { knowTreesOf } from "../data/KnowTrees";
 import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
@@ -111,7 +112,7 @@ async function runBatch(
     try {
         const roots = await knowRootsOf(bank);
         if (roots.length === 0) throw new Error(t("batchNoRoots"));
-        const lex = await lexiconOfRoots(roots);
+        const lex = await lexiconOfRoots(roots, await knowTreesOf(bank));
         if (lex.size === 0) throw new Error(t("matchNoIndex"));
         // phase1：文本关联（零 AI）
         const p1 = await linkBankByText(bank, lex, { skipLinked, signal: ctrl.signal });
@@ -125,7 +126,7 @@ async function runBatch(
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
         if (useAi && !ctrl.signal.aborted && p1.missed.length > 0 && dialog.element.isConnected) {
-            const index = await buildKnowledgeIndex(roots);
+            const index = await buildKnowledgeIndex(roots, await knowTreesOf(bank));
             if (index.chapters.length > 0) {
                 const pending: BankRecord[] = p1.missed;
                 // 动作分组（AI 会话面板树归并）：本次批量关联的 AI 兜底挂同组
