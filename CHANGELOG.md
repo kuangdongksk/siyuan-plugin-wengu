@@ -4,20 +4,21 @@
 
 - AI 会话面板树状分组（20260902，AI 基础设施域）：一次用户动作触发的
   多次 AI 调用（整卷转换的 前段检测×N + 路由×批 + 转换×批、批量关联/
-  匹配/生成标签的逐题路由、出题+自检）在左栏归并成一个**可展开组行**
-  ——树状呈现「动作 → 多个会话」，导入转换不再是几十条平铺刷屏。数据
+  匹配/生成标签的逐题路由、出题+自检）在左栏归并成一棵**可展开组行
+  树**——树状呈现「动作 → 多个会话」，导入转换不再是几十条平铺刷屏，
+  树渲染走共享组件 ui/TreeList（与知识面板/侧栏树同源收敛）。数据
   面：登记记录加可选 `group/groupTitle` 字段（只加不改名，旧盘宽容
   装载；组 id 由动作入口 `newAiGroupId` 生成、组标题随记录冗余落盘，
   LRU 淘汰部分组员不丢标题），`AiTrack` 挪到 data/AiSessions 持有并带
-  `group`，store 新增 `removeGroup`；归并逻辑在 core/SessionTree 纯
+  `group`，store 新增 `removeGroup`；树化逻辑在 core/SessionTree 纯
   函数（孤儿组退平铺、类别过滤在组内透镜式生效、状态聚合
-  running>error>done，单测 5 例）。面板：组行=折叠箭头+聚合状态徽标+
-  组名+条数时间（两击删整组），子会话行缩进，展开态仅视图内存不持久
-  化。接线九处调用点：ConvertRun→convertDocBatched（组标题=「转换 ·
-  文档名」）→detectQuestions/makeKnowAwareAi（增量重转换组标题=
-  「增量补生成 · 题集名」，DocOps 预取题集标题）、匹配/批量关联/生成
-  标签三弹窗逐题路由、GenQuestion 出题自检。判题/单词复盘等单发动作
-  不分组照旧平铺。
+  running>error>done，单测 5 例）。面板：组行=聚合状态徽标+组名+条数
+  时间（两击删整组），行内徽标/条数走 TreeList 的 main/trailing 片段，
+  展开态仅视图内存不持久化。接线九处调用点：ConvertRun→
+  convertDocBatched（组标题=「转换 · 文档名」）→detectQuestions/
+  makeKnowAwareAi（增量重转换组标题=「增量补生成 · 题集名」，DocOps
+  预取题集标题）、匹配/批量关联/生成标签三弹窗逐题路由、GenQuestion
+  出题自检。判题/单词复盘等单发动作不分组照旧平铺。
 - AI 生成返回格式改行协议 + 纯标题块跳过（20260902，转块域）：
   AI 不再手写 kramdown 超级块，改输出 @@ 标记行定界的结构化文本
   （QuestionDraft：@@Q/@@P/@@END，LaTeX 零转义、无缩进语义、漏 END

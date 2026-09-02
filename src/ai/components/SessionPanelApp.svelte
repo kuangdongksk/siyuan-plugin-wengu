@@ -4,8 +4,10 @@
     import { SESSION_PANEL_CTX, initialSessionPanelUi } from "../core/SessionPanelUi";
     import { SessionPanelCtl } from "../core/SessionPanelCtl";
     import { AI_INTERRUPTED, type AiSessionRecord } from "../data/AiSessions";
-    import { buildSessionRows } from "../core/SessionTree";
+    import { buildSessionTree } from "../core/SessionTree";
     import { listAiModels } from "../models";
+    import TreeList from "../../ui/TreeList.svelte";
+    import type { TreeListNode } from "../../ui/TreeListTypes";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
 
@@ -14,11 +16,12 @@
      * 改版）：左栏=会话清单（类别过滤 + 状态徽标 + 两击删除，固定宽
      * 自滚），右栏=选中会话的明细（完整轮次回看——user prompt 与 ai
      * 产出都在——+ 继续追问输入条），点左侧行即切右栏内容。左栏树状
-     * 分组（20260902）：一次动作触发的多次调用归并成一个可展开组行
-     * （归并逻辑在 core/SessionTree 纯函数），组行=聚合状态+组名+条数，
-     * 点行展开/收起子会话。登记簿本体在 data/AiSessions（全仓共享单例，
-     * agentChatOnce 带 track 的调用自动登记），本组件只吃快照；挂载
-     * 编排见 ai/SessionPanel.ts。零 <style>，类名走全局 scss。
+     * 分组（20260902）：一次动作触发的多次调用归并成一个可展开组行，
+     * 树渲染走共享组件 ui/TreeList（与知识面板/侧栏树同源；树化在
+     * core/SessionTree 纯函数，行内状态徽标/类别章/条数走 main/trailing
+     * 片段）。登记簿本体在 data/AiSessions（全仓共享单例，agentChatOnce
+     * 带 track 的调用自动登记），本组件只吃快照；挂载编排见
+     * ai/SessionPanel.ts。零 <style>，类名走全局 scss。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -60,8 +63,8 @@
         r.status === "running" ? t("aiStatusRunning") : r.status === "done" ? t("aiStatusDone") : t("aiStatusError");
     const errText = (r: AiSessionRecord): string => (r.error === AI_INTERRUPTED ? t("aiInterrupted") : (r.error ?? ""));
 
-    /** 快照 → 树行（同组归并 + 类别过滤，纯函数见 core/SessionTree）。 */
-    const rows = $derived.by(() => buildSessionRows(ui.recs, ui.filter));
+    /** 快照 → 树（同组归并 + 类别过滤，纯函数见 core/SessionTree）。 */
+    const tree = $derived.by(() => buildSessionTree(ui.recs, ui.filter));
     const kinds = $derived.by(() => {
         const present = new Set(ui.recs.map((r) => r.kind));
         return [...Object.keys(KIND_KEYS).filter((k) => present.has(k)), ...[...present].filter((k) => !KIND_KEYS[k])];
@@ -78,6 +81,12 @@
 
     const send = (): void => {
         if (sel) void ctl.ask(sel, ui.draft);
+    };
+
+    /** 叶子行（会话）点击=选中切右栏；动作钮不触发（同知识面板口径）。 */
+    const rowclick = (n: TreeListNode, e: MouseEvent): void => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        if (n.id) ctl.select(n.id);
     };
 
     onMount(() => {
@@ -117,88 +126,63 @@
                 >
             {/each}
         </div>
-        <!-- 两栏式（20260901）：左清单常驻，点行切右栏明细 -->
+        <!-- 两栏式（20260901）：左清单常驻（TreeList 树），点行切右栏明细 -->
         <div class="wengu-ai-two">
             <div class="wengu-ai-side">
                 <div class="wengu-ai-list">
-                    {#if rows.length === 0}
+                    {#if tree.nodes.length === 0}
                         <div class="wengu-muted">{t("aiEmpty")}</div>
                     {:else}
-                        {#snippet sessionRow(r: AiSessionRecord, child: boolean)}
-                            <div
-                                class="wengu-ai-row{child ? ' is-child' : ''}{ui.selId === r.id
-                                    ? ' wengu-ai-row-active'
-                                    : ''}"
-                                role="button"
-                                tabindex="0"
-                                onclick={() => ctl.select(r.id)}
-                                onkeydown={(e) => {
-                                    if (e.key === "Enter") ctl.select(r.id);
-                                }}
+                        <div class="wengu-tree">
+                            <TreeList
+                                nodes={tree.nodes}
+                                openKeys={ui.openGroups}
+                                current={ui.selId}
+                                onrowclick={rowclick}
                             >
-                                <span class="wengu-ai-status is-{r.status}">{@html svgIcon(STATUS_ICON[r.status])}</span
-                                >
-                                <span class="wengu-ai-kind">{kindLabel(r.kind)}</span>
-                                <span class="wengu-ai-name">{r.title}</span>
-                                <span class="wengu-ai-meta">{fmtTime(r.createdAt)}</span>
-                                <span class="b3-list-item__action">
-                                    <button
-                                        type="button"
-                                        class="b3-button b3-button--text"
-                                        onclick={(e) => {
-                                            e.stopPropagation();
-                                            ctl.armRemove(r.id);
-                                        }}>{ui.rmArmed === r.id ? t("collectConfirm") : t("aiDelete")}</button
-                                    >
-                                </span>
-                            </div>
-                        {/snippet}
-                        {#each rows as row (row.type === "group" ? `g:${row.id}` : row.rec.id)}
-                            {#if row.type === "group"}
-                                {@const open = !!ui.openGroups[row.id]}
-                                <div
-                                    class="wengu-ai-row is-group"
-                                    role="button"
-                                    tabindex="0"
-                                    onclick={() => ctl.toggleGroup(row.id)}
-                                    onkeydown={(e) => {
-                                        if (e.key === "Enter") ctl.toggleGroup(row.id);
-                                    }}
-                                >
-                                    <span class="wengu-ai-caret">{@html svgIcon(open ? "iconDown" : "iconRight")}</span>
-                                    <span class="wengu-ai-status is-{row.status}"
-                                        >{@html svgIcon(STATUS_ICON[row.status])}</span
-                                    >
-                                    <span class="wengu-ai-name">{row.title}</span>
-                                    <span class="wengu-ai-meta"
-                                        >{fmt(t("aiGroupMeta"), {
-                                            n: String(row.recs.length),
-                                            time: fmtTime(row.createdAt),
-                                        })}</span
-                                    >
+                                {#snippet main(n)}
+                                    {@const g = tree.groupByKey.get(n.key)}
+                                    {#if g}
+                                        <span class="wengu-ai-status is-{g.status}"
+                                            >{@html svgIcon(STATUS_ICON[g.status])}</span
+                                        >
+                                        <span class="wengu-ai-name wengu-ai-name-group">{g.title}</span>
+                                    {:else}
+                                        {@const r = tree.recByKey.get(n.key)}
+                                        <span class="wengu-ai-status is-{r?.status}"
+                                            >{@html svgIcon(STATUS_ICON[r?.status ?? "done"])}</span
+                                        >
+                                        <span class="wengu-ai-kind">{r ? kindLabel(r.kind) : ""}</span>
+                                        <span class="wengu-ai-name">{r?.title ?? n.name}</span>
+                                    {/if}
+                                {/snippet}
+                                {#snippet trailing(n)}
+                                    {@const g = tree.groupByKey.get(n.key)}
+                                    {#if g}
+                                        <span class="wengu-ai-meta"
+                                            >{fmt(t("aiGroupMeta"), {
+                                                n: String(g.recs.length),
+                                                time: fmtTime(g.createdAt),
+                                            })}</span
+                                        >
+                                    {:else}
+                                        {@const r = tree.recByKey.get(n.key)}
+                                        {#if r}<span class="wengu-ai-meta">{fmtTime(r.createdAt)}</span>{/if}
+                                    {/if}
                                     <span class="b3-list-item__action">
                                         <button
                                             type="button"
                                             class="b3-button b3-button--text"
-                                            onclick={(e) => {
-                                                e.stopPropagation();
-                                                ctl.armRemoveGroup(row.id);
-                                            }}
-                                            >{ui.rmArmed === `g:${row.id}`
-                                                ? t("collectConfirm")
-                                                : t("aiDelete")}</button
+                                            onclick={() => (g ? ctl.armRemoveGroup(g.id) : ctl.armRemove(n.id ?? ""))}
                                         >
+                                            {ui.rmArmed === (g ? `g:${g.id}` : n.id)
+                                                ? t("collectConfirm")
+                                                : t("aiDelete")}
+                                        </button>
                                     </span>
-                                </div>
-                                {#if open}
-                                    {#each row.recs as r (r.id)}
-                                        {@render sessionRow(r, true)}
-                                    {/each}
-                                {/if}
-                            {:else}
-                                {@render sessionRow(row.rec, false)}
-                            {/if}
-                        {/each}
+                                {/snippet}
+                            </TreeList>
+                        </div>
                     {/if}
                 </div>
             </div>

@@ -54,10 +54,8 @@ export class SessionPanelCtl {
         this.ui.filter = kind;
     }
 
-    /** 组行展开/收起（展开态仅视图内存，不持久化）。 */
-    toggleGroup(gid: string): void {
-        this.ui.openGroups[gid] = !this.ui.openGroups[gid];
-    }
+    /* 组行展开/收起由共享树组件 TreeList 内部消化（openKeys 即
+       ui.openGroups，SvelteSet 原地增删即重渲），控制器不再经手。 */
 
     select(id: string): void {
         this.ui.selId = id;

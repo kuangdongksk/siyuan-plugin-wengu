@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import type { AiSessionRecord } from "../data/AiSessions";
 import type { SessionPanelCtl } from "./SessionPanelCtl";
 
@@ -39,8 +40,9 @@ export interface SessionPanelUi {
     rmArmed: string | undefined;
     /** 头部「清空」两击确认。 */
     clrArmed: boolean;
-    /** 左栏组行的展开态（组 id → 是否展开；缺省收起，不持久化）。 */
-    openGroups: Record<string, boolean>;
+    /** 左栏组行展开集合（组 id；必须 svelte/reactivity 的 SvelteSet——
+     *  TreeList 组件内 add/delete 即重渲，裸 Set 不触发更新。不持久化）。 */
+    openGroups: SvelteSet<string>;
 }
 
 /** 初始态（$state 包装在 SessionPanelApp 内完成）。 */
@@ -55,6 +57,6 @@ export function initialSessionPanelUi(): SessionPanelUi {
         sendError: "",
         rmArmed: undefined,
         clrArmed: false,
-        openGroups: {},
+        openGroups: new SvelteSet(),
     };
 }

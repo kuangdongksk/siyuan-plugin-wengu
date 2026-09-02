@@ -250,16 +250,6 @@
   padding-right: 2px;
 }
 
-/* 当前展示中的会话行（右栏即它的明细） */
-.wengu-ai-row-active {
-  background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
-
-  &:hover,
-  &:focus-visible {
-    background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
-  }
-}
-
 .wengu-ai-pane {
   flex: 1;
   min-width: 0;
@@ -277,55 +267,21 @@
   margin-bottom: 10px;
 }
 
-.wengu-ai-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* 左栏树（20260902 走共享 TreeList）：b3-list-item 行内承载状态徽标/
+   类别章/标题/时间，删除钮 hover 才显（--hide-action 兜底同旧平铺行
+   口径——常驻会把 320px 行宽吃掉，标题被截） */
+.wengu-ai-list .b3-list-item .b3-list-item__action {
+  display: none;
 }
 
-.wengu-ai-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: var(--b3-border-radius);
-  cursor: pointer;
-
-  &:hover,
-  &:focus-visible {
-    background: var(--b3-list-hover);
-
-    .b3-list-item__action {
-      display: inline-flex;
-    }
-  }
-
-  /* 删除钮按思源原生 --hide-action 同款：隐藏不占位（visibility
-     保留布局会把 320px 行宽吃掉 ~45px，标题被截成两三字） */
-  .b3-list-item__action {
-    display: none;
-  }
-
-  /* 组行（20260902 树状分组）：组名加重，子会话行缩进挂组下 */
-  &.is-group .wengu-ai-name {
-    font-weight: 500;
-  }
-
-  &.is-child {
-    padding-left: 26px;
-  }
-}
-
-/* 组行折叠箭头（iconRight 收起 / iconDown 展开，随子会话行一起缩进） */
-.wengu-ai-caret {
-  flex: none;
+.wengu-ai-list .b3-list-item:hover .b3-list-item__action,
+.wengu-ai-list .b3-list-item:focus-visible .b3-list-item__action {
   display: inline-flex;
-  color: var(--b3-theme-on-surface-light);
+}
 
-  svg {
-    width: 12px;
-    height: 12px;
-  }
+/* 组行标题加重（叶子行普通字重） */
+.wengu-ai-name-group {
+  font-weight: 500;
 }
 
 .wengu-ai-status {
