@@ -68,6 +68,14 @@ export function focusQuestion(root: HTMLElement, idx: number): void {
     if (card) chaseScrollIntoView(scroller, card, "center");
 }
 
+/** 组内切显指定题但不滚动（预览搜题过滤用——逐键过滤不能逐键跳滚动；
+ *  带滚动的定位走 focusQuestion）。idx 不属任何组时零动作。 */
+export function revealGroupQuestion(idx: number): void {
+    for (const e of groupApps.values()) {
+        if (e.focusIdx(idx)) return;
+    }
+}
+
 /** 组内题目全部判分后揭示材料译文（判分/恢复/统一揭示路径都会调；
  *  data-graded 属性仍由卡组件按状态回写 DOM，此处照旧扫描）。 */
 export function syncGroupReveal(root: HTMLElement, list: { id: string; group?: string }[]): void {

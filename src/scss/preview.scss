@@ -12,6 +12,25 @@
   flex: 1;
 }
 
+/* 搜题框：图标 + 细输入（题量与开关之间） */
+.wengu-pv-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.75;
+}
+
+.wengu-pv-search .b3-text-field {
+  width: 170px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+
+/* 搜题过滤：未命中的单卡 / 零命中材料组整体隐藏 */
+.wengu-pv-hide {
+  display: none !important;
+}
+
 /* 开关激活态：随 b3-button--outline 同款主色描边 */
 .wengu-pv-secret-on {
   border-color: var(--b3-theme-primary);
@@ -78,11 +97,6 @@
 .wengu-pv.wengu-pv-secret .wengu-card:not(.wengu-pv-open) .wengu-step-opt-right {
   border-color: var(--b3-theme-surface);
   color: var(--b3-theme-on-surface);
-}
-
-/* 复制按钮（卡头尾部，与重新生成并排） */
-.wengu-pv-copybtn {
-  margin-left: auto;
 }
 
 /* 轻提示浮层（复制结果，右下角自散） */

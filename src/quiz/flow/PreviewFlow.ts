@@ -2,9 +2,12 @@ import { typeKey } from "../render/CardParts";
 import { mdFragmentHtml, renderMathWhenVisible } from "../service/ProtyleHost";
 import { optionIsRight } from "../service/QuestionGrading";
 import { svgIcon } from "../../ui/FormHtml";
+import { qidHasBlock } from "../../bank/data/BankSets";
 import type { WenguQuestion, WenguStep } from "../../types";
 import { LETTERS, optionDisplayMd } from "../../types";
 import { esc, fmt } from "../../ui/shared";
+import { focusQuestion, revealGroupQuestion } from "./MaterialFlow";
+import { matchIndices } from "./PreviewSearch";
 
 /**
  * 预览模式（mode="preview"）：复用做题界面的题卡渲染，装载后把
@@ -12,11 +15,21 @@ import { esc, fmt } from "../../ui/shared";
  * 全展开；「模糊答案」开关给保密场景（模糊答案区+隐去正确项描色，
  * 点答案区可单卡揭示）。每卡带「快捷复制」：题干/选项/答案/解析拼
  * markdown 写入剪贴板，供粘贴到思源 AI 对话（类内置「添加到智能体
- * 对话」）。模糊开关为模块级状态，重渲染不丢。
+ * 对话」）；存量题另带「查看原块」（siyuan:// 协议定位原块）。
+ * 模糊开关为模块级状态，重渲染不丢。
+ *
+ * 搜题：工具行关键词框（匹配逻辑在 PreviewSearch），输入即过滤——
+ * 未命中单卡隐藏、材料组整组零命中才隐藏（材料共享的组是整体，
+ * 有命中时切显首个命中题）；回车在命中序列上循环定位滚动，Esc
+ * 清除还原。搜索词模块级（重渲染恢复），退出预览清零。
  */
 
 /** 模糊答案开关（保密模式）：模块级，跨重渲染保持。 */
 let secret = false;
+
+/** 搜题词与回车定位游标（词变更归零；退出预览清零）。 */
+let searchTerm = "";
+let jumpAt = 0;
 
 /** 渲染后装饰入口：加作用域类/工具行，逐卡转预览态，绑事件
  *  （onExit＝退出预览回做题，头部切换器已删，工具行承担退路）。 */
@@ -34,12 +47,18 @@ export function decoratePreview(
         if (q) decorateOneCard(card, q, t);
     }
     bindPreviewEvents(root, list, t, onExit);
+    applySearch(root, list, t); // 重渲染恢复搜题态（空词=纯回显题量，零动作）
 }
 
-/** 预览工具行：题量 + 模糊答案开关 + 退出预览。 */
+/** 预览工具行：题量 + 搜题框 + 模糊答案开关 + 退出预览。 */
 function previewToolbarHtml(t: (k: string) => string, count: number): string {
     return `<div class="wengu-pv-tools">
-  <span class="wengu-muted">${esc(fmt(t("pvSummary"), { n: String(count) }))}</span>
+  <span class="wengu-muted" data-pv-count>${esc(fmt(t("pvSummary"), { n: String(count) }))}</span>
+  <span class="wengu-pv-search" title="${esc(t("pvSearchTitle"))}">${svgIcon(
+      "iconSearch"
+  )}<input class="b3-text-field" type="text" data-act="pv-search" placeholder="${esc(
+      t("pvSearch")
+  )}" value="${esc(searchTerm)}"></span>
   <button class="b3-button b3-button--outline${secret ? " wengu-pv-secret-on" : ""}" data-act="pv-secret">${svgIcon(
       "iconEye"
   )} ${esc(t("pvBlurToggle"))}</button>
@@ -47,13 +66,20 @@ function previewToolbarHtml(t: (k: string) => string, count: number): string {
 </div>`;
 }
 
-/** 单卡装饰：卡头加复制钮 → 摘作答件 → 揭示多步/正确项 → 答案区。 */
+/** 单卡装饰：卡头加复制钮与「查看原块」钮 → 摘作答件 → 揭示多步/
+ *  正确项 → 答案区。「查看原块」只在存量题（qid=内核块 id）出——
+ *  bank-only 题（新版转换 gen- id）无块可跳，不渲染死钮。 */
 function decorateOneCard(card: HTMLElement, q: WenguQuestion, t: (k: string) => string): void {
     card.querySelector(".wengu-card-head")?.insertAdjacentHTML(
         "beforeend",
         `<button class="wengu-side-iconbtn wengu-pv-copybtn" data-act="pv-copy" title="${esc(
             t("pvCopyTitle")
-        )}">${svgIcon("iconCopy")}</button>`
+        )}">${svgIcon("iconCopy")}</button>` +
+            (qidHasBlock(q.id)
+                ? `<button class="wengu-side-iconbtn wengu-pv-originbtn" data-act="pv-origin" title="${esc(
+                      t("pvOriginTitle")
+                  )}">${svgIcon("iconLink")}</button>`
+                : "")
     );
     for (const sel of [
         "[data-act='submit']",
@@ -145,18 +171,41 @@ function answerSectionHtml(q: WenguQuestion, t: (k: string) => string): string {
     return parts.length ? `<div class="wengu-pv-ans" data-pv-ans>${parts.join("")}</div>` : "";
 }
 
-/** 工具行/复制/单卡揭示/退出的事件绑定（root 每次重渲染后重新调）。 */
+/** 工具行/搜题/复制/单卡揭示/退出的事件绑定（root 每次重渲染后重新调）。 */
 function bindPreviewEvents(
     root: HTMLElement,
     list: WenguQuestion[],
     t: (k: string) => string,
     onExit: () => void
 ): void {
-    root.querySelector("[data-act='pv-exit']")?.addEventListener("click", () => onExit());
+    root.querySelector("[data-act='pv-exit']")?.addEventListener("click", () => {
+        searchTerm = "";
+        jumpAt = 0;
+        onExit();
+    });
     root.querySelector("[data-act='pv-secret']")?.addEventListener("click", (ev) => {
         secret = !secret;
         root.classList.toggle("wengu-pv-secret", secret);
         (ev.currentTarget as HTMLElement).classList.toggle("wengu-pv-secret-on", secret);
+    });
+    // 搜题：输入即过滤（游标归零，下轮回车从首个命中起）；回车循环
+    // 定位；Esc 清词还原全量
+    const input = root.querySelector<HTMLInputElement>("[data-act='pv-search']");
+    input?.addEventListener("input", () => {
+        searchTerm = input.value;
+        jumpAt = 0;
+        applySearch(root, list, t);
+    });
+    input?.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+            ev.preventDefault();
+            jumpToMatch(root, list);
+        } else if (ev.key === "Escape") {
+            searchTerm = "";
+            jumpAt = 0;
+            input.value = "";
+            applySearch(root, list, t);
+        }
     });
     root.querySelector(".wengu-body")?.addEventListener("click", (ev) => {
         const target = ev.target as HTMLElement;
@@ -167,12 +216,53 @@ function bindPreviewEvents(
             if (q) void copyQuestionText(q, t);
             return;
         }
+        // 查看原块：siyuan:// 协议开思源并定位原块（钮只在存量题渲染）
+        const origin = target.closest<HTMLElement>("[data-act='pv-origin']");
+        if (origin) {
+            const card = origin.closest<HTMLElement>(".wengu-card");
+            const q = list.find((x) => x.id === card?.dataset.qid);
+            if (q) window.open(`siyuan://blocks/${q.id}`);
+            return;
+        }
         // 保密模式：点答案区单卡揭示
         const ans = target.closest<HTMLElement>("[data-pv-ans]");
         if (ans && root.classList.contains("wengu-pv-secret")) {
             ans.closest(".wengu-card")?.classList.add("wengu-pv-open");
         }
     });
+}
+
+/** 应用搜题过滤：未命中单卡隐藏；材料组整组零命中才隐藏，有命中
+ *  时组切显首个命中题（不滚动——逐键过滤不能逐键跳视口）；空词
+ *  还原全量并回显题量。 */
+function applySearch(root: HTMLElement, list: WenguQuestion[], t: (k: string) => string): void {
+    const term = searchTerm.trim();
+    const hits = matchIndices(list, searchTerm);
+    const hitIds = new Set(hits.map((i) => list[i].id));
+    for (const card of Array.from(root.querySelectorAll<HTMLElement>(".wengu-card-list > .wengu-card"))) {
+        if (card.dataset.idx === undefined) continue; // 渲染失败占位卡不参与过滤
+        card.classList.toggle("wengu-pv-hide", term !== "" && !hitIds.has(card.dataset.qid ?? ""));
+    }
+    for (const unit of Array.from(root.querySelectorAll<HTMLElement>(".wengu-gunit"))) {
+        const firstAt = term === "" ? -1 : list.findIndex((q) => q.group === unit.dataset.mid && hitIds.has(q.id));
+        unit.classList.toggle("wengu-pv-hide", term !== "" && firstAt < 0);
+        if (firstAt >= 0) revealGroupQuestion(firstAt);
+    }
+    const countEl = root.querySelector<HTMLElement>("[data-pv-count]");
+    if (countEl) {
+        countEl.textContent = term
+            ? fmt(t("pvSearchHit"), { n: String(hits.length), m: String(list.length) })
+            : fmt(t("pvSummary"), { n: String(list.length) });
+    }
+}
+
+/** 回车定位：在命中序列上循环前进（组题经 focusQuestion 切显并滚到
+ *  组单元，散题滚到卡）。词为空或零命中时零动作。 */
+function jumpToMatch(root: HTMLElement, list: WenguQuestion[]): void {
+    const hits = matchIndices(list, searchTerm);
+    if (hits.length === 0) return;
+    focusQuestion(root, hits[jumpAt % hits.length]);
+    jumpAt += 1;
 }
 
 /** 题目 → markdown 文本（复制给 AI 对话用；题干/选项/答案/解析）。 */

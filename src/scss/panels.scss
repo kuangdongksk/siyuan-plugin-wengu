@@ -103,6 +103,15 @@
   padding-right: 0;
 }
 
+/* 设置弹窗行宽：原生 .config__tab-container .b3-label 自带 margin:0 16px，
+   wengu-formrow 的 width:100% 不含 margin → 每行右移 16px 且右缘溢出
+   16px（开关/下拉戳出 config-items 圆角面，20260903 用户截图）。行在
+   .config-items 里是块级 flex，width:auto 自然撑满并扣除 margin，
+   弹窗内收回 100%；工作区面板没有 margin 不受影响。 */
+.config__panel.wengu-setting .wengu-formrow {
+  width: auto;
+}
+
 /* 结果/反馈行内联状态图标（statusIcon 前缀，颜色随容器 right/wrong/partial） */
 .wengu-result svg,
 .wengu-step-result svg,
