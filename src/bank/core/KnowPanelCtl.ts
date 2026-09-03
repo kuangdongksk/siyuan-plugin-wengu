@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
@@ -209,7 +210,7 @@ export class KnowPanelCtl {
                             // 整链原为 unhandled rejection（面板连重载都不发生）
                             notifyError({
                                 key: "notifyAutoLinkFail",
-                                vars: { msg: String((e as Error)?.message ?? e) },
+                                vars: { msg: errText(e) },
                             });
                             void this.load();
                         });
@@ -258,11 +259,8 @@ export class KnowPanelCtl {
             .catch((e: unknown): void => {
                 if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
                 this.ui.outlining = undefined;
-                this.ui.outlineErr = ctrl.signal.aborted
-                    ? undefined
-                    : `${this.v.t("knowOutlineFail")}${String((e as Error)?.message ?? e)}`;
-                if (!ctrl.signal.aborted)
-                    notifyError({ key: "notifyOutlineFail", vars: { msg: String((e as Error)?.message ?? e) } });
+                this.ui.outlineErr = ctrl.signal.aborted ? undefined : `${this.v.t("knowOutlineFail")}${errText(e)}`;
+                if (!ctrl.signal.aborted) notifyError({ key: "notifyOutlineFail", vars: { msg: errText(e) } });
             });
     }
 

@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { AI_TIMEOUT } from "../timeouts";
 import { agentChatContinued } from "../client";
 import { aiSessions, type AiSessionRecord } from "../data/AiSessions";
@@ -86,14 +87,14 @@ export class SessionPanelCtl {
             const reply = await agentChatContinued(rec.turns, question, rec.model, AI_TIMEOUT.chat);
             s.appendTurns(rec.id, { role: "ai", text: reply });
         } catch (e) {
-            if (this.alive && this.ui.selId === rec.id) this.ui.sendError = String((e as Error)?.message ?? e);
+            if (this.alive && this.ui.selId === rec.id) this.ui.sendError = errText(e);
         } finally {
             if (this.alive) this.ui.sending = false;
         }
     }
 
-    /* ── 「删除」两击确认（3s 复位，与 bank 面板同口径）；组行删除用
-        `g:{组id}` 前缀复用同一确认位，二次点击删整组 ── */
+    /* ── 「删除」两击确认（3s 复位，与 bank 面板同口径）；文档分支行
+        删除复用同一确认位（key=分支 key），二次点击按成员 id 精确删 ── */
 
     armRemove(id: string): void {
         if (this.ui.rmArmed === id) {
@@ -104,11 +105,12 @@ export class SessionPanelCtl {
         this.armWith(id);
     }
 
-    armRemoveGroup(gid: string): void {
-        const key = `g:${gid}`;
+    /** 文档分支行删除（20260903 树改版：分支成员=树算出的记录集合，
+     *  按 id 精确回收；跨次运行同文档合并后删除对象就是这份可见集合）。 */
+    armRemoveIds(key: string, ids: string[]): void {
         if (this.ui.rmArmed === key) {
             this.disarmRemove();
-            aiSessions()?.removeGroup(gid);
+            aiSessions()?.removeIds(ids);
             return;
         }
         this.armWith(key);

@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { flushSync } from "svelte";
 import { appealMethodStep, nextRealtimeStep } from "../service/AiJudge";
 import type { RealtimeHistoryItem } from "../service/AiJudge";
@@ -136,7 +137,7 @@ export async function appealStep(host: AnswerHost, q: WenguQuestion, ctl: CardCt
         if (ctl.graded) await refreshFinishedAppeal(host, q, ctl);
     } catch (e) {
         su.appeal = "idle";
-        setStepResult(su, esc(`${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`), "wengu-muted");
+        setStepResult(su, esc(`${host.t("aiJudgeFailed")}${errText(e)}`), "wengu-muted");
     }
 }
 
@@ -248,7 +249,7 @@ async function requestRealtimeStep(host: AnswerHost, q: WenguQuestion, ctl: Card
         stepEl(ctl, k)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (e) {
         ctl.hideNote();
-        ctl.ui.rtError = String((e as Error)?.message ?? e);
+        ctl.ui.rtError = errText(e);
     }
 }
 

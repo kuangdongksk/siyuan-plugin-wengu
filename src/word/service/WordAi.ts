@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { agentChatOnce } from "../../ai/client";
 import { defaultAgentModelId } from "../../ai/models";
 import { AI_TIMEOUT } from "../../ai/timeouts";
@@ -208,7 +209,7 @@ export class WordAiRunner {
                 n > 0 ? fmt(this.t("wordAiDone"), { n: String(n) }) : this.t("wordAiFailed") + this.t("wordAiBadReply");
             onApplied();
         } catch (e) {
-            this.msg = "!" + this.t("wordAiFailed") + String((e as Error)?.message ?? e).slice(0, 120);
+            this.msg = "!" + this.t("wordAiFailed") + errText(e).slice(0, 120);
         }
         this.running = false;
         syncHook();
@@ -227,7 +228,7 @@ export class WordAiRunner {
             await analyzeAll(inputs, p, save);
             onDirty();
         } catch (e) {
-            this.msg = "!" + this.t("wordAiFailed") + String((e as Error)?.message ?? e).slice(0, 120);
+            this.msg = "!" + this.t("wordAiFailed") + errText(e).slice(0, 120);
         }
     }
 }

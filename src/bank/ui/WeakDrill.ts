@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
 import { genIntoCollection } from "../gen/GenCore";
@@ -125,6 +126,6 @@ async function runDrill(
         deps.onDone();
         window.setTimeout(() => dialog.destroy(), 800);
     } catch (e) {
-        show(`${t("convertAiFailed")}${String((e as Error)?.message ?? e)}`, "err");
+        show(`${t("convertAiFailed")}${errText(e)}`, "err");
     }
 }

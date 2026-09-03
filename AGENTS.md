@@ -39,14 +39,18 @@
       （components/SessionPanelApp.svelte 四件套，挂载编排
       `SessionPanel.ts`；**两栏式**（20260901 改版）：左栏=会话清单
       常驻（类别过滤/状态徽标/两击删除/选中高亮），点行右栏出完整
-      轮次明细+继续追问输入条；**树状分组**（20260902）：同组记录在
-      左栏归并成可展开组行，树渲染走共享组件 `ui/TreeList.svelte`
-      （与知识面板/侧栏树同源；树化纯函数 `core/SessionTree.ts`——
-      孤儿组退平铺、类别过滤组内透镜式生效、状态聚合
+      轮次明细+继续追问输入条；**树状分组**（20260902 引入，
+      20260903 改版=**种类优先两级树**）：顶层一类一棵树（转换/检测/
+      判题…），类内按主题=组标题/标题第一个「 · 」后的部分（转换是
+      文档名——高等数学、线代；跨次运行同文档合并）出第二级，调用
+      行挂底层；种类或主题只有 1 条时不设空层直接上提；树渲染走共享
+      组件 `ui/TreeList.svelte`（与知识面板/侧栏树同源；树化纯函数
+      `core/SessionTree.ts`——类别过滤=记录透镜、状态聚合
       running>error>done；行内徽标/条数走 main/trailing 片段，展开
-      集合 ui.openGroups=SvelteSet），组行两击删整组（removeGroup）；
-      已接组：整卷转换（检测/路由/生成）、增量补生成、匹配/
-      批量关联/生成标签逐题路由、出题自检；判题等单发动作不分组）——
+      集合 ui.openGroups=SvelteSet）；文档分支行两击删该文档全部记录
+      （removeIds 按树算出的成员 id 精确删），种类级不配删除；
+      登记数据仍按动作组落（track.group，20260902 的组机制保留在
+      数据层，渲染不再按组）——
       判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
@@ -357,6 +361,18 @@ updated="…"}A. …`）、条目自身 IAL 缩进独立成行、块引用子块
   **3.8.1 路由迁移**：端点变为 `POST /api/file/putFile`（旧 `/api/putFile`
   返回 200+空 body 假成功），且 path 必须工作区相对（带前导 `/` 会拼出
   `…\C::` 非法路径报 mkdir 错）（20260825 真机实测）。
+- **saveData 拒绝路径抛裸对象 + 生命周期闸（3.8.2 前端源码定论，
+  20260903）**：`Plugin.saveData/loadData/removeData` 失败时
+  `Promise.reject({code,msg,data})`（非 Error）——`String(e)` 直出
+  「[object Object]」，展示用错误一律走 `ui/shared errText`。拒绝只有
+  三类客户端来源（`fetchPost` 回调形态内核出错也 resolve，内核侧失败
+  不会 reject）：① code 410「Plugin lifecycle has ended」——**3.8.2
+  新增生命周期闸**，实例被 dispose（petal 重载/页签销毁与 2s 防抖
+  markDirty 的竞态）后永久拒绝，防抖重排撞上必须停手
+  （`isLifecycleGone`），否则僵尸循环每冷却期弹一次错（20260903
+  题库落盘失败真机踩坑，且当时正常实例落库无恙——toast 全来自旧
+  实例残骸）；② code 403 全局只读/发布模式（用户可解，重试合法）；
+  ③ code 400 数据 JSON 序列化失败（循环引用等）。
 - 内置智能体 `/api/ai/agent/chat`（SSE）：**并发锁按 sessionID 键控
   （`runningSessions map[string]*runningSession`，非全局锁），不同
   sessionID 可并发、且每次可指定 `model`——即「并发 + 每场景指定模型」

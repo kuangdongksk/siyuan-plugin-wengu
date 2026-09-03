@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { judgeBrief } from "../service/AiJudge";
 import { isObjective } from "../render/CardHtml";
 import type { WenguSession } from "../service/HistoryStore";
@@ -165,7 +166,7 @@ async function judgeBriefAnswer(
     } catch (e) {
         // AI 失败不再静默丢账（该题不进会话、收卷统计少一题）——提示 +
         // 露自评钮补账（20260828 二轮审查）
-        const msg = `${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`;
+        const msg = `${host.t("aiJudgeFailed")}${errText(e)}`;
         ctl.setNote(msg);
         ctl.showSelf();
         if (batch) {

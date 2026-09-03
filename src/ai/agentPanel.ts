@@ -1,3 +1,4 @@
+import { errText } from "./../ui/shared";
 import { agentChatOnce } from "./client";
 import { AI_TIMEOUT } from "./timeouts";
 
@@ -74,7 +75,7 @@ export async function runAgentTextOrPanel(opts: {
         const text = await agentChatOnce(opts.prompt, opts.modelId, AI_TIMEOUT.quick, undefined, { kind: "ask" });
         out.textContent = text.trim() || opts.emptyText;
     } catch (e) {
-        out.textContent = `${opts.failPrefix}${String((e as Error)?.message ?? e)}`;
+        out.textContent = `${opts.failPrefix}${errText(e)}`;
     } finally {
         btn.disabled = false;
     }

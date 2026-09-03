@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import type { QuizView } from "../index";
 import { destroyStatsPanel } from "../../stats";
 import { renderReviewFor, detachReviewApp, reviewHeadSummary } from "../../review";
@@ -38,9 +39,7 @@ export function renderListFor(v: QuizView): void {
     } catch (e) {
         v.protyleHost.destroyAll(v.el);
         v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-head"></div>
-    <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(
-        String((e as Error)?.message ?? e)
-    )}</div>`;
+    <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(errText(e))}</div>`;
         mountRailFor(v); // 错误兜底 rail 一并挂载（旧路径渲染了 rail 却漏绑事件，顺修）
     }
 }

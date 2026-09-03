@@ -1,8 +1,36 @@
 /**
  * 视图层小工具（全局唯一实现，docs/design-review.md P0-1）：
- * HTML 转义 / i18n 模板 / 秒数格式化 / 分钟规整。
+ * HTML 转义 / i18n 模板 / 秒数格式化 / 分钟规整 / 错误文案化。
  * QuizView、StartPanel、SettingsDialog、转换弹窗共用，不要再各自复制。
  */
+
+/** 任意抛出值 → 人读文案：思源前端大量失败路径 reject 裸对象
+ *  `{code,msg,data}` 而非 Error（3.8.2 起 saveData 的生命周期/只读闸、
+ *  putFile 序列化失败皆如此），`String(e)` 直出「[object Object]」——
+ *  展示给用户的错误一律经这里（20260903）。 */
+export function errText(e: unknown): string {
+    if (typeof e === "string") return e;
+    if (e instanceof Error) return e.message || e.name;
+    if (e && typeof e === "object") {
+        const o = e as { code?: unknown; msg?: unknown; message?: unknown };
+        const text = typeof o.msg === "string" && o.msg ? o.msg : typeof o.message === "string" ? o.message : "";
+        if (text) return typeof o.code === "number" && o.code !== 0 ? `${text} [code ${o.code}]` : text;
+        try {
+            return JSON.stringify(o) ?? String(o);
+        } catch (_) {
+            return String(o); // 循环引用等不可序列化对象兜底
+        }
+    }
+    return String(e);
+}
+
+/** 是否「运行环境已终止」类永久失败：3.8.2 saveData 在插件实例被
+ *  dispose 后永久拒绝 `{code:410,"Plugin lifecycle has ended"}`——
+ *  重试循环（防抖落盘重排等）撞上它必须停手，否则成僵尸循环。 */
+export function isLifecycleGone(e: unknown): boolean {
+    if (e && typeof e === "object" && (e as { code?: unknown }).code === 410) return true;
+    return /lifecycle/i.test(errText(e));
+}
 
 /** HTML 转义（文本与属性通用）。 */
 export function esc(s: string): string {

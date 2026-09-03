@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { detectQuestions, questionPreview } from "./ConvertDetect";
 import type { QuestionPreview } from "./ConvertDetect";
 import { buildPrompt, extractBlockId, getDocInfo } from "./ConvertService";
@@ -353,7 +354,7 @@ export async function convertDocBatched(
             } catch (e) {
                 if (opts.signal?.aborted) return;
                 if (!firstError) {
-                    firstError = String((e as Error)?.message ?? e);
+                    firstError = errText(e);
                     internal.abort();
                 }
                 return;

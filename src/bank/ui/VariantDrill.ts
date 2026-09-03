@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
 import { generateVariantOf } from "../gen/GenQuestion";
@@ -142,7 +143,7 @@ async function runVariantDrill(
             deps.onSelect(col.id);
         }, 600);
     } catch (e) {
-        show(`${t("convertAiFailed")}${String((e as Error)?.message ?? e)}`, "err");
+        show(`${t("convertAiFailed")}${errText(e)}`, "err");
     }
     done();
 }

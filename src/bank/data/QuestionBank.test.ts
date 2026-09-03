@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
 import { recordsByKeys } from "./BankRegen";
 
@@ -100,5 +100,49 @@ describe("版本闩（version>1 = 更新版插件写的库，停写保护）", (
         await bank.createCollection("测试", [], "manual");
         await bank.flush();
         expect(saved).toBe(1);
+    });
+});
+
+describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排，防僵尸循环）", () => {
+    it("saveData 拒 410 生命周期对象：只试一次即停，不再无限重排", async () => {
+        vi.useFakeTimers();
+        try {
+            let calls = 0;
+            const bank = new QuestionBank(
+                async () => undefined,
+                async () => {
+                    calls++;
+                    throw { code: 410, msg: "Plugin lifecycle has ended", data: null };
+                }
+            );
+            await bank.createCollection("测试", [], "manual"); // markDirty 排 2s 防抖
+            await vi.advanceTimersByTimeAsync(2500);
+            expect(calls).toBe(1); // 首次失败后终止类不再重排
+            await vi.advanceTimersByTimeAsync(10000);
+            expect(calls).toBe(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("普通失败（磁盘满等）保留 2s 重排——重试到成功为止", async () => {
+        vi.useFakeTimers();
+        try {
+            let calls = 0;
+            const bank = new QuestionBank(
+                async () => undefined,
+                async () => {
+                    calls++;
+                    if (calls === 1) throw new Error("disk full");
+                }
+            );
+            await bank.createCollection("测试", [], "manual");
+            await vi.advanceTimersByTimeAsync(2500);
+            expect(calls).toBe(1); // 首败
+            await vi.advanceTimersByTimeAsync(2500);
+            expect(calls).toBe(2); // 重排成功
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

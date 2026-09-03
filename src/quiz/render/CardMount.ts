@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
 import QuizCardApp from "../components/QuizCardApp.svelte";
 import GroupUnitApp from "../components/GroupUnitApp.svelte";
@@ -64,7 +65,5 @@ export function mountDrillUnit(
 
 /** 占位卡：单卡渲染失败的兜底（与旧 tryCard 输出同构）。 */
 function errorCardHtml(e: unknown): string {
-    return `<div class="wengu-card"><div class="wengu-status wengu-status-err">${esc(
-        String((e as Error)?.message ?? e)
-    )}</div></div>`;
+    return `<div class="wengu-card"><div class="wengu-status wengu-status-err">${esc(errText(e))}</div></div>`;
 }

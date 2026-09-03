@@ -1,3 +1,4 @@
+import { errText } from "./../ui/shared";
 import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
 import { resolveModelId, listAiModels } from "./models";
@@ -236,7 +237,7 @@ export async function agentChatOnce(
         if (sessions && track) sessions.succeed(sid, reply);
         return reply;
     } catch (e) {
-        if (sessions && track) sessions.fail(sid, String((e as Error)?.message ?? e));
+        if (sessions && track) sessions.fail(sid, errText(e));
         throw e;
     } finally {
         removeSession(sid);

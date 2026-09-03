@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { convertDocBatched } from "./ConvertBatch";
 import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "./ConvertBatch";
 import { SetWriter } from "./SetWriter";
@@ -197,7 +198,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
             // 意外异常同样必须清 active，否则单例卡死（见文件头注释）
             active = undefined;
             ev.setConverting(false);
-            const msg = String((e as Error)?.message ?? e);
+            const msg = errText(e);
             ev.onStatus(esc(msg), "err", true); // 终态：状态条不再带终止钮/replay
             notifyError({ key: "notifyConvertFail", vars: { msg } }); // 用户可能已切走页签
             notify();
@@ -284,7 +285,7 @@ export function startExclusiveConvertRun(
     notify();
     void run(controller.signal)
         .catch((e) => {
-            ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true);
+            ev.onStatus(esc(errText(e)), "err", true);
         })
         .finally(() => {
             active = undefined;
@@ -314,7 +315,7 @@ export function keepConvertRun(): Promise<void> {
         });
         await finishRun(a.ev, a.r);
     })()
-        .catch((e) => a.ev.onStatus(esc(String((e as Error)?.message ?? e)), "err", true))
+        .catch((e) => a.ev.onStatus(esc(errText(e)), "err", true))
         .then(() => notify());
 }
 

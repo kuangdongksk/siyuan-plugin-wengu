@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { formOption, svgIcon } from "../../ui/FormHtml";
 import { genIntoCollection } from "../gen/GenCore";
@@ -312,7 +313,7 @@ async function runCollectGen(
             deps.onSelect(row.id);
         }, 800);
     } catch (e) {
-        show(`${t("convertAiFailed")}${String((e as Error)?.message ?? e)}`, "err");
+        show(`${t("convertAiFailed")}${errText(e)}`, "err");
     }
     done();
 }

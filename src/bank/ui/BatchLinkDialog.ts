@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { agentChatOnce, newAiGroupId } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -185,7 +186,7 @@ async function runBatch(
         if (!ctrl.signal.aborted) window.setTimeout(() => dialog.destroy(), 800);
         deps.onDone?.();
     } catch (e) {
-        show(String((e as Error)?.message ?? e), "err");
+        show(errText(e), "err");
     } finally {
         okBtn.textContent = t("matchStart");
         onEnd();

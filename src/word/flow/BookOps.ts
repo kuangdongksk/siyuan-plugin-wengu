@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { parseBookFile, wordLib } from "../service/WordLib";
 import type { WordView } from "../core/WordView";
 
@@ -47,7 +48,7 @@ export async function importBookFor(v: WordView, file: File, input: HTMLInputEle
             await switchBookFor(v, meta.id);
         }
     } catch (e) {
-        v.ui.startMsg = t("wordBookImportFailed") + String((e as Error)?.message ?? e).slice(0, 80);
+        v.ui.startMsg = t("wordBookImportFailed") + errText(e).slice(0, 80);
     }
     input.value = "";
 }

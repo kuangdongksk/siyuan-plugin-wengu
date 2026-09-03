@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { agentChatOnce } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -176,7 +177,7 @@ async function runRegen(
             deps.onDone();
         }, 600);
     } catch (e) {
-        show(String((e as Error)?.message ?? e), "err");
+        show(errText(e), "err");
         if (okBtn) okBtn.disabled = false;
     }
 }

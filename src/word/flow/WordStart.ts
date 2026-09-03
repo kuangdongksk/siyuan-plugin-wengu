@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { runWordImport } from "../service/WordImport";
 import { GROUP_SIZES } from "../core/WordStore";
 import type { WenguWordProgress } from "../core/WordStore";
@@ -65,7 +66,7 @@ export class WordStartCtl {
                               (r.badSample.length > 0 ? `（${r.badSample.join(", ")}）` : "")
                             : "");
         } catch (e) {
-            this.ui.startMsg = this.t("wordImportFailed") + String((e as Error)?.message ?? e).slice(0, 80);
+            this.ui.startMsg = this.t("wordImportFailed") + errText(e).slice(0, 80);
         }
         input.value = "";
     }

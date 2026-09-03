@@ -3,6 +3,7 @@ import type { ParsedQuestion } from "./BankParse";
 import type { BankKnowTree } from "./KnowTrees";
 import { knKey, pickStandardName } from "./KnowledgeNorm";
 import { notifyError } from "../../ui/Notify";
+import { errText, isLifecycleGone } from "../../ui/shared";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -259,10 +260,14 @@ export class QuestionBank {
         } catch (e) {
             // 尽力而为：写失败保留脏标记并重排防抖——原只保留标记不清
             // 定时器，得等下一次 markDirty 才会再试（20260829 审查）；
-            // 不再静默：落盘失败走思源通知（Notify 同文案 60s 冷却）
-            notifyError({ key: "notifySaveFailBank", vars: { msg: String((e as Error)?.message ?? e) } });
+            // 不再静默：落盘失败走思源通知（Notify 同文案 60s 冷却）。
+            // 但 3.8.2 起实例被 dispose（petal 重载/页签销毁竞态）后
+            // saveData 永久拒绝 410：重排只会造出僵尸循环（每冷却期弹
+            // 一次错）——终止类失败保留脏标记即止，不再重排。
+            notifyError({ key: "notifySaveFailBank", vars: { msg: errText(e) } });
             this.dirty = true;
-            this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
+            if (!isLifecycleGone(e))
+                this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
         }
     }
 

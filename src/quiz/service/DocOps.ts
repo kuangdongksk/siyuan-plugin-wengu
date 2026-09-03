@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
 import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/ConvertRun";
 import { extractBlockId, getDocInfo } from "../../convert/service/ConvertService";
@@ -157,7 +158,7 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
     try {
         chunks = await sourceChunksOf(srcId);
     } catch (e) {
-        showStatus(v.el, String((e as Error)?.message ?? e), "err");
+        showStatus(v.el, errText(e), "err");
         return;
     }
     if (chunks.length === 0) {
@@ -203,7 +204,7 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                         ),
                 });
             } catch (e) {
-                failed = String((e as Error)?.message ?? e);
+                failed = errText(e);
             }
             // 题库写入由 convertIncremental 逐块 flush；中止/失败已入库
             // 部分自带指纹，重跑分类即跳过（自愈）

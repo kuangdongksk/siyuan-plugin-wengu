@@ -19,6 +19,7 @@
  * 树状呈现「动作 → 多个会话」。
  */
 
+import { errText } from "./../../ui/shared";
 import { notifyError } from "../../ui/Notify";
 
 /** 会话轮次：user=发给 AI 的完整 prompt，ai=AI 回答全文（即「产出」）。 */
@@ -256,10 +257,13 @@ export class AiSessionStore {
         this.notify();
     }
 
-    /** 删除一个动作组的全部记录（面板组行删除；含在途 running）。 */
-    removeGroup(groupId: string): void {
+    /** 删除一批记录（面板分支行删除：树算出的可见成员按 id 精确回收；
+     *  20260903 树改种类/文档两级后，删除对象=文档分支的成员集合）。 */
+    removeIds(ids: string[]): void {
+        if (ids.length === 0) return;
+        const dead = new Set(ids);
         const before = this.items.length;
-        this.items = this.items.filter((r) => r.group !== groupId);
+        this.items = this.items.filter((r) => !dead.has(r.id));
         if (this.items.length === before) return;
         this.schedule();
         this.notify();
@@ -325,7 +329,7 @@ export class AiSessionStore {
         // 链面吞错保后续可排（内存为准），但不再静默：落盘失败走思源
         // 通知（Notify 错误冷却防重试风暴）
         this.chain = run.then(noop, (e: unknown): void => {
-            notifyError({ key: "notifySaveFailAi", vars: { msg: String((e as Error)?.message ?? e) } });
+            notifyError({ key: "notifySaveFailAi", vars: { msg: errText(e) } });
         });
     }
 }

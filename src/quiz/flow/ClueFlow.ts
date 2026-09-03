@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import { judgeClue } from "../service/AiJudge";
 import { renderClueRow } from "./MaterialFlow";
 import type { WenguSession } from "../service/HistoryStore";
@@ -89,7 +90,7 @@ async function judgeClueNow(host: ClueHost, scope: HTMLElement): Promise<void> {
         }
     } catch (e) {
         row?.querySelector("[data-clue-result]")?.remove();
-        note(host, `${host.t("aiJudgeFailed")}${String((e as Error)?.message ?? e)}`);
+        note(host, `${host.t("aiJudgeFailed")}${errText(e)}`);
     }
 }
 

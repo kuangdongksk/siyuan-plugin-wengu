@@ -1,3 +1,4 @@
+import { errText } from "./../../ui/shared";
 import type { ConvertProgressRecord } from "../../convert/service/ConvertBatch";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import { ensureSets, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
@@ -135,7 +136,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         r.rounds = r.docId && deps.history ? await deps.history.docSessions(r.docId) : [];
     } catch (e) {
         r.fullList = [];
-        r.loadError = String((e as Error)?.message ?? e);
+        r.loadError = errText(e);
     }
     return r;
 }

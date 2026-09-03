@@ -1,3 +1,4 @@
+import { errText } from "./../ui/shared";
 import type { App } from "siyuan";
 import type { AnswerHost } from "./flow/AnswerFlow";
 import { revealAll } from "./flow/AnswerFlow";
@@ -397,7 +398,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
             await this.bank?.preload();
         } catch (e) {
             this.loading = false;
-            this.loadError = String((e as Error)?.message ?? e);
+            this.loadError = errText(e);
             this.renderList();
             return;
         }
@@ -453,7 +454,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
                 .then((): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide()))
                 .catch((e: unknown): void => {
                     // 原为 unhandled rejection：对账失败无人知
-                    notifyError({ key: "notifyMigrateFail", vars: { msg: String((e as Error)?.message ?? e) } });
+                    notifyError({ key: "notifyMigrateFail", vars: { msg: errText(e) } });
                 });
         }
         if (this.reopenStatsTab) {
