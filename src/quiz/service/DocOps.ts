@@ -2,9 +2,9 @@ import { errText } from "./../../ui/shared";
 import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
 import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/ConvertRun";
 import { extractBlockId, getDocInfo } from "../../convert/service/ConvertService";
-import { classifyChunks, type SrcGroup } from "../../convert/service/SrcChunk";
+import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/SrcChunk";
 import { convertIncremental, sourceChunksOf } from "../../convert/service/ConvertIncrement";
-import { keepOldChoice, openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
+import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { readRecordSrcGroups } from "../../bank/data/BankSets";
 import { esc, fmt } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
@@ -95,14 +95,17 @@ export function reimportCfg(
 }
 
 /**
- * 「重新导入」＝检测断点续跑，而非无条件全量重转：
- * 0. **增量重转换**（增量哈希二期）：整卷完成态（无续跑记录）且题集
- *    记录带 src-hash 指纹 → 不删旧重转——重新结构切块比对三态分类，
- *    相同跳过（保原题与刷题统计）、新增补生成、变更/消失逐块选（省费
- *    模式 convertKeepOld=全保留只补新增）。中止后已入库记录自带指纹，
- *    重跑分类即跳过（自愈，无续跑记录负担）。
- * 1. 配对源讲义查得到续跑记录（prefs convertProgress）→ 接着断点续写
- *    同一题集（已生成部分是题库真实记录，随取随用，无读回步骤）。
+ * 「重新导入」＝哈希检测优先，而非无条件全量重转：
+ * 0. **增量重转换**（增量哈希二期）：题集记录带 src-hash 指纹即走——
+ *    重新结构切块比对三态分类，**先弹检测摘要/逐块清单让用户过目**
+ *    （哪些要补、哪些保留；省费模式 convertKeepOld 只出摘要），相同块
+ *    跳过（保原题与刷题统计）、新增补生成、变更/消失逐块选。中止后
+ *    已入库记录自带指纹，重跑分类即跳过（自愈，无续跑记录负担）。
+ *    该分支优先于续跑记录——指纹自愈已取代偏移断点，陈旧进度记录
+ *    留着会让「继续生成」重复生成已补块（清掉）。
+ * 1. 指纹缺失（存量旧题集）且配对源讲义查得到续跑记录（prefs
+ *    convertProgress）→ 接着断点续写同一题集（已生成部分是题库真实
+ *    记录，随取随用，无读回步骤）。
  * 2. 完全没有续跑记录 → 清旧题集数据后从头重转（新题集）。
  */
 export function reimportDocFrom(v: QuizView, setId: string): void {
@@ -119,13 +122,12 @@ export function reimportDocFrom(v: QuizView, setId: string): void {
             return;
         }
         const rec = v.convertAccess.convertProgressOf(srcId);
-        // 增量分支（二期）：完成态 + 带指纹的题集走三态分类，不删旧题集
-        if (!rec) {
-            const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
-            if (groups.length > 0) {
-                await runIncrementalReimport(v, setId, srcId, groups);
-                return;
-            }
+        const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
+        // 增量分支（二期）：带指纹的题集一律按哈希检测续做（优先于断点）
+        if (groups.length > 0) {
+            if (rec?.setId === setId) v.convertAccess.saveConvertProgress(srcId, undefined);
+            await runIncrementalReimport(v, setId, srcId, groups);
+            return;
         }
         // 续跑：保留同一题集接着写；全量重转：先清旧题集侧数据
         const resume = reimportResume(rec);
@@ -146,9 +148,11 @@ export function reimportDocFrom(v: QuizView, setId: string): void {
 
 /**
  * 增量重转换分支（二期）：源文档重新结构切块 → 与题集旧分组三态分类。
- * 全部相同=零成本收口；有变更时省费模式（settings.convertKeepOld）
- * 直通「只补新增」，否则弹窗逐块选。执行占独占运行槽（页内转换条
- * 呈现进度、可停止），产物直写题库（SetWriter）+ 视图重载。
+ * 全部相同=零成本收口；有变更时弹**检测弹窗**（省费模式 convertKeepOld
+ * 只出摘要不出逐块清单，选择口径同全保留），检测结果必须先过目再执行。
+ * 执行占独占运行槽（页内转换条呈现进度、可停止），产物直写题库
+ * （SetWriter）+ 视图重载；终态点明零产物块数（无可转内容的块无指纹，
+ * 每次重导都会重算为新增，须让用户看到这笔账）。
  */
 async function runIncrementalReimport(v: QuizView, setId: string, srcId: string, groups: SrcGroup[]): Promise<void> {
     const t = v.t;
@@ -156,7 +160,9 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
     if (!bank) return;
     let chunks;
     try {
-        chunks = await sourceChunksOf(srcId);
+        // 纯标题块零内容零产物：前置滤掉，不进分类与弹窗（无指纹会永远
+        // 重算为「新增」，摘要数字失真）
+        chunks = (await sourceChunksOf(srcId)).filter((c) => !isHeadingOnlyChunk(c.text));
     } catch (e) {
         showStatus(v.el, errText(e), "err");
         return;
@@ -209,6 +215,7 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
             // 题库写入由 convertIncremental 逐块 flush；中止/失败已入库
             // 部分自带指纹，重跑分类即跳过（自愈）
             if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
+            const tail = res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "";
             ev.onStatus(
                 esc(
                     fmt(res!.aborted ? t("incrAborted") : t("incrDone"), {
@@ -216,18 +223,27 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                         d: String(res!.deleted),
                         s: String(res!.staled),
                     })
-                ),
+                ) + tail,
                 res!.aborted ? "muted" : "ok",
                 true
             );
             if (!res!.aborted)
                 notifyInfo(
-                    fmt(t("incrDone"), { a: String(res!.added), d: String(res!.deleted), s: String(res!.staled) })
+                    fmt(t("incrDone"), {
+                        a: String(res!.added),
+                        d: String(res!.deleted),
+                        s: String(res!.staled),
+                    }) + (res!.empty > 0 ? ` ${fmt(t("incrEmpty"), { n: String(res!.empty) })}` : "")
                 );
             await v.reloadView();
         });
         if (!started) showStatus(v.el, t("convertBusy"), "err");
     };
-    if (v.settingsOf()?.convertKeepOld) start(keepOldChoice(plan));
-    else openIncrementDialog({ t, plan, onConfirm: start });
+    openIncrementDialog({
+        t,
+        plan,
+        total: chunks.length,
+        compact: v.settingsOf()?.convertKeepOld === true,
+        onConfirm: start,
+    });
 }

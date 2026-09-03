@@ -69,83 +69,92 @@
       无缩进+坏一题不坏一批；四生成入口共用：转换/增量/题库出题
       （GenQuestion）/单题重生成（RegenDialog）；`extractQuestions`
       修补层已退役；**纯标题块跳过** `isHeadingOnlyChunk`（章标题直挂
-      子标题的零内容段不发 AI）；**增量重转换**（20260831 增量哈希
+      子标题的零内容段不发 AI）；**例题筛选带例外**（20260903 真机
+      踩坑：题解书「答案」节独立成块被整批误跳——prompt 加例外：
+      习题册答案/解答区是练习内容照转，题干由解答还原）；**增量重转换**（20260831 增量哈希
       二期）：`SrcChunk.ts` 结构切块（标题链键 H:章/节 + questionHash
-      指纹，替代空行偏移切块）+ 两阶段三态分类（全局指纹匹配→键配对：
-      相同/新增/变更/消失），生成时 src-key/src-hash 随 BankRecord
-      字段落库（20260903 起从容器 IAL 迁入记录，键格式/算法冻结不变），
-      重新导入入口（DocOps.runIncrementalReimport）按 `set.srcId` 门控、
-      对带指纹题集走增量——IncrementDialog 逐块选、ConvertIncrement
-      纯题库执行（删旧/标 stale/串行补生成追加到既有题集，中止自愈
-      无需续跑记录）、设置 convertKeepOld=省费模式；方案与分期见
-      docs/incremental-hash-plan.md）、`src/review/`（错题复习）、
-      `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器
-      在 `WordView.ts`，**UI 是 Svelte 组件**（`word/component/`，2026-08-26
-      起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
-      Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess；
-      词库数据在 `word/data/`；**词头音标**（20260901，听音选义展示
-      读音）：自带 ECDICT(MIT) 提取的音标表（data/phonetics-data.ts
-      生成文件勿手改，scripts/gen-phonetics.mjs 重跑刷新；学习词∪
-      有词频∪内置书兜底 ~~4.7 万条），service/WordPhonetics 惰性
-      解析按 wordKey 查（与进度 key 同归一），听音卡/英选词面/
-      词条详情三处展示，零网络；**多词书**（2026-08-28 redesign §五）：
-      词书=`data/wengu/wordbooks/{id}.json`+manifest（service/WordLib，
-      内置书首启动落盘与导入同权），**进度 key=归一化词头**（schema v3，
-      同词跨书共享；v2 下标 key 的一次性迁移已随存量确认于 20260829
-      移除）、队列
-      统计一律当前书口径）、
-      `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题标题含
-      「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath
-      规范化、CollectionPanel buildColTree 树形展示）；知识文档
-      （KnowledgePanel）：手动导入**递归展开**（KnowRoots 登记 +
-      KnowledgeLink.expandKnowDocs 根+全部后代逐行；小节按 h1~~h6
-      **层级树**展示——20260831 起 headingsByRoot 取 subtype 建
-      buildSectionTree 真树，路由 path=祖先标题链，不再是「文档路径/
-      本标题」两段假层级）、
-      **AI 建知识树不落文档**（20260903，data/KnowTrees）：结构单薄
-      章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点
-      id 铸内核块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，
-      kpRefs 经 kramdown ((id "标题")) 往返零兼容成本；重新归纳**同
-      路径复用旧 id**，存量引用/活视图/薄弱画像不悬空），expandKnowDocs/
-      buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
-      词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点
-      引用归到源文档名下、对账不误判悬空）；「查看原文」与面板小节
-      点击对树节点**降级跳源章节文档**；staleness=srcHash 比对出
-      「源已变更·重新归纳」徽标（不走 KnowHash）；存量《·知识树》
-      文档照旧走文档路径（双形态在并流点兼容））、
-      行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
-      →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
-      与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=
-      该文档）；**文本关联/批量关联**（KnowLinkText，20260831）：
-      knowledge 标签 ↔ 小节标题归一精确相等即确定性挂引用（零 AI、
-      歧义宁漏勿错）——「导入文档」登记后自动跑（导入即关联）、面板
-      头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 +
-      可选 AI 路由兜底，落库共用 applyRefsToRecord；**生成标签**
-      （TagDialog，20260831）：侧栏文档右键入口，已有标签核对挂引用、
-      缺失标签 AI 生成（有知识文档逐题路由按小节标题命名、无则整批
-      自由生成），setKnowledgeAttr 写 IAL + applyTagToRecord 落库；
-      **标签归一**（KnowledgeNorm，20260831）：knowledge
-      文本的 kn 聚合键剥命名性后缀归词干（「洛必达」=「洛必达法则」），
-      只动键不动数据，四处聚合点统一 knKey；**路由缓存**（RouteCache，
-      20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
-      路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
-      LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
-      分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
-      CollectionPanel/KnowledgePanel 挂页签左栏 rail（20260901 拆分回
-      两个独立工作区、rail 五钮——20260831 □4 曾把专题清单并入知识
-      面板下半区，用户改回分立；小节
-      节点行「开刷」=活视图专题 col-kp-{块id}，data/LiveCols 读取时
-      实时刷新题单；题库「对账/重生成/反查/生成入库」段在 data/
-      BankRegen 函数式友元——20260901 从 QuestionBank 类拆出压 500
-      行红线，调用形 `foo(bank,…)`，解析缓存经 parsedOf/
-      invalidateParse 友元钩子；**题集实体 BankSets**（20260903 存储
-      pivot）：题目内容唯一真相=题库（BankRecord.kramdown 契约格式），
-      题集 `{id,title,hPath,srcId,qids[]}` 存 bank.sets（data/BankSets
-      函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集
-      ——零迁移机制，历史/docStats/影子专题键天然延续；setQuestions/
-      setDocsView/setMaterials 是装载侧全部供给，quiz 域文档 SQL/hydrate
-      管线 QuestionService/QuestionBatch/MaterialService 整体退役；
-          **聚合视图「全部习题」**（20260903）：保留 id \`all\`
+      指纹，替代空行偏移切块；20260903 起答案类子节「习题N/答案」并入
+      父题块——一题一答硬口径：题干与解答同块进 AI 只出一题，真实机
+      369 块并成 189 块，存量指纹经三态弹窗走变更/消失非静默漂移）
+        - 两阶段三态分类（全局指纹匹配→键配对：
+          相同/新增/变更/消失），生成时 src-key/src-hash 随 BankRecord
+          字段落库（20260903 起从容器 IAL 迁入记录，键格式/算法冻结不变），
+          重新导入入口（DocOps.runIncrementalReimport）按 `set.srcId` 门控、
+          对带指纹题集走增量（20260903 起优先于续跑记录，陈旧 rec 清掉）
+          ——**检测必过目**：IncrementDialog 先出摘要（源共/已入库/待处理
+          块数；纯标题块入口前置滤除）再逐块选、ConvertIncrement
+          纯题库执行（删旧/标 stale/串行补生成追加到既有题集，中止自愈
+          无需续跑记录；零产物块无指纹每次重导重算新增，终态报
+          empty 计数）、设置 convertKeepOld=省费模式（20260903 起=只出
+          摘要不出逐块清单，不再静默直跑）；方案与分期见
+          docs/incremental-hash-plan.md）、`src/review/`（错题复习）、
+          `src/word/`（单词域，`index.ts`=mountWordView 挂载编排，控制器
+          在 `WordView.ts`，**UI 是 Svelte 组件**（`word/component/`，2026-08-26
+          起）：渲染走 $state 深代理细粒度更新，控制器经 context 注入组件；
+          Svelte 5 编译器原生支持组件内 `lang="ts"`，无需 svelte-preprocess；
+          词库数据在 `word/data/`；**词头音标**（20260901，听音选义展示
+          读音）：自带 ECDICT(MIT) 提取的音标表（data/phonetics-data.ts
+          生成文件勿手改，scripts/gen-phonetics.mjs 重跑刷新；学习词∪
+          有词频∪内置书兜底 ~~4.7 万条），service/WordPhonetics 惰性
+          解析按 wordKey 查（与进度 key 同归一），听音卡/英选词面/
+          词条详情三处展示，零网络；**多词书**（2026-08-28 redesign §五）：
+          词书=`data/wengu/wordbooks/{id}.json`+manifest（service/WordLib，
+          内置书首启动落盘与导入同权），**进度 key=归一化词头**（schema v3，
+          同词跨书共享；v2 下标 key 的一次性迁移已随存量确认于 20260829
+          移除）、队列
+          统计一律当前书口径）、
+          `src/stats/`（统计）、`src/bank/`（题库/专题/薄弱；专题标题含
+          「/」即目录专题（如 高数/极限/洛必达，normalizeCollectionPath
+          规范化、CollectionPanel buildColTree 树形展示）；知识文档
+          （KnowledgePanel）：手动导入**递归展开**（KnowRoots 登记 +
+          KnowledgeLink.expandKnowDocs 根+全部后代逐行；小节按 h1~~h6
+          **层级树**展示——20260831 起 headingsByRoot 取 subtype 建
+          buildSectionTree 真树，路由 path=祖先标题链，不再是「文档路径/
+          本标题」两段假层级）、
+          **AI 建知识树不落文档**（20260903，data/KnowTrees）：结构单薄
+          章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点
+          id 铸内核块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，
+          kpRefs 经 kramdown ((id "标题")) 往返零兼容成本；重新归纳**同
+          路径复用旧 id**，存量引用/活视图/薄弱画像不悬空），expandKnowDocs/
+          buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
+          词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点
+          引用归到源文档名下、对账不误判悬空）；「查看原文」与面板小节
+          点击对树节点**降级跳源章节文档**；staleness=srcHash 比对出
+          「源已变更·重新归纳」徽标（不走 KnowHash）；存量《·知识树》
+          文档照旧走文档路径（双形态在并流点兼容））、
+          行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
+          →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
+          与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=
+          该文档）；**文本关联/批量关联**（KnowLinkText，20260831）：
+          knowledge 标签 ↔ 小节标题归一精确相等即确定性挂引用（零 AI、
+          歧义宁漏勿错）——「导入文档」登记后自动跑（导入即关联）、面板
+          头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 +
+          可选 AI 路由兜底，落库共用 applyRefsToRecord；**生成标签**
+          （TagDialog，20260831）：侧栏文档右键入口，已有标签核对挂引用、
+          缺失标签 AI 生成（有知识文档逐题路由按小节标题命名、无则整批
+          自由生成），setKnowledgeAttr 写 IAL + applyTagToRecord 落库；
+          **标签归一**（KnowledgeNorm，20260831）：knowledge
+          文本的 kn 聚合键剥命名性后缀归词干（「洛必达」=「洛必达法则」），
+          只动键不动数据，四处聚合点统一 knKey；**路由缓存**（RouteCache，
+          20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
+          路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
+          LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
+          分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
+          CollectionPanel/KnowledgePanel 挂页签左栏 rail（20260901 拆分回
+          两个独立工作区、rail 五钮——20260831 □4 曾把专题清单并入知识
+          面板下半区，用户改回分立；小节
+          节点行「开刷」=活视图专题 col-kp-{块id}，data/LiveCols 读取时
+          实时刷新题单；题库「对账/重生成/反查/生成入库」段在 data/
+          BankRegen 函数式友元——20260901 从 QuestionBank 类拆出压 500
+          行红线，调用形 `foo(bank,…)`，解析缓存经 parsedOf/
+          invalidateParse 友元钩子；**题集实体 BankSets**（20260903 存储
+          pivot）：题目内容唯一真相=题库（BankRecord.kramdown 契约格式），
+          题集 `{id,title,hPath,srcId,qids[]}` 存 bank.sets（data/BankSets
+          函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集
+          ——零迁移机制，历史/docStats/影子专题键天然延续；setQuestions/
+          setDocsView/setMaterials 是装载侧全部供给，quiz 域文档 SQL/hydrate
+          管线 QuestionService/QuestionBatch/MaterialService 整体退役；
+          **聚合视图「全部习题」**（20260903）：保留 id `all`
           （BankSets.AGGREGATE_ID，**不落 collections**、不进专题管理，
           仅流程层认它）——CollectionFlow.questions/restore/activeTitle
           与 colLoadContext 各自分流，题目=allSetQuestions、材料=
@@ -158,33 +167,33 @@
           setQuestions/questionsOf 解析归位；同集再现=新段）；顺修专题
           模式开刷面板缺失（QuizShell hasDoc 旧值在专题模式落空态，
           20260826 引入的回归））；
-      **数据自托管**（20260831 三线收口，20260903 收完）：作答运行时
-      统计（attempts/wrong-count/right/last-answer/step-_/slot-_/文档级
-      total-time）唯一真相在题库 stats/docStats（作答记账在 data/
-      BankRecording）；镜像漂移检测 DriftWatch 与孤儿清理 OrphanCleaner
-      随「题库即唯一内容真相」整体退役（ws-main 对账只留知识文档
-      knowHash 分支；源讲义删除不再级联删题集，清理走「删除此题集」）；
-      **知识小节哈希**（data/KnowHash，saveData("know-hash")）：
-      包含式切段指纹，导入写基线、面板装载出 stale 徽标（基线自推进
-      一次性提示），并进路由缓存 indexGenOf——小节正文变更整表作废）、
-      `src/companion/`
-      （伴学看板娘「小书童」：规则层表情+台词/AI 增强与聊天走智能体
-      agentChatOnce 独立会话并发，双宿主=刷题页签挂载层+单词 dock
-      内嵌，各域收口一行 `notify*` 接入事件，管理工作区面板已 Svelte
-      四件套化（2026-08-27，comp/CompanionPanelApp）；聊天历史按学伴
-      id 分份持久 saveData("companion-chat")，core/ChatStore 串行写；
-      默认学伴物化为 id=default 的正式条目——可删可改与自定义同权，
-      列表至少保留一个）、
-      `src/ui/`
-      （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具/Svelte 迁移
-      公共积木：`mountApp.ts` 挂载帮手 + `FormRow.svelte` 表单行 +
-      `Notify.ts` 思源通知帮手（20260901）：后台任务的静默失败/完成
-      走内核级 showMessage 浮层——`initNotify(i18n)` 由 index.ts onload
-      注入、深层模块用 `{key,vars}` 取词，错误同文案 60s 冷却防重试
-      风暴；已接 AiSessions/QuestionBank 落盘失败、导入即关联、
-      建知识树、转换/增量终态、四弹窗被销毁后的 ok/err、启动迁移
-      链 catch；**页面已可见的反馈不重复通知**（判题/词书导入/学伴
-      AI 等），新增后台流照此口径接）。
+          **数据自托管**（20260831 三线收口，20260903 收完）：作答运行时
+          统计（attempts/wrong-count/right/last-answer/step-_/slot-_/文档级
+          total-time）唯一真相在题库 stats/docStats（作答记账在 data/
+          BankRecording）；镜像漂移检测 DriftWatch 与孤儿清理 OrphanCleaner
+          随「题库即唯一内容真相」整体退役（ws-main 对账只留知识文档
+          knowHash 分支；源讲义删除不再级联删题集，清理走「删除此题集」）；
+          **知识小节哈希**（data/KnowHash，saveData("know-hash")）：
+          包含式切段指纹，导入写基线、面板装载出 stale 徽标（基线自推进
+          一次性提示），并进路由缓存 indexGenOf——小节正文变更整表作废）、
+          `src/companion/`
+          （伴学看板娘「小书童」：规则层表情+台词/AI 增强与聊天走智能体
+          agentChatOnce 独立会话并发，双宿主=刷题页签挂载层+单词 dock
+          内嵌，各域收口一行 `notify*` 接入事件，管理工作区面板已 Svelte
+          四件套化（2026-08-27，comp/CompanionPanelApp）；聊天历史按学伴
+          id 分份持久 saveData("companion-chat")，core/ChatStore 串行写；
+          默认学伴物化为 id=default 的正式条目——可删可改与自定义同权，
+          列表至少保留一个）、
+          `src/ui/`
+          （FormHtml 行样式/选择器/设置弹窗/`shared.ts` 工具/Svelte 迁移
+          公共积木：`mountApp.ts` 挂载帮手 + `FormRow.svelte` 表单行 +
+          `Notify.ts` 思源通知帮手（20260901）：后台任务的静默失败/完成
+          走内核级 showMessage 浮层——`initNotify(i18n)` 由 index.ts onload
+          注入、深层模块用 `{key,vars}` 取词，错误同文案 60s 冷却防重试
+          风暴；已接 AiSessions/QuestionBank 落盘失败、导入即关联、
+          建知识树、转换/增量终态、四弹窗被销毁后的 ok/err、启动迁移
+          链 catch；**页面已可见的反馈不重复通知**（判题/词书导入/学伴
+          AI 等），新增后台流照此口径接）。
     - **各域 `index.ts` 必须是该域的入口编排代码，禁止纯 re-export barrel**；
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：

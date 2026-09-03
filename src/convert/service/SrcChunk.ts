@@ -26,6 +26,10 @@ export interface StructChunk {
 /** 标题行（markdown/kramdown 通用形态）。 */
 const HEAD_RE = /^[ \t]{0,3}(#{1,6})[ \t]+(\S.*)$/;
 
+/** 答案类标题段（键末段精确匹配其一才并入父题块，防误伤「答案学」
+ *  之类；~n 消歧后缀一并放行）。 */
+const ANSWER_SECTION_RE = /^(答案|解答|题解|参考答案|答案与解析)(~\d+)?$/;
+
 /** 键值消毒：剥引号/换行限长（块属性值不该含，容器 IAL 追加用）。 */
 function safeKey(s: string): string {
     return s
@@ -37,10 +41,11 @@ function safeKey(s: string): string {
 
 /**
  * 结构切块（确定性纯函数）：标题行（h1~h6）为边界，一个标题区间一块
- * （键=祖先标题链）；首标题前的前导内容一块（键 P0）；超过 maxChars 的
- * 大块按空行二切（复用 chunkKramdown 的窗口原语，键=父键#k，k 为子块
- * 序）。同链标题重复出现追加 ~2/~3 消歧。块间连续覆盖全文（续跑 offset
- * 过滤不漏段）。
+ * （键=祖先标题链）；**答案类子节（「习题N/答案」等）并入父题块**
+ * （一题一答：题干与解答同块进 AI，只出一题）；首标题前的前导内容
+ * 一块（键 P0）；超过 maxChars 的大块按空行二切（复用 chunkKramdown
+ * 的窗口原语，键=父键#k，k 为子块序）。同链标题重复出现追加 ~2/~3
+ * 消歧。块间连续覆盖全文（续跑 offset 过滤不漏段）。
  */
 export function structuralChunks(md: string, maxChars = CHUNK_CHARS): StructChunk[] {
     /** 先按标题行切成 [键, 区间文本, 区间起始偏移] 的段序列。 */
@@ -72,9 +77,30 @@ export function structuralChunks(md: string, maxChars = CHUNK_CHARS): StructChun
     }
     if (md.length > start) sections.push({ key, start, text: md.slice(start) });
 
+    /** 答案节并入父题块（20260903 一题一答口径）：题解书每道习题的
+     *  「#### 答案」子节独立成块，会让题干块与答案块各转一题（原文
+     *  一题转换后变两题）——末段是答案类标题且前一块恰为父链键的节，
+     *  文本并回父块（两区间在原文连续，偏移不变）。章级答案区（父链
+     *  对不上前一块，如 `## 答案` 下挂全章解答）不并，保持独立块。 */
+    const merged: Section[] = [];
+    for (const sec of sections) {
+        const prev = merged[merged.length - 1];
+        const parts = sec.key.startsWith("H:") ? sec.key.slice(2).split("/") : [];
+        if (
+            prev &&
+            parts.length > 1 &&
+            ANSWER_SECTION_RE.test(parts[parts.length - 1]) &&
+            prev.key === `H:${parts.slice(0, -1).join("/")}`
+        ) {
+            prev.text += sec.text;
+            continue;
+        }
+        merged.push(sec);
+    }
+
     /** 段内切块：小段一块；超阈值按空行二切（子块键挂父块名下）。 */
     const out: StructChunk[] = [];
-    for (const sec of sections) {
+    for (const sec of merged) {
         const text = sec.text.trim();
         if (!text) continue;
         if (text.length <= maxChars) {

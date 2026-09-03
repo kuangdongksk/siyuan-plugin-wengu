@@ -69,11 +69,14 @@ export interface IncrementOutcome {
     staled: number;
     /** 知识点反链挂上的题数。 */
     knowLinked: number;
+    /** 零产物块数（纯标题块 + AI 判定无可转内容如例题/引言——这类块
+     *  不入库即无指纹，每次重导都会重算为「新增」，终态里点明数量）。 */
+    empty: number;
 }
 
 /** 执行增量：删旧 → 标记 → 逐块生成入库（串行；AI 走独立会话）。 */
 export async function convertIncremental(run: IncrementRun): Promise<IncrementOutcome> {
-    const out: IncrementOutcome = { aborted: false, added: 0, deleted: 0, staled: 0, knowLinked: 0 };
+    const out: IncrementOutcome = { aborted: false, added: 0, deleted: 0, staled: 0, knowLinked: 0, empty: 0 };
     if (run.signal?.aborted) {
         out.aborted = true;
         return out;
@@ -118,9 +121,12 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
             break;
         }
         const chunk = run.chunks[i];
-        // 纯标题块零内容：不发 AI，无产物（断点自愈不受影响）
-        if (isHeadingOnlyChunk(chunk.text)) continue;
         run.onProgress?.({ done: i, total: run.chunks.length, count: out.added });
+        // 纯标题块零内容：不发 AI，无产物（断点自愈不受影响）
+        if (isHeadingOnlyChunk(chunk.text)) {
+            out.empty++;
+            continue;
+        }
         let gen: { reply: string; byAlias?: Map<string, KnowSection> };
         try {
             gen = await callAi(chunk.text);
@@ -132,6 +138,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
             throw e; // 单块 AI 失败整体收口（已入库部分保留，重跑自愈）
         }
         const drafts = parseDrafts(gen.reply);
+        if (drafts.length === 0) out.empty++; // AI 判定无可转内容（例题/引言等筛选口径）
         drafts.forEach(shuffleDraftOptions);
         if (gen.byAlias && drafts.length > 0) out.knowLinked += applyKnowDrafts(drafts, gen.byAlias);
         const res = await writer.append(

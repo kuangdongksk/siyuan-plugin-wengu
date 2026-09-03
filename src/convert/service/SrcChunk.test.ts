@@ -71,6 +71,31 @@ describe("structuralChunks（结构切块）", () => {
         expect(a).toEqual(b);
     });
 
+    it("答案节并入父题块：题干与解答同块（一题一答，答案不再独立成块）", () => {
+        const src = "# 卷\n\n### 习题1\n题干一。\n\n#### 答案\n【解】解析一。\n\n### 习题2\n题干二。\n";
+        const cs = structuralChunks(src);
+        expect(cs.map((c) => c.key)).toEqual(["H:卷", "H:卷/习题1", "H:卷/习题2"]);
+        const p1 = cs.find((c) => c.key === "H:卷/习题1")!;
+        expect(p1.text).toContain("题干一。");
+        expect(p1.text).toContain("#### 答案");
+        expect(p1.text).toContain("【解】解析一。");
+    });
+
+    it("章级答案区（父链对不上前一块）不并入，保持独立块", () => {
+        const src = "# 第1章\n\n### 习题1\n题干。\n\n## 答案\n【解】全章解答。\n";
+        const cs = structuralChunks(src);
+        expect(cs.map((c) => c.key)).toEqual(["H:第1章", "H:第1章/习题1", "H:第1章/答案"]);
+    });
+
+    it("并入后偏移仍连续覆盖全文（续跑 offset 不漏段）", () => {
+        const src = "### 习题1\n题干。\n\n#### 答案\n【解】解析。\n\n### 习题2\n题干二。\n";
+        const cs = structuralChunks(src);
+        expect(cs.map((c) => c.key)).toEqual(["H:习题1", "H:习题2"]);
+        expect(cs[0].text).toContain("【解】解析。");
+        expect(cs[1].text).toContain("题干二。");
+        for (let i = 1; i < cs.length; i++) expect(cs[i].offset).toBeGreaterThanOrEqual(cs[i - 1].offset);
+    });
+
     it("中间插一段：只有所在块的指纹变，其他块指纹不变（结构稳定性的意义）", () => {
         const before = structuralChunks(MD);
         const edited = MD.replace("导数的定义。", "导数的定义。\n\n新增的插段。");
