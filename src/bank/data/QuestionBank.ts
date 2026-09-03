@@ -305,10 +305,13 @@ export class QuestionBank {
             const hit = this.parsedCache.get(qid);
             let parsed = hit && hit.hash === r.hash ? hit.parsed : undefined;
             if (!parsed) {
-                parsed = parseQuestionKramdown(r.kramdown, r.qid);
+                parsed = parseQuestionKramdown(r.kramdown, r.qid, r.sourceDocId);
                 if (!parsed) continue;
                 this.parsedCache.set(qid, { hash: r.hash, parsed });
             }
+            // 手动专题跨题集收集：rootId 归位来源题集（聚合分组/跳转降级用；
+            // setQuestions 同款「缓存命中也可能是别的模式解析的」再归位）
+            if (r.sourceDocId) parsed.rootId = r.sourceDocId;
             out.push(overlayStats(parsed, r));
         }
         return out;

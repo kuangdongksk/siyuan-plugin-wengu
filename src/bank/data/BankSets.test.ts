@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { BankData, BankRecord, QuestionBank } from "../data/QuestionBank";
 import { QuestionBank as Bank } from "../data/QuestionBank";
 import {
+    AGGREGATE_ID,
+    allSetMaterials,
+    allSetQuestions,
     ensureSets,
+    orderedSetIds,
     qidHasBlock,
     readRecordSrcGroups,
     removeRecords,
@@ -148,5 +152,42 @@ describe("qidHasBlock", () => {
         expect(qidHasBlock("20260821165017-6ivs5xm")).toBe(true);
         expect(qidHasBlock("gen-abc123-def456")).toBe(false);
         expect(qidHasBlock("")).toBe(false);
+    });
+});
+
+describe("聚合视图（all：全部习题合刷）", () => {
+    it("AGGREGATE_ID 是保留字（不落 collections、不与 set- 前缀 mint 冲突）", () => {
+        expect(AGGREGATE_ID).toBe("all");
+        expect(AGGREGATE_ID.startsWith("set-")).toBe(false);
+    });
+
+    it("orderedSetIds=sets 插入序；聚合题目按题集先后 × 集内 qids 序，两层都不重排", async () => {
+        const { bank } = newBank({
+            records: { q1: rec("q1", "s1"), q2: rec("q2", "s2"), q3: rec("q3", "s1") },
+            sets: {
+                s2: { id: "s2", title: "线代", qids: ["q2"], createdAt: 2 },
+                s1: { id: "s1", title: "高数", qids: ["q1", "q3"], createdAt: 1 },
+            },
+        });
+        await expect(orderedSetIds(bank)).resolves.toEqual(["s2", "s1"]); // 插入序优先，不按 createdAt
+        const list = await allSetQuestions(bank);
+        expect(list.map((q) => q.id)).toEqual(["q2", "q1", "q3"]);
+        expect(list.map((q) => q.rootId)).toEqual(["s2", "s1", "s1"]); // rootId 归位来源题集
+    });
+
+    it("空题集与未入集记录零贡献；材料并集按题集序、孤儿材料不进", async () => {
+        const { bank } = newBank({
+            records: { q1: rec("q1", "s1"), q9: rec("q9", "s-orph") },
+            sets: {
+                s1: { id: "s1", title: "高数", qids: ["q1"], createdAt: 1 },
+                s2: { id: "s2", title: "空卷", qids: [], createdAt: 2 },
+            },
+            materials: {
+                m1: { id: "m1", setId: "s1", bodyMd: "材料一" },
+                m2: { id: "m2", setId: "s-orph", bodyMd: "孤儿" },
+            },
+        });
+        expect((await allSetQuestions(bank)).map((q) => q.id)).toEqual(["q1"]);
+        expect((await allSetMaterials(bank)).map((m) => m.bodyMd)).toEqual(["材料一"]);
     });
 });

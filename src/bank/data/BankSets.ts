@@ -37,6 +37,32 @@ export function setFallbackTitle(id: string): string {
     return `习题集 ${id.slice(-6)}`;
 }
 
+/** 聚合视图 id（虚拟专题「全部习题」：所有题集按序合刷）。不落
+ *  collections——仅流程层（CollectionFlow/侧栏树）认它，专题管理/清单
+ *  天然看不见，删改无门。 */
+export const AGGREGATE_ID = "all";
+
+/** 聚合视图的题集顺序：sets 插入序（新转换=完成序，存量推导=记录
+ *  落库序）——卷册/章节的先后就是转换先后，跨重载稳定可复现，
+ *  **任何聚合都不重排**（题集先后 × 集内 qids 序，两层都不动）。 */
+export async function orderedSetIds(bank: QuestionBank): Promise<string[]> {
+    return Object.keys((await bank.all()).sets ?? {});
+}
+
+/** 全部题集聚合题目（聚合专题刷题列表；空题集自然无贡献）。 */
+export async function allSetQuestions(bank: QuestionBank): Promise<ParsedQuestion[]> {
+    const out: ParsedQuestion[] = [];
+    for (const setId of await orderedSetIds(bank)) out.push(...(await setQuestions(bank, setId)));
+    return out;
+}
+
+/** 全部题集的材料并集（聚合视图装载；题集顺序拼接）。 */
+export async function allSetMaterials(bank: QuestionBank): Promise<WenguMaterial[]> {
+    const out: WenguMaterial[] = [];
+    for (const setId of await orderedSetIds(bank)) out.push(...(await setMaterials(bank, setId)));
+    return out;
+}
+
 /** 推导缺 sets 条目的题集（records 按 sourceDocId 分组；后台调用，
  *  不阻塞装载）。标题从旧习题文档尽力读一次——文档已删则留空。 */
 export async function ensureSets(bank: QuestionBank): Promise<number> {

@@ -4,6 +4,7 @@
     import { SvelteSet } from "svelte/reactivity";
     import { svgIcon } from "../../ui/FormHtml";
     import { buildSideTree, type SideTreeNode } from "../render/SideTree";
+    import { AGGREGATE_ID } from "../../bank/data/BankSets";
     import { fmt, mmss } from "../../ui/shared";
     import type { WenguDoc } from "../../types";
 
@@ -123,6 +124,9 @@
 
     const searching = $derived(query.trim() !== "");
     const empty = $derived(docs.length === 0);
+    /** 「全部习题」聚合行：≥2 个题集才值得出现（单套点它=同物冗余）。 */
+    const showAllEx = $derived(docs.length > 1);
+    const allExCount = $derived(docs.reduce((n, d) => n + d.total, 0));
 
     const ontreeclick = (n: TreeListNode): void => {
         if (n.id) onOpenDoc(n.id);
@@ -216,6 +220,24 @@
                         <div class="wengu-side-meta">{fmt(t("collectionCount"), { n: String(c.count) })}</div>
                     </div>
                 {/each}
+            </div>
+        {/if}
+        {#if !searching && showAllEx}
+            <!-- 聚合视图（20260903）：所有题集按序合刷的虚拟专题——行点击
+                 经 onOpenCollection("all") 进 col 模式；下方树=逐套入口 -->
+            <div class="wengu-side-group">
+                <div class="wengu-side-label">{t("allExTitle")}</div>
+                <div
+                    class="wengu-side-item{activeCol === AGGREGATE_ID ? ' wengu-side-active' : ''}"
+                    data-colid={AGGREGATE_ID}
+                    role="button"
+                    tabindex="0"
+                    onclick={() => onOpenCollection(AGGREGATE_ID)}
+                    onkeydown={(e) => e.key === "Enter" && onOpenCollection(AGGREGATE_ID)}
+                >
+                    <div class="wengu-side-title">{t("allExTitle")}</div>
+                    <div class="wengu-side-meta">{fmt(t("exerciseCount"), { n: String(allExCount) })}</div>
+                </div>
             </div>
         {/if}
         {#if !searching}

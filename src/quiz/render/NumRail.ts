@@ -25,6 +25,7 @@
 import type { WenguQuestion } from "../../types";
 import { numState } from "./CardHtml";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
+import type { SetGroup } from "./DrillUnits";
 import NumRailApp from "../components/NumRailApp.svelte";
 
 interface Chase {
@@ -117,6 +118,8 @@ export function bindNumRail(
         numsTitle: string;
         showNums: boolean;
         showPast: boolean;
+        /** 题集分组（多集合刷：组间横线分隔行，hover 展示题集标题）。 */
+        setGroups: SetGroup[];
     }
 ): void {
     // 题号栏组件挂载：壳在 .wengu-body 里放 [data-nums-anchor] 锚
@@ -130,7 +133,11 @@ export function bindNumRail(
             numsApp = mountSvelteApp(
                 NumRailApp,
                 body,
-                { initialStates: list.map((q) => numState(q, opts.showPast).trim()), title: opts.numsTitle },
+                {
+                    initialStates: list.map((q) => numState(q, opts.showPast).trim()),
+                    title: opts.numsTitle,
+                    setGroups: opts.setGroups,
+                },
                 { anchor }
             ) as MountedSvelteApp<NumRailExports>;
             anchor.remove();
@@ -149,6 +156,17 @@ export function bindNumRail(
     };
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     if (nav) {
+        // 组间横线：点标题滚到该题集首题（同点击该组第一题）
+        for (const gap of nav.querySelectorAll<HTMLElement>(".wengu-num-gap")) {
+            gap.addEventListener("click", () => {
+                const n = Number(gap.dataset.start) + 1;
+                if (n < 1) return;
+                lockUntil = performance.now() + 800;
+                const card = scroller?.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`);
+                if (card) chaseScrollIntoView(scroller!, card, "center");
+                setActive(n);
+            });
+        }
         for (const btn of nav.querySelectorAll<HTMLElement>(".wengu-num")) {
             btn.addEventListener("click", () => {
                 const n = Number(btn.dataset.num);

@@ -51,3 +51,32 @@ export function buildDrillUnits(list: WenguQuestion[], materials: WenguMaterial[
     }
     return units;
 }
+
+/* ── 题集分组（聚合/多集专题的题号栏横线与正文标题行共用） ── */
+
+/** 一个连续题集段：整卷里相邻同题集的题归一段（只切分视图，**绝不
+ *  重排**——多集合刷的顺序=题集先后 × 集内原序）。 */
+export interface SetGroup {
+    setId: string;
+    title: string;
+    /** 整卷题号下标起点（0 基，与题号导航对齐）。 */
+    start: number;
+    count: number;
+}
+
+/** 按 q.rootId 的连续段分组（rootId=来源题集，setQuestions/questionsOf
+ *  落解析时已归位；缺省归 "" 段兜底）。titleOf 由调用方给（docs 视图
+ *  的 id→标题，缺省短 id 兜底）。 */
+export function buildSetGroups(list: WenguQuestion[], titleOf: (setId: string) => string): SetGroup[] {
+    const out: SetGroup[] = [];
+    for (let i = 0; i < list.length; i++) {
+        const setId = list[i].rootId ?? "";
+        const last = out[out.length - 1];
+        if (last && last.setId === setId) {
+            last.count++;
+            continue;
+        }
+        out.push({ setId, title: titleOf(setId), start: i, count: 1 });
+    }
+    return out;
+}

@@ -14,6 +14,7 @@
   "loadFailed": "加载失败：",
   "noExerciseDocs": "题库还是空的：点上方「AI 转习题」生成第一批题",
   "quizNone": "该文档没有题目块（可能未生成或已被删除）",
+  "allExTitle": "全部习题",
   "exerciseCount": "{n} 题",
   "convertDialogHint": "选要出题的讲义文档，AI 会先判定能否出题，能则把题目直接生成进题库（不再往文档树写任何东西）。",
   "convertStart": "开始转换",

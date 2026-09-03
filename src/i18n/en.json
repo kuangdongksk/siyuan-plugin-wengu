@@ -14,6 +14,7 @@
   "loadFailed": "Load failed: ",
   "noExerciseDocs": "No generated exercise sets yet — click \"AI: make questions\" above to create one",
   "quizNone": "No question blocks in this document (maybe not generated, or deleted)",
+  "allExTitle": "All exercises",
   "exerciseCount": "{n} question(s)",
   "convertDialogHint": "Pick the lecture document to quiz. The AI first checks if it is convertible, then writes questions straight into the question bank (nothing is written to your document tree).",
   "convertStart": "Convert",

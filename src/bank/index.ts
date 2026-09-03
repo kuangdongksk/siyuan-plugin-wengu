@@ -1,7 +1,7 @@
 import { refreshSideCols } from "../quiz/flow/SideMount";
 import { openCollectionDialog } from "./ui/CollectionDialog";
 import type { HistoryStore, WenguSession } from "../quiz/service/HistoryStore";
-import { setMaterials } from "./data/BankSets";
+import { AGGREGATE_ID, allSetMaterials, allSetQuestions, setMaterials } from "./data/BankSets";
 import type { CollectionRow, QuestionBank } from "./data/QuestionBank";
 import { refreshLiveCollections } from "./data/LiveCols";
 import type { WenguDoc, WenguMaterial, WenguQuestion } from "../types";
@@ -50,6 +50,8 @@ export class CollectionFlow {
     }
 
     activeTitle(): string | undefined {
+        // 虚拟聚合专题不在 rows 里，标题走 i18n（侧栏树根行同款键）
+        if (this.collectionId === AGGREGATE_ID) return this.v.t("allExTitle");
         return this.rows.find((c) => c.id === this.collectionId)?.title;
     }
 
@@ -72,6 +74,10 @@ export class CollectionFlow {
 
     /** 从 prefs 恢复专题选中（不触发重载；失效 id 静默忽略回文档模式）。 */
     async restore(id: string): Promise<void> {
+        if (id === AGGREGATE_ID) {
+            this.collectionId = id; // 虚拟聚合专题：恒有效，不走 rows 校验
+            return;
+        }
         const bank = this.v.bank();
         const rows = bank ? await bank.collectionsView() : [];
         if (rows.some((c) => c.id === id)) this.collectionId = id;
@@ -85,11 +91,14 @@ export class CollectionFlow {
         this.rows = bank ? await bank.collectionsView() : [];
     }
 
-    /** 题库模式的题目列表（文档模式返回 undefined）。 */
+    /** 题库模式的题目列表（文档模式返回 undefined）。聚合专题走
+     *  BankSets 的有序并集（题集先后 × 集内 qids 序，不重排）。 */
     async questions(): Promise<WenguQuestion[] | undefined> {
         if (!this.collectionId) return undefined;
         const bank = this.v.bank();
-        return bank ? await bank.questionsOf(this.collectionId) : [];
+        if (!bank) return [];
+        if (this.collectionId === AGGREGATE_ID) return allSetQuestions(bank);
+        return bank.questionsOf(this.collectionId);
     }
 
     /** 只刷新侧栏专题清单块（迁移完成补专题，不打断作答中的界面）。
@@ -159,15 +168,17 @@ export function detachBankPanels(): void {
 
 /** col 模式装载上下文：专题轮次（col:<id> 归档）+ 来源题集的材料并集
  *  （材料正文在 bank.materials，20260903 起零内核 IO；group 占位解析
- *  通道随文档模式退役——记录字段已直配材料 id）。 */
+ *  通道随文档模式退役——记录字段已直配材料 id）。聚合专题的材料=
+ *  全部题集按序并集。 */
 export async function colLoadContext(
     history: HistoryStore | undefined,
     bank: QuestionBank | undefined,
     colId: string
 ): Promise<{ rounds: WenguSession[]; materials: WenguMaterial[] }> {
     const rounds = history ? await history.docSessions(colSessionId(colId)) : [];
+    if (!bank) return { rounds, materials: [] };
+    if (colId === AGGREGATE_ID) return { rounds, materials: await allSetMaterials(bank) };
     const materials: WenguMaterial[] = [];
-    if (!bank) return { rounds, materials };
     for (const setId of await bank.collectionSourceDocs(colId)) {
         try {
             materials.push(...(await setMaterials(bank, setId)));

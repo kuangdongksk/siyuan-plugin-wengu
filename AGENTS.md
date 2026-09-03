@@ -144,7 +144,20 @@
       函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集
       ——零迁移机制，历史/docStats/影子专题键天然延续；setQuestions/
       setDocsView/setMaterials 是装载侧全部供给，quiz 域文档 SQL/hydrate
-      管线 QuestionService/QuestionBatch/MaterialService 整体退役）；
+      管线 QuestionService/QuestionBatch/MaterialService 整体退役；
+          **聚合视图「全部习题」**（20260903）：保留 id \`all\`
+          （BankSets.AGGREGATE_ID，**不落 collections**、不进专题管理，
+          仅流程层认它）——CollectionFlow.questions/restore/activeTitle
+          与 colLoadContext 各自分流，题目=allSetQuestions、材料=
+          allSetMaterials（题集插入序 × 集内 qids 序，**聚合绝不重排**），
+          轮次按 col:all 归档；侧栏 SidePanelApp「全部习题」组行（≥2
+          套才现）点行进聚合，树行仍逐套；多集合刷的题号栏组间横线
+          （hover 伸展+title 显套题标题，点击跳套首题——NumRailApp/
+          NumRail）与正文题集标题行（QuizShell 分片插 .wengu-set-head）
+          由 buildSetGroups 连续段驱动（DrillUnits，分组源=记录 rootId，
+          setQuestions/questionsOf 解析归位；同集再现=新段）；顺修专题
+          模式开刷面板缺失（QuizShell hasDoc 旧值在专题模式落空态，
+          20260826 引入的回归））；
       **数据自托管**（20260831 三线收口，20260903 收完）：作答运行时
       统计（attempts/wrong-count/right/last-answer/step-_/slot-_/文档级
       total-time）唯一真相在题库 stats/docStats（作答记账在 data/

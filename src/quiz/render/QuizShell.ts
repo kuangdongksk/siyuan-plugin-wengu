@@ -4,9 +4,10 @@ import { destroyStatsPanel } from "../../stats";
 import { renderReviewFor, detachReviewApp, reviewHeadSummary } from "../../review";
 import { detachCompanionPanel } from "../../companion";
 import { detachBankPanels } from "../../bank";
+import { setFallbackTitle } from "../../bank/data/BankSets";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
-import { buildDrillUnits, type DrillUnit } from "./DrillUnits";
+import { buildDrillUnits, buildSetGroups, type DrillUnit, type SetGroup } from "./DrillUnits";
 import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { restoreContextFor, type CardInitCtx } from "./CardState";
 import { focusQuestion } from "../flow/MaterialFlow";
@@ -19,7 +20,7 @@ import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
 import { detachSideHead, mountHeadFor, mountSideFor } from "../flow/SideMount";
 import { renderWorkspaceFor } from "./WorkspaceShell";
 import { svgIcon } from "../../ui/FormHtml";
-import { esc, yieldToBrowser } from "../../ui/shared";
+import { esc, fmt, yieldToBrowser } from "../../ui/shared";
 
 /**
  * 主区渲染与视图级绑定（自 QuizView 拆出压 500 行红线）：
@@ -85,6 +86,9 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     const colMode = v.colFlow.isActive();
     const doc = colMode ? undefined : v.docs.find((d) => d.id === v.docId);
     v.units = buildDrillUnits(v.list, v.materials);
+    // 题集分组（多集合刷：题号栏横线 + 正文标题行；单题集一段=零装饰）。
+    // 分组只切分视图——列表顺序是题集先后 × 集内原序，绝不重排。
+    const setGroups = buildSetGroups(v.list, (id) => v.docs.find((d) => d.id === id)?.title || setFallbackTitle(id));
     const cardModel: CardHtmlModel = {
         t: v.t,
         showAttempts: v.settings?.showAttempts !== false,
@@ -105,7 +109,10 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
             // 预览视为常开：不落开刷面板，直接展示全部题卡
             started: v.started || pv,
             previewing: v.progressive.active,
-            hasDoc: !!doc,
+            // 专题/聚合模式没有 docs 行，但同样有开刷面板态（hasDoc 只
+            // 决定壳走面板分支还是空态文案——旧值在专题模式落空态文案
+            // 且不挂面板，专题刷题卡死为锁定卡，20260903 定诊随聚合修复）
+            hasDoc: colMode || !!doc,
             listCount: v.list.length,
             startPanelHtml: "<div data-startpanel-host></div>",
             cardsHtml: "",
@@ -116,8 +123,16 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     bindQuizFor(v); // 静态路径卡事件改逐片绑（bindQuizFor 的全量卡循环此时扫到空表）
     mountRailFor(v);
     // 开刷面板挂载（renderMainShell 的面板态条件同款：非加载/错误、
-    // 有文档有题、未开刷非预览渐进）
-    if (!v.loading && !v.loadError && doc && v.list.length > 0 && !v.started && !pv && !v.progressive.active) {
+    // 有上下文有题、未开刷非预览渐进）
+    if (
+        !v.loading &&
+        !v.loadError &&
+        (doc || colMode) &&
+        v.list.length > 0 &&
+        !v.started &&
+        !pv &&
+        !v.progressive.active
+    ) {
         mountStartPanelFor(v);
     }
     // 侧栏/头部组件挂载（6-5；原 SideTreeMount/renderSideHtml/renderHeadHtml
@@ -128,7 +143,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     mountSideFor(sideQuizAccess(v), "drill");
     mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv);
     v.timerBinder.updateLabel();
-    const task = renderStaticChunked(v, cardModel);
+    const task = renderStaticChunked(v, cardModel, setGroups);
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
     // 卡）；stale 放弃的批次不装饰——新批次自己会装饰，旧批次补挂会
     // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
@@ -143,13 +158,16 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
 
 /** 静态路径分片管线：壳已落、题卡列表空——单元逐片以组件挂载
  * （16ms 帧预算 yield），头下挂「题目渲染中 n/m」胶囊，填完摘除。
- * 题干/材料静态填充与 KaTeX 惰性已收进组件 onMount（6-4b）；已答
+ * 题卡/材料静态填充与 KaTeX 惰性已收进组件 onMount（6-4b）；已答
  * 恢复收敛进卡初始态（buildCtx 首挂前一次算好），收卷后的在途
  * 分片以 locked=true 初始态直锁。代数变更（整壳重建）或中途异常
- * resolve false，收尾方据此跳过预览装饰等后续。 */
-async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boolean> {
+ * resolve false，收尾方据此跳过预览装饰等后续。setGroups 非单段时
+ * 在每段首单元前插题集标题行（多集合刷的正文分组）。 */
+async function renderStaticChunked(v: QuizView, m: CardHtmlModel, setGroups: SetGroup[]): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
     if (!container) return false;
+    const showHeads = setGroups.length > 1;
+    const headAt = new Map(setGroups.map((g) => [g.start, g] as const));
     v.el.querySelector(".wengu-main > .wengu-head")?.insertAdjacentHTML("afterend", renderingPillHtml(v.t));
     // 胶囊持元素引用摘除：选择器会把重渲染后新批次的胶囊误摘
     const pill = v.el.querySelector<HTMLElement>("[data-rendering]") ?? undefined;
@@ -183,6 +201,12 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel): Promise<boole
                 if (stale()) return false;
                 deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
+            if (showHeads) {
+                // 单元段首题的整卷下标（独立题=idx，材料组=组内首题）
+                const start = u.kind === "group" ? (u.qs?.[0]?.idx ?? -1) : (u.idx ?? -1);
+                const g = start >= 0 ? headAt.get(start) : undefined;
+                if (g) container.insertAdjacentHTML("beforeend", setHeadHtml(g, v.t));
+            }
             mountDrillUnit(container, u, m, ctx, v); // 组件根追加到容器尾（恢复/作答态随挂载就位）
             done += nodesOf(u);
             if (counter) counter.textContent = `${done}/${total}`;
@@ -203,16 +227,25 @@ function renderingPillHtml(t: (key: string) => string): string {
     )}</span><span class="wengu-rendering-count" data-rendering-count></span></div>`;
 }
 
+/** 题集标题行（多集合刷正文分组）：短横 + 标题 + 题量。 */
+function setHeadHtml(g: SetGroup, t: (key: string) => string): string {
+    return `<div class="wengu-set-head" data-set="${esc(g.setId)}"><span class="wengu-set-head-line"></span>
+<span class="wengu-set-head-title">${esc(g.title)}</span>
+<span class="wengu-set-head-count">${esc(fmt(t("exerciseCount"), { n: String(g.count) }))}</span></div>`;
+}
+
 /** 视图级绑定：题号栏（头部 6-5 起组件化，此层只剩题号；题卡与
  *  材料组单元 6-4b 起组件自管——作答事件组件直调流程、组导航收进
- *  GroupUnitApp，无卡级 DOM 绑定）。 */
+ *  GroupUnitApp，无卡级 DOM 绑定）。题集分组随绑（横线分隔行）。 */
 function bindQuizFor(v: QuizView): void {
+    const setGroups = buildSetGroups(v.list, (id) => v.docs.find((d) => d.id === id)?.title || setFallbackTitle(id));
     bindNumRail(v.el, v.list, {
         onActive: (idx) => v.onActiveQ(idx),
         onFocus: (idx) => focusQuestion(v.el, idx),
         numsTitle: v.t("qnumsTitle"),
         showNums: v.settings?.showNums !== false,
         showPast: v.mode !== "preview" && v.settings?.showWrong !== false && v.revealMode === "instant",
+        setGroups,
     });
 }
 
