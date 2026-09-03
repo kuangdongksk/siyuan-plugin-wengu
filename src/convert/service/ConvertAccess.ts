@@ -74,6 +74,12 @@ export class ConvertAccess implements ConvertViewAccess {
         return this.host.convertParallelOf();
     }
 
+    /** 题库透传（convertRunEventsFor 组装运行事件用——转换产物落库
+     *  与终止丢弃都走它；宿主未接时 undefined 由运行器报错兜底）。 */
+    bankOf(): QuestionBank | undefined {
+        return this.host.bankOf?.();
+    }
+
     saveConvertChoice(modelId: string, fill: boolean, steps: boolean, know: string): void {
         this.curModelId = modelId;
         this.curFill = fill;

@@ -122,6 +122,7 @@ export interface ConvertViewAccess {
 export function convertRunEventsFor(v: ConvertViewAccess): ConvertRunEvents {
     return {
         t: v.t,
+        bank: v.bankOf?.(),
         setConverting: (flag) => v.setConvertingState(flag),
         onStatus: (html, kind, terminal) =>
             renderConvertBar(v.container(), v.t, html, kind, terminal ? null : "running"),
