@@ -2,23 +2,29 @@ import type { AiSessionRecord } from "../data/AiSessions";
 import type { TreeListNode } from "../../ui/TreeListTypes";
 
 /**
- * 会话清单的树化（20260902）：登记簿是平铺记录流，一次用户动作触发的
- * 多次调用共享 group id（见 data/AiSessions）——本模块把快照归并成
- * 共享树组件 TreeList 的节点：组记录（≥2 条同组）成一个 branch 节点、
- * 成员挂 children；孤儿组（成员被 LRU 淘汰到只剩 1 条）退回顶层叶子，
- * 无组记录原样顶层叶子。纯函数无副作用（SessionPanelApp 的 $derived
- * 调用），行渲染走 ui/TreeList（与知识面板/侧栏树同源）。
+ * 会话清单的树化（20260903 改版：种类优先树）：顶层按动作种类一类
+ * 一棵树（转换/检测/判题…），种类内按「主题」（组标题/标题第一个
+ * 「 · 」后的部分——转换是文档名：高等数学、线代；判题是题干预览）
+ * 分第二级，调用行挂最底层。主题层与种类层都只在 ≥2 条时才设节点
+ * （单条上提一级，不留空壳）；跨次运行同主题合并——用户视角是
+ * 「转换过哪些文档」而非「第几次转换」。类别过滤=记录透镜（非空时
+ * 只留该类记录，层级照常收敛，滤空的分支自然消失）。纯函数无副作用
+ * （SessionPanelApp 的 $derived 调用），行渲染走 ui/TreeList。
  */
 
-/** 组视图：trailing/main 片段按 key 查聚合信息用。 */
-export interface SessionGroupView {
-    id: string;
-    title: string;
-    /** 组内记录（头新尾旧；已过类别过滤）。 */
+/** 分支视图：main/trailing 片段按 key 查聚合信息用。 */
+export interface SessionBranchView {
+    /** 节点键：种类=`k:{kind}`，主题=`k:{kind}/{subject}`（键只作整串
+     *  比对不解析，主题含「/」无歧义）。 */
+    key: string;
+    kind: string;
+    /** 主题（文档名等；种类级 undefined）。 */
+    subject?: string;
+    /** 分支下全部记录（头新尾旧；已过类别过滤）。 */
     recs: AiSessionRecord[];
     /** 聚合状态：有 running 记 running，否则有 error 记 error，全 done 才 done。 */
     status: AiSessionRecord["status"];
-    /** 组的时间戳=最新成员的 createdAt。 */
+    /** 分支时间戳=最新成员的 createdAt。 */
     createdAt: number;
 }
 
@@ -27,67 +33,128 @@ export interface SessionTreeData {
     nodes: TreeListNode[];
     /** 叶子 key（=记录 id）→ 记录。 */
     recByKey: Map<string, AiSessionRecord>;
-    /** 组 key（=组 id）→ 组视图。 */
-    groupByKey: Map<string, SessionGroupView>;
+    /** 分支 key → 分支视图（种类级与主题级都在）。 */
+    branchByKey: Map<string, SessionBranchView>;
 }
 
-/** 状态聚合优先级：在途 > 失败 > 完成（组里还有在途调用就转圈）。 */
+/** 状态聚合优先级：在途 > 失败 > 完成（分支里还有在途调用就转圈）。 */
 function aggStatus(recs: AiSessionRecord[]): AiSessionRecord["status"] {
     if (recs.some((r) => r.status === "running")) return "running";
     if (recs.some((r) => r.status === "error")) return "error";
     return "done";
 }
 
-/**
- * 登记簿快照 → 树节点（头新尾旧；recs 需已按 createdAt 降序——
- * store.list() 的输出序）。filter 为空串=全部；非空时叶子按 kind 过滤、
- * 组内只留匹配成员（全滤空则整组隐藏——过滤是「看某类调用」的透镜，
- * 不该把组拆散也不该留空壳）。
- */
-export function buildSessionTree(recs: AiSessionRecord[], filter: string): SessionTreeData {
+/** 主题提取：组标题（回落标题）第一个「 · 」后的部分——「转换 ·
+ *  高等数学」→ 高等数学、「前段检测 · 13/21」→ 13/21（判题等单发
+ *  记录组标题缺位时回落标题同法）；无分隔符或截取为空 → undefined
+ *  =不设主题层。 */
+export function subjectOf(r: AiSessionRecord): string | undefined {
+    const s = (r.groupTitle ?? r.title ?? "").trim();
+    const i = s.indexOf(" · ");
+    if (i < 0) return undefined;
+    const out = s.slice(i + 3).trim();
+    return out || undefined;
+}
+
+/** 叶子显示名：主题分支下的调用行剥尾随「 · 主题」（「转换 · 高等
+ *  数学」挂高等数学节点下只显「转换」）；其余原样。 */
+function leafName(r: AiSessionRecord, subject: string | undefined): string {
+    const t = r.title || "";
+    if (subject && t.endsWith(` · ${subject}`)) return t.slice(0, t.length - subject.length - 3);
+    return t;
+}
+
+/** 登记簿快照 → 树节点（recs 需按 createdAt 降序——store.list() 的
+ *  输出序，桶序/桶内序都沿用）。kindLabel：种类显示名（i18n 由宿主
+ *  注入，缺省原样显示 kind 键）。 */
+export function buildSessionTree(
+    recs: AiSessionRecord[],
+    filter: string,
+    kindLabel: (k: string) => string = (k) => k
+): SessionTreeData {
     const recByKey = new Map<string, AiSessionRecord>();
-    const groupByKey = new Map<string, SessionGroupView>();
-    const leaf = (r: AiSessionRecord): TreeListNode => {
+    const branchByKey = new Map<string, SessionBranchView>();
+    const leaf = (r: AiSessionRecord, subject?: string): TreeListNode => {
         recByKey.set(r.id, r);
         // hideAction：删除钮走行尾 hover 才显（同旧平铺行口径）
-        return { key: r.id, id: r.id, name: r.title, kind: "doc", hideAction: true, children: [] };
+        return { key: r.id, id: r.id, name: leafName(r, subject), kind: "doc", hideAction: true, children: [] };
     };
-    // 组员计数与组标题按**全量**算：过滤后只剩 1 条的组仍是组（保留
-    // 「这是一次动作」的上下文）；LRU 淘汰到全量只剩 1 条才退平铺
-    const count = new Map<string, number>();
-    const title = new Map<string, string>();
-    for (const r of recs) {
-        if (!r.group) continue;
-        count.set(r.group, (count.get(r.group) ?? 0) + 1);
-        if (!title.has(r.group)) title.set(r.group, r.groupTitle ?? r.group);
+    const branch = (view: SessionBranchView, children: TreeListNode[]): TreeListNode => {
+        branchByKey.set(view.key, view);
+        return {
+            key: view.key,
+            name: view.subject ?? kindLabel(view.kind),
+            kind: "branch",
+            hideAction: true,
+            children,
+        };
+    };
+
+    const vis = filter ? recs.filter((r) => r.kind === filter) : recs;
+
+    // 种类分桶（vis 头新尾旧 → 桶与桶内都 newest-first）
+    const kindOrder: string[] = [];
+    const byKind = new Map<string, AiSessionRecord[]>();
+    for (const r of vis) {
+        let bucket = byKind.get(r.kind);
+        if (!bucket) {
+            bucket = [];
+            byKind.set(r.kind, bucket);
+            kindOrder.push(r.kind);
+        }
+        bucket.push(r);
     }
-    const grouped = new Set([...count.entries()].filter(([, n]) => n >= 2).map(([id]) => id));
 
     const nodes: TreeListNode[] = [];
-    const emitted = new Set<string>();
-    for (const r of recs) {
-        if (r.group && grouped.has(r.group)) {
-            if (emitted.has(r.group)) continue;
-            emitted.add(r.group);
-            const members = recs.filter((x) => x.group === r.group && (!filter || x.kind === filter));
-            if (members.length === 0) continue;
-            groupByKey.set(r.group, {
-                id: r.group,
-                title: title.get(r.group) ?? r.group,
-                recs: members,
-                status: aggStatus(members),
-                createdAt: r.createdAt,
-            });
-            nodes.push({
-                key: r.group,
-                name: title.get(r.group) ?? r.group,
-                kind: "branch",
-                hideAction: true,
-                children: members.map(leaf),
-            });
-        } else if (!filter || r.kind === filter) {
-            nodes.push(leaf(r));
+    for (const kind of kindOrder) {
+        const krecs = byKind.get(kind)!;
+        const kkey = `k:${kind}`;
+        if (krecs.length === 1) {
+            nodes.push(leaf(krecs[0])); // 单条种类不设层（判题等单发动作用）
+            continue;
         }
+        // 主题分桶（≥2 才设层，单条上提到种类下）；无主题的散行垫底
+        const subjOrder: string[] = [];
+        const bySubject = new Map<string, AiSessionRecord[]>();
+        const loose: AiSessionRecord[] = [];
+        for (const r of krecs) {
+            const s = subjectOf(r);
+            if (!s) {
+                loose.push(r);
+                continue;
+            }
+            let bucket = bySubject.get(s);
+            if (!bucket) {
+                bucket = [];
+                bySubject.set(s, bucket);
+                subjOrder.push(s);
+            }
+            bucket.push(r);
+        }
+        const children: TreeListNode[] = [];
+        for (const s of subjOrder) {
+            const srecs = bySubject.get(s)!;
+            const skey = `${kkey}/${s}`;
+            children.push(
+                srecs.length === 1
+                    ? leaf(srecs[0]) // 单条主题上提：保留全名（剥了就丢了文档信息）
+                    : branch(
+                          {
+                              key: skey,
+                              kind,
+                              subject: s,
+                              recs: srecs,
+                              status: aggStatus(srecs),
+                              createdAt: srecs[0].createdAt,
+                          },
+                          srecs.map((r) => leaf(r, s))
+                      )
+            );
+        }
+        for (const r of loose) children.push(leaf(r));
+        nodes.push(
+            branch({ key: kkey, kind, recs: krecs, status: aggStatus(krecs), createdAt: krecs[0].createdAt }, children)
+        );
     }
-    return { nodes, recByKey, groupByKey };
+    return { nodes, recByKey, branchByKey };
 }

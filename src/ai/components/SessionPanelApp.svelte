@@ -15,13 +15,14 @@
      * AI 会话管理工作区面板根组件（四件套之一）。两栏式（20260901
      * 改版）：左栏=会话清单（类别过滤 + 状态徽标 + 两击删除，固定宽
      * 自滚），右栏=选中会话的明细（完整轮次回看——user prompt 与 ai
-     * 产出都在——+ 继续追问输入条），点左侧行即切右栏内容。左栏树状
-     * 分组（20260902）：一次动作触发的多次调用归并成一个可展开组行，
-     * 树渲染走共享组件 ui/TreeList（与知识面板/侧栏树同源；树化在
-     * core/SessionTree 纯函数，行内状态徽标/类别章/条数走 main/trailing
-     * 片段）。登记簿本体在 data/AiSessions（全仓共享单例，agentChatOnce
-     * 带 track 的调用自动登记），本组件只吃快照；挂载编排见
-     * ai/SessionPanel.ts。零 <style>，类名走全局 scss。
+     * 产出都在——+ 继续追问输入条），点左侧行即切右栏内容。左栏树
+     * （20260903 改版）：种类优先两级树——顶层一类一棵树（转换/检测
+     * …），类内按主题（组标题「 · 」后的文档名）出第二级，跨次运行
+     * 同文档合并；树渲染走共享组件 ui/TreeList（与知识面板/侧栏树
+     * 同源；树化在 core/SessionTree 纯函数，行内状态徽标/类别章/条数
+     * 走 main/trailing 片段）。登记簿本体在 data/AiSessions（全仓共
+     * 享单例，agentChatOnce 带 track 的调用自动登记），本组件只吃快
+     * 照；挂载编排见 ai/SessionPanel.ts。零 <style>，类名走全局 scss。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -63,8 +64,9 @@
         r.status === "running" ? t("aiStatusRunning") : r.status === "done" ? t("aiStatusDone") : t("aiStatusError");
     const errText = (r: AiSessionRecord): string => (r.error === AI_INTERRUPTED ? t("aiInterrupted") : (r.error ?? ""));
 
-    /** 快照 → 树（同组归并 + 类别过滤，纯函数见 core/SessionTree）。 */
-    const tree = $derived.by(() => buildSessionTree(ui.recs, ui.filter));
+    /** 快照 → 树（种类→文档→调用两级分支；类别过滤与 i18n 种类名注入，
+     *  纯函数见 core/SessionTree）。 */
+    const tree = $derived.by(() => buildSessionTree(ui.recs, ui.filter, kindLabel));
     const kinds = $derived.by(() => {
         const present = new Set(ui.recs.map((r) => r.kind));
         return [...Object.keys(KIND_KEYS).filter((k) => present.has(k)), ...[...present].filter((k) => !KIND_KEYS[k])];
@@ -141,45 +143,61 @@
                                 onrowclick={rowclick}
                             >
                                 {#snippet main(n)}
-                                    {@const g = tree.groupByKey.get(n.key)}
-                                    {#if g}
-                                        <span class="wengu-ai-status is-{g.status}"
-                                            >{@html svgIcon(STATUS_ICON[g.status])}</span
+                                    {@const b = tree.branchByKey.get(n.key)}
+                                    {#if b}
+                                        <span class="wengu-ai-status is-{b.status}"
+                                            >{@html svgIcon(STATUS_ICON[b.status])}</span
                                         >
-                                        <span class="wengu-ai-name wengu-ai-name-group">{g.title}</span>
+                                        <span class="wengu-ai-name{b.subject ? '' : ' wengu-ai-name-group'}"
+                                            >{b.subject ?? kindLabel(b.kind)}</span
+                                        >
                                     {:else}
                                         {@const r = tree.recByKey.get(n.key)}
                                         <span class="wengu-ai-status is-{r?.status}"
                                             >{@html svgIcon(STATUS_ICON[r?.status ?? "done"])}</span
                                         >
                                         <span class="wengu-ai-kind">{r ? kindLabel(r.kind) : ""}</span>
-                                        <span class="wengu-ai-name">{r?.title ?? n.name}</span>
+                                        <span class="wengu-ai-name">{n.name}</span>
                                     {/if}
                                 {/snippet}
                                 {#snippet trailing(n)}
-                                    {@const g = tree.groupByKey.get(n.key)}
-                                    {#if g}
+                                    {@const b = tree.branchByKey.get(n.key)}
+                                    {#if b}
                                         <span class="wengu-ai-meta"
                                             >{fmt(t("aiGroupMeta"), {
-                                                n: String(g.recs.length),
-                                                time: fmtTime(g.createdAt),
+                                                n: String(b.recs.length),
+                                                time: fmtTime(b.createdAt),
                                             })}</span
                                         >
+                                        <!-- 种类级不配删除（误击会清整类）；文档级两击删该文档全部记录 -->
+                                        {#if b.subject}
+                                            <span class="b3-list-item__action">
+                                                <button
+                                                    type="button"
+                                                    class="b3-button b3-button--text"
+                                                    onclick={() =>
+                                                        ctl.armRemoveIds(
+                                                            b.key,
+                                                            b.recs.map((r) => r.id)
+                                                        )}
+                                                >
+                                                    {ui.rmArmed === b.key ? t("collectConfirm") : t("aiDelete")}
+                                                </button>
+                                            </span>
+                                        {/if}
                                     {:else}
                                         {@const r = tree.recByKey.get(n.key)}
                                         {#if r}<span class="wengu-ai-meta">{fmtTime(r.createdAt)}</span>{/if}
+                                        <span class="b3-list-item__action">
+                                            <button
+                                                type="button"
+                                                class="b3-button b3-button--text"
+                                                onclick={() => ctl.armRemove(n.id ?? "")}
+                                            >
+                                                {ui.rmArmed === n.id ? t("collectConfirm") : t("aiDelete")}
+                                            </button>
+                                        </span>
                                     {/if}
-                                    <span class="b3-list-item__action">
-                                        <button
-                                            type="button"
-                                            class="b3-button b3-button--text"
-                                            onclick={() => (g ? ctl.armRemoveGroup(g.id) : ctl.armRemove(n.id ?? ""))}
-                                        >
-                                            {ui.rmArmed === (g ? `g:${g.id}` : n.id)
-                                                ? t("collectConfirm")
-                                                : t("aiDelete")}
-                                        </button>
-                                    </span>
                                 {/snippet}
                             </TreeList>
                         </div>

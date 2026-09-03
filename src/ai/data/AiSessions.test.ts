@@ -128,7 +128,7 @@ describe("AiSessionStore 登记簿", () => {
         expect(s.list()).toEqual([]);
     });
 
-    it("动作分组：begin 带组落组字段；removeGroup 只删同组；盘上组字段读回保留", async () => {
+    it("动作分组：begin 带组落组字段；removeIds 按 id 精确删；盘上组字段读回保留", async () => {
         const m = memStore();
         const s = new AiSessionStore(m.loadRaw, m.saveRaw);
         s.begin("s1", "detect", "前段检测 · 1/3", "m1", "q", { id: "g1", title: "转换 · 文档" });
@@ -137,11 +137,11 @@ describe("AiSessionStore 登记簿", () => {
         let list = s.list();
         expect(list.find((r) => r.id === "s2")).toMatchObject({ group: "g1", groupTitle: "转换 · 文档" });
         expect(list.find((r) => r.id === "s3")?.group).toBeUndefined();
-        s.removeGroup("g1");
+        s.removeIds(["s1", "s2"]);
         list = s.list();
         expect(list.map((r) => r.id)).toEqual(["s3"]);
         // 盘上数据已含组字段，新实例读回不丢
-        expect(m.saved.at(-1)?.items.find((r) => r.id === "s1")).toBeUndefined(); // 已被 removeGroup 落盘删除
+        expect(m.saved.at(-1)?.items.find((r) => r.id === "s1")).toBeUndefined(); // 已被 removeIds 落盘删除
         const m2 = memStore({
             version: 1,
             items: [rec("s9", "convert", 1), { ...rec("s8", "detect", 2), group: "g2", groupTitle: "转换 · 文档" }],
