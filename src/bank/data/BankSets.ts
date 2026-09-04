@@ -1,5 +1,7 @@
 import { KernelQuery } from "../../siyuan/query";
-import { parseQuestionKramdown } from "./BankParse";
+import { KernelBlock } from "../../siyuan/block";
+import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
+import { parseQuestionKramdown, parseMaterialKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import type { QuestionBank, BankSet } from "./QuestionBank";
 import type { SrcGroup } from "../../convert/service/SrcChunk";
@@ -81,11 +83,12 @@ export async function ensureSets(bank: QuestionBank): Promise<number> {
         const set: BankSet = { id, title: "", qids, createdAt: Date.now() };
         try {
             const row = (
-                await KernelQuery.rows<{ content?: string }>(
-                    `SELECT content FROM blocks WHERE id = '${id}' AND type = 'd' LIMIT 1`
+                await KernelQuery.rows<{ content?: string; hpath?: string }>(
+                    `SELECT content, hpath FROM blocks WHERE id = '${id}' AND type = 'd' LIMIT 1`
                 )
             )[0];
             if (row?.content) set.title = row.content;
+            if (row?.hpath) set.hPath = row.hpath; // 侧栏树/聚合标题行用（读不到不阻断）
         } catch (_) {
             // 标题读不到不阻断（已删文档/索引未就绪，显示短 id 兜底）
         }
@@ -94,6 +97,87 @@ export async function ensureSets(bank: QuestionBank): Promise<number> {
     }
     if (added > 0) bank.markDirty();
     return added;
+}
+
+/* ── 存量材料迁移（20260903 审查 P1③）──
+ * 旧世界的材料是习题文档里的超级块、小题 group 挂容器 IAL；题库化后
+ * 材料进 bank.materials、group 走记录字段。ensureSets 只补题集条目不收
+ * 材料——存量含材料题集永久丢材料、组链断裂（DrillUnits 全降级独立题）。
+ * 迁移按文档序扫旧文档：材料块解析入库（id=材料块 id，与小题 group 引用
+ * 同键天然对齐），小题 group IAL（真实 id 或 "prev" 占位按文档序解析）
+ * 回填 record.group。只补缺（幂等）：记录已有 group 不动、材料已入库
+ * 不重读；文档已删/属性行为空=零动作静默过。 */
+
+/** 本会话已扫的存量文档（重扫零动作，每会话每文档至多一次 SQL）。 */
+const legacyScanned = new Set<string>();
+
+export async function migrateLegacyMaterials(bank: QuestionBank): Promise<void> {
+    const data = await bank.all();
+    const need = new Set<string>();
+    for (const r of Object.values(data.records)) {
+        const doc = r.sourceDocId;
+        if (!doc || r.group || legacyScanned.has(doc)) continue;
+        need.add(doc);
+    }
+    for (const doc of need) {
+        legacyScanned.add(doc);
+        try {
+            await migrateOneDoc(bank, data, doc);
+        } catch (e) {
+            console.warn("[wengu] 存量材料迁移失败（下次装载重试）", doc, e);
+            legacyScanned.delete(doc); // 失败不占坑：索引未就绪等瞬态可重试
+        }
+    }
+}
+
+/** 单个旧文档的迁移体（rowsAll 全量分页：行数=材料+组链，长阅读卷过 64）。 */
+async function migrateOneDoc(
+    bank: QuestionBank,
+    data: Awaited<ReturnType<QuestionBank["all"]>>,
+    docId: string
+): Promise<void> {
+    const rows = await KernelQuery.rowsAll<{ id: string; name: string; value: string }>(`
+            SELECT a.block_id AS id, a.name AS name, a.value AS value
+            FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
+            WHERE b.root_id = '${docId}'
+              AND (a.name = '${Attr.material}' OR a.name = '${Attr.group}')
+            ORDER BY b.sort, b.created, a.block_id`);
+    const matIds: string[] = [];
+    const patch = new Map<string, string>(); // qid → 材料块 id
+    let lastMat = "";
+    for (const row of rows) {
+        if (row.name === Attr.material && row.value === MATERIAL_FLAG) {
+            lastMat = row.id;
+            matIds.push(row.id);
+        } else if (row.name === Attr.group) {
+            const target = row.value === GROUP_PREV ? lastMat : row.value;
+            if (target && data.records[row.id]) patch.set(row.id, target);
+        }
+    }
+    let changed = false;
+    data.materials ??= {};
+    for (const mid of matIds) {
+        if (data.materials[mid]) continue;
+        const kd = String(((await KernelBlock.kramdown(mid)).data as { kramdown?: string } | null)?.kramdown ?? "");
+        const mat = parseMaterialKramdown(kd, mid, docId);
+        if (mat) {
+            data.materials[mid] = {
+                id: mid,
+                setId: docId,
+                ...(mat.bodyMd ? { bodyMd: mat.bodyMd } : {}),
+                ...(mat.transMd ? { transMd: mat.transMd } : {}),
+            };
+            changed = true;
+        }
+    }
+    for (const [qid, mid] of patch) {
+        const r = data.records[qid];
+        if (r && !r.group && data.materials[mid]) {
+            r.group = mid;
+            changed = true;
+        }
+    }
+    if (changed) bank.markDirty();
 }
 
 /** 题集的题目（set.qids 序；解析走缓存、统计镜像覆盖、rootId=setId）。 */
@@ -114,6 +198,7 @@ export async function setQuestions(bank: QuestionBank, setId: string): Promise<P
             })();
         if (!parsed) continue;
         parsed.rootId = setId; // 缓存命中时也可能是专题模式解析的（无 rootId），归位
+        if (r.group) parsed.group = r.group; // 记录字段为组链真相（20260903 审查 P1①）
         parsed.attempts = r.stats.attempts;
         parsed.wrongCount = r.stats.wrongCount;
         parsed.right = r.stats.right;
@@ -145,6 +230,7 @@ export async function questionOf(bank: QuestionBank, qid: string): Promise<Parse
         })();
     if (!parsed) return undefined;
     parsed.rootId = r.sourceDocId;
+    if (r.group) parsed.group = r.group; // 记录字段为组链真相（20260903 审查 P1①）
     parsed.attempts = r.stats.attempts;
     parsed.wrongCount = r.stats.wrongCount;
     parsed.right = r.stats.right;

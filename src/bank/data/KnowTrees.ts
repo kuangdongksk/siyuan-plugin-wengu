@@ -47,14 +47,23 @@ export function mintKnowNodeId(): string {
 }
 
 /** 全部节点 → 全路径（祖先标题链/标题；level 栈式就近挂靠，与
- *  buildSectionTree 口径一致）——id 复用与展示路径共用的纯函数。 */
+ *  buildSectionTree 口径一致）——id 复用与展示路径共用的纯函数。
+ *  同父同名兄弟按文档序追加 ~2/~3 消歧：直接后写覆盖会让先出节点
+ *  在「同路径复用旧 id」对齐里永远落空、每轮重归纳都被 mint 新 id
+ *  （20260903 审查 P2）；新旧两侧走同一函数，消歧结果按位对齐。 */
 export function treePathsOf(nodes: BankKnowNode[]): Map<string, BankKnowNode> {
     const out = new Map<string, BankKnowNode>();
     const stack: string[] = []; // stack[i] = level<=i+1 的最近标题
     for (const n of nodes) {
         stack[n.level - 1] = n.title;
         stack.length = n.level;
-        out.set(stack.filter(Boolean).join("/"), n);
+        let path = stack.filter(Boolean).join("/");
+        if (out.has(path)) {
+            let k = 2;
+            while (out.has(`${path}~${k}`)) k++;
+            path = `${path}~${k}`;
+        }
+        out.set(path, n);
     }
     return out;
 }

@@ -19,7 +19,7 @@
  * 树状呈现「动作 → 多个会话」。
  */
 
-import { errText } from "./../../ui/shared";
+import { errText, isLifecycleGone } from "../../ui/shared";
 import { notifyError } from "../../ui/Notify";
 
 /** 会话轮次：user=发给 AI 的完整 prompt，ai=AI 回答全文（即「产出」）。 */
@@ -146,6 +146,8 @@ export class AiSessionStore {
     /** 串行落盘链（同 ChatStore/RouteCache 模式：并发 saveData 互吞）。 */
     private chain: Promise<unknown> = Promise.resolve();
     private listeners = new Set<() => void>();
+    /** 版本闩：盘上数据来自更新版插件时停写保护（升级后自然解除）。 */
+    private foreign = false;
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -163,6 +165,14 @@ export class AiSessionStore {
         this.readyPromise ??= this.loadRaw()
             .catch((): unknown => undefined)
             .then((raw) => {
+                // 版本闩（数据演进守则：新持久化存储上线即配）：盘上版本
+                // 大于本版已知=来自更新版插件，按空起步+停写，防旧版覆写
+                const ver = raw && typeof raw === "object" ? (raw as { version?: number }).version : undefined;
+                if (typeof ver === "number" && ver > 1) {
+                    this.foreign = true;
+                    notifyError({ key: "notifyStoreForeign", vars: { store: "ai-sessions" } });
+                    return;
+                }
                 const stored = validItems(raw);
                 if (this.items.length === 0) {
                     this.items = stored;
@@ -308,6 +318,7 @@ export class AiSessionStore {
 
     /** 脏了安排去抖落盘。 */
     private schedule(): void {
+        if (this.foreign) return; // 版本闩：停写保护
         this.dirty = true;
         this.flushTimer ??= setTimeout(() => {
             this.flushTimer = undefined;
@@ -317,6 +328,7 @@ export class AiSessionStore {
 
     /** 立即落盘（去抖窗口合并多笔；插件卸载/单测直调）。 */
     flushNow(): void {
+        if (this.foreign) return; // 版本闩：停写保护
         if (this.flushTimer) {
             clearTimeout(this.flushTimer);
             this.flushTimer = undefined;
@@ -327,8 +339,11 @@ export class AiSessionStore {
         const run = this.chain.then(() => this.saveRaw(snap));
         const noop = (): void => undefined;
         // 链面吞错保后续可排（内存为准），但不再静默：落盘失败走思源
-        // 通知（Notify 错误冷却防重试风暴）
+        // 通知（Notify 错误冷却防重试风暴）。3.8.2 生命周期闸（410）
+        // 除外——重载后旧实例的僵尸登记（长 AI 任务熬过重载才收口）
+        // 属预期失败，弹了只是调试重载期的噪音（20260904）。
         this.chain = run.then(noop, (e: unknown): void => {
+            if (isLifecycleGone(e)) return;
             notifyError({ key: "notifySaveFailAi", vars: { msg: errText(e) } });
         });
     }

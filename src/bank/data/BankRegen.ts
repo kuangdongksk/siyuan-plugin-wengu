@@ -1,6 +1,6 @@
 import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { QuestionBank, BankRecord } from "./QuestionBank";
-import { normKn } from "./QuestionBank";
+import { normKn } from "./KnowledgeNorm";
 import { knKey } from "./KnowledgeNorm";
 
 /**
@@ -17,13 +17,19 @@ export async function recordOf(bank: QuestionBank, qid: string): Promise<BankRec
     return data.records[qid];
 }
 
-/** 替换一题的 kramdown（重新生成后）：更新指纹、失效解析缓存并落盘。 */
+/** 替换一题的 kramdown（重新生成后）：更新指纹、失效解析缓存并落盘。
+ *  旧格式的组链（group 在容器 IAL 里）趁替换迁到记录字段——新 kramdown
+ *  不再落 group IAL，不迁移则重生成一次就断组（20260903 审查 P1①）。 */
 export async function replaceRecordKramdown(bank: QuestionBank, qid: string, kd: string): Promise<boolean> {
     const data = await bank.all();
     const r = data.records[qid];
     if (!r) return false;
     const hash = questionHash(kd);
     delete data.hashed[r.hash];
+    if (!r.group) {
+        const legacy = /custom-plugin-wengu-group="([^"]*)"/.exec(r.kramdown);
+        if (legacy && legacy[1] && legacy[1] !== "prev") r.group = legacy[1];
+    }
     r.kramdown = kd;
     r.hash = hash;
     data.hashed[hash] = qid;

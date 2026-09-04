@@ -29,25 +29,24 @@ export interface DrillUnit {
     qs?: GroupUnitQ[];
 }
 
-/** 组装渲染单元：有可解析 group 的题归入其材料组（材料缺失按独立题降级）。 */
+/** 组装渲染单元：有可解析 group 的题归入其材料组（材料缺失按独立题降级）。
+ *  组按**连续段**归并——同一材料在卷中隔题再现=新开一个组单元，而不是
+ *  并回早先那个（合并会把后段题挪进前段单元，破坏「顺序绝不重排」；
+ *  也让组单元范围与题集段天然对齐，题集标题行不再漏插，20260903 审查P2）。 */
 export function buildDrillUnits(list: WenguQuestion[], materials: WenguMaterial[]): DrillUnit[] {
     const byId = new Map(materials.map((m) => [m.id, m] as const));
     const units: DrillUnit[] = [];
-    const groupByMid = new Map<string, DrillUnit>();
     for (let i = 0; i < list.length; i++) {
         const q = list[i];
         const mat = q.group ? byId.get(q.group) : undefined;
-        if (!mat) {
-            units.push({ kind: "single", q, idx: i });
+        const last = units[units.length - 1];
+        if (!mat || last?.kind !== "group" || last.mid !== mat.id) {
+            units.push(
+                mat ? { kind: "group", mid: mat.id, material: mat, qs: [{ q, idx: i }] } : { kind: "single", q, idx: i }
+            );
             continue;
         }
-        let u = groupByMid.get(mat.id);
-        if (!u) {
-            u = { kind: "group", mid: mat.id, material: mat, qs: [] };
-            groupByMid.set(mat.id, u);
-            units.push(u);
-        }
-        u.qs!.push({ q, idx: i });
+        last.qs!.push({ q, idx: i });
     }
     return units;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseKpRefs, parseQuestionKramdown, questionHash } from "./BankParse";
+import { parseKpRefs, parseMaterialKramdown, parseQuestionKramdown, questionHash } from "./BankParse";
 import { QuestionType } from "../../types";
 
 /**
@@ -157,5 +157,87 @@ describe("questionHash", () => {
         expect(questionHash(a)).not.toBe(questionHash(b));
         expect(questionHash(a)).not.toBe(questionHash(c));
         expect(questionHash(a)).not.toBe(questionHash(d));
+    });
+});
+
+/* ── 20260903 审查 P1 补齐：slots 聚合 / match 拆字母 / 存量组链 IAL ── */
+
+const clozeKd = [
+    "{{{row",
+    "完形语篇题干（空位 __1__）",
+    '{: custom-plugin-wengu-part="stem"}',
+    "",
+    "A 选项文本",
+    '{: custom-plugin-wengu-part="slot-1-option-0"}',
+    "",
+    "B 选项文本",
+    '{: custom-plugin-wengu-part="slot-1-option-1"}',
+    "",
+    "A",
+    '{: custom-plugin-wengu-part="slot-1-answer"}',
+    "",
+    "C 选项文本",
+    '{: custom-plugin-wengu-part="slot-2-option-0"}',
+    "",
+    "C",
+    '{: custom-plugin-wengu-part="slot-2-answer"}',
+    "}}}",
+    '{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="cloze"}',
+].join("\n");
+
+describe("parseQuestionKramdown · slots 聚合（cloze 逐空）", () => {
+    it("slot-{k}-option/answer 按空聚合出 q.slots", () => {
+        const q = parseQuestionKramdown(clozeKd, "q1");
+        expect(q?.slots).toHaveLength(2);
+        expect(q?.slots?.[0]).toMatchObject({ answer: "A" });
+        expect(q?.slots?.[0]?.optionMd).toEqual(["A 选项文本", "B 选项文本"]);
+        expect(q?.slots?.[1]).toMatchObject({ answer: "C" });
+    });
+    it("match 无 slot 子块时按题级 answer 拆字母兜底（候选池=optionMd）", () => {
+        const kd = [
+            "{{{row",
+            "七选五题干",
+            '{: custom-plugin-wengu-part="stem"}',
+            "",
+            "- 候选甲",
+            '{: custom-plugin-wengu-part="option-0"}',
+            "",
+            "- 候选乙",
+            '{: custom-plugin-wengu-part="option-1"}',
+            "",
+            "> D|A",
+            '{: custom-plugin-wengu-part="answer"}',
+            "}}}",
+            '{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="match"}',
+        ].join("\n");
+        const q = parseQuestionKramdown(kd, "q2");
+        expect(q?.type).toBe(QuestionType.Match);
+        expect(q?.slots?.map((s) => s.answer)).toEqual(["D", "A"]);
+        expect(q?.slots?.[0]?.optionMd).toEqual([]);
+    });
+    it("存量容器 group IAL 解析进 q.group（记录字段缺省时的组链兜底）", () => {
+        const kd = singleKd.replace(
+            'custom-plugin-wengu-knowledge="极限"',
+            'custom-plugin-wengu-knowledge="极限" custom-plugin-wengu-group="20260811172855-ta6w8oh"'
+        );
+        expect(parseQuestionKramdown(kd, "q3")?.group).toBe("20260811172855-ta6w8oh");
+    });
+});
+
+describe("parseMaterialKramdown · 存量材料超级块", () => {
+    it("material=1 容器解析 body/trans；非材料容器/空材料返回 undefined", () => {
+        const matKd = [
+            "{{{row",
+            "阅读原文第一段",
+            '{: custom-plugin-wengu-part="body"}',
+            "",
+            "参考译文",
+            '{: custom-plugin-wengu-part="trans"}',
+            "}}}",
+            '{: custom-plugin-wengu-material="1"}',
+        ].join("\n");
+        const mat = parseMaterialKramdown(matKd, "mat1", "set1");
+        expect(mat).toMatchObject({ id: "mat1", rootId: "set1", bodyMd: "阅读原文第一段", transMd: "参考译文" });
+        expect(parseMaterialKramdown(singleKd, "mat2", "set1")).toBeUndefined();
     });
 });

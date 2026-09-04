@@ -1,5 +1,6 @@
-import type { WenguQuestion } from "../../types";
+import type { WenguMaterial, WenguQuestion, WenguSlot } from "../../types";
 import type { WenguStep } from "../../types";
+import { QuestionType } from "../../types";
 import {
     cleanStemMd,
     normalizeAnswerMd,
@@ -21,8 +22,8 @@ import {
  * part IAL 行。解析器按行扫描 part IAL 分段，不做 Lute/内核调用。
  */
 
-/** 容器属性行（custom-plugin-wengu-q=…）。 */
-const CONTAINER_IAL = /^\{:[^\n]*custom-plugin-wengu-q=/;
+/** 容器属性行（题目 q=… / 存量材料 material=… 两种容器）。 */
+const CONTAINER_IAL = /^\{:[^\n]*custom-plugin-wengu-(?:q|material)=/;
 /** 子块属性行，捕获 part 名。 */
 const PART_IAL = /^\{:[^\n]*custom-plugin-wengu-part="([a-z0-9-]+)"/;
 
@@ -119,6 +120,11 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
     if (chapter) q.chapter = chapter;
     const kinds = parseStepKinds(containerAttr(containerIal, "steps") ?? "");
     if (kinds) q.steps = kinds.map((kind): WenguStep => ({ kind, stemMd: "", optionMd: [], answer: "" }));
+    // 存量组链（20260903 前文档落盘格式）：group 在容器 IAL 里（真实
+    // 材料块 id 或 "prev" 占位由读侧回写）；新记录 group 走 BankRecord
+    // 字段（SetWriter 写时直配），读侧以记录字段覆盖此处兜底
+    const groupIal = containerAttr(containerIal, "group");
+    if (groupIal) q.group = groupIal;
 
     const options: { index: number; md: string }[] = [];
     const stepAcc = new Map<number, { stems: string[]; options: { index: number; md: string }[]; answers: string[] }>();
@@ -130,6 +136,17 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
         }
         return acc;
     };
+    // slots（cloze 完形逐空）：slot-{k}-option-{j} / slot-{k}-answer 按空
+    // 聚合（20260903 审查 P1②——自托管迁移时丢失，SlotFlow/逐空判分复活）
+    const slotAcc = new Map<number, { options: { index: number; md: string }[]; answers: string[] }>();
+    const slotOf = (k: number) => {
+        let acc = slotAcc.get(k);
+        if (!acc) {
+            acc = { options: [], answers: [] };
+            slotAcc.set(k, acc);
+        }
+        return acc;
+    };
     for (const [part, mds] of parts) {
         for (let md of mds) {
             const sm = /^step-(\d+)-(stem|option(?:-(\d+))?|answer)$/.exec(part);
@@ -138,6 +155,13 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
                 if (sm[2] === "stem") acc.stems.push(md);
                 else if (sm[2] === "answer") acc.answers.push(md);
                 else acc.options.push({ index: sm[3] !== undefined ? Number(sm[3]) : acc.options.length, md });
+                continue;
+            }
+            const lm = /^slot-(\d+)-(option(?:-(\d+))?|answer)$/.exec(part);
+            if (lm) {
+                const acc = slotOf(Number(lm[1]));
+                if (lm[2] === "answer") acc.answers.push(md);
+                else acc.options.push({ index: lm[3] !== undefined ? Number(lm[3]) : acc.options.length, md });
                 continue;
             }
             const om = /^option(?:-(\d+))?$/.exec(part);
@@ -170,8 +194,40 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
         );
     if (steps.length > 0) q.steps = steps;
 
+    // 空组装：cloze 的 slot-{k}-* 子块；match 用题级 answer 的字母序列
+    // （候选池=optionMd），槽位数=字母数——两种题型统一成逐空视图
+    // （旧 QuestionService:303-318 同款口径移植）
+    const slotLetters: WenguSlot[] = [...slotAcc.entries()]
+        .sort((x, y) => x[0] - y[0])
+        .map(([, acc]) => ({
+            optionMd: acc.options.sort((x, y) => x.index - y.index).flatMap((o) => splitOptionMd(o.md)),
+            answer: normalizeAnswerMd(acc.answers.join("\n")),
+        }));
+    if (slotLetters.length > 0) {
+        q.slots = slotLetters;
+    } else if (q.type === QuestionType.Match && q.answer && (q.optionMd?.length ?? 0) > 0) {
+        const letters = q.answer
+            .toUpperCase()
+            .split(/[^A-Z]+/)
+            .filter(Boolean);
+        if (letters.length > 0) q.slots = letters.map((l): WenguSlot => ({ optionMd: [], answer: l }));
+    }
+
     q.kpRefs.push(...parseKpRefs(solution));
     return q;
+}
+
+/** 存量材料超级块 → WenguMaterial（20260903 审查 P1③ 存量迁移用）：
+ *  旧世界的材料是习题文档里的超级块（custom-plugin-wengu-material="1"
+ *  容器 + body/trans part 子块），题库化后材料进 bank.materials——
+ *  存量文档里的材料块经此解析搬入库。非材料容器返回 undefined。 */
+export function parseMaterialKramdown(kd: string, id: string, setId: string): WenguMaterial | undefined {
+    const { containerIal, parts } = splitParts(kd);
+    if (!containerIal || containerAttr(containerIal, "material") !== "1") return undefined;
+    const body = (parts.get("body") ?? []).join("\n\n");
+    const trans = (parts.get("trans") ?? []).join("\n\n");
+    if (!body && !trans) return undefined;
+    return { id, rootId: setId, ...(body ? { bodyMd: body } : {}), ...(trans ? { transMd: trans } : {}) };
 }
 
 /** 从解析文本里抽知识点块引用 ((id "标题"))（按 id 去重；题库解析与薄弱画像共用）。 */

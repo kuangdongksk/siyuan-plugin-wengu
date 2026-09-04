@@ -8,6 +8,7 @@ import { detachAiSessionPanel } from "../ai/SessionPanel";
 import { detachReviewApp, filterReviewDocFor } from "../review";
 import { collectThoughts } from "./render/CardRegistry";
 import { reimportDocFrom, unregisterSetAsQuiz } from "./service/DocOps";
+import { resetPreviewSearch } from "./flow/PreviewFlow";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
 import { normalizeWorkspace, type WenguWorkspace } from "./render/RailMount";
 import { buildSideTree } from "./render/SideTree";
@@ -278,6 +279,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 切换上下文的公共收尾：结算计时、记 prefs、重载。 */
     private reloadDocs(docId: string): void {
         void this.timerBinder.flush();
+        if (this.mode === "preview") resetPreviewSearch(); // 换卷不带走旧搜题词
         this.docId = docId;
         this.persistPrefs();
         void this.load();
@@ -287,6 +289,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
      *  右键错题复习/预览工具行「退出预览」都汇到这里；切回做题恢复已答锁定。 */
     readonly switchMode = (mode: "quiz" | "review" | "preview"): void => {
         if (this.mode === mode) return;
+        if (this.mode === "preview") resetPreviewSearch(); // 搜题词是模块级，离开预览清零防下卷误过滤
         this.mode = mode;
         this.renderList(); // 落幕统一恢复已答锁定（见 renderList 尾注）
     };

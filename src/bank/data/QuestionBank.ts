@@ -1,7 +1,7 @@
 import { parseQuestionKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import type { BankKnowTree } from "./KnowTrees";
-import { knKey, pickStandardName } from "./KnowledgeNorm";
+import { knKey, normKn, pickStandardName } from "./KnowledgeNorm";
 import { notifyError } from "../../ui/Notify";
 import { errText, isLifecycleGone } from "../../ui/shared";
 
@@ -188,37 +188,10 @@ export class QuestionBank {
             // 版本闩：数据来自更新版插件，停写保护（升级后自然解除）
             this.foreign = true;
             notifyError({ key: "notifyStoreForeign", vars: { store: "bank.json" } });
-            this.cache = {
-                version: 1,
-                records: {},
-                collections: [],
-                migratedDocs: [],
-                hashed: {},
-                knowRoots: [],
-                folders: [],
-                knowHidden: [],
-                docStats: {},
-                sets: {},
-                materials: {},
-            };
+            this.cache = emptyBankData();
             return this.cache;
         }
-        this.cache =
-            data && typeof data === "object" && data.records
-                ? data
-                : {
-                      version: 1,
-                      records: {},
-                      collections: [],
-                      migratedDocs: [],
-                      hashed: {},
-                      knowRoots: [],
-                      folders: [],
-                      knowHidden: [],
-                      docStats: {},
-                      sets: {},
-                      materials: {},
-                  };
+        this.cache = data && typeof data === "object" && data.records ? data : emptyBankData();
         for (const k of ["knowRoots", "folders", "knowHidden"] as const)
             if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
         if (!this.cache.docStats) this.cache.docStats = {};
@@ -262,12 +235,12 @@ export class QuestionBank {
             // 定时器，得等下一次 markDirty 才会再试（20260829 审查）；
             // 不再静默：落盘失败走思源通知（Notify 同文案 60s 冷却）。
             // 但 3.8.2 起实例被 dispose（petal 重载/页签销毁竞态）后
-            // saveData 永久拒绝 410：重排只会造出僵尸循环（每冷却期弹
-            // 一次错）——终止类失败保留脏标记即止，不再重排。
-            notifyError({ key: "notifySaveFailBank", vars: { msg: errText(e) } });
+            // saveData 永久拒绝 410：旧实例残骸的预期失败，不弹不重排
+            // （弹了只是调试重载期的噪音），保留脏标记即止。
             this.dirty = true;
-            if (!isLifecycleGone(e))
-                this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
+            if (isLifecycleGone(e)) return;
+            notifyError({ key: "notifySaveFailBank", vars: { msg: errText(e) } });
+            this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
         }
     }
 
@@ -501,8 +474,19 @@ function overlayStats(p: ParsedQuestion, r: BankRecord): ParsedQuestion {
     return p;
 }
 
-/** 传入聚合键归一：kn: 键的词干化（新旧键都能与 knKey 产出对齐）；
- *  kp:/ch: 键原样透传。（BankRegen 的 recordsByKeys 同口径共用） */
-export function normKn(key: string): string {
-    return key.startsWith("kn:") ? knKey(key.slice(3)) || key : key;
+/** 空库起步形态（版本闩停写保护与坏数据归空共用）。 */
+function emptyBankData(): BankData {
+    return {
+        version: 1,
+        records: {},
+        collections: [],
+        migratedDocs: [],
+        hashed: {},
+        knowRoots: [],
+        folders: [],
+        knowHidden: [],
+        docStats: {},
+        sets: {},
+        materials: {},
+    };
 }

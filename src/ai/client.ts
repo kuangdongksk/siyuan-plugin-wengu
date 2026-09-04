@@ -1,6 +1,7 @@
 import { errText } from "./../ui/shared";
 import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
+import { sanitizeAiImages } from "./PromptHygiene";
 import { resolveModelId, listAiModels } from "./models";
 import { aiSessions, type AiTurn, type AiTrack } from "./data/AiSessions";
 import { notifyInfo } from "../ui/Notify";
@@ -226,6 +227,9 @@ export async function agentChatOnce(
     signal?: AbortSignal,
     track?: AiTrack
 ): Promise<string> {
+    // 消毒先行：登记簿与 saveSession 落的都是实际发送文本（assets 图片行
+    // 换占位符，防内核抠图附件 detail:auto 触发供应商 2013，见 PromptHygiene）
+    message = sanitizeAiImages(message);
     const sid = newSessionId();
     const sessions = aiSessions();
     if (sessions && track)
@@ -258,12 +262,14 @@ export async function agentChatContinued(
     timeoutMs: number,
     signal?: AbortSignal
 ): Promise<string> {
+    // 追问消息与回放的历史 user 轮（旧转换记录可能带图片行）同样消毒
+    message = sanitizeAiImages(message);
     const sid = newSessionId();
     const first = turns.find((t) => t.role === "user")?.text ?? message;
     const entries: SeededEntry[] = turns.map((t, i) => ({
         id: `h${i}`,
         type: t.role === "user" ? "user" : "assistant",
-        content: t.text,
+        content: t.role === "user" ? sanitizeAiImages(t.text) : t.text,
     }));
     entries.push({ id: "u1", type: "user", content: message });
     try {

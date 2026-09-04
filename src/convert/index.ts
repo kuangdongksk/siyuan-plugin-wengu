@@ -15,7 +15,8 @@ import { showBatchPreview } from "../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguMaterial, WenguQuestion } from "../types";
-import { esc, fmt } from "../ui/shared";
+import { esc, fmt, htmlToText, copyText } from "../ui/shared";
+import { svgIcon } from "../ui/FormHtml";
 
 /**
  * 转换编排（从 QuizView 拆出）：组装 ConvertDialog 的依赖、转换按钮
@@ -240,6 +241,14 @@ export function renderConvertBar(
     const slot = el.querySelector<HTMLElement>("[data-status]");
     if (!slot) return;
     lastBar = mode ? { t, html, kind, mode } : undefined;
+    // 终态错误条附复制钮：报错原文常要贴给模型供应商/issue，选中复制在
+    // 状态条上很别扭（Neo 主题 user-select 受限），一键复制 + 图标反馈
+    const copyBtn =
+        kind === "err"
+            ? `<button class="b3-button wengu-iconbtn" data-act="convert-copy" title="${esc(
+                  t("convertCopyErr")
+              )}">${svgIcon("iconCopy")}</button>`
+            : "";
     const stopBtn =
         mode === "running"
             ? `<button class="b3-button b3-button--outline" data-act="convert-stop">${esc(t("convertStop"))}</button>`
@@ -251,9 +260,21 @@ export function renderConvertBar(
                   t("convertDiscard")
               )}</button>`
             : "";
-    slot.innerHTML = `<span class="wengu-convert-bar-text">${html}</span>${stopBtn}${choice}`;
+    slot.innerHTML = `<span class="wengu-convert-bar-text">${html}</span>${copyBtn}${stopBtn}${choice}`;
     slot.className = `wengu-status wengu-status-${kind} wengu-convert-bar`;
     slot.removeAttribute("hidden");
+    slot.querySelector<HTMLButtonElement>("[data-act='convert-copy']")?.addEventListener("click", (ev) => {
+        const btn = ev.currentTarget as HTMLButtonElement;
+        void copyText(htmlToText(html)).then((ok) => {
+            if (!ok) return;
+            btn.innerHTML = svgIcon("iconCheck");
+            btn.title = t("convertCopied");
+            setTimeout(() => {
+                btn.innerHTML = svgIcon("iconCopy");
+                btn.title = t("convertCopyErr");
+            }, 1200);
+        });
+    });
     slot.querySelector<HTMLButtonElement>("[data-act='convert-stop']")?.addEventListener("click", stopConvertRun);
     slot.querySelector<HTMLButtonElement>("[data-act='convert-keep']")?.addEventListener("click", () => {
         clearConvertBar();

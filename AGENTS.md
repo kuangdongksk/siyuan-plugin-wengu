@@ -205,8 +205,10 @@
   卡内 CardUi 响应态）与 6-5 侧栏/头部壳（SidePanelApp/QuizHeadApp，
   2026-08-31，quiz 域收官）。组件零 `<style>`，
   类名与迁移前逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
-- **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 518 行豁免
-  ——6-5 新增访问器属紧凑访问器表，外移破坏内聚，见迁移文档 6-5 节）；
+- **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 基线豁免
+  574 行——20260826 预览改版至 20260903 聚合/组链修复持续增长，
+  访问器表+编排职责外移破坏内聚，改动它前后注意别再净增；见
+  迁移文档 6-5 节与 20260903 审查）；
   界面规范见 `docs/design-review.md §〇`
   （图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml 行样式）。
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器
@@ -393,7 +395,11 @@ updated="…"}A. …`）、条目自身 IAL 缩进独立成行、块引用子块
   markDirty 的竞态）后永久拒绝，防抖重排撞上必须停手
   （`isLifecycleGone`），否则僵尸循环每冷却期弹一次错（20260903
   题库落盘失败真机踩坑，且当时正常实例落库无恙——toast 全来自旧
-  实例残骸）；② code 403 全局只读/发布模式（用户可解，重试合法）；
+  实例残骸）。**20260904 收口：410 属旧实例残骸的预期失败，连通知
+  也一并静默**（QuestionBank/AiSessions 的 flush 都先 `isLifecycleGone`
+  再弹）；fire-and-forget 的 `void save()` 一律链尾 `.catch`——try/catch
+  接不住异步 reject，漏出去是控制台未捕获拒绝刷屏（savePrefs/settings
+  踩过）；② code 403 全局只读/发布模式（用户可解，重试合法）；
   ③ code 400 数据 JSON 序列化失败（循环引用等）。
 - 内置智能体 `/api/ai/agent/chat`（SSE）：**并发锁按 sessionID 键控
   （`runningSessions map[string]*runningSession`，非全局锁），不同
@@ -401,6 +407,21 @@ updated="…"}A. …`）、条目自身 IAL 缩进独立成行、块引用子块
   两个诉求一个接口全满足**（20260827 在 3.8.1 两轮真机验证：两个不同
   sessionID 并发请求均 `event:done` 零 busy；传假 model id 被拒
   「请先参考用户指南进行配置」证明 model 生效）。
+    - **消息里的 `![](assets/…)` 会被抠成图片附件（20260903 MiniMax 2013
+      真机踩坑）**：内核 `AgentMessageImageAssets` 用 Lute 解析 user 消息，
+      把 assets/ 开头的图片抠出来 base64 附给供应商，`image_url.detail`
+      无显式值一律 `"auto"`（kernel/agent/attachments.go
+      buildAttachmentMessage），且单请求最多 4 张/20MB、超出静默丢。
+      供应商 schema 不认 auto 时（MiniMax 只收 low/default/high，报
+      「网络异常，请稍后再试: invalid params, invalid image detail: auto
+      (2013)」）整批必挂——带图批次全灭、纯文本批次全活。内核的
+      isImageInputUnsupportedError 降级白名单不匹配这类措辞，不会自动
+      重试纯文本。**插件对策：`ai/PromptHygiene` 在发送口（client 两条
+      公开通道）把图片行统一换成 `〔插图:路径〕`占位符（Lute 解析不出
+      图片节点），`QuestionDraft.cleanPartText` 兜底还原——落盘 kramdown
+      与旧产物逐字同构**。往 agent chat 发文档 kramdown 的新通道都必须
+      过这层消毒（20260903 已用内核探针双验证：真图片行=2013 复现、
+      占位符=正常出字）。
     - **老结论「并发互斥」是假象**：20260823 验证时没传 sessionID，
       所有请求都撞在 `runningSessions[""]` 这一个 key 上 → 全局互斥。
     - 调用前置（缺一即 409/「网络异常」假象）：

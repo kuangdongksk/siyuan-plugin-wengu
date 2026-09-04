@@ -325,6 +325,8 @@
   "convertImagesMissing": "Warning: {n} source images not carried into questions — image-dependent questions may have been skipped (lecture figures are fine); re-convert to fix",
   "convertBatchEmpty": "Warning: {n} batch(es) produced nothing (AI returned no parseable questions) — those source sections were skipped; re-convert to fill them",
   "convertBatchProgress": "Generating batch {i}/{n} · {c} question(s) total",
+  "convertCopyErr": "Copy error text",
+  "convertCopied": "Copied",
   "convertStop": "Stop",
   "convertStopped": "Stopped: {c} question(s) generated ({b}/{n} batches)",
   "convertStoppedEmpty": "Stopped: nothing generated yet",

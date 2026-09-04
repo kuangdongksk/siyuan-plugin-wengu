@@ -48,3 +48,14 @@ describe("buildDrillUnits（组单元段首=组内首题下标）", () => {
         expect(units[1].qs?.map((x) => x.idx)).toEqual([1, 2]);
     });
 });
+
+describe("buildDrillUnits · 材料组连续段化（20260903 审查 P2）", () => {
+    it("同材料隔题再现=新开组单元，不并回早先单元（顺序绝不重排）", () => {
+        const list = [q("a", { group: "m1" }), q("b"), q("c", { group: "m1" })];
+        const units = buildDrillUnits(list, [{ id: "m1", rootId: "s", bodyMd: "材料" }]);
+        expect(units.map((u) => u.kind)).toEqual(["group", "single", "group"]);
+        expect(units[0]).toMatchObject({ kind: "group", mid: "m1" });
+        expect(units[0].qs?.map((x) => x.q.id)).toEqual(["a"]);
+        expect(units[2].qs?.map((x) => x.q.id)).toEqual(["c"]);
+    });
+});

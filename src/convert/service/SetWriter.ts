@@ -32,8 +32,10 @@ export interface AppendOut {
 
 export class SetWriter {
     /** 跨批跟踪「最近一个材料」：小题 group=prev 引用文中紧邻其前的
-     *  材料块（与旧文档序语义一致——材料先于小题产出）。 */
-    private lastMaterialId = "";
+     *  材料块（与旧文档序语义一致——材料先于小题产出）。undefined=尚未
+     *  播种（冷启动）：增量/续跑接管的既有题集，首次 append 前从库内
+     *  该集最新材料播种，跨块 group 不丢（20260903 审查 P2）。 */
+    private lastMaterialId: string | undefined;
 
     constructor(private readonly bank: QuestionBank) {}
 
@@ -76,6 +78,13 @@ export class SetWriter {
         const set = data.sets?.[setId];
         if (!set) throw new Error(`set ${setId} not found`);
         data.materials ??= {};
+        if (this.lastMaterialId === undefined) {
+            // 冷启动播种：接管的既有题集取其最新材料为「文中紧邻其前」
+            // ——增量块首题 group=prev 引用的是上一块尾的材料
+            let seed = "";
+            for (const m of Object.values(data.materials)) if (m.setId === setId) seed = m.id;
+            this.lastMaterialId = seed;
+        }
         const out: AppendOut = { qids: [], units: [], questions: [], materials: [] };
         for (const { draft, srcKey, srcHash } of units) {
             if (draft.material) {
@@ -101,12 +110,13 @@ export class SetWriter {
                 continue;
             }
             const qid = mintQid();
-            const group = draft.attrs.group === GROUP_PREV ? this.lastMaterialId : "";
+            const group = draft.attrs.group === GROUP_PREV ? (this.lastMaterialId ?? "") : "";
             const attrs = { ...draft.attrs };
             delete attrs.group; // group 改由记录字段承载，不再进 kramdown IAL
             const kd = renderUnit({ ...draft, attrs }, { srcKey, srcHash });
             const parsed = parseQuestionKramdown(kd, qid, setId);
             if (!parsed) continue; // 渲染-解析回路失败：跳过（与旧入库口径一致）
+            if (group) parsed.group = group; // 渐进预览直用 out.questions，组链随行（读侧同款回填）
             const hash = questionHash(kd);
             const record: BankRecord = {
                 qid,
@@ -136,13 +146,14 @@ export class SetWriter {
         return out;
     }
 
-    /** 「全部丢弃」：本次写入的题目逐条回收；题集因此清空则连 set/
-     *  材料/影子专题一起删（removeDocData 同款语义）。 */
+    /** 「全部丢弃」：本次写入的题目逐条回收；题集因此清空（含零题空壳
+     *  ——只出材料的批也建了题集，20260903 审查 P3）则连 set/材料/
+     *  影子专题一起删（removeDocData 同款语义）。 */
     async discard(setId: string | undefined, qids: string[]): Promise<void> {
         if (!setId) return;
         const data = await this.bank.all();
         const set = data.sets?.[setId];
-        if (set && set.qids.length > 0 && set.qids.every((q) => qids.includes(q))) {
+        if (set && set.qids.every((q) => qids.includes(q))) {
             await this.bank.removeDocData(setId);
         } else {
             await removeRecords(this.bank, qids);

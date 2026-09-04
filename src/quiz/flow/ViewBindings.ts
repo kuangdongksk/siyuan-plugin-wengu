@@ -60,13 +60,21 @@ function bindDocContextMenu(v: QuizView): void {
         ev.preventDefault();
         ev.stopPropagation();
         void (async () => {
+            // livingSourceOf 查库失败时降级开菜单（只缺「重新导入」项）——
+            // 原裸 await 抛错=菜单静默不开+unhandled rejection（20260903 审查P2）
+            let living = false;
+            try {
+                living = !!(await livingSourceOf(v, docId));
+            } catch (e) {
+                console.warn("[wengu] 重新导入门控查询失败", e);
+            }
             const menu = new Menu("wengu-doc-menu");
             menu.addItem({
                 icon: "iconInfo",
                 label: v.t("reviewMenuLabel"),
                 click: () => v.enterReviewMode({ docId }),
             });
-            if (await livingSourceOf(v, docId)) {
+            if (living) {
                 menu.addItem({
                     icon: "iconRefresh",
                     label: v.t("reimportMenuLabel"),

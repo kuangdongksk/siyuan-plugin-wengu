@@ -27,9 +27,17 @@ import { matchIndices } from "./PreviewSearch";
 /** 模糊答案开关（保密模式）：模块级，跨重渲染保持。 */
 let secret = false;
 
-/** 搜题词与回车定位游标（词变更归零；退出预览清零）。 */
+/** 搜题词与回车定位游标（词变更归零；退出预览/换文档清零——模块级
+ *  状态只在同一次预览会话内续用，跨会话残留会把新卷误过滤，20260903
+ *  审查 P2）。 */
 let searchTerm = "";
 let jumpAt = 0;
+
+/** 清零搜题态（QuizView.switchMode 离开预览/selectDoc 换卷时调）。 */
+export function resetPreviewSearch(): void {
+    searchTerm = "";
+    jumpAt = 0;
+}
 
 /** 渲染后装饰入口：加作用域类/工具行，逐卡转预览态，绑事件
  *  （onExit＝退出预览回做题，头部切换器已删，工具行承担退路）。 */

@@ -117,3 +117,19 @@ describe("树节点 kpRefs 的 kramdown 往返", () => {
         expect(parsed?.kpRefs).toEqual([{ id, title: "等价无穷小代换" }]);
     });
 });
+
+describe("treePathsOf · 同父同名兄弟消歧（20260903 审查 P2）", () => {
+    it("同名兄弟按文档序 ~2/~3 消歧，先出节点不再被覆盖", () => {
+        const nodes = [
+            { id: "n1", level: 1, title: "章" },
+            { id: "n2", level: 2, title: "小结" },
+            { id: "n3", level: 2, title: "小结" },
+            { id: "n4", level: 2, title: "小结" },
+        ];
+        const paths = treePathsOf(nodes as never[]);
+        expect([...paths.keys()]).toEqual(["章", "章/小结", "章/小结~2", "章/小结~3"]);
+        expect(paths.get("章/小结")?.id).toBe("n2");
+        expect(paths.get("章/小结~2")?.id).toBe("n3");
+        expect(paths.get("章/小结~3")?.id).toBe("n4");
+    });
+});

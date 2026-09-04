@@ -1,4 +1,5 @@
 import { LETTERS, normalizeAnswerMd } from "../../types";
+import { restoreAiImages } from "../../ai/PromptHygiene";
 import { knowledgeRefLine } from "./KnowRef";
 import type { KnowSection } from "./KnowledgeLink";
 
@@ -118,11 +119,13 @@ function parseAttrs(raw: string): Record<string, string> {
 }
 
 function cleanPartText(lines: string[]): string {
-    return lines
-        .filter((l) => !NOISE_LINE.test(l))
-        .join("\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+    // 占位符还原（发送侧消毒的对称面）：模型漏还原时在这里兜底变回图片行
+    return restoreAiImages(
+        lines
+            .filter((l) => !NOISE_LINE.test(l))
+            .join("\n")
+            .replace(/\n{3,}/g, "\n\n")
+    ).trim();
 }
 
 /** 单元有效性（口径与旧 extractBatchQuestions 过滤一致：题目必有题干）。 */

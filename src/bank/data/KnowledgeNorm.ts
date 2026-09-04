@@ -65,3 +65,10 @@ export function pickStandardName(candidates: string[]): string {
     }
     return best;
 }
+
+/** 传入聚合键归一：kn: 键的词干化（新旧键都能与 knKey 产出对齐）；
+ *  kp:/ch: 键原样透传。（BankRegen 的 recordsByKeys 同口径共用；
+ *  20260903 从 QuestionBank 迁入压行数红线，语义不变） */
+export function normKn(key: string): string {
+    return key.startsWith("kn:") ? knKey(key.slice(3)) || key : key;
+}

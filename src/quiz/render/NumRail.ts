@@ -155,6 +155,15 @@ export function bindNumRail(
         numsApp?.app.setActive(n); // 高亮进组件响应态（旧 activeBtn 差分退役）
     };
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
+    // 材料组一次一题：组内非当前题卡是 hidden 的，点组内题号/组间横线
+    // 时回退滚到该题所在的组单元（hidden 卡查不到会静默不滚，20260903
+    // 审查 P2）
+    const scrollTargetOf = (idx: number): HTMLElement | undefined => {
+        const card = root.querySelector<HTMLElement>(`.wengu-card[data-idx="${idx}"]:not([hidden])`);
+        if (card) return card;
+        const hiddenCard = root.querySelector<HTMLElement>(`.wengu-card[data-idx="${idx}"]`);
+        return hiddenCard?.closest<HTMLElement>(".wengu-gunit") ?? undefined;
+    };
     if (nav) {
         // 组间横线：点标题滚到该题集首题（同点击该组第一题）
         for (const gap of nav.querySelectorAll<HTMLElement>(".wengu-num-gap")) {
@@ -162,8 +171,8 @@ export function bindNumRail(
                 const n = Number(gap.dataset.start) + 1;
                 if (n < 1) return;
                 lockUntil = performance.now() + 800;
-                const card = scroller?.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`);
-                if (card) chaseScrollIntoView(scroller!, card, "center");
+                const card = scroller ? scrollTargetOf(n - 1) : undefined;
+                if (card && scroller) chaseScrollIntoView(scroller, card, "center");
                 setActive(n);
             });
         }
@@ -175,7 +184,7 @@ export function bindNumRail(
                     // 材料组一次一题：点击组内题号由视图切题并滚到组单元
                     opts.onFocus(n - 1);
                 } else if (scroller) {
-                    const card = root.querySelector<HTMLElement>(`.wengu-card[data-idx="${n - 1}"]:not([hidden])`);
+                    const card = scrollTargetOf(n - 1);
                     if (card) chaseScrollIntoView(scroller, card, "center");
                 }
                 setActive(n);

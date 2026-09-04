@@ -42,6 +42,31 @@ export function fmt(template: string, vars: Record<string, string>): string {
     return template.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);
 }
 
+/** 富文本 HTML → 纯文本（<br> 转换行，转义实体经 DOM 解码）。 */
+export function htmlToText(html: string): string {
+    const el = document.createElement("div");
+    el.innerHTML = html.replace(/<br\s*\/?>/gi, "\n");
+    return el.textContent ?? "";
+}
+
+/** 写剪贴板（navigator.clipboard 优先，降级 execCommand 兜底）；成功与否以返回值表达。 */
+export async function copyText(text: string): Promise<boolean> {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        return ok;
+    }
+}
+
 /** 秒数 → m:ss（超 1 小时 h:mm:ss）。 */
 export function mmss(sec: number): string {
     const s = Math.max(0, Math.floor(sec));

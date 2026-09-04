@@ -52,15 +52,20 @@ export async function livingSourceOf(v: QuizView, setId: string): Promise<string
  *  历史后重载。 */
 export function unregisterSetAsQuiz(v: QuizView, setId: string): void {
     void (async () => {
-        if (convertRunActive()) {
-            showStatus(v.el, v.t("convertBusy"), "err");
-            return;
+        try {
+            if (convertRunActive()) {
+                showStatus(v.el, v.t("convertBusy"), "err");
+                return;
+            }
+            if (!setId) return;
+            await v.bankStore()?.removeDocData(setId);
+            await v.bankStore()?.flush();
+            await v.historyStore()?.removeDocs([setId]);
+            await v.reloadView(); // 选中回退链（当前>记住>活动>第一个）自动切离
+        } catch (e) {
+            // 原裸 IIFE：中途抛错=unhandled rejection 且点击像没反应
+            showStatus(v.el, errText(e), "err");
         }
-        if (!setId) return;
-        await v.bankStore()?.removeDocData(setId);
-        await v.bankStore()?.flush();
-        await v.historyStore()?.removeDocs([setId]);
-        await v.reloadView(); // 选中回退链（当前>记住>活动>第一个）自动切离
     })();
 }
 
@@ -110,40 +115,49 @@ export function reimportCfg(
  */
 export function reimportDocFrom(v: QuizView, setId: string): void {
     void (async () => {
-        if (convertRunActive()) {
-            showStatus(v.el, v.t("convertBusy"), "err");
-            return;
+        try {
+            await reimportDocFromInner(v, setId);
+        } catch (e) {
+            // 增量执行/清旧数据中途抛错：原裸 IIFE 吞成 unhandled rejection
+            showStatus(v.el, errText(e), "err");
         }
-        const bank = v.bankStore();
-        if (!bank) return;
-        const srcId = await livingSourceOf(v, setId);
-        if (!srcId) {
-            showStatus(v.el, v.t("reimportNoSource"), "err");
-            return;
-        }
-        const rec = v.convertAccess.convertProgressOf(srcId);
-        const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
-        // 增量分支（二期）：带指纹的题集一律按哈希检测续做（优先于断点）
-        if (groups.length > 0) {
-            if (rec?.setId === setId) v.convertAccess.saveConvertProgress(srcId, undefined);
-            await runIncrementalReimport(v, setId, srcId, groups);
-            return;
-        }
-        // 续跑：保留同一题集接着写；全量重转：先清旧题集侧数据
-        const resume = reimportResume(rec);
-        if (!resume) {
-            await bank.removeDocData(setId);
-            await bank.flush();
-            await v.historyStore()?.removeDocs([setId]);
-        }
-        v.convertAccess.saveConvertProgress(srcId, undefined);
-        await v.reloadView(); // 侧栏先摘掉旧题集，转换条/渐进呈现落在新 DOM 上
-        const started = startConvertForView(
-            v.convertAccess,
-            reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf(), resume)
-        );
-        if (!started) showStatus(v.el, v.t("convertBusy"), "err"); // reload 间隙被抢跑的兜底
     })();
+}
+
+async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
+    if (convertRunActive()) {
+        showStatus(v.el, v.t("convertBusy"), "err");
+        return;
+    }
+    const bank = v.bankStore();
+    if (!bank) return;
+    const srcId = await livingSourceOf(v, setId);
+    if (!srcId) {
+        showStatus(v.el, v.t("reimportNoSource"), "err");
+        return;
+    }
+    const rec = v.convertAccess.convertProgressOf(srcId);
+    const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
+    // 增量分支（二期）：带指纹的题集一律按哈希检测续做（优先于断点）
+    if (groups.length > 0) {
+        if (rec?.setId === setId) v.convertAccess.saveConvertProgress(srcId, undefined);
+        await runIncrementalReimport(v, setId, srcId, groups);
+        return;
+    }
+    // 续跑：保留同一题集接着写；全量重转：先清旧题集侧数据
+    const resume = reimportResume(rec);
+    if (!resume) {
+        await bank.removeDocData(setId);
+        await bank.flush();
+        await v.historyStore()?.removeDocs([setId]);
+    }
+    v.convertAccess.saveConvertProgress(srcId, undefined);
+    await v.reloadView(); // 侧栏先摘掉旧题集，转换条/渐进呈现落在新 DOM 上
+    const started = startConvertForView(
+        v.convertAccess,
+        reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf(), resume)
+    );
+    if (!started) showStatus(v.el, v.t("convertBusy"), "err"); // reload 间隙被抢跑的兜底
 }
 
 /**

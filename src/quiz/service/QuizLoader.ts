@@ -1,7 +1,7 @@
 import { errText } from "./../../ui/shared";
 import type { ConvertProgressRecord } from "../../convert/service/ConvertBatch";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { ensureSets, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
+import { ensureSets, migrateLegacyMaterials, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
 import type { HistoryStore } from "./HistoryStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../../ui/SettingsDialog";
 import type { TimerController } from "./TimerController";
@@ -107,6 +107,9 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         // 存量题集推导（records 按 sourceDocId 分组补 sets 条目；标题尽力
         // 从仍在的旧文档读一次——此后本插件零读旧文档）
         await ensureSets(deps.bank);
+        // 存量材料迁移（旧文档里的材料超级块→bank.materials、组链→record
+        // .group；后台跑不阻塞装载，幂等每会话每文档一次）
+        void migrateLegacyMaterials(deps.bank);
         r.docs = await setDocsView(deps.bank);
         if (r.pendingDoc && r.docs.some((d) => d.id === r.pendingDoc.id)) {
             r.pendingDoc = undefined;
@@ -174,9 +177,8 @@ export function savePrefs(
     prefs: WenguPrefsIo
 ): void {
     if (!storage) return;
-    try {
-        void storage.save(prefs);
-    } catch (_) {
-        // 忽略存储失败
-    }
+    // try/catch 只接得住同步抛；saveData 的异步 reject（如重载后旧实例
+    // 的 410 生命周期闸）漏出去是未捕获拒绝刷控制台——链尾吞掉。
+    // 会话状态本就可丢，失败维持静默。
+    storage.save(prefs).catch((): void => undefined);
 }

@@ -325,6 +325,8 @@
   "convertImagesMissing": "警告：{n} 张源插图未随题带入——带图题可能被整题漏转（讲义配图则不受影响），可重新转换补齐",
   "convertBatchEmpty": "警告：{n} 个分批无产出（AI 该批未返回可解析题目）——对应源段被跳过，可重新转换补齐",
   "convertBatchProgress": "正在生成 第 {i}/{n} 批 · 累计 {c} 题",
+  "convertCopyErr": "复制错误信息",
+  "convertCopied": "已复制",
   "convertStop": "终止生成",
   "convertStopped": "已终止：已生成 {c} 题（{b}/{n} 批）",
   "convertStoppedEmpty": "已终止：尚未生成任何题",

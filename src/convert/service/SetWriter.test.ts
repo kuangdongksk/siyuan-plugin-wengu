@@ -125,3 +125,42 @@ describe("SetWriter", () => {
         expect(data().collections.some((c) => c.id === `doc:${setId}`)).toBe(false);
     });
 });
+
+describe("SetWriter · 20260903 审查修复", () => {
+    it("冷启动播种：新 writer 接管既有题集，首块 group=prev 指向库内最新材料", async () => {
+        const { bank } = newBank();
+        const w1 = new SetWriter(bank);
+        const setId = await w1.openSet({ title: "英语卷" });
+        await w1.append(setId, [{ draft: material() }, { draft: question({ type: "cloze", group: "prev" }) }]);
+        const mid = (await bank.all()).materials ? Object.keys((await bank.all()).materials)[0] : "";
+        // 新 writer（增量重转换/续跑同款）：不播种会丢跨块 group
+        const w2 = new SetWriter(bank);
+        await w2.openSet({ setId, title: "英语卷" });
+        const out = await w2.append(setId, [{ draft: question({ type: "brief", group: "prev" }) }]);
+        expect(out.questions[0]?.group).toBe(mid);
+        expect(Object.values((await bank.all()).records).find((r) => r.qid === out.qids[0])?.group).toBe(mid);
+    });
+
+    it("渐进预览出口：out.questions 的材料组题带 group（DrillUnits 组装直用）", async () => {
+        const { bank } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "英语卷" });
+        const out = await w.append(setId, [
+            { draft: material() },
+            { draft: question({ type: "cloze", group: "prev" }) },
+        ]);
+        expect(out.questions[0]?.group).toBe(out.materials[0]?.id);
+    });
+
+    it("丢弃空题集（只出材料的批）连 set/材料/影子专题一起回收", async () => {
+        const { bank, data } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "空卷" });
+        const out = await w.append(setId, [{ draft: material() }]);
+        expect(out.qids).toHaveLength(0);
+        await w.discard(setId, out.qids);
+        expect(data().sets?.[setId]).toBeUndefined();
+        expect(Object.keys(data().materials ?? {})).toHaveLength(0);
+        expect(data().collections.find((c) => c.id === `doc:${setId}`)).toBeUndefined();
+    });
+});

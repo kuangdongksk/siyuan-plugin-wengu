@@ -158,13 +158,17 @@ export class KnowPanelCtl {
     open(id: string): void {
         // 内部知识树节点无真实块——降级跳到源章节文档
         void (async (): Promise<void> => {
-            const bank = this.bank();
-            if (bank) {
-                const hit = knowTreeByNode(await knowTreesOf(bank), id);
-                if (hit) {
-                    window.open(`siyuan://blocks/${hit.tree.srcId}`);
-                    return;
+            try {
+                const bank = this.bank();
+                if (bank) {
+                    const hit = knowTreeByNode(await knowTreesOf(bank), id);
+                    if (hit) {
+                        window.open(`siyuan://blocks/${hit.tree.srcId}`);
+                        return;
+                    }
                 }
+            } catch (e) {
+                console.warn("[wengu] 知识树节点定位失败，降级直跳", e); // 查库失败不该吞掉跳转
             }
             window.open(`siyuan://blocks/${id}`);
         })();
@@ -177,45 +181,52 @@ export class KnowPanelCtl {
         const bank = this.bank();
         if (!bank) return;
         void (async () => {
-            const current = await knowRootsOf(bank);
-            openKnowPicker({
-                t: this.v.t,
-                anchor,
-                current,
-                single: false,
-                onConfirm: (ids) => {
-                    void setKnowRoots(bank, ids)
-                        .then(() => bank.flush())
-                        .then(async () => {
-                            const trees = await knowTreesOf(bank);
-                            const lex = await lexiconOfRoots(ids, trees);
-                            if (lex.size > 0) {
-                                const r = await linkBankByText(bank, lex, {});
-                                if (r.hit > 0) notifyInfo({ key: "notifyAutoLinkDone", vars: { n: String(r.hit) } });
-                            }
-                            // 导入即基线：小节内容哈希起点（stale 检测的比对基准）
-                            const kh = knowHash();
-                            if (kh) {
-                                for (const rid of ids) {
-                                    const docs = await expandKnowDocs(rid, trees);
-                                    await kh.baselineDocs(
-                                        rid,
-                                        docs.map((d) => d.docId)
-                                    );
+            try {
+                const current = await knowRootsOf(bank);
+                openKnowPicker({
+                    t: this.v.t,
+                    anchor,
+                    current,
+                    single: false,
+                    onConfirm: (ids) => {
+                        void setKnowRoots(bank, ids)
+                            .then(() => bank.flush())
+                            .then(async () => {
+                                const trees = await knowTreesOf(bank);
+                                const lex = await lexiconOfRoots(ids, trees);
+                                if (lex.size > 0) {
+                                    const r = await linkBankByText(bank, lex, {});
+                                    if (r.hit > 0)
+                                        notifyInfo({ key: "notifyAutoLinkDone", vars: { n: String(r.hit) } });
                                 }
-                            }
-                        })
-                        .then(() => this.load())
-                        .catch((e: unknown): void => {
-                            // 整链原为 unhandled rejection（面板连重载都不发生）
-                            notifyError({
-                                key: "notifyAutoLinkFail",
-                                vars: { msg: errText(e) },
+                                // 导入即基线：小节内容哈希起点（stale 检测的比对基准）
+                                const kh = knowHash();
+                                if (kh) {
+                                    for (const rid of ids) {
+                                        const docs = await expandKnowDocs(rid, trees);
+                                        await kh.baselineDocs(
+                                            rid,
+                                            docs.map((d) => d.docId)
+                                        );
+                                    }
+                                }
+                            })
+                            .then(() => this.load())
+                            .catch((e: unknown): void => {
+                                // 整链原为 unhandled rejection（面板连重载都不发生）
+                                notifyError({
+                                    key: "notifyAutoLinkFail",
+                                    vars: { msg: errText(e) },
+                                });
+                                void this.load();
                             });
-                            void this.load();
-                        });
-                },
-            });
+                    },
+                });
+            } catch (e) {
+                // knowRootsOf 查库失败：原裸 IIFE 吞成 unhandled rejection，
+                // 选择浮层静默不开（点击像没反应）
+                notifyError({ key: "notifyAutoLinkFail", vars: { msg: errText(e) } });
+            }
         })();
     }
 

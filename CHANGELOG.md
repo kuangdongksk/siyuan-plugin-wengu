@@ -9,6 +9,53 @@
   kuangdongksk。package.json license 字段与两份 README 许可段同步
   更新。
 
+- **20260903 全内部化审查 P1×3+P2×6+P3 速胜清偿**（20260904，bank/
+  quiz/convert 域）：修复「产物全内部化」pivot（9db9272 起）的三条
+  功能断链——①材料组读侧：SetWriter 只写 record.group 而读侧全不回填
+  （q.group 恒空→材料组全部降级独立题）——setQuestions/questionOf/
+  渐进预览三出口统一回填 r.group，BankParse 补解析存量容器 group IAL
+  （记录字段缺省时的兜底），RegenDialog 替换 kramdown 时把旧 IAL 组链
+  迁到记录字段（重生成不再断组）；②slots 聚合：自托管迁移丢了
+  slot-{k}-* 按空聚合（cloze 逐空判分/SlotFlow 失效）——移植旧
+  QuestionService 口径：slotAcc 逐空聚合 + match 无 slot 子块时按题级
+  answer 拆字母兜底；③存量材料迁移：旧材料超级块还在习题文档里、
+  ensureSets 只补条目不收材料（存量含材料题集永久丢材料）——装载时
+  后台扫旧文档（attributes 按 sort 序），材料块 kramdown 解析入
+  bank.materials（id=材料块 id 与小题 group 同键对齐）、group IAL
+  （真实 id 或 prev 占位按文档序解析）回填 record.group，幂等每会话
+  每文档一次、失败不占坑可重试。P2×6：增量重生成 SetWriter 冷启动
+  播种 lastMaterialId（跨块 group=prev 不丢）；目录右键/删除题集/
+  重新导入/知识面板 5 处 fire-and-forget IIFE 补护栏（原中途抛错=
+  unhandled rejection+点击像没反应，查库失败降级开菜单/跳转）；
+  KnowTrees.treePathsOf 同父同名兄弟 ~2/~3 消歧（同路径复用旧 id
+  不再丢位，重归纳不再误 mint 新 id）；NumRail 组间横线/题号点击
+  hidden 卡回退滚组单元（材料组一次一题时静默不滚）；预览搜题词
+  离开预览/换卷清零（模块级残留会把新卷误过滤）；DrillUnits 材料组
+  连续段化（同材料隔题再现=新组单元，不再并回早先单元——隐性情序
+  重排 + 跨段题集标题行缺失一并修复）。P3：ai-sessions 补版本闩
+  （数据演进守则同款停写保护）；SetWriter.discard 空题集（只出材料
+  的批）连 set/材料/影子专题回收；ensureSets 顺带读 hpath；AGENTS
+  quiz/index 行数豁免备注更新为 574 基线实况；QuestionBank 492 行
+  （normKn 迁 KnowledgeNorm、空库字面量抽工厂）。补 12 例单测。
+- **AI 消息图片行消毒（MiniMax 2013 修复）**（20260903，ai 域）：带图
+  批次转换/检测全灭的根因——内核 agent chat 用 Lute 解析 user 消息，
+  把 `![](assets/…)` 抠成 base64 图片附件并以 `detail:"auto"` 发供应
+  商；MiniMax 的 image_url.detail 只认 low/default/high，报
+  「网络异常，请稍后再试: invalid params, invalid image detail: auto
+  (2013)」，且内核单请求最多附 4 张图、多图静默丢。修复：`ai/
+PromptHygiene` 在发送口（agentChatOnce/agentChatContinued，含追问
+  历史回放）统一把图片行换成 `〔插图:路径〕`占位符（Lute 解析不出
+  图片节点，内核零附件），prompt 规则 5/6 与单题重生成措辞改成「占位
+  还原成图片行」，`QuestionDraft.cleanPartText` 兜底还原模型漏还原的
+  占位——落盘 kramdown 与旧产物逐字同构，存量题集/指纹零影响。全部
+  AI 入口（转换/增量/检测/出题/重生成/判题/路由/标签/知识树/学伴）一
+  网打尽。内核探针双验证：真图片行=2013 原样复现、占位符形态=正常
+  出字。配单测（往返同构/容错还原/prompt 示例不被自消毒命中）。
+- **转换条错误一键复制**（20260903，convert 域）：终态错误条右侧加
+  复制图标钮（iconCopy，复制后变 iconCheck 1.2s 反馈）——报错原文
+  常要贴给供应商/issue，状态条上选中复制很别扭；富文本经
+  `htmlToText` 取纯文本，`copyText` 走 navigator.clipboard 带
+  execCommand 降级（ui/shared 公共件）。
 - **「全部习题」聚合刷 + 题集分组可视化**（20260903，bank/quiz 域）：
   章节册/成套卷/单章节三类题源**顺序绝对不乱**——聚合与分组全程零
   重排：顺序 = 题集插入序（新转换=完成序，跨重载稳定）× 集内 qids
