@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
 import { recordsByKeys } from "./BankRegen";
+import { notifyError } from "../../ui/Notify";
+
+/** Notify 整模块打桩：断言「哪些失败该弹/不该弹」不真弹浮层。 */
+vi.mock("../../ui/Notify", () => ({
+    notifyError: vi.fn(),
+    notifyInfo: vi.fn(),
+    initNotify: (): void => undefined,
+}));
 
 /** node 测试环境无 window（vitest 不启 jsdom），markDirty 的防抖定时器
  *  需要它——挂全局自指即可（同 BankRecording.test.ts）。 */
@@ -103,8 +111,9 @@ describe("版本闩（version>1 = 更新版插件写的库，停写保护）", (
     });
 });
 
-describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排，防僵尸循环）", () => {
+describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排不弹，防僵尸循环）", () => {
     it("saveData 拒 410 生命周期对象：只试一次即停，不再无限重排", async () => {
+        vi.mocked(notifyError).mockClear(); // 前面版本闩用例的调用别算进来
         vi.useFakeTimers();
         try {
             let calls = 0;
@@ -118,6 +127,7 @@ describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排�
             await bank.createCollection("测试", [], "manual"); // markDirty 排 2s 防抖
             await vi.advanceTimersByTimeAsync(2500);
             expect(calls).toBe(1); // 首次失败后终止类不再重排
+            expect(notifyError).not.toHaveBeenCalled(); // 旧实例残骸的预期失败不弹
             await vi.advanceTimersByTimeAsync(10000);
             expect(calls).toBe(1);
         } finally {
@@ -126,6 +136,7 @@ describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排�
     });
 
     it("普通失败（磁盘满等）保留 2s 重排——重试到成功为止", async () => {
+        vi.mocked(notifyError).mockClear();
         vi.useFakeTimers();
         try {
             let calls = 0;
@@ -139,6 +150,7 @@ describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排�
             await bank.createCollection("测试", [], "manual");
             await vi.advanceTimersByTimeAsync(2500);
             expect(calls).toBe(1); // 首败
+            expect(notifyError).toHaveBeenCalledTimes(1); // 普通失败仍通知
             await vi.advanceTimersByTimeAsync(2500);
             expect(calls).toBe(2); // 重排成功
         } finally {

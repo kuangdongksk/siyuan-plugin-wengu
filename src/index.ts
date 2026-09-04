@@ -135,7 +135,9 @@ export default class WenguPlugin extends Plugin {
         this.settings.save = () => {
             const rest = { ...this.settings } as Partial<WenguSettings>;
             delete rest.save;
-            void this.saveData("settings", rest);
+            // 链尾吞错：裸 void 会把 saveData 的异步 reject（重载后旧
+            // 实例的 410 生命周期闸等）漏成未捕获拒绝刷控制台
+            this.saveData("settings", rest).catch((): void => undefined);
         };
         // 词书房（多词书，redesign §五）：内核文件通道，onload 先于任何
         // 单词面板挂载初始化

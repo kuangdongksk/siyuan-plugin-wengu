@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
     AI_INTERRUPTED,
     AI_SESSION_KIND_CAP,
@@ -6,6 +6,14 @@ import {
     AiSessionStore,
     type AiSessionsData,
 } from "./AiSessions";
+import { notifyError } from "../../ui/Notify";
+
+/** Notify 整模块打桩：断言「哪些失败该弹/不该弹」不真弹浮层。 */
+vi.mock("../../ui/Notify", () => ({
+    notifyError: vi.fn(),
+    notifyInfo: vi.fn(),
+    initNotify: (): void => undefined,
+}));
 
 /** 内存版 loadRaw/saveRaw（落的数据能被新实例读回；saved 留全部快照）。 */
 function memStore(initial?: unknown) {
@@ -163,6 +171,29 @@ describe("AiSessionStore 登记簿", () => {
         off();
         s.begin("s2", "tag", "t", "m1", "q");
         expect(n).toBe(3);
+    });
+
+    it("落盘失败：410 生命周期闸静默（旧实例残骸的预期失败），普通失败仍通知", async () => {
+        vi.mocked(notifyError).mockClear();
+        const failWith = (e: unknown): AiSessionStore =>
+            new AiSessionStore(
+                async () => undefined,
+                async () => {
+                    throw e;
+                }
+            );
+        const zombie = failWith({ code: 410, msg: "Plugin lifecycle has ended", data: null });
+        zombie.begin("a", "judge", "t", "m1", "q");
+        zombie.flushNow();
+        const alive = failWith(new Error("disk full"));
+        alive.begin("b", "judge", "t", "m1", "q");
+        alive.flushNow();
+        await new Promise((r) => setTimeout(r, 0)); // 链面 reject 落定
+        expect(notifyError).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(notifyError).mock.calls[0][0]).toEqual({
+            key: "notifySaveFailAi",
+            vars: { msg: "disk full" },
+        });
     });
 
     it("落盘往返：flushNow 落的快照能被新实例原样读回", async () => {
