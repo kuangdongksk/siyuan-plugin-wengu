@@ -24,7 +24,7 @@
     "spaced-repetition"
   ],
   "author": "kuangdongksk",
-  "license": "MIT",
+  "license": "CC-BY-NC-4.0",
   "packageManager": "pnpm@11.4.0",
   "engines": {
     "node": ">=24.0.0"

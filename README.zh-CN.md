@@ -65,4 +65,6 @@ pnpm build   # 产物在 dist/
 
 ## 许可
 
-MIT
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans)
+（知识共享 署名-非商业性使用 4.0）：署名后可非商业使用与改编，
+**禁止商用**。完整法律条款见 [LICENSE](LICENSE)。

@@ -82,4 +82,6 @@ install. See [AGENTS.md](AGENTS.md) for development and debugging details.
 
 ## License
 
-MIT
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) —
+noncommercial use with attribution; commercial use is prohibited.
+See [LICENSE](LICENSE) for the full legal code.
