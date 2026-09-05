@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
-import { agentChatOnce, newAiGroupId } from "../../ai/client";
+import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
+import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
@@ -24,10 +25,14 @@ import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
  * 选一份已入库的习题文档（题库源卷，存量/新建同权），对其题目逐题走
  * 转换同款两级 AI 路由（带按题指纹缓存，未变的题重跑零 AI 调用），把
- * 「相关知识点」块引用确定
- * 性注入题库记录（strip+inject=替换语义，默认跳过已关联题），源文档块
- * 尽力同步（题库为主记录，模式同 RegenDialog）。内核调用全程串行；AI
- * 路由走独立会话（agentChatOnce，逐题 await 天然串行）。
+ * 「相关知识点」块引用确定性注入题库记录（strip+inject=替换语义，默认
+ * 跳过已关联题），源文档块尽力同步（题库为主记录，模式同 RegenDialog）。
+ * 内核调用全程串行；AI 路由走独立会话（agentChatOnce，逐题 await 天然
+ * 串行）。
+ *
+ * 20260905 起点击开始即关窗（弹窗去阻塞改造）：后台流经 launchAiFlow
+ * 单飞，进度与「停止」在 AI 会话面板（track 实时登记），终态走思源
+ * 通知——产物保留已落部分，中止不清偿。
  */
 
 export interface MatchDeps {
@@ -95,7 +100,6 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
                 )
               : `<div class="wengu-status wengu-status-err">${esc(t("matchNoSrc"))}</div>`
       }
-      <div class="wengu-status" data-act="match-status" hidden></div>
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="match-cancel">${esc(t("cancel"))}</button>
@@ -105,68 +109,23 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
     </div>`,
     });
     const root = dialog.element;
-    const status = root.querySelector<HTMLElement>("[data-act='match-status']");
-    const show = (text: string, kind: "ok" | "err" | "muted"): void => {
-        if (!status) return;
-        // 弹窗已销毁：终态改走思源通知（muted=运行中/中止态，不打扰）
-        if (!status.isConnected) {
-            if (kind === "err") notifyError(text);
-            else if (kind === "ok") notifyInfo(text);
-            return;
-        }
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
-    };
-    // 取消/X 销毁同时中止在途：原只 destroy，循环靠 isConnected 在
-    // 下一轮才断——在途那发 AI 路由与 pending 队列任务照跑完（挂账清偿）
-    const cancelAll = (): void => {
-        ctrl?.abort();
-        dialog.destroy();
-    };
-    root.querySelector("[data-act='match-cancel']")?.addEventListener("click", cancelAll);
-    root.querySelector(".b3-dialog__close")?.addEventListener("click", () => ctrl?.abort());
-    // 单一点击处理器：运行中=停止（abort）、空闲=开始——多次开始不叠
-    // 监听；运行期间按钮保持可点（disabled 会让「停止」点不动）
-    const okBtn = root.querySelector<HTMLButtonElement>("[data-act='match-ok']");
-    let running = false;
-    let ctrl: AbortController | undefined;
-    okBtn?.addEventListener("click", () => {
-        if (running) {
-            ctrl?.abort();
-            return;
-        }
-        // 转换运行中不开第二条内核写流（updateBlock 与转换 append 并发
-        // 互吞响应，20260829 审查）
+    root.querySelector("[data-act='match-cancel']")?.addEventListener("click", () => dialog.destroy());
+    root.querySelector("[data-act='match-ok']")?.addEventListener("click", () => {
+        // 转换运行中不开第二条内核写流（updateBlock 与转换并发互吞，20260829 审查）
         if (convertRunActive()) {
-            show(t("convertBusy"), "err");
+            notifyError(deps.t("convertBusy"));
             return;
         }
         const src = root.querySelector<HTMLSelectElement>("[data-act='match-src']")?.value ?? "";
         if (!src) return;
         const skip = root.querySelector<HTMLInputElement>("[data-act='match-skip']")?.checked ?? true;
-        running = true;
-        ctrl = new AbortController();
-        void runMatch(deps, dialog, src, skip, ctrl, show, okBtn, () => {
-            running = false;
-            ctrl = undefined;
-        });
+        dialog.destroy(); // 点击即关窗：后台流，终态走通知
+        launchAiFlow((stop) => runMatch(deps, src, skip, stop));
     });
 }
 
-async function runMatch(
-    deps: MatchDeps,
-    dialog: Dialog,
-    srcDocId: string,
-    skipLinked: boolean,
-    ctrl: AbortController,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    okBtn: HTMLButtonElement,
-    onEnd: () => void
-): Promise<void> {
+async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, stop: AiAbort): Promise<void> {
     const { t, bank, modelId } = deps;
-    okBtn.textContent = t("matchStop");
-    show(t("matchPreparing"), "muted");
     try {
         const index = await buildKnowledgeIndex([deps.knowDocId], await knowTreesOf(bank));
         if (index.chapters.length === 0) throw new Error(t("matchNoIndex"));
@@ -183,7 +142,7 @@ async function runMatch(
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
         for (let i = 0; i < records.length; i++) {
-            if (ctrl.signal.aborted || !dialog.element.isConnected) break;
+            if (stop.signal.aborted) break;
             const r = records[i];
             if (skipLinked && r.kpRefs.length > 0) {
                 skip++;
@@ -199,32 +158,23 @@ async function runMatch(
                     index,
                     modelId,
                     call: (m) =>
-                        agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
+                        agentChatOnce(m, modelId, AI_TIMEOUT.quick, stop.signal, {
                             kind: "route",
                             title: `匹配路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
                             group,
+                            onSid: stop.onSid,
                         }),
                     onFail: (f) => fails.push(f),
                 });
             } catch (_) {
                 // 路由失败按未命中，不阻断后续题
             }
-            if (ctrl.signal.aborted) break;
+            if (stop.signal.aborted) break;
             if (refs.length > 0) {
                 // strip+inject 落库 + 源块尽力同步（批量关联共用同一原语）
                 if (await applyRefsToRecord(bank, r, refs)) hit++;
                 else miss++;
             } else miss++;
-            show(
-                fmt(t("matchRunning"), {
-                    c: String(i + 1),
-                    n: String(records.length),
-                    h: String(hit),
-                    m: String(miss),
-                    s: String(skip),
-                }),
-                "muted"
-            );
         }
         await bank.flush();
         await cache?.flush();
@@ -236,18 +186,15 @@ async function runMatch(
         const topFail = [...failCount.entries()].sort((a, b) => b[1] - a[1])[0];
         const failHint =
             hit === 0 && miss > 0 && topFail ? "\n" + fmt(t(`matchFail_${topFail[0]}`), { n: String(topFail[1]) }) : "";
-        show(
-            ctrl.signal.aborted
-                ? fmt(t("matchAborted"), { h: String(hit) })
-                : fmt(t("matchDone"), { h: String(hit), m: String(miss), s: String(skip) }) + failHint,
-            ctrl.signal.aborted ? "muted" : hit === 0 && failHint ? "err" : "ok"
-        );
-        if (!ctrl.signal.aborted) window.setTimeout(() => dialog.destroy(), 800);
+        if (stop.signal.aborted) {
+            notifyInfo(fmt(t("matchAborted"), { h: String(hit) }));
+        } else if (hit === 0 && failHint) {
+            notifyError(fmt(t("matchDone"), { h: String(hit), m: String(miss), s: String(skip) }) + failHint);
+        } else {
+            notifyInfo(fmt(t("matchDone"), { h: String(hit), m: String(miss), s: String(skip) }) + failHint);
+        }
         deps.onDone?.();
     } catch (e) {
-        show(errText(e), "err");
-    } finally {
-        okBtn.textContent = t("matchStart");
-        onEnd();
+        notifyError(stop.signal.aborted ? t("aiFlowAborted") : errText(e));
     }
 }

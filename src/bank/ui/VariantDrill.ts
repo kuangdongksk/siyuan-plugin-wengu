@@ -1,6 +1,9 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
+import { launchAiFlow } from "../../ai/flow";
+import type { AiAbort } from "../../ai/client";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 import { generateVariantOf } from "../gen/GenQuestion";
 import type { QuestionBank } from "../data/QuestionBank";
 import { addGenerated, recordsOfDoc } from "../data/BankRegen";
@@ -11,6 +14,10 @@ import { esc, fmt } from "../../ui/shared";
  * 每题自己为模板生成「改数字/换条件」变式题（generateVariantOf），
  * 逐题串行（内核 AI 并发互斥），即时追加进新建的《{卷名}·变式 时间戳》
  * 专题（每次新建不续写，历史清晰），完成自动切过去开刷。
+ *
+ * 20260905 起点击开始即关窗（弹窗去阻塞改造）：后台流经 launchAiFlow
+ * 单飞，进度与「停止」在 AI 会话面板，终态走思源通知——产物保留已落
+ * 部分（中止不清偿），完成后照旧自动切专题。
  */
 
 /** 单轮上限（与收集补题 GEN_MAX_PER_RUN 同节奏，防 token/时长失控）。 */
@@ -45,24 +52,14 @@ export function openVariantDrillDialog(deps: VariantDrillDeps, docId: string, do
         ).join("")}</select>
         <button class="b3-button b3-button--outline" data-act="vd-start">${esc(t("variantStart"))}</button>
       </div>
-      <div class="wengu-status" data-act="vd-status" hidden></div>
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="vd-close">${esc(t("cancel"))}</button>
     </div>`,
     });
     const root = dialog.element;
-    const status = root.querySelector<HTMLElement>("[data-act='vd-status']");
-    const show = (text: string, kind: "ok" | "err" | "muted") => {
-        if (!status) return;
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
-    };
-    let running = false;
     root.querySelector("[data-act='vd-close']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='vd-start']")?.addEventListener("click", () => {
-        if (running) return;
         const range = (root.querySelector<HTMLSelectElement>("[data-act='vd-range']")?.value ?? "all") as
             "all" | "wrong";
         const count = Math.min(
@@ -70,8 +67,8 @@ export function openVariantDrillDialog(deps: VariantDrillDeps, docId: string, do
             Number(root.querySelector<HTMLSelectElement>("[data-act='vd-count']")?.value ?? VARIANT_MAX_PER_RUN) ||
                 VARIANT_MAX_PER_RUN
         );
-        running = true;
-        void runVariantDrill(deps, docId, docTitle, range, count, show, () => (running = false), dialog);
+        dialog.destroy(); // 点击即关窗：后台流，终态走通知
+        launchAiFlow((stop) => runVariantDrill(deps, docId, docTitle, range, count, stop));
     });
 }
 
@@ -91,9 +88,7 @@ async function runVariantDrill(
     docTitle: string,
     range: "all" | "wrong",
     count: number,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    done: () => void,
-    dialog: Dialog
+    stop: AiAbort
 ): Promise<void> {
     const { t, bank } = deps;
     try {
@@ -103,7 +98,7 @@ async function runVariantDrill(
             count
         );
         if (pool.length === 0) {
-            show(t("variantEmpty"), "err");
+            notifyError({ key: "variantEmpty" });
             return;
         }
         const stamp = new Date();
@@ -115,9 +110,9 @@ async function runVariantDrill(
         deps.onChanged();
         let made = 0;
         for (let i = 0; i < pool.length; i++) {
+            if (stop.signal.aborted) break;
             const r = pool[i];
-            show(`${t("drillRunning")} ${i + 1}/${pool.length} · ${t("variantMode")}`, "muted");
-            const kd = await generateVariantOf(r.kramdown, deps.modelId());
+            const kd = await generateVariantOf(r.kramdown, deps.modelId(), stop);
             if (!kd) continue; // 单题失败/不过检跳过，不中断整轮
             const qid = await addGenerated(
                 bank,
@@ -130,20 +125,25 @@ async function runVariantDrill(
             deps.onChanged();
         }
         await bank.flush();
-        if (made === 0) {
-            show(t("variantAllFailed"), "err");
+        if (made === 0 && !stop.signal.aborted) {
+            notifyError({ key: "variantAllFailed" });
             await bank.deleteCollection(col.id);
             await bank.flush();
             deps.onChanged();
             return;
         }
-        show(fmt(t("variantDone"), { n: String(made) }), "ok");
-        window.setTimeout(() => {
-            dialog.destroy();
-            deps.onSelect(col.id);
-        }, 600);
+        if (stop.signal.aborted && made === 0) {
+            // 中止且零产物：空壳专题回收，静默退场
+            await bank.deleteCollection(col.id);
+            await bank.flush();
+            deps.onChanged();
+            notifyInfo({ key: "aiFlowAborted" });
+            return;
+        }
+        if (stop.signal.aborted) notifyInfo({ key: "aiFlowAborted" });
+        else notifyInfo(fmt(t("variantDone"), { n: String(made) }));
+        deps.onSelect(col.id);
     } catch (e) {
-        show(`${t("convertAiFailed")}${errText(e)}`, "err");
+        notifyError(stop.signal.aborted ? t("aiFlowAborted") : `${t("convertAiFailed")}${errText(e)}`);
     }
-    done();
 }

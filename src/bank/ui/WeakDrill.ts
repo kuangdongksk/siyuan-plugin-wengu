@@ -1,6 +1,9 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
+import { launchAiFlow } from "../../ai/flow";
+import type { AiAbort } from "../../ai/client";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 import { genIntoCollection } from "../gen/GenCore";
 import type { QuestionBank } from "../data/QuestionBank";
 import { appendToCollection, ensureCollection } from "../data/BankRegen";
@@ -14,6 +17,9 @@ import { esc, fmt } from "../../ui/shared";
  *   自算答案的计算大题）。每题生成后跑一次自检（AI 重做校验答案），
  *   不过就丢弃。产物确定性注回知识点引用，落成《薄弱加练·M.d》专题。
  * 串行调用、单次上限 5 题，防 30s 超时与 token 失控。
+ *
+ * 20260905 起点击生成即关窗（弹窗去阻塞改造）：后台流经 launchAiFlow
+ * 单飞，进度与「停止」在 AI 会话面板，终态走思源通知。
  */
 
 const MAX_PER_RUN = 5;
@@ -45,7 +51,6 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
             .map((n, i) => formOption(String(n), String(n), i === 2))
             .join("")}</select>
       </div>
-      <div class="wengu-status" data-act="drill-status" hidden></div>
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="drill-cancel">${esc(t("cancel"))}</button>
@@ -54,7 +59,6 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
     });
     const root = dialog.element;
     const rowsBox = root.querySelector<HTMLElement>("[data-act='drill-rows']");
-    const status = root.querySelector<HTMLElement>("[data-act='drill-status']");
     const selected = new Set<string>(rows.slice(0, 3).map((r) => r.key));
     if (rowsBox) {
         rowsBox.innerHTML = rows
@@ -73,28 +77,21 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
             });
         }
     }
-    const show = (text: string, kind: "ok" | "err" | "muted") => {
-        if (!status) return;
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
-    };
     root.querySelector("[data-act='drill-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='drill-ok']")?.addEventListener("click", () => {
-        const okBtn = root.querySelector<HTMLButtonElement>("[data-act='drill-ok']");
         const picked = rows.filter((r) => selected.has(r.key));
         if (picked.length === 0) {
-            show(t("weakDrillNone"), "err");
+            notifyError({ key: "weakDrillNone" });
             return;
         }
-        if (okBtn) okBtn.disabled = true; // 生成期间禁用防连点并发多轮 AI（同 VariantDrill，20260829 审查）
         const mode = (root.querySelector<HTMLSelectElement>("[data-act='drill-mode']")?.value ?? "variant") as
             "variant" | "concept";
         const count = Math.min(
             MAX_PER_RUN,
             Number(root.querySelector<HTMLSelectElement>("[data-act='drill-count']")?.value ?? 3) || 3
         );
-        void runDrill(deps, picked, mode, count, show, dialog);
+        dialog.destroy(); // 点击即关窗：后台流，终态走通知
+        launchAiFlow((stop) => runDrill(deps, picked, mode, count, stop));
     });
 }
 
@@ -103,8 +100,7 @@ async function runDrill(
     rows: WeakTopRow[],
     mode: "variant" | "concept",
     count: number,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    dialog: Dialog
+    stop: AiAbort
 ): Promise<void> {
     const { t, bank, modelId } = deps;
     if (rows.length === 0) return;
@@ -118,14 +114,14 @@ async function runDrill(
             count,
             modelId,
             append: (qid) => appendToCollection(bank, title, qid),
-            progress: (n, pointTitle) => show(`${t("drillRunning")} ${n}/${count} · ${pointTitle}`, "muted"),
             t,
+            abort: stop,
         });
         await bank.flush();
-        show(`${made} ${fmt(t("drillDone"), { t: title })}`, "ok");
+        if (stop.signal.aborted) notifyInfo({ key: "aiFlowAborted" });
+        else notifyInfo(`${made} ${fmt(t("drillDone"), { t: title })}`);
         deps.onDone();
-        window.setTimeout(() => dialog.destroy(), 800);
     } catch (e) {
-        show(`${t("convertAiFailed")}${errText(e)}`, "err");
+        notifyError(stop.signal.aborted ? t("aiFlowAborted") : `${t("convertAiFailed")}${errText(e)}`);
     }
 }

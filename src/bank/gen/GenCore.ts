@@ -1,4 +1,5 @@
 import { generateQuestion } from "./GenQuestion";
+import type { AiAbort } from "../../ai/client";
 import { injectKnowledgeRefs } from "../../convert/service/KnowRef";
 import { knowRootsOf } from "../data/KnowRoots";
 import { lexiconOfRoots, textRefsFor, type LexSection } from "../data/KnowLinkText";
@@ -29,9 +30,12 @@ export interface GenCoreOpts {
     modelId: string;
     /** 生成题入专题（两调用方的 append 通道不同）。 */
     append(qid: string): Promise<void>;
-    /** 进度展示（made=已生成数，pointTitle=当前点标题）。 */
-    progress(made: number, pointTitle: string): void;
+    /** 进度展示（made=已生成数，pointTitle=当前点标题）；后台化后调用方
+     *  不传（进度面=AI 会话面板），钩子保留给未来需要内联进度的宿主。 */
+    progress?(made: number, pointTitle: string): void;
     t: (key: string) => string;
+    /** 后台流中止接线（面板「停止」/signal 断流）。 */
+    abort?: AiAbort;
 }
 
 /** 跑生成核。返回实际生成数与是否发生过模式降级。 */
@@ -54,14 +58,15 @@ export async function genIntoCollection(
     for (const p of points) {
         let madeHere = 0;
         while (madeHere < perPoint && made < opts.count && attempt < opts.count * 3) {
+            if (opts.abort?.signal.aborted) return { made, degraded }; // 面板「停止」：保已产物退出
             attempt++;
             let mode = opts.mode;
             if (mode === "concept" && !p.key.startsWith("kp:")) {
                 mode = "variant";
                 degraded = true;
             }
-            opts.progress(made, p.title);
-            const kd = await generateQuestion(bank, p, mode, opts.modelId);
+            opts.progress?.(made, p.title);
+            const kd = await generateQuestion(bank, p, mode, opts.modelId, opts.abort);
             if (!kd) continue;
             const kpId = p.key.startsWith("kp:") ? p.key.slice(3) : "";
             let refs = kpId ? [{ id: kpId, title: p.title }] : [];

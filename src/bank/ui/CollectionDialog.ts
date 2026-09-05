@@ -1,6 +1,9 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
 import { formOption, svgIcon } from "../../ui/FormHtml";
+import { launchAiFlow } from "../../ai/flow";
+import type { AiAbort } from "../../ai/client";
+import { notifyError, notifyInfo } from "../../ui/Notify";
 import { genIntoCollection } from "../gen/GenCore";
 import type { CollectionRow, KnowledgeRow, QuestionBank } from "../data/QuestionBank";
 import { recordOf } from "../data/BankRegen";
@@ -11,6 +14,10 @@ import { esc } from "../../ui/shared";
  * 专题，或「收集并补题」按缺口 AI 生成补入），下半=已有专题（点击
  * 切换、展开移除单题、两击确认删除）。知识点索引来自题库记录
  * （kp 引用优先，降级 knowledge/chapter），迁移完成前可能为空。
+ *
+ * 「收集并补题」20260905 起点击即关窗（弹窗去阻塞改造）：后台流经
+ * launchAiFlow 单飞，进度与「停止」在 AI 会话面板，终态走思源通知，
+ * 完成自动切新专题；纯收集（无 AI）保持窗内即时完成。
  */
 
 export interface CollectionDialogDeps {
@@ -58,7 +65,6 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         ).join("")}</select>
         <button class="b3-button b3-button--outline" data-act="col-gen">${esc(t("collectGenBtn"))}</button>
       </div>
-      <div class="wengu-status" data-act="col-gen-status" hidden></div>
       <div class="wengu-side-label" style="margin-top:12px">${esc(t("collectExisting"))}</div>
       <div class="wengu-col-list" data-act="col-existing"><div class="wengu-muted">…</div></div>
     </div>
@@ -72,7 +78,6 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     const titleInput = root.querySelector<HTMLInputElement>("[data-act='col-title']");
     const createBtn = root.querySelector<HTMLButtonElement>("[data-act='col-create']");
     const genBtn = root.querySelector<HTMLButtonElement>("[data-act='col-gen']");
-    const genStatus = root.querySelector<HTMLElement>("[data-act='col-gen-status']");
 
     const selected = new Set<string>((deps.preset ?? []).map((p) => p.key));
     /** 默认标题 = 第一个勾选的知识点标题（可改）。 */
@@ -80,14 +85,6 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
     if (defaultTitle && titleInput) titleInput.value = defaultTitle;
     /** 预设里不在索引中的键（0 题节点）：合成 0 计数行，展示与生成点位共用。 */
     let presetRows: KnowledgeRow[] = [];
-    /** 生成进行中锁（防重复触发）。 */
-    let generating = false;
-    const show = (text: string, kind: "ok" | "err" | "muted") => {
-        if (!genStatus) return;
-        genStatus.textContent = text;
-        genStatus.className = `wengu-status wengu-status-${kind}`;
-        genStatus.removeAttribute("hidden");
-    };
 
     const renderKnowledge = (rows: KnowledgeRow[]) => {
         if (!knowledgeBox) return;
@@ -230,7 +227,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
 
     /** 纯收集（不生成）：建专题后即切过去。 */
     createBtn?.addEventListener("click", () => {
-        if (selected.size === 0 || generating) return;
+        if (selected.size === 0) return;
         const title = (titleInput?.value ?? "").trim() || defaultTitle || t("collectDefaultTitle");
         void bank.collectQids([...selected]).then((qids) =>
             bank.createCollection(title, qids, "knowledge").then((row) => {
@@ -242,38 +239,31 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
         );
     });
 
-    /** 收集并补题：先收已有题建专题，再按勾选点的缺口逐点生成补入。 */
+    /** 收集并补题：先收已有题建专题，再按勾选点的缺口逐点生成补入。
+     *  点击即关窗（20260905 去阻塞）：后台流，终态走通知。 */
     genBtn?.addEventListener("click", () => {
-        if (selected.size === 0 || generating) return;
+        if (selected.size === 0) return;
         const mode = (root.querySelector<HTMLSelectElement>("[data-act='col-gen-mode']")?.value ?? "variant") as
             "variant" | "concept";
         const count = Math.min(
             GEN_MAX_PER_RUN,
             Number(root.querySelector<HTMLSelectElement>("[data-act='col-gen-count']")?.value ?? 5) || 5
         );
-        // 生成点位 = 索引行 ∪ 合成行（0 题节点），都限定在勾选内
-        void bank
-            .knowledgeIndex()
-            .then((idx) => [
-                ...idx.filter((r) => selected.has(r.key)),
-                ...presetRows.filter((r) => selected.has(r.key)),
-            ])
-            .then((points) =>
-                runCollectGen(
-                    deps,
-                    [...selected],
-                    points,
-                    (root.querySelector<HTMLInputElement>("[data-act='col-title']")?.value ?? "").trim() ||
-                        defaultTitle ||
-                        t("collectDefaultTitle"),
-                    mode,
-                    count,
-                    show,
-                    () => (generating = false),
-                    dialog
-                )
-            );
-        generating = true;
+        const title =
+            (root.querySelector<HTMLInputElement>("[data-act='col-title']")?.value ?? "").trim() ||
+            defaultTitle ||
+            t("collectDefaultTitle");
+        const keys = [...selected];
+        dialog.destroy(); // 参数收齐即关窗：收集索引在后台查
+        launchAiFlow((stop) =>
+            bank
+                .knowledgeIndex()
+                .then((idx): { key: string; title: string }[] => [
+                    ...idx.filter((r) => selected.has(r.key)),
+                    ...presetRows.filter((r) => selected.has(r.key)),
+                ])
+                .then((points) => runCollectGen(deps, keys, points, title, mode, count, stop))
+        );
     });
     root.querySelector("[data-act='col-close']")?.addEventListener("click", () => dialog.destroy());
     void refresh();
@@ -287,9 +277,7 @@ async function runCollectGen(
     title: string,
     mode: "variant" | "concept",
     count: number,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    done: () => void,
-    dialog: Dialog
+    stop: AiAbort
 ): Promise<void> {
     const { t, bank } = deps;
     const modelId = deps.modelId();
@@ -302,20 +290,17 @@ async function runCollectGen(
             count,
             modelId,
             append: (qid) => bank.appendQidToCollection(row.id, qid),
-            progress: (n, pointTitle) => show(`${t("drillRunning")} ${n}/${count} · ${pointTitle}`, "muted"),
             t,
+            abort: stop,
         });
         await bank.flush();
-        show(`${made} ${t("collectGenDone")}${degraded ? t("collectDegraded") : ""}`, "ok");
+        if (stop.signal.aborted) notifyInfo({ key: "aiFlowAborted" });
+        else notifyInfo(`${made} ${t("collectGenDone")}${degraded ? t("collectDegraded") : ""}`);
         deps.onChanged();
-        window.setTimeout(() => {
-            dialog.destroy();
-            deps.onSelect(row.id);
-        }, 800);
+        deps.onSelect(row.id);
     } catch (e) {
-        show(`${t("convertAiFailed")}${errText(e)}`, "err");
+        notifyError(stop.signal.aborted ? t("aiFlowAborted") : `${t("convertAiFailed")}${errText(e)}`);
     }
-    done();
 }
 
 /** 两击确认：首次点击变确认态（3s 复原），复击执行——不引入新弹窗。 */

@@ -2,8 +2,9 @@
  * AI 会话登记簿（20260831）：全仓 AI 任务走 agentChatOnce 一次性独立
  * 会话，跑完即 removeSession——弹层关掉就看不到「问了什么、答了什么」。
  * 本模块把带 track 元数据的每次 AI 调用登记成一条记录（完整轮次/状态/
- * 模型），供「AI 会话」工作区面板回看产出并继续追问（继续 = 把历史
- * 轮次播种进新会话重放，见 client.ts agentChatContinued）。
+ * 模型），供「AI 会话」工作区面板回看产出并重试失败调用（重试 = 把
+ * 历史轮次播种进新会话重放，见 client.ts agentChatContinued；20260905
+ * 起面板的自由追问退役——闲聊会污染业务记录且每次全量回放烧 token）。
  *
  * 存储放 saveData("ai-sessions")：LRU 双上限——全局 {@link AI_SESSIONS_CAP}
  * 条、单类别 {@link AI_SESSION_KIND_CAP} 条（判题/转换这类高频调用不至
@@ -28,7 +29,8 @@ export interface AiTurn {
     text: string;
 }
 
-/** 一条登记记录：对应一次 agentChatOnce 调用（继续追问的追加轮也在内）。 */
+/** 一条登记记录：对应一次 agentChatOnce 调用（error 态记录重试成功后
+ *  在原地翻案追加 ai 轮，见 {@link AiSessionStore.retrying}）。 */
 export interface AiSessionRecord {
     /** 首次调用的内核 sessionID（继续追问播种新会话，此 id 仅作记录锚点）。 */
     id: string;
@@ -61,11 +63,14 @@ export interface AiSessionGroup {
 /** 会话登记元数据（agentChatOnce 可选参数，client.ts 转发导出）：kind
  *  进「AI 会话」面板的过滤与徽标，title 缺省取消息前 24 字，group 把
  *  该调用挂进一次动作的分组树。带上即登记（收口后可回看产出并继续
- *  追问），不带则不登记。 */
+ *  追问），不带则不登记。onSid 是运行时回调（**不落盘**）：登记簿
+ *  begin 后回传记录 id，供调用方把 AI 会话面板的「停止」按钮接到
+ *  自己的 AbortController（见 client.ts aiAbort）。 */
 export interface AiTrack {
     kind: string;
     title?: string;
     group?: AiSessionGroup;
+    onSid?: (sid: string) => void;
 }
 
 /** 插件存储（saveData("ai-sessions")）里的登记簿。 */
@@ -249,11 +254,15 @@ export class AiSessionStore {
         this.notify();
     }
 
-    /** 继续追问：追加轮（user 先进、ai 随回复到——失败时只留 user 轮）。 */
-    appendTurns(id: string, ...turns: AiTurn[]): void {
+    /** 重试在途：error→running（面板重试入口；重放轮次走新会话，收口
+     *  复用 succeed/fail——成功追加 ai 轮原地翻案、失败记新错误消息）。
+     *  仅 error 态可转：done 无「未完成调用」可重跑，running 防重入。 */
+    retrying(id: string): void {
         const r = this.items.find((x) => x.id === id);
-        if (!r || turns.length === 0) return;
-        for (const t of turns) r.turns.push({ role: t.role, text: capText(t.text) });
+        if (!r || r.status !== "error") return;
+        r.status = "running";
+        delete r.error;
+        delete r.endedAt;
         this.schedule();
         this.notify();
     }

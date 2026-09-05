@@ -92,12 +92,44 @@ describe("AiSessionStore 登记簿", () => {
         expect(s.list()).toEqual([]);
     });
 
-    it("appendTurns 继续追问：user/ai 轮按序追加到原记录", () => {
+    it("retrying 重试翻案：error→running，成功 succeed 追加 ai 轮收口 done", () => {
         const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
         s.begin("s1", "judge", "t", "m1", "q1");
+        s.fail("s1", "超时");
+        s.retrying("s1");
+        let r = s.list()[0];
+        expect(r.status).toBe("running");
+        expect(r.error).toBeUndefined();
+        expect(r.endedAt).toBeUndefined();
         s.succeed("s1", "a1");
-        s.appendTurns("s1", { role: "user", text: "q2" }, { role: "ai", text: "a2" });
-        expect(s.peek("s1")!.turns.map((t) => `${t.role}:${t.text}`)).toEqual(["user:q1", "ai:a1", "user:q2", "ai:a2"]);
+        r = s.list()[0];
+        expect(r.status).toBe("done");
+        expect(r.turns.map((t) => `${t.role}:${t.text}`)).toEqual(["user:q1", "ai:a1"]);
+    });
+
+    it("retrying 仅 error 态可转：done/running/不存在均 no-op（防重入）", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "judge", "t", "m1", "q");
+        s.succeed("s1", "a");
+        s.retrying("s1"); // done：无未完成调用可重跑
+        expect(s.list()[0].status).toBe("done");
+        s.begin("s2", "tag", "t", "m1", "q");
+        s.retrying("s2"); // running：防重入
+        expect(s.list().find((r) => r.id === "s2")?.status).toBe("running");
+        s.retrying("ghost"); // 不存在
+        expect(s.list()).toHaveLength(2);
+    });
+
+    it("重试再失败：fail 记新错误消息（retrying 后仍走 running 闸）", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "judge", "t", "m1", "q");
+        s.fail("s1", "第一次超时");
+        s.retrying("s1");
+        s.fail("s1", "网络错误");
+        const r = s.list()[0];
+        expect(r.status).toBe("error");
+        expect(r.error).toBe("网络错误");
+        expect(r.turns).toHaveLength(1); // 失败不追加 ai 轮
     });
 
     it("单类别上限：judge 超额淘汰最旧，别类记录不受冲刷", () => {

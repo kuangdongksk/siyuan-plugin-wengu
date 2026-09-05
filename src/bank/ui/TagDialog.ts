@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
-import { agentChatOnce, newAiGroupId } from "../../ai/client";
+import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
+import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
@@ -27,6 +28,9 @@ import { routeTextOf } from "./MatchDialog";
  * **生成**：没有标签的题 AI 打标签——登记了知识文档时逐题两级路由
  * （标签=命中小节标题、词表受控不造新词），否则整批自由生成（一次
  * AI 调用出编号标签表）。落库走 applyTagToRecord（IAL+记录+引用+源块）。
+ *
+ * 20260905 起点击开始即关窗（弹窗去阻塞改造）：后台流经 launchAiFlow
+ * 单飞，进度与「停止」在 AI 会话面板，终态走思源通知。
  */
 
 export interface TagDeps {
@@ -49,11 +53,7 @@ export async function openTagDialog(deps: TagDeps): Promise<void> {
         width: "560px",
         content: `<div class="b3-dialog__content wengu-dialog">
       <div class="wengu-muted">${esc(t("tagHint"))}</div>
-      ${formGroup(
-          t("tagPhaseGroup"),
-          formRow(t("tagGenLabel"), t("tagGenHint"), formSwitch("tag-gen", true, "data-act"))
-      )}
-      <div class="wengu-status" data-act="tag-status" hidden></div>
+      ${formGroup(t("tagPhaseGroup"), formRow(t("tagGenLabel"), t("tagGenHint"), formSwitch("tag-gen", true, "data-act")))}
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="tag-cancel">${esc(t("cancel"))}</button>
@@ -61,59 +61,20 @@ export async function openTagDialog(deps: TagDeps): Promise<void> {
     </div>`,
     });
     const root = dialog.element;
-    const status = root.querySelector<HTMLElement>("[data-act='tag-status']");
-    const show = (text: string, kind: "ok" | "err" | "muted"): void => {
-        if (!status) return;
-        // 弹窗已销毁：终态改走思源通知（muted=运行中/中止态，不打扰）
-        if (!status.isConnected) {
-            if (kind === "err") notifyError(text);
-            else if (kind === "ok") notifyInfo(text);
-            return;
-        }
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
-    };
-    const cancelAll = (): void => {
-        ctrl?.abort();
-        dialog.destroy();
-    };
-    root.querySelector("[data-act='tag-cancel']")?.addEventListener("click", cancelAll);
-    root.querySelector(".b3-dialog__close")?.addEventListener("click", () => ctrl?.abort());
-    const okBtn = root.querySelector<HTMLButtonElement>("[data-act='tag-ok']");
-    let running = false;
-    let ctrl: AbortController | undefined;
-    okBtn?.addEventListener("click", () => {
-        if (running) {
-            ctrl?.abort();
-            return;
-        }
+    root.querySelector("[data-act='tag-cancel']")?.addEventListener("click", () => dialog.destroy());
+    root.querySelector("[data-act='tag-ok']")?.addEventListener("click", () => {
         if (convertRunActive()) {
-            show(t("convertBusy"), "err");
+            notifyError(deps.t("convertBusy"));
             return;
         }
-        running = true;
-        ctrl = new AbortController();
         const gen = root.querySelector<HTMLInputElement>("[data-act='tag-gen']")?.checked ?? true;
-        void runTag(deps, dialog, gen, ctrl, show, okBtn, () => {
-            running = false;
-            ctrl = undefined;
-        });
+        dialog.destroy(); // 点击即关窗：后台流，终态走通知
+        launchAiFlow((stop) => runTag(deps, gen, stop));
     });
 }
 
-async function runTag(
-    deps: TagDeps,
-    dialog: Dialog,
-    doGen: boolean,
-    ctrl: AbortController,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    okBtn: HTMLButtonElement,
-    onEnd: () => void
-): Promise<void> {
+async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<void> {
     const { t, bank, modelId } = deps;
-    okBtn.textContent = t("matchStop");
-    show(t("matchPreparing"), "muted");
     try {
         const records = (await recordsOfDoc(bank, deps.docId)).slice();
         if (records.length === 0) throw new Error(t("tagNoQuestions"));
@@ -123,7 +84,7 @@ async function runTag(
         const lex = roots.length > 0 ? await lexiconOfRoots(roots, await knowTreesOf(bank)) : new Map();
         // 阶段一 核对：已有标签 → 归一匹配挂引用（零 AI）。已挂引用的题
         // 记 skip（不动），命中的挂引用，没命中的=标签在知识文档无对应小节
-        const verified = await linkRecordsByText(bank, lex, tagged, { signal: ctrl.signal });
+        const verified = await linkRecordsByText(bank, lex, tagged, { signal: stop.signal });
         const linked = verified.hit;
         const unmatched = verified.miss;
         // 阶段二 生成：无标签 → AI 打标签（逐题两级路由带按题指纹缓存，
@@ -133,16 +94,15 @@ async function runTag(
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
-        if (doGen && !ctrl.signal.aborted && untagged.length > 0 && dialog.element.isConnected) {
+        if (doGen && !stop.signal.aborted && untagged.length > 0) {
             const index = roots.length > 0 ? await buildKnowledgeIndex(roots, await knowTreesOf(bank)) : undefined;
             const useRoute = (index?.chapters.length ?? 0) > 0;
             // 动作分组（AI 会话面板树归并）：路由生成/自由生成分批挂同组
             const group = { id: newAiGroupId(), title: `生成标签 · ${untagged.length} 题` };
             if (useRoute) {
                 for (let i = 0; i < untagged.length; i++) {
-                    if (ctrl.signal.aborted || !dialog.element.isConnected) break;
+                    if (stop.signal.aborted) break;
                     const r = untagged[i];
-                    show(fmt(t("tagGenRunning"), { c: String(i + 1), n: String(untagged.length) }), "muted");
                     let done = false;
                     try {
                         const secs = await routeKnowledgeCached({
@@ -150,10 +110,11 @@ async function runTag(
                             index: index!,
                             modelId,
                             call: (m) =>
-                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
+                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, stop.signal, {
                                     kind: "route",
                                     title: `标签路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
                                     group,
+                                    onSid: stop.onSid,
                                 }),
                             onFail: (f) => fails.push(f),
                         });
@@ -165,7 +126,7 @@ async function runTag(
                     else genMiss++;
                 }
             } else {
-                genOk = await genFreeTags(bank, modelId, untagged, ctrl, show, t, group);
+                genOk = await genFreeTags(bank, modelId, untagged, stop, group);
                 genMiss = untagged.length - genOk;
             }
         }
@@ -180,25 +141,22 @@ async function runTag(
             genOk === 0 && genMiss > 0 && topFail
                 ? "\n" + fmt(t(`matchFail_${topFail[0]}`), { n: String(topFail[1]) })
                 : "";
-        show(
-            ctrl.signal.aborted
-                ? fmt(t("matchAborted"), { h: String(linked + genOk) })
-                : fmt(t("tagDone"), {
-                      v: String(tagged.length),
-                      l: String(linked),
-                      u: String(unmatched),
-                      g: String(genOk),
-                      m: String(genMiss),
-                  }) + failHint,
-            ctrl.signal.aborted ? "muted" : linked + genOk === 0 ? "err" : "ok"
-        );
-        if (!ctrl.signal.aborted) window.setTimeout(() => dialog.destroy(), 800);
+        if (stop.signal.aborted) {
+            notifyInfo(fmt(t("matchAborted"), { h: String(linked + genOk) }));
+        } else {
+            const summary = fmt(t("tagDone"), {
+                v: String(tagged.length),
+                l: String(linked),
+                u: String(unmatched),
+                g: String(genOk),
+                m: String(genMiss),
+            });
+            if (linked + genOk === 0 && failHint) notifyError(summary + failHint);
+            else notifyInfo(summary + failHint);
+        }
         deps.onDone?.();
     } catch (e) {
-        show(errText(e), "err");
-    } finally {
-        okBtn.textContent = t("tagStart");
-        onEnd();
+        notifyError(stop.signal.aborted ? t("aiFlowAborted") : errText(e));
     }
 }
 
@@ -207,18 +165,15 @@ async function genFreeTags(
     bank: QuestionBank,
     modelId: string,
     records: BankRecord[],
-    ctrl: AbortController,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    t: (key: string) => string,
+    stop: AiAbort,
     /** 动作分组（AI 会话面板树归并）：与本弹窗其他 AI 调用挂同组。 */
     group: { id: string; title: string }
 ): Promise<number> {
     let ok = 0;
     for (let base = 0; base < records.length; base += FREE_BATCH) {
-        if (ctrl.signal.aborted) break;
+        if (stop.signal.aborted) break;
         const batch = records.slice(base, base + FREE_BATCH);
         const list = batch.map((r, i) => `${i + 1}|${routeTextOf(r).slice(0, 300)}`).join("\n");
-        show(fmt(t("tagGenRunning"), { c: String(base + 1), n: String(records.length) }), "muted");
         let tags = new Map<number, string>();
         try {
             const reply = await agentChatOnce(
@@ -231,8 +186,8 @@ async function genFreeTags(
 ${list}`,
                 modelId,
                 AI_TIMEOUT.batch,
-                ctrl.signal,
-                { kind: "tag", title: `自由生成标签 · ${batch.length} 题`, group }
+                stop.signal,
+                { kind: "tag", title: `自由生成标签 · ${batch.length} 题`, group, onSid: stop.onSid }
             );
             tags = parseFreeTags(reply);
         } catch (_) {

@@ -1,14 +1,15 @@
 import { errText } from "./../../ui/shared";
 import { AI_TIMEOUT } from "../timeouts";
-import { agentChatContinued } from "../client";
+import { abortAiSession, agentChatContinued } from "../client";
 import { aiSessions, type AiSessionRecord } from "../data/AiSessions";
 import type { SessionPanelUi } from "./SessionPanelUi";
 
 /**
  * AI 会话面板控制器（四件套之一）：装载（订阅登记簿变更 → 快照进
- * ui.recs）、两栏选择（selId 驱动右栏明细）、继续追问
- * （agentChatContinued 历史回放播种新会话，成功后轮次登记回原记录）、
- * 删除/清空两击确认（3s 复位，同 bank 面板口径）。卸载退订 + 清定时器。
+ * ui.recs）、两栏选择（selId 驱动右栏明细）、失败记录重试
+ * （agentChatContinued 历史回放播种新会话重跑末次调用，成功原地翻案，
+ * 20260905 起取代原自由追问）、删除/清空两击确认（3s 复位，同 bank
+ * 面板口径）。卸载退订 + 清定时器。
  */
 export class SessionPanelCtl {
     private alive = true;
@@ -60,36 +61,37 @@ export class SessionPanelCtl {
 
     select(id: string): void {
         this.ui.selId = id;
-        this.ui.draft = "";
-        this.ui.sendError = "";
     }
 
     back(): void {
         this.ui.selId = undefined;
     }
 
-    setDraft(text: string): void {
-        this.ui.draft = text;
+    /** 停止在途记录：经 client 的中止登记簿断掉所属后台流（在途 fetch
+     *  断流 + 流循环逐项检查 signal 退出，产物保留已落部分）。未接线的
+     *  流（转换自带页内停止面）登记簿查无此 id，静默无操作。 */
+    stop(rec: AiSessionRecord): void {
+        if (rec.status !== "running") return;
+        abortAiSession(rec.id);
     }
 
-    /** 继续追问：user 轮先进记录（问了什么立即可见），AI 回复到达补
-     *  ai 轮——轮次登记回记录本体（视图切走也不丢），失败只留 user 轮
-     *  + 错误条，可改小问题再发。 */
-    async ask(rec: AiSessionRecord, text: string): Promise<void> {
+    /** 重试失败记录：回放已有轮次 + 重发末条 user 消息进新会话（error
+     *  记录的 turns 必以 user 轮收尾——失败无 ai 回复，单轮失败记录即
+     *  重发原 prompt）。retrying 先转回 running（按钮随即消失，防重入），
+     *  成功 succeed 原地翻案追加 ai 轮、失败 fail 记新错误消息；记录
+     *  中途被删时 succeed/fail 按 id 落空自然无害。超时取最宽松档——
+     *  空闲计不误杀慢模型，重试是用户显式动作等得起。 */
+    async retry(rec: AiSessionRecord): Promise<void> {
         const s = aiSessions();
-        const question = text.trim();
-        if (!s || !question || this.ui.sending) return;
-        this.ui.draft = "";
-        this.ui.sendError = "";
-        this.ui.sending = true;
-        s.appendTurns(rec.id, { role: "user", text: question });
+        if (!s || rec.status !== "error") return;
+        const last = rec.turns[rec.turns.length - 1];
+        if (!last || last.role !== "user") return; // 防御：非预期形态不重跑
+        s.retrying(rec.id);
         try {
-            const reply = await agentChatContinued(rec.turns, question, rec.model, AI_TIMEOUT.chat);
-            s.appendTurns(rec.id, { role: "ai", text: reply });
+            const reply = await agentChatContinued(rec.turns.slice(0, -1), last.text, rec.model, AI_TIMEOUT.batch);
+            s.succeed(rec.id, reply);
         } catch (e) {
-            if (this.alive && this.ui.selId === rec.id) this.ui.sendError = errText(e);
-        } finally {
-            if (this.alive) this.ui.sending = false;
+            s.fail(rec.id, errText(e));
         }
     }
 

@@ -1,6 +1,6 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
-import { agentChatOnce } from "../../ai/client";
+import { agentChatOnce, aiAbort, type AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { extractBlockId } from "../../convert/service/ConvertService";
@@ -20,6 +20,10 @@ import { KernelBlock } from "../../siyuan/block";
  * 两种模式——提供原文链接（改好的原文块，含图片行）；不提供（AI 依
  * 知识点小节正文判断缺失并补全，图补不了——端点纯文本，只能从原文来）。
  * 产物确定性注回原知识点引用；题库记录替换即生效（唯一内容真相）。
+ *
+ * 20260905 起点击即关窗（用户定夺，弃「弹窗内转圈」阻塞态）：AI 后台
+ * 跑，调用带 track 登记进 AI 会话面板（running→done 即实时进度），终态
+ * 走思源通知；qid 防重入（关窗后同题再点不叠第二轮 AI）。
  */
 
 export interface RegenDeps {
@@ -29,6 +33,9 @@ export interface RegenDeps {
     /** 成功后刷新视图（重拉题目列表）。 */
     onDone(): void;
 }
+
+/** 在途去重（qid → 是否正在重出）。 */
+const regenInFlight = new Set<string>();
 
 /** 一次性事件委托（视图构造时调用一次，重渲染不重复绑定）：
  *  静态渲染的块引用跳转 + 题卡「重新生成」入口。 */
@@ -87,7 +94,6 @@ export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
                   )
               )
       )}
-      <div class="wengu-status" data-act="regen-status" hidden></div>
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="regen-cancel">${esc(t("cancel"))}</button>
@@ -95,48 +101,36 @@ export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
     </div>`,
     });
     const root = dialog.element;
-    const status = root.querySelector<HTMLElement>("[data-act='regen-status']");
-    const okBtn = root.querySelector<HTMLButtonElement>("[data-act='regen-ok']");
     const srcInput = root.querySelector<HTMLInputElement>("[data-act='regen-src']");
     const noteInput = root.querySelector<HTMLInputElement>("[data-act='regen-note']");
-    const show = (text: string, kind: "ok" | "err" | "muted") => {
-        if (!status) return;
-        // 弹窗已销毁（X/取消不中止在途 AI）：终态改走思源通知
-        if (!status.isConnected) {
-            if (kind === "err") notifyError(text);
-            else if (kind === "ok") notifyInfo(text);
-            return;
-        }
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
-    };
     root.querySelector("[data-act='regen-cancel']")?.addEventListener("click", () => dialog.destroy());
-    okBtn?.addEventListener("click", () => {
-        void runRegen(deps, dialog, q, srcInput?.value ?? "", noteInput?.value ?? "", show, okBtn);
+    root.querySelector("[data-act='regen-ok']")?.addEventListener("click", () => {
+        // 点击即关窗：参数先收齐（input 随弹窗销毁），AI 后台跑
+        const src = srcInput?.value ?? "";
+        const note = noteInput?.value ?? "";
+        dialog.destroy();
+        startRegen(deps, q, src, note);
     });
 }
 
-async function runRegen(
-    deps: RegenDeps,
-    dialog: Dialog,
-    q: WenguQuestion,
-    srcRaw: string,
-    note: string,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    okBtn?: HTMLButtonElement
-): Promise<void> {
-    const { t, bank, modelId } = deps;
-    // 先禁用再进首个 await：原「recordOf 之后才禁用」，异步窗口内可
-    // 双击并发两轮重生成（20260829 审查）
-    if (okBtn) okBtn.disabled = true;
-    const record = await recordOf(bank, q.id);
-    if (!record) {
-        show(t("regenNoRecord"), "err");
-        if (okBtn) okBtn.disabled = false;
+function startRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note: string): void {
+    if (regenInFlight.has(q.id)) {
+        notifyInfo({ key: "regenBusy" });
         return;
     }
-    show(t("regenRunning"), "muted");
+    regenInFlight.add(q.id);
+    notifyInfo({ key: "regenStarted" });
+    const stop = aiAbort(); // 面板「停止」同样可中止重出
+    void runRegen(deps, q, srcRaw, note, stop).finally(() => regenInFlight.delete(q.id));
+}
+
+async function runRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note: string, stop: AiAbort): Promise<void> {
+    const { t, bank, modelId } = deps;
+    const record = await recordOf(bank, q.id);
+    if (!record) {
+        notifyError({ key: "regenNoRecord" });
+        return;
+    }
     try {
         // 提供原文链接：拉原文块 kramdown；不提供：知识点小节正文（首个引用）
         let sourceBlock = "";
@@ -156,7 +150,12 @@ async function runRegen(
               ? (await sectionKramdown(kp.id)) || knowNodeText(await knowTreesOf(bank), kp.id)
               : "";
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
-        const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long);
+        const stem16 = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16);
+        const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, stop.signal, {
+            kind: "regen",
+            title: `重新生成 · ${stem16}`,
+            onSid: stop.onSid,
+        });
         const drafts = parseDrafts(reply).filter(hasStemPart);
         if (drafts.length === 0) throw new Error(t("convertEmptyReply"));
         shuffleDraftOptions(drafts[0]);
@@ -171,14 +170,10 @@ async function runRegen(
         const replaced = await replaceRecordKramdown(bank, q.id, kd);
         if (!replaced) throw new Error(t("regenNoRecord"));
         await bank.flush();
-        show(t("regenDone"), "ok");
-        window.setTimeout(() => {
-            dialog.destroy();
-            deps.onDone();
-        }, 600);
+        notifyInfo({ key: "regenDone" });
+        deps.onDone();
     } catch (e) {
-        show(errText(e), "err");
-        if (okBtn) okBtn.disabled = false;
+        notifyError(stop.signal.aborted ? deps.t("aiFlowAborted") : errText(e));
     }
 }
 

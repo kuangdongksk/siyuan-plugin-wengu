@@ -3,6 +3,7 @@ import type { QuestionBank } from "../data/QuestionBank";
 import { createFolder, deleteFolder, renameFolder } from "../data/BankFolders";
 import { refreshLiveCollections } from "../data/LiveCols";
 import { summarizeSessions, type ColRowView, type ColTreeNode } from "../ui/CollectionPanel";
+import { openRepairDialog } from "../ui/RepairDialog";
 import { fmt } from "../../ui/shared";
 import type { ColPanelUi } from "./ColPanelUi";
 
@@ -76,6 +77,13 @@ export class ColPanelCtl {
     toggleDir(path: string): void {
         if (this.ui.closedDirs.has(path)) this.ui.closedDirs.delete(path);
         else this.ui.closedDirs.add(path);
+    }
+
+    /** 头部「题库体检」：选项挤行扫描与确定性修复（RepairDialog）。 */
+    optionRepair(): void {
+        const bank = this.bank();
+        if (!bank) return;
+        void openRepairDialog({ t: this.v.t, bank, onDone: () => void this.load() });
     }
 
     /** 点击专题：切题库模式进刷题。 */

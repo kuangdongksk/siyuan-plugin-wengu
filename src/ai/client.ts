@@ -15,6 +15,49 @@ export type { AiTrack, AiSessionGroup } from "./data/AiSessions";
 const fallbackNotifiedAt = new Map<string, number>();
 const FALLBACK_COOLDOWN_MS = 60_000;
 
+/* ── 后台 AI 流的中止接线与单飞闸（20260905 弹窗去阻塞改造） ── */
+
+/** 登记簿记录 id → 该调用所属流的 AbortController：流入口用 aiAbort()
+ *  建句柄、track.onSid 把每个在途调用的记录 id 挂上——AI 会话面板对
+ *  running 记录点「停止」即 abortAiSession(id) 断掉在途 fetch，流循环
+ *  逐项检查 signal 退出。调用收口时自动注销。 */
+const stopBySid = new Map<string, AbortController>();
+
+/** 后台流的中止句柄：signal 传给每个 agentChatOnce，onSid 传进 track。 */
+export interface AiAbort {
+    signal: AbortSignal;
+    onSid(sid: string): void;
+}
+
+export function aiAbort(): AiAbort {
+    const ctrl = new AbortController();
+    return { signal: ctrl.signal, onSid: (sid) => stopBySid.set(sid, ctrl) };
+}
+
+/** 中止一条在途调用所属的流（面板「停止」入口）；未接线/已收口返 false。 */
+export function abortAiSession(sid: string): boolean {
+    const c = stopBySid.get(sid);
+    if (!c) return false;
+    stopBySid.delete(sid);
+    c.abort();
+    return true;
+}
+
+/** 重型批流单飞闸：六个 AI 批流（匹配/批量关联/生成标签/变式重练/薄弱
+ *  加练/收集补题）后台化后失去模态天然串行——引用注入的内核写流并发
+ *  互吞（fetchSyncPost 真机坑），同一时间只放一条。 */
+let flowBusy = false;
+
+export function aiFlowBegin(): boolean {
+    if (flowBusy) return false;
+    flowBusy = true;
+    return true;
+}
+
+export function aiFlowEnd(): void {
+    flowBusy = false;
+}
+
 /** 闸口校正模型 id：传入的 id 失效被回落时浮层告知（原静默降级——用户
  *  为长转换选的高档模型被悄悄换成默认，产出质量落差无从归因）。 */
 function resolveAndNotify(preferred: string): string {
@@ -33,9 +76,9 @@ function resolveAndNotify(preferred: string): string {
  * 独立域——convert/bank/quiz/word/stats/companion 六域共用的基础设施，
  * 不再隶属任何业务域）。**对外通道两条：agentChatOnce**（一次性独立
  * 会话，天然并发 + 可按次指定模型，可选 track 参数登记进 AI 会话面板）
- * **与 agentChatContinued**（面板继续追问：历史轮次回放播种新会话）；
- * 旧 chatGPT 直答与共享空会话两条路已于 2026-08-30 弃用（见 AGENTS.md），
- * 并发靠独立 sessionID 而非换端点/全局串行队列（queue.ts 已随之退役）。
+ * **与 agentChatContinued**（AI 会话面板重试失败记录：历史轮次回放
+ * 播种新会话）；旧 chatGPT 直答与共享空会话两条路已于 2026-08-30 弃用
+ * （见 AGENTS.md），并发靠独立 sessionID 而非换端点/全局串行队列（queue.ts 已随之退役）。
  */
 
 /**
@@ -232,8 +275,10 @@ export async function agentChatOnce(
     message = sanitizeAiImages(message);
     const sid = newSessionId();
     const sessions = aiSessions();
-    if (sessions && track)
+    if (sessions && track) {
         sessions.begin(sid, track.kind, track.title ?? titleOf(message), modelId, message, track.group);
+        track.onSid?.(sid); // 生命周期由下方 finally 统一注销
+    }
     try {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError"); // 已终止不设防会白建会话
         await seedSession(sid, titleOf(message), [{ id: "u1", type: "user", content: message }], signal);
@@ -244,16 +289,19 @@ export async function agentChatOnce(
         if (sessions && track) sessions.fail(sid, errText(e));
         throw e;
     } finally {
+        if (track) stopBySid.delete(sid);
         removeSession(sid);
     }
 }
 
 /**
- * 继续已有会话（AI 会话面板用）：把登记簿里的历史轮次播种进新的一次性
- * 会话（user/assistant 条目交替回放，思源前端续聊同款形态），再带新
- * 追问调用。不复用旧 sessionID——旧会话早已 removeSession 清仓，内核
- * 侧 revision/commitTurn 状态也无从对齐；回放条目即完整上下文，对
- * 模型等价。返回 AI 回答全文（追问轮的登记由面板侧 appendTurns 落）。
+ * 重放轮次进新会话（AI 会话面板的重试入口）：把登记簿里该记录的已有
+ * 轮次播种进新的一次性会话（user/assistant 条目交替回放，思源前端续聊
+ * 同款形态），再重发指定的 user 消息调用——面板重试传「记录末条 user
+ * 轮」（失败调用必以 user 轮收尾，即重跑最后一次调用）。不复用旧
+ * sessionID——旧会话早已 removeSession 清仓，内核侧 revision/commitTurn
+ * 状态也无从对齐；回放条目即完整上下文，对模型等价。返回 AI 回答全文
+ * （重试的写回由面板侧 retrying/succeed/fail 落，20260905 起追问退役）。
  */
 export async function agentChatContinued(
     turns: AiTurn[],

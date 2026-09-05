@@ -6,13 +6,13 @@ Lute/Vditor 一手源码调研。**状态：文档定稿，未开工**——是�
 
 ## 〇、决策台账
 
-| #   | 决策                                                                                          | 状态       |
-| --- | --------------------------------------------------------------------------------------------- | ---------- |
-| D1  | S3 进架构：M7 落地，Rust `ObjectStore` trait（LocalFs 先行、S3 后补），同步走快照仓库模型（DejaVu 缩小版），配置字段照抄思源 | ✅ 已定    |
-| D2  | 编辑器 Vditor-only（IR 模式）：知识文档编辑+预览同一引擎；题卡永远 MdRender，边界在 store 层     | ✅ 已定    |
-| D3  | 资产 URI 单出口：md 内只写库内相对路径，`resolveAsset` 决定伺服来源；`source_files` 表一步到位（`s3_key` 列预留） | ✅ 已定    |
-| D4  | 块 id = 内容哈希锚编码成冻结形态（`{14位时间戳}-{7位字母数字}`），BLOCK_REF 正则不动            | 默认（可翻） |
-| D5  | 同步最小闭环 = 快照导出/导入（与 M7 同一打包格式，M7 只换介质自动化）                          | 默认（可翻） |
+| #   | 决策                                                                                                                         | 状态         |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| D1  | S3 进架构：M7 落地，Rust `ObjectStore` trait（LocalFs 先行、S3 后补），同步走快照仓库模型（DejaVu 缩小版），配置字段照抄思源 | ✅ 已定      |
+| D2  | 编辑器 Vditor-only（IR 模式）：知识文档编辑+预览同一引擎；题卡永远 MdRender，边界在 store 层                                 | ✅ 已定      |
+| D3  | 资产 URI 单出口：md 内只写库内相对路径，`resolveAsset` 决定伺服来源；`source_files` 表一步到位（`s3_key` 列预留）            | ✅ 已定      |
+| D4  | 块 id = 内容哈希锚编码成冻结形态（`{14位时间戳}-{7位字母数字}`），BLOCK_REF 正则不动                                         | 默认（可翻） |
+| D5  | 同步最小闭环 = 快照导出/导入（与 M7 同一打包格式，M7 只换介质自动化）                                                        | 默认（可翻） |
 
 D4/D5 是审查轮给出的推荐默认，直接按此执行；翻案只动对应小节。
 被推翻的中间结论存档：审查轮曾建议「Vditor 编辑 + MdRender 预览」分离，
@@ -63,7 +63,7 @@ Lute 源码调研证实 Vditor 三模式全由 Lute 驱动、公式渲染完整�
   document 级点击委托（`index.ts:329` onBlockRefClick，树节点降级跳
   源章节文档的先例就在其中）。
 - **kpRefs 全家**：`bank/data/{BankParse,BankRegen,BankReconcile,
-  KnowRoots,KnowTrees,BankSets,LiveCols}.ts`——题→知识节点引用、
+KnowRoots,KnowTrees,BankSets,LiveCols}.ts`——题→知识节点引用、
   对账、活专题 `col-kp-{块id}` 键。
 - **纯函数切块**：`convert/service/SrcChunk.ts structuralChunks`（标题
   链边界+questionHash 同款指纹），输入是纯 markdown 文本，直吃 .md 成立。
@@ -110,21 +110,21 @@ scss 里 387 处 `var(--b3-*)`。host 层需本地实现这批类与 CSS 变量
 
 ### 4.1 SQLite 表映射
 
-| 插件侧存储             | 表              | 说明                                                     |
-| ---------------------- | --------------- | -------------------------------------------------------- |
-| bank（questions）      | questions       | id,kramdown,hash,srcId,srcHash,sourceDocId,rootId,type,  |
-|                        |                 | knowledge,chapter,difficulty,source,attempts,wrongCount, |
-|                        |                 | right,lastAnswer,step_,slot_,totalTime                   |
-| bank.sets              | sets            | id,title,hPath,srcId,qids(JSON)                          |
-| 专题                   | collections     | id,path,qids(JSON)                                       |
-| bank.materials         | materials       | id,正文                                                  |
-| bank.knowTrees         | know_trees      | srcId→节点树 JSON                                        |
-| 知识文档（原思源文档） | know_docs       | id,title,content(md),parent,updated（Vditor 编辑存此）   |
-| 双链反链               | refs            | fromDocId,fromAnchor,toId,text（保存时扫 md 重建）       |
-| 旧 id 映射             | legacy_id_map   | 思源小节块 id → 新标题锚 id（见「六」）                  |
-| 源文件清单             | source_files    | id,kind(md/pdf/word/image/audio),local_path,             |
-|                        |                 | **s3_key(NULL)**,content_hash,size,sync_state            |
-| 其余十店同名表         | know_roots/words/wordbooks/history/weakness/quiz_rounds/ai_sessions/route_cache/know_hash/settings/companion_chat | 同义直迁 |
+| 插件侧存储             | 表                                                                                                                | 说明                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| bank（questions）      | questions                                                                                                         | id,kramdown,hash,srcId,srcHash,sourceDocId,rootId,type,  |
+|                        |                                                                                                                   | knowledge,chapter,difficulty,source,attempts,wrongCount, |
+|                        |                                                                                                                   | right,lastAnswer,step_,slot_,totalTime                   |
+| bank.sets              | sets                                                                                                              | id,title,hPath,srcId,qids(JSON)                          |
+| 专题                   | collections                                                                                                       | id,path,qids(JSON)                                       |
+| bank.materials         | materials                                                                                                         | id,正文                                                  |
+| bank.knowTrees         | know_trees                                                                                                        | srcId→节点树 JSON                                        |
+| 知识文档（原思源文档） | know_docs                                                                                                         | id,title,content(md),parent,updated（Vditor 编辑存此）   |
+| 双链反链               | refs                                                                                                              | fromDocId,fromAnchor,toId,text（保存时扫 md 重建）       |
+| 旧 id 映射             | legacy_id_map                                                                                                     | 思源小节块 id → 新标题锚 id（见「六」）                  |
+| 源文件清单             | source_files                                                                                                      | id,kind(md/pdf/word/image/audio),local_path,             |
+|                        |                                                                                                                   | **s3_key(NULL)**,content_hash,size,sync_state            |
+| 其余十店同名表         | know_roots/words/wordbooks/history/weakness/quiz_rounds/ai_sessions/route_cache/know_hash/settings/companion_chat | 同义直迁                                                 |
 
 版本闩移植：装载/落盘闸改为 `PRAGMA user_version`；数据演进守则
 （字段只加不改名不删、冻结清单）整段照搬适用。
@@ -253,14 +253,14 @@ id 形态**；agentChatOnce/agentChatContinued 对外签名。SQLite 迁移时
   Toast、b3-lite 最小集）；store/（questions/know_docs/refs/
   source_files 四表+user_version 闩）；editor/（Vditor 本地 cdn 封装）。
   **Spike 验收（全部通过才进 M1）**：
-  - S1 Vditor IR 离线可编辑（cdn 本地化，无白屏）；
-  - S2 `((id "标题"))` 在 IR 编辑往返完整（getValue 不丢不改写——
-    Lute 无 blockref case，round-trip 是真风险）+ 预览 afterRender
-    后处理替换稳定；
-  - S3 内容哈希锚 → 冻结形态 id → BLOCK_REF 渲染 → 点击跳转全链路；
-  - S4 b3-lite 最小集渲染一道占位题。
-  S2 不过的退路：SV 模式或预览换 MdRender（5.1 被推翻的分离方案作为
-  Plan B 存档）。
+    - S1 Vditor IR 离线可编辑（cdn 本地化，无白屏）；
+    - S2 `((id "标题"))` 在 IR 编辑往返完整（getValue 不丢不改写——
+      Lute 无 blockref case，round-trip 是真风险）+ 预览 afterRender
+      后处理替换稳定；
+    - S3 内容哈希锚 → 冻结形态 id → BLOCK_REF 渲染 → 点击跳转全链路；
+    - S4 b3-lite 最小集渲染一道占位题。
+      S2 不过的退路：SV 模式或预览换 MdRender（5.1 被推翻的分离方案作为
+      Plan B 存档）。
 - **M1 题库+刷题主流程（1–2 周）**：questions/sets/collections 装载；
   BankParse 复用；QuizView 全流程；KaTeX 直连替换 mathRender
   （ProtyleHost 收敛为 host/KaTeX）；BankRecording→事务。**交付判据**：
@@ -292,16 +292,16 @@ id 形态**；agentChatOnce/agentChatContinued 对外签名。SQLite 迁移时
 
 ## 九、风险与对策
 
-| 风险                                   | 对策                                                        |
-| -------------------------------------- | ----------------------------------------------------------- |
-| Lute 块引用往返未知（S2）              | M0 前置 spike；不过则 SV 模式/预览换 MdRender（Plan B 存档）  |
-| Vditor 资产本地化                      | cdn 指向打包内 dist；S1 验收白屏检查                         |
-| 双机同步是刚需非后续                   | D5 快照导出/导入 M1 即有；M7 仅介质自动化                    |
-| 存量 id/指纹断层                       | 「六」legacy_id_map+frontmatter 保 docId；指纹断层一次性过目 |
-| b3-lite 工作量                         | M0 最小集+随期补齐；机械但不可跳过                           |
-| AI 直连供应商差异                      | Rust 统一适配层；PromptHygiene 保留；超时口径复刻            |
-| 双机 Rust 工具链                       | 两台机器各装（机器 B 外置卷跑 cargo 注意路径）               |
-| 平迁期间插件主线不能坏（备考使用中）   | 「十」基线+cherry-pick 纪律                                  |
+| 风险                                 | 对策                                                         |
+| ------------------------------------ | ------------------------------------------------------------ |
+| Lute 块引用往返未知（S2）            | M0 前置 spike；不过则 SV 模式/预览换 MdRender（Plan B 存档） |
+| Vditor 资产本地化                    | cdn 指向打包内 dist；S1 验收白屏检查                         |
+| 双机同步是刚需非后续                 | D5 快照导出/导入 M1 即有；M7 仅介质自动化                    |
+| 存量 id/指纹断层                     | 「六」legacy_id_map+frontmatter 保 docId；指纹断层一次性过目 |
+| b3-lite 工作量                       | M0 最小集+随期补齐；机械但不可跳过                           |
+| AI 直连供应商差异                    | Rust 统一适配层；PromptHygiene 保留；超时口径复刻            |
+| 双机 Rust 工具链                     | 两台机器各装（机器 B 外置卷跑 cargo 注意路径）               |
+| 平迁期间插件主线不能坏（备考使用中） | 「十」基线+cherry-pick 纪律                                  |
 
 ## 十、插件主线与双线维护
 

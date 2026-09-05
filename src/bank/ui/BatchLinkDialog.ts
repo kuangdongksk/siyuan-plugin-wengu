@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { Dialog } from "siyuan";
-import { agentChatOnce, newAiGroupId } from "../../ai/client";
+import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
+import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
@@ -25,6 +26,9 @@ import { routeTextOf } from "./MatchDialog";
  * 与「导入即关联」同一条路）；phase2 可选 AI 两级路由兜底未命中的题
  * （逐题独立会话，同 MatchDialog）。导入根后已自动跑过 phase1 的，
  * 这里再跑=增量（默认跳过已挂引用的题）。
+ *
+ * 20260905 起点击开始即关窗（弹窗去阻塞改造）：后台流经 launchAiFlow
+ * 单飞，进度与「停止」在 AI 会话面板，终态走思源通知。
  */
 
 export interface BatchDeps {
@@ -47,7 +51,6 @@ export async function openBatchLinkDialog(deps: BatchDeps): Promise<void> {
           formRow(t("batchAiLabel"), t("batchAiHint"), formSwitch("batch-ai", false, "data-act")) +
               formRow(t("matchSkipLabel"), t("matchSkipHint"), formSwitch("batch-skip", true, "data-act"))
       )}
-      <div class="wengu-status" data-act="batch-status" hidden></div>
     </div>
     <div class="b3-dialog__action">
       <button class="b3-button b3-button--cancel" data-act="batch-cancel">${esc(t("cancel"))}</button>
@@ -55,68 +58,28 @@ export async function openBatchLinkDialog(deps: BatchDeps): Promise<void> {
     </div>`,
     });
     const root = dialog.element;
-    const status = root.querySelector<HTMLElement>("[data-act='batch-status']");
-    const show = (text: string, kind: "ok" | "err" | "muted"): void => {
-        if (!status) return;
-        // 弹窗已销毁：终态改走思源通知（muted=运行中/中止态，不打扰）
-        if (!status.isConnected) {
-            if (kind === "err") notifyError(text);
-            else if (kind === "ok") notifyInfo(text);
-            return;
-        }
-        status.textContent = text;
-        status.className = `wengu-status wengu-status-${kind}`;
-        status.removeAttribute("hidden");
-    };
-    const cancelAll = (): void => {
-        ctrl?.abort();
-        dialog.destroy();
-    };
-    root.querySelector("[data-act='batch-cancel']")?.addEventListener("click", cancelAll);
-    root.querySelector(".b3-dialog__close")?.addEventListener("click", () => ctrl?.abort());
-    const okBtn = root.querySelector<HTMLButtonElement>("[data-act='batch-ok']");
-    let running = false;
-    let ctrl: AbortController | undefined;
-    okBtn?.addEventListener("click", () => {
-        if (running) {
-            ctrl?.abort();
-            return;
-        }
+    root.querySelector("[data-act='batch-cancel']")?.addEventListener("click", () => dialog.destroy());
+    root.querySelector("[data-act='batch-ok']")?.addEventListener("click", () => {
         if (convertRunActive()) {
-            show(t("convertBusy"), "err");
+            notifyError(deps.t("convertBusy"));
             return;
         }
-        running = true;
-        ctrl = new AbortController();
         const ai = root.querySelector<HTMLInputElement>("[data-act='batch-ai']")?.checked ?? false;
         const skip = root.querySelector<HTMLInputElement>("[data-act='batch-skip']")?.checked ?? true;
-        void runBatch(deps, dialog, ai, skip, ctrl, show, okBtn, () => {
-            running = false;
-            ctrl = undefined;
-        });
+        dialog.destroy(); // 点击即关窗：后台流，终态走通知
+        launchAiFlow((stop) => runBatch(deps, ai, skip, stop));
     });
 }
 
-async function runBatch(
-    deps: BatchDeps,
-    dialog: Dialog,
-    useAi: boolean,
-    skipLinked: boolean,
-    ctrl: AbortController,
-    show: (text: string, kind: "ok" | "err" | "muted") => void,
-    okBtn: HTMLButtonElement,
-    onEnd: () => void
-): Promise<void> {
+async function runBatch(deps: BatchDeps, useAi: boolean, skipLinked: boolean, stop: AiAbort): Promise<void> {
     const { t, bank, modelId } = deps;
-    okBtn.textContent = t("matchStop");
-    show(t("matchPreparing"), "muted");
     try {
         const roots = await knowRootsOf(bank);
         if (roots.length === 0) throw new Error(t("batchNoRoots"));
         const lex = await lexiconOfRoots(roots, await knowTreesOf(bank));
         if (lex.size === 0) throw new Error(t("matchNoIndex"));
         // phase1：文本关联（零 AI）
-        const p1 = await linkBankByText(bank, lex, { skipLinked, signal: ctrl.signal });
+        const p1 = await linkBankByText(bank, lex, { skipLinked, signal: stop.signal });
         let hit = p1.hit;
         let miss = p1.miss;
         const skip = p1.skip;
@@ -126,16 +89,15 @@ async function runBatch(
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
-        if (useAi && !ctrl.signal.aborted && p1.missed.length > 0 && dialog.element.isConnected) {
+        if (useAi && !stop.signal.aborted && p1.missed.length > 0) {
             const index = await buildKnowledgeIndex(roots, await knowTreesOf(bank));
             if (index.chapters.length > 0) {
                 const pending: BankRecord[] = p1.missed;
                 // 动作分组（AI 会话面板树归并）：本次批量关联的 AI 兜底挂同组
                 const group = { id: newAiGroupId(), title: `批量关联 · ${pending.length} 题` };
                 for (let i = 0; i < pending.length; i++) {
-                    if (ctrl.signal.aborted || !dialog.element.isConnected) break;
+                    if (stop.signal.aborted) break;
                     const r = pending[i];
-                    show(fmt(t("batchAiRunning"), { c: String(i + 1), n: String(pending.length) }), "muted");
                     let refs: { id: string; title: string }[] = [];
                     try {
                         refs = await routeKnowledgeCached({
@@ -143,17 +105,18 @@ async function runBatch(
                             index,
                             modelId,
                             call: (m) =>
-                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, ctrl.signal, {
+                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, stop.signal, {
                                     kind: "route",
                                     title: `批量关联 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
                                     group,
+                                    onSid: stop.onSid,
                                 }),
                             onFail: (f) => fails.push(f),
                         });
                     } catch (_) {
                         // 路由失败按未命中，不阻断后续题
                     }
-                    if (ctrl.signal.aborted) break;
+                    if (stop.signal.aborted) break;
                     if (refs.length > 0 && (await applyRefsToRecord(bank, r, refs))) {
                         hit++;
                         aiHit++;
@@ -171,24 +134,18 @@ async function runBatch(
         const topFail = [...failCount.entries()].sort((a, b) => b[1] - a[1])[0];
         const failHint =
             hit === 0 && miss > 0 && topFail ? "\n" + fmt(t(`matchFail_${topFail[0]}`), { n: String(topFail[1]) }) : "";
-        show(
-            ctrl.signal.aborted
-                ? fmt(t("matchAborted"), { h: String(hit) })
-                : fmt(t("batchDone"), {
-                      h: String(hit),
-                      x: String(p1.hit),
-                      y: String(aiHit),
-                      m: String(miss),
-                      s: String(skip),
-                  }) + failHint,
-            ctrl.signal.aborted ? "muted" : hit === 0 && failHint ? "err" : "ok"
-        );
-        if (!ctrl.signal.aborted) window.setTimeout(() => dialog.destroy(), 800);
+        const summary = fmt(t("batchDone"), {
+            h: String(hit),
+            x: String(p1.hit),
+            y: String(aiHit),
+            m: String(miss),
+            s: String(skip),
+        });
+        if (stop.signal.aborted) notifyInfo(fmt(t("matchAborted"), { h: String(hit) }));
+        else if (hit === 0 && failHint) notifyError(summary + failHint);
+        else notifyInfo(summary + failHint);
         deps.onDone?.();
     } catch (e) {
-        show(errText(e), "err");
-    } finally {
-        okBtn.textContent = t("matchStart");
-        onEnd();
+        notifyError(stop.signal.aborted ? t("aiFlowAborted") : errText(e));
     }
 }

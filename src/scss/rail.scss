@@ -405,14 +405,7 @@
 
 .wengu-ai-composer {
   display: flex;
-  gap: 8px;
-  align-items: flex-end;
-
-  .b3-text-field {
-    flex: 1;
-    resize: vertical;
-    min-height: 44px;
-  }
+  justify-content: flex-end;
 }
 
 .wengu-ai-err {

@@ -78,6 +78,49 @@ describe("shuffleDraftOptions · 跳过语义", () => {
     });
 });
 
+describe("shuffleDraftOptions · 拆行 unpack（挤行选项）", () => {
+    /** 挤行形态：全部选项一行一个塞进同一 @@P opt（20260905 概率篇真机
+     *  踩坑——渲染只给首行编字母，落库即「只剩正确选项」）。 */
+    function packedDraft(type: string, packed: string, ans: string): DraftUnit {
+        return parseDrafts(
+            [
+                "@@Q type=" + type,
+                "@@P stem",
+                "题干……",
+                "@@P opt",
+                packed,
+                "@@P ans",
+                ans,
+                "@@P sol",
+                "解析",
+                "@@END",
+            ].join("\n")
+        )[0];
+    }
+    it("单部件多行拆回独立选项，原答案字母口径不可信被重写", () => {
+        const d = packedDraft("single", "360种\n240种\n120种\n60种", "C");
+        shuffleDraftOptions(d);
+        const opts = textsOf(d, "option-0");
+        expect(opts).toHaveLength(4);
+        expect([...opts].sort()).toEqual(["120种", "240种", "360种", "60种"].sort());
+        const ans = textsOf(d, "answer")[0];
+        expect(ans).toMatch(/^[A-D]$/);
+        expect(opts[LETTERS.indexOf(ans)]).toBe("360种"); // 首行=正确项跟着答案字母走
+    });
+    it("位置敏感挤行：拆行但保序，答案 A 指向首行（正确项）", () => {
+        const d = packedDraft("single", "正确项\n干扰项\n以上都对", "B");
+        shuffleDraftOptions(d);
+        expect(textsOf(d, "option-0")).toEqual(["正确项", "干扰项", "以上都对"]);
+        expect(textsOf(d, "answer")[0]).toBe("A");
+    });
+    it("multiple 挤行不拆：正确集合规模不可推导，保持原样待体检报告", () => {
+        const d = packedDraft("multiple", "甲\n乙\n丙\n丁", "AB");
+        const before = d.parts.map((p) => `${p.name}:${p.text}`);
+        shuffleDraftOptions(d);
+        expect(d.parts.map((p) => `${p.name}:${p.text}`)).toEqual(before);
+    });
+});
+
 describe("shuffleDraftOptions · steps", () => {
     it("每步选项各自洗且答案字母同步（method 步可行集合保持）", () => {
         const lines = [

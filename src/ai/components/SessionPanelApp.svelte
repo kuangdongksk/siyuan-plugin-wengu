@@ -15,7 +15,7 @@
      * AI 会话管理工作区面板根组件（四件套之一）。两栏式（20260901
      * 改版）：左栏=会话清单（类别过滤 + 状态徽标 + 两击删除，固定宽
      * 自滚），右栏=选中会话的明细（完整轮次回看——user prompt 与 ai
-     * 产出都在——+ 继续追问输入条），点左侧行即切右栏内容。左栏树
+     * 产出都在——+ 失败记录的重试钮），点左侧行即切右栏内容。左栏树
      * （20260903 改版）：种类优先两级树——顶层一类一棵树（转换/检测
      * …），类内按主题（组标题「 · 」后的文档名）出第二级，跨次运行
      * 同文档合并；树渲染走共享组件 ui/TreeList（与知识面板/侧栏树
@@ -73,17 +73,12 @@
     });
     const sel = $derived.by(() => ui.recs.find((r) => r.id === ui.selId));
 
-    /** 轮次更新自动滚到底（追问回复到达时贴底可见）。 */
+    /** 轮次更新自动滚到底（重试回复到达时贴底可见）。 */
     let logEl: HTMLDivElement | undefined;
     $effect(() => {
         void sel?.turns.length;
-        void ui.sending;
         if (logEl) logEl.scrollTop = logEl.scrollHeight;
     });
-
-    const send = (): void => {
-        if (sel) void ctl.ask(sel, ui.draft);
-    };
 
     /** 叶子行（会话）点击=选中切右栏；动作钮不触发（同知识面板口径）。 */
     const rowclick = (n: TreeListNode, e: MouseEvent): void => {
@@ -226,36 +221,27 @@
                                     <div class="wengu-ai-ttext">{turn.text}</div>
                                 </div>
                             {/each}
-                            {#if ui.sending}
+                            {#if sel.status === "running"}
                                 <div class="wengu-ai-turn is-ai">
                                     <div class="wengu-ai-trole">{t("aiRoleAi")}</div>
                                     <div class="wengu-ai-ttext wengu-muted">{t("aiSending")}</div>
                                 </div>
                             {/if}
                         </div>
-                        <div class="wengu-ai-composer">
-                            <textarea
-                                class="b3-text-field"
-                                rows="2"
-                                placeholder={t("aiContinueHint")}
-                                disabled={ui.sending}
-                                oninput={(e) => ctl.setDraft(e.currentTarget.value)}
-                                onkeydown={(e) => {
-                                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                                        e.preventDefault();
-                                        send();
-                                    }
-                                }}>{ui.draft}</textarea
-                            >
-                            <button
-                                type="button"
-                                class="b3-button b3-button--main"
-                                disabled={ui.sending || !ui.draft.trim()}
-                                onclick={send}>{t("aiSend")}</button
-                            >
-                        </div>
-                        {#if ui.sendError}
-                            <div class="wengu-ai-err">{ui.sendError}</div>
+                        {#if sel.status === "running"}
+                            <div class="wengu-ai-composer">
+                                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.stop(sel)}
+                                    >{t("aiStop")}</button
+                                >
+                            </div>
+                        {:else if sel.status === "error"}
+                            <div class="wengu-ai-composer">
+                                <button
+                                    type="button"
+                                    class="b3-button b3-button--main"
+                                    onclick={() => void ctl.retry(sel)}>{t("aiRetry")}</button
+                                >
+                            </div>
                         {/if}
                     </div>
                 {:else}

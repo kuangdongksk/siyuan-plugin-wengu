@@ -26,7 +26,8 @@
       client 转发导出；20260830
       起 chatGPT 直答与共享 "" 会话两条路已弃用——agentChat 收为模块
       私有，queue.ts/enqueueAi 整体退役）与 **agentChatContinued**
-      （继续追问：历史轮次以 user/assistant 条目回放播种新会话）、
+      （面板重试失败记录：历史轮次以 user/assistant 条目回放播种新会话
+      重发末条 user 消息）、
       `models.ts` 模型
       清单与默认、`timeouts.ts` AI_TIMEOUT 档位（调用点禁自造超时
       数字；超时统一按 SSE 空闲计）、`agentPanel.ts` 智能体面板
@@ -39,7 +40,11 @@
       （components/SessionPanelApp.svelte 四件套，挂载编排
       `SessionPanel.ts`；**两栏式**（20260901 改版）：左栏=会话清单
       常驻（类别过滤/状态徽标/两击删除/选中高亮），点行右栏出完整
-      轮次明细+继续追问输入条；**树状分组**（20260902 引入，
+      轮次明细+失败记录重试钮；**自由追问已退役**（20260905——闲聊
+      会把业务记录混污染且每次全量回放烧 token，重试取代之：error
+      记录重跑末次调用走新会话，`retrying` 转回 running 后复用
+      succeed/fail 收口原地翻案，appendTurns/ask/composer 随之删除）；
+      **树状分组**（20260902 引入，
       20260903 改版=**种类优先两级树**）：顶层一类一棵树（转换/检测/
       判题…），类内按主题=组标题/标题第一个「 · 」后的部分（转换是
       文档名——高等数学、线代；跨次运行同文档合并）出第二级，调用
@@ -52,7 +57,7 @@
       登记数据仍按动作组落（track.group，20260902 的组机制保留在
       数据层，渲染不再按组）——
       判题/转换/检测/标签/路由/出题/单词复盘等
-      带 track 的调用自动登记，面板回看完整轮次与产出并可继续追问。
+      带 track 的调用自动登记，面板回看完整轮次与产出，失败可重试。
     - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排；**20260903 存储收口：转换零落盘，
       产物直写题库**（`service/SetWriter.ts`：DraftUnit → renderUnit 出
@@ -147,7 +152,14 @@
           实时刷新题单；题库「对账/重生成/反查/生成入库」段在 data/
           BankRegen 函数式友元——20260901 从 QuestionBank 类拆出压 500
           行红线，调用形 `foo(bank,…)`，解析缓存经 parsedOf/
-          invalidateParse 友元钩子；**题集实体 BankSets**（20260903 存储
+          invalidateParse 友元钩子；**选项挤行体检**（20260905，
+          data/BankRepair + 专题工作区「题库体检」入口）：AI 把全部
+          选项一行一个塞进同一 @@P opt 时落库只剩首行正确项，体检出
+          挤行记录并确定性拆行修复（答案按「首行=正确项」重写+洗牌，
+          经 replaceRecordKramdown 原题位回写，预览即所得；多选挤行
+          正确集合不可推导只报告走单题重生成）；生成侧同类预防在
+          OptionShuffle.unpackPackedSingle（draft 层拆行，四生成入口
+          共用）；**题集实体 BankSets**（20260903 存储
           pivot）：题目内容唯一真相=题库（BankRecord.kramdown 契约格式），
           题集 `{id,title,hPath,srcId,qids[]}` 存 bank.sets（data/BankSets
           函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集
@@ -191,8 +203,15 @@
           走内核级 showMessage 浮层——`initNotify(i18n)` 由 index.ts onload
           注入、深层模块用 `{key,vars}` 取词，错误同文案 60s 冷却防重试
           风暴；已接 AiSessions/QuestionBank 落盘失败、导入即关联、
-          建知识树、转换/增量终态、四弹窗被销毁后的 ok/err、启动迁移
-          链 catch；**页面已可见的反馈不重复通知**（判题/词书导入/学伴
+          建知识树、转换/增量终态、启动迁移链 catch；**弹窗去阻塞**
+          （20260905 用户定夺，七个 AI 弹窗统一口径）：重新生成/
+          匹配/批量关联/生成标签/变式重练/薄弱加练/收集补题全部
+          「点击即关窗」——AI 后台跑、调用带 track 进 AI 会话面板
+          （实时进度）、终态走通知；重型批流走 ai/flow.ts launchAiFlow
+          单飞闸（aiFlowBegin/End，内核写流并发互吞防线），「停止」
+          迁到 AI 会话面板（client.ts 中止登记簿 stopBySid：track.onSid
+          把记录 id 挂回流级 AbortController，面板 abortAiSession 触发；
+          转换流自带页内停止面未接线、面板对其点停静默无效）；**页面已可见的反馈不重复通知**（判题/词书导入/学伴
           AI 等），新增后台流照此口径接）。
     - **各域 `index.ts` 必须是该域的入口编排代码，禁止纯 re-export barrel**；
       共享类型在 `src/types.ts`，样式 `src/scss/` 分片。

@@ -48,6 +48,9 @@
                 <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.openCollectDialog()}
                     >{@html svgIcon("iconSparkles")} {t("colCollect")}</button
                 >
+                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.optionRepair()}
+                    >{@html svgIcon("iconCheck")} {t("repairEntry")}</button
+                >
                 <button type="button" class="b3-button b3-button--text" onclick={() => void ctl.load()}
                     >{@html svgIcon("iconRefresh")}</button
                 >
