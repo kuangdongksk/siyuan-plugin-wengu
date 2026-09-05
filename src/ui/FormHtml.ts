@@ -7,9 +7,13 @@ import { esc } from "./shared";
  *    formGroup + formRow 行样式（标题说明在左、控件在右）。
  */
 
-/** 思源内置图标（symbol id 需存在于主程序 stage，如 iconClock）。 */
+/** 思源内置图标（symbol id 需存在于主程序 stage，如 iconClock）。
+ *  默认自带 width/height=14（20260905 根修：此前不带尺寸属性，靠
+ *  panels.scss 容器清单给 14px——新容器漏进清单就按 SVG 替换元素
+ *  默认 300×150 渲染，相关题弹窗/复习时间线/预览搜题框三犯同一坑；
+ *  属性可被 CSS 覆写，特殊尺寸照旧用 CSS 盖）。 */
 export function svgIcon(id: string, cls = ""): string {
-    return `<svg${cls ? ` class="${cls}"` : ""}><use xlink:href="#${id}"></use></svg>`;
+    return `<svg width="14" height="14"${cls ? ` class="${cls}"` : ""}><use xlink:href="#${id}"></use></svg>`;
 }
 
 /** 结果行状态图标：right=iconCheck / wrong=iconClose / partial=iconIndeterminateCheck。 */

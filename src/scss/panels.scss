@@ -57,10 +57,12 @@
   color: var(--b3-theme-on-surface-light);
 }
 
-/* 全局图标尺寸（svgIcon 输出的内置 SVG symbol）。**新容器里裸插
-   svgIcon 必须把容器选择器加进本表**——SVG 无 width 属性时按替换
-   元素默认尺寸渲染（块内铺满/行内 300×150），相关题弹窗的大放大镜
-   即漏加后果（20260901 走查） */
+/* 全局图标尺寸（svgIcon 输出的内置 SVG symbol）。20260905 起
+   svgIcon 已自带 width/height=14 属性，本表降级为历史兼容的
+   保险层（fill/flex:none 仍必要）——新容器不再需要进本表，
+   特殊尺寸用 CSS 覆写属性即可。此前漏进本表会按替换元素默认
+   尺寸渲染（块内铺满/行内 300×150），相关题弹窗大放大镜、
+   预览搜题框两犯即此坑 */
 .wengu-btn svg,
 .wengu-iconbtn svg,
 .wengu-side-iconbtn svg,
