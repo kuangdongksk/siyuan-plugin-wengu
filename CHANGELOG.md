@@ -2,6 +2,14 @@
 
 ## v0.1.1 unreleased
 
+- **410「Plugin lifecycle has ended」噪音收口**（20260904，store 域）：
+  思源 3.8.2 生命周期闸下，插件重载（调试部署/前端刷新/切工作区）后
+  旧实例残骸的挂起落盘与熬过重载的长 AI 任务收口会吃 410 永久拒绝
+  ——题库/AI 会话的 flush 撞 `isLifecycleGone` 不再弹思源通知、不再
+  重排防抖（普通失败照旧通知+重试）；`savePrefs`/`settings.save` 两处
+  fire-and-forget 的 `void save()` 补链尾 `.catch`（try/catch 接不住
+  异步 reject，漏出去是控制台未捕获拒绝刷屏）。补 5 例单测（410 静默
+  /普通失败仍弹/未捕获拒绝回归护栏）。
 - **许可证更换为 CC BY-NC 4.0（禁止商用）**（20260904，仓库级）：
   LICENSE 由模板遗留 MIT（版权行仍是「SiYuan 思源笔记」）更换为
   知识共享 署名-非商业性使用 4.0 国际协议——非商业用途可自由使用
