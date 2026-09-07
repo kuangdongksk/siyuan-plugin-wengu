@@ -390,3 +390,88 @@
   justify-content: center;
   color: var(--b3-theme-on-surface);
 }
+
+/* ── 自定义块（3.8.3 customBlockRenders）：编辑器内题目引用 ──
+   块 content=qid、渲染器题库取题只读渲染。占位与卡头样式在此，
+   题干/选项排版复用 fallbackQuestionHtml 的 .wengu-opts 体系。 */
+.wengu-qblock {
+  padding: 8px 10px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+}
+
+.wengu-qblock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wengu-qblock-type {
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: var(--b3-border-radius);
+  color: var(--b3-theme-on-surface);
+  background: var(--b3-theme-surface);
+}
+
+/* 卡头按钮：幽灵风（图标钮统一幽灵风格，图标+文案钮） */
+.wengu-qblock-open {
+  margin-left: auto;
+  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.wengu-qblock-open:hover {
+  opacity: 1;
+  background: var(--b3-theme-surface);
+}
+
+.wengu-qblock-open svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wengu-qblock-missing {
+  color: var(--b3-theme-on-surface);
+  opacity: 0.6;
+  font-size: 13px;
+}
+
+/* 题目选择弹窗（插入入口）：行=文档树 ghost 风 */
+.wengu-pq-list {
+  margin-top: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.wengu-pq-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.wengu-pq-stem {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wengu-pq-row .b3-list-item__meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.55;
+}

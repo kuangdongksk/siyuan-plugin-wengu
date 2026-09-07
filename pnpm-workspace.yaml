@@ -2,5 +2,10 @@ allowBuilds:
   "@parcel/watcher": false
   dprint: true
   esbuild: false
+# 关闭 pnpm 11 内置的 24h 供应链冷却：siyuan 类型包随思源内核即时升
+# （minimumReleaseAgeExclude 在 lockfile 校验路径不被尊重，pnpm#10361）
+minimumReleaseAge: 0
 minimumReleaseAgeExclude:
   - siyuan@1.2.4
+  - siyuan@1.2.7
+  - siyuan

@@ -680,5 +680,11 @@
   "aiStop": "Stop",
   "aiFlowStarted": "Started; you will be notified on completion — progress & Stop live in the AI sessions panel",
   "aiFlowBusy": "A background AI task is already running; wait or stop it from the AI sessions panel",
-  "aiFlowAborted": "Aborted (finished parts kept)"
+  "aiFlowAborted": "Aborted (finished parts kept)",
+  "qblockInsert": "Insert Wengu question",
+  "qblockOpen": "Open in Wengu",
+  "qblockMissing": "Question not found in bank",
+  "qblockPickTitle": "Pick a question",
+  "qblockFilterHint": "Filter questions by keyword",
+  "qblockEmpty": "No matching questions"
 }

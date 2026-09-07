@@ -16,6 +16,8 @@ import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 import { knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
+import { QUESTION_BLOCK_TYPE, makeQuestionBlockRender, questionBlockMd } from "./quiz/render/CustomBlockRender";
+import { openPickQuestionDialog } from "./quiz/ui/PickQuestionDialog";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -87,6 +89,8 @@ interface WenguSettings {
 export default class WenguPlugin extends Plugin {
     /** 单例缓存，供 addTab 回调在拿不到插件实例时取 i18n。 */
     static instance: WenguPlugin | undefined;
+    /** 面包屑「插入温故题目」按钮 id（onunload 显式回收）。 */
+    static crumbId: string | undefined;
     /** 插件设置（对象引用共享给 QuizView，开关即时生效）。 */
     settings: WenguSettings = { showNums: true, showAttempts: true, showWrong: true };
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
@@ -121,6 +125,23 @@ export default class WenguPlugin extends Plugin {
             (v) => this.saveData("bank", v)
         );
         return this.bankStore;
+    }
+
+    /** 打开（或聚焦）温故页签并切到指定文档（顶栏按钮与自定义块共用）。 */
+    async openWenguTab(docId: string): Promise<void> {
+        // 先落模块级目标（addTab 回调读不到调用方局部量）
+        targetDocId = docId;
+        const tab = await openTab({
+            app: this.app,
+            custom: {
+                icon: "iconWengu",
+                title: this.i18n.pluginName,
+                id: this.name + TAB_RESULT,
+            },
+        });
+        // 页签已打开时 openTab 只聚焦不重建：把新文档 id 推给既有视图
+        const view = (tab as unknown as { model?: { wenguView?: QuizView } })?.model?.wenguView;
+        view?.setDoc(docId);
     }
 
     async onload() {
@@ -195,26 +216,52 @@ export default class WenguPlugin extends Plugin {
   <path d="M11 5 6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.7a10 10 0 0 1 0 12.6"/>
 </symbol>`);
         this.addTopBar({
+            // 稳定 id（3.8.3 类型收录）：removeTopBar(id) 显式回收 + 重载防叠影
+            id: "wengu-topbar",
             icon: "iconWengu",
             title: this.i18n.pluginName,
             position: "right",
             callback: async () => {
                 // 记录当前活动文档，页签据此渲染该文档的题目
                 const editor = getActiveEditor();
-                targetDocId = editor?.protyle?.block?.rootID ?? "";
-                const tab = await openTab({
-                    app: this.app,
-                    custom: {
-                        icon: "iconWengu",
-                        title: this.i18n.pluginName,
-                        id: this.name + TAB_RESULT,
-                    },
-                });
-                // 页签已打开时 openTab 只聚焦不重建：把新文档 id 推给既有视图
-                const view = (tab as unknown as { model?: { wenguView?: QuizView } })?.model?.wenguView;
-                view?.setDoc(targetDocId);
+                await this.openWenguTab(editor?.protyle?.block?.rootID ?? "");
             },
         });
+
+        // 自定义块渲染器（3.8.3 issue #8418）：;;;wengu/question 块 content=qid，
+        // 题库取题只读渲染（纯视图，存储零变更——见 CustomBlockRender 头注）
+        this.customBlockRenders[QUESTION_BLOCK_TYPE] = {
+            render: makeQuestionBlockRender({
+                t: this.tKey,
+                bank: () => this.bank(),
+                openDoc: (docId) => void this.openWenguTab(docId),
+            }),
+        };
+
+        // 面包屑「插入温故题目」：弹选择器按 qid 生成自定义块插到光标处
+        // （3.8.3 API，老前端特性检测跳过——customBlockRenders 属性在老版
+        // 无人消费、赋值无害，面包屑按钮没有对应实现会崩，必须检测）
+        if (typeof this.addBreadcrumbButton === "function") {
+            WenguPlugin.crumbId = this.addBreadcrumbButton({
+                id: "wengu-insert-question",
+                icon: "iconWengu",
+                title: this.i18n.qblockInsert,
+                callback: (_ev, protyle) => {
+                    openPickQuestionDialog({
+                        t: this.tKey,
+                        bank: this.bank(),
+                        onPick: (qid) => {
+                            const md = questionBlockMd(this.name, qid);
+                            const lute = protyle.lute as unknown as { Md2BlockDOM(md: string): string };
+                            const inst = protyle.getInstance() as unknown as {
+                                insert(dom: string, focus: boolean): void;
+                            };
+                            inst.insert(lute.Md2BlockDOM(md), true);
+                        },
+                    });
+                },
+            });
+        }
 
         // 单词复习只走 Dock 面板（顶部入口与同名页签已删：addTab 与
         // addDock 注册同名 type 会让 dock 的 init 分发到页签实例，
@@ -301,6 +348,12 @@ export default class WenguPlugin extends Plugin {
         document.removeEventListener("click", WenguPlugin.onBlockRefClick);
         this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
         this.eventBus.off("open-menu-content", this.onOpenMenuContent);
+        // 自定义块渲染器与面包屑按钮（3.8.3）显式回收，重载不叠影
+        delete this.customBlockRenders[QUESTION_BLOCK_TYPE];
+        if (WenguPlugin.crumbId !== undefined) {
+            this.removeBreadcrumbButton(WenguPlugin.crumbId);
+            WenguPlugin.crumbId = undefined;
+        }
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
         aiSessions()?.flushNow(); // 登记簿去抖窗口内的尾笔立即落盘（重载不丢）
         void this.bankStore?.flush(); // 题库 2s 防抖窗口内的作答记账尾笔（刷完题即重载不丢）
