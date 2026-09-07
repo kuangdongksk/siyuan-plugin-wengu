@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
+    import Select from "../../ui/Select.svelte";
     import { modelPickAction, modelPickLabel } from "../../ui/ModelPicker";
     import { CompanionPanelCtl, type CompanionPanelDeps } from "../core/CompanionPanelCtl";
     import { initialCompanionPanelUi } from "../core/CompanionPanelUi";
@@ -65,15 +66,12 @@
             />
         </FormRow>
         <FormRow label={t("companionPersonaLabel")} desc={t("companionPersonaDesc")}>
-            <select
+            <Select
                 class="b3-select fn__flex-center fn__size200"
+                options={personas.map((p) => ({ value: p.id, label: t(p.key) }))}
                 value={ctl.persona()}
                 onchange={(e) => ctl.setPersona(e.currentTarget.value)}
-            >
-                {#each personas as p}
-                    <option value={p.id}>{t(p.key)}</option>
-                {/each}
-            </select>
+            />
         </FormRow>
     </div>
 

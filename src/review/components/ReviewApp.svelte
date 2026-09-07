@@ -8,6 +8,7 @@
     import { fmt } from "../../ui/shared";
     import ReviewGroup from "./ReviewGroup.svelte";
     import ReviewDetail from "./ReviewDetail.svelte";
+    import Select from "../../ui/Select.svelte";
 
     /**
      * 错题本主区（四件套之一）：工具行（筛选/排序/概况/刷新）+ 左清单
@@ -33,25 +34,27 @@
 
 <div class="wengu-review">
     <div class="wengu-review-tools">
-        <select
+        <Select
             class="b3-select"
+            options={[
+                { value: "all", label: t("reviewFilterAll") },
+                { value: "pending", label: t("reviewFilterPending") },
+                { value: "mastered", label: t("reviewFilterMastered") },
+            ]}
             title={t("reviewFilterTitle")}
             value={ui.filter}
             onchange={(e) => reviewCtl.setFilter(e.currentTarget.value as typeof ui.filter)}
-        >
-            <option value="all">{t("reviewFilterAll")}</option>
-            <option value="pending">{t("reviewFilterPending")}</option>
-            <option value="mastered">{t("reviewFilterMastered")}</option>
-        </select>
-        <select
+        />
+        <Select
             class="b3-select"
+            options={[
+                { value: "recent", label: t("reviewSortRecent") },
+                { value: "count", label: t("reviewSortCount") },
+            ]}
             title={t("reviewSortTitle")}
             value={ui.sort}
             onchange={(e) => reviewCtl.setSort(e.currentTarget.value as typeof ui.sort)}
-        >
-            <option value="recent">{t("reviewSortRecent")}</option>
-            <option value="count">{t("reviewSortCount")}</option>
-        </select>
+        />
         <span class="wengu-muted wengu-review-summary"
             >{fmt(t("reviewSummary"), {
                 n: String(m.total),

@@ -3,6 +3,7 @@
     import type { CardCtl } from "../render/CardCtl";
     import { gotoSlot, pickMatch, pickSlotOpt, submitMatch, submitSlot } from "../flow/SlotFlow";
     import type { WenguQuestion } from "../../types";
+    import Select from "../../ui/Select.svelte";
 
     /**
      * 逐空作答区（6-4b 状态化）：cloze=空号条+当前空选项（CardUi.slots
@@ -62,16 +63,14 @@
                     data-matchrow={k}
                 >
                     <span class="wengu-match-k">{k + 1}</span>
-                    <select
+                    <Select
                         class="b3-select wengu-match-sel"
+                        options={[{ value: "", label: "—" }, ...letters.map((letter) => ({ value: letter, label: letter }))]}
                         data-matchsel={k}
                         disabled={mark.answered || ui.locked}
                         value={mark.letter}
                         onchange={(e) => (on && !mark.answered ? pickMatch(ctl, k, e.currentTarget.value) : undefined)}
-                    >
-                        <option value="">—</option>
-                        {#each letters as L, i (i)}<option value={L}>{L}</option>{/each}
-                    </select>
+                    />
                     <button
                         class="wengu-btn wengu-match-go"
                         data-act="match-submit"

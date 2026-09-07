@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
+    import Select from "../../ui/Select.svelte";
     import { modelPickAction, modelPickLabel } from "../../ui/ModelPicker";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
@@ -69,16 +70,17 @@
                     />
                 </FormRow>
                 <FormRow label={t("convertParallelLabel")} desc={t("convertParallelHint")}>
-                    <select
+                    <Select
                         class="b3-select fn__flex-center fn__size200"
+                        options={[
+                            { value: "1", label: t("convertParallel1") },
+                            { value: "2", label: fmt(t("convertParallelN"), { n: "2" }) },
+                            { value: "3", label: fmt(t("convertParallelN"), { n: "3" }) },
+                            { value: "4", label: fmt(t("convertParallelN"), { n: "4" }) },
+                        ]}
                         value={String(ui.parallel)}
                         onchange={(e) => ctl.setParallel(Number(e.currentTarget.value) || 1)}
-                    >
-                        <option value="1">{t("convertParallel1")}</option>
-                        <option value="2">{fmt(t("convertParallelN"), { n: "2" })}</option>
-                        <option value="3">{fmt(t("convertParallelN"), { n: "3" })}</option>
-                        <option value="4">{fmt(t("convertParallelN"), { n: "4" })}</option>
-                    </select>
+                    />
                 </FormRow>
                 <FormRow label={t("convertKnowLabel")}>
                     <button

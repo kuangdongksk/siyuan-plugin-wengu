@@ -5,6 +5,7 @@
     import { GROUP_SIZES, groupSizeOf, windowCapOf } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
+    import Select from "../../ui/Select.svelte";
 
     /** 起点设置面板：每组单词数/新学窗口（即时生效）+ 词书管理（导入/
      *  设当前/删除，redesign §五）+ 进度导入（TSV）。行样式沿 FormHtml
@@ -52,16 +53,16 @@
                         <div class="b3-label__text">{t("wordGroupSizeDesc")}</div>
                     </div>
                     <div class="fn__space"></div>
-                    <select
+                    <Select
                         class="b3-select fn__flex-center fn__size200"
+                        options={GROUP_SIZES.map((n) => ({
+                            value: String(n),
+                            label: fmt(t("wordGroupOpt"), { n: String(n) }),
+                        }))}
                         data-field="groupsize"
                         value={gs}
                         onchange={(e) => view.startCtl().setGroupSize(Number(e.currentTarget.value))}
-                    >
-                        {#each GROUP_SIZES as n}
-                            <option value={n}>{fmt(t("wordGroupOpt"), { n: String(n) })}</option>
-                        {/each}
-                    </select>
+                    />
                 </div>
                 <div class="fn__flex b3-label config__item">
                     <div class="fn__flex-1 fn__flex-center">
@@ -69,16 +70,16 @@
                         <div class="b3-label__text">{t("wordWindowCapDesc")}</div>
                     </div>
                     <div class="fn__space"></div>
-                    <select
+                    <Select
                         class="b3-select fn__flex-center fn__size200"
+                        options={[3, 4, 5, 6, 8, 10].map((n) => ({
+                            value: String(n),
+                            label: fmt(t("wordGroupOpt"), { n: String(n) }),
+                        }))}
                         data-field="windowcap"
                         value={wc}
                         onchange={(e) => view.startCtl().setWindowCap(Number(e.currentTarget.value))}
-                    >
-                        {#each [3, 4, 5, 6, 8, 10] as n}
-                            <option value={n}>{fmt(t("wordGroupOpt"), { n: String(n) })}</option>
-                        {/each}
-                    </select>
+                    />
                 </div>
             </div>
         </div>

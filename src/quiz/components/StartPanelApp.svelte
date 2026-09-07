@@ -1,5 +1,6 @@
 <script lang="ts">
     import FormRow from "../../ui/FormRow.svelte";
+    import Select from "../../ui/Select.svelte";
     import { clampMinutes, fmt } from "../../ui/shared";
     import type { WenguTimingMode } from "../../types";
     import type { WenguRoundScope } from "../service/HistoryStore";
@@ -52,6 +53,19 @@
         ...(model.lastWrong > 0 ? (["wrong"] as WenguRoundScope[]) : []),
         ...(model.wrongAll > 0 ? (["wrongAll"] as WenguRoundScope[]) : []),
     ]);
+    const progressOptions = $derived([
+        { value: "continue", label: fmt(t("continueLast"), { n: String(model.unfinishedAnswered ?? 0) }) },
+        { value: "fresh", label: t("startFresh") },
+    ]);
+    const scopeSelectOptions = $derived([
+        { value: "all", label: t("scopeAll") },
+        ...(model.lastWrong > 0
+            ? [{ value: "wrong", label: fmt(t("scopeWrongOnly"), { n: String(model.lastWrong) }) }]
+            : []),
+        ...(model.wrongAll > 0
+            ? [{ value: "wrongAll", label: fmt(t("scopeWrongAll"), { n: String(model.wrongAll) }) }]
+            : []),
+    ]);
     const curScope = $derived(cont && resume && scopeOptions.includes(resume.scope) ? resume.scope : "all");
 
     /** 切回「重新开始」恢复设置页默认值（对齐旧 sync 的 setVal 重放）。 */
@@ -88,37 +102,23 @@
                         label={t("progressTitle")}
                         desc={fmt(t("continueHint"), { n: String(model.unfinishedAnswered ?? 0) })}
                     >
-                        <select
+                        <Select
                             class="b3-select fn__flex-center fn__size200"
+                            options={progressOptions}
                             value={progress}
                             onchange={(e) => onProgressChange(e.currentTarget.value)}
-                        >
-                            <option value="continue"
-                                >{fmt(t("continueLast"), { n: String(model.unfinishedAnswered ?? 0) })}</option
-                            >
-                            <option value="fresh">{t("startFresh")}</option>
-                        </select>
+                        />
                     </FormRow>
                 {/if}
                 {#if scopeOptions.length > 0}
                     <FormRow label={t("scopeTitle")} desc={t("scopeHint")}>
-                        <select
+                        <Select
                             class="b3-select fn__flex-center fn__size200"
+                            options={scopeSelectOptions}
                             disabled={cont}
                             value={curScope}
                             onchange={(e) => (scope = e.currentTarget.value)}
-                        >
-                            <option value="all">{t("scopeAll")}</option>
-                            {#if model.lastWrong > 0}
-                                <option value="wrong">{fmt(t("scopeWrongOnly"), { n: String(model.lastWrong) })}</option
-                                >
-                            {/if}
-                            {#if model.wrongAll > 0}
-                                <option value="wrongAll"
-                                    >{fmt(t("scopeWrongAll"), { n: String(model.wrongAll) })}</option
-                                >
-                            {/if}
-                        </select>
+                        />
                     </FormRow>
                 {/if}
             </div>
@@ -128,39 +128,42 @@
         <div class="config-title">{t("runSettingsTitle")}</div>
         <div class="config-items">
             <FormRow label={t("revealTitle")} desc={t("revealHint")}>
-                <select
+                <Select
                     class="b3-select fn__flex-center fn__size200"
+                    options={[
+                        { value: "instant", label: t("revealInstant") },
+                        { value: "after", label: t("revealAfter") },
+                    ]}
                     disabled={cont}
                     value={curReveal}
                     onchange={(e) => (reveal = e.currentTarget.value === "after" ? "after" : "instant")}
-                >
-                    <option value="instant">{t("revealInstant")}</option>
-                    <option value="after">{t("revealAfter")}</option>
-                </select>
+                />
             </FormRow>
             <FormRow label={t("stepsModeTitle")} desc={t("stepsModeHint")}>
-                <select
+                <Select
                     class="b3-select fn__flex-center fn__size200"
+                    options={[
+                        { value: "offline", label: t("stepsModeOffline") },
+                        { value: "ai", label: t("stepsModeAi") },
+                    ]}
                     disabled={cont}
                     value={curSteps}
                     onchange={(e) => (stepsMode = e.currentTarget.value === "ai" ? "ai" : "offline")}
-                >
-                    <option value="offline">{t("stepsModeOffline")}</option>
-                    <option value="ai">{t("stepsModeAi")}</option>
-                </select>
+                />
             </FormRow>
             <FormRow label={t("timingTitle")} desc={t("timingHint")}>
-                <select
+                <Select
                     class="b3-select fn__flex-center fn__size200"
+                    options={[
+                        { value: "countUp", label: t("timingCountUp") },
+                        { value: "countdown", label: t("timingCountdown") },
+                        { value: "perQuestion", label: t("timingPerQuestion") },
+                        { value: "none", label: t("timingNone") },
+                    ]}
                     disabled={cont}
                     value={curTiming}
                     onchange={(e) => (timing = e.currentTarget.value as WenguTimingMode)}
-                >
-                    <option value="countUp">{t("timingCountUp")}</option>
-                    <option value="countdown">{t("timingCountdown")}</option>
-                    <option value="perQuestion">{t("timingPerQuestion")}</option>
-                    <option value="none">{t("timingNone")}</option>
-                </select>
+                />
             </FormRow>
             <FormRow label={t("timingMinutes")} desc={t("timingMinutesHint")}>
                 <input
