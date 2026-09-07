@@ -686,5 +686,7 @@
   "qblockMissing": "题库中未找到该题",
   "qblockPickTitle": "选择题目",
   "qblockFilterHint": "输入关键词过滤题干",
-  "qblockEmpty": "无匹配题目"
+  "qblockEmpty": "无匹配题目",
+  "clueNoSession": "请先在温故页签开刷，再标线索",
+  "clueMarked": "已标为当前题的线索"
 }

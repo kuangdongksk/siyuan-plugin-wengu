@@ -26,20 +26,22 @@ export interface ClueHost {
     persist(): void;
 }
 
-/** 选中浮层「标为线索」入口（AnnoFlow 回调进来）。 */
-export function addClue(host: ClueHost, text: string): void {
+/** 选中浮层「标为线索」入口（AnnoFlow 回调进来；返回是否成功——
+ *  工具栏跨容器入口据此 toast，页签内浮层忽略返回值）。 */
+export function addClue(host: ClueHost, text: string): boolean {
     const s = host.currentSession();
     const q = host.currentQuestion();
-    if (!s || !q) return;
+    if (!s || !q) return false;
     if (!q.group) {
         note(host, host.t("clueOnlyGroup"));
-        return;
+        return false;
     }
     const clues = (s.clues ?? (s.clues = {}))[q.id] ?? (s.clues[q.id] = []);
-    if (clues.includes(text)) return;
+    if (clues.includes(text)) return true; // 幂等：已标过视为成功
     clues.push(text);
     host.persist();
     renderClueRow(host.el, host.t, clues);
+    return true;
 }
 
 /** 渲染某题的线索 chips（组内切题/滚动跟踪 onActive 时调用；幂等）。 */

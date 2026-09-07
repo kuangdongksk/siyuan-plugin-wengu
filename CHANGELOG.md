@@ -2,6 +2,13 @@
 
 ## v0.1.1 unreleased
 
+- **编辑器工具栏「标为线索」**（20260907，quiz 域）：3.8.3
+  `addToolbarItem` 在普通文档编辑器工具栏注册「标为线索」——阅读
+  材料/讲义原文时选中文字一键标为温故活动视图当前题的定位线索
+  （跨容器标注，`quiz/flow/ToolbarClue`；无活动会话/非材料组题/
+  成功均 toast 反馈）。温故页签内材料区是纯 HTML 渲染非 Protyle、
+  官方工具栏不弹——页签内 AnnoFlow 自造浮层保留，两入口同一
+  `addClue` 收口（顺带加返回值供工具栏侧判断成败）。
 - **自定义块渲染题目（3.8.3 一期，视图层）**（20260907，quiz/ui 域）：
   思源 3.8.3 自定义块（`customBlockRenders`，issue #8418）接入——块
   `;;;siyuan-plugin-wengu/question` 的 content=qid，渲染器

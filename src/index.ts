@@ -18,6 +18,7 @@ import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 import { knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 import { QUESTION_BLOCK_TYPE, makeQuestionBlockRender, questionBlockMd } from "./quiz/render/CustomBlockRender";
 import { openPickQuestionDialog } from "./quiz/ui/PickQuestionDialog";
+import { registerClueToolbar } from "./quiz/flow/ToolbarClue";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -91,6 +92,8 @@ export default class WenguPlugin extends Plugin {
     static instance: WenguPlugin | undefined;
     /** 面包屑「插入温故题目」按钮 id（onunload 显式回收）。 */
     static crumbId: string | undefined;
+    /** 工具栏「标为线索」注销函数（onunload 回收，防重载叠影）。 */
+    static clueToolbarCleanup: (() => void) | undefined;
     /** 插件设置（对象引用共享给 QuizView，开关即时生效）。 */
     settings: WenguSettings = { showNums: true, showAttempts: true, showWrong: true };
     /** 当前打开的刷题视图（设置变更时通知重渲染）。 */
@@ -263,6 +266,10 @@ export default class WenguPlugin extends Plugin {
             });
         }
 
+        // 编辑器工具栏「标为线索」（3.8.3 addToolbarItem）：普通文档里
+        // 选中文字标为温故活动视图当前题的线索（跨容器，见 ToolbarClue）
+        WenguPlugin.clueToolbarCleanup = registerClueToolbar(this, this.tKey, () => this.activeView);
+
         // 单词复习只走 Dock 面板（顶部入口与同名页签已删：addTab 与
         // addDock 注册同名 type 会让 dock 的 init 分发到页签实例，
         // 面板空白的根因）。3.8.0 运行时支持，类型包未收录 → 局部声明。
@@ -354,6 +361,8 @@ export default class WenguPlugin extends Plugin {
             this.removeBreadcrumbButton(WenguPlugin.crumbId);
             WenguPlugin.crumbId = undefined;
         }
+        WenguPlugin.clueToolbarCleanup?.();
+        WenguPlugin.clueToolbarCleanup = undefined;
         if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
         aiSessions()?.flushNow(); // 登记簿去抖窗口内的尾笔立即落盘（重载不丢）
         void this.bankStore?.flush(); // 题库 2s 防抖窗口内的作答记账尾笔（刷完题即重载不丢）

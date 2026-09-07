@@ -64,7 +64,11 @@ question` content=qid，`render/CustomBlockRender` 题库取题只读渲染
       （纯视图零存储变更，插件不可用时思源回退显示原始 qid），插入入口=
       面包屑按钮 + `ui/PickQuestionDialog` 题干过滤选择弹窗，注册/注销
       在 index.ts onload/onunload 配对；二期方向=块内交互作答、三期=
-      存储块化）、`src/convert/`
+      存储块化；**编辑器工具栏「标为线索」**（20260907，3.8.3
+      `addToolbarItem`）：`flow/ToolbarClue` 普通文档里选段一键挂到
+      温故活动视图当前题（跨容器），页签内材料区纯 HTML 非 Protyle
+      工具栏不弹、AnnoFlow 浮层保留，两入口同一 addClue 收口）、
+      `src/convert/`
       （AI 转换，`index.ts`=转换编排；**20260903 存储收口：转换零落盘，
       产物直写题库**（`service/SetWriter.ts`：DraftUnit → renderUnit 出
       契约 kramdown → parseQuestionKramdown 反解 + questionHash 构造

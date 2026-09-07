@@ -686,5 +686,7 @@
   "qblockMissing": "Question not found in bank",
   "qblockPickTitle": "Pick a question",
   "qblockFilterHint": "Filter questions by keyword",
-  "qblockEmpty": "No matching questions"
+  "qblockEmpty": "No matching questions",
+  "clueNoSession": "Start a drill in Wengu first, then mark clues",
+  "clueMarked": "Marked as clue for the current question"
 }
