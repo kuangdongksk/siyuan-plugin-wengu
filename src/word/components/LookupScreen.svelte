@@ -8,6 +8,7 @@
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiButton from "./AiButton.svelte";
+    import Button from "../../ui/Button.svelte";
     import WordHead from "./WordHead.svelte";
 
     /** 查词屏：非答题期间搜词书任意词；词条详情可星标/标熟/写笔记。 */
@@ -30,16 +31,16 @@
 <div class="wengu-word">
     <WordHead showSet>
         {#snippet extra()}
-            <button class="wengu-iconbtn" title={t("wordStatsTitle")} onclick={() => view.showStats()}
-                >{@html svgIcon("iconInfo")}</button
+            <Button class="wengu-iconbtn" title={t("wordStatsTitle")} onclick={() => view.showStats()}
+                >{@html svgIcon("iconInfo")}</Button
             >
             {#if ui.fromCard}
-                <button class="wengu-iconbtn" title={t("wordResumeCard")} onclick={() => view.resumeCard()}
-                    >{@html svgIcon("iconBack")}</button
+                <Button class="wengu-iconbtn" title={t("wordResumeCard")} onclick={() => view.resumeCard()}
+                    >{@html svgIcon("iconBack")}</Button
                 >
             {:else}
-                <button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
-                    >{@html svgIcon("iconList")}</button
+                <Button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
+                    >{@html svgIcon("iconList")}</Button
                 >
             {/if}
             <AiButton />
@@ -65,8 +66,8 @@
                     value={view.confCtl.wordDraft}
                     oninput={(e) => view.noteInput("wordnote", e.currentTarget.value)}
                 />
-                <button class="b3-button b3-button--outline" onclick={() => view.wordNoteSave(sel)}
-                    >{t("wordNoteSave")}</button
+                <Button variant="outline" onclick={() => view.wordNoteSave(sel)}
+                    >{t("wordNoteSave")}</Button
                 >
             </div>
             {#if hasConfGroup}
@@ -78,23 +79,23 @@
                         value={view.confCtl.draft}
                         oninput={(e) => view.noteInput("confnote", e.currentTarget.value)}
                     />
-                    <button class="b3-button b3-button--outline" onclick={() => view.confAsk(sel)}
-                        >{t("wordConfuseAsk")}</button
+                    <Button variant="outline" onclick={() => view.confAsk(sel)}
+                        >{t("wordConfuseAsk")}</Button
                     >
-                    <button class="b3-button b3-button--outline" onclick={() => view.confSave(sel)}
-                        >{t("wordConfuseSave")}</button
+                    <Button variant="outline" onclick={() => view.confSave(sel)}
+                        >{t("wordConfuseSave")}</Button
                     >
                 </div>
             {/if}
             <div class="wengu-word-actions">
-                <button class="b3-button b3-button--outline" onclick={() => view.lookupStar(sel)}
-                    >{@html svgIcon("iconStar")}{t("wordStar")}</button
+                <Button variant="outline" onclick={() => view.lookupStar(sel)}
+                    >{@html svgIcon("iconStar")}{t("wordStar")}</Button
                 >
-                <button class="b3-button b3-button--outline" onclick={() => view.lookupFamiliar(sel)}
-                    >{t("wordFamiliar")}</button
+                <Button variant="outline" onclick={() => view.lookupFamiliar(sel)}
+                    >{t("wordFamiliar")}</Button
                 >
-                <button class="b3-button b3-button--outline" onclick={() => view.enterLookup()}
-                    >{t("wordLookupBack")}</button
+                <Button variant="outline" onclick={() => view.enterLookup()}
+                    >{t("wordLookupBack")}</Button
                 >
             </div>
         </div>
@@ -116,10 +117,10 @@
                     <div class="wengu-word-hint">{t("wordLookupNone")}</div>
                 {:else}
                     {#each hits as i}
-                        <button class="wengu-word-opt wengu-word-lk" onclick={() => view.lookupPick(i)}>
+                        <Button class="wengu-word-opt wengu-word-lk" onclick={() => view.lookupPick(i)}>
                             <span class="wengu-word-lk-word">{ui.book.words[i].w}</span>
                             <span class="wengu-word-lk-meaning">{ui.book.words[i].m.split("\n")[0]}</span>
-                        </button>
+                        </Button>
                     {/each}
                 {/if}
             </div>

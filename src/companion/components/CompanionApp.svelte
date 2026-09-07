@@ -3,6 +3,7 @@
     import { EXPR_FACES } from "../rules/Expressions";
     import { initialCompanionUi, type CompanionUi } from "../core/CompanionUi";
     import ChatPanel from "./ChatPanel.svelte";
+    import Button from "../../ui/Button.svelte";
 
     const ctl = companionCtl()!;
     // $state 只能在 Svelte 编译单元顶层创建：全局悬浮层唯一实例，
@@ -137,12 +138,12 @@
             {#if bubbleOn && ui.line}
                 <div class="wengu-comp-bubble">{ui.line}</div>
             {/if}
-            <button
+            <Button
                 type="button"
                 class="wengu-comp-figure"
                 title={ctl.t("companionHint")}
                 draggable="false"
-                bind:this={fig}
+                buttonRef={(button) => (fig = button)}
                 onpointerdown={onDown}
                 onpointermove={onMove}
                 onpointerup={onUp}
@@ -162,7 +163,7 @@
                         {/key}
                     </svg>
                 {/if}
-            </button>
+            </Button>
         </div>
     </div>
 {/if}

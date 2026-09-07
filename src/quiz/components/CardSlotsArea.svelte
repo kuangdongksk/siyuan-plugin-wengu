@@ -4,6 +4,7 @@
     import { gotoSlot, pickMatch, pickSlotOpt, submitMatch, submitSlot } from "../flow/SlotFlow";
     import type { WenguQuestion } from "../../types";
     import Select from "../../ui/Select.svelte";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * 逐空作答区（6-4b 状态化）：cloze=空号条+当前空选项（CardUi.slots
@@ -71,7 +72,7 @@
                         value={mark.letter}
                         onchange={(e) => (on && !mark.answered ? pickMatch(ctl, k, e.currentTarget.value) : undefined)}
                     />
-                    <button
+                    <Button
                         class="wengu-btn wengu-match-go"
                         data-act="match-submit"
                         data-k={k}
@@ -79,14 +80,14 @@
                         onclick={on && !mark.answered ? () => submitMatch(host, q, ctl, k) : undefined}
                     >
                         {t("slotSubmit")}
-                    </button>
+                    </Button>
                 </div>
             {/each}
         </div>
     {:else}
         <div class="wengu-slotbar" data-slotbar>
             {#each slots.marks as mark, k (k)}
-                <button
+                <Button
                     class="wengu-slotbtn{mark.answered
                         ? mark.ok
                             ? ' wengu-slotbtn-right'
@@ -96,14 +97,14 @@
                     onclick={on && !mark.answered ? () => gotoSlot(ctl, k) : undefined}
                 >
                     {k + 1}
-                </button>
+                </Button>
             {/each}
         </div>
         <div class="wengu-slotcur" data-slotcur>
             <span class="wengu-badge" data-slot-stem>{slots.curStem}</span>
             <div class="wengu-slot-opts" data-slot-opts bind:this={optsEl}>
                 {#each slots.curOpts as opt (opt.letter)}
-                    <button
+                    <Button
                         class="wengu-slot-opt{opt.tier ? ` ${opt.tier}` : ''}{opt.mark === 1
                             ? ' wengu-slot-right'
                             : opt.mark === 2
@@ -115,17 +116,17 @@
                     >
                         <span class="wengu-slot-letter">{opt.letter}</span>
                         <span class="wengu-slot-text" data-opt-text>{@html opt.html}</span>
-                    </button>
+                    </Button>
                 {/each}
             </div>
-            <button
+            <Button
                 class="wengu-btn"
                 data-act="slot-submit"
                 hidden={slots.cur >= slots.marks.length}
                 onclick={on ? () => submitSlot(host, q, ctl) : undefined}
             >
                 {t("slotSubmit")}
-            </button>
+            </Button>
         </div>
     {/if}
 </div>

@@ -3,6 +3,7 @@
     import { svgIcon } from "../../ui/FormHtml";
     import { renderMdHtml } from "../../ui/MdRender";
     import { renderMathWhenVisible } from "../service/ProtyleHost";
+    import Button from "../../ui/Button.svelte";
     import type { CardHtmlModel } from "../render/CardParts";
     import type { CardInitCtx } from "../render/CardState";
     import type { AnswerHost } from "../flow/AnswerFlow";
@@ -17,7 +18,7 @@
     } from "../flow/MaterialFlow";
     import type { GroupUnitQ } from "../render/DrillUnits";
     import type { WenguMaterial } from "../../types";
-    import QuizCardApp from "./QuizCardApp.svelte";
+    import QuizCardApp from "./QuizCard/index.svelte";
 
     /**
      * 材料组单元（6-4b 状态化）：组内导航（一次一题，qi 响应态——非当前
@@ -92,22 +93,22 @@
 
 <div class="wengu-gunit" data-mid={mid} data-collapsed={collapsed ? "" : undefined} bind:this={rootEl}>
     <div class="wengu-ghead">
-        <button
+        <Button
             class="wengu-gmat-fold"
             data-act="gmat-fold"
             title={t("materialToggle")}
             onclick={() => (collapsed = !collapsed)}
         >
             {@html svgIcon("iconRight")}<span>{t("materialTitle")}</span>
-        </button>
+        </Button>
         <span class="wengu-gnav">
-            <button class="wengu-gnav-btn" data-act="gq-prev" title={t("groupPrev")} onclick={() => step(-1)}>
+            <Button class="wengu-gnav-btn" data-act="gq-prev" title={t("groupPrev")} onclick={() => step(-1)}>
                 {@html svgIcon("iconLeft")}
-            </button>
+            </Button>
             <span class="wengu-gq-label" data-gq-label>{qi + 1}/{qs.length}</span>
-            <button class="wengu-gnav-btn" data-act="gq-next" title={t("groupNext")} onclick={() => step(1)}>
+            <Button class="wengu-gnav-btn" data-act="gq-next" title={t("groupNext")} onclick={() => step(1)}>
                 {@html svgIcon("iconRight")}
-            </button>
+            </Button>
         </span>
     </div>
     <div

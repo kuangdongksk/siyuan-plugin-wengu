@@ -7,6 +7,7 @@
     import { svgIcon } from "../../ui/FormHtml";
     import { esc, fmt, mmss } from "../../ui/shared";
     import { echart } from "./echart";
+    import Button from "../../ui/Button.svelte";
 
     /** 总览页：数字卡 + 错题概况/薄弱 Top/错因分布 + 近 N 轮趋势 + 文档榜（行下钻）。 */
     let {
@@ -58,8 +59,8 @@
             <div class="wengu-stats-num">{model.extra.wrong?.mastered ?? "—"}</div>
             <div class="wengu-stats-label">{t("reviewFilterMastered")}</div>
         </div>
-        <button class="b3-button b3-button--outline wengu-stats-enter-review" onclick={() => ctl.enterReview()}
-            >{@html svgIcon("iconRight")} {t("statsEnterReview")}</button
+        <Button variant="outline" class="wengu-stats-enter-review" onclick={() => ctl.enterReview()}
+            >{@html svgIcon("iconRight")} {t("statsEnterReview")}</Button
         >
     </div>
 

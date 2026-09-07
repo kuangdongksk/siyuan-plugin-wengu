@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
+    import Button from "../../ui/Button.svelte";
     import Select from "../../ui/Select.svelte";
     import { modelPickAction, modelPickLabel } from "../../ui/ModelPicker";
     import { svgIcon } from "../../ui/FormHtml";
@@ -37,18 +38,18 @@
         <div class="config-title">{t("convertBtn")}</div>
         <div class="config-items">
             <FormRow label={t("modelLabel")} desc={t("setModelHint")}>
-                <button
-                    class="b3-button b3-button--outline fn__size200 wengu-pick"
+                <Button
+                    variant="outline" class="fn__size200 wengu-pick"
                     title={modelPickLabel(ui.modelId)}
-                    use:modelPickAction={{ t, onPick: (v: string) => ctl.setModel(v) }}
-                    >{modelPickLabel(ui.modelId)}</button
+                    action={(button) => modelPickAction(button, { t, onPick: (v: string) => ctl.setModel(v) })}
+                    >{modelPickLabel(ui.modelId)}</Button
                 >
             </FormRow>
             <FormRow label={t("docIdLabel")}>
-                <button
-                    class="b3-button b3-button--outline fn__size200 wengu-pick"
+                <Button
+                    variant="outline" class="fn__size200 wengu-pick"
                     title={pickText(ui.docEcho)}
-                    onclick={(e) => ctl.pickDoc(e.currentTarget)}>{pickText(ui.docEcho)}</button
+                    onclick={(e) => ctl.pickDoc(e.currentTarget)}>{pickText(ui.docEcho)}</Button
                 >
             </FormRow>
             <details class="wengu-convert-more">
@@ -83,10 +84,10 @@
                     />
                 </FormRow>
                 <FormRow label={t("convertKnowLabel")}>
-                    <button
-                        class="b3-button b3-button--outline fn__size200 wengu-pick"
+                    <Button
+                        variant="outline" class="fn__size200 wengu-pick"
                         title={pickText(ui.knowEcho)}
-                        onclick={(e) => ctl.pickKnow(e.currentTarget)}>{pickText(ui.knowEcho)}</button
+                        onclick={(e) => ctl.pickKnow(e.currentTarget)}>{pickText(ui.knowEcho)}</Button
                     >
                 </FormRow>
             </details>
@@ -101,14 +102,14 @@
     {/if}
     {#if ui.resumeRec}
         <div>
-            <button class="b3-button b3-button--text" onclick={() => ctl.resume()}>{t("convertResumeBtn")}</button>
+            <Button variant="text" onclick={() => ctl.resume()}>{t("convertResumeBtn")}</Button>
         </div>
     {/if}
 </div>
 <div class="b3-dialog__action">
-    <button class="b3-button b3-button--cancel" onclick={onClose}>{t("cancel")}</button>
+    <Button variant="cancel" onclick={onClose}>{t("cancel")}</Button>
     {#if ui.running}
-        <button class="b3-button b3-button--outline" onclick={() => ctl.manage()}>{t("convertDialogManage")}</button>
+        <Button variant="outline" onclick={() => ctl.manage()}>{t("convertDialogManage")}</Button>
     {/if}
-    <button class="b3-button b3-button--outline" onclick={() => ctl.start()}>{t("convertStart")}</button>
+    <Button variant="outline" onclick={() => ctl.start()}>{t("convertStart")}</Button>
 </div>

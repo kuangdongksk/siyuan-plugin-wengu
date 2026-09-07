@@ -15,6 +15,7 @@
      * 会裁切行内浮层，原生提示不受裁）。
      */
     import type { SetGroup } from "../render/DrillUnits";
+    import Button from "../../ui/Button.svelte";
 
     let {
         initialStates,
@@ -60,9 +61,9 @@
                 <span class="wengu-num-gap-line"></span>
             </div>
         {/if}
-        <button
+        <Button
             class="wengu-num{marks[i] ? ` ${marks[i]}` : ''}{active === i + 1 ? ' wengu-num-active' : ''}"
-            data-num={i + 1}>{i + 1}</button
+            data-num={i + 1}>{i + 1}</Button
         >
     {/each}
 </nav>

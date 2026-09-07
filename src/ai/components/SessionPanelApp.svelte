@@ -10,6 +10,7 @@
     import type { TreeListNode } from "../../ui/TreeListTypes";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * AI 会话管理工作区面板根组件（四件套之一）。两栏式（20260901
@@ -99,28 +100,26 @@
         <div class="wengu-ws-title">
             {t("aiPanelTitle")}
             <span class="wengu-ws-titlebtns">
-                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.armClear()}
-                    >{ui.clrArmed ? t("collectConfirm") : t("aiClear")}</button
+                <Button type="button" variant="outline" onclick={() => ctl.armClear()}
+                    >{ui.clrArmed ? t("collectConfirm") : t("aiClear")}</Button>
                 >
-                <button type="button" class="b3-button b3-button--text" onclick={() => void ctl.load()}
-                    >{t("quizRefresh")}</button
+                <Button type="button" variant="text" onclick={() => void ctl.load()}
+                    >{t("quizRefresh")}</Button>
                 >
             </span>
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("aiPanelHint")}</div>
 
         <div class="wengu-ai-kinds">
-            <button
+            <Button
                 type="button"
-                class="b3-button b3-button--small{ui.filter === '' ? ' b3-button--main' : ' b3-button--outline'}"
-                onclick={() => ctl.setFilter("")}>{t("aiKindAll")}</button
-            >
+                variant={ui.filter === '' ? "main" : "outline"}
+                onclick={() => ctl.setFilter("")}>{t("aiKindAll")}</Button>
             {#each kinds as k (k)}
-                <button
+                <Button
                     type="button"
-                    class="b3-button b3-button--small{ui.filter === k ? ' b3-button--main' : ' b3-button--outline'}"
-                    onclick={() => ctl.setFilter(k)}>{kindLabel(k)}</button
-                >
+                    variant={ui.filter === k ? "main" : "outline"}
+                    onclick={() => ctl.setFilter(k)}>{kindLabel(k)}</Button>
             {/each}
         </div>
         <!-- 两栏式（20260901）：左清单常驻（TreeList 树），点行切右栏明细 -->
@@ -167,9 +166,9 @@
                                         <!-- 种类级不配删除（误击会清整类）；文档级两击删该文档全部记录 -->
                                         {#if b.subject}
                                             <span class="b3-list-item__action">
-                                                <button
+                                                <Button
                                                     type="button"
-                                                    class="b3-button b3-button--text"
+                                                    variant="text"
                                                     onclick={() =>
                                                         ctl.armRemoveIds(
                                                             b.key,
@@ -177,20 +176,20 @@
                                                         )}
                                                 >
                                                     {ui.rmArmed === b.key ? t("collectConfirm") : t("aiDelete")}
-                                                </button>
+                                                </Button>
                                             </span>
                                         {/if}
                                     {:else}
                                         {@const r = tree.recByKey.get(n.key)}
                                         {#if r}<span class="wengu-ai-meta">{fmtTime(r.createdAt)}</span>{/if}
                                         <span class="b3-list-item__action">
-                                            <button
+                                            <Button
                                                 type="button"
-                                                class="b3-button b3-button--text"
+                                                variant="text"
                                                 onclick={() => ctl.armRemove(n.id ?? "")}
                                             >
                                                 {ui.rmArmed === n.id ? t("collectConfirm") : t("aiDelete")}
-                                            </button>
+                                            </Button>
                                         </span>
                                     {/if}
                                 {/snippet}
@@ -230,16 +229,16 @@
                         </div>
                         {#if sel.status === "running"}
                             <div class="wengu-ai-composer">
-                                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.stop(sel)}
-                                    >{t("aiStop")}</button
+                                <Button type="button" variant="outline" onclick={() => ctl.stop(sel)}
+                                    >{t("aiStop")}</Button>
                                 >
                             </div>
                         {:else if sel.status === "error"}
                             <div class="wengu-ai-composer">
-                                <button
+                                <Button
                                     type="button"
-                                    class="b3-button b3-button--main"
-                                    onclick={() => void ctl.retry(sel)}>{t("aiRetry")}</button
+                                    variant="main"
+                                    onclick={() => void ctl.retry(sel)}>{t("aiRetry")}</Button>
                                 >
                             </div>
                         {/if}

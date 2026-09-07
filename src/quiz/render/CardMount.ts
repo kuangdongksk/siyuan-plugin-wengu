@@ -1,6 +1,6 @@
 import { errText } from "./../../ui/shared";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import QuizCardApp from "../components/QuizCardApp.svelte";
+import QuizCardApp from "../components/QuizCard/index.svelte";
 import GroupUnitApp from "../components/GroupUnitApp.svelte";
 import type { CardHtmlModel } from "./CardParts";
 import type { CardInitCtx } from "./CardState";

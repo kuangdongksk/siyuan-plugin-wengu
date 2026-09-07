@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
+    import Button from "../../ui/Button.svelte";
     import Select from "../../ui/Select.svelte";
     import { modelPickAction, modelPickLabel } from "../../ui/ModelPicker";
     import { CompanionPanelCtl, type CompanionPanelDeps } from "../core/CompanionPanelCtl";
@@ -90,9 +91,9 @@
                     {/if}
                 </div>
             {/each}
-            <button type="button" class="b3-button b3-button--outline wengu-ws-newbtn" onclick={() => ctl.newProfile()}>
+            <Button type="button" variant="outline" class="wengu-ws-newbtn" onclick={() => ctl.newProfile()}>
                 {t("companionNew")}
-            </button>
+            </Button>
         </div>
 
         {#if cur}
@@ -135,27 +136,27 @@
                     />
                 </FormRow>
                 <FormRow label={t("companionModelLabel")} desc={t("companionModelHint")}>
-                    <button
+                    <Button
                         type="button"
-                        class="b3-button b3-button--outline fn__size200 wengu-pick"
+                        variant="outline" class="fn__size200 wengu-pick"
                         title={modelPickLabel(cur.modelId)}
-                        use:modelPickAction={{ t, onPick: (v: string) => ctl.setModel(v) }}
-                        >{modelPickLabel(cur.modelId)}</button
+                        action={(button) => modelPickAction(button, { t, onPick: (v: string) => ctl.setModel(v) })}
+                        >{modelPickLabel(cur.modelId)}</Button
                     >
                 </FormRow>
                 <div class="fn__flex" style="gap:8px;justify-content:flex-end;padding:8px 0">
-                    <button type="button" class="b3-button b3-button--outline" onclick={() => save()}>
+                    <Button type="button" variant="outline" onclick={() => save()}>
                         {ui.savedFlash ? t("companionSaved") : t("companionSave")}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         type="button"
-                        class="b3-button b3-button--text"
+                        variant="text"
                         disabled={ui.profiles.length <= 1}
                         title={ui.profiles.length <= 1 ? t("companionKeepOneHint") : undefined}
                         onclick={() => ctl.delClick()}
                     >
                         {ui.delArmed ? t("collectConfirm") : t("companionDelete")}
-                    </button>
+                    </Button>
                 </div>
             </div>
         {/if}

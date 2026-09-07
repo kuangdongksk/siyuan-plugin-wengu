@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { CompanionCtl } from "../core/CompanionCtl";
     import type { CompanionUi } from "../core/CompanionUi";
+    import Button from "../../ui/Button.svelte";
 
     let { ctl, ui }: { ctl: CompanionCtl; ui: CompanionUi } = $props();
 
@@ -39,9 +40,9 @@
         {/if}
     </div>
     {#if ui.explainKind}
-        <button type="button" class="b3-button b3-button--text wengu-comp-explain" onclick={() => ctl.explain()}>
+        <Button type="button" variant="text" class="wengu-comp-explain" onclick={() => ctl.explain()}>
             {ctl.t(ui.explainKind === "word" ? "companionExplainWord" : "companionExplainQuiz")}
-        </button>
+        </Button>
     {/if}
     <div class="wengu-comp-input">
         <input
@@ -51,11 +52,11 @@
             onkeydown={onKey}
             disabled={ui.chatBusy}
         />
-        <button
+        <Button
             type="button"
-            class="b3-button b3-button--outline"
+            variant="outline"
             onclick={send}
-            disabled={ui.chatBusy || !ui.draft.trim()}>{ctl.t("companionSend")}</button
+            disabled={ui.chatBusy || !ui.draft.trim()}>{ctl.t("companionSend")}</Button
         >
     </div>
 </div>

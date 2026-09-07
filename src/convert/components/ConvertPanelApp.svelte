@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
+    import Button from "../../ui/Button.svelte";
     import { progressStatusText } from "../service/ConvertRun";
     import type { ConvertPanelDeps } from "../ui/ConvertPanel";
     import type { ConvertPanelCtl } from "../core/ConvertPanelCtl";
@@ -42,8 +43,8 @@
                                     ? progressStatusText(t, snap.parallel, snap.progress)
                                     : t("converting")}</span
                             >
-                            <button class="b3-button b3-button--outline" onclick={() => ctl.stopRun()}
-                                >{t("convertStop")}</button
+                            <Button variant="outline" onclick={() => ctl.stopRun()}
+                                >{t("convertStop")}</Button
                             >
                         </div>
                     {:else if snap.pendingChoice && snap.pending}
@@ -55,11 +56,11 @@
                                     n: String(snap.pending.total),
                                 })}</span
                             >
-                            <button class="b3-button b3-button--outline" onclick={() => ctl.keepRun()}
-                                >{t("convertKeep")}</button
+                            <Button variant="outline" onclick={() => ctl.keepRun()}
+                                >{t("convertKeep")}</Button
                             >
-                            <button class="b3-button b3-button--cancel" onclick={() => ctl.discardRun()}
-                                >{t("convertDiscard")}</button
+                            <Button variant="cancel" onclick={() => ctl.discardRun()}
+                                >{t("convertDiscard")}</Button
                             >
                         </div>
                     {/if}
@@ -80,13 +81,13 @@
                                 n: String(rec.total),
                             })}
                         >
-                            <button class="b3-button b3-button--outline" onclick={() => ctl.resume(srcDocId)}
-                                >{t("convertPanelResume")}</button
+                            <Button variant="outline" onclick={() => ctl.resume(srcDocId)}
+                                >{t("convertPanelResume")}</Button
                             >
-                            <button
-                                class="b3-button b3-button--cancel{armed ? ' b3-button--error' : ''}"
+                            <Button
+                                variant="cancel" class={armed ? "b3-button--error" : ""}
                                 onclick={() => ctl.armDrop(srcDocId)}
-                                >{armed ? t("confirmDiscard") : t("convertPanelDrop")}</button
+                                >{armed ? t("confirmDiscard") : t("convertPanelDrop")}</Button
                             >
                         </FormRow>
                     {/each}
@@ -96,5 +97,5 @@
     {/if}
 </div>
 <div class="b3-dialog__action">
-    <button class="b3-button b3-button--cancel" onclick={onClose}>{t("convertPanelClose")}</button>
+    <Button variant="cancel" onclick={onClose}>{t("convertPanelClose")}</Button>
 </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import { fmt } from "../../ui/shared";
     import { buildStats } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
@@ -68,8 +69,8 @@
             {/each}
         </div>
         <div class="wengu-word-form-actions">
-            <button class="b3-button b3-button--outline" onclick={() => view.goHome()}
-                >{@html svgIcon("iconList")} {t("wordBackHome")}</button
+            <Button variant="outline" onclick={() => view.goHome()}
+                >{@html svgIcon("iconList")} {t("wordBackHome")}</Button
             >
         </div>
     </div>

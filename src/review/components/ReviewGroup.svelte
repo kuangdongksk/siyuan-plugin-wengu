@@ -3,6 +3,7 @@
     import { REVIEW_CTX, type ReviewCtx } from "../core/ReviewUi";
     import type { ReviewGroupModel, ReviewItemModel } from "../ReviewHtml";
     import { fmt, fmtDateTime } from "../../ui/shared";
+    import Button from "../../ui/Button.svelte";
 
     /** 清单的一个文档分组：组头（标题 + 重刷本文档）+ 错题条目。 */
     let { group }: { group: ReviewGroupModel } = $props();
@@ -22,10 +23,10 @@
 <div class="wengu-review-group">
     <div class="wengu-review-group-head">
         <span class="wengu-review-group-title" title={group.docTitle}>{group.docTitle}</span>
-        <button
-            class="b3-button b3-button--outline wengu-review-redrill"
+        <Button
+            variant="outline" class="wengu-review-redrill"
             disabled={group.pending === 0}
-            onclick={() => ctl.redrill(group.docId)}>{fmt(t("reviewRedrill"), { n: String(group.pending) })}</button
+            onclick={() => ctl.redrill(group.docId)}>{fmt(t("reviewRedrill"), { n: String(group.pending) })}</Button
         >
     </div>
     {#each group.items as it (it.qid)}

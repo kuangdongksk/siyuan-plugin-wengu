@@ -7,6 +7,7 @@
     import { fmt } from "../../ui/shared";
     import StatsOverview from "./StatsOverview.svelte";
     import StatsDoc from "./StatsDoc.svelte";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * 统计浮层根组件（四件套之一）：sticky 头（tab + 关闭）+ 内容区
@@ -37,21 +38,21 @@
     <div class="wengu-stats-head">
         <span class="wengu-stats-title">{t("statsTitle")}</span>
         <span class="wengu-stats-tabs">
-            <button
-                class="b3-button b3-button--outline wengu-stats-tab{ui.tab === 'overview'
+            <Button
+                variant="outline" class="wengu-stats-tab{ui.tab === 'overview'
                     ? ' wengu-stats-tab-cur'
                     : ''}"
-                onclick={() => statsCtl.setTab("overview")}>{t("statsTabOverview")}</button
+                onclick={() => statsCtl.setTab("overview")}>{t("statsTabOverview")}</Button
             >
             {#if deps.docId}
-                <button
-                    class="b3-button b3-button--outline wengu-stats-tab{ui.tab === 'doc' ? ' wengu-stats-tab-cur' : ''}"
-                    onclick={() => statsCtl.setTab("doc")}>{docTabTitle}</button
+                <Button
+                    variant="outline" class="wengu-stats-tab{ui.tab === 'doc' ? ' wengu-stats-tab-cur' : ''}"
+                    onclick={() => statsCtl.setTab("doc")}>{docTabTitle}</Button
                 >
             {/if}
         </span>
-        <button class="wengu-side-iconbtn" title={t("statsClose")} onclick={onClose}
-            >{@html svgIcon("iconClose")}</button
+        <Button class="wengu-side-iconbtn" title={t("statsClose")} onclick={onClose}
+            >{@html svgIcon("iconClose")}</Button
         >
     </div>
     <div class="wengu-stats-body" data-stats-body>

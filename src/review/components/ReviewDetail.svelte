@@ -3,6 +3,7 @@
     import { REVIEW_CTX, type ReviewCtx } from "../core/ReviewUi";
     import { svgIcon } from "../../ui/FormHtml";
     import { renderMathIn } from "../../quiz/service/ProtyleHost";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * 单题回看详情：三态（未选/装载中/就绪）+ 四段（题目/时间线/答案/
@@ -43,11 +44,11 @@
         {@render sec(t("reviewSecAnswer"), d.answerHtml, "wengu-review-sec-answer")}
         {@render sec(t("reviewSecSolution"), d.solutionHtml)}
         <div class="wengu-review-detail-actions">
-            <button class="b3-button b3-button--outline" title={t("pvCopyTitle")} onclick={() => ctl.copyDetail()}
-                >{@html svgIcon("iconCopy")} {t("pvCopyTitle")}</button
+            <Button variant="outline" title={t("pvCopyTitle")} onclick={() => ctl.copyDetail()}
+                >{@html svgIcon("iconCopy")} {t("pvCopyTitle")}</Button
             >
-            <button class="b3-button b3-button--outline" onclick={() => ctl.gotoBlock(d.qid)}
-                >{@html svgIcon("iconRight")} {t("reviewGotoBlock")}</button
+            <Button variant="outline" onclick={() => ctl.gotoBlock(d.qid)}
+                >{@html svgIcon("iconRight")} {t("reviewGotoBlock")}</Button
             >
         </div>
     </div>

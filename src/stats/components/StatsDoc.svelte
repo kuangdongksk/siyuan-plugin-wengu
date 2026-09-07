@@ -6,6 +6,7 @@
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt, mmss } from "../../ui/shared";
     import { echart } from "./echart";
+    import Button from "../../ui/Button.svelte";
 
     /** 详情页：轮次趋势图 + 逐轮评分记录 + 错题清单 + AI 学习建议。 */
     let { model }: { model: WenguDocStats } = $props();
@@ -89,11 +90,11 @@
     {/if}
 
     <div class="wengu-word-form-actions">
-        <button
-            class="b3-button b3-button--outline"
-            bind:this={aiBtn}
+        <Button
+            variant="outline"
+            buttonRef={(button) => (aiBtn = button)}
             onclick={() => aiOut && void ctl.runAi(aiBtn, aiOut)}
-            >{@html svgIcon("iconSparkles")} {t("statsAiBtn")}</button
+            >{@html svgIcon("iconSparkles")} {t("statsAiBtn")}</Button
         >
     </div>
     <div class="wengu-report-ai" data-ai bind:this={aiOut} hidden></div>

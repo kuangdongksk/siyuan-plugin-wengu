@@ -3,6 +3,7 @@
     import type { QuizView } from "../../quiz";
     import { KNOW_PANEL_CTX, initialKnowPanelUi } from "../core/KnowPanelUi";
     import { KnowPanelCtl } from "../core/KnowPanelCtl";
+    import Button from "../../ui/Button.svelte";
     import {
         buildKnowTree,
         secKeyOf,
@@ -129,16 +130,16 @@
         <div class="wengu-ws-title">
             {t("knowPanelTitle")}
             <span class="wengu-ws-titlebtns">
-                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.batchLink()}
-                    >{t("knowBatchBtn")}</button
+                <Button type="button" variant="outline" onclick={() => ctl.batchLink()}
+                    >{t("knowBatchBtn")}</Button
                 >
-                <button
+                <Button
                     type="button"
-                    class="b3-button b3-button--outline"
-                    onclick={(e) => ctl.importRoots(e.currentTarget)}>{t("knowImportBtn")}</button
+                    variant="outline"
+                    onclick={(e) => ctl.importRoots(e.currentTarget)}>{t("knowImportBtn")}</Button
                 >
-                <button type="button" class="b3-button b3-button--text" onclick={() => void ctl.load()}
-                    >{t("quizRefresh")}</button
+                <Button type="button" variant="text" onclick={() => void ctl.load()}
+                    >{t("quizRefresh")}</Button
                 >
             </span>
         </div>
@@ -160,17 +161,17 @@
                                     >{/if}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(s.count) })}</span>
                                 <span class="b3-list-item__action">
-                                    <button
+                                    <Button
                                         type="button"
-                                        class="b3-button b3-button--text"
+                                        variant="text"
                                         title={t("knowDrillNodeTip")}
-                                        onclick={() => ctl.drillNode(s)}>{t("knowDrillNode")}</button
+                                        onclick={() => ctl.drillNode(s)}>{t("knowDrillNode")}</Button
                                     >
-                                    <button
+                                    <Button
                                         type="button"
-                                        class="b3-button b3-button--text"
+                                        variant="text"
                                         title={t("knowGenNodeTip")}
-                                        onclick={() => ctl.genNode(s)}>{t("knowGenNode")}</button
+                                        onclick={() => ctl.genNode(s)}>{t("knowGenNode")}</Button
                                     >
                                 </span>
                             {:else if d}
@@ -181,39 +182,39 @@
                                 >
                                 <span class="b3-list-item__action">
                                     {#if outlineable(d)}
-                                        <button
+                                        <Button
                                             type="button"
-                                            class="b3-button b3-button--text"
+                                            variant="text"
                                             onclick={() => ctl.outline(d)}
                                             >{ui.outlining === d.docId
                                                 ? t("knowOutlineRunning")
                                                 : d.hasTree
                                                   ? t("knowOutlineRedo")
-                                                  : t("knowOutlineBtn")}</button
+                                                  : t("knowOutlineBtn")}</Button
                                         >
                                     {/if}
-                                    <button type="button" class="b3-button b3-button--text" onclick={() => ctl.match(d)}
-                                        >{t("knowMatchBtn")}</button
+                                    <Button type="button" variant="text" onclick={() => ctl.match(d)}
+                                        >{t("knowMatchBtn")}</Button
                                     >
-                                    <button type="button" class="b3-button b3-button--text" onclick={() => ctl.gen(d)}
-                                        >{t("knowGenBtn")}</button
+                                    <Button type="button" variant="text" onclick={() => ctl.gen(d)}
+                                        >{t("knowGenBtn")}</Button
                                     >
-                                    <button
+                                    <Button
                                         type="button"
-                                        class="b3-button b3-button--text"
-                                        onclick={() => ctl.related(d)}>{t("knowRelated")}</button
+                                        variant="text"
+                                        onclick={() => ctl.related(d)}>{t("knowRelated")}</Button
                                     >
-                                    <button
+                                    <Button
                                         type="button"
-                                        class="b3-button b3-button--text"
-                                        onclick={() => ctl.open(d.docId)}>{t("knowOpen")}</button
+                                        variant="text"
+                                        onclick={() => ctl.open(d.docId)}>{t("knowOpen")}</Button
                                     >
                                     {#if d.registered}
-                                        <button
+                                        <Button
                                             type="button"
-                                            class="b3-button b3-button--text"
+                                            variant="text"
                                             onclick={() => ctl.armRemove(d.docId)}
-                                            >{ui.rmArmed === d.docId ? t("collectConfirm") : t("knowRemoveBtn")}</button
+                                            >{ui.rmArmed === d.docId ? t("collectConfirm") : t("knowRemoveBtn")}</Button
                                         >
                                     {/if}
                                 </span>

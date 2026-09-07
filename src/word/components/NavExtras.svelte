@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiButton from "./AiButton.svelte";
@@ -10,10 +11,10 @@
     const t = view.t;
 </script>
 
-<button class="wengu-iconbtn" title={t("wordStatsTitle")} onclick={() => view.showStats()}
-    >{@html svgIcon("iconInfo")}</button
+<Button class="wengu-iconbtn" title={t("wordStatsTitle")} onclick={() => view.showStats()}
+    >{@html svgIcon("iconInfo")}</Button
 >
-<button class="wengu-iconbtn" title={t("wordLookup")} onclick={() => view.enterLookup()}
-    >{@html svgIcon("iconSearch")}</button
+<Button class="wengu-iconbtn" title={t("wordLookup")} onclick={() => view.enterLookup()}
+    >{@html svgIcon("iconSearch")}</Button
 >
 <AiButton />

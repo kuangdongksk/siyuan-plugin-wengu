@@ -1,5 +1,6 @@
 <script lang="ts">
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * 刷题主区头部（批次6-5 Svelte 化）：目录开关（收起时）+ 次头部
@@ -32,20 +33,20 @@
 </script>
 
 {#if sideCollapsed}
-    <button class="wengu-btn" data-act="side-toggle" title={t("sideTitle")} onclick={() => onAct("side-toggle")}>
+    <Button class="wengu-btn" data-act="side-toggle" title={t("sideTitle")} onclick={() => onAct("side-toggle")}>
         {@html svgIcon("iconRight")}
-    </button>
+    </Button>
 {/if}
 {@html subheadHtml}
 {#if canEndRound}
-    <button
-        class="b3-button b3-button--outline wengu-end-round"
+    <Button
+        variant="outline" class="wengu-end-round"
         data-act="end-round"
         title={t("endRoundHint")}
         onclick={() => onAct("end-round")}
     >
         {t("endRoundBtn")}
-    </button>
+    </Button>
 {/if}
 <span class="wengu-timer" data-timer title={t("totalTimeHint")}
     >{@html svgIcon("iconClock", "wengu-timer-icon")}<span data-timer-text>0:00</span></span

@@ -6,6 +6,7 @@
     import { buildColTree } from "../ui/CollectionPanel";
     import { svgIcon } from "../../ui/FormHtml";
     import ColTreeLevel from "./ColTreeLevel.svelte";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * 专题管理工作区面板根组件（四件套之一）：屏幕路由=phase 三态
@@ -42,17 +43,17 @@
         <div class="wengu-ws-title">
             {t("colPanelTitle")}
             <span class="wengu-ws-titlebtns">
-                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.openFolderInput("")}
-                    >{@html svgIcon("iconAdd")} {t("colNewFolder")}</button
+                <Button type="button" variant="outline" onclick={() => ctl.openFolderInput("")}
+                    >{@html svgIcon("iconAdd")} {t("colNewFolder")}</Button
                 >
-                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.openCollectDialog()}
-                    >{@html svgIcon("iconSparkles")} {t("colCollect")}</button
+                <Button type="button" variant="outline" onclick={() => ctl.openCollectDialog()}
+                    >{@html svgIcon("iconSparkles")} {t("colCollect")}</Button
                 >
-                <button type="button" class="b3-button b3-button--outline" onclick={() => ctl.optionRepair()}
-                    >{@html svgIcon("iconCheck")} {t("repairEntry")}</button
+                <Button type="button" variant="outline" onclick={() => ctl.optionRepair()}
+                    >{@html svgIcon("iconCheck")} {t("repairEntry")}</Button
                 >
-                <button type="button" class="b3-button b3-button--text" onclick={() => void ctl.load()}
-                    >{@html svgIcon("iconRefresh")}</button
+                <Button type="button" variant="text" onclick={() => void ctl.load()}
+                    >{@html svgIcon("iconRefresh")}</Button
                 >
             </span>
         </div>

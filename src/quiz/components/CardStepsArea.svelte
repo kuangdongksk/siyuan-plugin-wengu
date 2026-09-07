@@ -3,6 +3,7 @@
     import type { CardCtl } from "../render/CardCtl";
     import { appealStep, nextStep, pickStep, rtFallback } from "../flow/StepsFlow";
     import type { WenguQuestion } from "../../types";
+    import Button from "../../ui/Button.svelte";
 
     /**
      * 多步引导作答区（6-4b 状态化）：步骤引导语/选项在 CardUi.steps
@@ -45,7 +46,7 @@
             </div>
             <div class="wengu-step-opts">
                 {#each step.opts as opt (opt.letter)}
-                    <button
+                    <Button
                         class="wengu-step-opt{opt.tier ? ` ${opt.tier}` : ''}{opt.mark === 1
                             ? ' wengu-step-right'
                             : opt.mark === 2
@@ -57,17 +58,17 @@
                     >
                         <span class="wengu-step-letter">{opt.letter}</span>
                         <span class="wengu-step-text" data-opt-text>{@html opt.html}</span>
-                    </button>
+                    </Button>
                 {/each}
             </div>
-            <button
+            <Button
                 class="wengu-btn wengu-step-next"
                 data-act="step-next"
                 disabled={step.locked}
                 onclick={on ? () => void nextStep(host, q, ctl, k) : undefined}
             >
                 {t("stepNext")}
-            </button>
+            </Button>
             {#if step.resultOn}
                 <div class="wengu-step-result{step.resultCls ? ` ${step.resultCls}` : ''}" data-step-result>
                     {@html step.resultHtml}
@@ -77,14 +78,14 @@
             {/if}
             {#if step.appeal}
                 <!-- method 步答错的「AI 复核」申诉（收口后仍可发起） -->
-                <button
+                <Button
                     class="wengu-btn wengu-step-appeal"
                     data-act="step-appeal"
                     disabled={step.appeal === "busy"}
                     onclick={on ? () => void appealStep(host, q, ctl, k) : undefined}
                 >
                     {step.appeal === "busy" ? t("stepAppealing") : t("stepAppeal")}
-                </button>
+                </Button>
             {/if}
         </div>
     {/each}
@@ -92,9 +93,9 @@
         <!-- 实时失败：报错 + 「切离线继续」（重建静态步骤从头作答） -->
         <div class="wengu-step-error" data-rt-error="1">
             <span class="wengu-wrong">{ui.rtError}</span>
-            <button class="wengu-btn" data-act="rt-fallback" onclick={on ? () => rtFallback(host, q, ctl) : undefined}>
+            <Button class="wengu-btn" data-act="rt-fallback" onclick={on ? () => rtFallback(host, q, ctl) : undefined}>
                 {t("rtFallback")}
-            </button>
+            </Button>
         </div>
     {/if}
 </div>

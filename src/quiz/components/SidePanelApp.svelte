@@ -1,5 +1,6 @@
 <script lang="ts">
     import TreeList from "../../ui/TreeList.svelte";
+    import Button from "../../ui/Button.svelte";
     import type { TreeListNode } from "../../ui/TreeListTypes";
     import { SvelteSet } from "svelte/reactivity";
     import { svgIcon } from "../../ui/FormHtml";
@@ -142,32 +143,32 @@
     <div class="wengu-side-head">
         <span>{t("sideTitle")}</span>
         <span class="wengu-side-headbtns">
-            <button
+            <Button
                 class="wengu-side-iconbtn"
                 data-act="refresh"
                 title={t("quizRefresh")}
                 onclick={() => onAct("refresh")}
             >
                 {@html svgIcon("iconRefresh")}
-            </button>
+            </Button>
             {#if hasSettingsButton}
-                <button
+                <Button
                     class="wengu-side-iconbtn"
                     data-act="settings"
                     title={t("settingsBtn")}
                     onclick={() => onAct("settings")}
                 >
                     {@html svgIcon("iconSettings")}
-                </button>
+                </Button>
             {/if}
-            <button
+            <Button
                 class="wengu-side-iconbtn"
                 data-act="side-fold"
                 title={t("sideFold")}
                 onclick={() => onAct("side-fold")}
             >
                 {@html svgIcon("iconLeft")}
-            </button>
+            </Button>
         </span>
     </div>
     <div class="wengu-side-tools">
@@ -181,25 +182,25 @@
             oninput={search}
         />
         <div class="wengu-side-actions">
-            <button class="wengu-side-iconbtn" data-act="stats" title={t("statsTitle")} onclick={() => onAct("stats")}>
+            <Button class="wengu-side-iconbtn" data-act="stats" title={t("statsTitle")} onclick={() => onAct("stats")}>
                 {@html svgIcon("iconInfo")}
-            </button>
-            <button
+            </Button>
+            <Button
                 class="wengu-side-iconbtn"
                 data-act="collections"
                 title={t("collectionsBtn")}
                 onclick={() => onAct("collections")}
             >
                 {@html svgIcon("iconList")}
-            </button>
-            <button
-                class="b3-button b3-button--outline wengu-side-convert"
+            </Button>
+            <Button
+                variant="outline" class="wengu-side-convert"
                 data-act="convert"
                 title={t("convertBtn")}
                 onclick={() => onAct("convert")}
             >
                 {@html svgIcon("iconSparkles")} <span data-convert-label>{t("convertBtn")}</span>
-            </button>
+            </Button>
         </div>
     </div>
     <div class="wengu-side-body" data-side-body>

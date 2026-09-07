@@ -1,5 +1,6 @@
 <script lang="ts">
     import FormRow from "../../ui/FormRow.svelte";
+    import Button from "../../ui/Button.svelte";
     import Select from "../../ui/Select.svelte";
     import { clampMinutes, fmt } from "../../ui/shared";
     import type { WenguTimingMode } from "../../types";
@@ -180,11 +181,11 @@
     </div>
     <div class="wengu-start-actions">
         {#if onPreview}
-            <button class="b3-button b3-button--outline" onclick={() => onPreview?.()}>{t("previewEntry")}</button>
+            <Button variant="outline" onclick={() => onPreview?.()}>{t("previewEntry")}</Button>
         {/if}
-        <button class="b3-button b3-button--outline" onclick={start}>{t("startDrill")}</button>
+        <Button variant="outline" onclick={start}>{t("startDrill")}</Button>
         {#if onReview}
-            <button class="b3-button b3-button--outline" onclick={() => onReview?.()}>{t("reviewEntry")}</button>
+            <Button variant="outline" onclick={() => onReview?.()}>{t("reviewEntry")}</Button>
         {/if}
     </div>
 </div>

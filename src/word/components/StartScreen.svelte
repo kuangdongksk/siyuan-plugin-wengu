@@ -6,6 +6,7 @@
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
     import Select from "../../ui/Select.svelte";
+    import Button from "../../ui/Button.svelte";
 
     /** 起点设置面板：每组单词数/新学窗口（即时生效）+ 词书管理（导入/
      *  设当前/删除，redesign §五）+ 进度导入（TSV）。行样式沿 FormHtml
@@ -85,9 +86,9 @@
         </div>
         <div class="wengu-word-form-actions">
             {#if hasProgress}
-                <button class="b3-button b3-button--cancel" onclick={() => view.cancelSet()}>{t("cancel")}</button>
+                <Button variant="cancel" onclick={() => view.cancelSet()}>{t("cancel")}</Button>
             {/if}
-            <button class="b3-button b3-button--outline" onclick={() => view.applyStart()}>{t("wordApply")}</button>
+            <Button variant="outline" onclick={() => view.applyStart()}>{t("wordApply")}</Button>
         </div>
         <div class="config-group">
             <div class="config-title">{t("wordBookGroup")}</div>
@@ -102,18 +103,18 @@
                         </div>
                         <div class="fn__space"></div>
                         {#if b.id !== ui.book.id}
-                            <button class="b3-button b3-button--small" onclick={() => view.switchBook(b.id)}
-                                >{t("wordBookUse")}</button
+                            <Button variant="small" onclick={() => view.switchBook(b.id)}
+                                >{t("wordBookUse")}</Button
                             >
                         {/if}
-                        <button
-                            class="b3-button b3-button--small b3-button--error wengu-word-del"
+                        <Button
+                            variant="small" class="b3-button--error wengu-word-del"
                             disabled={ui.books.length <= 1}
                             title={ui.books.length <= 1 ? t("wordBookKeepOne") : t("wordBookDelete")}
                             onclick={() => view.removeBook(b.id)}
                         >
                             {@html svgIcon("iconTrashcan")}
-                        </button>
+                        </Button>
                     </div>
                 {/each}
                 <div class="fn__flex b3-label config__item">
@@ -122,8 +123,8 @@
                         <div class="b3-label__text">{t("wordBookImportDesc")}</div>
                     </div>
                     <div class="fn__space"></div>
-                    <button
-                        class="b3-button b3-button--outline fn__flex-center"
+                    <Button
+                        variant="outline" class="fn__flex-center"
                         type="button"
                         style="position:relative"
                     >
@@ -138,7 +139,7 @@
                                 if (f) view.importBook(f, e.currentTarget);
                             }}
                         />
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -151,8 +152,8 @@
                         <div class="b3-label__text">{t("wordImportFileDesc")}</div>
                     </div>
                     <div class="fn__space"></div>
-                    <button
-                        class="b3-button b3-button--outline fn__flex-center"
+                    <Button
+                        variant="outline" class="fn__flex-center"
                         type="button"
                         style="position:relative"
                     >
@@ -167,10 +168,10 @@
                                 if (f) view.importFile(f, e.currentTarget);
                             }}
                         />
-                    </button>
-                    <button class="b3-button b3-button--outline fn__flex-center" onclick={copyTpl}>
+                    </Button>
+                    <Button variant="outline" class="fn__flex-center" onclick={copyTpl}>
                         {tplCopied ? t("wordImportCopied") : t("wordImportCopyTpl")}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>

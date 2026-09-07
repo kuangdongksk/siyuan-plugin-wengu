@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext, type Snippet } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
 
@@ -42,19 +43,19 @@
         <span class="fn__flex-1"></span>
         {@render extra?.()}
         {#if showHome}
-            <button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
-                >{@html svgIcon("iconList")}</button
+            <Button class="wengu-iconbtn" title={t("wordBackHome")} onclick={() => view.goHome()}
+                >{@html svgIcon("iconList")}</Button
             >
         {/if}
         {#if showSet}
-            <button class="wengu-iconbtn" title={t("wordSetStart")} onclick={() => view.setStart()}
-                >{@html svgIcon("iconSettings")}</button
+            <Button class="wengu-iconbtn" title={t("wordSetStart")} onclick={() => view.setStart()}
+                >{@html svgIcon("iconSettings")}</Button
             >
         {/if}
     </div>
     <div class="wengu-word-head-row wengu-word-head-sub">
         <div class="wengu-word-bookpick" bind:this={wrapEl}>
-            <button
+            <Button
                 type="button"
                 class="wengu-word-bookbtn"
                 title={t("wordBookSwitch")}
@@ -62,14 +63,13 @@
             >
                 <span class="wengu-word-bookname">{view.ui.book.title}</span>
                 <span class="wengu-word-bookcaret">{@html svgIcon("iconDown")}</span>
-            </button>
+            </Button>
             {#if bookOpen}
                 <div class="b3-list--background wengu-word-bookmenu" role="menu">
                     {#each books as b (b.id)}
-                        <button
+                        <Button
                             type="button"
-                            class="b3-list-item b3-list-item--narrow"
-                            class:b3-list-item--focus={b.id === view.ui.book.id}
+                            class="b3-list-item b3-list-item--narrow{b.id === view.ui.book.id ? ' b3-list-item--focus' : ''}"
                             role="menuitem"
                             onclick={() => {
                                 bookOpen = false;
@@ -78,7 +78,7 @@
                         >
                             <span class="wengu-word-bookname">{b.name}</span>
                             <span class="wengu-word-bookcount">{b.count}</span>
-                        </button>
+                        </Button>
                     {/each}
                 </div>
             {/if}

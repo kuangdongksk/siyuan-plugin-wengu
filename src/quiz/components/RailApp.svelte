@@ -1,5 +1,6 @@
 <script lang="ts">
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import type { WenguWorkspace } from "../render/RailMount";
 
     /**
@@ -32,12 +33,12 @@
 
 <div class="wengu-rail">
     {#each buttons as b (b.ws)}
-        <button
+        <Button
             type="button"
             class="wengu-rail-btn{active === b.ws ? ' wengu-rail-active' : ''}"
             title={t(b.key)}
             aria-label={t(b.key)}
-            onclick={() => onSwitch(b.ws)}>{@html svgIcon(b.icon)}</button
+            onclick={() => onSwitch(b.ws)}>{@html svgIcon(b.icon)}</Button
         >
     {/each}
 </div>

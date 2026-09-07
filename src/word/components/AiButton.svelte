@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import { fmt } from "../../ui/shared";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
@@ -19,7 +20,7 @@
 </script>
 
 {#if ui.aiPending > 0 || ui.aiRunning}
-    <button class="wengu-iconbtn" {title} disabled={ui.aiRunning} onclick={() => view.aiAnalyze()}
-        >{@html svgIcon("iconSparkles")}</button
+    <Button class="wengu-iconbtn" {title} disabled={ui.aiRunning} onclick={() => view.aiAnalyze()}
+        >{@html svgIcon("iconSparkles")}</Button
     >
 {/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { fmt } from "../../ui/shared";
+    import Button from "../../ui/Button.svelte";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiMsg from "./AiMsg.svelte";
@@ -27,10 +28,10 @@
         <div class="wengu-word-text">{title}</div>
         <div class="wengu-word-meaning wengu-word-revealed">{body}</div>
         <div class="wengu-word-actions">
-            <button class="b3-button b3-button--outline" disabled={ui.hardN === 0} onclick={() => view.redoHard()}
-                >{fmt(t("wordRedoHard"), { n: String(ui.hardN) })}</button
+            <Button variant="outline" disabled={ui.hardN === 0} onclick={() => view.redoHard()}
+                >{fmt(t("wordRedoHard"), { n: String(ui.hardN) })}</Button
             >
-            <button class="b3-button b3-button--outline" onclick={() => view.goHome()}>{t("wordBackHome")}</button>
+            <Button variant="outline" onclick={() => view.goHome()}>{t("wordBackHome")}</Button>
         </div>
     </div>
 </div>

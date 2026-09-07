@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import { fmt } from "../../ui/shared";
 
     import { dueTomorrowCount, keyOf } from "../core/WordStore";
@@ -45,8 +46,8 @@
         {#snippet extra()}
             <!-- 查词入口仅非答题态（已翻面/已作答）给 -->
             {#if ui.phase === "result" || ui.answered}
-                <button class="wengu-iconbtn" title={t("wordLookup")} onclick={() => view.enterLookup()}
-                    >{@html svgIcon("iconSearch")}</button
+                <Button class="wengu-iconbtn" title={t("wordLookup")} onclick={() => view.enterLookup()}
+                    >{@html svgIcon("iconSearch")}</Button
                 >
             {/if}
             <AiButton />

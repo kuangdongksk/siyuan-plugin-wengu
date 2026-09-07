@@ -1,5 +1,6 @@
 <script lang="ts">
     import { svgIcon } from "../../ui/FormHtml";
+    import Button from "../../ui/Button.svelte";
     import { fmt, mmss } from "../../ui/shared";
     import { runAgentTextOrPanel } from "../../ai/agentPanel";
     import type { WeakCause, WeakTopRow } from "../../bank/data/WeaknessStore";
@@ -128,13 +129,16 @@
                     </div>
                 {/each}
             </div>
-            <button class="b3-button b3-button--outline" onclick={() => onWeakDrill(model.weakRows)}
-                >{t("drillTitle")}</button
+            <Button variant="outline" onclick={() => onWeakDrill(model.weakRows)}
+                >{t("drillTitle")}</Button
             >
         </div>
     {/if}
     <div>
-        <button class="b3-button b3-button--outline" bind:this={aiBtn} onclick={runAi}>{t("reportAiBtn")}</button>
+        <Button
+            variant="outline"
+            buttonRef={(button) => (aiBtn = button)}
+            onclick={runAi}>{t("reportAiBtn")}</Button>
     </div>
     <div class="wengu-report-ai" hidden bind:this={aiOut}></div>
 </div>

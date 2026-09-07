@@ -10,6 +10,7 @@
     import { phoneticsOf, phoneticsReady } from "../service/WordPhonetics";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
+    import Button from "../../ui/Button.svelte";
 
     /** 一张答题卡（五题型；题面标色/详情/自述输入按作答态切换）。 */
     const view = getContext<WordView>(WORD_VIEW_CTX)!;
@@ -101,9 +102,8 @@
 >
     <div class="wengu-word-unit">{t(MODE_KEY[mode])}</div>
     <div class="wengu-word-tools">
-        <button
-            class="wengu-iconbtn wengu-word-star"
-            class:is-starred={starred}
+        <Button
+            class="wengu-iconbtn wengu-word-star{starred ? ' is-starred' : ''}"
             title={t("wordStar")}
             onclick={(e) => {
                 e.stopPropagation();
@@ -111,19 +111,19 @@
             }}
         >
             <svg><use xlink:href="#iconStar"></use></svg>
-        </button>
+        </Button>
         {#if wrongPending}
-            <button
+            <Button
                 class="wengu-iconbtn"
                 title={t("wordFamiliarTip")}
                 onclick={(e) => {
                     e.stopPropagation();
                     view.finishMastered();
-                }}>{t("wordFamiliar")}</button
+                }}>{t("wordFamiliar")}</Button
             >
         {/if}
         <!-- 回首页常驻工具组：头部图标不易被发现，刷卡中途随时可退出 -->
-        <button
+        <Button
             class="wengu-iconbtn"
             title={t("wordBackHome")}
             onclick={(e) => {
@@ -132,7 +132,7 @@
             }}
         >
             <svg><use xlink:href="#iconList"></use></svg>
-        </button>
+        </Button>
     </div>
 
     {#snippet detail()}
@@ -141,13 +141,13 @@
                 {entry.w}
                 {#if phon}<span class="wengu-word-phonetic">{phon}</span>{/if}
                 {@render ladderDots()}
-                <button
+                <Button
                     class="wengu-iconbtn wengu-word-say"
                     title={t("wordSpeakTip")}
                     onclick={() => view.playCurrentWord()}
                 >
                     <svg><use xlink:href="#iconVolume"></use></svg>
-                </button>
+                </Button>
             </div>
             <div class="wengu-word-detail-meaning">{entry.m}</div>
             {#if mistake?.confused}
@@ -192,19 +192,19 @@
             {/if}
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
-                <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
-                    >{t("wordNext")}</button
+                <Button variant="outline" onclick={() => view.continueObjective()}
+                    >{t("wordNext")}</Button
                 >
                 {#if !answered.correct}
-                    <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
-                        >{t("wordMarkWrong")}</button
+                    <Button variant="outline" onclick={() => view.claimMistake()}
+                        >{t("wordMarkWrong")}</Button
                     >
                 {/if}
             </div>
         {:else}
             {#if mode === "listen"}
                 <!-- 梯③听音：词面隐藏，喇叭进卡自动播、点击重听（空格同）；音标辅助辨音 -->
-                <button
+                <Button
                     class="wengu-iconbtn wengu-word-say"
                     title={t("wordRelisten")}
                     onclick={(e) => {
@@ -213,7 +213,7 @@
                     }}
                 >
                     <svg><use xlink:href="#iconVolume"></use></svg>
-                </button>
+                </Button>
                 {#if phon}<div class="wengu-word-phonetic">{phon}</div>{/if}
             {:else}
                 <div class={mode === "choiceEn" ? "wengu-word-text" : "wengu-word-zh"}>
@@ -223,15 +223,15 @@
                 {#if mode === "choiceEn" && phon}<div class="wengu-word-phonetic">{phon}</div>{/if}
             {/if}
             <div class="wengu-word-hint">{t("wordPickHint")}</div>
-            <button class="b3-button b3-button--outline wengu-word-peek" onclick={() => view.peekAnswer()}
-                >{t("wordPeekBtn")}</button
+            <Button variant="outline" class="wengu-word-peek" onclick={() => view.peekAnswer()}
+                >{t("wordPeekBtn")}</Button
             >
             <div class="wengu-word-opts">
                 {#each choices as o, i}
-                    <button
-                        class="b3-button wengu-word-opt{optCls(i)}"
+                    <Button
+                        class="wengu-word-opt{optCls(i)}"
                         disabled={answered !== undefined}
-                        onclick={() => view.option(i)}>{o.text}</button
+                        onclick={() => view.option(i)}>{o.text}</Button
                     >
                 {/each}
             </div>
@@ -245,12 +245,12 @@
             </div>
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
-                <button class="b3-button b3-button--outline" onclick={() => view.continueObjective()}
-                    >{t("wordNext")}</button
+                <Button variant="outline" onclick={() => view.continueObjective()}
+                    >{t("wordNext")}</Button
                 >
                 {#if !answered.correct}
-                    <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
-                        >{t("wordMarkWrong")}</button
+                    <Button variant="outline" onclick={() => view.claimMistake()}
+                        >{t("wordMarkWrong")}</Button
                     >
                 {/if}
             </div>
@@ -267,8 +267,8 @@
                 bind:this={spellEl}
             />
             <div class="wengu-word-actions">
-                <button class="b3-button b3-button--outline" onclick={() => view.submitSpell()}
-                    >{t("wordSubmit")}</button
+                <Button variant="outline" onclick={() => view.submitSpell()}
+                    >{t("wordSubmit")}</Button
                 >
             </div>
         {/if}
@@ -279,20 +279,20 @@
         {@render resultTail()}
         {#if ui.selfGrade}
             <div class="wengu-word-actions wengu-word-grades">
-                <button class="b3-button b3-button--outline" onclick={() => view.nextGraded()}>{t("wordNext")}</button>
-                <button class="b3-button b3-button--outline" onclick={() => view.claimMistake()}
-                    >{t("wordMarkWrong")}</button
+                <Button variant="outline" onclick={() => view.nextGraded()}>{t("wordNext")}</Button>
+                <Button variant="outline" onclick={() => view.claimMistake()}
+                    >{t("wordMarkWrong")}</Button
                 >
             </div>
         {:else}
             <div class="wengu-word-actions wengu-word-grades">
-                <button class="b3-button b3-button--outline" onclick={() => view.grade("know")}
-                    >{t("wordGradeKnow")}</button
+                <Button variant="outline" onclick={() => view.grade("know")}
+                    >{t("wordGradeKnow")}</Button
                 >
-                <button class="b3-button b3-button--outline" onclick={() => view.grade("fuzzy")}
-                    >{t("wordGradeFuzzy")}</button
+                <Button variant="outline" onclick={() => view.grade("fuzzy")}
+                    >{t("wordGradeFuzzy")}</Button
                 >
-                <button class="b3-button b3-button--outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</button
+                <Button variant="outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</Button
                 >
             </div>
         {/if}
@@ -304,14 +304,14 @@
         </div>
         <div class="wengu-word-hint">{t("wordRecallHint")}</div>
         <div class="wengu-word-actions wengu-word-grades">
-            <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("know")}
-                >{t("wordGradeKnow")}</button
+            <Button variant="outline" onclick={() => view.pickSelfGrade("know")}
+                >{t("wordGradeKnow")}</Button
             >
-            <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("fuzzy")}
-                >{t("wordGradeFuzzy")}</button
+            <Button variant="outline" onclick={() => view.pickSelfGrade("fuzzy")}
+                >{t("wordGradeFuzzy")}</Button
             >
-            <button class="b3-button b3-button--outline" onclick={() => view.pickSelfGrade("no")}
-                >{t("wordGradeNo")}</button
+            <Button variant="outline" onclick={() => view.pickSelfGrade("no")}
+                >{t("wordGradeNo")}</Button
             >
         </div>
     {/if}

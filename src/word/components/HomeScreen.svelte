@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { fmt } from "../../ui/shared";
+    import Button from "../../ui/Button.svelte";
     import { buildQueue, starredList } from "../core/WordStore";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
@@ -29,36 +30,36 @@
         <div class="wengu-word-card wengu-word-revealed">
             <div class="wengu-word-zh">{fmt(t("wordAskReview"), { n: String(queues.review.length) })}</div>
             <div class="wengu-word-actions">
-                <button class="b3-button b3-button--outline" onclick={() => view.goReview()}>{t("wordGoReview")}</button
+                <Button variant="outline" onclick={() => view.goReview()}>{t("wordGoReview")}</Button
                 >
-                <button class="b3-button b3-button--cancel" onclick={() => view.goFreshAnyway()}
-                    >{t("wordStillFresh")}</button
+                <Button variant="cancel" onclick={() => view.goFreshAnyway()}
+                    >{t("wordStillFresh")}</Button
                 >
             </div>
         </div>
     {:else}
         <div class="wengu-word-entries">
             {#if queues.review.length > 0}
-                <button class="wengu-word-entry" onclick={() => view.goReview()}>
+                <Button class="wengu-word-entry" onclick={() => view.goReview()}>
                     <span class="wengu-word-entry-title">{t("wordHomeReviewTitle")}</span>
                     <span class="wengu-word-entry-count"
                         >{fmt(t("wordHomeReviewCount"), { n: String(queues.review.length) })}</span
                     >
-                </button>
+                </Button>
             {/if}
             {#if queues.freshLeft > 0}
-                <button class="wengu-word-entry" onclick={() => view.goFresh()}>
+                <Button class="wengu-word-entry" onclick={() => view.goFresh()}>
                     <span class="wengu-word-entry-title">{t("wordHomeFreshTitle")}</span>
                     <span class="wengu-word-entry-count"
                         >{fmt(t("wordHomeFreshCount"), { n: String(queues.freshLeft) })}</span
                     >
-                </button>
+                </Button>
             {/if}
             {#if starN > 0}
-                <button class="wengu-word-entry wengu-word-entry-star" onclick={() => view.goStar()}>
+                <Button class="wengu-word-entry wengu-word-entry-star" onclick={() => view.goStar()}>
                     <span class="wengu-word-entry-title">{t("wordHomeStarTitle")}</span>
                     <span class="wengu-word-entry-count">{fmt(t("wordHomeStarCount"), { n: String(starN) })}</span>
-                </button>
+                </Button>
             {/if}
             {#if empty}
                 <div class="wengu-word-entry wengu-word-entry-muted">{t("wordBookDone")}</div>

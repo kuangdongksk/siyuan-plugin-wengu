@@ -8,6 +8,7 @@
     import { fmt } from "../../ui/shared";
     import ReviewGroup from "./ReviewGroup.svelte";
     import ReviewDetail from "./ReviewDetail.svelte";
+    import Button from "../../ui/Button.svelte";
     import Select from "../../ui/Select.svelte";
 
     /**
@@ -62,8 +63,8 @@
                 m: String(m.mastered),
             })}</span
         >
-        <button class="wengu-side-iconbtn" title={t("quizRefresh")} onclick={() => void reviewCtl.refresh(true)}
-            >{@html svgIcon("iconRefresh")}</button
+        <Button class="wengu-side-iconbtn" title={t("quizRefresh")} onclick={() => void reviewCtl.refresh(true)}
+            >{@html svgIcon("iconRefresh")}</Button
         >
     </div>
     <div class="wengu-review-cols">
