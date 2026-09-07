@@ -217,6 +217,9 @@ export default class WenguPlugin extends Plugin {
 </symbol>
 <symbol id="iconVolume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
   <path d="M11 5 6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.7a10 10 0 0 1 0 12.6"/>
+</symbol>
+<symbol id="iconWenguClue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/>
 </symbol>`);
         this.addTopBar({
             // 稳定 id（3.8.3 类型收录）：removeTopBar(id) 显式回收 + 重载防叠影

@@ -688,5 +688,8 @@
   "qblockFilterHint": "Filter questions by keyword",
   "qblockEmpty": "No matching questions",
   "clueNoSession": "Start a drill in Wengu first, then mark clues",
-  "clueMarked": "Marked as clue for the current question"
+  "clueMarked": "Marked as clue: \"{stem}\" ({n} total)",
+  "clueDup": "Already a clue of the current question",
+  "clueTooLong": "Clue too long — pick a key phrase (within 120 chars)",
+  "clueToolbarTip": "Mark as clue → current Wengu question"
 }
