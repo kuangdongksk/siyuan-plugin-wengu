@@ -1,6 +1,7 @@
 import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
+import { KernelBlock } from "../../siyuan/block";
 import type { KnowTreesMap } from "../../bank/data/KnowTrees";
 
 /**
@@ -75,8 +76,12 @@ async function knowDocRows(rootId: string): Promise<{ root: KnowRow; rows: KnowR
     return { root, rows };
 }
 
-/** 批量拉文档的 h1~h6 标题块（按 root_id 分组、sort 保序；subtype 供建树与
- *  祖先链——20260831 前只取 content，层级信息在 SQL 阶段就丢了）。 */
+/** 批量拉文档的 h1~h6 标题块（按 root_id 分组；subtype 供建树与祖先链
+ *  ——20260831 前只取 content，层级信息在 SQL 阶段就丢了）。SQL 的
+ *  ORDER BY sort 在导入语料上是任意序（块 sort 全退化），逐文档以
+ *  KernelBlock.docOrder 回排成真文档序——buildSectionTree 的就近挂靠
+ *  依赖标题按序到达，乱序会让子标题先于父标题沉到顶层（20260907
+ *  真机：23/23 章节中雷，层级塌平）。 */
 async function headingsByRoot(
     docIds: string[]
 ): Promise<Map<string, { id: string; content: string; level: number }[]>> {
@@ -94,6 +99,11 @@ async function headingsByRoot(
             level: Number(h.get("subtype")?.replace("h", "")) || 1,
         });
         byRoot.set(k, arr);
+    }
+    for (const [docId, arr] of byRoot) {
+        const order = await KernelBlock.docOrder(docId);
+        const pos = (id: string): number => order.get(id) ?? Number.MAX_SAFE_INTEGER;
+        arr.sort((a, b) => pos(a.id) - pos(b.id));
     }
     return byRoot;
 }

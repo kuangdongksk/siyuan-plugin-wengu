@@ -1,4 +1,5 @@
 import { KernelQuery } from "../../siyuan/query";
+import { byDocOrder, KernelBlock } from "../../siyuan/block";
 
 /**
  * 知识点引用的注入与生成后处理（自 KnowledgeLink 拆出压 500 行红线，
@@ -47,7 +48,8 @@ export function injectKnowledgeRefs(kd: string, refs: { id: string; title: strin
 }
 
 /** 取知识点小节的正文（标题块 id → 该标题下到下一个同级/更高级标题
- *  之前的块内容，SQL 按 sort 顺序拼接；供重新生成/针对性生成喂正文）。 */
+ *  之前的块内容，按 KernelBlock.docOrder 的真文档序拼接——SQL ORDER BY
+ *  sort 在导入语料上是任意序；供重新生成/针对性生成喂正文）。 */
 export async function sectionKramdown(headingId: string, maxChars = 3000): Promise<string> {
     const head = (
         await KernelQuery.rowsMap(
@@ -56,8 +58,14 @@ export async function sectionKramdown(headingId: string, maxChars = 3000): Promi
     )[0];
     if (!head) return "";
     const myLevel = Number(head.get("subtype")?.replace("h", "")) || 2;
-    const rows = await KernelQuery.rowsMapAll(
-        `SELECT id, subtype, type, content FROM blocks WHERE root_id = '${head.get("root_id")}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`
+    const rows = byDocOrder(
+        await KernelQuery.rowsMapAll(
+            `SELECT id, subtype, type, content FROM blocks WHERE root_id = '${head.get(
+                "root_id"
+            )}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`
+        ),
+        (r) => r.get("id"),
+        await KernelBlock.docOrder(head.get("root_id"))
     );
     let started = false;
     const out: string[] = [];

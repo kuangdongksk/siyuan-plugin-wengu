@@ -1,6 +1,7 @@
 import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
+import { byDocOrder, KernelBlock } from "../../siyuan/block";
 import { questionHash } from "../../bank/data/BankParse";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import { mintKnowNodeId, setKnowTree, treePathsOf } from "../../bank/data/KnowTrees";
@@ -108,11 +109,14 @@ export function chapterTextOf(
 /** rowsMap 行别名。 */
 type Row = Map<string, string>;
 
-/** 拉文档的标题+正文块（sort 保序；rowsMapAll 自动分页）。 */
+/** 拉文档的标题+正文块（rowsMapAll 自动分页；按 KernelBlock.docOrder 回排
+ *  成真文档序——归纳输入与 srcHash 指纹都依赖正文顺序，SQL ORDER BY sort
+ *  在导入语料上是任意序）。 */
 async function docBlocks(docId: string): Promise<Row[]> {
-    return KernelQuery.rowsMapAll(
-        `SELECT type, subtype, content FROM blocks WHERE root_id = '${docId}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`
+    const rows = await KernelQuery.rowsMapAll(
+        `SELECT id, type, subtype, content FROM blocks WHERE root_id = '${docId}' AND type IN ('h','p','l','b','c','t','i','s','m','html','embed') ORDER BY sort`
     );
+    return byDocOrder(rows, (r) => r.get("id"), await KernelBlock.docOrder(docId));
 }
 
 /** 树文档标题后缀（历史形态，20260903 起生成的树不再落文档；常量保留

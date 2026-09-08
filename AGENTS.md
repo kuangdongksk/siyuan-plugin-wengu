@@ -485,6 +485,16 @@ message, language, references, model?}`；`userEntryID` 是
   `/api/query/sql` 不带 LIMIT 最多返回 64 行且 code=0 无异常（书架
   94 篇文档只回 64 篇的假象）；子查询不支持（返回空）。批量/
   全量查询必须显式 `LIMIT n OFFSET k` 分页（见 KnowledgeLink.sqlAll）。
+- **SQL `ORDER BY sort` 不是文档序**（20260907 真机验证）：导入语料
+  （MinerU 等）块 sort/created 全退化——实测 23/23 章节全部标题块
+  sort 同值、created 整秒并列，SQLite 对并列序返回**任意序且时好时坏**
+  （随查询计划漂移）：知识面板小节树「五、二、一」乱序、子标题先于
+  父标题到达就近挂靠直接沉顶层（层级塌平）；`created` 与
+  `/api/outline/getDocOutline` 都不可靠（后者只回两层、h5 丢）。
+  **文档序唯一权威来源=根块 kramdown 里 IAL `id="…"` 的出现序**——
+  `KernelBlock.docOrder`（siyuan/block.ts，按文档 updated 缓存）+
+  `byDocOrder` 回排帮手；读块顺序的代码一律过这层，别再信 ORDER BY
+  sort（消费点：headingsByRoot/docBlocks/sectionKramdown/docSectionHashes）。
 - Lute：**只能用全局 `window.Lute`**——插件加载器给 `"siyuan"` 模块
   注入的固定对象里没有 Lute（3.8.1 加载器实测：window.eval 包合成
   require，模块表只有 fetch*/Protyle/ProtyleMethod/Dialog 等；

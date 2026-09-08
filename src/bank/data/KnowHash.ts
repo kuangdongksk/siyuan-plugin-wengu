@@ -1,4 +1,5 @@
 import { KernelQuery } from "../../siyuan/query";
+import { byDocOrder, KernelBlock } from "../../siyuan/block";
 import { questionHash } from "./BankParse";
 
 /**
@@ -59,19 +60,24 @@ export function sectionHashesOfDoc(blocks: SecBlock[]): Map<string, string> {
     return out;
 }
 
-/** 拉一个文档的全部块并切段哈希（rowsMapAll 自动分页；按 sort 序）。 */
+/** 拉一个文档的全部块并切段哈希（rowsMapAll 自动分页；按
+ *  KernelBlock.docOrder 的真文档序回排——切段归属依赖块序，SQL
+ *  ORDER BY sort 在导入语料上是任意序）。 */
 async function docSectionHashes(docId: string): Promise<Map<string, string>> {
     const rows = await KernelQuery.rowsMapAll(
         `SELECT id, type, subtype, content FROM blocks WHERE root_id = '${docId}' ORDER BY sort`
     );
-    return sectionHashesOfDoc(
+    const ordered = byDocOrder(
         rows.map((r) => ({
             id: r.get("id"),
             type: r.get("type"),
             subtype: r.get("subtype"),
             content: r.get("content"),
-        }))
+        })),
+        (r) => r.id,
+        await KernelBlock.docOrder(docId)
     );
+    return sectionHashesOfDoc(ordered);
 }
 
 export class KnowHashStore {

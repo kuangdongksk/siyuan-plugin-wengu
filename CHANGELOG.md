@@ -2,6 +2,19 @@
 
 ## v0.1.1 unreleased
 
+- **知识小节树乱序根治：SQL 取块按 kramdown 文档序回排**（20260908，
+  siyuan/convert/bank 域）：导入语料（MinerU 等）的块 sort/created 全
+  退化（实测 23/23 章节 sort 全同值），SQL `ORDER BY sort` 返回任意序
+  且随查询计划时好时坏——知识面板小节树章序「五、二、一」乱序、子标题
+  先于父标题到达致就近挂靠塌平（李2-矩阵 20 标题 18 个挂顶层），AI
+  归纳输入/小节哈希/小节正文拼接同源受害（哈希顺序漂移=假 stale 徽标）。
+  修复：`KernelBlock.docOrder` 以根块 kramdown 的 IAL id 出现序为文档
+  序权威（按文档 updated 缓存，失败降级保持 SQL 序），四处取块点
+  （headingsByRoot/docBlocks/sectionKramdown/docSectionHashes）统一
+  `byDocOrder` 回排。纯读侧修复，存储零变更；注意升级后首轮装载存量
+  树/小节哈希按新顺序重算，已有的 1 棵 AI 树与小节基线会一次性报
+  「源已变更」（基线自推进，重新索引即消）。
+
 - **「建知识树」改名「索引」，重新索引两击确认**（20260908，bank/ai 域）：
   知识面板行内按钮不再按状态切换「建知识树/重新归纳」两套名称，恒显
   「索引」；文档已有索引时再点先转「确认重新索引」（3s 自动复位，同
