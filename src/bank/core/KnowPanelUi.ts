@@ -37,10 +37,14 @@ export interface KnowPanelUi {
     /** 源已变更的内部知识树（源文档 id）：装载时比 srcHash 得出，
      *  行上出「源已变更」徽标（提示重新索引）。 */
     staleTrees: Set<string>;
-    /** AI 索引进行中的 docId（行按钮转「索引中」，再点=中止）。 */
+    /** AI 索引进行中的 docId（行按钮转「索引中」，再点=中止；批量时=
+     *  发起的文件夹行）。 */
     outlining: string | undefined;
-    /** 「重新索引」两击确认中的 docId（3s 自动复位；首次索引不经此态）。 */
+    /** 「重新索引/批量索引」两击确认中的 docId（3s 自动复位；首次单篇
+     *  索引不经此态）。 */
     outlineArmed: string | undefined;
+    /** arm 态对应的批量目标数（>1 时确认文案带「N 篇」；0/undefined=单篇）。 */
+    outlineArmTotal: number | undefined;
     /** 索引失败信息（一行展示；undefined=无）。 */
     outlineErr: string | undefined;
 }
@@ -57,6 +61,7 @@ export function initialKnowPanelUi(): KnowPanelUi {
         staleTrees: new Set(),
         outlining: undefined,
         outlineArmed: undefined,
+        outlineArmTotal: undefined,
         outlineErr: undefined,
     };
 }

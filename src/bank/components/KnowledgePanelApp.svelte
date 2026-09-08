@@ -176,9 +176,10 @@
                                 >
                                 <span class="b3-list-item__action">
                                     {#if d.manual}
-                                        <!-- 索引：手动导入文档行常显（20260908 起不再限结构单薄），AI 归纳
-                                             写 bank.knowTrees；按钮恒名「索引」，已有索引再点=两击确认
-                                             （3s 复位）后重新索引；运行中再点=中止 -->
+                                        <!-- 索引：手动导入文档行常显，AI 归纳写 bank.knowTrees；按钮恒名「索引」，
+                                             已有索引再点=两击确认（3s 复位）后重新索引；文件夹式文档（自身空、
+                                             子文档有内容）=批量补齐子树缺索引的文档，确认文案带篇数；
+                                             运行中再点=中止（批量中止整队） -->
                                         <Button
                                             type="button"
                                             variant="text"
@@ -186,7 +187,9 @@
                                             >{ui.outlining === d.docId
                                                 ? t("knowOutlineRunning")
                                                 : ui.outlineArmed === d.docId
-                                                  ? t("knowOutlineConfirm")
+                                                  ? ui.outlineArmTotal && ui.outlineArmTotal > 1
+                                                      ? fmt(t("knowOutlineConfirmN"), { n: String(ui.outlineArmTotal) })
+                                                      : t("knowOutlineConfirm")
                                                   : t("knowOutlineBtn")}</Button
                                         >
                                     {/if}

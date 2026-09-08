@@ -11,7 +11,7 @@ import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
-import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
+import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/KnowledgeLink";
 import { generateKnowledgeOutline, outlineSrcHash } from "../../convert/service/KnowOutline";
 import {
     buildKnowTree,
@@ -247,8 +247,11 @@ export class KnowPanelCtl {
 
     /* ── AI 索引（原「建知识树」，docs/knowledge-tree.md □1；20260903 起
      *  不落文档）：归纳章节 → 大纲直写题库（bank.knowTrees）。按钮统一叫
-     *  「索引」；已有索引再点=重新索引，两击确认（3s 复位）后才真跑；
-     *  运行中再点=中止；全程零内核写（只剩 SQL 读+AI），与转换并发安全。 ── */
+     *  「索引」；单篇已有索引再点=重新索引，文件夹式文档（思源文档当目录
+     *  用，自身无内容、子文档有货）= 批量补齐子树中还没有索引的文档（已
+     *  索引的不动，重索单篇走行内），两者都两击确认（3s 复位）后才真跑；
+     *  批量串行逐篇、空文档跳过、部分失败不打断；运行中再点=中止（批量
+     *  中止整队）；全程零内核写（只剩 SQL 读+AI），与转换并发安全。 ── */
 
     private outlineCtrl: AbortController | undefined;
     private outlineArmTimer: ReturnType<typeof setTimeout> | undefined;
@@ -260,35 +263,95 @@ export class KnowPanelCtl {
             this.outlineCtrl?.abort(); // 再点=中止（catch 复位状态）
             return;
         }
-        if (this.ui.outlining) return; // 同时只跑一份
-        if (d.hasTree && this.ui.outlineArmed !== d.docId) {
-            // 重新索引需二次确认：首击进 arm 态（按钮转「确认重新索引」）
-            this.disarmOutline();
-            this.ui.outlineArmed = d.docId;
-            this.outlineArmTimer = setTimeout((): void => {
-                this.ui.outlineArmed = undefined;
-                this.outlineArmTimer = undefined;
-            }, 3000);
+        if (this.ui.outlining) return; // 同时只跑一份（批量占同一坑位）
+        void this.resolveOutline(d, bank);
+    }
+
+    /** 解析索引目标（单篇 / expandKnowDocs 展开子树补缺）→ 按需两击
+     *  确认 → 串行执行。展开失败退单篇（与旧行为一致）。 */
+    private async resolveOutline(d: KnowDocView, bank: QuestionBank): Promise<void> {
+        const expanded = await expandKnowDocs(d.docId).catch((): KnowDocEntry[] => []);
+        if (!this.alive || this.ui.outlining) return; // 解析期间面板已重建或已有任务开跑
+        const trees = await knowTreesOf(bank);
+        const ids = expanded.length > 0 ? expanded.map((e) => e.docId) : [d.docId];
+        if (ids.length > 1) {
+            const pending = ids.filter((id) => !trees[id]);
+            if (pending.length === 0) {
+                notifyInfo({ key: "notifyOutlineAllIndexed" });
+                return;
+            }
+            if (this.ui.outlineArmed !== d.docId) {
+                this.armOutline(d.docId, pending.length);
+                return;
+            }
+            this.runOutline(d.docId, pending, bank);
             return;
         }
+        if (trees[d.docId] && this.ui.outlineArmed !== d.docId) {
+            this.armOutline(d.docId, 0); // 重新索引需二次确认：首击进 arm 态
+            return;
+        }
+        this.runOutline(d.docId, [d.docId], bank);
+    }
+
+    /** 串行执行（anchor=占「索引中」坑位的行；单篇沿用逐篇通知口径）。 */
+    private runOutline(anchorId: string, ids: string[], bank: QuestionBank): void {
         this.disarmOutline();
         this.ui.outlineErr = undefined;
-        this.ui.outlining = d.docId;
+        this.ui.outlining = anchorId;
         const ctrl = new AbortController();
         this.outlineCtrl = ctrl;
-        void generateKnowledgeOutline(d.docId, this.v.aiModelId(), ctrl.signal, bank)
-            .then(async (r): Promise<void> => {
-                if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
-                this.ui.outlining = undefined;
-                notifyInfo({ key: "notifyOutlineDone", vars: { n: String(r.count) } }); // AI 长任务，用户可能已离开
-                await this.load();
-            })
-            .catch((e: unknown): void => {
-                if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
-                this.ui.outlining = undefined;
-                this.ui.outlineErr = ctrl.signal.aborted ? undefined : `${this.v.t("knowOutlineFail")}${errText(e)}`;
-                if (!ctrl.signal.aborted) notifyError({ key: "notifyOutlineFail", vars: { msg: errText(e) } });
-            });
+        const batch = ids.length > 1;
+        void (async (): Promise<void> => {
+            let ok = 0;
+            let skip = 0;
+            let fail = 0;
+            let count = 0;
+            let lastErr = "";
+            for (const id of ids) {
+                if (ctrl.signal.aborted) break;
+                try {
+                    const r = await generateKnowledgeOutline(id, this.v.aiModelId(), ctrl.signal, bank);
+                    ok++;
+                    count += r.count;
+                } catch (e) {
+                    if (ctrl.signal.aborted) break;
+                    const msg = errText(e);
+                    if (msg.includes("doc has no content")) skip++; // 空文档（目录壳）
+                    else {
+                        fail++;
+                        lastErr = msg;
+                    }
+                }
+            }
+            if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
+            this.ui.outlining = undefined;
+            if (ctrl.signal.aborted) return; // 中止：静默复位（与单篇中止同口径）
+            if (fail === ids.length) {
+                // 全灭才算失败态（行内错误+通知）；部分失败走汇总不打断
+                this.ui.outlineErr = `${this.v.t("knowOutlineFail")}${lastErr}`;
+                notifyError({ key: "notifyOutlineFail", vars: { msg: lastErr } });
+                return;
+            }
+            notifyInfo(
+                batch
+                    ? { key: "notifyOutlineBatchDone", vars: { n: String(ok), k: String(skip), m: String(fail) } }
+                    : { key: "notifyOutlineDone", vars: { n: String(count) } }
+            ); // AI 长任务，用户可能已离开
+            await this.load();
+        })();
+    }
+
+    /** 进「确认重新索引/确认索引 N 篇」arm 态（3s 自动复位）。 */
+    private armOutline(docId: string, total: number): void {
+        this.disarmOutline();
+        this.ui.outlineArmed = docId;
+        this.ui.outlineArmTotal = total;
+        this.outlineArmTimer = setTimeout((): void => {
+            this.ui.outlineArmed = undefined;
+            this.ui.outlineArmTotal = undefined;
+            this.outlineArmTimer = undefined;
+        }, 3000);
     }
 
     /* ── 「移除」两击确认（3s 复位；armed 与渲染同源，重拉后不漂移） ── */
@@ -318,6 +381,7 @@ export class KnowPanelCtl {
         if (this.outlineArmTimer) clearTimeout(this.outlineArmTimer);
         this.outlineArmTimer = undefined;
         this.ui.outlineArmed = undefined;
+        this.ui.outlineArmTotal = undefined;
     }
 
     /** 退册整个登记子树。 */
