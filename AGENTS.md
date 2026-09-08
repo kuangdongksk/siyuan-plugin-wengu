@@ -117,12 +117,14 @@
           buildSectionTree 真树，路由 path=祖先标题链，不再是「文档路径/
           本标题」两段假层级）、
           **AI 索引（原「建知识树」，20260908 改名）不落文档**（20260903，
-          data/KnowTrees）：结构单薄章节的 AI 归纳大纲直写 bank.knowTrees
+          data/KnowTrees）：手动导入章节的 AI 归纳大纲直写 bank.knowTrees
           （键=源章节文档 id；节点 id 铸内核块 id 形态——parseKpRefs/
           BLOCK_REF 正则冻结不动，kpRefs 经 kramdown ((id "标题")) 往返
           零兼容成本；重新索引**同路径复用旧 id**，存量引用/活视图/薄弱
-          画像不悬空；面板按钮恒名「索引」，已有索引再点=两击确认（3s
-          复位）后重跑），expandKnowDocs/
+          画像不悬空；面板按钮恒名「索引」、全部手动导入文档行常显
+          （20260908 起不再限「结构单薄」——旧门槛小节 ≥6 且顶层 ≥3 的
+          章不显示按钮，2-矩阵/3-向量这类多节章被拒之门外），已有索引
+          再点=两击确认（3s 复位）后重跑），expandKnowDocs/
           buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
           词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点
           引用归到源文档名下、对账不误判悬空）；「查看原文」与面板小节
