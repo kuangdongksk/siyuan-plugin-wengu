@@ -102,25 +102,23 @@
             {t("aiPanelTitle")}
             <span class="wengu-ws-titlebtns">
                 <Button type="button" variant="outline" onclick={() => ctl.armClear()}
-                    >{ui.clrArmed ? t("collectConfirm") : t("aiClear")}</Button>
+                    >{ui.clrArmed ? t("collectConfirm") : t("aiClear")}</Button
                 >
-                <Button type="button" variant="text" onclick={() => void ctl.load()}
-                    >{t("quizRefresh")}</Button>
+                >
+                <Button type="button" variant="text" onclick={() => void ctl.load()}>{t("quizRefresh")}</Button>
                 >
             </span>
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("aiPanelHint")}</div>
 
         <div class="wengu-ai-kinds">
-            <Button
-                type="button"
-                variant={ui.filter === '' ? "main" : "outline"}
-                onclick={() => ctl.setFilter("")}>{t("aiKindAll")}</Button>
+            <Button type="button" variant={ui.filter === "" ? "main" : "outline"} onclick={() => ctl.setFilter("")}
+                >{t("aiKindAll")}</Button
+            >
             {#each kinds as k (k)}
-                <Button
-                    type="button"
-                    variant={ui.filter === k ? "main" : "outline"}
-                    onclick={() => ctl.setFilter(k)}>{kindLabel(k)}</Button>
+                <Button type="button" variant={ui.filter === k ? "main" : "outline"} onclick={() => ctl.setFilter(k)}
+                    >{kindLabel(k)}</Button
+                >
             {/each}
         </div>
         <!-- 两栏式（20260901）：左清单常驻（TreeList 树），点行切右栏明细 -->
@@ -231,15 +229,15 @@
                         {#if sel.status === "running"}
                             <div class="wengu-ai-composer">
                                 <Button type="button" variant="outline" onclick={() => ctl.stop(sel)}
-                                    >{t("aiStop")}</Button>
+                                    >{t("aiStop")}</Button
+                                >
                                 >
                             </div>
                         {:else if sel.status === "error"}
                             <div class="wengu-ai-composer">
-                                <Button
-                                    type="button"
-                                    variant="main"
-                                    onclick={() => void ctl.retry(sel)}>{t("aiRetry")}</Button>
+                                <Button type="button" variant="main" onclick={() => void ctl.retry(sel)}
+                                    >{t("aiRetry")}</Button
+                                >
                                 >
                             </div>
                         {/if}

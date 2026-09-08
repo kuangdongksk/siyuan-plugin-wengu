@@ -24,7 +24,8 @@
     <div class="wengu-review-group-head">
         <span class="wengu-review-group-title" title={group.docTitle}>{group.docTitle}</span>
         <Button
-            variant="outline" class="wengu-review-redrill"
+            variant="outline"
+            class="wengu-review-redrill"
             disabled={group.pending === 0}
             onclick={() => ctl.redrill(group.docId)}>{fmt(t("reviewRedrill"), { n: String(group.pending) })}</Button
         >

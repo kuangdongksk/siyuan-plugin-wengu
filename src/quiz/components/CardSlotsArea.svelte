@@ -66,7 +66,10 @@
                     <span class="wengu-match-k">{k + 1}</span>
                     <Select
                         class="b3-select wengu-match-sel"
-                        options={[{ value: "", label: "—" }, ...letters.map((letter) => ({ value: letter, label: letter }))]}
+                        options={[
+                            { value: "", label: "—" },
+                            ...letters.map((letter) => ({ value: letter, label: letter })),
+                        ]}
                         data-matchsel={k}
                         disabled={mark.answered || ui.locked}
                         value={mark.letter}

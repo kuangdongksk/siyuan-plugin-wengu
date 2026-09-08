@@ -194,7 +194,8 @@
                 {@html svgIcon("iconList")}
             </Button>
             <Button
-                variant="outline" class="wengu-side-convert"
+                variant="outline"
+                class="wengu-side-convert"
                 data-act="convert"
                 title={t("convertBtn")}
                 onclick={() => onAct("convert")}

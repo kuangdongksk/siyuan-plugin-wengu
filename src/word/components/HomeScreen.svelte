@@ -30,11 +30,8 @@
         <div class="wengu-word-card wengu-word-revealed">
             <div class="wengu-word-zh">{fmt(t("wordAskReview"), { n: String(queues.review.length) })}</div>
             <div class="wengu-word-actions">
-                <Button variant="outline" onclick={() => view.goReview()}>{t("wordGoReview")}</Button
-                >
-                <Button variant="cancel" onclick={() => view.goFreshAnyway()}
-                    >{t("wordStillFresh")}</Button
-                >
+                <Button variant="outline" onclick={() => view.goReview()}>{t("wordGoReview")}</Button>
+                <Button variant="cancel" onclick={() => view.goFreshAnyway()}>{t("wordStillFresh")}</Button>
             </div>
         </div>
     {:else}

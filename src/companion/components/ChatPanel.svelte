@@ -52,11 +52,8 @@
             onkeydown={onKey}
             disabled={ui.chatBusy}
         />
-        <Button
-            type="button"
-            variant="outline"
-            onclick={send}
-            disabled={ui.chatBusy || !ui.draft.trim()}>{ctl.t("companionSend")}</Button
+        <Button type="button" variant="outline" onclick={send} disabled={ui.chatBusy || !ui.draft.trim()}
+            >{ctl.t("companionSend")}</Button
         >
     </div>
 </div>

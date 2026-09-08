@@ -69,7 +69,9 @@
                     {#each books as b (b.id)}
                         <Button
                             type="button"
-                            class="b3-list-item b3-list-item--narrow{b.id === view.ui.book.id ? ' b3-list-item--focus' : ''}"
+                            class="b3-list-item b3-list-item--narrow{b.id === view.ui.book.id
+                                ? ' b3-list-item--focus'
+                                : ''}"
                             role="menuitem"
                             onclick={() => {
                                 bookOpen = false;

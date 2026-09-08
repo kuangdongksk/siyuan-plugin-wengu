@@ -103,12 +103,11 @@
                         </div>
                         <div class="fn__space"></div>
                         {#if b.id !== ui.book.id}
-                            <Button variant="small" onclick={() => view.switchBook(b.id)}
-                                >{t("wordBookUse")}</Button
-                            >
+                            <Button variant="small" onclick={() => view.switchBook(b.id)}>{t("wordBookUse")}</Button>
                         {/if}
                         <Button
-                            variant="small" class="b3-button--error wengu-word-del"
+                            variant="small"
+                            class="b3-button--error wengu-word-del"
                             disabled={ui.books.length <= 1}
                             title={ui.books.length <= 1 ? t("wordBookKeepOne") : t("wordBookDelete")}
                             onclick={() => view.removeBook(b.id)}
@@ -123,11 +122,7 @@
                         <div class="b3-label__text">{t("wordBookImportDesc")}</div>
                     </div>
                     <div class="fn__space"></div>
-                    <Button
-                        variant="outline" class="fn__flex-center"
-                        type="button"
-                        style="position:relative"
-                    >
+                    <Button variant="outline" class="fn__flex-center" type="button" style="position:relative">
                         {t("wordBookImport")}
                         <input
                             type="file"
@@ -152,11 +147,7 @@
                         <div class="b3-label__text">{t("wordImportFileDesc")}</div>
                     </div>
                     <div class="fn__space"></div>
-                    <Button
-                        variant="outline" class="fn__flex-center"
-                        type="button"
-                        style="position:relative"
-                    >
+                    <Button variant="outline" class="fn__flex-center" type="button" style="position:relative">
                         {t("wordImportFile")}
                         <input
                             type="file"

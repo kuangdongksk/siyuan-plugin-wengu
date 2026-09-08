@@ -31,9 +31,7 @@
               ? `wengu-btn-${variant}`
               : `b3-button--${variant}`
     );
-    const buttonStyle = $derived(
-        `${styleAttr}${color ? `--wengu-button-color: ${color};` : ""}`
-    );
+    const buttonStyle = $derived(`${styleAttr}${color ? `--wengu-button-color: ${color};` : ""}`);
 
     $effect(() => {
         if (buttonEl && buttonRef) buttonRef(buttonEl);

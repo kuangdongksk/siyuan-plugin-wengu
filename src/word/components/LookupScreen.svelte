@@ -66,9 +66,7 @@
                     value={view.confCtl.wordDraft}
                     oninput={(e) => view.noteInput("wordnote", e.currentTarget.value)}
                 />
-                <Button variant="outline" onclick={() => view.wordNoteSave(sel)}
-                    >{t("wordNoteSave")}</Button
-                >
+                <Button variant="outline" onclick={() => view.wordNoteSave(sel)}>{t("wordNoteSave")}</Button>
             </div>
             {#if hasConfGroup}
                 <div class="wengu-word-confuse-edit">
@@ -79,24 +77,16 @@
                         value={view.confCtl.draft}
                         oninput={(e) => view.noteInput("confnote", e.currentTarget.value)}
                     />
-                    <Button variant="outline" onclick={() => view.confAsk(sel)}
-                        >{t("wordConfuseAsk")}</Button
-                    >
-                    <Button variant="outline" onclick={() => view.confSave(sel)}
-                        >{t("wordConfuseSave")}</Button
-                    >
+                    <Button variant="outline" onclick={() => view.confAsk(sel)}>{t("wordConfuseAsk")}</Button>
+                    <Button variant="outline" onclick={() => view.confSave(sel)}>{t("wordConfuseSave")}</Button>
                 </div>
             {/if}
             <div class="wengu-word-actions">
                 <Button variant="outline" onclick={() => view.lookupStar(sel)}
                     >{@html svgIcon("iconStar")}{t("wordStar")}</Button
                 >
-                <Button variant="outline" onclick={() => view.lookupFamiliar(sel)}
-                    >{t("wordFamiliar")}</Button
-                >
-                <Button variant="outline" onclick={() => view.enterLookup()}
-                    >{t("wordLookupBack")}</Button
-                >
+                <Button variant="outline" onclick={() => view.lookupFamiliar(sel)}>{t("wordFamiliar")}</Button>
+                <Button variant="outline" onclick={() => view.enterLookup()}>{t("wordLookupBack")}</Button>
             </div>
         </div>
     {:else}

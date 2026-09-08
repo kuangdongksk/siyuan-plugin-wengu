@@ -317,7 +317,8 @@ export class KnowPanelCtl {
                 } catch (e) {
                     if (ctrl.signal.aborted) break;
                     const msg = errText(e);
-                    if (msg.includes("doc has no content")) skip++; // 空文档（目录壳）
+                    if (msg.includes("doc has no content"))
+                        skip++; // 空文档（目录壳）
                     else {
                         fail++;
                         lastErr = msg;

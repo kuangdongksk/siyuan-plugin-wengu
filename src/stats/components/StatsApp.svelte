@@ -39,14 +39,14 @@
         <span class="wengu-stats-title">{t("statsTitle")}</span>
         <span class="wengu-stats-tabs">
             <Button
-                variant="outline" class="wengu-stats-tab{ui.tab === 'overview'
-                    ? ' wengu-stats-tab-cur'
-                    : ''}"
+                variant="outline"
+                class="wengu-stats-tab{ui.tab === 'overview' ? ' wengu-stats-tab-cur' : ''}"
                 onclick={() => statsCtl.setTab("overview")}>{t("statsTabOverview")}</Button
             >
             {#if deps.docId}
                 <Button
-                    variant="outline" class="wengu-stats-tab{ui.tab === 'doc' ? ' wengu-stats-tab-cur' : ''}"
+                    variant="outline"
+                    class="wengu-stats-tab{ui.tab === 'doc' ? ' wengu-stats-tab-cur' : ''}"
                     onclick={() => statsCtl.setTab("doc")}>{docTabTitle}</Button
                 >
             {/if}

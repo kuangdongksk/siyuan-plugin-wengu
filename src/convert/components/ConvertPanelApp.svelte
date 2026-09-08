@@ -43,9 +43,7 @@
                                     ? progressStatusText(t, snap.parallel, snap.progress)
                                     : t("converting")}</span
                             >
-                            <Button variant="outline" onclick={() => ctl.stopRun()}
-                                >{t("convertStop")}</Button
-                            >
+                            <Button variant="outline" onclick={() => ctl.stopRun()}>{t("convertStop")}</Button>
                         </div>
                     {:else if snap.pendingChoice && snap.pending}
                         <div class="wengu-status wengu-status-muted wengu-convert-bar">
@@ -56,12 +54,8 @@
                                     n: String(snap.pending.total),
                                 })}</span
                             >
-                            <Button variant="outline" onclick={() => ctl.keepRun()}
-                                >{t("convertKeep")}</Button
-                            >
-                            <Button variant="cancel" onclick={() => ctl.discardRun()}
-                                >{t("convertDiscard")}</Button
-                            >
+                            <Button variant="outline" onclick={() => ctl.keepRun()}>{t("convertKeep")}</Button>
+                            <Button variant="cancel" onclick={() => ctl.discardRun()}>{t("convertDiscard")}</Button>
                         </div>
                     {/if}
                 </div>
@@ -85,7 +79,8 @@
                                 >{t("convertPanelResume")}</Button
                             >
                             <Button
-                                variant="cancel" class={armed ? "b3-button--error" : ""}
+                                variant="cancel"
+                                class={armed ? "b3-button--error" : ""}
                                 onclick={() => ctl.armDrop(srcDocId)}
                                 >{armed ? t("confirmDiscard") : t("convertPanelDrop")}</Button
                             >

@@ -39,7 +39,8 @@
         <div class="config-items">
             <FormRow label={t("modelLabel")} desc={t("setModelHint")}>
                 <Button
-                    variant="outline" class="fn__size200 wengu-pick"
+                    variant="outline"
+                    class="fn__size200 wengu-pick"
                     title={modelPickLabel(ui.modelId)}
                     action={(button) => modelPickAction(button, { t, onPick: (v: string) => ctl.setModel(v) })}
                     >{modelPickLabel(ui.modelId)}</Button
@@ -47,7 +48,8 @@
             </FormRow>
             <FormRow label={t("docIdLabel")}>
                 <Button
-                    variant="outline" class="fn__size200 wengu-pick"
+                    variant="outline"
+                    class="fn__size200 wengu-pick"
                     title={pickText(ui.docEcho)}
                     onclick={(e) => ctl.pickDoc(e.currentTarget)}>{pickText(ui.docEcho)}</Button
                 >
@@ -85,7 +87,8 @@
                 </FormRow>
                 <FormRow label={t("convertKnowLabel")}>
                     <Button
-                        variant="outline" class="fn__size200 wengu-pick"
+                        variant="outline"
+                        class="fn__size200 wengu-pick"
                         title={pickText(ui.knowEcho)}
                         onclick={(e) => ctl.pickKnow(e.currentTarget)}>{pickText(ui.knowEcho)}</Button
                     >

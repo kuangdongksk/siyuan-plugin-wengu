@@ -40,7 +40,8 @@
 {@html subheadHtml}
 {#if canEndRound}
     <Button
-        variant="outline" class="wengu-end-round"
+        variant="outline"
+        class="wengu-end-round"
         data-act="end-round"
         title={t("endRoundHint")}
         onclick={() => onAct("end-round")}

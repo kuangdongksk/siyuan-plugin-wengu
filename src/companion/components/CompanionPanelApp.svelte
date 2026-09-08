@@ -138,7 +138,8 @@
                 <FormRow label={t("companionModelLabel")} desc={t("companionModelHint")}>
                     <Button
                         type="button"
-                        variant="outline" class="fn__size200 wengu-pick"
+                        variant="outline"
+                        class="fn__size200 wengu-pick"
                         title={modelPickLabel(cur.modelId)}
                         action={(button) => modelPickAction(button, { t, onPick: (v: string) => ctl.setModel(v) })}
                         >{modelPickLabel(cur.modelId)}</Button

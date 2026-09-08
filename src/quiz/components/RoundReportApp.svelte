@@ -129,16 +129,11 @@
                     </div>
                 {/each}
             </div>
-            <Button variant="outline" onclick={() => onWeakDrill(model.weakRows)}
-                >{t("drillTitle")}</Button
-            >
+            <Button variant="outline" onclick={() => onWeakDrill(model.weakRows)}>{t("drillTitle")}</Button>
         </div>
     {/if}
     <div>
-        <Button
-            variant="outline"
-            buttonRef={(button) => (aiBtn = button)}
-            onclick={runAi}>{t("reportAiBtn")}</Button>
+        <Button variant="outline" buttonRef={(button) => (aiBtn = button)} onclick={runAi}>{t("reportAiBtn")}</Button>
     </div>
     <div class="wengu-report-ai" hidden bind:this={aiOut}></div>
 </div>

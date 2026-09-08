@@ -192,13 +192,9 @@
             {/if}
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
-                <Button variant="outline" onclick={() => view.continueObjective()}
-                    >{t("wordNext")}</Button
-                >
+                <Button variant="outline" onclick={() => view.continueObjective()}>{t("wordNext")}</Button>
                 {#if !answered.correct}
-                    <Button variant="outline" onclick={() => view.claimMistake()}
-                        >{t("wordMarkWrong")}</Button
-                    >
+                    <Button variant="outline" onclick={() => view.claimMistake()}>{t("wordMarkWrong")}</Button>
                 {/if}
             </div>
         {:else}
@@ -245,13 +241,9 @@
             </div>
             {@render resultTail()}
             <div class="wengu-word-actions wengu-word-grades">
-                <Button variant="outline" onclick={() => view.continueObjective()}
-                    >{t("wordNext")}</Button
-                >
+                <Button variant="outline" onclick={() => view.continueObjective()}>{t("wordNext")}</Button>
                 {#if !answered.correct}
-                    <Button variant="outline" onclick={() => view.claimMistake()}
-                        >{t("wordMarkWrong")}</Button
-                    >
+                    <Button variant="outline" onclick={() => view.claimMistake()}>{t("wordMarkWrong")}</Button>
                 {/if}
             </div>
         {:else}
@@ -267,9 +259,7 @@
                 bind:this={spellEl}
             />
             <div class="wengu-word-actions">
-                <Button variant="outline" onclick={() => view.submitSpell()}
-                    >{t("wordSubmit")}</Button
-                >
+                <Button variant="outline" onclick={() => view.submitSpell()}>{t("wordSubmit")}</Button>
             </div>
         {/if}
     {:else if reveal}
@@ -280,20 +270,13 @@
         {#if ui.selfGrade}
             <div class="wengu-word-actions wengu-word-grades">
                 <Button variant="outline" onclick={() => view.nextGraded()}>{t("wordNext")}</Button>
-                <Button variant="outline" onclick={() => view.claimMistake()}
-                    >{t("wordMarkWrong")}</Button
-                >
+                <Button variant="outline" onclick={() => view.claimMistake()}>{t("wordMarkWrong")}</Button>
             </div>
         {:else}
             <div class="wengu-word-actions wengu-word-grades">
-                <Button variant="outline" onclick={() => view.grade("know")}
-                    >{t("wordGradeKnow")}</Button
-                >
-                <Button variant="outline" onclick={() => view.grade("fuzzy")}
-                    >{t("wordGradeFuzzy")}</Button
-                >
-                <Button variant="outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</Button
-                >
+                <Button variant="outline" onclick={() => view.grade("know")}>{t("wordGradeKnow")}</Button>
+                <Button variant="outline" onclick={() => view.grade("fuzzy")}>{t("wordGradeFuzzy")}</Button>
+                <Button variant="outline" onclick={() => view.grade("no")}>{t("wordGradeNo")}</Button>
             </div>
         {/if}
     {:else}
@@ -304,15 +287,9 @@
         </div>
         <div class="wengu-word-hint">{t("wordRecallHint")}</div>
         <div class="wengu-word-actions wengu-word-grades">
-            <Button variant="outline" onclick={() => view.pickSelfGrade("know")}
-                >{t("wordGradeKnow")}</Button
-            >
-            <Button variant="outline" onclick={() => view.pickSelfGrade("fuzzy")}
-                >{t("wordGradeFuzzy")}</Button
-            >
-            <Button variant="outline" onclick={() => view.pickSelfGrade("no")}
-                >{t("wordGradeNo")}</Button
-            >
+            <Button variant="outline" onclick={() => view.pickSelfGrade("know")}>{t("wordGradeKnow")}</Button>
+            <Button variant="outline" onclick={() => view.pickSelfGrade("fuzzy")}>{t("wordGradeFuzzy")}</Button>
+            <Button variant="outline" onclick={() => view.pickSelfGrade("no")}>{t("wordGradeNo")}</Button>
         </div>
     {/if}
 </div>

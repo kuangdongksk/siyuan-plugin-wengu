@@ -124,17 +124,14 @@
         <div class="wengu-ws-title">
             {t("knowPanelTitle")}
             <span class="wengu-ws-titlebtns">
-                <Button type="button" variant="outline" onclick={() => ctl.batchLink()}
-                    >{t("knowBatchBtn")}</Button
+                <!-- 批量关联：全根 × 全库，文本优先 + 可选 AI 路由兜底（BatchLinkDialog） -->
+                <Button type="button" variant="outline" onclick={() => ctl.batchLink()}>{t("knowBatchBtn")}</Button>
+                <!-- 导入文档：登记知识文档根（递归展开小节，挂 KnowRoots） -->
+                <Button type="button" variant="outline" onclick={(e) => ctl.importRoots(e.currentTarget)}
+                    >{t("knowImportBtn")}</Button
                 >
-                <Button
-                    type="button"
-                    variant="outline"
-                    onclick={(e) => ctl.importRoots(e.currentTarget)}>{t("knowImportBtn")}</Button
-                >
-                <Button type="button" variant="text" onclick={() => void ctl.load()}
-                    >{t("quizRefresh")}</Button
-                >
+                <!-- 刷新：重载知识文档/小节索引与题数统计 -->
+                <Button type="button" variant="text" onclick={() => void ctl.load()}>{t("quizRefresh")}</Button>
             </span>
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("knowHint")}</div>
@@ -155,12 +152,14 @@
                                     >{/if}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(s.count) })}</span>
                                 <span class="b3-list-item__action">
+                                    <!-- 开刷：此小节活视图专题列（题库更新自动跟进） -->
                                     <Button
                                         type="button"
                                         variant="text"
                                         title={t("knowDrillNodeTip")}
                                         onclick={() => ctl.drillNode(s)}>{t("knowDrillNode")}</Button
                                     >
+                                    <!-- 补题：收集此小节并生成补题（GenQuestion 入口） -->
                                     <Button
                                         type="button"
                                         variant="text"
@@ -180,10 +179,7 @@
                                              已有索引再点=两击确认（3s 复位）后重新索引；文件夹式文档（自身空、
                                              子文档有内容）=批量补齐子树缺索引的文档，确认文案带篇数；
                                              运行中再点=中止（批量中止整队） -->
-                                        <Button
-                                            type="button"
-                                            variant="text"
-                                            onclick={() => ctl.outline(d)}
+                                        <Button type="button" variant="text" onclick={() => ctl.outline(d)}
                                             >{ui.outlining === d.docId
                                                 ? t("knowOutlineRunning")
                                                 : ui.outlineArmed === d.docId
@@ -193,32 +189,31 @@
                                                   : t("knowOutlineBtn")}</Button
                                         >
                                     {/if}
+                                    <!-- 匹配：选已入库习题文档 → 逐题两级 AI 路由 → strip+inject 注入引用 -->
                                     <Button type="button" variant="text" onclick={() => ctl.match(d)}
                                         >{t("knowMatchBtn")}</Button
                                     >
+                                    <!-- 转习题：源=知识点根=该文档，预填进 QuizView 转换流程 -->
                                     <Button type="button" variant="text" onclick={() => ctl.gen(d)}
                                         >{t("knowGenBtn")}</Button
                                     >
-                                    <Button
-                                        type="button"
-                                        variant="text"
-                                        onclick={() => ctl.related(d)}>{t("knowRelated")}</Button
+                                    <!-- 查相关题：跳活视图浏览该文档已挂引用的题目 -->
+                                    <Button type="button" variant="text" onclick={() => ctl.related(d)}
+                                        >{t("knowRelated")}</Button
                                     >
-                                    <Button
-                                        type="button"
-                                        variant="text"
-                                        onclick={() => ctl.open(d.docId)}>{t("knowOpen")}</Button
+                                    <!-- 打开文档：源文档定位（树节点降级跳源章节文档） -->
+                                    <Button type="button" variant="text" onclick={() => ctl.open(d.docId)}
+                                        >{t("knowOpen")}</Button
                                     >
                                     {#if d.registered}
-                                        <Button
-                                            type="button"
-                                            variant="text"
-                                            onclick={() => ctl.armRemove(d.docId)}
+                                        <!-- 移除：未登记不显示；点一次进 arm 态，再点确认才真删 -->
+                                        <Button type="button" variant="text" onclick={() => ctl.armRemove(d.docId)}
                                             >{ui.rmArmed === d.docId ? t("collectConfirm") : t("knowRemoveBtn")}</Button
                                         >
                                     {/if}
                                 </span>
                             {:else if bsub}
+                                <!-- 分支行无动作按钮，仅显子树累计题数 -->
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub) })}</span>
                             {/if}
                         {/snippet}
