@@ -680,16 +680,5 @@
   "aiStop": "停止",
   "aiFlowStarted": "已开始，完成后通知；进度与「停止」在 AI 会话面板",
   "aiFlowBusy": "已有一个后台 AI 任务在跑：等它完成，或到 AI 会话面板停止它",
-  "aiFlowAborted": "已中止（已产出部分保留）",
-  "qblockInsert": "插入温故题目",
-  "qblockOpen": "在温故中打开",
-  "qblockMissing": "题库中未找到该题",
-  "qblockPickTitle": "选择题目",
-  "qblockFilterHint": "输入关键词过滤题干",
-  "qblockEmpty": "无匹配题目",
-  "clueNoSession": "请先在温故页签开刷，再标线索",
-  "clueMarked": "已标为线索：「{stem}」（共 {n} 条）",
-  "clueDup": "这段已是当前题的线索",
-  "clueTooLong": "线索过长，请选取关键句（120 字内）",
-  "clueToolbarTip": "标为线索 → 温故当前题"
+  "aiFlowAborted": "已中止（已产出部分保留）"
 }

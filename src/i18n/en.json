@@ -680,16 +680,5 @@
   "aiStop": "Stop",
   "aiFlowStarted": "Started; you will be notified on completion — progress & Stop live in the AI sessions panel",
   "aiFlowBusy": "A background AI task is already running; wait or stop it from the AI sessions panel",
-  "aiFlowAborted": "Aborted (finished parts kept)",
-  "qblockInsert": "Insert Wengu question",
-  "qblockOpen": "Open in Wengu",
-  "qblockMissing": "Question not found in bank",
-  "qblockPickTitle": "Pick a question",
-  "qblockFilterHint": "Filter questions by keyword",
-  "qblockEmpty": "No matching questions",
-  "clueNoSession": "Start a drill in Wengu first, then mark clues",
-  "clueMarked": "Marked as clue: \"{stem}\" ({n} total)",
-  "clueDup": "Already a clue of the current question",
-  "clueTooLong": "Clue too long — pick a key phrase (within 120 chars)",
-  "clueToolbarTip": "Mark as clue → current Wengu question"
+  "aiFlowAborted": "Aborted (finished parts kept)"
 }

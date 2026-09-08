@@ -68,7 +68,7 @@ function getBar(cb: AnnoCallbacks): HTMLElement {
 function barChildren(cb: AnnoCallbacks): HTMLElement[] {
     const clue = document.createElement("button");
     clue.className = "wengu-annobar-btn";
-    clue.innerHTML = `${svgIcon("iconWenguClue")} ${esc(cb.t("clueMark"))}`;
+    clue.innerHTML = `${svgIcon("iconInfo")} ${esc(cb.t("clueMark"))}`;
     clue.addEventListener("mousedown", (ev) => {
         ev.preventDefault(); // 不清选区
         const text = document.getSelection()?.toString().trim() ?? "";

@@ -58,17 +58,7 @@
       数据层，渲染不再按组）——
       判题/转换/检测/标签/路由/出题/单词复盘等
       带 track 的调用自动登记，面板回看完整轮次与产出，失败可重试。
-    - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排；**自定义块渲染
-      题目**（20260907，3.8.3 一期视图层）：块 `;;;siyuan-plugin-wengu/
-question` content=qid，`render/CustomBlockRender` 题库取题只读渲染
-      （纯视图零存储变更，插件不可用时思源回退显示原始 qid），插入入口=
-      面包屑按钮 + `ui/PickQuestionDialog` 题干过滤选择弹窗，注册/注销
-      在 index.ts onload/onunload 配对；二期方向=块内交互作答、三期=
-      存储块化；**编辑器工具栏「标为线索」**（20260907，3.8.3
-      `addToolbarItem`）：`flow/ToolbarClue` 普通文档里选段一键挂到
-      温故活动视图当前题（跨容器），页签内材料区纯 HTML 非 Protyle
-      工具栏不弹、AnnoFlow 浮层保留，两入口同一 addClue 收口）、
-      `src/convert/`
+    - `src/quiz/`（做题主流程，`index.ts`=QuizView 编排）、`src/convert/`
       （AI 转换，`index.ts`=转换编排；**20260903 存储收口：转换零落盘，
       产物直写题库**（`service/SetWriter.ts`：DraftUnit → renderUnit 出
       契约 kramdown → parseQuestionKramdown 反解 + questionHash 构造
@@ -385,19 +375,6 @@ at RetryOperation._fn` ——全局 pnpm 与 package.json 的
 - `insertBlock/appendBlock` 在 3.8.0 不可用，写 kramdown 用
   `/api/filetree/createDocWithMd`；改块内容用 `/api/block/updateBlock`
   （markdown 里带 `{: id="…" 属性}` 可保留 IAL）。
-  **createDocWithMd 参数形态（20260907 在 3.8.3 真机踩坑）**：必须
-  `{notebook: 笔记本id, path: "/标题", markdown}` 三参分离——path 带
-  笔记本名前缀的官方文档形态（`/输出/标题.md`）在本内核**静默失败**
-  （code 0 + data null、文档不落盘）；正确形态返回 data=文档 id。
-- **自定义块（3.8.3，issue #8418 落地形态）**：插件实例
-  `customBlockRenders[类型] = {render({element, content, setContent})}`
-  注册，块语法 `;;;encodeURIComponent(包名)/类型\n内容\n;;;`；内容经
-  createDocWithMd/appendBlock 落盘往返无损（IAL 独立成行）；渲染器
-  只改挂载元素（容器类名 custom-block__content）、不支持嵌套
-  Protyle、插件不可用/未注册回退显示原始内容；setContent 走 Protyle
-  事务栈（**undo 会回滚写入**——高频作答统计别走块内容）。类型包
-  1.2.7 起有类型；老前端（<3.8.3）属性赋值无害、
-  addBreadcrumbButton 需特性检测。
 - **「向已有文档追加内容」通道（20260826 在 3.8.1 八轮真机探针定论，
   修正 20260822 旧结论——旧探针的锚点误用了文档根块）**：
     - **`/api/block/appendBlock`（markdown dataType）+ `parentID=文档id`

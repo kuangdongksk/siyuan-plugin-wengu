@@ -2,31 +2,6 @@
 
 ## v0.1.1 unreleased
 
-- **编辑器工具栏「标为线索」**（20260907，quiz 域）：3.8.3
-  `addToolbarItem` 在普通文档编辑器工具栏注册「标为线索」——阅读
-  材料/讲义原文时选中文字一键标为温故活动视图当前题的定位线索
-  （跨容器标注，`quiz/flow/ToolbarClue`；无活动会话/非材料组题/
-  成功均 toast 反馈）。温故页签内材料区是纯 HTML 渲染非 Protyle、
-  官方工具栏不弹——页签内 AnnoFlow 自造浮层保留，两入口同一
-  `addClue` 收口（顺带加返回值供工具栏侧判断成败）。
-- **自定义块渲染题目（3.8.3 一期，视图层）**（20260907，quiz/ui 域）：
-  思源 3.8.3 自定义块（`customBlockRenders`，issue #8418）接入——块
-  `;;;siyuan-plugin-wengu/question` 的 content=qid，渲染器
-  （`quiz/render/CustomBlockRender`）题库取题只读渲染题干+选项
-  （KaTeX 惰性链复用），卡头题型徽标 +「在温故中打开」按钮（复用
-  顶栏 openWenguTab 编排切温故页签）。**存储零变更**：块纯视图、
-  数据仍在题库（题库即唯一真相不动摇），插件不可用/未注册时思源
-  回退显示原始 qid 文本不悬空。插入入口：面包屑「插入温故题目」
-  按钮（3.8.3 `addBreadcrumbButton`，老前端特性检测跳过）→题目
-  选择弹窗（`quiz/ui/PickQuestionDialog`，题干关键词过滤 kramdown
-  原文、点击即插）。配套：类型包 siyuan 1.2.4→1.2.7（解锁
-  customBlockRenders/addBreadcrumbButton/addTopBar id 类型）、
-  addTopBar 补稳定 id、pnpm 供应链冷却关闭（minimumReleaseAge: 0
-  ——exclude 在 lockfile 校验路径不被尊重，pnpm#10361）。真机已验
-  证：内核 ;;; 语法落盘往返无损（createDocWithMd 需 notebook+path
-  分离形态）、渲染器挂载（容器 custom-block__content）、公式/按钮
-  交互全通。同日拍板：Tauri 平迁方案废弃（优势被 3.8.3 自定义块+
-  attributes 索引+原生同步抹平，见 docs/tauri-migration.md 存档）。
 - **全 AI 弹窗去阻塞：点击即关窗、后台流、面板停止**（20260905，ai/
   bank 域）：七个 AI 弹窗（重新生成/匹配/批量关联/生成标签/变式重练/
   薄弱加练/收集补题）统一「点击即关窗」——参数收齐即销毁弹窗、AI

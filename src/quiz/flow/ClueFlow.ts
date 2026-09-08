@@ -26,31 +26,20 @@ export interface ClueHost {
     persist(): void;
 }
 
-/** addClue 结果（工具栏跨容器入口的三态反馈依据；页签内浮层忽略）。 */
-export interface AddClueResult {
-    ok: boolean;
-    /** true=这段已在当前题线索里（幂等重标）。 */
-    dup: boolean;
-    /** 标注后该题线索总条数。 */
-    total: number;
-}
-
-/** 选中浮层「标为线索」入口（AnnoFlow 回调进来；返回结果供工具栏
- *  侧区分「新标/已存在/失败」出反馈文案）。 */
-export function addClue(host: ClueHost, text: string): AddClueResult {
+/** 选中浮层「标为线索」入口（AnnoFlow 回调进来）。 */
+export function addClue(host: ClueHost, text: string): void {
     const s = host.currentSession();
     const q = host.currentQuestion();
-    if (!s || !q) return { ok: false, dup: false, total: 0 };
+    if (!s || !q) return;
     if (!q.group) {
         note(host, host.t("clueOnlyGroup"));
-        return { ok: false, dup: false, total: 0 };
+        return;
     }
     const clues = (s.clues ?? (s.clues = {}))[q.id] ?? (s.clues[q.id] = []);
-    if (clues.includes(text)) return { ok: true, dup: true, total: clues.length };
+    if (clues.includes(text)) return;
     clues.push(text);
     host.persist();
     renderClueRow(host.el, host.t, clues);
-    return { ok: true, dup: false, total: clues.length };
 }
 
 /** 渲染某题的线索 chips（组内切题/滚动跟踪 onActive 时调用；幂等）。 */
