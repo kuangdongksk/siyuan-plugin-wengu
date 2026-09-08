@@ -36,7 +36,7 @@ export interface KnowDocView {
     manual?: boolean;
     /** 直接登记的根（行上显示「移除」，退册整个登记子树）。 */
     registered?: boolean;
-    /** 已有内部知识树（sectionTree 即树节点；「重新归纳」入口常显）。 */
+    /** 已有内部知识树（sectionTree 即树节点；「索引」入口常显，再点=重新索引）。 */
     hasTree?: boolean;
 }
 

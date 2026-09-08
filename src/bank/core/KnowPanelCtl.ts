@@ -52,6 +52,8 @@ export class KnowPanelCtl {
         this.alive = false;
         if (this.rmTimer) clearTimeout(this.rmTimer);
         this.rmTimer = undefined;
+        if (this.outlineArmTimer) clearTimeout(this.outlineArmTimer);
+        this.outlineArmTimer = undefined;
     }
 
     private bank(): QuestionBank | undefined {
@@ -67,6 +69,7 @@ export class KnowPanelCtl {
         }
         this.ui.phase = "loading";
         this.disarm();
+        this.disarmOutline();
         const refs = await collectKpRefs(bank);
         const rootsMap = await kpRootMap(bank, [...refs.keys()]);
         const registered = await knowRootsOf(bank);
@@ -242,11 +245,13 @@ export class KnowPanelCtl {
         });
     }
 
-    /* ── AI 建知识树（docs/knowledge-tree.md □1；20260903 起不落文档）：
-     *  归纳章节 → 大纲直写题库（bank.knowTrees）。运行中再点=中止；
-     *  全程零内核写（只剩 SQL 读+AI），与转换并发安全。 ── */
+    /* ── AI 索引（原「建知识树」，docs/knowledge-tree.md □1；20260903 起
+     *  不落文档）：归纳章节 → 大纲直写题库（bank.knowTrees）。按钮统一叫
+     *  「索引」；已有索引再点=重新索引，两击确认（3s 复位）后才真跑；
+     *  运行中再点=中止；全程零内核写（只剩 SQL 读+AI），与转换并发安全。 ── */
 
     private outlineCtrl: AbortController | undefined;
+    private outlineArmTimer: ReturnType<typeof setTimeout> | undefined;
 
     outline(d: KnowDocView): void {
         const bank = this.bank();
@@ -256,6 +261,17 @@ export class KnowPanelCtl {
             return;
         }
         if (this.ui.outlining) return; // 同时只跑一份
+        if (d.hasTree && this.ui.outlineArmed !== d.docId) {
+            // 重新索引需二次确认：首击进 arm 态（按钮转「确认重新索引」）
+            this.disarmOutline();
+            this.ui.outlineArmed = d.docId;
+            this.outlineArmTimer = setTimeout((): void => {
+                this.ui.outlineArmed = undefined;
+                this.outlineArmTimer = undefined;
+            }, 3000);
+            return;
+        }
+        this.disarmOutline();
         this.ui.outlineErr = undefined;
         this.ui.outlining = d.docId;
         const ctrl = new AbortController();
@@ -295,6 +311,13 @@ export class KnowPanelCtl {
         if (this.rmTimer) clearTimeout(this.rmTimer);
         this.rmTimer = undefined;
         this.ui.rmArmed = undefined;
+    }
+
+    /** 复位「重新索引」两击确认（3s 到点/重拉/确认后调用）。 */
+    private disarmOutline(): void {
+        if (this.outlineArmTimer) clearTimeout(this.outlineArmTimer);
+        this.outlineArmTimer = undefined;
+        this.ui.outlineArmed = undefined;
     }
 
     /** 退册整个登记子树。 */

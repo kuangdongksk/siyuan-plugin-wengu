@@ -42,6 +42,7 @@
         tag: "aiKindTag",
         route: "aiKindRoute",
         regen: "aiKindRegen",
+        outline: "aiKindOutline",
         word: "aiKindWord",
         ask: "aiKindAsk",
     };

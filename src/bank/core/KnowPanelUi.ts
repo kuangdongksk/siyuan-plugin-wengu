@@ -35,11 +35,13 @@ export interface KnowPanelUi {
      *  基线得出（一次性提示——基线自推进，重开面板不重复报）。 */
     staleSecs: Set<string>;
     /** 源已变更的内部知识树（源文档 id）：装载时比 srcHash 得出，
-     *  行上出「源已变更·重新归纳」徽标。 */
+     *  行上出「源已变更」徽标（提示重新索引）。 */
     staleTrees: Set<string>;
-    /** AI 归纳进行中的 docId（行按钮转「归纳中」，再点=中止）。 */
+    /** AI 索引进行中的 docId（行按钮转「索引中」，再点=中止）。 */
     outlining: string | undefined;
-    /** 归纳失败信息（一行展示；undefined=无）。 */
+    /** 「重新索引」两击确认中的 docId（3s 自动复位；首次索引不经此态）。 */
+    outlineArmed: string | undefined;
+    /** 索引失败信息（一行展示；undefined=无）。 */
     outlineErr: string | undefined;
 }
 
@@ -54,6 +56,7 @@ export function initialKnowPanelUi(): KnowPanelUi {
         staleSecs: new Set(),
         staleTrees: new Set(),
         outlining: undefined,
+        outlineArmed: undefined,
         outlineErr: undefined,
     };
 }

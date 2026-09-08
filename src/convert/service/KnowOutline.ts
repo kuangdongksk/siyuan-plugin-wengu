@@ -160,7 +160,7 @@ export async function generateKnowledgeOutline(
     if (!content.trim()) throw new Error("doc has no content");
     const reply = await agentChatOnce(buildOutlinePrompt(content), modelId, AI_TIMEOUT.long, signal, {
         kind: "outline",
-        title: `建知识树 · ${title}`,
+        title: `索引 · ${title}`,
     });
     const md = extractOutlineMd(reply);
     const fresh = parseOutlineNodes(md);

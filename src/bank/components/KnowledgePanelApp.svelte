@@ -44,8 +44,8 @@
         })}${tag}`;
     };
 
-    /** 结构单薄判定（AI 建树入口只对它显示）：小节总数 <6 或顶层 <3
-     *  ——无标题结构的讲义章节自动分流；已有内部知识树常显（重新归纳）。 */
+    /** 结构单薄判定（「索引」入口只对它显示）：小节总数 <6 或顶层 <3
+     *  ——无标题结构的讲义章节自动分流；已有索引常显（重新索引）。 */
     const secCount = (ns: KnowSectionTreeView[]): number => ns.reduce((a, s) => a + 1 + secCount(s.children), 0);
     const outlineable = (d: KnowDocView): boolean =>
         !!d.manual && (!!d.hasTree || secCount(d.sectionTree) < 6 || d.sectionTree.length < 3);
@@ -182,14 +182,16 @@
                                 >
                                 <span class="b3-list-item__action">
                                     {#if outlineable(d)}
+                                        <!-- 索引：结构单薄章节走 AI 归纳写 bank.knowTrees；按钮恒名「索引」，
+                                             已有索引再点=两击确认（3s 复位）后重新索引；运行中再点=中止 -->
                                         <Button
                                             type="button"
                                             variant="text"
                                             onclick={() => ctl.outline(d)}
                                             >{ui.outlining === d.docId
                                                 ? t("knowOutlineRunning")
-                                                : d.hasTree
-                                                  ? t("knowOutlineRedo")
+                                                : ui.outlineArmed === d.docId
+                                                  ? t("knowOutlineConfirm")
                                                   : t("knowOutlineBtn")}</Button
                                         >
                                     {/if}

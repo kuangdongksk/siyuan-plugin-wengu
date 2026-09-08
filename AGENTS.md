@@ -116,16 +116,18 @@
           **层级树**展示——20260831 起 headingsByRoot 取 subtype 建
           buildSectionTree 真树，路由 path=祖先标题链，不再是「文档路径/
           本标题」两段假层级）、
-          **AI 建知识树不落文档**（20260903，data/KnowTrees）：结构单薄
-          章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点
-          id 铸内核块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，
-          kpRefs 经 kramdown ((id "标题")) 往返零兼容成本；重新归纳**同
-          路径复用旧 id**，存量引用/活视图/薄弱画像不悬空），expandKnowDocs/
+          **AI 索引（原「建知识树」，20260908 改名）不落文档**（20260903，
+          data/KnowTrees）：结构单薄章节的 AI 归纳大纲直写 bank.knowTrees
+          （键=源章节文档 id；节点 id 铸内核块 id 形态——parseKpRefs/
+          BLOCK_REF 正则冻结不动，kpRefs 经 kramdown ((id "标题")) 往返
+          零兼容成本；重新索引**同路径复用旧 id**，存量引用/活视图/薄弱
+          画像不悬空；面板按钮恒名「索引」，已有索引再点=两击确认（3s
+          复位）后重跑），expandKnowDocs/
           buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
           词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点
           引用归到源文档名下、对账不误判悬空）；「查看原文」与面板小节
           点击对树节点**降级跳源章节文档**；staleness=srcHash 比对出
-          「源已变更·重新归纳」徽标（不走 KnowHash）；存量《·知识树》
+          「源已变更」徽标（不走 KnowHash）；存量《·知识树》
           文档照旧走文档路径（双形态在并流点兼容））、
           行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
           →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
