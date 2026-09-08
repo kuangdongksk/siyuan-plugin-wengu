@@ -4,7 +4,7 @@ import { KernelQuery } from "../../siyuan/query";
 import { byDocOrder, KernelBlock } from "../../siyuan/block";
 import { questionHash } from "../../bank/data/BankParse";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { mintKnowNodeId, setKnowTree, treePathsOf } from "../../bank/data/KnowTrees";
+import { mintKnowNodeId, setKnowTree, stripChapterEcho, treePathsOf } from "../../bank/data/KnowTrees";
 import type { BankKnowNode } from "../../bank/data/KnowTrees";
 
 /**
@@ -167,12 +167,14 @@ export async function generateKnowledgeOutline(
         title: `索引 · ${title}`,
     });
     const md = extractOutlineMd(reply);
-    const fresh = parseOutlineNodes(md);
+    // 头部章节名回声剔除（AI 常把章节名写成首个 h1 包住全树，prompt 禁不住）
+    const fresh = stripChapterEcho(parseOutlineNodes(md), title);
     if (fresh.length === 0) throw new Error("outline reply has no headings");
     // id 分配：同路径（祖先标题链/标题）复用旧 id，新路径铸新 id——
-    // 结构未变的节点保 id，存量 kpRefs/活视图/薄弱画像不悬空
+    // 结构未变的节点保 id，存量 kpRefs/活视图/薄弱画像不悬空；旧树同样
+    // 过回声剔除，与新树路径口径对齐（存量带回声的树重索引时 id 不悬空）
     const old = (await bank.all()).knowTrees?.[docId];
-    const oldPaths = old ? treePathsOf(old.nodes) : new Map<string, BankKnowNode>();
+    const oldPaths = old ? treePathsOf(stripChapterEcho(old.nodes, title)) : new Map<string, BankKnowNode>();
     const newPaths = treePathsOf(fresh);
     for (const [path, node] of newPaths) node.id = oldPaths.get(path)?.id ?? mintKnowNodeId();
     await setKnowTree(bank, {

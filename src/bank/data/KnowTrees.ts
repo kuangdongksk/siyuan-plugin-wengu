@@ -68,6 +68,34 @@ export function treePathsOf(nodes: BankKnowNode[]): Map<string, BankKnowNode> {
     return out;
 }
 
+/** 章节标题去编号归一（「1-行列式」/「四、分块矩阵」/「第2章 极限」→
+ *  「行列式」/「分块矩阵」/「极限」）：章节回声判定用。中文数字形态
+ *  必须带分隔符（、.．）——否则「一维随机变量」的「一」会被误剥。 */
+function normChapterTitle(s: string): string {
+    return s
+        .trim()
+        .replace(
+            /^(?:[0-9]{1,3}\s*[-—–.、．]\s*|第\s*[0-9一二三四五六七八九十百零]+\s*[章节讲]\s*[:：]?\s*|[一二三四五六七八九十百]+\s*[、.．]\s*)/,
+            ""
+        )
+        .trim();
+}
+
+/** 剔除大纲头部的章节名回声（纯函数）：AI 归纳常把章节名本身写成首个
+ *  h1 包住全树（prompt 禁不住，20260908 真机两棵树均中雷）——面板就成
+ *  「1-行列式/行列式/…」双层嵌套、回声标题还会混进文本关联词表。只剔
+ *  头部**连续** level-1 且归一后与章节名同名的节点（生成与展示两侧、
+ *  重新索引的旧树对齐都走本函数，路径/id 复用口径一致）；剔除后余下
+ *  节点保持原 level（栈式挂靠对 h2 起头无 h1 天然兼容）。章节名为空
+ *  或无回声原样返回。 */
+export function stripChapterEcho(nodes: BankKnowNode[], chapterTitle: string): BankKnowNode[] {
+    const norm = normChapterTitle(chapterTitle);
+    if (!norm) return nodes;
+    let i = 0;
+    while (i < nodes.length && nodes[i].level === 1 && normChapterTitle(nodes[i].title) === norm) i++;
+    return i === 0 ? nodes : nodes.slice(i);
+}
+
 /** 读取内部树表（缺省空对象）。 */
 export async function knowTreesOf(bank: QuestionBank): Promise<KnowTreesMap> {
     const data = await bank.all();

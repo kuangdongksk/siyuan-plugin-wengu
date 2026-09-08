@@ -2,6 +2,7 @@ import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { KernelQuery } from "../../siyuan/query";
 import { KernelBlock } from "../../siyuan/block";
+import { stripChapterEcho } from "../../bank/data/KnowTrees";
 import type { KnowTreesMap } from "../../bank/data/KnowTrees";
 
 /**
@@ -111,14 +112,21 @@ async function headingsByRoot(
 /** 内部知识树命中文档 → 伪标题行（id=节点 id、level=节点层级）。树是
  *  对单薄章节的更好归纳，命中即**整体替换**该文档的 SQL 小节；未命中
  *  返回 undefined 走原路径。20260903 起树不落文档，面板/路由/词表经
- *  本并流点统一消费。 */
+ *  本并流点统一消费。chapterTitle 供头部章节名回声剔除（存量树与
+ *  prompt 禁不住的新生成 alike——「1-行列式/行列式/…」双层嵌套），
+ *  缺省不剔。 */
 function treeHeads(
     trees: KnowTreesMap | undefined,
-    docId: string
+    docId: string,
+    chapterTitle?: string
 ): { id: string; title: string; level: number }[] | undefined {
     const tree = trees?.[docId];
     if (!tree) return undefined;
-    return tree.nodes.map((n) => ({ id: n.id, title: n.title, level: n.level }));
+    return stripChapterEcho(tree.nodes, chapterTitle ?? "").map((n) => ({
+        id: n.id,
+        title: n.title,
+        level: n.level,
+    }));
 }
 
 /**
@@ -155,7 +163,7 @@ export async function buildKnowledgeIndex(rootIds: string[], trees?: KnowTreesMa
                 }
             };
             const heads =
-                treeHeads(trees, leaf.get("id")) ??
+                treeHeads(trees, leaf.get("id"), leaf.get("content") ?? "") ??
                 (byRoot.get(leaf.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }));
             walk(buildSectionTree(heads), hp);
             chapters.push({
@@ -229,7 +237,7 @@ export async function expandKnowDocs(rootId: string, trees?: KnowTreesMap): Prom
     const byRoot = await headingsByRoot(docs.map((d) => d.get("id")));
     return docs.map((d) => {
         const heads =
-            treeHeads(trees, d.get("id")) ??
+            treeHeads(trees, d.get("id"), d.get("content") ?? "") ??
             (byRoot.get(d.get("id")) ?? []).map((h) => ({ id: h.id, title: h.content, level: h.level }));
         return {
             docId: d.get("id"),
