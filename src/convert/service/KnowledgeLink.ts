@@ -278,6 +278,34 @@ function parseNums(reply: string, max: number): number[] {
     return out;
 }
 
+/** 批量路由回复里抽逐题编号：解析 `{"chapters":[[1,2],[3]]}` /
+ *  `{"sections":[[…],[…]]}`——外层数组第 i 个元素对应第 i 道题。按 count
+ *  补零（AI 少输出时补空数组、多输出截断），每元素内保序去重限界 [1,max]。
+ *  批量回复不走裸数字兜底（会把各题编号并成一个扁列表，归属全乱）。 */
+function parseBatchNums(reply: string, max: number, count: number): number[][] {
+    const pick = (nums: number[]): number[] => {
+        const out: number[] = [];
+        for (const n of nums) {
+            if (Number.isInteger(n) && n >= 1 && n <= max && !out.includes(n)) out.push(n);
+        }
+        return out;
+    };
+    const out: number[][] = Array.from({ length: count }, (): number[] => []);
+    const m = /"(?:chapters|sections)"\s*:\s*(\[[\s\S]*\])/.exec(reply);
+    if (!m) return out;
+    let idx = 0;
+    for (const inner of m[1].matchAll(/\[([\d\s,]*)\]/g)) {
+        if (idx >= count) break;
+        const nums = inner[1]
+            .split(",")
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isInteger(n));
+        out[idx] = pick(nums);
+        idx++;
+    }
+    return out;
+}
+
 /** 小节清单的字符预算（路由②输入里清单部分的上限）。20260908 前为 2200
  *  保 30s 超时安全区，真机报障「路由没带全知识点」：知识树小节路径带完整
  *  文档前缀（均 ~28 字/条），高数单章 43 条截 1 条、线代 4 章并集 154 条
@@ -287,6 +315,9 @@ const SECTION_INDEX_CHARS = 4500;
 /** 单批最多命中章 / 供生成标注的小节数。 */
 const MAX_HIT_CHAPTERS = 4;
 const MAX_SECTIONS = 10;
+/** 批量路由单批题数（20260909 三个弹窗省 AI 调用：一批一次调用替代逐题
+ *  两级调用，清单只发一遍；与 TagDialog 自由生成 FREE_BATCH=15 同量级）。 */
+export const ROUTE_BATCH_SIZE = 15;
 
 /** 清单条目路径的最长公共目录前缀（段对齐不切半段）。返回值保证每条
  *  剥后仍剩非空：恰有条目等于前缀时回退一段，回退不了（前缀只剩首段）
@@ -306,6 +337,30 @@ export function commonDirPrefix(paths: string[]): string {
         return cut > 0 ? pre.slice(0, cut) : "";
     }
     return pre;
+}
+
+/** 小节清单构造（路由②共用，单题/批量同源）：剥公共前缀（书/章路径对选
+ *  编号零信息量，白烧字符预算）后按剩余长度装预算；截断从「跳过装不下的
+ *  单条」升级为同步维护 kept——清单行号与 kept 下标一一对应，AI 回的编号
+ *  按 kept 取小节。返回预算内保留的小节、编号清单文本、清单标题。 */
+function buildSectionList(picked: KnowSection[]): {
+    kept: KnowSection[];
+    list2: string;
+    listTitle: string;
+} {
+    const pre = commonDirPrefix(picked.map((s) => s.path));
+    const rel = (p: string): string => (pre && p.startsWith(pre) ? p.slice(pre.length).replace(/^\//, "") : p);
+    const kept: KnowSection[] = [];
+    let chars = 0;
+    for (const s of picked) {
+        const r = rel(s.path);
+        if (chars + r.length > SECTION_INDEX_CHARS) continue;
+        chars += r.length;
+        kept.push(s);
+    }
+    const list2 = kept.map((s, i) => `${i + 1}|${rel(s.path)}`).join("\n");
+    const listTitle = pre ? `知识点小节清单（编号|路径，已省略公共前缀 ${pre}）` : "知识点小节清单";
+    return { kept, list2, listTitle };
 }
 
 /** 路由失败上报（routeKnowledgeDiag 用）：stage 定位失败发生在哪一级。 */
@@ -390,19 +445,8 @@ ${chunk}`
         // 清单剥公共前缀（书/章路径对选编号零信息量，白烧字符预算）后按
         // 剩余长度装预算；截断从「跳过装不下的单条」升级为同步维护 kept
         // ——清单行号与 kept 下标一一对应，AI 回的编号按 kept 取小节。
-        const pre = commonDirPrefix(picked.map((s) => s.path));
-        const rel = (p: string): string => (pre && p.startsWith(pre) ? p.slice(pre.length).replace(/^\//, "") : p);
-        const kept: KnowSection[] = [];
-        let chars = 0;
-        for (const s of picked) {
-            const r = rel(s.path);
-            if (chars + r.length > SECTION_INDEX_CHARS) continue;
-            chars += r.length;
-            kept.push(s);
-        }
+        const { kept, list2, listTitle } = buildSectionList(picked);
         if (kept.length === 0) return out;
-        const list2 = kept.map((s, i) => `${i + 1}|${rel(s.path)}`).join("\n");
-        const listTitle = pre ? `知识点小节清单（编号|路径，已省略公共前缀 ${pre}）` : "知识点小节清单";
         let reply2: string;
         try {
             reply2 = await deps.call(
@@ -429,6 +473,109 @@ ${chunk}`
         // 路由失败降级：本批不加知识点链接
     }
     return out;
+}
+
+/** 批量章级路由 prompt：编号题目 + 章节清单，要求按题号返回逐题数组。 */
+function batchChapterPrompt(chunks: string[], list: string): string {
+    const qs = chunks.map((c, i) => `${i + 1}|${c}`).join("\n");
+    return `你是思源笔记的知识点路由器。下面是题目原文和章节清单（编号|路径）。
+判断下面每道题目考查的内容涉及哪些章节，只输出 JSON，格式之外不要输出任何文字：
+{"chapters":[[编号,编号],[编号,编号]]}
+规则：chapters 是数组，第 i 个元素对应第 i 道题（题目按编号 1,2,... 排列）；每道题只输出清单里存在的编号，最多 ${MAX_HIT_CHAPTERS} 个，按相关度降序；没有合适的输出 []。
+
+章节清单：
+${list}
+
+题目原文：
+${qs}`;
+}
+
+/** 批量小节级路由 prompt：编号题目 + 共享小节清单，要求按题号返回逐题数组。 */
+function batchSectionPrompt(chunks: string[], listTitle: string, list2: string): string {
+    const qs = chunks.map((c, i) => `${i + 1}|${c}`).join("\n");
+    return `你是思源笔记的知识点路由器。下面是题目原文和${listTitle}。
+判断下面每道题目考查的具体知识点对应哪些小节，只输出 JSON，格式之外不要输出任何文字：
+{"sections":[[编号,编号],[编号,编号]]}
+规则：sections 是数组，第 i 个元素对应第 i 道题（题目按编号 1,2,... 排列）；每道题只输出清单里存在的编号，最多 ${MAX_SECTIONS} 个，按相关度降序；没有合适的输出 []。
+
+${listTitle}：
+${list2}
+
+题目原文：
+${qs}`;
+}
+
+/**
+ * 批量两级路由（20260909 三个弹窗省 AI 调用）：一次调用处理多道题——①章
+ * 清单→逐题命中章；②命中章小节并集→逐题命中小节。返回逐题小节数组（与
+ * chunks 下标对齐；零命中=空数组）。任一级调用失败调 onFail 并返回整批
+ * 空数组（逐题降级未命中，不缓存）；单题零命中是合法结果（AI 明确判无），
+ * 空数组照常缓存。
+ */
+export async function routeKnowledgeBatchDiag(
+    chunks: string[],
+    index: KnowledgeIndex,
+    deps: KnowRouteDeps,
+    onFail?: (f: KnowRouteFail) => void
+): Promise<KnowSection[][]> {
+    const n = chunks.length;
+    const results: KnowSection[][] = Array.from({ length: n }, (): KnowSection[] => []);
+    if (n === 0 || index.chapters.length === 0) return results;
+
+    // ① 章级批量：章集合 >1 才需要选（=1 时全题命中该章，零调用）。
+    let perQChapters: KnowChapter[][] = Array.from({ length: n }, () => index.chapters);
+    if (index.chapters.length > 1) {
+        const list = index.chapters.map((c, i) => `${i + 1}|${c.path}`).join("\n");
+        let reply: string;
+        try {
+            reply = await deps.call(batchChapterPrompt(chunks, list));
+        } catch (e) {
+            onFail?.({ stage: "chapter", error: e as Error });
+            return results;
+        }
+        const numsPerQ = parseBatchNums(reply, index.chapters.length, n);
+        perQChapters = numsPerQ.map((nums) => nums.map((num) => index.chapters[num - 1]));
+    }
+
+    // ② 汇总所有题命中章的小节并集（按 id 去重），生成共享清单。
+    const seen = new Set<string>();
+    const picked: KnowSection[] = [];
+    for (const chs of perQChapters) {
+        for (const ch of chs) {
+            if (ch.sections.length === 0) {
+                if (!seen.has(ch.docId)) {
+                    seen.add(ch.docId);
+                    picked.push({ id: ch.docId, title: ch.title, path: ch.path });
+                }
+                continue;
+            }
+            for (const s of ch.sections) {
+                if (seen.has(s.id)) continue;
+                seen.add(s.id);
+                picked.push(s);
+            }
+        }
+    }
+    if (picked.length === 0) return results;
+    const { kept, list2, listTitle } = buildSectionList(picked);
+    if (kept.length === 0) return results;
+
+    // ③ 小节级批量：共享清单 + 逐题编号题目，一次调用回逐题命中小节。
+    let reply2: string;
+    try {
+        reply2 = await deps.call(batchSectionPrompt(chunks, listTitle, list2));
+    } catch (e) {
+        onFail?.({ stage: "section", error: e as Error });
+        return results;
+    }
+    const secNumsPerQ = parseBatchNums(reply2, kept.length, n);
+    for (let i = 0; i < n; i++) {
+        for (const num of secNumsPerQ[i].slice(0, MAX_SECTIONS)) {
+            const s = kept[num - 1];
+            if (s) results[i].push(s);
+        }
+    }
+    return results;
 }
 
 /** 生成 prompt 的知识点标注规则（仅在路由出小节时追加；20260902 起

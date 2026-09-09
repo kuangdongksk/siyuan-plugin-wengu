@@ -17,7 +17,7 @@ import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyRefsToRecord, lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowTreesOf } from "../data/KnowTrees";
-import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
+import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
 /**
@@ -93,28 +93,27 @@ async function runBatch(deps: BatchDeps, useAi: boolean, skipLinked: boolean, st
                 const pending: BankRecord[] = p1.missed;
                 // 动作分组（AI 会话面板树归并）：本次批量关联的 AI 兜底挂同组
                 const group = { id: newAiGroupId(), title: `批量关联 · ${pending.length} 题` };
+                // 20260909 起按批两级路由替代逐题——一批一次调用、逐题指纹
+                // 缓存，未变的题重跑零 AI 调用
+                const texts = pending.map((r) => routeTextOf(r));
+                const refsPerQ = await routeKnowledgeBatchCached({
+                    texts,
+                    index,
+                    modelId,
+                    call: (m) =>
+                        agentChatOnce(m, modelId, AI_TIMEOUT.batch, stop.signal, {
+                            kind: "route",
+                            title: `批量关联 · ${texts.length} 题`,
+                            group,
+                            onSid: stop.onSid,
+                        }),
+                    onFail: (f) => fails.push(f),
+                    signal: stop.signal,
+                });
                 for (let i = 0; i < pending.length; i++) {
                     if (stop.signal.aborted) break;
                     const r = pending[i];
-                    let refs: { id: string; title: string }[] = [];
-                    try {
-                        refs = await routeKnowledgeCached({
-                            text: routeTextOf(r),
-                            index,
-                            modelId,
-                            call: (m) =>
-                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, stop.signal, {
-                                    kind: "route",
-                                    title: `批量关联 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
-                                    group,
-                                    onSid: stop.onSid,
-                                }),
-                            onFail: (f) => fails.push(f),
-                        });
-                    } catch (_) {
-                        // 路由失败按未命中，不阻断后续题
-                    }
-                    if (stop.signal.aborted) break;
+                    const refs = refsPerQ[i] ?? [];
                     if (refs.length > 0 && (await applyRefsToRecord(bank, r, refs))) {
                         hit++;
                         aiHit++;

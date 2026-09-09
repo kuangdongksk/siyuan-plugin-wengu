@@ -18,7 +18,7 @@ import { recordsOfDoc } from "../data/BankRegen";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyTagToRecord, lexiconOfRoots, linkRecordsByText, parseFreeTags } from "../data/KnowLinkText";
 import { knowTreesOf } from "../data/KnowTrees";
-import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
+import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
 /**
@@ -98,28 +98,28 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
             // 动作分组（AI 会话面板树归并）：路由生成/自由生成分批挂同组
             const group = { id: newAiGroupId(), title: `生成标签 · ${untagged.length} 题` };
             if (useRoute) {
+                // 20260909 起按批两级路由替代逐题——一批一次调用、逐题指纹
+                // 缓存，未变的题重跑零 AI 调用
+                const texts = untagged.map((r) => routeTextOf(r));
+                const refsPerQ = await routeKnowledgeBatchCached({
+                    texts,
+                    index: index!,
+                    modelId,
+                    call: (m) =>
+                        agentChatOnce(m, modelId, AI_TIMEOUT.batch, stop.signal, {
+                            kind: "route",
+                            title: `标签路由 · ${texts.length} 题`,
+                            group,
+                            onSid: stop.onSid,
+                        }),
+                    onFail: (f) => fails.push(f),
+                    signal: stop.signal,
+                });
                 for (let i = 0; i < untagged.length; i++) {
                     if (stop.signal.aborted) break;
                     const r = untagged[i];
-                    let done = false;
-                    try {
-                        const secs = await routeKnowledgeCached({
-                            text: routeTextOf(r),
-                            index: index!,
-                            modelId,
-                            call: (m) =>
-                                agentChatOnce(m, modelId, AI_TIMEOUT.quick, stop.signal, {
-                                    kind: "route",
-                                    title: `标签路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
-                                    group,
-                                    onSid: stop.onSid,
-                                }),
-                            onFail: (f) => fails.push(f),
-                        });
-                        if (secs.length > 0) done = await applyTagToRecord(bank, r, secs[0].title, secs);
-                    } catch (_) {
-                        // 路由失败按未生成，不阻断后续题
-                    }
+                    const secs = refsPerQ[i] ?? [];
+                    const done = secs.length > 0 ? await applyTagToRecord(bank, r, secs[0].title, secs) : false;
                     if (done) genOk++;
                     else genMiss++;
                 }

@@ -3,8 +3,10 @@ import {
     buildSectionTree,
     classifyMatchFail,
     commonDirPrefix,
+    routeKnowledgeBatchDiag,
     routeKnowledgeDiag,
     type KnowledgeIndex,
+    type KnowRouteFail,
 } from "./KnowledgeLink";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowRef";
 
@@ -352,5 +354,93 @@ describe("路由②清单剥公共前缀（20260908 修复：路由没带上全�
         expect(list).not.toContain("第120节");
         // 1 号映射截后清单首条（kept 下标），不指回全量 picked
         expect([...out.values()].map((s) => s.id)).toEqual(["s-2-矩阵-0"]);
+    });
+});
+
+describe("routeKnowledgeBatchDiag（20260909 批量两级路由）", () => {
+    const INDEX = makeIndex(3);
+    it("一批两题：两级各一次调用，逐题返回命中小节（共享清单）", async () => {
+        const seen: string[] = [];
+        const out = await routeKnowledgeBatchDiag(["题目甲", "题目乙"], INDEX, {
+            call: async (msg) => {
+                seen.push(msg);
+                if (msg.includes("章节清单")) return '{"chapters":[[2],[2]]}';
+                return '{"sections":[[1],[1]]}';
+            },
+        });
+        expect(seen).toHaveLength(2);
+        // 批量 prompt：题目按编号 1,2 排列、要求逐题数组
+        expect(seen[0]).toContain("1|题目甲");
+        expect(seen[0]).toContain("2|题目乙");
+        expect(seen[0]).toContain('{"chapters":[[编号,编号],[编号,编号]]}');
+        expect(out).toEqual([
+            [{ id: "s2a", title: "节2甲", path: "章2/节2甲" }],
+            [{ id: "s2a", title: "节2甲", path: "章2/节2甲" }],
+        ]);
+    });
+
+    it("一批两题命中不同章：并集清单携两章小节，逐题按自己命中章取", async () => {
+        const seen: string[] = [];
+        const out = await routeKnowledgeBatchDiag(["题目甲", "题目乙"], INDEX, {
+            call: async (msg) => {
+                seen.push(msg);
+                if (msg.includes("章节清单")) return '{"chapters":[[1],[2]]}';
+                // 并集清单 = 章1小节(节1甲/节1乙) + 章2小节(节2甲/节2乙)；
+                // 题0 选并集 1 号(节1甲)、题1 选并集 3 号(节2甲)
+                return '{"sections":[[1],[3]]}';
+            },
+        });
+        // 第二级清单来自 1、2 章并集（剥公共前缀后两章小节都在）
+        expect(seen[1]).toContain("节1甲");
+        expect(seen[1]).toContain("节2甲");
+        expect(out).toEqual([
+            [{ id: "s1a", title: "节1甲", path: "章1/节1甲" }],
+            [{ id: "s2a", title: "节2甲", path: "章2/节2甲" }],
+        ]);
+    });
+
+    it("一题零命中（chapters 空）：返回空数组，且不再调第二级", async () => {
+        let calls = 0;
+        const out = await routeKnowledgeBatchDiag(["零命中题"], INDEX, {
+            call: async () => {
+                calls++;
+                return '{"chapters":[]}';
+            },
+        });
+        expect(calls).toBe(1);
+        expect(out).toEqual([[]]);
+    });
+
+    it("单章索引跳过章级：直接进小节批量", async () => {
+        const seen: string[] = [];
+        const out = await routeKnowledgeBatchDiag(["题目甲", "题目乙"], makeIndex(1), {
+            call: async (msg) => {
+                seen.push(msg);
+                return '{"sections":[[2],[1]]}';
+            },
+        });
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toContain("知识点小节清单");
+        expect(out).toEqual([
+            [{ id: "s1b", title: "节1乙", path: "章1/节1乙" }],
+            [{ id: "s1a", title: "节1甲", path: "章1/节1甲" }],
+        ]);
+    });
+
+    it("章级失败：onFail 上报，整批空数组", async () => {
+        const fails: KnowRouteFail[] = [];
+        const out = await routeKnowledgeBatchDiag(
+            ["题目甲"],
+            INDEX,
+            {
+                call: async () => {
+                    throw new Error("网络异常");
+                },
+            },
+            (f) => fails.push(f)
+        );
+        expect(fails).toHaveLength(1);
+        expect(fails[0].stage).toBe("chapter");
+        expect(out).toEqual([[]]);
     });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { KnowledgeIndex } from "../../convert/service/KnowledgeLink";
-import { ROUTE_CACHE_CAP, RouteCache, indexGenOf, initRouteCache, routeKnowledgeCached } from "./RouteCache";
+import type { KnowledgeIndex, KnowRouteFail } from "../../convert/service/KnowledgeLink";
+import { ROUTE_CACHE_CAP, RouteCache, indexGenOf, initRouteCache, routeKnowledgeBatchCached } from "./RouteCache";
 
 /** 造 N 章索引：每章两小节（路由两级都用得到）。 */
 function makeIndex(n: number): KnowledgeIndex {
@@ -147,61 +147,76 @@ describe("RouteCache 存取", () => {
     });
 });
 
-describe("routeKnowledgeCached（三弹窗共用的带缓存路由）", () => {
+describe("routeKnowledgeBatchCached（三弹窗共用的带缓存批量路由）", () => {
     const INDEX = makeIndex(3);
-    /** 两级路由替身：选 2 号章的 1 号小节，计 AI 调用数。 */
+    /** 批量两级路由替身：选 2 号章的 1 号小节，计 AI 调用数。返回逐题数组
+     * 形状（外层数组第 i 元素=第 i 题）；题数从「题目原文：」后的编号行数
+     * 数出。 */
     const call =
         (state: { n: number; fail?: boolean }) =>
         async (msg: string): Promise<string> => {
             state.n++;
             if (state.fail) throw new Error("网络异常");
-            return msg.includes("章节清单") ? '{"chapters":[2]}' : '{"sections":[1]}';
+            const idx = msg.lastIndexOf("题目原文：");
+            const tail = idx >= 0 ? msg.slice(idx) : msg;
+            const qcount = (tail.match(/\n\d+\|/g) ?? []).length;
+            const arr = Array.from({ length: qcount }, () => [2]);
+            return msg.includes("章节清单")
+                ? `{"chapters":${JSON.stringify(arr)}}`
+                : `{"sections":${JSON.stringify(arr.map(() => [1]))}}`;
         };
+    const routeOne = async (st: { n: number; fail?: boolean }, text: string, model = "m1") => {
+        const out = await routeKnowledgeBatchCached({
+            texts: [text],
+            index: INDEX,
+            modelId: model,
+            call: call(st),
+        });
+        return out[0];
+    };
 
     it("首跑两次 AI 调用并缓存；重跑零 AI 调用返回同结果", async () => {
         initRouteCache(makeIo());
         const st = { n: 0 };
-        const a = await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m1", call: call(st) });
+        const a = await routeOne(st, "题目原文");
         expect(st.n).toBe(2);
         expect(a).toEqual([{ id: "s2a", title: "节2甲" }]);
-        const b = await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m1", call: call(st) });
+        const b = await routeOne(st, "题目原文");
         expect(st.n).toBe(2); // 全缓存命中
         expect(b).toEqual(a);
     });
 
     it("AI 明确判零命中的空结果也缓存（不再白花两次调用）", async () => {
         initRouteCache(makeIo());
-        const st = {
-            n: 0,
-        };
+        const st = { n: 0 };
         const empty = async (): Promise<string> => {
             st.n++;
             return '{"chapters":[]}';
         };
-        await routeKnowledgeCached({ text: "零命中题", index: INDEX, modelId: "m1", call: empty });
-        const out = await routeKnowledgeCached({ text: "零命中题", index: INDEX, modelId: "m1", call: empty });
-        expect(st.n).toBe(1); // 第二次零调用（单章才跳第一级；此处 3 章判空只花 1 次）
-        expect(out).toEqual([]);
+        await routeKnowledgeBatchCached({ texts: ["零命中题"], index: INDEX, modelId: "m1", call: empty });
+        const out = await routeKnowledgeBatchCached({ texts: ["零命中题"], index: INDEX, modelId: "m1", call: empty });
+        expect(st.n).toBe(1); // 第二次零调用（3 章判空只花 1 次）
+        expect(out).toEqual([[]]);
     });
 
     it("AI 调用失败不缓存：onFail 上报，重跑会再调且成功后可缓存", async () => {
         initRouteCache(makeIo());
         const st = { n: 0, fail: true };
-        const fails: unknown[] = [];
-        const out1 = await routeKnowledgeCached({
-            text: "题目原文",
+        const fails: KnowRouteFail[] = [];
+        const out1 = await routeKnowledgeBatchCached({
+            texts: ["题目原文"],
             index: INDEX,
             modelId: "m1",
             call: call(st),
             onFail: (f) => fails.push(f),
         });
-        expect(out1).toEqual([]);
+        expect(out1).toEqual([[]]);
         expect(fails).toHaveLength(1);
         st.fail = false;
-        const out2 = await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m1", call: call(st) });
+        const out2 = await routeOne(st, "题目原文");
         expect(out2).toEqual([{ id: "s2a", title: "节2甲" }]);
         expect(st.n).toBe(3); // 失败 1 + 成功 2
-        const out3 = await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m1", call: call(st) });
+        const out3 = await routeOne(st, "题目原文");
         expect(out3).toEqual(out2);
         expect(st.n).toBe(3); // 此后缓存命中
     });
@@ -209,25 +224,43 @@ describe("routeKnowledgeCached（三弹窗共用的带缓存路由）", () => {
     it("换模型/索引结构变：各走各的缓存，互不串台", async () => {
         initRouteCache(makeIo());
         const st = { n: 0 };
-        await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m1", call: call(st) });
-        // 换模型：同题重新路由
-        await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m2", call: call(st) });
+        await routeOne(st, "题目原文", "m1");
+        await routeOne(st, "题目原文", "m2");
         expect(st.n).toBe(4);
-        // 两模型各自命中
-        await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m1", call: call(st) });
-        await routeKnowledgeCached({ text: "题目原文", index: INDEX, modelId: "m2", call: call(st) });
+        await routeOne(st, "题目原文", "m1");
+        await routeOne(st, "题目原文", "m2");
         expect(st.n).toBe(4);
-        // 索引结构变（加章）：代数失效整表作废，重新路由
         const index2 = makeIndex(4);
-        await routeKnowledgeCached({ text: "题目原文", index: index2, modelId: "m1", call: call(st) });
+        await routeKnowledgeBatchCached({ texts: ["题目原文"], index: index2, modelId: "m1", call: call(st) });
         expect(st.n).toBe(6);
     });
 
     it("题目文本变化=不同指纹，不误用旧答案", async () => {
         initRouteCache(makeIo());
         const st = { n: 0 };
-        await routeKnowledgeCached({ text: "题目甲", index: INDEX, modelId: "m1", call: call(st) });
-        await routeKnowledgeCached({ text: "题目乙", index: INDEX, modelId: "m1", call: call(st) });
+        await routeOne(st, "题目甲");
+        await routeOne(st, "题目乙");
         expect(st.n).toBe(4);
+    });
+
+    it("批量一次调用返回多题结果，逐题缓存（清单共享、一次章级+一次小节级）", async () => {
+        initRouteCache(makeIo());
+        const st = { n: 0 };
+        const out = await routeKnowledgeBatchCached({
+            texts: ["题目甲", "题目乙"],
+            index: INDEX,
+            modelId: "m1",
+            call: call(st),
+        });
+        expect(st.n).toBe(2); // 2 题共享一张清单，两级各一次调用
+        expect(out).toEqual([[{ id: "s2a", title: "节2甲" }], [{ id: "s2a", title: "节2甲" }]]);
+        const out2 = await routeKnowledgeBatchCached({
+            texts: ["题目甲", "题目乙"],
+            index: INDEX,
+            modelId: "m1",
+            call: call(st),
+        });
+        expect(st.n).toBe(2); // 重跑全缓存，零调用
+        expect(out2).toEqual(out);
     });
 });

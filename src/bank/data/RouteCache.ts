@@ -1,4 +1,9 @@
-import { routeKnowledgeDiag, type KnowRouteFail, type KnowledgeIndex } from "../../convert/service/KnowledgeLink";
+import {
+    routeKnowledgeBatchDiag,
+    ROUTE_BATCH_SIZE,
+    type KnowRouteFail,
+    type KnowledgeIndex,
+} from "../../convert/service/KnowledgeLink";
 import { questionHash } from "./BankParse";
 import { knowHash } from "./KnowHash";
 
@@ -133,7 +138,7 @@ export class RouteCache {
 }
 
 /** 模块级单例（index.ts onload 注入内核 IO；未初始化=测试环境，
- *  routeKnowledgeCached 自动裸跑不缓存）。 */
+ *  routeKnowledgeBatchCached 自动裸跑不缓存）。 */
 let instance: RouteCache | undefined;
 
 /** 插件装载时接线。 */
@@ -151,31 +156,60 @@ export function routeCache(): RouteCache | undefined {
 }
 
 /**
- * 带缓存的两级路由（三弹窗共用）：命中零 AI 调用；未命中照常
- * routeKnowledgeDiag，完整跑完（含判零命中）才写缓存。返回小节引用
- * 列表（空=无命中）。onFail 语义与裸路由一致（AI 调用失败上报，
- * 失败结果不缓存，下次重跑再试）。
+ * 带缓存的批量两级路由（三弹窗共用，20260909 起替代逐题路由省 AI 调用）：
+ * 逐题查缓存（键 `modelId|题指纹`），未命中的题按 batchSize 分桶、每桶一次
+ * routeKnowledgeBatchDiag（两级各一次调用），回来后**逐题写缓存条目**——
+ * 保留逐题粒度，未变的题重跑零 AI 调用。返回逐题引用数组（与 texts 下标
+ * 对齐；空=无命中）。onFail 语义与裸路由一致（AI 调用失败上报，失败结果
+ * 不缓存，下次重跑再试）。signal 中止时桶间停手，已路由的题照常落库。
  */
-export async function routeKnowledgeCached(opts: {
-    text: string;
+export async function routeKnowledgeBatchCached(opts: {
+    texts: string[];
     index: KnowledgeIndex;
     modelId: string;
     call: (m: string) => Promise<string>;
     onFail?: (f: KnowRouteFail) => void;
-}): Promise<{ id: string; title: string }[]> {
+    batchSize?: number;
+    signal?: AbortSignal;
+}): Promise<{ id: string; title: string }[][]> {
     const c = routeCache();
     const gen = indexGenOf(opts.index, knowHash()?.peekHashes());
-    const key = `${opts.modelId}|${questionHash(opts.text)}`;
-    if (c) {
-        const hit = await c.get(key, gen);
-        if (hit) return hit;
+    const n = opts.texts.length;
+    const results: { id: string; title: string }[][] = Array.from(
+        { length: n },
+        (): { id: string; title: string }[] => []
+    );
+    // 1. 逐题查缓存，收集未命中下标（命中直接出结果，零 AI 调用）。
+    const misses: number[] = [];
+    for (let i = 0; i < n; i++) {
+        const key = `${opts.modelId}|${questionHash(opts.texts[i])}`;
+        if (c) {
+            const hit = await c.get(key, gen);
+            if (hit) {
+                results[i] = hit;
+                continue;
+            }
+        }
+        misses.push(i);
     }
-    let failed = false;
-    const routed = await routeKnowledgeDiag(opts.text, opts.index, { call: opts.call }, (f) => {
-        failed = true; // 失败结果不缓存
-        opts.onFail?.(f);
-    });
-    const refs = [...routed.values()].map((s) => ({ id: s.id, title: s.title }));
-    if (c && !failed) await c.put(key, gen, refs);
-    return refs;
+    // 2. 未命中按批路由，逐题写缓存。
+    const size = opts.batchSize ?? ROUTE_BATCH_SIZE;
+    for (let s = 0; s < misses.length; s += size) {
+        if (opts.signal?.aborted) break;
+        const group = misses.slice(s, s + size);
+        const groupTexts = group.map((i) => opts.texts[i]);
+        let groupFailed = false;
+        const sections = await routeKnowledgeBatchDiag(groupTexts, opts.index, { call: opts.call }, (f) => {
+            groupFailed = true; // 组失败不缓存；onFail 透传供弹窗汇总失败原因
+            opts.onFail?.(f);
+        });
+        for (let g = 0; g < group.length; g++) {
+            const refs = (sections[g] ?? []).map((x) => ({ id: x.id, title: x.title }));
+            results[group[g]] = refs;
+            if (c && !groupFailed) {
+                await c.put(`${opts.modelId}|${questionHash(groupTexts[g])}`, gen, refs);
+            }
+        }
+    }
+    return results;
 }

@@ -138,8 +138,8 @@
           点击对树节点**降级跳源章节文档**；staleness=srcHash 比对出
           「源已变更」徽标（不走 KnowHash）；存量《·知识树》
           文档照旧走文档路径（双形态在并流点兼容））、
-          行入口「匹配」（MatchDialog：选已入库习题文档→逐题两级 AI 路由
-          →strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
+          行入口「匹配」（MatchDialog：选已入库习题文档→按批两级 AI 路由
+          （15 题/批）→strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库）
           与「转习题」（QuizView.openConvertPrefilled 预填源=知识点根=
           该文档）；**文本关联/批量关联**（KnowLinkText，20260831）：
           knowledge 标签 ↔ 小节标题归一精确相等即确定性挂引用（零 AI、
@@ -147,13 +147,14 @@
           头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 +
           可选 AI 路由兜底，落库共用 applyRefsToRecord；**生成标签**
           （TagDialog，20260831）：侧栏文档右键入口，已有标签核对挂引用、
-          缺失标签 AI 生成（有知识文档逐题路由按小节标题命名、无则整批
+          缺失标签 AI 生成（有知识文档按批路由按小节标题命名、无则整批
           自由生成），setKnowledgeAttr 写 IAL + applyTagToRecord 落库；
           **标签归一**（KnowledgeNorm，20260831）：knowledge
           文本的 kn 聚合键剥命名性后缀归词干（「洛必达」=「洛必达法则」），
           只动键不动数据，四处聚合点统一 knKey；**路由缓存**（RouteCache，
-          20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
-          路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
+          20260831 增量哈希一期，20260909 三弹窗改按批路由）：匹配/批量关联/
+          生成标签三弹窗的两级 AI 路由走 routeKnowledgeBatchCached 按题指纹
+          缓存（saveData("route-cache")
           LRU 2000，索引结构/模型/路由代数变更整表作废——代数 ROUTE_GEN
           在路由行为语义变更时 bump，如 20260908 路由②清单剥前缀+预算
           4500 的 R2；命中零 AI 调用，方案与

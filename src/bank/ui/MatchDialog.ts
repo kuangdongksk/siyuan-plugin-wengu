@@ -20,7 +20,7 @@ import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
 import { applyRefsToRecord } from "../data/KnowLinkText";
-import { routeCache, routeKnowledgeCached } from "../data/RouteCache";
+import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
 
 /**
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
@@ -133,51 +133,49 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
         const index = await buildKnowledgeIndex([deps.knowDocId], await knowTreesOf(bank));
         if (index.chapters.length === 0) throw new Error(t("matchNoIndex"));
         const records = (await recordsOfDoc(bank, srcDocId)).slice();
-        // 动作分组（AI 会话面板树归并）：本次匹配的逐题路由挂同组
+        // 动作分组（AI 会话面板树归并）：本次匹配的路由调用挂同组
         const group = { id: newAiGroupId(), title: `匹配 · ${records.length} 题` };
         let hit = 0;
         let miss = 0;
         let skip = 0;
-        // 失败诊断（20260829「0 命中无线索」）：routeKnowledgeDiag 上报每次
-        // AI 调用失败，跑完 hit=0 时按类别给状态栏一句人话（模型失效/超时/
-        // 网络），不再被 catch 静默吞成「未命中」。
+        // 失败诊断（20260829「0 命中无线索」）：路由失败上报，跑完 hit=0 时
+        // 按类别给状态栏一句人话（模型失效/超时/网络），不再被静默吞成「未命中」。
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
-        for (let i = 0; i < records.length; i++) {
-            if (stop.signal.aborted) break;
-            const r = records[i];
-            if (skipLinked && r.kpRefs.length > 0) {
-                skip++;
-                continue;
+        // 预过滤：skipLinked 跳过已关联题，其余批量路由（20260909 起按批
+        // 两级路由替代逐题——一批一次调用、逐题指纹缓存，未变的题重跑零 AI）
+        const toRoute: BankRecord[] = [];
+        for (const r of records) {
+            if (skipLinked && r.kpRefs.length > 0) skip++;
+            else toRoute.push(r);
+        }
+        if (toRoute.length > 0) {
+            const texts = toRoute.map((r) => routeTextOf(r));
+            const refsPerQ = await routeKnowledgeBatchCached({
+                texts,
+                index,
+                modelId,
+                call: (m) =>
+                    agentChatOnce(m, modelId, AI_TIMEOUT.batch, stop.signal, {
+                        kind: "route",
+                        title: `匹配路由 · ${texts.length} 题`,
+                        group,
+                        onSid: stop.onSid,
+                    }),
+                onFail: (f) => fails.push(f),
+                signal: stop.signal,
+            });
+            for (let i = 0; i < toRoute.length; i++) {
+                if (stop.signal.aborted) break;
+                const r = toRoute[i];
+                const refs = refsPerQ[i] ?? [];
+                if (refs.length > 0) {
+                    // strip+inject 落库 + 源块尽力同步（批量关联共用同一原语）
+                    if (await applyRefsToRecord(bank, r, refs)) hit++;
+                    else miss++;
+                } else miss++;
             }
-            let refs: { id: string; title: string }[] = [];
-            try {
-                // 独立会话路由（20260830）：每题一次性 sessionID，逐题 await
-                // 天然串行；路由结果按题指纹缓存（增量哈希一期），未变的题
-                // 重跑零 AI 调用
-                refs = await routeKnowledgeCached({
-                    text: routeTextOf(r),
-                    index,
-                    modelId,
-                    call: (m) =>
-                        agentChatOnce(m, modelId, AI_TIMEOUT.quick, stop.signal, {
-                            kind: "route",
-                            title: `匹配路由 · ${routeTextOf(r).replace(/\s+/g, " ").trim().slice(0, 16)}`,
-                            group,
-                            onSid: stop.onSid,
-                        }),
-                    onFail: (f) => fails.push(f),
-                });
-            } catch (_) {
-                // 路由失败按未命中，不阻断后续题
-            }
-            if (stop.signal.aborted) break;
-            if (refs.length > 0) {
-                // strip+inject 落库 + 源块尽力同步（批量关联共用同一原语）
-                if (await applyRefsToRecord(bank, r, refs)) hit++;
-                else miss++;
-            } else miss++;
         }
         await bank.flush();
         await cache?.flush();
