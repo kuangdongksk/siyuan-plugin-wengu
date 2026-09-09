@@ -278,11 +278,35 @@ function parseNums(reply: string, max: number): number[] {
     return out;
 }
 
-/** 小节清单的字符预算（路由②输入里清单部分的上限，保 30s 超时安全区）。 */
-const SECTION_INDEX_CHARS = 2200;
+/** 小节清单的字符预算（路由②输入里清单部分的上限）。20260908 前为 2200
+ *  保 30s 超时安全区，真机报障「路由没带全知识点」：知识树小节路径带完整
+ *  文档前缀（均 ~28 字/条），高数单章 43 条截 1 条、线代 4 章并集 154 条
+ *  只装 79 条（近半知识点 AI 根本看不到）。清单剥公共前缀后放宽到 4500
+ *  ——超时按 SSE 空闲计（5000 字转换批先例），输入长度不再约束预算。 */
+const SECTION_INDEX_CHARS = 4500;
 /** 单批最多命中章 / 供生成标注的小节数。 */
 const MAX_HIT_CHAPTERS = 4;
 const MAX_SECTIONS = 10;
+
+/** 清单条目路径的最长公共目录前缀（段对齐不切半段）。返回值保证每条
+ *  剥后仍剩非空：恰有条目等于前缀时回退一段，回退不了（前缀只剩首段）
+ *  返回空串放弃剥——调用方零防御直接 slice。 */
+export function commonDirPrefix(paths: string[]): string {
+    if (paths.length === 0) return "";
+    let pre = paths[0];
+    for (const p of paths) {
+        while (pre && !p.startsWith(pre)) {
+            const cut = pre.lastIndexOf("/");
+            pre = cut > 0 ? pre.slice(0, cut) : "";
+        }
+        if (!pre) return "";
+    }
+    if (pre && paths.some((p) => p === pre)) {
+        const cut = pre.lastIndexOf("/");
+        return cut > 0 ? pre.slice(0, cut) : "";
+    }
+    return pre;
+}
 
 /** 路由失败上报（routeKnowledgeDiag 用）：stage 定位失败发生在哪一级。 */
 export interface KnowRouteFail {
@@ -353,31 +377,41 @@ ${chunk}`
             hit = nums.map((n) => index.chapters[n - 1]);
             if (hit.length === 0) return out;
         }
-        // 汇总命中章的小节（按字符预算截断；无小节的章引用文档根本身）
+        // 汇总命中章的小节（无小节的章引用文档根本身）
         const picked: KnowSection[] = [];
-        let chars = 0;
         for (const ch of hit) {
             if (ch.sections.length === 0) {
                 picked.push({ id: ch.docId, title: ch.title, path: ch.path });
                 continue;
             }
-            for (const s of ch.sections) {
-                if (chars + s.path.length > SECTION_INDEX_CHARS) continue;
-                chars += s.path.length;
-                picked.push(s);
-            }
+            picked.push(...ch.sections);
         }
         if (picked.length === 0) return out;
-        const list2 = picked.map((s, i) => `${i + 1}|${s.path}`).join("\n");
+        // 清单剥公共前缀（书/章路径对选编号零信息量，白烧字符预算）后按
+        // 剩余长度装预算；截断从「跳过装不下的单条」升级为同步维护 kept
+        // ——清单行号与 kept 下标一一对应，AI 回的编号按 kept 取小节。
+        const pre = commonDirPrefix(picked.map((s) => s.path));
+        const rel = (p: string): string => (pre && p.startsWith(pre) ? p.slice(pre.length).replace(/^\//, "") : p);
+        const kept: KnowSection[] = [];
+        let chars = 0;
+        for (const s of picked) {
+            const r = rel(s.path);
+            if (chars + r.length > SECTION_INDEX_CHARS) continue;
+            chars += r.length;
+            kept.push(s);
+        }
+        if (kept.length === 0) return out;
+        const list2 = kept.map((s, i) => `${i + 1}|${rel(s.path)}`).join("\n");
+        const listTitle = pre ? `知识点小节清单（编号|路径，已省略公共前缀 ${pre}）` : "知识点小节清单";
         let reply2: string;
         try {
             reply2 = await deps.call(
-                `你是思源笔记的知识点路由器。下面是题目原文和知识点小节清单（编号|路径）。
+                `你是思源笔记的知识点路由器。下面是题目原文和${listTitle}。
 判断这批题目考查的具体知识点对应哪些小节，只输出 JSON，格式之外不要输出任何文字：
 {"sections":[编号,编号]}
 规则：只输出清单里存在的编号，最多 ${MAX_SECTIONS} 个，按相关度降序；没有合适的输出 {"sections":[]}。
 
-知识点小节清单：
+${listTitle}：
 ${list2}
 
 题目原文：
@@ -387,8 +421,8 @@ ${chunk}`
             onFail?.({ stage: "section", error: e as Error });
             return out;
         }
-        for (const n of parseNums(reply2, picked.length).slice(0, MAX_SECTIONS)) {
-            const s = picked[n - 1];
+        for (const n of parseNums(reply2, kept.length).slice(0, MAX_SECTIONS)) {
+            const s = kept[n - 1];
             if (s) out.set(`K${out.size + 1}`, s);
         }
     } catch (_) {

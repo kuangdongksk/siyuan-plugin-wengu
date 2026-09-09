@@ -104,9 +104,7 @@
                 <Button type="button" variant="outline" onclick={() => ctl.armClear()}
                     >{ui.clrArmed ? t("collectConfirm") : t("aiClear")}</Button
                 >
-                >
                 <Button type="button" variant="text" onclick={() => void ctl.load()}>{t("quizRefresh")}</Button>
-                >
             </span>
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("aiPanelHint")}</div>
@@ -231,13 +229,11 @@
                                 <Button type="button" variant="outline" onclick={() => ctl.stop(sel)}
                                     >{t("aiStop")}</Button
                                 >
-                                >
                             </div>
                         {:else if sel.status === "error"}
                             <div class="wengu-ai-composer">
                                 <Button type="button" variant="main" onclick={() => void ctl.retry(sel)}
                                     >{t("aiRetry")}</Button
-                                >
                                 >
                             </div>
                         {/if}

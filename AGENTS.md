@@ -154,7 +154,9 @@
           只动键不动数据，四处聚合点统一 knKey；**路由缓存**（RouteCache，
           20260831 增量哈希一期）：匹配/批量关联/生成标签三弹窗的两级 AI
           路由走 routeKnowledgeCached 按题指纹缓存（saveData("route-cache")
-          LRU 2000，索引结构/模型变更整表作废，命中零 AI 调用，方案与
+          LRU 2000，索引结构/模型/路由代数变更整表作废——代数 ROUTE_GEN
+          在路由行为语义变更时 bump，如 20260908 路由②清单剥前缀+预算
+          4500 的 R2；命中零 AI 调用，方案与
           分期见 docs/incremental-hash-plan.md）；专题/知识文档管理面板
           CollectionPanel/KnowledgePanel 挂页签左栏 rail（20260901 拆分回
           两个独立工作区、rail 五钮——20260831 □4 曾把专题清单并入知识

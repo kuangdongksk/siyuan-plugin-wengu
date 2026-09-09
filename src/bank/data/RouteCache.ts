@@ -30,13 +30,18 @@ export interface RouteCacheData {
     entries: Record<string, { id: string; title: string }[]>;
 }
 
+/** 路由代数：路由行为语义变更时 bump（整表作废重建）。R2=20260908 路由②
+ *  清单剥公共前缀+预算 4500——AI 可见的小节集合变大，旧缓存结果不代表
+ *  新路由分布（宁漏勿错口径）。 */
+const ROUTE_GEN = "R2";
+
 /** 索引代数指纹：全部章节 docId+path 与小节 id+path（+内容哈希，自托管
  *  三期起——小节正文变了路由缓存也整表作废，宁漏勿错；哈希表由 KnowHash
  *  维护、ws-main update 链顺路刷新）拼接后过 questionHash——结构级与
  *  小节内容级变更必改变指纹。根集合不需要单独进指纹：根决定章集合，
  *  章 docId 已覆盖。纯函数。 */
 export function indexGenOf(index: KnowledgeIndex, secHashes?: Map<string, string>): string {
-    const parts: string[] = [];
+    const parts: string[] = [ROUTE_GEN];
     for (const c of index.chapters) {
         parts.push(`C|${c.docId}|${c.path}`);
         for (const s of c.sections) parts.push(`S|${s.id}|${s.path}|${secHashes?.get(s.id) ?? ""}`);

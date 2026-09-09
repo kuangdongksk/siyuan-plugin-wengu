@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionTree, classifyMatchFail, routeKnowledgeDiag, type KnowledgeIndex } from "./KnowledgeLink";
+import {
+    buildSectionTree,
+    classifyMatchFail,
+    commonDirPrefix,
+    routeKnowledgeDiag,
+    type KnowledgeIndex,
+} from "./KnowledgeLink";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "./KnowRef";
 
 /** 带解析引述块的最小题目 kramdown（契约 §一：容器 + part IAL 行）。 */
@@ -172,9 +178,10 @@ describe("routeKnowledgeDiag 编号解析（20260831 修复：多位编号不再
                 return '{"sections":[1]}';
             },
         });
-        // 第二级收到的小节清单必须来自第 12 章（path 含「章12」）
-        expect(seen[1]).toContain("章12/节12甲");
-        expect(seen[1]).not.toContain("章1/节1甲");
+        // 第二级收到的小节清单必须来自第 12 章：前缀注记 + 剥后节名
+        expect(seen[1]).toContain("已省略公共前缀 章12");
+        expect(seen[1]).toContain("节12甲");
+        expect(seen[1]).not.toContain("节1甲");
         expect([...out.values()].map((s) => s.id)).toEqual(["s12a"]);
     });
 
@@ -226,5 +233,124 @@ describe("routeKnowledgeDiag 编号解析（20260831 修复：多位编号不再
         expect(seen).toHaveLength(1);
         expect(seen[0]).toContain("知识点小节清单");
         expect([...out.values()].map((s) => s.id)).toEqual(["s1b"]);
+    });
+});
+
+describe("commonDirPrefix（20260908 路由清单剥前缀）", () => {
+    it("段对齐：剥到最长公共目录，不切半段", () => {
+        expect(commonDirPrefix(["/a/b/c1", "/a/b/c2"])).toBe("/a/b");
+    });
+
+    it("中文段照常：跨章小节剥到书路径", () => {
+        expect(commonDirPrefix(["/MinerU/线代/2-矩阵/节一", "/MinerU/线代/3-向量/节二"])).toBe("/MinerU/线代");
+    });
+
+    it("条目恰等于前缀：回退一段，保每条剥后非空", () => {
+        expect(commonDirPrefix(["/a/b", "/a/b/c"])).toBe("/a");
+    });
+
+    it("单条目：回退到最后一段之前，剩尾段可辨", () => {
+        expect(commonDirPrefix(["/a/b/c"])).toBe("/a/b");
+    });
+
+    it("无公共前缀（含无斜杠路径）返回空串，不误切末字", () => {
+        expect(commonDirPrefix(["章1/节甲", "章2/节乙"])).toBe("");
+    });
+
+    it("回退不可行（前缀只剩首段）返回空串放弃剥——剥后必非空契约", () => {
+        expect(commonDirPrefix(["附录"])).toBe("");
+        expect(commonDirPrefix(["/a", "/a/b"])).toBe("");
+    });
+
+    it("空列表返回空串", () => {
+        expect(commonDirPrefix([])).toBe("");
+    });
+});
+
+/** 造带书前缀的章（路由②清单剥前缀用）。 */
+const LIB = "/MinerU/李永乐线代强化";
+const libChapter = (name: string, secs: string[]): KnowledgeIndex["chapters"][number] => ({
+    docId: `d-${name}`,
+    title: name,
+    path: `${LIB}/${name}`,
+    sections: secs.map((s, i) => ({ id: `s-${name}-${i}`, title: s, path: `${LIB}/${name}/${s}` })),
+});
+
+describe("路由②清单剥公共前缀（20260908 修复：路由没带上全部知识点）", () => {
+    it("多章并集：清单剥书前缀、四条小节全量携带", async () => {
+        const index: KnowledgeIndex = {
+            chapters: [
+                libChapter("2-矩阵", ["矩阵的概念", "矩阵的运算"]),
+                libChapter("3-向量", ["向量组的秩", "线性相关"]),
+            ],
+        };
+        const seen: string[] = [];
+        await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                seen.push(msg);
+                if (msg.includes("章节清单")) return '{"chapters":[1,2]}';
+                return '{"sections":[]}';
+            },
+        });
+        const list = seen[1];
+        expect(list).toContain(`已省略公共前缀 ${LIB}`);
+        // 完整路径不再逐条出现（前缀不烧预算），剥后相对路径全量在清单里
+        expect(list).not.toContain(`${LIB}/2-矩阵/矩阵的概念`);
+        expect(list).toContain("2-矩阵/矩阵的概念");
+        expect(list).toContain("2-矩阵/矩阵的运算");
+        expect(list).toContain("3-向量/向量组的秩");
+        expect(list).toContain("3-向量/线性相关");
+    });
+
+    it("无小节章的文档根本身条目参与并集：剥后非空、同被路由", async () => {
+        const index: KnowledgeIndex = {
+            chapters: [libChapter("附录", []), libChapter("3-向量", ["线性相关"])],
+        };
+        const seen: string[] = [];
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                seen.push(msg);
+                if (msg.includes("章节清单")) return '{"chapters":[1,2]}';
+                return '{"sections":[1]}';
+            },
+        });
+        expect(seen[1]).toContain("3-向量/线性相关");
+        // 1 号 = 附录根本身（截断编号映射不受剥前缀影响）
+        expect([...out.values()].map((s) => s.id)).toEqual(["d-附录"]);
+    });
+
+    it("前缀回退不可行（单条目单段路径）：不剥、清单原样描述", async () => {
+        const index: KnowledgeIndex = {
+            chapters: [{ docId: "d-bare", title: "附录", path: "附录", sections: [] }],
+        };
+        const seen: string[] = [];
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                seen.push(msg);
+                return '{"sections":[1]}';
+            },
+        });
+        expect(seen[0]).not.toContain("已省略公共前缀");
+        expect(seen[0]).toContain("1|附录");
+        expect([...out.values()].map((s) => s.id)).toEqual(["d-bare"]);
+    });
+
+    it("超预算仍截断，编号按截后清单映射不悬空", async () => {
+        // 120 条 × ~45 字剥后路径 ≈ 5400 > 4500 预算 → 尾部截掉若干条
+        const secs = Array.from({ length: 120 }, (_, i) => `第${i + 1}节-${"abcdefgh".repeat(5)}`);
+        const index: KnowledgeIndex = { chapters: [libChapter("2-矩阵", secs)] };
+        const seen: string[] = [];
+        const out = await routeKnowledgeDiag("题目原文", index, {
+            call: async (msg) => {
+                seen.push(msg);
+                return '{"sections":[1]}';
+            },
+        });
+        const list = seen[0];
+        const lines = list.split("\n").filter((l) => /^\d+\|/.test(l));
+        expect(lines.length).toBeLessThan(120); // 尾部确被截
+        expect(list).not.toContain("第120节");
+        // 1 号映射截后清单首条（kept 下标），不指回全量 picked
+        expect([...out.values()].map((s) => s.id)).toEqual(["s-2-矩阵-0"]);
     });
 });
