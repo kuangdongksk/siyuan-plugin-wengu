@@ -166,14 +166,24 @@
           实时刷新题单；题库「对账/重生成/反查/生成入库」段在 data/
           BankRegen 函数式友元——20260901 从 QuestionBank 类拆出压 500
           行红线，调用形 `foo(bank,…)`，解析缓存经 parsedOf/
-          invalidateParse 友元钩子；**选项挤行体检**（20260905，
-          data/BankRepair + 专题工作区「题库体检」入口）：AI 把全部
-          选项一行一个塞进同一 @@P opt 时落库只剩首行正确项，体检出
-          挤行记录并确定性拆行修复（答案按「首行=正确项」重写+洗牌，
-          经 replaceRecordKramdown 原题位回写，预览即所得；多选挤行
-          正确集合不可推导只报告走单题重生成）；生成侧同类预防在
-          OptionShuffle.unpackPackedSingle（draft 层拆行，四生成入口
-          共用）；**题集实体 BankSets**（20260903 存储
+          invalidateParse 友元钩子；**题库体检**（20260905 选项挤行
+          单病扫描，20260909 升级全库体检：data/BankHealth + 专题
+          工作区「题库体检」入口）：三层一次扫——①题目结构（解析
+          失败/题干/答案缺失/答案字母越界/判断题答案形态/完形无空/
+          多步缺步答，按原因归类走题卡「重新生成」；挤行形态下这些
+          判分断点检查跳过——选项视图塌陷时「越界」是影子不是独立
+          病）；②引用完整性（题集/专题悬空 qid 剪除、组链指向不存在
+          材料解除、孤儿材料清除、缺题集条目补建——确定性自动修复，
+          孤儿删除与组链解除级联有序：先删孤儿再剥链）；③索引一致性
+          （record.hash 与内容不符重算——含旧版单段指纹格式、指纹
+          索引重建、kpRefs 并入题面引用、stats 补零、题型/知识点
+          元数据以题面为准）——②③勾选即修零 AI；同指纹多条只报告
+          不自动删（删谁涉及题集归属与作答统计保留）；挤行修复=
+          BankRepair.planOptionRepair 单题修复计划（确定性拆行+按
+          「首行=正确项」重写答案+洗牌，经 replaceRecordKramdown
+          原题位回写，预览即所得；多选挤行正确集合不可推导只报告走
+          单题重生成）；生成侧同类预防在 OptionShuffle.
+          unpackPackedSingle（draft 层拆行，四生成入口共用）；**题集实体 BankSets**（20260903 存储
           pivot）：题目内容唯一真相=题库（BankRecord.kramdown 契约格式），
           题集 `{id,title,hPath,srcId,qids[]}` 存 bank.sets（data/BankSets
           函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集

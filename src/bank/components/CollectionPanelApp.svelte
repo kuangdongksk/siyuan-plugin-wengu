@@ -49,7 +49,7 @@
                 <Button type="button" variant="outline" onclick={() => ctl.openCollectDialog()}
                     >{@html svgIcon("iconSparkles")} {t("colCollect")}</Button
                 >
-                <Button type="button" variant="outline" onclick={() => ctl.optionRepair()}
+                <Button type="button" variant="outline" onclick={() => ctl.bankHealth()}
                     >{@html svgIcon("iconCheck")} {t("repairEntry")}</Button
                 >
                 <Button type="button" variant="text" onclick={() => void ctl.load()}

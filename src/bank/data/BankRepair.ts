@@ -1,11 +1,9 @@
 import { LETTERS, normalizeType } from "../../types";
 import { POSITION_SENSITIVE } from "../../convert/service/OptionShuffle";
 import { stripIal } from "../../siyuan/kramdown";
-import { replaceRecordKramdown } from "./BankRegen";
-import type { QuestionBank } from "./QuestionBank";
 
 /**
- * 「选项挤行」体检与修复（20260905 概率篇真机踩坑）：AI 无视「每个
+ * 「选项挤行」单题修复计划（20260905 概率篇真机踩坑）：AI 无视「每个
  * 选项一个 @@P opt」把全部选项一行一个塞进同一部件时，落库 kramdown
  * 的选项块只有首行带 `- A. ` 标签、其余行成续行——刷题侧只剩 1 个选项
  * （协议规定正确项写最前，恰是首行，即「只剩正确选项」）。文本一条
@@ -17,7 +15,8 @@ import type { QuestionBank } from "./QuestionBank";
  *
  * 生成侧的同类预防在 OptionShuffle.unpackPackedSingle（拆行发生在
  * draft 层，四个生成入口共用）；本模块只清偿存量。steps/cloze 的步/
- * 空选项组不在本口径（顶层损坏形态走单题重生成）。
+ * 空选项组不在本口径（顶层损坏形态走单题重生成）。全库体检的扫描与
+ * 应用编排在 BankHealth（20260909 起）。
  */
 
 const PART_IAL = /^\{:[^\n]*custom-plugin-wengu-part="([a-z0-9-]+)"/;
@@ -151,10 +150,11 @@ export function planOptionRepair(kd: string, rng: () => number = Math.random): O
     return { kind: "fixable", kd: out.join("\n"), opts: order.map((i) => opts[i]), answer };
 }
 
-/** 体检可修复行（预览即所得：kd 即执行产物）。 */
+/** 体检可修复行（预览即所得：kd 即执行产物）。全库扫描入口在
+ *  BankHealth.scanBankHealth（本模块只出单题修复计划）。 */
 export interface OptionRepairRow {
     qid: string;
-    /** 所属题集标题（空=源文档已删的悬空记录）。 */
+    /** 所属题集标题（空=无题集归属的记录）。 */
     set: string;
     stem: string;
     opts: string[];
@@ -164,54 +164,11 @@ export interface OptionRepairRow {
     kd: string;
 }
 
-/** 全库体检结果。 */
-export interface OptionRepairScan {
-    fixable: OptionRepairRow[];
-    /** 损坏但不可确定性修复（multiple/match 挤行、答案部件缺失等）。 */
-    regen: { qid: string; stem: string; set: string; reason: OptionRepairRegenReason }[];
-    scanned: number;
-}
-
-/** 全库扫描客观题（single/multiple/match）的选项挤行。 */
-export async function scanOptionRepairs(bank: QuestionBank): Promise<OptionRepairScan> {
-    const data = await bank.all();
-    const scan: OptionRepairScan = { fixable: [], regen: [], scanned: 0 };
-    for (const r of Object.values(data.records)) {
-        if (r.type !== "single" && r.type !== "multiple" && r.type !== "match") continue;
-        scan.scanned++;
-        const plan = planOptionRepair(r.kramdown);
-        if (plan.kind === "none") continue;
-        const row = { qid: r.qid, stem: stemOf(r.kramdown), set: data.sets?.[r.sourceDocId]?.title ?? "" };
-        if (plan.kind === "regen") {
-            scan.regen.push({ ...row, reason: plan.reason });
-            continue;
-        }
-        scan.fixable.push({ ...row, opts: plan.opts, answer: plan.answer, said: saidOf(r.kramdown), kd: plan.kd });
-    }
-    return scan;
-}
-
-function stemOf(kd: string): string {
-    const { blocks, lines } = scanKd(kd);
-    const b = blocks.find((x) => x.part === "stem");
-    if (!b) return "";
-    return stripIal(lines.slice(b.from, b.ial).join("\n")).replace(/\s+/g, " ").trim().slice(0, 40);
-}
-
-function saidOf(kd: string): string | undefined {
+export function saidOf(kd: string): string | undefined {
     const { blocks, lines } = scanKd(kd);
     const said = blocks
         .filter((x) => x.part === "solution")
         .flatMap((x) => [...lines.slice(x.from, x.ial).join("\n").matchAll(SAID_LETTER)])
         .map((m) => m[1].toUpperCase());
     return said.length > 0 ? [...new Set(said)].join("/") : undefined;
-}
-
-/** 执行修复（预览产物的 kd 原样回写，预览即所得）：逐条替换记录、
- *  重算指纹/失效解析缓存，最后统一落盘。返回成功条数。 */
-export async function applyOptionRepairs(bank: QuestionBank, rows: { qid: string; kd: string }[]): Promise<number> {
-    let n = 0;
-    for (const r of rows) if (await replaceRecordKramdown(bank, r.qid, r.kd)) n++;
-    if (n > 0) await bank.flush();
-    return n;
 }

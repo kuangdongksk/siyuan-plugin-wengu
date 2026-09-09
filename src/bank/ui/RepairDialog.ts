@@ -4,13 +4,15 @@ import { esc, fmt } from "../../ui/shared";
 import { errText } from "../../ui/shared";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import type { QuestionBank } from "../data/QuestionBank";
-import { applyOptionRepairs, scanOptionRepairs, type OptionRepairRegenReason } from "../data/BankRepair";
+import { applyBankHealth, scanBankHealth } from "../data/BankHealth";
+import type { HealthAutoKind, HealthIssue, HealthScan } from "../data/BankHealth";
 
 /**
- * 题库体检 · 选项挤行（20260905）：专题工作区头部入口。检测必过目——
- * 先出摘要与逐题预览（拆出的选项、拟答字母、解析提及字母），勾选后
- * 确定性修复（预览即所得，无 AI 调用）；不可推导的（多选挤行等）列出
- * 原因，走题卡「重新生成」。弹窗被销毁后的终态改走思源通知。
+ * 题库体检总览（20260909 自「选项挤行」单病弹窗升级为全库体检）：
+ * 结构与引用一次扫完，四段呈现——引用与索引（勾选自动修复）、选项
+ * 挤行（确定性拆行，预览即所得）、结构损坏（按原因归类，走题卡
+ * 「重新生成」）、内容重复（同指纹多条，仅报告）。检测必过目，修复
+ * 无 AI 调用；弹窗被销毁后的终态改走思源通知。
  */
 
 export interface RepairDeps {
@@ -20,27 +22,60 @@ export interface RepairDeps {
     onDone(): void;
 }
 
-const WHY_KEY: Record<OptionRepairRegenReason, string> = {
-    "packed-multi": "repairWhyMulti",
-    answer: "repairWhyAnswer",
-    noopts: "repairWhyNoopts",
-    one: "repairWhyOne",
+const ISSUE_KEY: Record<HealthIssue, string> = {
+    "parse-fail": "healthParseFail",
+    "no-stem": "healthNoStem",
+    "no-answer": "healthNoAnswer",
+    "bad-answer": "healthBadAnswer",
+    "answer-range": "healthAnswerRange",
+    "packed-multi": "healthPackedMulti",
+    "packed-answer": "healthPackedAnswer",
+    noopts: "healthNoopts",
+    one: "healthOne",
+    "steps-broken": "healthStepsBroken",
+    "slots-broken": "healthSlotsBroken",
 };
 
-export async function openRepairDialog(deps: RepairDeps): Promise<void> {
-    const { t, bank } = deps;
-    const scan = await scanOptionRepairs(bank);
-    if (scan.fixable.length === 0 && scan.regen.length === 0) {
-        notifyInfo({ key: "repairEmpty" });
-        return;
-    }
-    const fixRows = scan.fixable
+const AUTO_KEY: Record<HealthAutoKind, string> = {
+    "set-dangling": "healthAutoSetDangling",
+    "set-missing": "healthAutoSetMissing",
+    "col-dangling": "healthAutoColDangling",
+    "mat-missing": "healthAutoMatMissing",
+    "mat-orphan": "healthAutoMatOrphan",
+    "hash-bad": "healthAutoHashBad",
+    "hashed-stale": "healthAutoHashedStale",
+    "kpref-gap": "healthAutoKprefGap",
+    "stats-missing": "healthAutoStatsMissing",
+    "meta-drift": "healthAutoMetaDrift",
+};
+
+function section(title: string, inner: string, max: string): string {
+    return `<div class="wengu-muted" style="margin-top:10px">${esc(title)}</div>
+<div class="wengu-col-list" style="margin-top:4px;max-height:${max};overflow:auto">${inner}</div>`;
+}
+
+function autoRows(t: (k: string) => string, scan: HealthScan): string {
+    return scan.auto
+        .map(
+            (r, i) => `<label class="wengu-col-row" style="display:block">
+  <span style="display:flex;align-items:center;gap:6px">
+    <input type="checkbox" data-auto="${i}" checked />
+    <span class="wengu-col-row-title">${esc(t(AUTO_KEY[r.kind]))}</span>
+    <span class="wengu-meta">×${r.count}${r.sample.length ? ` · ${esc(r.sample.join("、"))}` : ""}</span>
+  </span>
+</label>`
+        )
+        .join("");
+}
+
+function fixRows(t: (k: string) => string, scan: HealthScan): string {
+    return scan.fixable
         .map(
             (r, i) => `<label class="wengu-col-row" style="display:block">
   <span style="display:flex;align-items:center;gap:6px">
     <input type="checkbox" data-fix="${i}" checked />
     <span class="wengu-col-row-title">${esc(r.stem || r.qid)}</span>
-    <span class="wengu-meta">${esc(r.set)}</span>
+    <span class="wengu-meta">${esc(r.set || t("healthNoSet"))}</span>
     <span class="wengu-meta">${esc(fmt(t("repairNewAnswer"), { a: r.answer }))}${r.said ? ` · ${esc(fmt(t("repairSaid"), { x: r.said }))}` : ""}</span>
   </span>
   <span class="wengu-muted" style="display:block;margin:2px 0 0 22px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(
@@ -49,30 +84,59 @@ export async function openRepairDialog(deps: RepairDeps): Promise<void> {
 </label>`
         )
         .join("");
-    const regenRows = scan.regen
+}
+
+function regenRows(t: (k: string) => string, scan: HealthScan): string {
+    return scan.regen
         .map(
             (r) => `<div class="wengu-col-row" style="display:block">
   <span class="wengu-col-row-title">${esc(r.stem || r.qid)}</span>
-  <span class="wengu-meta">${esc(r.set)} · ${esc(t(WHY_KEY[r.reason]))}</span>
+  <span class="wengu-meta">${esc(r.set || t("healthNoSet"))} · ${esc(r.issues.map((i) => t(ISSUE_KEY[i])).join(" / "))}</span>
 </div>`
         )
         .join("");
-    const { dialog, root } = openWenguDialog({
-        title: t("repairTitle"),
-        width: "640px",
-        body: `
+}
+
+function dupRows(t: (k: string) => string, scan: HealthScan): string {
+    return scan.dups
+        .slice(0, 50)
+        .map(
+            (g) => `<div class="wengu-col-row" style="display:block">
+  <span class="wengu-col-row-title">${esc(g.rows[0]?.stem || g.hash)}</span>
+  <span class="wengu-meta">×${g.rows.length} · ${esc(g.rows.map((r) => r.set || t("healthNoSet")).join("、"))}</span>
+</div>`
+        )
+        .join("");
+}
+
+export async function openHealthDialog(deps: RepairDeps): Promise<void> {
+    const { t, bank } = deps;
+    const scan = await scanBankHealth(bank);
+    if (scan.auto.length === 0 && scan.fixable.length === 0 && scan.regen.length === 0 && scan.dups.length === 0) {
+        notifyInfo({ key: "repairEmpty" });
+        return;
+    }
+    const body = `
       <div class="wengu-muted">${svgIcon("iconCheck")} ${esc(t("repairHint"))}</div>
       <div class="wengu-meta" style="margin-top:6px">${esc(
           fmt(t("repairSummary"), {
               n: String(scan.scanned),
+              auto: String(scan.auto.length),
               fix: String(scan.fixable.length),
               regen: String(scan.regen.length),
+              dup: String(scan.dups.length),
           })
       )}</div>
-      ${fixRows ? `<div class="wengu-col-list" style="margin-top:8px;max-height:46vh;overflow:auto">${fixRows}</div>` : ""}
-      ${regenRows ? `<div class="wengu-muted" style="margin-top:10px">${esc(t("repairRegenHead"))}</div><div class="wengu-col-list" style="margin-top:4px;max-height:18vh;overflow:auto">${regenRows}</div>` : ""}
+      ${scan.auto.length ? section(t("repairAutoHead"), autoRows(t, scan), "22vh") : ""}
+      ${scan.fixable.length ? section(t("repairFixHead"), fixRows(t, scan), "30vh") : ""}
+      ${scan.regen.length ? section(t("repairRegenHead"), regenRows(t, scan), "22vh") : ""}
+      ${scan.dups.length ? section(t("repairDupHead"), dupRows(t, scan), "14vh") : ""}
       <div class="wengu-status" data-act="repair-status" hidden></div>
-    `,
+    `;
+    const { dialog, root } = openWenguDialog({
+        title: t("repairTitle"),
+        width: "680px",
+        body,
         actions: [
             { id: "repair-cancel", label: t("cancel") },
             { id: "repair-ok", label: t("repairApply"), variant: "outline" },
@@ -94,18 +158,23 @@ export async function openRepairDialog(deps: RepairDeps): Promise<void> {
     };
     root.querySelector("[data-act='repair-cancel']")?.addEventListener("click", () => dialog.destroy());
     okBtn?.addEventListener("click", () => {
+        const kinds = new Set(
+            [...root.querySelectorAll<HTMLInputElement>("[data-auto]:checked")].map(
+                (el) => scan.auto[Number(el.dataset.auto)].kind
+            )
+        );
         const picked = [...root.querySelectorAll<HTMLInputElement>("[data-fix]:checked")].map(
             (el) => scan.fixable[Number(el.dataset.fix)]
         );
-        if (picked.length === 0) {
+        if (kinds.size === 0 && picked.length === 0) {
             show(t("repairNonePicked"), "err");
             return;
         }
         if (okBtn) okBtn.disabled = true;
-        show(fmt(t("repairRunning"), { n: String(picked.length) }), "muted");
-        void applyOptionRepairs(bank, picked)
+        show(t("repairRunning"), "muted");
+        void applyBankHealth(bank, kinds, picked)
             .then((n) => {
-                show(fmt(t("repairDone"), { n: String(n) }), "ok");
+                show(fmt(t("repairDone"), { a: String(n.auto), f: String(n.packed) }), "ok");
                 window.setTimeout(() => {
                     dialog.destroy();
                     deps.onDone();

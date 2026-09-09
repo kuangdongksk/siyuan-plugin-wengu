@@ -66,8 +66,13 @@ export async function allSetMaterials(bank: QuestionBank): Promise<WenguMaterial
     return out;
 }
 
+/** 本会话已试过补标题的题集 id（读不到就不重查；体检应用 set-missing
+ *  补建的条目标题留空，靠这里装载时回填——20260909 闭环补齐）。 */
+const titleTried = new Set<string>();
+
 /** 推导缺 sets 条目的题集（records 按 sourceDocId 分组；后台调用，
- *  不阻塞装载）。标题从旧习题文档尽力读一次——文档已删则留空。 */
+ *  不阻塞装载）。标题从旧习题文档尽力读一次——文档已删则留空；已有
+ *  条目标题为空的每会话至多重试一次（题库体检补建/旧次读不到的）。 */
 export async function ensureSets(bank: QuestionBank): Promise<number> {
     const data = await bank.all();
     data.sets ??= {};
@@ -78,10 +83,13 @@ export async function ensureSets(bank: QuestionBank): Promise<number> {
         qids.push(r.qid);
         groups.set(r.sourceDocId, qids);
     }
-    let added = 0;
+    let changed = 0;
     for (const [id, qids] of groups) {
-        if (data.sets[id]) continue;
-        const set: BankSet = { id, title: "", qids, createdAt: Date.now() };
+        const existing = data.sets[id];
+        if (existing?.title) continue;
+        if (existing && titleTried.has(id)) continue;
+        titleTried.add(id);
+        const set: BankSet = existing ?? { id, title: "", qids, createdAt: Date.now() };
         try {
             const row = (
                 await KernelQuery.rows<{ content?: string; hpath?: string }>(
@@ -93,11 +101,15 @@ export async function ensureSets(bank: QuestionBank): Promise<number> {
         } catch (_) {
             // 标题读不到不阻断（已删文档/索引未就绪，显示短 id 兜底）
         }
-        data.sets[id] = set;
-        added++;
+        if (!existing) {
+            data.sets[id] = set;
+            changed++; // 新建条目（含标题读不到的空标题）
+        } else if (set.title || set.hPath) {
+            changed++; // 存量空标题补上了
+        }
     }
-    if (added > 0) bank.markDirty();
-    return added;
+    if (changed > 0) bank.markDirty();
+    return changed;
 }
 
 /* ── 存量材料迁移（20260903 审查 P1③）──

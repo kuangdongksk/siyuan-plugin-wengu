@@ -90,6 +90,16 @@ describe("ensureSets", () => {
         rows.mockReset();
         expect(await ensureSets(bank)).toBe(0);
     });
+
+    it("存量空标题条目装载时回填（题库体检 set-missing 补建条目的闭环）", async () => {
+        const { bank, read } = newBank({
+            records: { q9: rec("q9", "bx1") },
+            sets: { bx1: { id: "bx1", title: "", qids: ["q9"], createdAt: 0 } },
+        });
+        rows.mockResolvedValueOnce([{ content: "补上的标题", hpath: "/高数" }]);
+        expect(await ensureSets(bank)).toBe(1);
+        expect(read().sets?.bx1).toMatchObject({ title: "补上的标题", hPath: "/高数" });
+    });
 });
 
 describe("setDocsView", () => {
