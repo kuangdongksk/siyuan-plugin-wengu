@@ -9,6 +9,14 @@ describe("buildOutlinePrompt", () => {
         expect(p).toContain("## 具体方法或解法");
         expect(p).toContain("求极限的内容");
     });
+    it("锁判别规则：实质讲解门槛/名词罗列不立节点/禁宽泛学科名/做题价值", () => {
+        const p = buildOutlinePrompt("x");
+        expect(p).toContain("有实质讲解");
+        expect(p).toContain("纯名词罗列");
+        expect(p).toContain("至多合并成一个条目");
+        expect(p).toContain("禁止起比本章更宽泛的学科名");
+        expect(p).toContain("不出题的背景性、科普性内容不进树");
+    });
 });
 
 describe("extractOutlineMd", () => {
