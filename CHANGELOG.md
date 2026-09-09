@@ -2,6 +2,12 @@
 
 ## v0.1.1 unreleased
 
+- **匹配弹窗题集下拉显示裸 id**（20260909，bank 域）：20260903 pivot 后
+  转换题集是库内实体（`set-*` 源 id，无内核文档），下拉标题解析只走
+  `KernelDoc.infoOf`，bank-only 题集必查空回退裸 id 直出。改三级解析：
+  存量卷（源 id=旧习题文档）走内核文档活标题 → bank-only 题集读
+  `bank.sets[].title` → 两头皆无兜底 `setFallbackTitle` 短 id。
+
 - **全仓审查清理：死代码根除 + 交互底座收口**（20260909，全域）：
   死代码删 `formTextarea`/`FlowDom.showNote|hideNote|paintOptions`/
   `appendPreviewStems`/`OUTLINE_SUFFIX`/`Attr.sourceDoc`/`Q_FLAG`/
