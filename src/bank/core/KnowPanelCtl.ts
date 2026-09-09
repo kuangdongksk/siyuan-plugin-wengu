@@ -1,4 +1,4 @@
-import { errText } from "./../../ui/shared";
+import { Armed, errText } from "./../../ui/shared";
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
@@ -41,7 +41,13 @@ import type { KnowPanelUi } from "./KnowPanelUi";
  */
 export class KnowPanelCtl {
     private alive = true;
-    private rmTimer: ReturnType<typeof setTimeout> | undefined;
+    /** 「移除」两击确认（armed 与渲染同源，重拉后不漂移）。 */
+    private rmArm = new Armed<string>((v) => (this.ui.rmArmed = v));
+    /** 「重新索引/索引 N 篇」两击确认（total=批量补齐篇数提示）。 */
+    private outlineArm = new Armed<{ docId: string; total: number }>((v) => {
+        this.ui.outlineArmed = v?.docId;
+        this.ui.outlineArmTotal = v?.total;
+    });
 
     constructor(
         private readonly ui: KnowPanelUi,
@@ -50,10 +56,8 @@ export class KnowPanelCtl {
 
     destroy(): void {
         this.alive = false;
-        if (this.rmTimer) clearTimeout(this.rmTimer);
-        this.rmTimer = undefined;
-        if (this.outlineArmTimer) clearTimeout(this.outlineArmTimer);
-        this.outlineArmTimer = undefined;
+        this.rmArm.disarm();
+        this.outlineArm.disarm();
     }
 
     private bank(): QuestionBank | undefined {
@@ -254,7 +258,6 @@ export class KnowPanelCtl {
      *  中止整队）；全程零内核写（只剩 SQL 读+AI），与转换并发安全。 ── */
 
     private outlineCtrl: AbortController | undefined;
-    private outlineArmTimer: ReturnType<typeof setTimeout> | undefined;
 
     outline(d: KnowDocView): void {
         const bank = this.bank();
@@ -345,14 +348,7 @@ export class KnowPanelCtl {
 
     /** 进「确认重新索引/确认索引 N 篇」arm 态（3s 自动复位）。 */
     private armOutline(docId: string, total: number): void {
-        this.disarmOutline();
-        this.ui.outlineArmed = docId;
-        this.ui.outlineArmTotal = total;
-        this.outlineArmTimer = setTimeout((): void => {
-            this.ui.outlineArmed = undefined;
-            this.ui.outlineArmTotal = undefined;
-            this.outlineArmTimer = undefined;
-        }, 3000);
+        this.outlineArm.arm({ docId, total });
     }
 
     /* ── 「移除」两击确认（3s 复位；armed 与渲染同源，重拉后不漂移） ── */
@@ -364,25 +360,16 @@ export class KnowPanelCtl {
             return;
         }
         this.disarm();
-        this.ui.rmArmed = docId;
-        this.rmTimer = setTimeout((): void => {
-            this.ui.rmArmed = undefined;
-            this.rmTimer = undefined;
-        }, 3000);
+        this.rmArm.arm(docId);
     }
 
     private disarm(): void {
-        if (this.rmTimer) clearTimeout(this.rmTimer);
-        this.rmTimer = undefined;
-        this.ui.rmArmed = undefined;
+        this.rmArm.disarm();
     }
 
     /** 复位「重新索引」两击确认（3s 到点/重拉/确认后调用）。 */
     private disarmOutline(): void {
-        if (this.outlineArmTimer) clearTimeout(this.outlineArmTimer);
-        this.outlineArmTimer = undefined;
-        this.ui.outlineArmed = undefined;
-        this.ui.outlineArmTotal = undefined;
+        this.outlineArm.disarm();
     }
 
     /** 退册整个登记子树。 */

@@ -403,8 +403,8 @@ at RetryOperation._fn` ——全局 pnpm 与 package.json 的
     - **kramdown 读回形态（20260829 题库踩坑）**：getBlockKramdown/
       落盘读回时，列表项首段子块的 IAL 是**行内尾随**（`- {: id="…"
 updated="…"}A. …`）、条目自身 IAL 缩进独立成行、块引用子块 IAL
-      带 `>` 前缀——按行解析 kramdown 时必须清理这些残渣（BankParse
-      的 IAL_LINE/IAL_INLINE），否则渲染成字面属性文本。
+      带 `>` 前缀——按行解析 kramdown 时必须清理这些残渣（siyuan/kramdown.ts
+      的 stripIal/IAL_LINE/IAL_INLINE），否则渲染成字面属性文本。
     - `/api/transactions` + DOM 数据（前端同款）也可用（多顶层块、超级块
       完整落盘），但 **`data-custom-*` 被内核剥离**且 `data-node-id` 可能
       被重生成——不如 markdown 通道，留作后备。

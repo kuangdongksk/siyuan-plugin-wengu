@@ -1,6 +1,6 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { launchAiFlow } from "../../ai/flow";
 import type { AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -36,10 +36,10 @@ export interface VariantDrillDeps {
 
 export function openVariantDrillDialog(deps: VariantDrillDeps, docId: string, docTitle: string): void {
     const { t } = deps;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("variantDrillTitle"),
         width: "520px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${esc(t("variantDrillHint"))}</div>
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
         <span class="wengu-side-label">${esc(t("variantRangeLabel"))}</span>
@@ -52,12 +52,9 @@ export function openVariantDrillDialog(deps: VariantDrillDeps, docId: string, do
         ).join("")}</select>
         <button class="b3-button b3-button--outline" data-act="vd-start">${esc(t("variantStart"))}</button>
       </div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="vd-close">${esc(t("cancel"))}</button>
-    </div>`,
+    `,
+        actions: [{ id: "vd-close", label: t("cancel") }],
     });
-    const root = dialog.element;
     root.querySelector("[data-act='vd-close']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='vd-start']")?.addEventListener("click", () => {
         const range = (root.querySelector<HTMLSelectElement>("[data-act='vd-range']")?.value ?? "all") as

@@ -1,6 +1,6 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { formOption, svgIcon } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { launchAiFlow } from "../../ai/flow";
 import type { AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -43,10 +43,10 @@ const GEN_MAX_PER_RUN = 10;
 
 export function openCollectionDialog(deps: CollectionDialogDeps): void {
     const { t, bank } = deps;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("collectionsTitle"),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog wengu-col-dialog">
+        extraCls: "wengu-col-dialog",
+        body: `
       <div class="wengu-muted">${esc(t("collectHint"))}</div>
       <div class="wengu-col-list" data-act="col-knowledge"><div class="wengu-muted">…</div></div>
       <div class="wengu-col-new">
@@ -67,12 +67,9 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
       </div>
       <div class="wengu-side-label" style="margin-top:12px">${esc(t("collectExisting"))}</div>
       <div class="wengu-col-list" data-act="col-existing"><div class="wengu-muted">…</div></div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="col-close">${esc(t("cancel"))}</button>
-    </div>`,
+    `,
+        actions: [{ id: "col-close", label: t("cancel") }],
     });
-    const root = dialog.element;
     const knowledgeBox = root.querySelector<HTMLElement>("[data-act='col-knowledge']");
     const existingBox = root.querySelector<HTMLElement>("[data-act='col-existing']");
     const titleInput = root.querySelector<HTMLInputElement>("[data-act='col-title']");

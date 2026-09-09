@@ -119,10 +119,6 @@ async function docBlocks(docId: string): Promise<Row[]> {
     return byDocOrder(rows, (r) => r.get("id"), await KernelBlock.docOrder(docId));
 }
 
-/** 树文档标题后缀（历史形态，20260903 起生成的树不再落文档；常量保留
- *  供存量《·知识树》文档的识别/清理参考）。 */
-export const OUTLINE_SUFFIX = "·知识树";
-
 /** 大纲 markdown → 节点表（h1~h3 标题 + 标题下首个非空行为说明，可省）。
  *  纯函数供单测；id 由调用方按「同路径复用旧 id」策略分配。 */
 export function parseOutlineNodes(md: string): BankKnowNode[] {

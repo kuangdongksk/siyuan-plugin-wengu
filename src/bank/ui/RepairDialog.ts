@@ -1,5 +1,5 @@
-import { Dialog } from "siyuan";
 import { svgIcon } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
 import { errText } from "../../ui/shared";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -57,10 +57,10 @@ export async function openRepairDialog(deps: RepairDeps): Promise<void> {
 </div>`
         )
         .join("");
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("repairTitle"),
         width: "640px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${svgIcon("iconCheck")} ${esc(t("repairHint"))}</div>
       <div class="wengu-meta" style="margin-top:6px">${esc(
           fmt(t("repairSummary"), {
@@ -72,13 +72,12 @@ export async function openRepairDialog(deps: RepairDeps): Promise<void> {
       ${fixRows ? `<div class="wengu-col-list" style="margin-top:8px;max-height:46vh;overflow:auto">${fixRows}</div>` : ""}
       ${regenRows ? `<div class="wengu-muted" style="margin-top:10px">${esc(t("repairRegenHead"))}</div><div class="wengu-col-list" style="margin-top:4px;max-height:18vh;overflow:auto">${regenRows}</div>` : ""}
       <div class="wengu-status" data-act="repair-status" hidden></div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="repair-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="repair-ok">${esc(t("repairApply"))}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "repair-cancel", label: t("cancel") },
+            { id: "repair-ok", label: t("repairApply"), variant: "outline" },
+        ],
     });
-    const root = dialog.element;
     const status = root.querySelector<HTMLElement>("[data-act='repair-status']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='repair-ok']");
     const show = (text: string, kind: "ok" | "err" | "muted"): void => {

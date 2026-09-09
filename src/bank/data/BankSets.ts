@@ -1,3 +1,4 @@
+import { mintPrefixedId } from "../../types";
 import { KernelQuery } from "../../siyuan/query";
 import { KernelBlock } from "../../siyuan/block";
 import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
@@ -20,18 +21,18 @@ import type { WenguDoc, WenguMaterial } from "../../types";
 
 /** 题集 id（set- 前缀，风格同 col-/gen-）。 */
 export function mintSetId(): string {
-    return `set-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    return mintPrefixedId("set-", 4);
 }
 
 /** 转换新题的 qid（gen- 前缀，与 addGenerated 同款生成器——bank-only
  *  题没有源块，思源块 id 语义不存在）。 */
 export function mintQid(): string {
-    return `gen-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    return mintPrefixedId("gen-", 6);
 }
 
 /** 材料块 id（mat- 前缀；bank.materials 的键，题记录 group 指向它）。 */
 export function mintMatId(): string {
-    return `mat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    return mintPrefixedId("mat-", 4);
 }
 
 /** 短 id 兜底显示（标题读不到的存量题集）。 */

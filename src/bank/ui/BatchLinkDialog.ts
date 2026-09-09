@@ -1,5 +1,4 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
 import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -12,6 +11,7 @@ import {
 } from "../../convert/service/KnowledgeLink";
 import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
@@ -41,23 +41,21 @@ export interface BatchDeps {
 
 export async function openBatchLinkDialog(deps: BatchDeps): Promise<void> {
     const { t } = deps;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("batchTitle"),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${esc(t("batchHint"))}</div>
       ${formGroup(
           t("matchGroup"),
           formRow(t("batchAiLabel"), t("batchAiHint"), formSwitch("batch-ai", false, "data-act")) +
               formRow(t("matchSkipLabel"), t("matchSkipHint"), formSwitch("batch-skip", true, "data-act"))
       )}
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="batch-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="batch-ok">${esc(t("matchStart"))}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "batch-cancel", label: t("cancel") },
+            { id: "batch-ok", label: t("matchStart"), variant: "outline" },
+        ],
     });
-    const root = dialog.element;
     root.querySelector("[data-act='batch-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='batch-ok']")?.addEventListener("click", () => {
         if (convertRunActive()) {

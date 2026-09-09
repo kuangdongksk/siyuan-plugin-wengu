@@ -50,35 +50,3 @@
 >
     {@render children?.()}
 </button>
-
-<style>
-    /* Button 组件自带的基础外观；颜色变体仍由全局样式按业务语义控制。 */
-    .wengu-btn {
-        padding: 4px 10px;
-        border: 0;
-        border-radius: 4px;
-        background: var(--wengu-button-background, var(--b3-theme-primary-light));
-        color: var(--wengu-button-color, var(--b3-theme-on-primary-light));
-        cursor: pointer;
-    }
-
-    .wengu-btn:disabled {
-        opacity: 0.5;
-        cursor: default;
-    }
-
-    .wengu-btn-primary {
-        --wengu-button-background: var(--b3-theme-primary-light);
-        --wengu-button-color: var(--b3-theme-on-primary-light);
-    }
-
-    .wengu-btn-success {
-        --wengu-button-background: var(--b3-theme-success);
-        --wengu-button-color: var(--b3-theme-on-primary);
-    }
-
-    .wengu-btn-error {
-        --wengu-button-background: var(--b3-theme-error);
-        --wengu-button-color: var(--b3-theme-on-primary);
-    }
-</style>

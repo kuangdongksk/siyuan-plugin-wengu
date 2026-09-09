@@ -8,9 +8,6 @@
 
 const PREFIX = "custom-plugin-wengu-";
 
-/** 自定义属性统一前缀。 */
-export const ATTR_PREFIX = PREFIX;
-
 /** 属性名常量（key 即属性名去掉前缀后的部分）。 */
 export const Attr = {
     /** 转换完成标记，值恒为 "1"；存在则该题进入刷题模式可抽取。 */
@@ -49,8 +46,6 @@ export const Attr = {
     stepLast: `${PREFIX}step-last`,
     /** 运行时（文档级）：累计刷题用时（秒），打在习题文档块上。 */
     totalTime: `${PREFIX}total-time`,
-    /** 转换配对（文档级）：习题文档根块记源讲义文档 id；源删则习题随删（OrphanCleaner）。 */
-    sourceDoc: `${PREFIX}source-doc`,
     /** 增量哈希（二期）：题目/材料容器记生成它的源块指纹（questionHash 同款），
      *  重新导入时三态分类的比对依据（docs/incremental-hash-plan.md §二）。 */
     srcHash: `${PREFIX}src-hash`,
@@ -63,12 +58,10 @@ export const Attr = {
     part: `${PREFIX}part`,
 } as const;
 
-/** 转换完成标记的固定值。 */
-export const Q_FLAG = "1";
-
 /** 材料块标记的固定值。 */
 export const MATERIAL_FLAG = "1";
 
 /** group 占位值：材料=文中紧邻其前的材料块（AI 写不出内核分配的
- *  真实块 id，落盘后由 MaterialService 按文档序解析回写）。 */
+ *  真实块 id；20260903 起 SetWriter 写时直配最近材料 id，存量落盘
+ *  "prev" 的旧记录由 BankSets 读侧按文档序解析）。 */
 export const GROUP_PREV = "prev";

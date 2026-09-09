@@ -4,6 +4,7 @@ import type { BankKnowTree } from "./KnowTrees";
 import { knKey, normKn, pickStandardName } from "./KnowledgeNorm";
 import { notifyError } from "../../ui/Notify";
 import { errText, isLifecycleGone } from "../../ui/shared";
+import { mintPrefixedId } from "../../types";
 
 /**
  * 插件题库（saveData("bank")）：题目以「容器超级块 kramdown 原文」为
@@ -359,7 +360,7 @@ export class QuestionBank {
     async createCollection(title: string, qids: string[], origin: "manual" | "knowledge"): Promise<CollectionRow> {
         const data = await this.all();
         const row: BankCollection = {
-            id: `col-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+            id: mintPrefixedId("col-", 4),
             title: normalizeCollectionPath(title) || "未命名专题",
             qids: [...new Set(qids)],
             origin,

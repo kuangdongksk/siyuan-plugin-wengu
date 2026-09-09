@@ -1,4 +1,6 @@
 import { svgIcon } from "../ui/FormHtml";
+import { mdFragmentHtml, optionRowHtml } from "../quiz/service/ProtyleHost";
+import type { WenguQuestion } from "../types";
 import type { ReviewAttempt } from "./core/ReviewUi";
 import { esc, fmt, fmtDateTime } from "../ui/shared";
 
@@ -90,6 +92,34 @@ export interface ReviewDetailModel {
     answerHtml: string;
     solutionHtml: string;
     loading?: boolean;
+}
+
+/** 详情 html 字段组装（题干/选项/步骤/答案/解析；Ctl 惰性 hydrate 后
+ *  调用——html 产物口径归本模型层，Ctl 只装配数据字段）。 */
+export function renderDetailModel(args: {
+    q: WenguQuestion;
+    /** 题库记录缺失时的题干兜底文案（纯文本）。 */
+    stemSummary: string;
+}): Pick<ReviewDetailModel, "stemHtml" | "optionsHtml" | "stepsHtml" | "answerHtml" | "solutionHtml"> {
+    const { q, stemSummary } = args;
+    const optRows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
+    // .wengu-opts 容器：短选项多列排布挂点（opt-compact，同题库静态路径）
+    const optionsHtml = optRows ? `<div class="wengu-opts">${optRows}</div>` : "";
+    const stepsHtml = (q.steps ?? [])
+        .map(
+            (s, i) =>
+                `<div class="wengu-review-step"><span class="wengu-muted">#${i + 1}</span><div class="wengu-review-step-stem">${mdFragmentHtml(
+                    s.stemMd
+                )}</div><div class="wengu-review-step-ans">${mdFragmentHtml(s.answer)}</div></div>`
+        )
+        .join("");
+    return {
+        stemHtml: q.stemMd ? mdFragmentHtml(q.stemMd) : `<div class="wengu-muted">${esc(stemSummary)}</div>`,
+        optionsHtml,
+        stepsHtml,
+        answerHtml: q.answer ? mdFragmentHtml(q.answer) : "",
+        solutionHtml: q.solutionMd ? mdFragmentHtml(q.solutionMd) : "",
+    };
 }
 
 /** 历次作答时间线（最新在上；qid#k 条目由 Ctl 归并后传入）。 */

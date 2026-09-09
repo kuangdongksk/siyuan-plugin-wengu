@@ -1,5 +1,5 @@
-import { Dialog } from "siyuan";
 import { svgIcon } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { KernelQuery } from "../../siyuan/query";
 import { kpRootMap } from "../data/BankReconcile";
 import type { QuestionBank } from "../data/QuestionBank";
@@ -40,18 +40,14 @@ export async function openRelatedDialog(bank: QuestionBank, t: (k: string) => st
                   )
                   .join("")
             : `<div class="wengu-muted">${esc(t("relatedEmpty"))}</div>`;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("relatedTitle"),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${svgIcon("iconSearch")} ${esc(t("relatedHint"))}</div>
       <div class="wengu-col-list" style="margin-top:8px">${items}</div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="related-close">${esc(t("cancel"))}</button>
-    </div>`,
+    `,
+        actions: [{ id: "related-close", label: t("cancel") }],
     });
-    const root = dialog.element;
     root.querySelector("[data-act='related-close']")?.addEventListener("click", () => dialog.destroy());
     for (const row of root.querySelectorAll<HTMLElement>("[data-jump]")) {
         row.style.cursor = "pointer";

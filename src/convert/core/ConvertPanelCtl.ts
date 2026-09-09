@@ -7,6 +7,7 @@ import {
 } from "../service/ConvertRun";
 import type { ConvertPanelDeps } from "../ui/ConvertPanel";
 import type { ConvertPanelUi } from "./ConvertPanelUi";
+import { Armed } from "../../ui/shared";
 
 /**
  * 转换管理面板控制器（四件套之一）。面板两区：①进行中（ConvertRun
@@ -21,7 +22,10 @@ export class ConvertPanelCtl {
     private deps?: ConvertPanelDeps;
     private closeFn?: () => void;
     private unsub?: () => void;
-    private armTimer: ReturnType<typeof setTimeout> | undefined;
+    /** 「丢弃进度」两击确认（3s 自动复位）。 */
+    private armState = new Armed<string>((v) => {
+        if (this.ui) this.ui.armedDoc = v;
+    });
 
     attach(ui: ConvertPanelUi, deps: ConvertPanelDeps, close: () => void): void {
         this.ui = ui;
@@ -38,8 +42,7 @@ export class ConvertPanelCtl {
     detach(): void {
         this.unsub?.();
         this.unsub = undefined;
-        if (this.armTimer) clearTimeout(this.armTimer);
-        this.armTimer = undefined;
+        this.armState.disarm();
         this.ui = undefined;
         this.deps = undefined;
     }
@@ -76,18 +79,11 @@ export class ConvertPanelCtl {
             this.refreshRecords();
             return;
         }
-        this.disarm();
-        ui.armedDoc = srcDocId;
-        this.armTimer = setTimeout((): void => {
-            if (this.ui) this.ui.armedDoc = undefined;
-            this.armTimer = undefined;
-        }, 3000);
+        this.armState.arm(srcDocId);
     }
 
     private disarm(): void {
-        if (this.armTimer) clearTimeout(this.armTimer);
-        this.armTimer = undefined;
-        if (this.ui) this.ui.armedDoc = undefined;
+        this.armState.disarm();
     }
 
     /** 「继续生成」：关面板回转换弹窗预填该源文档。 */

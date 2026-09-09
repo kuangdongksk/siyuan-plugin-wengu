@@ -8,7 +8,6 @@
 .wengu-judge[hidden],
 .wengu-result[hidden],
 .wengu-note[hidden],
-.wengu-reveal[hidden],
 .wengu-status[hidden],
 .wengu-dialog .b3-button[hidden],
 .b3-dialog__action .b3-button[hidden] {
@@ -315,8 +314,4 @@
     flex: 1;
     min-width: 200px;
   }
-}
-
-.wengu-title {
-  font-weight: 600;
 }

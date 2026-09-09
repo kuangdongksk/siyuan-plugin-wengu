@@ -1,5 +1,5 @@
-import { Dialog } from "siyuan";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
 import type { IncrementPlan, StructChunk } from "../service/SrcChunk";
 
@@ -116,20 +116,19 @@ export function openIncrementDialog(deps: {
             );
         }
     }
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("incrTitle"),
         width: "620px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       ${summary}
       ${rows.join("")}
       <div class="wengu-status" data-act="incr-status" hidden></div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="incr-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="incr-ok">${esc(t("incrStart"))}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "incr-cancel", label: t("cancel") },
+            { id: "incr-ok", label: t("incrStart"), variant: "outline" },
+        ],
     });
-    const root = dialog.element;
     root.querySelector("[data-act='incr-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector(".b3-dialog__close")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='incr-ok']")?.addEventListener("click", () => {

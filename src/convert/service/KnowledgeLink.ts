@@ -45,7 +45,7 @@ export interface KnowledgeIndex {
     chapters: KnowChapter[];
 }
 
-/** 路由调用通道（与生成同通道：串行走 agent/chat，并发走 chatGPT）。 */
+/** 路由调用通道（与生成同通道：串行走 agent/chat 独立会话）。 */
 export interface KnowRouteDeps {
     call(message: string): Promise<string>;
 }

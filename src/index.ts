@@ -12,6 +12,7 @@ import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
 import { initNotify } from "./ui/Notify";
+import { debounce } from "./ui/shared";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
@@ -301,7 +302,7 @@ export default class WenguPlugin extends Plugin {
         document.removeEventListener("click", WenguPlugin.onBlockRefClick);
         this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
         this.eventBus.off("open-menu-content", this.onOpenMenuContent);
-        if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
+        WenguPlugin.scheduleBankReconcile.cancel(); // 防抖窗口内的对账作废
         aiSessions()?.flushNow(); // 登记簿去抖窗口内的尾笔立即落盘（重载不丢）
         void this.bankStore?.flush(); // 题库 2s 防抖窗口内的作答记账尾笔（刷完题即重载不丢）
     }
@@ -344,9 +345,6 @@ export default class WenguPlugin extends Plugin {
         })();
     };
 
-    /** 知识文档变更事件的防抖对账定时器（onunload 清）。 */
-    private static reconcileTimer: number | undefined;
-
     /** ws 事务流里攒下的待刷新文档根（防抖窗口内聚簇）。 */
     private static pendingRoots = new Set<string>();
 
@@ -369,18 +367,14 @@ export default class WenguPlugin extends Plugin {
     };
 
     /** 防抖对账：知识域文档的小节哈希基线顺路刷新（尽力而为）。 */
-    private static readonly scheduleBankReconcile = (): void => {
-        if (WenguPlugin.reconcileTimer !== undefined) window.clearTimeout(WenguPlugin.reconcileTimer);
-        WenguPlugin.reconcileTimer = window.setTimeout((): void => {
-            WenguPlugin.reconcileTimer = undefined;
-            void (async () => {
-                const roots = [...WenguPlugin.pendingRoots];
-                WenguPlugin.pendingRoots.clear();
-                const kh = await knowHash();
-                for (const id of roots) await kh?.refreshDoc(id);
-            })().catch((): void => undefined); // 对账尽力而为，失败等下次事件/装载
-        }, 5000);
-    };
+    private static readonly scheduleBankReconcile = debounce((): void => {
+        void (async () => {
+            const roots = [...WenguPlugin.pendingRoots];
+            WenguPlugin.pendingRoots.clear();
+            const kh = await knowHash();
+            for (const id of roots) await kh?.refreshDoc(id);
+        })().catch((): void => undefined); // 对账尽力而为，失败等下次事件/装载
+    }, 5000);
 
     /** 单词进度存储单例（Dock 面板/兜底页签/刷题生词标记共用同一缓存）。 */
     private wordStore: WordStore | undefined;

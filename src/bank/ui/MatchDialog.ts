@@ -1,5 +1,4 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
 import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -14,6 +13,7 @@ import { knowTreesOf } from "../data/KnowTrees";
 import { KernelDoc } from "../../siyuan/doc";
 import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
@@ -68,10 +68,9 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
     const { t, bank } = deps;
     const options = sourceDocOptions(Object.values((await bank.all()).records));
     const info = await KernelDoc.infoOf(options.map((o) => o.docId));
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: fmt(t("matchTitle"), { doc: deps.knowTitle }),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${esc(fmt(t("matchHint"), { doc: deps.knowTitle }))}</div>
       ${
           options.length > 0
@@ -100,15 +99,12 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
                 )
               : `<div class="wengu-status wengu-status-err">${esc(t("matchNoSrc"))}</div>`
       }
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="match-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="match-ok"${options.length > 0 ? "" : " disabled"}>${esc(
-          t("matchStart")
-      )}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "match-cancel", label: t("cancel") },
+            { id: "match-ok", label: t("matchStart"), variant: "outline", disabled: options.length === 0 },
+        ],
     });
-    const root = dialog.element;
     root.querySelector("[data-act='match-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='match-ok']")?.addEventListener("click", () => {
         // 转换运行中不开第二条内核写流（updateBlock 与转换并发互吞，20260829 审查）

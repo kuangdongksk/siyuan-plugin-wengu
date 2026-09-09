@@ -1,6 +1,8 @@
 import type { CompanionProfile } from "./CompanionCtl";
 import type { CompanionPanelUi } from "./CompanionPanelUi";
 import { DEFAULT_CHAT_KEY } from "./ChatStore";
+import { Armed, debounce } from "../../ui/shared";
+import { mintPrefixedId } from "../../types";
 
 /**
  * 学伴管理面板控制器（自旧 core/CompanionPanel.ts 的字符串模板 +
@@ -39,14 +41,11 @@ export interface CompanionPanelDeps {
     onCompanionToggle?: () => void;
 }
 
-/** 新配置 id（时间戳36 + 随机段）。 */
-function profileId(): string {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 export class CompanionPanelCtl {
-    private delTimer: ReturnType<typeof setTimeout> | undefined;
-    private saveTimer: ReturnType<typeof setTimeout> | undefined;
+    /** 删除两击确认（3s 自动复位）。 */
+    private delArm = new Armed<boolean>((v) => (this.ui.delArmed = v === true));
+    /** 「已保存」反馈 1.5s 自灭。 */
+    private saveFlashReset = debounce(() => (this.ui.savedFlash = false), 1500);
 
     constructor(
         private readonly ui: CompanionPanelUi,
@@ -57,8 +56,8 @@ export class CompanionPanelCtl {
     }
 
     destroy(): void {
-        clearTimeout(this.delTimer);
-        clearTimeout(this.saveTimer);
+        this.delArm.disarm();
+        this.saveFlashReset.cancel();
     }
 
     /** 保存按钮：组件从 DOM 收当前输入（未失焦的编辑 settings 里还没
@@ -72,8 +71,7 @@ export class CompanionPanelCtl {
         });
         if (before !== f.imageDir.trim()) this.d.reloadImages();
         this.ui.savedFlash = true;
-        clearTimeout(this.saveTimer);
-        this.saveTimer = setTimeout(() => (this.ui.savedFlash = false), 1500);
+        this.saveFlashReset();
     }
 
     /** 当前编辑中的配置（物化后恒有值；空态仅为坏数据的防御显示）。 */
@@ -119,7 +117,7 @@ export class CompanionPanelCtl {
     activate(pid: string): void {
         this.d.settings.companionActiveId = pid || undefined;
         this.ui.activeId = pid;
-        this.disarmDel();
+        this.delArm.disarm();
         this.d.settings.save?.();
         this.d.reloadImages();
         this.d.onActiveChange?.();
@@ -129,7 +127,7 @@ export class CompanionPanelCtl {
     newProfile(): void {
         const list = this.d.settings.companionProfiles ?? [];
         const p: CompanionProfile = {
-            id: profileId(),
+            id: mintPrefixedId("", 6),
             name: `${this.d.t("companionNewNamePrefix")}${list.length + 1}`,
             prompt: "",
             imageDir: "",
@@ -138,7 +136,7 @@ export class CompanionPanelCtl {
         list.push(p);
         this.d.settings.companionProfiles = list;
         this.d.settings.companionActiveId = p.id;
-        this.disarmDel();
+        this.delArm.disarm();
         this.syncFromSettings();
         this.d.settings.save?.();
         this.d.reloadImages();
@@ -149,16 +147,14 @@ export class CompanionPanelCtl {
      * 至少保留一个（仅剩一条时按钮已禁用，此处兜底直接拒绝）。 */
     delClick(): void {
         if (this.ui.profiles.length <= 1) {
-            this.disarmDel();
+            this.delArm.disarm();
             return;
         }
         if (!this.ui.delArmed) {
-            this.ui.delArmed = true;
-            clearTimeout(this.delTimer);
-            this.delTimer = setTimeout(() => (this.ui.delArmed = false), 3000);
+            this.delArm.arm(true);
             return;
         }
-        this.disarmDel();
+        this.delArm.disarm();
         const cur = this.active();
         if (!cur) return;
         const rest = this.ui.profiles.filter((p) => p.id !== cur.id);
@@ -169,11 +165,6 @@ export class CompanionPanelCtl {
         this.d.reloadImages();
         this.d.onProfileRemoved?.(cur.id);
         this.d.onActiveChange?.();
-    }
-
-    private disarmDel(): void {
-        clearTimeout(this.delTimer);
-        this.ui.delArmed = false;
     }
 
     /* ── 编辑器字段写回（当前配置存在时才生效） ── */

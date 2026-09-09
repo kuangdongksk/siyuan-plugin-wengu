@@ -1,3 +1,4 @@
+import { mintTsId } from "../../types";
 import type { QuestionBank } from "./QuestionBank";
 
 /**
@@ -40,10 +41,7 @@ export type KnowTreesMap = Record<string, BankKnowTree>;
 
 /** 节点 id（内核块 id 形态：14 位时间戳-7 位随机，秒内 36^7 防撞）。 */
 export function mintKnowNodeId(): string {
-    const d = new Date();
-    const p = (n: number): string => String(n).padStart(2, "0");
-    const ts = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-    return `${ts}-${Math.random().toString(36).slice(2, 9).padEnd(7, "0").slice(0, 7)}`;
+    return mintTsId();
 }
 
 /** 全部节点 → 全路径（祖先标题链/标题；level 栈式就近挂靠，与

@@ -1,4 +1,5 @@
 import { kernelReadText, kernelRemoveFile, kernelWriteText } from "../../siyuan/files";
+import { mintPrefixedId } from "../../types";
 import {
     BUILTIN_BOOK,
     bookFromFile,
@@ -182,7 +183,7 @@ export class WordLib {
     /** 新增词书（id 自造唯一；不切当前，由调用方决定）。 */
     async addBook(name: string, words: WenguWordEntry[]): Promise<WordBookMeta> {
         await this.ensure();
-        const id = `bk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const id = mintPrefixedId("bk-", 4);
         const meta: WordBookMeta = { id, name, count: words.length };
         this.manifest.books.push(meta);
         await this.persist(async () => {

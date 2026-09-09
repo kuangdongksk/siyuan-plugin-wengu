@@ -5,6 +5,7 @@ import { sanitizeAiImages } from "./PromptHygiene";
 import { resolveModelId, listAiModels } from "./models";
 import { aiSessions, type AiTurn, type AiTrack } from "./data/AiSessions";
 import { notifyInfo } from "../ui/Notify";
+import { mintTsId } from "../types";
 
 /** 会话登记元数据（agentChatOnce 可选参数）：定义在 data/AiSessions
  *  （数据层持有形状，client 只是通道），此处转发导出保调用方 import 路径。 */
@@ -187,14 +188,7 @@ async function agentChat(
 
 /** 一次性会话 id：{14位时间戳}-{7位字母数字}（内核 isValidSessionID 校验格式）。 */
 export function newSessionId(now = new Date()): string {
-    const p = (n: number): string => String(n).padStart(2, "0");
-    const stamp =
-        `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}` +
-        `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
-    const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let rand = "";
-    for (let i = 0; i < 7; i++) rand += abc[Math.floor(Math.random() * abc.length)];
-    return `${stamp}-${rand}`;
+    return mintTsId(now);
 }
 
 /** saveSession 会话标题：消息前 24 字压平空白（内核面板列表同款观感）。 */
@@ -206,14 +200,7 @@ function titleOf(message: string): string {
  *  该动作触发的所有 agentChatOnce 调用共用（面板树归并的键；格式无内核
  *  约束，仅登记簿内唯一即可，形如 g{时间戳}-{随机}）。 */
 export function newAiGroupId(now = new Date()): string {
-    const p = (n: number): string => String(n).padStart(2, "0");
-    const stamp =
-        `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}` +
-        `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
-    const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let rand = "";
-    for (let i = 0; i < 7; i++) rand += abc[Math.floor(Math.random() * abc.length)];
-    return `g${stamp}-${rand}`;
+    return `g${mintTsId(now)}`;
 }
 
 /** 播种会话条目（user/assistant 交替回放；type 值与思源前端同源，

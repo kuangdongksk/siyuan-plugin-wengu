@@ -2,6 +2,7 @@ import { parseQuestionKramdown, questionHash } from "./BankParse";
 import type { QuestionBank, BankRecord } from "./QuestionBank";
 import { normKn } from "./KnowledgeNorm";
 import { knKey } from "./KnowledgeNorm";
+import { mintPrefixedId } from "../../types";
 
 /**
  * 题库「对账 / 重生成 / 反查 / 生成入库」段（契约 §三的 ③④⑤⑥）——
@@ -120,7 +121,7 @@ export async function addGenerated(
     const hash = questionHash(kd);
     const dup = data.hashed[hash];
     if (dup) return dup;
-    const qid = `gen-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const qid = mintPrefixedId("gen-", 6);
     data.records[qid] = {
         qid,
         kramdown: kd,

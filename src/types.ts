@@ -98,7 +98,7 @@ export function hasSlots(q: WenguQuestion): boolean {
     return (q.type === QuestionType.Cloze || q.type === QuestionType.Match) && (q.slots?.length ?? 0) > 0;
 }
 
-/** slots 题第 k 空的会话 qid（块 id + "#" + 空号，同 stepsQid 语义）。 */
+/** slots 题第 k 空的会话 qid（块 id + "#" + 空号；多步题第 k 步同形）。 */
 export function slotQid(qid: string, k: number): string {
     return `${qid}#${k}`;
 }
@@ -146,8 +146,7 @@ export interface WenguQuestion {
     difficulty?: number;
     /** 真题来源。 */
     source?: string;
-    /** 所属材料块 id（阅读/完形等共享原文；转换先写 "prev" 占位，
-     *  装载时由 MaterialService 解析回写真实 id）。 */
+    /** 所属材料块 id（阅读/完形等共享原文；生成侧写时直配真实 id）。 */
     group?: string;
     /** 刷题次数。 */
     attempts: number;
@@ -326,12 +325,29 @@ export type WenguRevealMode = "instant" | "after";
  *  AI 实时（作答时跟随用户选的方法逐步生成，较慢且可能出错）。 */
 export type WenguStepsMode = "offline" | "ai";
 
-/** 多步题第 k 步在会话里的记录 qid（块 id + "#" + 步序）。 */
-export function stepsQid(qid: string, k: number): string {
-    return `${qid}#${k}`;
-}
-
-/** 会话结果 qid → 所属题目块 id（普通题即自身，多步步条目去掉 #k 后缀）。 */
+/** 会话结果 qid → 所属题目块 id（普通题即自身，多步步/逐空条目去掉 #k 后缀）。 */
 export function baseQid(qid: string): string {
     return qid.split("#")[0];
+}
+
+/** 内核块 id 形态的即时 id：{14 位时间戳}-{7 位 [0-9a-z]}。内核 agent
+ *  chat 的 sessionID 即此格式（isValidSessionID 校验）、知识树节点 id
+ *  铸同形保 kpRefs 引用往返；秒内 36^7 组合防撞。 */
+export function mintTsId(now = new Date()): string {
+    const p = (n: number): string => String(n).padStart(2, "0");
+    const stamp =
+        `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}` +
+        `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+    const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let rand = "";
+    for (let i = 0; i < 7; i++) rand += abc[Math.floor(Math.random() * abc.length)];
+    return `${stamp}-${rand}`;
+}
+
+/** 前缀即时 id：{前缀}{36 进制时间戳}-{随机段}（set-/gen-/col-/bk- 等
+ *  库内实体键；形态无外部约束，仅登记表内唯一）。 */
+export function mintPrefixedId(prefix: string, randLen: number): string {
+    return `${prefix}${Date.now().toString(36)}-${Math.random()
+        .toString(36)
+        .slice(2, 2 + randLen)}`;
 }

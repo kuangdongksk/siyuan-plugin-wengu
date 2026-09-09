@@ -1,15 +1,13 @@
-import { mdFragmentHtml, optionRowHtml } from "../../quiz/service/ProtyleHost";
-import { copyQuestionText } from "../../quiz/flow/PreviewFlow";
 import { questionOf } from "../../bank/data/BankSets";
-import { stripIal } from "../../bank/data/BankParse";
+import { copyQuestionText } from "../../quiz/flow/PreviewFlow";
+import { stripIal } from "../../siyuan/kramdown";
 import type { BankRecord, QuestionBank } from "../../bank/data/QuestionBank";
 import { normalizeType } from "../../types";
 import type { ReviewViewAccess } from "../index";
-import { renderTimelineHtml, type ReviewDetailModel } from "../ReviewHtml";
+import { renderDetailModel, renderTimelineHtml, type ReviewDetailModel } from "../ReviewHtml";
 import type { ReviewAttempt, ReviewItem, ReviewUi } from "./ReviewUi";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import type { WenguQuestion } from "../../types";
-import { esc } from "../../ui/shared";
 
 /**
  * 错题本控制器（四件套之一，模块级单例——外部域在视图外也要读写
@@ -179,28 +177,11 @@ export class ReviewCtl {
             if (seq !== this.detailSeq || !this.alive) return;
             const t = this.v?.t;
             if (!t) return;
-            const optRows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md, "wengu-review-option")).join("");
-            // .wengu-opts 容器：短选项多列排布挂点（opt-compact，同题库静态路径）
-            const optionsHtml = optRows ? `<div class="wengu-opts">${optRows}</div>` : "";
-            const stepsHtml = (q.steps ?? [])
-                .map(
-                    (s, i) =>
-                        `<div class="wengu-review-step"><span class="wengu-muted">#${i + 1}</span><div class="wengu-review-step-stem">${mdFragmentHtml(
-                            s.stemMd
-                        )}</div><div class="wengu-review-step-ans">${mdFragmentHtml(s.answer)}</div></div>`
-                )
-                .join("");
             const d: ReviewDetailModel = {
                 qid: item.qid,
                 docTitle: this.docTitleOf(item.docId),
-                stemHtml: q.stemMd
-                    ? mdFragmentHtml(q.stemMd)
-                    : `<div class="wengu-muted">${esc(item.stemSummary)}</div>`,
-                optionsHtml,
-                stepsHtml,
+                ...renderDetailModel({ q, stemSummary: item.stemSummary }),
                 timelineHtml: renderTimelineHtml(t, item.attempts),
-                answerHtml: q.answer ? mdFragmentHtml(q.answer) : "",
-                solutionHtml: q.solutionMd ? mdFragmentHtml(q.solutionMd) : "",
             };
             this.detailQ = q; // 快捷复制的原料（渲染落框后才置位）
             ui.detail = { phase: "ready", model: d };

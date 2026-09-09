@@ -1,5 +1,5 @@
 import MarkdownIt from "markdown-it";
-import { stripIal } from "../bank/data/BankParse";
+import { stripIal } from "../siyuan/kramdown";
 import { esc } from "./shared";
 
 // State/Options 类型从实例类型反推：主 tsconfig（node10）与

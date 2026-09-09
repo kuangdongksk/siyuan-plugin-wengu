@@ -1,4 +1,5 @@
 import type { WenguRevealMode, WenguStepsMode, WenguTimingMode } from "../../types";
+import { mintPrefixedId } from "../../types";
 import { notifyError } from "../../ui/Notify";
 
 /** 一轮的刷题范围：全部 / 上轮错题 / 历史未掌握错题（复习模式 D5）。 */
@@ -156,7 +157,7 @@ export class HistoryStore {
 
 /** 会话 id：时间戳 + 随机串，够用且可读。 */
 export function newSessionId(): string {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    return mintPrefixedId("", 6);
 }
 
 /** 把一次作答记入会话（计数/用时/三态评语；落库由持有方调用）。 */

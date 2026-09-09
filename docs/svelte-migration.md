@@ -118,8 +118,9 @@ FormHtml/ModelPicker 积木，迁移无视觉/交互收益反增工程量）。
 
 ## 首批落地记录（2026-08-27）
 
-- `src/ui/mountApp.ts`：共享挂载帮手（word/companion 现有两处手写
-  样板不回改，新域一律用它）。
+- `src/ui/mountApp.ts`：共享挂载帮手（word/companion 两处旧手写样板
+  已先后收编——companion 20260827、word 20260909 随「控制器清理归
+  组件 onMount cleanup」约定对齐，新域一律用它）。
 - `src/ui/FormRow.svelte`：表单行 Svelte 积木（children snippet）。
 - `src/ui/ModelPicker.ts` 新增 `modelPickAction`：Svelte action 桥。
 - companion 管理面板四件套：`CompanionPanelUi` / `CompanionPanelCtl`

@@ -1,5 +1,4 @@
 import type { KnowDocView } from "../ui/KnowledgePanel";
-import type { KnowPanelCtl } from "./KnowPanelCtl";
 import { SvelteSet } from "svelte/reactivity";
 
 /**
@@ -10,13 +9,6 @@ import { SvelteSet } from "svelte/reactivity";
  * 深代理只覆盖普通对象/数组，Set/Map 类实例增删不触发更新（20260831
  * 知识树折叠失灵的根因）。
  */
-
-/** 子组件经 context 取的载荷（树是递归组件）。 */
-export interface KnowPanelCtx {
-    ctl: KnowPanelCtl;
-    ui: KnowPanelUi;
-    t: (key: string) => string;
-}
 
 export const KNOW_PANEL_CTX = Symbol("wengu-know-panel");
 

@@ -1,6 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
 import type { AiSessionRecord } from "../data/AiSessions";
-import type { SessionPanelCtl } from "./SessionPanelCtl";
 
 /**
  * AI 会话面板的响应态形状（四件套之一，模式见 docs/svelte-migration.md）。
@@ -11,13 +10,6 @@ import type { SessionPanelCtl } from "./SessionPanelCtl";
  * 退役）。左栏树状分组（20260902）：同组记录归并成组行（归并在
  * core/SessionTree 纯函数），openGroups 记展开态。
  */
-
-/** 子组件经 context 取的载荷。 */
-export interface SessionPanelCtx {
-    ctl: SessionPanelCtl;
-    ui: SessionPanelUi;
-    t: (key: string) => string;
-}
 
 export const SESSION_PANEL_CTX = Symbol("wengu-ai-session-panel");
 

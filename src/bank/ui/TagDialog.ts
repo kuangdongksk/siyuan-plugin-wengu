@@ -1,5 +1,4 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
 import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -12,6 +11,7 @@ import {
 } from "../../convert/service/KnowledgeLink";
 import { convertRunActive } from "../../convert/service/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
@@ -48,19 +48,17 @@ const FREE_BATCH = 15;
 
 export async function openTagDialog(deps: TagDeps): Promise<void> {
     const { t } = deps;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: fmt(t("tagTitle"), { doc: deps.docTitle }),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${esc(t("tagHint"))}</div>
       ${formGroup(t("tagPhaseGroup"), formRow(t("tagGenLabel"), t("tagGenHint"), formSwitch("tag-gen", true, "data-act")))}
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="tag-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="tag-ok">${esc(t("tagStart"))}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "tag-cancel", label: t("cancel") },
+            { id: "tag-ok", label: t("tagStart"), variant: "outline" },
+        ],
     });
-    const root = dialog.element;
     root.querySelector("[data-act='tag-cancel']")?.addEventListener("click", () => dialog.destroy());
     root.querySelector("[data-act='tag-ok']")?.addEventListener("click", () => {
         if (convertRunActive()) {

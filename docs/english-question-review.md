@@ -71,7 +71,7 @@
 
 复用 steps 已趟通的语义，不改内核：
 
-- qid = `块id#空号`（同 stepsQid）；
+- qid = `块id#空号`（同 slotQid）；
 - 每空一条会话记录（steps 已有「每步一条、按步计 answered/correct」
   的先例与口径取舍）；
 - 块属性 `slot-right` / `slot-last`（同 step-right/step-last）。

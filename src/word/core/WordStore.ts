@@ -1,4 +1,3 @@
-import type { WenguWordUnitMeta } from "../service/WordBook";
 import { wordLib } from "../service/WordLib";
 import { notifyError } from "../../ui/Notify";
 
@@ -404,13 +403,6 @@ export function applyAiReview(
             st.due = now + 86400_000;
         }
     }
-}
-
-/** 词条所属单元（边界表小，线性找即可；导入书无单元返回 undefined）。 */
-export function unitOf(index: number): WenguWordUnitMeta | undefined {
-    return wordLib()
-        .curBook()
-        .units?.find((u) => index >= u.start && index < u.start + u.count);
 }
 
 /** 进度存取：整文件读写 + 内存缓存（同 HistoryStore 模式）。 */

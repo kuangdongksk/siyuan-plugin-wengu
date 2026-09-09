@@ -1,4 +1,4 @@
-import { errText } from "./../../ui/shared";
+import { Armed, errText } from "./../../ui/shared";
 import { AI_TIMEOUT } from "../timeouts";
 import { abortAiSession, agentChatContinued } from "../client";
 import { aiSessions, type AiSessionRecord } from "../data/AiSessions";
@@ -14,8 +14,10 @@ import type { SessionPanelUi } from "./SessionPanelUi";
 export class SessionPanelCtl {
     private alive = true;
     private unsubscribe?: () => void;
-    private rmTimer?: ReturnType<typeof setTimeout>;
-    private clrTimer?: ReturnType<typeof setTimeout>;
+    /** 「删除」两击确认（行/文档分支共用同一确认位）。 */
+    private rmArm = new Armed<string>((v) => (this.ui.rmArmed = v));
+    /** 头部「清空」两击确认。 */
+    private clrArm = new Armed<boolean>((v) => (this.ui.clrArmed = v === true));
 
     constructor(private readonly ui: SessionPanelUi) {}
 
@@ -23,10 +25,8 @@ export class SessionPanelCtl {
         this.alive = false;
         this.unsubscribe?.();
         this.unsubscribe = undefined;
-        if (this.rmTimer) clearTimeout(this.rmTimer);
-        if (this.clrTimer) clearTimeout(this.clrTimer);
-        this.rmTimer = undefined;
-        this.clrTimer = undefined;
+        this.rmArm.disarm();
+        this.clrArm.disarm();
     }
 
     /** 装载：等登记簿 hydrate 完成后首拉快照并订阅后续变更。 */
@@ -119,39 +119,22 @@ export class SessionPanelCtl {
     }
 
     private armWith(key: string): void {
-        if (this.rmTimer) clearTimeout(this.rmTimer);
-        this.ui.rmArmed = key;
-        this.rmTimer = setTimeout((): void => {
-            this.ui.rmArmed = undefined;
-            this.rmTimer = undefined;
-        }, 3000);
+        this.rmArm.arm(key);
     }
 
     private disarmRemove(): void {
-        if (this.rmTimer) clearTimeout(this.rmTimer);
-        this.rmTimer = undefined;
-        this.ui.rmArmed = undefined;
+        this.rmArm.disarm();
     }
 
     /* ── 头部「清空」两击确认 ── */
 
     armClear(): void {
         if (this.ui.clrArmed) {
-            this.disarmClear();
+            this.clrArm.disarm();
             aiSessions()?.clear();
             this.back();
             return;
         }
-        this.ui.clrArmed = true;
-        this.clrTimer = setTimeout((): void => {
-            this.ui.clrArmed = false;
-            this.clrTimer = undefined;
-        }, 3000);
-    }
-
-    private disarmClear(): void {
-        if (this.clrTimer) clearTimeout(this.clrTimer);
-        this.clrTimer = undefined;
-        this.ui.clrArmed = false;
+        this.clrArm.arm(true);
     }
 }

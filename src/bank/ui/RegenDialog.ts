@@ -1,5 +1,4 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { agentChatOnce, aiAbort, type AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
@@ -7,6 +6,7 @@ import { extractBlockId } from "../../convert/service/ConvertService";
 import { hasStemPart, parseDrafts, protocolSpec, renderUnit } from "../../convert/service/QuestionDraft";
 import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
@@ -66,10 +66,9 @@ export function bindCardActions(
 
 export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
     const { t } = deps;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("regenTitle"),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog">
+        body: `
       <div class="wengu-muted">${esc(t("regenHint"))}</div>
       ${formGroup(
           t("regenTitle"),
@@ -94,13 +93,12 @@ export function openRegenDialog(deps: RegenDeps, q: WenguQuestion): void {
                   )
               )
       )}
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="regen-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="regen-ok">${esc(t("regenBtn"))}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "regen-cancel", label: t("cancel") },
+            { id: "regen-ok", label: t("regenBtn"), variant: "outline" },
+        ],
     });
-    const root = dialog.element;
     const srcInput = root.querySelector<HTMLInputElement>("[data-act='regen-src']");
     const noteInput = root.querySelector<HTMLInputElement>("[data-act='regen-note']");
     root.querySelector("[data-act='regen-cancel']")?.addEventListener("click", () => dialog.destroy());

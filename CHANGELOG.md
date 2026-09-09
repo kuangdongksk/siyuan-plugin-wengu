@@ -2,6 +2,25 @@
 
 ## v0.1.1 unreleased
 
+- **全仓审查清理：死代码根除 + 交互底座收口**（20260909，全域）：
+  死代码删 `formTextarea`/`FlowDom.showNote|hideNote|paintOptions`/
+  `appendPreviewStems`/`OUTLINE_SUFFIX`/`Attr.sourceDoc`/`Q_FLAG`/
+  `ATTR_PREFIX`/`unitOf`/`KnowPanelCtx`/`SessionPanelCtx`/
+  `PERSONA_I18N`/`stepsQid` 及 13 个 i18n 死键、约 10 簇 CSS 死选择器
+  （转换渐进预览簇随 DOM 生产者同删）、陈旧注释（chatGPT 直答/
+  MaterialService/OrphanCleaner 残留）与 `aiPanelHint` 过时文案；
+  底座收口三件——`ui/shared.Armed`（两击确认 arm 态，收编专题/知识/
+  AI 会话/转换/学伴五面板 7 个同构 3s 复位状态机）、`debounce`（真
+  尾沿防抖两处；题库/登记簿落盘的「首笔触发/立即冲刷」语义不同保留
+  原状）、`ui/Dialog.openWenguDialog`（收编 10 处字符串弹窗同构壳，
+  Svelte 宿主壳除外）；id 铸造收口 `types.mintTsId`（内核块 id 形态，
+  agent sessionID/知识树节点 id 共用）与 `mintPrefixedId`（set-/gen-/
+  col-/bk- 等库内键，随机段长度逐站保持）；`stripIal` 从 BankParse
+  上移 `siyuan/kramdown.ts`（消 ui→bank 层级倒挂）；Button 组件零
+  `<style>` 化（success/error 配色迁全局 scss）；word 域挂载收编
+  mountSvelteApp（控制器清理归组件 onMount cleanup，手写 unmount 的
+  双重 destroy 顺修）。行为零变化，净 -116 行。
+
 - **路由②知识点清单剥公共前缀 + 预算放宽（没带上全部知识点根治）**
   （20260908，convert 域）：两级 AI 路由第二级把命中章小节清单发给
   AI 时按 2200 字符预算截断，知识树小节路径带完整文档前缀（均

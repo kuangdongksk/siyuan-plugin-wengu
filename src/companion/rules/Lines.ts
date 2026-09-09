@@ -11,14 +11,6 @@ export type PersonaKey = "gentle" | "sharp" | "genki" | "calm";
 
 export const PERSONA_KEYS: readonly PersonaKey[] = ["gentle", "sharp", "genki", "calm"];
 
-/** 人设名（i18n key：personaGentle/personaSharp/…）。 */
-export const PERSONA_I18N: Record<PersonaKey, string> = {
-    gentle: "personaGentle",
-    sharp: "personaSharp",
-    genki: "personaGenki",
-    calm: "personaCalm",
-};
-
 /** 人设的 AI 口吻基准（prompt 用）。 */
 export const PERSONA_PROMPTS: Record<PersonaKey, string> = {
     gentle: "温柔鼓励的学伴，语气轻柔，多肯定少批评，偶尔心疼用户辛苦",

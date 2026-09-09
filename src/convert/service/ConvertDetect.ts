@@ -1,7 +1,6 @@
 import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { chunkKramdown, isMaterialKramdown, parseVerdict } from "./ConvertService";
-import { esc } from "../../ui/shared";
 
 /**
  * 转换前置检测与预览行（从 ConvertBatch 拆出，保主文件 ≤500 行）：
@@ -125,27 +124,4 @@ export function questionPreview(kd: string, no: number): QuestionPreview {
         .replace(/\s+/g, " ")
         .trim();
     return { no, type, stem: stem.slice(0, 80) };
-}
-
-/** 渐进预览：追加本批题目的「题号 题型 题干片段」行并滚到底（弹窗调用）。 */
-export function appendPreviewStems(
-    box: HTMLElement,
-    stems: QuestionPreview[] | undefined,
-    t: (key: string) => string
-): void {
-    if (!stems?.length) return;
-    box.removeAttribute("hidden");
-    for (const s of stems) {
-        const row = document.createElement("div");
-        row.className = "wengu-preview-row";
-        const key = s.type ? `type${s.type[0].toUpperCase()}${s.type.slice(1)}` : "";
-        const known = key ? t(key) : "";
-        const typeLabel = known && known !== key ? known : s.type;
-        row.innerHTML =
-            `<span class="wengu-preview-no">${s.no}</span>` +
-            (typeLabel ? `<span class="wengu-badge">${esc(typeLabel)}</span>` : "") +
-            `<span class="wengu-preview-stem" title="${esc(s.stem)}">${esc(s.stem)}</span>`;
-        box.appendChild(row);
-    }
-    box.scrollTop = box.scrollHeight;
 }

@@ -1,6 +1,7 @@
 /**
  * 视图层小工具（全局唯一实现，docs/design-review.md P0-1）：
- * HTML 转义 / i18n 模板 / 秒数格式化 / 分钟规整 / 错误文案化。
+ * HTML 转义 / i18n 模板 / 秒数格式化 / 分钟规整 / 错误文案化 /
+ * 两击确认 arm 态 / 防抖。
  * QuizView、StartPanel、SettingsDialog、转换弹窗共用，不要再各自复制。
  */
 
@@ -97,4 +98,57 @@ export function yieldToBrowser(): Promise<void> {
         ch.port1.onmessage = () => resolve();
         ch.port2.postMessage(0);
     });
+}
+
+/** 两击确认的 arm 态槽（3s 自动复位，重复 arm 先清旧计时）——专题/知识
+ *  文档/AI 会话/转换/学伴五处面板同构状态机的公共底座。值经 apply 写进
+ *  宿主 Svelte 响应态（组件与 ui 对象同源渲染，本类不持状态）；「复击
+ *  判定」在调用方比对 ui 字段后走 confirm 或继续 arm。 */
+export class Armed<T> {
+    private timer: ReturnType<typeof setTimeout> | undefined;
+
+    constructor(
+        private readonly apply: (v: T | undefined) => void,
+        private readonly ms = 3000
+    ) {}
+
+    /** 进确认态（3s 到点自动复位）。 */
+    arm(v: T): void {
+        this.disarm();
+        this.apply(v);
+        this.timer = setTimeout((): void => {
+            this.timer = undefined;
+            this.apply(undefined);
+        }, this.ms);
+    }
+
+    /** 复位（确认执行、宿主重拉/卸载后调用；到点复位由类内自理）。 */
+    disarm(): void {
+        if (this.timer !== undefined) clearTimeout(this.timer);
+        this.timer = undefined;
+        this.apply(undefined);
+    }
+}
+
+/** 尾沿防抖：ms 内重复调用只保留最后一次（落盘合并、输入回显等）。
+ *  返回防抖函数，附 cancel 供卸载/生命周期终结时丢弃在途调用。 */
+export function debounce<A extends unknown[]>(
+    fn: (...args: A) => void,
+    ms: number
+): ((...args: A) => void) & {
+    cancel: () => void;
+} {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const wrapped = (...args: A): void => {
+        if (timer !== undefined) clearTimeout(timer);
+        timer = setTimeout((): void => {
+            timer = undefined;
+            fn(...args);
+        }, ms);
+    };
+    wrapped.cancel = (): void => {
+        if (timer !== undefined) clearTimeout(timer);
+        timer = undefined;
+    };
+    return wrapped;
 }

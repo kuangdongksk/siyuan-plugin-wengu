@@ -4,7 +4,7 @@ import { createFolder, deleteFolder, renameFolder } from "../data/BankFolders";
 import { refreshLiveCollections } from "../data/LiveCols";
 import { summarizeSessions, type ColRowView, type ColTreeNode } from "../ui/CollectionPanel";
 import { openRepairDialog } from "../ui/RepairDialog";
-import { fmt } from "../../ui/shared";
+import { Armed, fmt } from "../../ui/shared";
 import type { ColPanelUi } from "./ColPanelUi";
 
 /**
@@ -16,7 +16,11 @@ import type { ColPanelUi } from "./ColPanelUi";
  */
 export class ColPanelCtl {
     private alive = true;
-    private armTimer: ReturnType<typeof setTimeout> | undefined;
+    /** 两击删除 arm 态（专题/文件夹共用；note=连带删除提示文案）。 */
+    private armState = new Armed<{ key: string; note?: string }>((v) => {
+        this.ui.armed = v?.key;
+        this.ui.armedNote = v?.note;
+    });
 
     constructor(
         private readonly ui: ColPanelUi,
@@ -25,8 +29,7 @@ export class ColPanelCtl {
 
     destroy(): void {
         this.alive = false;
-        if (this.armTimer) clearTimeout(this.armTimer);
-        this.armTimer = undefined;
+        this.armState.disarm();
     }
 
     private bank(): QuestionBank | undefined {
@@ -151,21 +154,11 @@ export class ColPanelCtl {
     }
 
     private arm(key: string, note?: string): void {
-        this.disarm();
-        this.ui.armed = key;
-        this.ui.armedNote = note;
-        this.armTimer = setTimeout((): void => {
-            this.ui.armed = undefined;
-            this.ui.armedNote = undefined;
-            this.armTimer = undefined;
-        }, 3000);
+        this.armState.arm({ key, note });
     }
 
     private disarm(): void {
-        if (this.armTimer) clearTimeout(this.armTimer);
-        this.armTimer = undefined;
-        this.ui.armed = undefined;
-        this.ui.armedNote = undefined;
+        this.armState.disarm();
     }
 
     private async deleteCol(id: string): Promise<void> {

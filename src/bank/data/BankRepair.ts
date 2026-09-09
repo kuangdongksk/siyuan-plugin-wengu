@@ -1,6 +1,6 @@
 import { LETTERS, normalizeType } from "../../types";
 import { POSITION_SENSITIVE } from "../../convert/service/OptionShuffle";
-import { stripIal } from "./BankParse";
+import { stripIal } from "../../siyuan/kramdown";
 import { replaceRecordKramdown } from "./BankRegen";
 import type { QuestionBank } from "./QuestionBank";
 

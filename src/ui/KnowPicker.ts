@@ -1,4 +1,4 @@
-import { esc } from "./shared";
+import { debounce, esc } from "./shared";
 import { svgIcon } from "./FormHtml";
 import { KernelQuery } from "../siyuan/query";
 import { mountSvelteApp, type MountedSvelteApp } from "./mountApp";
@@ -205,24 +205,22 @@ export function openKnowPicker(opts: KnowPickerOpts): void {
             });
     };
 
-    let timer = 0;
-    const reload = (): void => {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => {
-            const kw = wrap.querySelector("input")?.value.trim() ?? "";
-            if (!kw) {
-                showTree();
-                return;
-            }
-            void queryDocs(kw)
-                .then((docs) => {
-                    if (menuEl === wrap) showFlat(docs);
-                })
-                .catch(() => {
-                    if (menuEl === wrap) showFlat([]);
-                });
-        }, 300);
-    };
+    // 搜索防抖：输入停 300ms 才查（连续键入不频闪）；菜单关了回调自判
+    // menuEl === wrap 静默，无需显式 cancel
+    const reload = debounce((): void => {
+        const kw = wrap.querySelector("input")?.value.trim() ?? "";
+        if (!kw) {
+            showTree();
+            return;
+        }
+        void queryDocs(kw)
+            .then((docs) => {
+                if (menuEl === wrap) showFlat(docs);
+            })
+            .catch(() => {
+                if (menuEl === wrap) showFlat([]);
+            });
+    }, 300);
     wrap.querySelector("input")!.addEventListener("input", reload);
 
     // 平铺行点击：单选即确认；多选切勾（勾选事实源在组件实例，树回显自动同步）

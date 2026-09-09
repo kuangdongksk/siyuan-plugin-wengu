@@ -1,6 +1,6 @@
 import { errText } from "./../../ui/shared";
-import { Dialog } from "siyuan";
 import { formOption } from "../../ui/FormHtml";
+import { openWenguDialog } from "../../ui/Dialog";
 import { launchAiFlow } from "../../ai/flow";
 import type { AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
@@ -35,10 +35,10 @@ export interface WeakDrillDeps {
 
 export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
     const { t } = deps;
-    const dialog = new Dialog({
+    const { dialog, root } = openWenguDialog({
         title: t("drillTitle"),
-        width: "560px",
-        content: `<div class="b3-dialog__content wengu-dialog wengu-col-dialog">
+        extraCls: "wengu-col-dialog",
+        body: `
       <div class="wengu-muted">${esc(t("drillHint"))}</div>
       <div class="wengu-col-list" data-act="drill-rows"><div class="wengu-muted">…</div></div>
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
@@ -51,13 +51,12 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
             .map((n, i) => formOption(String(n), String(n), i === 2))
             .join("")}</select>
       </div>
-    </div>
-    <div class="b3-dialog__action">
-      <button class="b3-button b3-button--cancel" data-act="drill-cancel">${esc(t("cancel"))}</button>
-      <button class="b3-button b3-button--outline" data-act="drill-ok">${esc(t("drillGenBtn"))}</button>
-    </div>`,
+    `,
+        actions: [
+            { id: "drill-cancel", label: t("cancel") },
+            { id: "drill-ok", label: t("drillGenBtn"), variant: "outline" },
+        ],
     });
-    const root = dialog.element;
     const rowsBox = root.querySelector<HTMLElement>("[data-act='drill-rows']");
     const selected = new Set<string>(rows.slice(0, 3).map((r) => r.key));
     if (rowsBox) {
