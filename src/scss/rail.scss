@@ -46,6 +46,11 @@
   }
 }
 
+/* 设置钮非工作区（无激活态），钉在 rail 底部与顶部五个工作区钮分组 */
+.wengu-rail-settings {
+  margin-top: auto;
+}
+
 /* ── 管理面板主区（非刷题工作区共用骨架） ── */
 .wengu-ws-main {
   flex: 1;

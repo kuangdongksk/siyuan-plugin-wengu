@@ -9,7 +9,8 @@ import { mountAiSessionPanel } from "../../ai/SessionPanel";
  * 这里）：rail + 空主区骨架，再把面板挂进去。各面板均已 Svelte 化
  * （companion/bank/ai），数据装载在组件 onMount 里自起；全量重绘
  * （renderList）时 renderQuizShellFor 开头统一 detach 面板实例。
- * 20260901 拆分：专题管理与知识文档为两个独立工作区（rail 五钮）。
+ * 20260901 拆分：专题管理与知识文档为两个独立工作区（rail 五工作区钮
+ * +底部设置钮，20260910）。
  */
 export function renderWorkspaceFor(v: QuizView): void {
     v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-main wengu-ws-main" data-ws-root></div>`;

@@ -27,7 +27,6 @@
         docs,
         docId,
         sideCollapsed,
-        hasSettingsButton,
         filter,
         collections,
         activeCollection,
@@ -42,7 +41,6 @@
         docs: WenguDoc[];
         docId: string;
         sideCollapsed: boolean;
-        hasSettingsButton: boolean;
         /** 初始搜索词（整壳重建时由视图回灌）。 */
         filter: string;
         collections: { id: string; title: string; count: number }[];
@@ -151,16 +149,6 @@
             >
                 {@html svgIcon("iconRefresh")}
             </Button>
-            {#if hasSettingsButton}
-                <Button
-                    class="wengu-side-iconbtn"
-                    data-act="settings"
-                    title={t("settingsBtn")}
-                    onclick={() => onAct("settings")}
-                >
-                    {@html svgIcon("iconSettings")}
-                </Button>
-            {/if}
             <Button
                 class="wengu-side-iconbtn"
                 data-act="side-fold"

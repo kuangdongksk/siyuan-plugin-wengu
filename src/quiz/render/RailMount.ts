@@ -4,8 +4,9 @@ import RailApp from "../components/RailApp.svelte";
 
 /**
  * 左侧工作区导航栏（三栏格局的第一栏）：刷题/专题/知识/AI 会话/学伴
- * 五个图标钮（20260901 拆分：专题管理与知识文档回两个独立工作区，
- * 20260831 □4 曾收敛四钮）。Svelte 化（20260830）：渲染在
+ * 五个工作区图标钮（20260901 拆分：专题管理与知识文档回两个独立工作区，
+ * 20260831 □4 曾收敛四钮）+ 底部设置钮（20260910 自刷题侧栏挪入，
+ * 开设置弹窗不切工作区）。Svelte 化（20260830）：渲染在
  * components/RailApp.svelte，本文件是挂载编排——四处壳拼接（做题主壳/
  * 错误兜底/工作区分支/复习分支）都在 innerHTML 最前放 RAIL_ANCHOR_HTML
  * 锚，mountRailFor 以 anchor 法把组件根插到 v.el 直下后删锚（rail 的
@@ -38,6 +39,7 @@ export function mountRailFor(v: QuizView): void {
             t: v.t,
             active: v.workspace,
             onSwitch: (ws: WenguWorkspace) => v.switchWorkspace(normalizeWorkspace(ws)),
+            onOpenSettings: v.openSettings,
         },
         { anchor }
     );

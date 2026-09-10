@@ -259,7 +259,6 @@ function sideQuizAccess(v: QuizView): import("../flow/SideMount").SideViewAccess
         docIdOf: () => v.docId,
         sideCollapsedOf: () => v.sideCollapsed,
         sideFilterOf: () => v.sideFilter,
-        hasSettingsBtn: () => !!v.openSettings,
         sideTreeOpenOf: () => v.sideTreeOpen,
         colFlowOf: () => v.colFlow,
         convertingOf: () => v.convertingOf(),

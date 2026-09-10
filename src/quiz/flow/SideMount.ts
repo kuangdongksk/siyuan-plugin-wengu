@@ -8,15 +8,15 @@ import type { WenguWorkspace } from "../render/RailMount";
 
 /** 侧栏/头部按钮统一出口（act 名同 data-act）：SidePanelApp/QuizHeadApp
  *  的 onAct 回调经 SideViewAccess.sideAct 汇到这里分派——原来是
- *  ViewBindings 的逐钮 DOM 绑定（refresh/convert/settings/side-fold/
- *  side-toggle/end-round/stats/collections），6-5 组件化后收为一个
- *  switch。视图能力经 SideActAccess 结构匹配（QuizView 箭头属性复用）。 */
+ *  ViewBindings 的逐钮 DOM 绑定（refresh/convert/side-fold/side-toggle/
+ *  end-round/stats/collections），6-5 组件化后收为一个 switch。视图能力
+ *  经 SideActAccess 结构匹配（QuizView 箭头属性复用）。设置入口不在
+ *  此（20260910 挪 rail，见 RailMount）。 */
 export interface SideActAccess {
     reloadView(): Promise<void>;
     openConvert(): void;
     openStatsPanelAt(tab: "overview" | "doc"): void;
     colFlowOf(): CollectionFlow;
-    openSettings?(): void;
     setSideCollapsed(collapsed: boolean): void;
     endRound(): void;
 }
@@ -36,9 +36,6 @@ export function sideActFor(v: SideActAccess): (act: string) => void {
                 break;
             case "collections":
                 v.colFlowOf().openDialog();
-                break;
-            case "settings":
-                v.openSettings?.();
                 break;
             case "side-fold":
                 v.setSideCollapsed(true);
@@ -74,7 +71,6 @@ export interface SideViewAccess {
     docIdOf(): string;
     sideCollapsedOf(): boolean;
     sideFilterOf(): string;
-    hasSettingsBtn(): boolean;
     sideTreeOpenOf(): string[];
     colFlowOf(): CollectionFlow;
     convertingOf(): boolean;
@@ -111,7 +107,6 @@ export function mountSideFor(v: SideViewAccess, workspace: WenguWorkspace): void
         docs: v.docsOf(),
         docId: v.docIdOf(),
         sideCollapsed: v.sideCollapsedOf(),
-        hasSettingsButton: v.hasSettingsBtn(),
         filter: v.sideFilterOf(),
         collections: v.colFlowOf().rowsView(),
         activeCollection: v.colFlowOf().id(),
