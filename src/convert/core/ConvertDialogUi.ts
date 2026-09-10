@@ -13,8 +13,9 @@ export interface ConvertDialogUi {
     modelId: string;
     fillToChoice: boolean;
     bigToSteps: boolean;
-    /** 并发批次数（兼容保留，20260910 起弹窗不再露出该选择）：逐段自推进
-     *  必须串行，本值不再影响执行。 */
+    /** 并发片流水线数（分片并行：片间并行、片内仍由 AI 自推进；1=串行）。
+     *  弹窗照常露出该选择（ConvertDialogApp），初值取设置面板的
+     *  convertParallel，随 start 传入转换运行器。 */
     parallel: number;
     knowRoots: string;
     /* 回显（getDocInfo 解析的标题路径；空=占位「选择…」） */

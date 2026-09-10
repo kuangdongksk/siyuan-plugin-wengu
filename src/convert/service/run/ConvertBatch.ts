@@ -131,7 +131,8 @@ export interface ConvertProgressRecord {
     title: string;
     /** 已生成覆盖到的源文档字符偏移（=续跑游标）。 */
     offset: number;
-    /** 已完成批数 / 总批数（展示用；逐段模式两者都是已处理批数）。 */
+    /** 已完成批数 / 总批数（展示用；逐段模式两者都是**实际 AI 调用批数**，
+     *  含零产物批、不含纯标题跳过窗口——与 SegmentResult.batches 同口径）。 */
     batches: number;
     total: number;
     /** 已生成题数。 */
@@ -146,7 +147,9 @@ export interface BatchedResult {
     setId?: string;
     title?: string;
     count: number;
-    /** 已完成批数 / 总批数。 */
+    /** 已完成批数 / 总批数（口径=**实际 AI 调用批数**，含零产物批、不含
+     *  纯标题跳过窗口；与进度回调 ConvertProgress.batch「已落库批数」是两个
+     *  不同口径，见收口处注释）。 */
     batches: number;
     total: number;
     /** 已生成覆盖到的源文档字符偏移（继续生成的断点）。 */
@@ -270,7 +273,10 @@ export async function convertDocBatched(
     const writtenQids: string[] = [];
     const generatedKds: string[] = [];
     let count = 0;
-    let batchNo = 0;
+    /** 已落库批数：submit 每落一批 +1（进度回调 ConvertProgress.batch 的
+     *  口径）。AI 批可能零产物而不发 submit，故它与收口的「AI 调用批数」
+     *  不是一回事——两者必须各累各的，混用即双重累计。 */
+    let flushedBatches = 0;
     let emptyBatches = 0; // AI 批返回可解析题目数为 0 的批数（完成消息附警告）
     let anchorMiss = 0; // @@TO 缺失/定位失败的批数（兜底推进，可能漏窗口末尾残题）
     let refused = ""; // 首片首批判定「不能出题」的原因（零产物收口时用）
@@ -329,12 +335,12 @@ export async function convertDocBatched(
         }
         const nq = batch.drafts.filter((d) => !d.material).length;
         count += nq;
-        batchNo++;
+        flushedBatches++;
         flushedCursor = Math.max(flushedCursor, batch.end);
         await opts.bank.flush(); // 每批即落盘（崩溃安全，终止/丢弃语义建立在已落库上）
         opts.onProgress({
             phase: flushedCursor >= kramdown.length ? "writing" : "generating",
-            batch: batchNo,
+            batch: flushedBatches,
             total: 0,
             count,
             lastBatch: nq,
@@ -402,9 +408,14 @@ export async function convertDocBatched(
         for (const g of gates) g.resolve();
         opts.signal?.removeEventListener("abort", relayAbort);
     }
+    // 收口统计：各片 **AI 调用批数**之和——最终结果与进度记录的 batches/total
+    // 用它。它与进度回调的 flushedBatches（「已落库批数」）互不相干却同时
+    // 发生，20260910 分片并行改造一度把两者累进同一变量，面板/终止提示的批数
+    // 因此约为实际值两倍；此处刻意分名分账。
+    let aiBatches = 0;
     for (const r of segs) {
         if (!r) continue;
-        batchNo += r.batches;
+        aiBatches += r.batches;
         emptyBatches += r.emptyBatches;
         anchorMiss += r.anchorMiss;
     }
@@ -414,8 +425,8 @@ export async function convertDocBatched(
             status: userAborted ? "aborted" : "failed",
             message: userAborted ? "" : `${t("convertAiFailed")}${firstError}`,
             count,
-            batches: batchNo,
-            total: batchNo,
+            batches: aiBatches,
+            total: aiBatches,
             doneOffset: flushedCursor,
             setId,
             title: setId ? info.title : undefined,
@@ -433,8 +444,8 @@ export async function convertDocBatched(
                 setId,
                 title: info.title,
                 count: 0,
-                batches: batchNo,
-                total: batchNo,
+                batches: aiBatches,
+                total: aiBatches,
                 doneOffset: kramdown.length,
                 writtenQids,
             };
@@ -460,8 +471,8 @@ export async function convertDocBatched(
         setId: setId!,
         title: info.title,
         count,
-        batches: batchNo,
-        total: batchNo,
+        batches: aiBatches,
+        total: aiBatches,
         doneOffset: kramdown.length,
         writtenQids,
     };
