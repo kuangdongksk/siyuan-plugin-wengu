@@ -7,6 +7,7 @@ import {
     allSetQuestions,
     ensureSets,
     orderedSetIds,
+    originDocIdOf,
     qidHasBlock,
     readRecordSrcGroups,
     removeRecords,
@@ -154,6 +155,44 @@ describe("setQuestions / readRecordSrcGroups / 删标", () => {
         expect(read().records.q1).toBeUndefined();
         expect(read().sets?.s1.qids).toEqual(["q2"]);
         expect(read().hashed["h-q1"]).toBeUndefined();
+    });
+});
+
+describe("originDocIdOf", () => {
+    it("链路①：qid → records.sourceDocId → sets.srcId（有源讲义）", async () => {
+        const { bank } = newBank({
+            records: { "gen-a1": rec("gen-a1", "set-1") },
+            sets: {
+                "set-1": {
+                    id: "set-1",
+                    title: "高数讲义",
+                    srcId: "20260821165017-6ivs5xm",
+                    qids: ["gen-a1"],
+                    createdAt: 1,
+                },
+            },
+        });
+        await expect(originDocIdOf(bank, "gen-a1")).resolves.toBe("20260821165017-6ivs5xm");
+    });
+
+    it("链路②：存量块题且有源讲义同样优先拆源讲义；无源讲义返回空串（调用方兜底跳原块）", async () => {
+        const blockQid = "20260821165017-6ivs5xm";
+        const { bank } = newBank({
+            records: { [blockQid]: rec(blockQid, "set-old") },
+            sets: { "set-old": { id: "set-old", title: "存量卷", qids: [blockQid], createdAt: 1 } },
+        });
+        await expect(originDocIdOf(bank, blockQid)).resolves.toBe(""); // 无 srcId
+        expect(qidHasBlock(blockQid)).toBe(true); // 第二级降级由此接手
+    });
+
+    it("链路③：无记录/无 sourceDocId/题集条目缺失一律空串（不出死钮）", async () => {
+        const { bank } = newBank({
+            records: { "gen-b1": rec("gen-b1", "set-2") },
+            sets: {},
+        });
+        await expect(originDocIdOf(bank, "gen-b1")).resolves.toBe(""); // sets 未建
+        await expect(originDocIdOf(bank, "gen-nope")).resolves.toBe(""); // 记录不存在
+        expect(qidHasBlock("gen-b1")).toBe(false); // ③ 无目标 → 不渲染
     });
 });
 

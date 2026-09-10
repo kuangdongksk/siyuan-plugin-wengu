@@ -7,7 +7,7 @@
 
     /**
      * 单题回看详情：三态（未选/装载中/就绪）+ 四段（题目/时间线/答案/
-     * 解析）+ 动作行（复制/跳源块）。Lute 渲染的 html 串统一 {@html}
+     * 解析）+ 动作行（复制/查看原文，后者无跳转目标时不渲染）。Lute 渲染的 html 串统一 {@html}
      * 桥接；数学渲染在就绪后对容器补一刀（旧实现 innerHTML 落位即调，
      * $effect 对齐同一时机）。
      */
@@ -47,9 +47,12 @@
             <Button variant="outline" title={t("pvCopyTitle")} onclick={() => ctl.copyDetail()}
                 >{@html svgIcon("iconCopy")} {t("pvCopyTitle")}</Button
             >
-            <Button variant="outline" onclick={() => ctl.gotoBlock(d.qid)}
-                >{@html svgIcon("iconRight")} {t("reviewGotoBlock")}</Button
-            >
+            {#if d.gotoId}
+                <Button variant="outline" onclick={() => ctl.gotoBlock(d.gotoId!)}>
+                    {@html svgIcon("iconRight")}
+                    {t("pvOriginTitle")}
+                </Button>
+            {/if}
         </div>
     </div>
 {/if}

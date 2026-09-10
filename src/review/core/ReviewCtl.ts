@@ -1,4 +1,4 @@
-import { questionOf } from "../../bank/data/BankSets";
+import { originDocIdOf, questionOf, qidHasBlock } from "../../bank/data/BankSets";
 import { copyQuestionText } from "../../quiz/flow/PreviewFlow";
 import { stripIal } from "../../siyuan/kramdown";
 import type { BankRecord, QuestionBank } from "../../bank/data/QuestionBank";
@@ -115,14 +115,39 @@ export class ReviewCtl {
         if (this.detailQ && this.v) void copyQuestionText(this.detailQ, this.v.t);
     }
 
-    /** 详情「跳源块」。 */
+    /** 详情「查看原文」（Issue #13）：qid 经降级链解跳转目标——①题集
+     *  有源讲义（set.srcId）跳源讲义；②无源讲义且存量块题跳原块；
+     *  ③都无零动作（按钮由 detail.gotoId 门控，正常情况下点不到）。
+     *  点击时异步查库（bank.all() 已缓存，零额外 IO）。 */
     gotoBlock(id: string): void {
-        window.open(`siyuan://blocks/${id}`);
+        void (async (): Promise<void> => {
+            const bank = this.v?.bankStore();
+            let src = "";
+            try {
+                src = bank ? await originDocIdOf(bank, id) : "";
+            } catch (e) {
+                console.warn("[wengu] 源讲义解析失败，降级跳原块", id, e); // 查库失败不该吞掉跳转
+            }
+            const target = src || (qidHasBlock(id) ? id : "");
+            if (target) window.open(`siyuan://blocks/${target}`);
+        })();
     }
 
     /** 组标题（装载时缓存的文档标题映射）。 */
     docTitleOf(docId: string): string {
         return this.docTitles.get(docId) || docId.slice(0, 10);
+    }
+
+    /** 该题是否有「查看原文」目标（源讲义优先，存量块题兜底；
+     *  查库失败按有目标收口——宁可露钮别让存量块题失去入口）。 */
+    private async originOf(qid: string): Promise<string> {
+        try {
+            const bank = this.v?.bankStore();
+            const src = bank ? await originDocIdOf(bank, qid) : "";
+            return src || (qidHasBlock(qid) ? qid : "");
+        } catch (_) {
+            return qid; // fail-open：解析失败维持旧行为（跳原块）
+        }
     }
 
     /* ── 装载（SQL 分页直查块属性 + history 时间线索引） ── */
@@ -177,9 +202,14 @@ export class ReviewCtl {
             if (seq !== this.detailSeq || !this.alive) return;
             const t = this.v?.t;
             if (!t) return;
+            // 「查看原文」渲染门控（Issue #13）：无跳转目标不渲染按钮
+            // （存量块题兜底也算有目标），解库失败按有目标收口
+            const gotoId = (await this.originOf(item.qid)) ? item.qid : "";
+            if (seq !== this.detailSeq || !this.alive) return;
             const d: ReviewDetailModel = {
                 qid: item.qid,
                 docTitle: this.docTitleOf(item.docId),
+                gotoId,
                 ...renderDetailModel({ q, stemSummary: item.stemSummary }),
                 timelineHtml: renderTimelineHtml(t, item.attempts),
             };
