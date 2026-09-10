@@ -141,7 +141,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         ? `<span class="wengu-muted">${esc(v.colFlow.activeTitle() ?? "")} · ${esc(String(v.list.length))}</span>`
         : renderSubheadHtml({ t: v.t, doc, listCount: v.list.length, rounds: v.rounds });
     mountSideFor(sideQuizAccess(v), "drill");
-    mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv);
+    mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv, v.revealMode === "after");
     v.timerBinder.updateLabel();
     const task = renderStaticChunked(v, cardModel, setGroups);
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
-import { addDocTime, overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "./BankRecording";
+import {
+    addDocTime,
+    overrideAnswer,
+    overrideStepsResult,
+    recordStepsResult,
+    recordSlotsResult,
+    recordVerifyResult,
+} from "./BankRecording";
 
 /** node 测试环境无 window（vitest 不启 jsdom），markDirty 的防抖定时器
  *  需要它——挂全局自指即可（node 的 setTimeout/clearTimeout 全局就有）。 */
@@ -89,7 +96,9 @@ describe("recordSlotsResult · slots 整题记账", () => {
 
 describe("overrideAnswer / overrideStepsResult · 改判", () => {
     it("brief 错改对：翻 right 回退一次错次，对改错补记", async () => {
+        // 本题**已答错过**：right=0（镜像记账写的是 "0"/"1"）
         const bank = bankWith([rec("q1", 2, 1)]);
+        (await bank.all()).records.q1.stats.right = "0";
         await overrideAnswer(bank, "q1", true);
         let s = (await bank.all()).records.q1.stats;
         expect(s.right).toBe("1");
@@ -97,6 +106,13 @@ describe("overrideAnswer / overrideStepsResult · 改判", () => {
         expect(s.attempts).toBe(2); // 改判不动 attempts
         await overrideAnswer(bank, "q1", false);
         s = (await bank.all()).records.q1.stats;
+        expect(s.right).toBe("0");
+        expect(s.wrongCount).toBe(1);
+    });
+    it("没答过的记录（right 缺省）翻错要补记一次——right 缺省视为对", async () => {
+        const bank = bankWith([rec("q1", 0, 0)]);
+        await overrideAnswer(bank, "q1", false);
+        const s = (await bank.all()).records.q1.stats;
         expect(s.right).toBe("0");
         expect(s.wrongCount).toBe(1);
     });
@@ -109,6 +125,47 @@ describe("overrideAnswer / overrideStepsResult · 改判", () => {
         expect(s.right).toBe("1");
         expect(s.wrongCount).toBe(0);
         expect(s.stepRight).toBe("11");
+    });
+});
+
+describe("recordVerifyResult · after 模式重复提交覆写（Issue #12 B2）", () => {
+    it("不动 attempts，lastAnswer/right 以最后一次为准", async () => {
+        const bank = bankWith([rec("q1", 1, 0)]); // 首次提交已记 attempts=1
+        (await bank.all()).records.q1.stats.right = "1";
+        (await bank.all()).records.q1.stats.lastAnswer = "A";
+        await recordVerifyResult(bank, "q1", "C", false);
+        const s = (await bank.all()).records.q1.stats;
+        expect(s.attempts).toBe(1); // 重复提交不重复计数
+        expect(s.lastAnswer).toBe("C");
+        expect(s.right).toBe("0");
+    });
+    it("wrongCount 口径＝曾错不清零：错→对不回退（历史真错过），对→错补记一次", async () => {
+        const bank = bankWith([rec("q1", 1, 0)]); // 首次提交已记账（attempts=1）
+        (await bank.all()).records.q1.stats.right = "0"; // 首次提交答错（wrongCount 已含这一次）
+        await recordVerifyResult(bank, "q1", "B", true);
+        let s = (await bank.all()).records.q1.stats;
+        expect(s.right).toBe("1");
+        expect(s.wrongCount).toBe(0); // 当次错因这次改对而抵掉（历史（rec 传入的）错次不在本口径内）
+        await recordVerifyResult(bank, "q1", "D", false);
+        s = (await bank.all()).records.q1.stats;
+        expect(s.right).toBe("0");
+        expect(s.wrongCount).toBe(1); // 对翻错补记一次
+        await recordVerifyResult(bank, "q1", "D", false);
+        s = (await bank.all()).records.q1.stats;
+        expect(s.wrongCount).toBe(1); // 终态未变，零动作
+    });
+    it("终态一致时零动作（改回原文再提交同一对错不膨胀）", async () => {
+        const bank = bankWith([rec("q1", 1, 0)]);
+        (await bank.all()).records.q1.stats.right = "0";
+        await recordVerifyResult(bank, "q1", "A", false);
+        await recordVerifyResult(bank, "q1", "B", false);
+        const s = (await bank.all()).records.q1.stats;
+        expect(s.wrongCount).toBe(0);
+        expect(s.lastAnswer).toBe("B");
+    });
+    it("不在库的题静默跳过（返 false，不抛）", async () => {
+        const bank = bankWith([]);
+        expect(await recordVerifyResult(bank, "ghost", "A", true)).toBe(false);
     });
 });
 

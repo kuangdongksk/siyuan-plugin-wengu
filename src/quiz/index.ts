@@ -16,7 +16,13 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/run/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { notifyError, notifyInfo } from "../ui/Notify";
-import { overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "../bank/data/BankRecording";
+import {
+    overrideAnswer,
+    overrideStepsResult,
+    recordStepsResult,
+    recordSlotsResult,
+    recordVerifyResult,
+} from "../bank/data/BankRecording";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
@@ -182,11 +188,29 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     ): void => {
         const s = this.session;
         if (!s) return;
+        const former = s.results.some((r) => r.qid === qid); // upsert 前先看是否重复提交
         const sec = this.timer.takeQuestionSec(qid);
         pushSessionAnswer(s, qid, submitted, ok, sec, this.timer.elapsed(), extra);
         void this.history?.upsert(s);
-        if (!qid.includes("#")) void this.bank?.recordAnswer(qid, submitted, ok); // 题库统计镜像
+        // 题库统计镜像：首次提交走 recordAnswer（attempts+1）；重复提交
+        // （after 模式改答案）走 recordVerifyResult——只覆写 lastAnswer/right
+        // 不动 attempts（Issue #12 B2「重复提交记账不重复」）
+        if (!qid.includes("#")) {
+            if (former) void recordVerifyResult(this.bank!, qid, submitted, ok);
+            else void this.bank?.recordAnswer(qid, submitted, ok);
+        }
         notifyQuizAnswer(this, qid, submitted, ok, sec); // 看板娘事件（含错题讲解上下文）
+    };
+
+    /** after 模式答满（未收卷）：一次性提示「可检查修改，结束后统一判卷」
+     *  （Issue #12 B3）。题卡内 answeredEditable 常显负责细粒度告知，
+     *  这里只在**首次**答满时补一条浮层——不重复打扰。全卷重渲染/换题集
+     *  会重置标记（renderList 里清），新一轮答满能再提示一次。 */
+    private allAnsweredNotified = false;
+    readonly onAllAnswered = (): void => {
+        if (this.allAnsweredNotified) return;
+        this.allAnsweredNotified = true;
+        notifyInfo({ key: "allAnsweredPending" });
     };
 
     /** 整题收口镜像（steps/slots 用）：题库按整题记一次——逐 #k 的
@@ -529,6 +553,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
 
     private renderList(): void {
+        // 全新一轮渲染即重置「答满提示」去重标记（Issue #12 B3）：换题集/
+        // 重开页签/收卷重渲染后，新一轮答满能再提示一次
+        this.allAnsweredNotified = false;
         renderListFor(this);
     }
 

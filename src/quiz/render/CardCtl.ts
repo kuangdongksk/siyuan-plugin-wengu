@@ -49,10 +49,20 @@ export class CardCtl {
 
     /* ── 写（判分/揭示/恢复路径共用小件） ── */
 
-    /** 判分总闸：置 graded + 锁作答位（旧 dataset.graded + lockInputs）。 */
+    /** 判分总闸：置 graded **并**锁作答位（instant 模式专用）。
+     *  after 模式（收卷后揭示）走 setPending——只置 graded 不锁，
+     *  收卷前可反复改答案（Issue #12 B2）。 */
     setGraded(): void {
         this.ui.graded = true;
         this.ui.locked = true;
+    }
+
+    /** after 模式判分：记账已入（graded=true → allCardsGraded/答满提示
+     *  依赖），但作答位与答案/解析**都不揭开**——收卷（revealAll →
+     *  lockAllCards）才落到 setGraded 的终态（Issue #12 B2/B4）。
+     *  steps/slots 卡不用本路径（逐空/逐步即时判分）。 */
+    setPending(): void {
+        this.ui.graded = true;
     }
 
     /** 结果行（正文 html + 状态类；icon 前缀渲染派生）。 */

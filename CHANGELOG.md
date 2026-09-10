@@ -2,6 +2,49 @@
 
 ## v0.1.1 unreleased
 
+- **跳过 / 不会 按钮 + after 模式收卷前可改答案**（20260910，quiz 域，Issue #12）：
+  做题模式两个交互缺口一次补齐。
+
+    普通题卡（choice/judge/填空/brief/essay/trans）作答行由「单提交钮」改为
+    「跳过 / 提交 / 不会」三钮同行（`wengu-submit-row`，两侧 outline 风格、
+    提交居中）：
+    - **跳过**：不记作答、不锁卡、不揭示，只滚到下一题（`skipQuestion` 走
+      `host.onActiveQ` + `MaterialFlow.focusQuestion`，与题号栏点击逐字同源，
+      材料组自动切显）；末题零动作。题号栏不标已答。
+    - **不会**：记一次 `ok=false` 的作答（会话 submitted 存空串，恢复路径
+      吃空串无副作用），brief 类**跳过 AI 判分**直接判错（不烧调用）；
+      instant 模式揭示答案/解析并锁卡，after 模式只记「已作答」可反悔。
+
+    after 模式（收卷后揭示）自「提交即锁卡」改为**收卷前可反复改答案**：
+    - 提交只置 `graded`（记账已入）不置 `locked`，作答位守卫从 `ctl.graded`
+      收敛到新增的 `answeredFrozen` 判据（只认 `revealed || locked`，
+      `pickLetter`/`pickJudge`/`submitQuestion` 三处统一）；`initRestoredNormal`
+      同步解锁——重开页签/「继续上次」恢复的进行中轮不再被锁死。
+    - **重复提交记账不重复**：`HistoryStore.pushSessionAnswer` 由纯追加改
+      **upsert**（按 qid 原地覆写、`answered` 不涨、`correct` 按差值修正、
+      三态字段以最后一次为准）；题库镜像首次提交走 `recordAnswer`
+      （attempts+1），重复提交走新增的 `BankRecording.recordVerifyResult`
+      （只覆写 `lastAnswer`/`right`，`wrongCount` 取「曾错不清零」口径）。
+      它与 `overrideAnswer` 共用新抽的 `applyOverride` 收口。
+    - **答满不自动收卷**：`checkAllDone` 在 after 模式不再 `revealAll`，改为
+      提示（题卡内 `answeredEditable` 常显 + 首次答满一条浮层），收卷只走
+      头部「交卷并查看答案」（`manualFinishRound` → `revealAnsweredNow` →
+      `revealAll` → `lockAllCards` 链路已存在）；头部按 revealMode 换文案并
+      常显「做完后统一判卷」；instant 模式行为不变。
+
+    **防剧透前置修复**：答案/解析显隐原先挂在 `.wengu-graded`（after 模式
+    提交即 `setGraded` → 提交当场泄题），整体改由**揭示态**驱动——题卡新增
+    `.wengu-revealed` 类（由 `ui.revealed` 派生），`card-render.scss` 里
+    answer/solution part、`part^="slot-"` 与 `.wengu-static-sol` 三处显隐一并
+    改挂它；`.wengu-graded` 退为「已判分」语义（steps/slots/instant 卡同时带
+    两者），不再参与内容显隐。
+
+    steps 多步卡与 slots 逐空卡**维持现状**（作答单位是步/空，不加跳过/不会、
+    after 行为不变）。i18n zh-CN/en 补 skipBtn/skipHint/dunnoBtn/dunnoHint/
+    dunnoMarked/answeredEditable/allAnsweredPending/endRoundRevealBtn/
+    endRoundAfterHint 九键。新增单测：upsert 记账口径、after 恢复态解锁与
+    揭示态判据、`recordVerifyResult` 幂等。
+
 - **导入知识文档后自动补跑一次 AI 索引**（20260910，bank 域，Issue #2）：手动导入
   （登记）链尾新增一步——零 AI 文本关联与面板 reload 跑完、`yieldToBrowser` 让出
   首帧之后，对**本次新登记根**（与导入前登记清单 diff 得出）子树里尚无索引的文档

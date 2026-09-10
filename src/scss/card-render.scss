@@ -21,12 +21,17 @@
   display: none;
 }
 
-.wengu-card.wengu-graded [custom-plugin-wengu-part="answer"],
-.wengu-card.wengu-graded [custom-plugin-wengu-part="solution"] {
+/* 揭示闸（20260910 Issue #12 B4）：答案/解析显隐**只认 .wengu-revealed**
+   ——after 模式（收卷后揭示）提交时不落 wengu-graded，旧写法会在提交
+   当场泄题。.wengu-graded 保留为「已判分」语义（steps/slots/instant 卡
+   同时带两者），不再参与内容显隐；本文件里 wengu-graded 关联的
+   DOM 钩子仅剩 [data-graded] 与 .wengu-card 上的类名（见类定义处）。 */
+.wengu-card.wengu-revealed [custom-plugin-wengu-part="answer"],
+.wengu-card.wengu-revealed [custom-plugin-wengu-part="solution"] {
   display: block;
 }
 
-.wengu-card.wengu-graded [custom-plugin-wengu-part="answer"] {
+.wengu-card.wengu-revealed [custom-plugin-wengu-part="answer"] {
   border-left: 3px solid var(--b3-theme-surface);
   padding-left: 6px;
 }
@@ -298,8 +303,10 @@
 
 /* ── 题库静态渲染（专题模式）：Lute 输出 + 判分显隐 ── */
 
-/* 解析/答案容器：作答前隐藏（与文档模式 part 显隐同语义），判分后随 wengu-graded 显现 */
-.wengu-card:not(.wengu-graded) .wengu-static-sol {
+/* 解析/答案容器：作答前隐藏（与文档模式 part 显隐同语义），**揭示后**
+   才显现——after 模式提交不揭示，故判据是 .wengu-revealed 而非
+   .wengu-graded（Issue #12 B4 防剧透前置修复）。 */
+.wengu-card:not(.wengu-revealed) .wengu-static-sol {
   display: none;
 }
 

@@ -61,14 +61,40 @@ export async function recordSlotsResult(
 export async function overrideAnswer(bank: QuestionBank, qid: string, correct: boolean): Promise<void> {
     const r = await statRecordOf(bank, qid);
     if (!r) return;
-    r.stats.right = correct ? "1" : "0";
-    if (correct) {
-        if (r.stats.wrongCount > 0) r.stats.wrongCount--;
-    } else {
-        r.stats.wrongCount++;
-    }
-    r.stats.updatedAt = Date.now();
+    applyOverride(r, correct);
     bank.markDirty();
+}
+
+/** 覆写通用记账（after 模式重复提交 / 即时模式改判，20260910 Issue #12）：
+ *  **不动 attempts**，lastAnswer + right 更新为最新一次提交，
+ *  wrongCount 取「最终对错」与「历史曾错」的并集——终态由错翻对回退
+ *  一次（不清零历史错次），对翻错补记一次，终态与旧态一致时零动作。
+ *  wrongCount 单调不减（历史答错不清零），故「回退一次」等价于取并集；
+ *  返 true=记了账（会话侧同款口径可只落一次盘）。 */
+export async function recordVerifyResult(
+    bank: QuestionBank,
+    qid: string,
+    submitted: string,
+    ok: boolean
+): Promise<boolean> {
+    const r = await statRecordOf(bank, qid);
+    if (!r) return false;
+    r.stats.lastAnswer = submitted;
+    applyOverride(r, ok);
+    bank.markDirty();
+    return true;
+}
+
+/** right/wrongCount 覆写口径（recordVerifyResult 与 overrideAnswer 共用）。 */
+function applyOverride(
+    r: { stats: { right?: string; wrongCount: number; updatedAt: number } },
+    correct: boolean
+): void {
+    const wasRight = r.stats.right !== "0"; // 缺省（没答过）视为对，翻错必补一次
+    r.stats.right = correct ? "1" : "0";
+    if (!correct && wasRight) r.stats.wrongCount++;
+    else if (correct && !wasRight && r.stats.wrongCount > 0) r.stats.wrongCount--;
+    r.stats.updatedAt = Date.now();
 }
 
 /** steps 改判（方法步申诉复核通过）：翻逐步细粒度与整题 right；

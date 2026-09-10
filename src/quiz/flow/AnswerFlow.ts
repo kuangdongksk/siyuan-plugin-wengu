@@ -3,7 +3,7 @@ import { judgeBrief } from "../service/AiJudge";
 import { isObjective } from "../render/CardHtml";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
-import { syncGroupReveal } from "./MaterialFlow";
+import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion } from "../service/QuestionGrading";
 import { markNum } from "../render/FlowDom";
 import { markNumRailAnswered } from "../render/NumRail";
@@ -55,11 +55,15 @@ export interface AnswerHost {
     /** 当前题切换（题号导航/组内导航）：同步下标、逐题计时、线索行。
      *  可选——QuizView 之外的宿主（测试/预览壳）不实现即跳过同步。 */
     onActiveQ?(idx: number): void;
+    /** after 模式答满（全部 graded 但尚未收卷）：提示一次「可检查修改」
+     *  （视图侧做一次性去重，见 QuizView 实现）。可选。 */
+    onAllAnswered?(): void;
 }
 
-/** 字母 chip 点选：单选互斥（重选保持选中），多选可增删（序保持升序）。 */
+/** 字母 chip 点选：单选互斥（重选保持选中），多选可增删（序保持升序）。
+ *  守卫是「揭示/锁定」而非 graded——after 模式提交后仍可改（Issue #12）。 */
 export function pickLetter(ctl: CardCtl, letter: string): void {
-    if (ctl.graded) return;
+    if (answeredFrozen(ctl)) return;
     const ui = ctl.ui;
     if (ctl.q.type === QuestionType.Single) {
         ui.letters = letter;
@@ -73,11 +77,17 @@ export function pickLetter(ctl: CardCtl, letter: string): void {
 
 /** 判断题 √/× 点选（互斥即覆盖）。 */
 export function pickJudge(ctl: CardCtl, judge: string): void {
-    if (!ctl.graded) ctl.ui.judge = judge;
+    if (!answeredFrozen(ctl)) ctl.ui.judge = judge;
+}
+
+/** 作答位冻结判据（Issue #12 B2③）：只认**揭示或锁定**，不认 graded
+ *  ——after 模式（收卷后揭示）提交只置 graded，答案必须还能改。 */
+function answeredFrozen(ctl: CardCtl): boolean {
+    return ctl.ui.revealed || ctl.ui.locked;
 }
 
 export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Promise<void> {
-    if (ctl.graded) return;
+    if (answeredFrozen(ctl)) return;
     const objective = isObjective(q);
     const submitted = ctl.submitted();
     if (objective && !submitted) {
@@ -85,7 +95,9 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
         return;
     }
     const batch = host.currentRevealMode() === "after";
-    ctl.setGraded();
+    // instant 判分即锁；after 只置 graded（记账已入、收卷前可反悔）
+    if (batch) ctl.setPending();
+    else ctl.setGraded();
     host.flushTime();
     if (!objective) {
         // brief（含英语 essay/trans）：AI 判分并计入（AI 不可用回落自评）；
@@ -225,6 +237,47 @@ export async function revealAll(host: AnswerHost): Promise<void> {
     host.roundComplete();
 }
 
+/** 跳过本题（Issue #12 A）：**不记作答、不锁卡、不揭示**，只滚到下一题
+ *  （题号栏也不标已答）。末题零动作——没有「下一题」可去，也没有
+ *  「已跳过」需要记账（跳过＝当作没来过，用户随时能回来答）。
+ *  导航走 host.onActiveQ + focusQuestion，与题号栏点击逐字同源
+ *  （材料组自动切显、滚动追赶都在里头）。 */
+export function skipQuestion(host: AnswerHost, q: WenguQuestion): void {
+    const list = host.questions();
+    const idx = list.indexOf(q);
+    if (idx < 0 || idx >= list.length - 1) return;
+    const next = idx + 1;
+    host.onActiveQ?.(next);
+    focusQuestion(host.container(), next);
+}
+
+/** 「不会」（Issue #12 A）：记一次 ok=false 的作答（会话 submitted 存空串
+ *  ——恢复路径吃空串无副作用，行文案单独标「已记为不会」）。
+ *  - objective 题：不走 gradeQuestion（空串必然判错），直接记错；
+ *  - brief 类：**跳过 AI 判分**直接判错（不烧一次 AI 调用）；
+ *  - instant 模式：揭示答案/解析并锁卡（与答错同款体验）；
+ *  - after 模式：只记「已作答」不揭示不锁死，可反悔改成正常作答
+ *    （重复提交走 upsert 覆写，见 HistoryStore.pushSessionAnswer）。
+ *  steps/slots 卡不提供本入口（作答单位是步/空，语义另议，范围外）。 */
+export async function dunnoQuestion(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Promise<void> {
+    if (answeredFrozen(ctl)) return;
+    const batch = host.currentRevealMode() === "after";
+    if (batch) ctl.setPending();
+    else ctl.setGraded();
+    host.flushTime();
+    host.recordAnswer(q.id, "", false);
+    if (batch) {
+        ctl.setResult(esc(host.t("dunnoMarked")), "warn");
+        markNumAnswered(host, q);
+        checkAllDone(host);
+        return;
+    }
+    revealCard(host, ctl, q, { submitted: "", ok: false });
+    ctl.setResult(esc(host.t("dunnoMarked")), "wrong"); // 「不会」不比「答错」多给一分，但文案说清是主动认输
+    showQTime(host, ctl, q.id);
+    checkAllDone(host);
+}
+
 /** 单卡揭示：答案/解析展开 + 结果与 chip 描色 + 题号上色。
  *  brief 按 AI 三态展示（partial 单列），恢复/统一揭示时从会话结果
  *  取 verdict 与评语。 */
@@ -254,12 +307,21 @@ export function revealCard(
     syncGroupReveal(host.container(), host.questions());
 }
 
-/** 全部作答后收口：after 模式先统一揭示（revealAll 会再触发总结），
- *  instant 模式直接给总结报告。StepsFlow 完成多步卡后也走这里。 */
+/** 全部作答后收口：instant 模式直接给总结报告；**after 模式不自动
+ *  收卷**（Issue #12 B3）——答案要等「结束本次做题」（endRound →
+ *  manualFinishRound → revealAll 链路）才统一揭示，若在末题提交的
+ *  瞬间 revealAll，刚打开的可修改窗口立刻被关死，用户没机会回看。
+ *  改为：答满只提示一次（题卡内 answeredEditable 常显 + 浮层提示），
+ *  编辑窗口保持到用户显式收卷。
+ *  StepsFlow 完成多步卡后也走这里（steps 逐卡自判分，需靠它凑齐
+ *  「全部 graded」这一收口信号，故本函数不能整个拿掉）。 */
 export function checkAllDone(host: AnswerHost): void {
     if (!allCardsGraded()) return;
-    if (host.currentRevealMode() === "after") void revealAll(host);
-    else host.roundComplete();
+    if (host.currentRevealMode() === "after") {
+        if (host.onAllAnswered) host.onAllAnswered();
+        return;
+    }
+    host.roundComplete();
 }
 
 /** after 模式：已作答但尚未揭示的题，题号只标「已答」不透对错

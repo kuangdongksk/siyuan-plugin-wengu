@@ -202,12 +202,17 @@ function initRestoredNormal(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): voi
     const r = ctx.restore!.byQid.get(q.id);
     if (!r) return;
     ui.graded = true;
-    ui.locked = true;
+    // 锁定只跟揭示走（Issue #12 B2③）：after 模式未收卷的进行中轮，
+    // 恢复回来的已答题**仍可修改**（旧实现无条件 locked=true，重开
+    // 页签/「继续上次」就把编辑窗口关死了）；已收卷（revealNow）或
+    // instant 模式照旧锁。
+    const revealed = ctx.restore!.revealNow;
+    ui.locked = revealed || !ctx.restore!.batch;
     ui.submitted = r.submitted;
     if (isChoice(q)) ui.letters = r.submitted;
     else if (q.type === QuestionType.Judge) ui.judge = r.submitted;
     else ui.mine = r.submitted;
-    if (!ctx.restore!.revealNow) {
+    if (!revealed) {
         ui.resultHtml = esc(ctx.t("answeredPending"));
         ui.resultStatus = "warn";
         return;

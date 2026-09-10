@@ -15,7 +15,14 @@
     import { hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../../../types";
     import type { WenguQuestion } from "../../../types";
     import type { AnswerHost } from "../../flow/AnswerFlow";
-    import { pickLetter, pickJudge, selfAssess, submitQuestion } from "../../flow/AnswerFlow";
+    import {
+        pickLetter,
+        pickJudge,
+        selfAssess,
+        skipQuestion,
+        dunnoQuestion,
+        submitQuestion,
+    } from "../../flow/AnswerFlow";
     import { bindStepsMode } from "../../flow/StepsFlow";
     import CardStepsArea from "../CardStepsArea.svelte";
     import CardSlotsArea from "../CardSlotsArea.svelte";
@@ -155,8 +162,13 @@
     <div class="wengu-note" data-note hidden={!ui.note}>{ui.note}</div>
 {/snippet}
 
+<!-- after 模式已答未收卷：提示「可继续改，结束后统一判卷」（Issue #12 B3） -->
+{#snippet pendingHint()}
+    <div class="wengu-pending-hint" data-pending-hint>{t("answeredEditable")}</div>
+{/snippet}
+
 <div
-    class="wengu-card{ui.graded ? ' wengu-graded' : ''}"
+    class="wengu-card{ui.graded ? ' wengu-graded' : ''}{ui.revealed ? ' wengu-revealed' : ''}"
     data-qid={q.id}
     data-idx={idx}
     data-graded={ui.graded ? "1" : undefined}
@@ -239,15 +251,43 @@
             />
         {/if}
         {@render thoughtArea()}
-        <Button
-            class="wengu-btn"
-            data-act="submit"
-            disabled={ui.locked}
-            onclick={on ? () => void submitQuestion(host, q, ctl) : undefined}
-        >
-            {t("submit")}
-        </Button>
+        <!-- 作答行：跳过 / 提交 / 不会（Issue #12 A；仅普通卡，steps/slots
+             的作答单位是步/空另议）。「提交」恒可用——已答后可改并重交，
+             空提交由 submitQuestion 的 noAnswer 兜住 -->
+        <div class="wengu-submit-row" data-submit-row>
+            <Button
+                variant="outline"
+                class="wengu-btn wengu-skip-btn"
+                data-act="skip"
+                disabled={ui.locked}
+                title={t("skipHint")}
+                onclick={on ? () => skipQuestion(host, q) : undefined}
+            >
+                {@html svgIcon("iconRight")}
+                {t("skipBtn")}
+            </Button>
+            <Button
+                class="wengu-btn"
+                data-act="submit"
+                disabled={ui.locked}
+                onclick={on ? () => void submitQuestion(host, q, ctl) : undefined}
+            >
+                {t("submit")}
+            </Button>
+            <Button
+                variant="outline"
+                class="wengu-btn wengu-dunno-btn"
+                data-act="dunno"
+                disabled={ui.locked}
+                title={t("dunnoHint")}
+                onclick={on ? () => void dunnoQuestion(host, q, ctl) : undefined}
+            >
+                {@html svgIcon("iconClose")}
+                {t("dunnoBtn")}
+            </Button>
+        </div>
         {@render tailRows()}
+        {#if ui.graded && !ui.revealed}{@render pendingHint()}{/if}
         <div class="wengu-ai-comment" data-ai-comment hidden={!ui.aiComment}>{ui.aiComment}</div>
         <div class="wengu-self" data-self hidden={!ui.selfOn}>
             <span>{ui.selfLabel}</span>
