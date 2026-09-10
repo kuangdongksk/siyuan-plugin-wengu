@@ -114,7 +114,14 @@ export class KnowSynonymsStore {
         return Object.keys((await this.table()).entries).length;
     }
 
-    /** 同步窥视（未加载=空表；纯函数入口用）。 */
+    /** 装载后的表快照（**消费点一律走它**）。`peek` 只看内存，重载后
+     *  盘上有表但尚未装载时它是空表——文本层据此查表就会漏掉存量判定，
+     *  同一对词被重新问一遍 AI（Issue #3 审查修复：装载时序）。 */
+    async snapshot(): Promise<KnowSynonymsData> {
+        return this.table();
+    }
+
+    /** 同步窥视（未装载=空表；只作纯函数兜底的便利入口）。 */
     peek(): KnowSynonymsData {
         return this.data ?? { version: 1, entries: {} };
     }
@@ -165,12 +172,15 @@ export class KnowSynonymsStore {
  *  textRefsOf 自动退回纯 knKey 口径，零副作用）。 */
 let instance: KnowSynonymsStore | undefined;
 
-/** 插件装载时接线。 */
+/** 插件装载时接线。顺带预热一次装载（表小、调用廉价）：文本关联在
+ *  用户点「导入文档」时同步查表，预热把「首个消费点早于装载」这个竞态
+ *  压到最小；真正的消费点仍走 {@link loadSynonyms} 等装载完成。 */
 export function initKnowSynonyms(io: {
     load: () => Promise<unknown>;
     save: (v: KnowSynonymsData) => Promise<unknown>;
 }): KnowSynonymsStore {
     instance = new KnowSynonymsStore(io.load, io.save);
+    void instance.snapshot();
     return instance;
 }
 
@@ -179,7 +189,14 @@ export function knowSynonyms(): KnowSynonymsStore | undefined {
     return instance;
 }
 
-/** 同步窥视单例数据（纯函数归一入口；未接线=空表）。 */
+/** 装载后的单例表数据（异步消费点用；未接线/装载失败=空表，零副作用）。 */
+export async function loadSynonyms(): Promise<KnowSynonymsData> {
+    if (!instance) return { version: 1, entries: {} };
+    return instance.snapshot();
+}
+
+/** 同步窥视单例数据（只作纯函数兜底；别用它做「表里有没有」的判断，
+ *  未装载时一律是空表——见 {@link loadSynonyms}）。 */
 export function peekSynonyms(): KnowSynonymsData {
     return instance?.peek() ?? { version: 1, entries: {} };
 }

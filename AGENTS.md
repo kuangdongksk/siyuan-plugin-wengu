@@ -360,12 +360,28 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   （**并入同一条链，不另起并行归一体系**；synKey 只剥装饰+小写，剥后缀仍归
   KnowledgeNorm）。表 `saveData("know-synonyms")`，词条带 source(ai|manual)/at，
   UI「同义词表」弹窗可查看与两击清空（一次错判不被永久固化）。
+    - **查表一律走 `loadSynonyms()` / `store.snapshot()`，禁用 `peekSynonyms()` 做
+      「表里有没有」的判断**（20260910 审查修复，真机踩坑级）：peek 只看内存，插件
+      重载后盘上有表但尚未装载时它是**空表**——文本层据此查表就漏掉全部存量判定，
+      同一对词被重新问一遍 AI，「判过就不重问」在重载后**不成立**。initKnowSynonyms
+      顺带预热一次装载，但消费点仍必须 await（`lexiconOfRoots` / `linkRecordsByText`
+      都已改走 loadSynonyms）。
+    - **清单协议与 route 同源**（20260910 审查修复）：一批**共用一份编号小节清单**
+      （`candidateList`，近邻标题优先 + `SYN_LIST_CHARS` 预算），AI 逐行回
+      `标签编号|小节编号`。**旧的「每对词只塞 4 条候选」写法是硬伤**——跨语言对
+      （「洛必达」↔「L'Hôpital 法则」）正确项不在候选里，AI 只能答 `-`，而判否会
+      落表固化 → 该对词被判死，第二轮「零 AI」却永远不命中。别退回去。
+    - **三态判定防固化错判**：`-`=明确不同义（清单完整才落表记否，防重问）；
+      编号/标题=命中（落表 + 当轮挂引用）；**答非所问/说不清不落表**（下次重问）。
+      清单被截断时（病态大词表）连 `-` 也不落表。
     - **AI 判定沉淀且只跑一次**：文本未命中的标签走 `pendingPairs`（按 synKey 去重、
       跳过表里已判定的**含判否空串**、跳过文本层已能挂上的），按批走
-      `prompts/synonyms.synJudgePrompt`（编号行协议，`SYN_BATCH_SIZE=15`，AI 只能
-      **逐字抄清单里的小节标题**不许造词）→ 判定写回表 + 当轮挂引用。第二对同词零 AI。
-    - 三弹窗共用 `ui/SynFlow.runSynonymPhase`（禁复制第二份）：批量关联 phase1.5、
-      生成标签核对补相、匹配前置相；调用带 track(kind=route) 进 AI 会话面板。
+      `prompts/synonyms.synJudgePrompt`（编号行协议，`SYN_BATCH_SIZE=15`，AI 只能回
+      清单里的编号/逐字标题，不许造词）→ 判定写回表 + 当轮挂引用。第二对同词零 AI。
+    - 三弹窗共用 `ui/SynFlow.runSynonymPhase`（禁复制第二份）：**相内先跑零 AI 文本
+      层**再走 AI 判定（匹配入口原先没有文本层，相内统一后三入口口径一致），差异
+      只在拿哪些记录来跑；批量关联 phase1.5、生成标签核对补相、匹配前置相。
+      调用带 track(kind=route) 进 AI 会话面板。
     - **失效口径（Issue #3 验收第 5 条结论）**：同义表**不进** RouteCache 的索引
       代数指纹（`indexGenOf` 只覆盖章节结构+小节内容哈希）。理由：表插在词表匹配
       之前、只决定「归一后是否采纳命中」，不改路由输入（题面）与路由输出（小节

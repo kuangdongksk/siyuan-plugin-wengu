@@ -107,10 +107,11 @@ async function runBatch(
                 modelId,
                 stop,
                 group,
+                completeLibrary: true, // 词表=全部登记根，判否可全局沉淀
                 onFail: (e) => fails.push({ stage: "chapter", error: e }),
             });
-            hit += r.hit;
-            synHit = r.hit;
+            hit += r.textHit + r.synHit;
+            synHit = r.textHit + r.synHit;
             pending = r.rest;
         }
         // phase2：AI 兜底（可选，只跑仍未命中的题；带按题指纹缓存，
@@ -146,7 +147,9 @@ async function runBatch(
                 }
             }
         }
-        miss = p1.missed.length > 0 ? p1.missed.length - aiHit : 0;
+        // 汇总口径：未命中 = 文本未命中数 − 同义相救回 − AI 命中（同义相
+        // 也会挂引用，漏扣会把救回的题重复报成「未命中」）
+        miss = p1.missed.length > 0 ? Math.max(0, p1.missed.length - synHit - aiHit) : 0;
         await bank.flush();
         await cache?.flush();
         for (const f of fails) {

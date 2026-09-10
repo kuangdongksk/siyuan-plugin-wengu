@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
-import { buildSectionLexicon, linkRecordsByText } from "./KnowLinkText";
-import { KnowSynonymsStore, initKnowSynonyms, type KnowSynonymEntry } from "./KnowSynonyms";
-import { candidatePool, judgeSynonyms, pendingPairs } from "./KnowSynJudge";
+import { buildSectionLexicon, lexiconOfRoots, linkRecordsByText } from "./KnowLinkText";
+import { initKnowSynonyms, KnowSynonymsStore, loadSynonyms, type KnowSynonymEntry } from "./KnowSynonyms";
+import { candidateList, candidatePool, judgeSynonyms, pendingPairs } from "./KnowSynJudge";
 
 Reflect.set(globalThis, "window", { setTimeout, clearTimeout });
 
@@ -86,8 +86,8 @@ describe("pendingPairs（待判定词对）", () => {
     });
 });
 
-describe("candidatePool", () => {
-    it("按标题去重、截上限（规范词白名单）", () => {
+describe("candidatePool / candidateList（共用编号清单）", () => {
+    it("pool 按标题去重（规范词白名单）", () => {
         const lex = buildSectionLexicon([
             { id: "s1", title: "洛必达法则" },
             { id: "s2", title: "洛必达法则" },
@@ -96,98 +96,156 @@ describe("candidatePool", () => {
         const pool = candidatePool(lex);
         expect(pool.map((s) => s.title)).toEqual(["洛必达法则", "导数定义"]);
     });
+
+    it("清单行号与 kept 一一对应，标签近邻标题优先入清单", () => {
+        const pool = [
+            { id: "a", title: "导数定义" },
+            { id: "b", title: "洛必达法则" },
+            { id: "c", title: "泰勒公式" },
+        ];
+        const { kept, list2, truncated } = candidateList(pool, ["洛必达"]);
+        expect(kept[0].title).toBe("洛必达法则"); // 近邻优先
+        expect(list2.split("\n")[0]).toBe("1|洛必达法则");
+        expect(truncated).toBe(false);
+    });
+
+    it("**跨语言对**：清单含全部（预算内）小节，正确项不会像旧版那样被 4 条候选挤掉", () => {
+        const pool = [
+            ...Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, title: `小节${i}` })),
+            { id: "sh", title: "L'Hôpital 法则" },
+        ];
+        const { kept } = candidateList(pool, ["洛必达"]);
+        expect(kept.map((s) => s.title)).toContain("L'Hôpital 法则");
+    });
+
+    it("超预算截断：truncated=true（截断批的「不定」判定不落表）", () => {
+        const pool = Array.from({ length: 400 }, (_, i) => ({
+            id: `s${i}`,
+            title: `很长的知识点小节标题占位符${i}`.repeat(2),
+        }));
+        const { kept, truncated } = candidateList(pool, []);
+        expect(truncated).toBe(true);
+        expect(kept.length).toBeGreaterThan(0);
+    });
 });
 
 describe("judgeSynonyms（按批判定 + 落表）", () => {
-    beforeEach(() => {
-        ai.calls = 0;
-        ai.reply = "1|洛必达法则";
-    });
-
-    it("同义命中：写回表（canonical=清单侧标题原文）+ 返回命中小节", async () => {
-        const store = new KnowSynonymsStore(
+    const store = (): KnowSynonymsStore =>
+        new KnowSynonymsStore(
             () => Promise.resolve(""),
             () => Promise.resolve()
         );
-        const pool = [{ id: "s1", title: "洛必达法则" }];
+    const pool = [{ id: "s1", title: "洛必达法则" }];
+
+    beforeEach(() => {
+        ai.calls = 0;
+        ai.reply = "1|1";
+    });
+
+    it("同义命中（回清单编号）：写回表（canonical=清单侧标题原文）+ 返回命中小节", async () => {
+        const st = store();
         const hits = await judgeSynonyms({
-            pairs: [{ raw: "L'Hôpital 法则", candidates: [] }],
+            pairs: [{ raw: "L'Hôpital 法则" }],
             pool,
             modelId: "m1",
             signal: new AbortController().signal,
-            store,
+            store: st,
+            persistDeny: true,
         });
         expect(ai.calls).toBe(1);
         expect(hits.get("l'hôpital法则")).toEqual([{ id: "s1", title: "洛必达法则" }]);
-        expect(store.peek().entries["l'hôpital法则"].canonical).toBe("洛必达法则");
-        expect(store.peek().entries["l'hôpital法则"].source).toBe("ai");
+        expect(st.peek().entries["l'hôpital法则"].canonical).toBe("洛必达法则");
+        expect(st.peek().entries["l'hôpital法则"].source).toBe("ai");
     });
 
-    it("判否（-）：记空串防重问，但不当轮挂引用", async () => {
+    it("容错：AI 不守编号协议但逐字抄了标题，也认", async () => {
+        ai.reply = "1|洛必达法则";
+        const st = store();
+        const hits = await judgeSynonyms({
+            pairs: [{ raw: "洛必达" }],
+            pool,
+            modelId: "m1",
+            signal: new AbortController().signal,
+            store: st,
+            persistDeny: true,
+        });
+        expect(hits.size).toBe(1);
+    });
+
+    it("明确否（-）：记空串防重问，但不当轮挂引用", async () => {
         ai.reply = "1|-";
-        const store = new KnowSynonymsStore(
-            () => Promise.resolve(""),
-            () => Promise.resolve()
-        );
+        const st = store();
         const hits = await judgeSynonyms({
-            pairs: [{ raw: "极限的计算", candidates: [] }],
-            pool: [{ id: "s1", title: "洛必达法则" }],
+            pairs: [{ raw: "极限的计算" }],
+            pool,
             modelId: "m1",
             signal: new AbortController().signal,
-            store,
+            store: st,
+            persistDeny: true,
         });
         expect(hits.size).toBe(0);
-        expect(store.peek().entries["极限的计算"].canonical).toBe("");
+        expect(st.peek().entries["极限的计算"].canonical).toBe("");
     });
 
-    it("AI 抄了清单外的写法：不当同义（宁漏勿错），记否落表", async () => {
+    it("**答非所问不落表**（回归：旧版把清单外写法当否固化，一次错判判死该词对）", async () => {
         ai.reply = "1|某个不存在的写法";
-        const store = new KnowSynonymsStore(
-            () => Promise.resolve(""),
-            () => Promise.resolve()
-        );
+        const st = store();
         const hits = await judgeSynonyms({
-            pairs: [{ raw: "洛必达", candidates: [] }],
-            pool: [{ id: "s1", title: "洛必达法则" }],
+            pairs: [{ raw: "洛必达" }],
+            pool,
             modelId: "m1",
             signal: new AbortController().signal,
-            store,
+            store: st,
+            persistDeny: true,
         });
         expect(hits.size).toBe(0);
-        expect(store.peek().entries["洛必达"].canonical).toBe("");
+        expect(st.peek().entries["洛必达"]).toBeUndefined(); // 不落表 → 下次重问
+    });
+
+    it("**词表非全库口径时判否也不落表**（匹配入口只含选中文档，否换个文档会翻案）", async () => {
+        ai.reply = "1|-";
+        const st = store();
+        const hits = await judgeSynonyms({
+            pairs: [{ raw: "极限的计算" }],
+            pool,
+            modelId: "m1",
+            signal: new AbortController().signal,
+            store: st,
+            persistDeny: false,
+        });
+        expect(hits.size).toBe(0);
+        expect(st.peek().entries["极限的计算"]).toBeUndefined(); // 不落表 → 下次重问
     });
 
     it("AI 失败：onFail 上报、不落表（重跑再试）", async () => {
-        const store = new KnowSynonymsStore(
-            () => Promise.resolve(""),
-            () => Promise.resolve()
-        );
+        const st = store();
         const client = await import("../../ai/client");
         const spy = vi.spyOn(client, "agentChatOnce").mockImplementationOnce(async () => {
             throw new Error("网络异常");
         });
         const fails: Error[] = [];
         const out = await judgeSynonyms({
-            pairs: [{ raw: "洛必达", candidates: [] }],
-            pool: [{ id: "s1", title: "洛必达法则" }],
+            pairs: [{ raw: "洛必达" }],
+            pool,
             modelId: "m1",
             signal: new AbortController().signal,
-            store,
+            store: st,
+            persistDeny: true,
             onFail: (e) => fails.push(e),
         });
         expect(fails).toHaveLength(1);
         expect(out.size).toBe(0);
-        expect(store.peek().entries["洛必达"]).toBeUndefined(); // 失败不落表，重跑再试
+        expect(st.peek().entries["洛必达"]).toBeUndefined(); // 失败不落表，重跑再试
         spy.mockRestore();
     });
 });
 
 describe("端到端：文本层不命中 → 同义层命中 → 第二轮零 AI（Issue #3 验收）", () => {
-    it("「洛必达」对「洛必达法则」的跨语对：首轮 1 次 AI 并挂引用；重跑零 AI", async () => {
+    it("「洛必达」对「L'Hôpital 法则」的跨语对：首轮 1 次 AI 并挂引用；重跑零 AI", async () => {
         const io = makeIo();
         const store = initKnowSynonyms(io);
         ai.calls = 0;
-        ai.reply = "1|L'Hôpital 法则";
+        ai.reply = "1|1"; // 清单第一项 = L'Hôpital 法则
         const bank = bankWith([rec("q1", "洛必达")]);
         // 词表小节标题与标签写法完全不同（拉丁写法），文本层不命中
         const lex = buildSectionLexicon([{ id: "s1", title: "L'Hôpital 法则" }]);
@@ -205,6 +263,7 @@ describe("端到端：文本层不命中 → 同义层命中 → 第二轮零 AI
             modelId: "m1",
             signal: new AbortController().signal,
             store,
+            persistDeny: true,
         });
         expect(ai.calls).toBe(1);
         expect(hits.get("洛必达")).toEqual([{ id: "s1", title: "L'Hôpital 法则" }]);
@@ -247,5 +306,22 @@ describe("端到端：文本层不命中 → 同义层命中 → 第二轮零 AI
         });
         expect(out.hit).toBe(1);
         expect(out.miss).toBe(1);
+    });
+
+    it("**重载后首次文本关联即查得到盘上表**（回归：装载时序，旧版 peek 空表 → 重问 AI）", async () => {
+        const io = makeIo();
+        const s1 = initKnowSynonyms(io);
+        await s1.put("洛必达", "洛必达法则");
+        await s1.flush();
+        // 插件重载：新实例。此前必须**先 await 一次**（旧版靠 peek，未装载即空表）
+        initKnowSynonyms(io);
+        ai.calls = 0;
+        const bank = bankWith([rec("q1", "洛必达")]);
+        // 建词表与文本关联都是异步消费点，一律等装载完成（loadSynonyms）
+        expect((await lexiconOfRoots([])).size).toBe(0);
+        const lex2 = buildSectionLexicon([{ id: "s1", title: "洛必达法则" }], await loadSynonyms());
+        const out = await linkRecordsByText(bank, lex2, [rec("q1", "洛必达")], { skipLinked: false });
+        expect(out.hit).toBe(1); // 表生效，零 AI
+        expect(ai.calls).toBe(0);
     });
 });

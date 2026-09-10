@@ -94,9 +94,10 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
                 modelId,
                 stop,
                 group,
+                completeLibrary: true, // 词表=全部登记根，判否可全局沉淀
             });
-            synLinked = syn.hit;
-            linked += syn.hit;
+            synLinked = syn.synHit;
+            linked += syn.textHit + syn.synHit;
         }
         const unmatched = verified.miss - synLinked;
         // 阶段二 生成：无标签 → AI 打标签（逐题两级路由带按题指纹缓存，

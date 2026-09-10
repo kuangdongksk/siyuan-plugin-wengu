@@ -1,7 +1,7 @@
-import { expandKnowDocs } from "../../convert/service/knowledge/KnowledgeLink";
+import { expandKnowDocs, type KnowledgeIndex } from "../../convert/service/knowledge/KnowledgeLink";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/knowledge/KnowRef";
 import { normalizeKnowledge } from "./KnowledgeNorm";
-import { peekSynonyms, synonymNormalize, type KnowSynonymsData } from "./KnowSynonyms";
+import { loadSynonyms, synonymNormalize, type KnowSynonymsData } from "./KnowSynonyms";
 import { mergeRecordKpRefs } from "./KnowRoots";
 import type { KnowTreesMap } from "./KnowTrees";
 import type { BankRecord, QuestionBank } from "./QuestionBank";
@@ -77,7 +77,26 @@ export async function lexiconOfRoots(rootIds: string[], trees?: KnowTreesMap): P
         };
         for (const d of docs) walk(d.sectionTree);
     }
-    return buildSectionLexicon(sections);
+    // 词表建表即过同义表（**等装载完成**，不是 peek：重载后未装载时
+    // peek 是空表，存量判定会被漏掉、同对词重复问 AI）
+    return buildSectionLexicon(sections, await loadSynonyms());
+}
+
+/** 已建知识索引 → 词表（纯函数，零内核读）：**匹配入口的相内文本层
+ *  用这份词表**——它的作用域是「用户选中的那篇知识文档」，与 MatchDialog
+ *  的 AI 路由同范围；若改用 lexiconOfRoots（全部登记根）会把题挂到选中
+ *  文档以外的小节上，属越权挂引用。无小节结构的章（自身即引用目标）
+ *  按文档根入表。syn=同义表数据（同 buildSectionLexicon）。 */
+export function lexiconOfIndex(index: KnowledgeIndex, syn?: KnowSynonymsData): LexSectionMap {
+    const sections: LexSection[] = [];
+    for (const c of index.chapters) {
+        if (c.sections.length === 0) {
+            sections.push({ id: c.docId, title: c.title });
+            continue;
+        }
+        for (const s of c.sections) sections.push({ id: s.id, title: s.title });
+    }
+    return buildSectionLexicon(sections, syn);
 }
 
 /** 把引用落进一条题库记录（strip+inject 替换语义 + kpRefs 合并；题库
@@ -166,7 +185,7 @@ export async function linkRecordsByText(
     opts: { skipLinked?: boolean; signal?: AbortSignal } = {}
 ): Promise<{ hit: number; miss: number; skip: number; missed: BankRecord[] }> {
     const skipLinked = opts.skipLinked ?? true;
-    const syn = peekSynonyms(); // 同义表快照：本轮内不变（AI 判定的写回走下一轮）
+    const syn = await loadSynonyms(); // 同义表快照：本轮内不变（AI 判定的写回走下一轮）
     let hit = 0;
     let miss = 0;
     let skip = 0;

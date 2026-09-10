@@ -17,8 +17,8 @@ import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
 import { applyRefsToRecord } from "../data/KnowLinkText";
 import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
-import { lexiconOfRoots } from "../data/KnowLinkText";
-import { knowRootsOf } from "../data/KnowRoots";
+import { lexiconOfIndex } from "../data/KnowLinkText";
+import { loadSynonyms } from "../data/KnowSynonyms";
 import { runSynonymPhase } from "./SynFlow";
 
 /**
@@ -149,9 +149,11 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
             if (skipLinked && r.kpRefs.length > 0) skip++;
             else toRoute.push(r);
         }
-        // 同义判定前置相（Issue #3）：文本精确层能命中的先挂上（零 AI），
-        // 剩下的走 AI 两级路由；文本层未命中的标签顺带走一轮同义判定
-        const synLex = await lexiconOfRoots(await knowRootsOf(bank), await knowTreesOf(bank));
+        // 同义判定前置相（Issue #3）：相内先跑零 AI 文本层（标签 ↔ 小节
+        // 标题归一匹配，含同义表前置层），未命中的标签再按批判同义；剩下
+        // 的才走 AI 两级路由。词表 **按选中文档的索引出**（lexiconOfIndex）
+        // ——用全部登记根会把题挂到选中文档以外的小节，越权挂引用
+        const synLex = lexiconOfIndex(index, await loadSynonyms());
         if (synLex.size > 0 && toRoute.length > 0) {
             const r = await runSynonymPhase({
                 bank,
@@ -162,7 +164,7 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
                 group,
                 onFail: (e) => fails.push({ stage: "chapter", error: e }),
             });
-            hit += r.hit;
+            hit += r.textHit + r.synHit;
             toRoute = r.rest;
         }
         if (toRoute.length > 0) {

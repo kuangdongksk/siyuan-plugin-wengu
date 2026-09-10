@@ -273,12 +273,7 @@ export class KnowPanelCtl {
     batchLink(): void {
         const bank = this.bank();
         if (bank)
-            void openBatchLinkDialog({
-                t: this.v.t,
-                bank,
-                modelId: this.v.aiModelId(),
-                onDone: () => void this.load(),
-            });
+            void openBatchLinkDialog({ t: this.v.t, bank, modelId: this.v.aiModelId(), onDone: () => this.load() });
     }
 
     /* ── AI 索引（原「建知识树」，docs/knowledge-tree.md □1；20260903 起

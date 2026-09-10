@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionLexicon, linkBankByText, parseFreeTags, setKnowledgeAttr, textRefsFor } from "./KnowLinkText";
+import {
+    buildSectionLexicon,
+    lexiconOfIndex,
+    linkBankByText,
+    parseFreeTags,
+    setKnowledgeAttr,
+    textRefsFor,
+} from "./KnowLinkText";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
 import { synKey, type KnowSynonymsData } from "./KnowSynonyms";
 
@@ -122,6 +129,52 @@ describe("同义表前置层（Issue #3）：原文 → 查表 → 剥后缀 →
         // 表把短词映到同样短的词：归一后仍 <2 字，不挂
         const syn2 = synWith("题", "题本");
         expect(textRefsFor("题", lex, syn2)).toEqual([]);
+    });
+});
+
+describe("lexiconOfIndex（按选中文档的索引出词表，匹配入口用）", () => {
+    it("小节入表；无小节结构的章按文档根入表（不越权到别的登记根）", () => {
+        const lex = lexiconOfIndex({
+            chapters: [
+                {
+                    docId: "d1",
+                    title: "章一",
+                    path: "书/章一",
+                    sections: [{ id: "s1", title: "洛必达法则", path: "章一/洛必达法则" }],
+                },
+                { docId: "d2", title: "章二", path: "书/章二", sections: [] },
+            ],
+        });
+        expect(textRefsFor("洛必达", lex)).toEqual([{ id: "s1", title: "洛必达法则" }]);
+        expect(textRefsFor("章二", lex)).toEqual([{ id: "d2", title: "章二" }]);
+    });
+
+    it("同义表前置层同样生效（syn 可选，不传=改造前口径）", () => {
+        const index = {
+            chapters: [
+                {
+                    docId: "d1",
+                    title: "章一",
+                    path: "书/章一",
+                    sections: [{ id: "s1", title: "L'Hôpital 法则", path: "章一/L'Hôpital 法则" }],
+                },
+            ],
+        };
+        const syn = {
+            version: 1 as const,
+            entries: {
+                [synKey("洛必达")]: {
+                    key: synKey("洛必达"),
+                    raw: "洛必达",
+                    canonical: "L'Hôpital 法则",
+                    source: "ai" as const,
+                    at: 1,
+                },
+            },
+        };
+        expect(textRefsFor("洛必达", lexiconOfIndex(index))).toEqual([]);
+        // 查询侧也要过表（两侧同链），与 buildSectionLexicon 的用法一致
+        expect(textRefsFor("洛必达", lexiconOfIndex(index, syn), syn)).toEqual([{ id: "s1", title: "L'Hôpital 法则" }]);
     });
 });
 

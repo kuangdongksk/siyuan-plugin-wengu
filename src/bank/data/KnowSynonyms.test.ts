@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeKnowledge } from "./KnowledgeNorm";
-import { KnowSynonymsStore, canonicalOf, peekSynonyms, synKey, synonymNormalize } from "./KnowSynonyms";
+import { canonicalOf, KnowSynonymsStore, loadSynonyms, peekSynonyms, synKey, synonymNormalize } from "./KnowSynonyms";
 
 /** 内核 IO 替身：load 回放 saved，save 捕获快照。 */
 function makeIo(): { load: () => Promise<unknown>; save: (v: unknown) => Promise<unknown> } {
@@ -134,6 +134,22 @@ describe("KnowSynonymsStore 存取", () => {
         await expect(s.size()).resolves.toBe(0);
         await s.put("A", "B");
         await expect(s.size()).resolves.toBe(1);
+    });
+
+    it("snapshot 等装载完成：重载后盘上有表、未 await 时 peek 空而 snapshot 有（装载时序回归）", async () => {
+        const io = makeIo();
+        const s1 = new KnowSynonymsStore(io.load, io.save);
+        await s1.put("洛必达", "洛必达法则");
+        await s1.flush();
+        // 重载：新实例，盘上有表但一次都没 await
+        const s2 = new KnowSynonymsStore(io.load, io.save);
+        expect(s2.peek().entries).toEqual({}); // peek 是内存视角（未装载=空）
+        expect(canonicalOf(await s2.snapshot(), "洛必达")).toBe("洛必达法则"); // 消费点走它
+        expect(await s2.size()).toBe(1);
+    });
+
+    it("loadSynonyms 未接线 → 空表（零副作用）", async () => {
+        await expect(loadSynonyms()).resolves.toEqual({ version: 1, entries: {} });
     });
 
     it("list 按写入时间倒序（UI 展示口径）", async () => {
