@@ -16,8 +16,10 @@ import { notifyError, notifyInfo } from "../../ui/Notify";
 
 vi.mock("siyuan", () => ({ fetchSyncPost: vi.fn(), showMessage: vi.fn() }));
 vi.mock("../../ui/Notify", () => ({ notifyError: vi.fn(), notifyInfo: vi.fn() }));
+// 选择器回传的勾选集合（用例可改：验「只认本次新增登记根」需带历史根）
+const hp = vi.hoisted(() => ({ ids: ["root"] as string[] }));
 vi.mock("../../ui/KnowPicker", () => ({
-    openKnowPicker: (o: { onConfirm(ids: string[]): void }) => o.onConfirm(["root"]),
+    openKnowPicker: (o: { onConfirm(ids: string[]): void }) => o.onConfirm(hp.ids),
 }));
 vi.mock("../../siyuan/query", () => ({
     KernelQuery: {
@@ -103,6 +105,7 @@ const settle = async (): Promise<void> => {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    hp.ids = [ROOT];
     expandMock.mockImplementation(async (id: string) =>
         id === ROOT ? [entries(ROOT), entries(OLD), entries(NEW)] : [entries(id)]
     );
@@ -126,6 +129,22 @@ describe("导入后自动补索引", () => {
         expect(ui.outlining).toBeUndefined(); // 收工复位坑位
     });
 
+    it("只认本次新增的登记根：历史登记的缺索引文档不被顺手重跑", async () => {
+        const { ctl, bank } = makeCtl();
+        const past = "kid-past"; // 上一轮就登记过、至今无索引
+        (await bank.all()).knowRoots = [past]; // 导入前的登记清单
+        hp.ids = [past, ROOT]; // 选择器回传全量勾选：含既有根 + 本次新增根
+        expandMock.mockImplementation(async (id: string) =>
+            id === ROOT ? [entries(ROOT), entries(OLD), entries(NEW)] : [entries(id)]
+        );
+        genMock.mockImplementation(async () => ({ count: 2 }));
+        ctl.importRoots({} as HTMLElement);
+        await settle();
+        // 历史根的子树不展开、不进清单——本轮只处理新增根
+        expect(genMock.mock.calls.map((c) => c[0])).not.toContain(past);
+        expect(genMock.mock.calls.map((c) => c[0])).toEqual([ROOT, NEW]);
+    });
+
     it("自动索引进行中，行内「索引」不起第二份任务（共用 outlineCtrl 坑位）", async () => {
         const { ctl, ui } = makeCtl();
         let release = (): void => undefined;
@@ -146,6 +165,28 @@ describe("导入后自动补索引", () => {
         release();
         await settle();
         expect(ui.outlining).toBeUndefined(); // 收工复位
+    });
+
+    it("手动任务已占坑位时，自动路径让位（不双开、不改用户任务的坑位）", async () => {
+        const { ctl, ui } = makeCtl();
+        let release = (): void => undefined;
+        genMock.mockImplementation(
+            (id: string) =>
+                new Promise((resolve) => {
+                    if (id === "kid-new") release = () => resolve({ count: 1 });
+                })
+        );
+        ctl.outline({ docId: NEW } as never); // 用户先点行内「索引」：单篇直接跑，占住坑位
+        await settle();
+        expect(ui.outlining).toBe(NEW);
+        ctl.importRoots({} as HTMLElement); // 随后导入：自动路径不得抢坑位
+        await settle();
+        expect(genMock.mock.calls.map((c) => c[0])).toEqual([NEW]); // 自动路径一篇都没起
+        expect(notifyInfoMock).not.toHaveBeenCalledWith(expect.objectContaining({ key: "notifyOutlineAutoDone" }));
+        expect(ui.outlining).toBe(NEW); // 用户任务的坑位不被自动路径擦掉
+        release();
+        await settle();
+        expect(ui.outlining).toBeUndefined();
     });
 
     it("导入链失败（落盘抛）落通知、面板仍重载，不冒 unhandled rejection", async () => {

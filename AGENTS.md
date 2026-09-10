@@ -305,7 +305,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       自动路径**跳过 armOutline 两击确认**，但执行体与手动「索引」完全共用
       （`driveOutline` 编排 + `executeOutline` 串行循环 + `beginOutline`/`settleOutline`
       坑位，禁复制第二份）；因此自动索引进行中用户点行内「索引」被 ui.outlining 挡下
-      （不起第二份任务），点在坑位行=中止。整链一条 catch 兜底（本文件历史踩过
+      （不起第二份任务），点在坑位行=中止；**反向同理**——用户先点了行内「索引」占住
+      坑位时，自动路径让位收工（不双开，也不擦掉用户任务的坑位）。历史登记根同样
+      不动：只 diff 本次勾选新增的根，导入前就登记、至今缺索引的老根不被顺手重跑
+      （两半都有单测锁，20260910）。整链一条 catch 兜底（本文件历史踩过
       unhandled rejection 坑），收尾段再抛走 resetOutline 保坑位必清。
 - **文本关联/批量关联**（KnowLinkText，20260831）：knowledge 标签 ↔ 小节标题归一
   精确相等即确定性挂引用（零 AI、歧义宁漏勿错）——「导入文档」登记后自动跑（导入即
