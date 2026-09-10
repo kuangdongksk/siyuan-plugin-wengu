@@ -241,9 +241,10 @@ function optSnaps(optionMd: string[]): OptSnap[] {
 }
 
 function initSteps(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
-    const results = ctx.restore ? stepResultsOf(ctx.restore.results, q.id) : [];
-    const byK = new Map(results.map((r) => [r.k, r] as const));
     const steps = q.steps ?? [];
+    const band = stepsBand(q, ctx);
+    const results = band.stepResults;
+    const byK = new Map(results.map((r) => [r.k, r] as const));
     ui.steps = steps.map((s, k) => {
         const step: StepUi = {
             kind: s.kind,
@@ -273,7 +274,11 @@ function initSteps(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
         }
         return step;
     });
-    const answered = results.length;
+    if (band.dunno) {
+        initStepsDunno(q, ui, ctx, band.revealNow);
+        return;
+    }
+    const answered = band.answered;
     if (answered > 0 && answered >= steps.length) {
         // 完整作答：锁定收口（旧 restoreStepsCard 完整分支）
         const oks = results.map((r) => r.ok);
@@ -331,6 +336,49 @@ export function setStepResult(
 
 function firstWrong(oks: boolean[]): number {
     return oks.findIndex((ok) => !ok);
+}
+
+/** 全步揭示的逐格落格（Issue #21 从 StepsFlow.finishCard 提炼共用）：
+ *  先按快照把每步的选取/判分/描色/结果行补齐（收口路径的 letters/oks
+ *  是准的，实时模式的 step 原型可能没落格），再整片锁定——组件
+ *  `.wengu-step` 的 disabled 闸只看 `step.locked`，锁定必须显式遍历，
+ *  否则收卷/「不会」后步选项仍可点。已答步也按快照重写（幂等）。 */
+export function settleSteps(
+    q: WenguQuestion,
+    ui: CardUi,
+    ctx: {
+        t: (k: string) => string;
+        letters?: string[];
+        oks?: boolean[];
+        /** 有作答快照（预览装饰）：按快照描色，逐格结果用「你选的」形态。 */
+        submitted?: string;
+    }
+): void {
+    const steps = q.steps ?? [];
+    for (const [k, step] of steps.entries()) {
+        const su = ui.steps?.[k];
+        if (!su) continue; // AI 实时模式步原型可能与静态步数不一致
+        const letter = ctx.letters?.[k] ?? ctx.submitted ?? "";
+        const ok = ctx.oks?.[k] ?? false;
+        su.hidden = false;
+        su.selected = letter;
+        su.graded = true;
+        su.ok = ok;
+        markStepOpts(step, su, letter);
+        setStepResult(
+            su,
+            ok ? ctx.t("correct") : `${ctx.t("wrong")}${ctx.t("answerLabel")}${stepAnswerOf(step, ctx.t)}`,
+            ok ? "wengu-right" : "wengu-wrong"
+        );
+        if (!ok && step.kind === "method") su.appeal = "idle";
+    }
+    for (const su of ui.steps ?? []) su.locked = true;
+}
+
+/** 步答案文案（method 给可行集合），与 StepsFlow.stepAnswerLabel 同口径
+ *  ——此处是 CardState 内的纯渲染投影（不引 flow 域，避免环形依赖）。 */
+function stepAnswerOf(step: WenguStep, t: (k: string) => string): string {
+    return step.kind === "method" ? fmt(t("stepFeasibleLabel"), { s: step.answer }) : step.answer;
 }
 
 /** AI 实时模式追加一步（StepsFlow 调；内容预渲染）。 */
@@ -392,6 +440,56 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
             : fmt(ctx.t("slotsSummary"), { r: String(marks.filter((m) => m.ok).length), n: String(slots.length) }),
         allOk ? "right" : "wrong"
     );
+}
+
+/** steps 卡的会话账分账（Issue #21）：逐步账（qid#k）与题级账（qid）在
+ *  会话里是两个条目——「不会」只写题级空串（步骤一条都没答，不逐格写
+ *  空串：库里没有「答过这步」的记录，逐格空串账会污染逐步统计），所以
+ *  恢复时按题级账形态分流：
+ *  - dunno：题级空串 = 主动认输 → 走全步揭示（已收卷）或挂起态；
+ *  - `answered`：逐步账条数（部分作答解锁下一格用）；
+ *  - `stepResults`：逐步账本身，**一律滤掉空串**——空串条目不是作答
+ *    （防它把对应步渲染成「错误 + 答案」的半揭示）。 */
+function stepsBand(
+    q: WenguQuestion,
+    ctx: CardInitCtx
+): {
+    dunno: boolean;
+    revealNow: boolean;
+    answered: number;
+    stepResults: { k: number; submitted: string; ok: boolean }[];
+} {
+    const all = ctx.restore ? stepResultsOf(ctx.restore.results, q.id) : [];
+    const stepResults = all.filter((r) => r.submitted !== "");
+    const own = ctx.restore?.byQid.get(q.id);
+    return {
+        dunno: own?.submitted === "" && !own.ok,
+        revealNow: !!ctx.restore?.revealNow,
+        answered: stepResults.length,
+        stepResults,
+    };
+}
+
+/** 「不会」的 steps 恢复（Issue #21 验收第 5 条）：
+ *  - 已收卷/instant：全步一次揭示 + 锁定 + 题号标错（与当场「不会」同态）；
+ *  - after 未收卷：只认「已作答」可反悔——**不揭示不锁**，且步格全部
+ *    展开成干净未作答态（让步格亮 dunnoMarked/答案就是部分步有内容、
+ *    部分步空白的半揭示）。 */
+function initStepsDunno(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx, revealNow: boolean): void {
+    if (!revealNow) {
+        ui.graded = true;
+        ui.locked = false;
+        for (const su of ui.steps ?? []) su.hidden = false;
+        setResult(ui, ctx.t("dunnoMarked"), "warn");
+        return;
+    }
+    const steps = q.steps ?? [];
+    settleSteps(q, ui, { t: ctx.t });
+    ui.graded = true;
+    ui.locked = true;
+    ui.revealed = true;
+    ui.stepOks = steps.map(() => "0").join("");
+    setResult(ui, ctx.t("dunnoMarked"), "wrong");
 }
 
 /** 灌当前空（引导语 + 选项快照；旧 fillClozeSlot 语义，html 预建）。 */

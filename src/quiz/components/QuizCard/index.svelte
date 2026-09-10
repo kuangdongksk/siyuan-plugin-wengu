@@ -24,6 +24,7 @@
         submitQuestion,
     } from "../../flow/AnswerFlow";
     import { bindStepsMode } from "../../flow/StepsFlow";
+    import { dunnoSteps } from "../../flow/AnswerFlow";
     import CardStepsArea from "../CardStepsArea.svelte";
     import CardSlotsArea from "../CardSlotsArea.svelte";
 
@@ -175,6 +176,35 @@
         {@render protyle()}
         <CardStepsArea {ctl} {q} {t} {on} />
         {@render thoughtArea()}
+        <!-- 作答行（Issue #21）：steps 多步题与普通卡同款「跳过 / 不会」
+             ——跳过纯导航（skipQuestion 对题型无感），「不会」题级语义
+             （dunnoSteps：全步一次揭示 / after 只记已答可反悔）。
+             slots 卡不提供（作答单位是空，维持现状）。无「提交」项：
+             steps 的作答单位是步，提交由步内「下一步」承担 -->
+        <div class="wengu-submit-row" data-submit-row>
+            <Button
+                variant="outline"
+                class="wengu-btn wengu-skip-btn"
+                data-act="skip"
+                disabled={ui.locked}
+                title={t("skipHint")}
+                onclick={on ? () => skipQuestion(host, q) : undefined}
+            >
+                {@html svgIcon("iconRight")}
+                {t("skipBtn")}
+            </Button>
+            <Button
+                variant="outline"
+                class="wengu-btn wengu-dunno-btn"
+                data-act="dunno"
+                disabled={ui.locked}
+                title={t("dunnoHint")}
+                onclick={on ? () => void dunnoSteps(host, q, ctl) : undefined}
+            >
+                {@html svgIcon("iconClose")}
+                {t("dunnoBtn")}
+            </Button>
+        </div>
         {@render tailRows()}
     {:else if hasSlots(q)}
         {@render protyle()}

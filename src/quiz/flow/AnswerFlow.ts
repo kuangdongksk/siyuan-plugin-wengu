@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { judgeBrief } from "../service/AiJudge";
 import { isObjective } from "../render/CardHtml";
+import { settleSteps } from "../render/CardState";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
@@ -10,7 +11,7 @@ import { markNumRailAnswered } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
 import type { CardCtl } from "../render/CardCtl";
 import type { WenguQuestion } from "../../types";
-import { isBriefLike, QuestionType } from "../../types";
+import { hasSteps, isBriefLike, QuestionType } from "../../types";
 import { esc, fmt, mmss } from "../../ui/shared";
 
 /**
@@ -253,7 +254,10 @@ export async function revealAll(host: AnswerHost): Promise<void> {
  *  （题号栏也不标已答）。末题零动作——没有「下一题」可去，也没有
  *  「已跳过」需要记账（跳过＝当作没来过，用户随时能回来答）。
  *  导航走 host.onActiveQ + focusQuestion，与题号栏点击逐字同源
- *  （材料组自动切显、滚动追赶都在里头）。 */
+ *  （材料组自动切显、滚动追赶都在里头）。
+ *  入口由普通卡与 steps 多步题共用（Issue #21）——本函数对题型无感
+ *  （纯按下标导航），steps 卡渲染同款钮即接入，零语义新增；
+ *  slots 逐空题维持现状不提供。 */
 export function skipQuestion(host: AnswerHost, q: WenguQuestion): void {
     const list = host.questions();
     const idx = list.indexOf(q);
@@ -270,27 +274,56 @@ export function skipQuestion(host: AnswerHost, q: WenguQuestion): void {
  *  - instant 模式：揭示答案/解析并锁卡（与答错同款体验）；
  *  - after 模式：只记「已作答」不揭示不锁死，可反悔改成正常作答
  *    （重复提交走 upsert 覆写，见 HistoryStore.pushSessionAnswer）。
- *  steps/slots 卡不提供本入口（作答单位是步/空，语义另议，范围外）。 */
+ *  普通卡与 steps 多步题共用题级记账收口（dunnoCard），差异只在揭示
+ *  形态（Issue #21）；slots 逐空题维持现状不提供（作答单位是空）。 */
 export async function dunnoQuestion(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Promise<void> {
+    dunnoCard(host, q, ctl, (batch) => {
+        if (batch) {
+            ctl.setResult(esc(host.t("dunnoMarked")), "warn");
+            return;
+        }
+        // 先走常规揭示（chip 描色 + 答案/解析），再把结果行文案换成「已记为
+        // 不会」并**保留答案**——「不会」不比「答错」多给一分，但文案要说清
+        // 是主动认输，同时不能把答案行整条吃掉（客观题答案只在结果行展示）
+        revealCard(host, ctl, q, { submitted: "", ok: false });
+        const answerTail = isObjective(q) ? `${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}` : "";
+        ctl.setResult(`${esc(host.t("dunnoMarked"))}${answerTail}`, "wrong");
+        showQTime(host, ctl, q.id);
+    });
+}
+
+/** 多步题「不会」（Issue #21）：**题级语义**，与 dunnoQuestion 同构——
+ *  题级空串记一错（步骤一条都没答，逐步账不出空串条目：会话与题库的
+ *  逐步统计都按「答过的步」算，「不会」是整题认输不是每步都答错），
+ *  instant 全步一次揭示 + 卡锁 + 题号标错 + dunnoMarked 文案（有题级
+ *  答案时附答案），after 只记「已作答」可反悔改成正常作答。 */
+export async function dunnoSteps(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Promise<void> {
+    dunnoCard(host, q, ctl, (batch) => {
+        if (batch) {
+            ctl.setResult(esc(host.t("dunnoMarked")), "warn");
+            return;
+        }
+        revealStepsCard(host, q, ctl, "", false); // 全步一次揭示（现成收口，见下）
+        const answer = (q.answer ?? "").trim();
+        const answerTail = answer ? `${esc(host.t("answerLabel"))}${esc(answer)}` : "";
+        ctl.setResult(`${esc(host.t("dunnoMarked"))}${answerTail}`, "wrong");
+        showQTime(host, ctl, q.id);
+    });
+}
+
+/** 「不会」的题级记账收口（普通卡与 steps 共用，Issue #21）：守卫 →
+ *  模式分流（instant 三态一起置 / after 只置 graded）→ 题级空串记一错
+ *  → 形态各自的揭示（reveal 回调）+ 收口。after 的「已作答」结果行也
+ *  交回调按形态给——守卫/记账/收口只此一份，两形态不逐卡重写。 */
+function dunnoCard(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, reveal: (batch: boolean) => void): void {
     if (answeredFrozen(ctl) || judging.has(ctl)) return;
     const batch = host.currentRevealMode() === "after";
     if (batch) ctl.setPending();
     else ctl.setGraded();
     host.flushTime();
     host.recordAnswer(q.id, "", false);
-    if (batch) {
-        ctl.setResult(esc(host.t("dunnoMarked")), "warn");
-        markNumAnswered(host, q);
-        checkAllDone(host);
-        return;
-    }
-    // 先走常规揭示（chip 描色 + 答案/解析），再把结果行文案换成「已记为
-    // 不会」并**保留答案**——「不会」不比「答错」多给一分，但文案要说清
-    // 是主动认输，同时不能把答案行整条吃掉（客观题答案只在结果行展示）
-    revealCard(host, ctl, q, { submitted: "", ok: false });
-    const answerTail = isObjective(q) ? `${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}` : "";
-    ctl.setResult(`${esc(host.t("dunnoMarked"))}${answerTail}`, "wrong");
-    showQTime(host, ctl, q.id);
+    reveal(batch);
+    if (batch) markNumAnswered(host, q);
     checkAllDone(host);
 }
 
@@ -304,6 +337,12 @@ export function revealCard(
     r: { submitted: string; ok: boolean; verdict?: string; comment?: string }
 ): void {
     markNum(host, q, r.ok);
+    // steps 卡揭示走自己的收口（答完出整题结果行、预览态不覆盖；
+    // Issue #21 起 dunnoSteps 也过它）；此处只做揭示 + 题号描色
+    if (hasSteps(q)) {
+        revealStepsCard(host, q, ctl, r.submitted, r.ok);
+        return;
+    }
     // 揭示态统一在此置位（Issue #12）：本函数是**全部**卡片形态的揭示
     // 入口（即时判分、收卷统一揭示、恢复兜底三路都过它），显隐闸改挂
     // `.wengu-revealed` 后必须无条件置——否则 brief 卡收卷后答案与解析
@@ -326,6 +365,30 @@ export function revealCard(
     }
     // 材料组：组内题目全部判分后揭示共享材料的译文（E0 防剧透规则）
     syncGroupReveal(host.container(), host.questions());
+}
+
+/** steps 卡全步揭示收口（Issue #21）：三态一起置（graded + locked +
+ *  revealed——解析区只认 .wengu-revealed）+ 逐格答案/描色落格。逐格落格
+ *  走 CardState 的现成帮手 settleSteps（卡内按钮的 disabled 闸），故本函数
+ *  对「新卡当场判分」与「恢复卡兜底揭示」都无害，三路共用禁复制第二份：
+ *  revealCard 的 steps 转调、revealAll 收卷统一揭示、dunnoSteps「不会」。
+ *  不传逐格快照（settleSteps 只给缺格补答案）：收口快照 stepOks 一律按
+ *  「全错」预置——本函数的三条来路（收卷统一揭示、恢复兜底、「不会」）
+ *  都不带整题对错；**已按快照收口的完整作答不走这里**（finishCard 自己
+ *  写 stepOks 与整题结果行）。 */
+export function revealStepsCard(
+    host: AnswerHost,
+    q: WenguQuestion,
+    ctl: CardCtl,
+    submitted: string,
+    ok: boolean
+): void {
+    markNum(host, q, ok);
+    ctl.reveal(submitted); // 置 revealed + 作答快照
+    ctl.ui.graded = true;
+    ctl.ui.locked = true;
+    ctl.ui.stepOks = (q.steps ?? []).map(() => "0").join(""); // 收口快照：全错
+    settleSteps(q, ctl.ui, { t: host.t });
 }
 
 /** 全部作答后收口：instant 模式直接给总结报告；**after 模式不自动
