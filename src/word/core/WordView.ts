@@ -35,6 +35,8 @@ import {
 } from "../flow/WordQuiz";
 import type { WinEntry } from "../flow/WindowSched";
 import { speakWord } from "../service/WordSpeak";
+import { autoSpeakSite, mayAutoSpeak } from "./TapSpeech";
+import { isMobileUi } from "../../ui/shared";
 import { WordStartCtl, makeStartCtl } from "../flow/WordStart";
 import { buildQueue, starredList, toggleStar, WordStore, type WenguTimingRec, type WordGrade } from "./WordStore";
 import { WordTimer } from "./WordTiming";
@@ -175,6 +177,17 @@ export class WordView {
             this.ui.cardMode = this.learned.has(idx) ? pickMode(this.ui.cardSeq, idx, this.ui.confIds) : "recallEn";
         }
         this.timer?.begin(this.ui.cardMode);
+        this.autoSpeakIfNeeded();
+    }
+
+    /** 听音卡自动播的**移动端落点**（桌面走组件 $effect，见 core/TapSpeech）：
+     *  enterPrompt 由换卡动作同步调用——点「下一个/档位/选项」的 click 链路
+     *  里，iOS 首播要求的「手势内同步栈」天然满足；组件 $effect 是微任务，
+     *  移动端播不出声（Issue #10）。非手势驱动的换卡（AI 刷新重进）调用失败
+     *  也只是静默，与改造前同口径。 */
+    private autoSpeakIfNeeded(): void {
+        if (autoSpeakSite(isMobileUi()) !== "enterPrompt") return;
+        if (mayAutoSpeak(this.ui.cardMode, this.ui.phase === "prompt", !!this.ui.answered)) this.playCurrentWord();
     }
 
     /** 选择题作答(点击/数字键共用)；听音题同用释义选项。 */
