@@ -86,7 +86,7 @@ export class ColPanelCtl {
     bankHealth(): void {
         const bank = this.bank();
         if (!bank) return;
-        void openHealthDialog({ t: this.v.t, bank, onDone: () => void this.load() });
+        void openHealthDialog({ t: this.v.t, bank, modelId: () => this.v.aiModelId(), onDone: () => void this.load() });
     }
 
     /** 点击专题：切题库模式进刷题。 */

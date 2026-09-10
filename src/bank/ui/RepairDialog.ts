@@ -1,8 +1,10 @@
 import { svgIcon } from "../../ui/FormHtml";
-import { openWenguDialog } from "../../ui/Dialog";
+import { openWenguDialog, type WenguDialogAction } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
 import { errText } from "../../ui/shared";
 import { notifyError, notifyInfo } from "../../ui/Notify";
+import { launchAiFlow } from "../../ai/flow";
+import { regenRecords } from "./RegenDialog";
 import type { QuestionBank } from "../data/QuestionBank";
 import { applyBankHealth, scanBankHealth } from "../data/BankHealth";
 import type { HealthAutoKind, HealthIssue, HealthScan } from "../data/BankHealth";
@@ -18,6 +20,8 @@ import type { HealthAutoKind, HealthIssue, HealthScan } from "../data/BankHealth
 export interface RepairDeps {
     t: (key: string) => string;
     bank: QuestionBank;
+    /** AI 模型 id（结构损坏题批量重生成用）。 */
+    modelId(): string;
     /** 成功后刷新视图（重拉面板/侧栏）。 */
     onDone(): void;
 }
@@ -89,10 +93,13 @@ function fixRows(t: (k: string) => string, scan: HealthScan): string {
 function regenRows(t: (k: string) => string, scan: HealthScan): string {
     return scan.regen
         .map(
-            (r) => `<div class="wengu-col-row" style="display:block">
-  <span class="wengu-col-row-title">${esc(r.stem || r.qid)}</span>
-  <span class="wengu-meta">${esc(r.set || t("healthNoSet"))} · ${esc(r.issues.map((i) => t(ISSUE_KEY[i])).join(" / "))}</span>
-</div>`
+            (r, i) => `<label class="wengu-col-row" style="display:block">
+  <span style="display:flex;align-items:center;gap:6px">
+    <input type="checkbox" data-regen="${i}" checked />
+    <span class="wengu-col-row-title">${esc(r.stem || r.qid)}</span>
+    <span class="wengu-meta">${esc(r.set || t("healthNoSet"))} · ${esc(r.issues.map((i) => t(ISSUE_KEY[i])).join(" / "))}</span>
+  </span>
+</label>`
         )
         .join("");
 }
@@ -133,14 +140,16 @@ export async function openHealthDialog(deps: RepairDeps): Promise<void> {
       ${scan.dups.length ? section(t("repairDupHead"), dupRows(t, scan), "14vh") : ""}
       <div class="wengu-status" data-act="repair-status" hidden></div>
     `;
+    const actions: WenguDialogAction[] = [
+        { id: "repair-ok", label: t("repairApply"), variant: "outline" },
+        { id: "repair-cancel", label: t("cancel") },
+    ];
+    if (scan.regen.length > 0) actions.unshift({ id: "repair-regen", label: t("repairRegenBtn") });
     const { dialog, root } = openWenguDialog({
         title: t("repairTitle"),
         width: "680px",
         body,
-        actions: [
-            { id: "repair-cancel", label: t("cancel") },
-            { id: "repair-ok", label: t("repairApply"), variant: "outline" },
-        ],
+        actions,
     });
     const status = root.querySelector<HTMLElement>("[data-act='repair-status']");
     const okBtn = root.querySelector<HTMLButtonElement>("[data-act='repair-ok']");
@@ -157,6 +166,23 @@ export async function openHealthDialog(deps: RepairDeps): Promise<void> {
         status.removeAttribute("hidden");
     };
     root.querySelector("[data-act='repair-cancel']")?.addEventListener("click", () => dialog.destroy());
+    root.querySelector<HTMLButtonElement>("[data-act='repair-regen']")?.addEventListener("click", () => {
+        const picked = [...root.querySelectorAll<HTMLInputElement>("[data-regen]:checked")].map(
+            (el) => scan.regen[Number(el.dataset.regen)]
+        );
+        if (picked.length === 0) {
+            show(t("repairNonePicked"), "err");
+            return;
+        }
+        dialog.destroy(); // 点击即关窗：批量 AI 后台跑，进度在 AI 会话面板，终态走通知
+        launchAiFlow(async (stop) => {
+            await regenRecords(
+                { t, bank, modelId: deps.modelId(), onDone: deps.onDone },
+                picked.map((r) => r.qid),
+                stop
+            );
+        });
+    });
     okBtn?.addEventListener("click", () => {
         const kinds = new Set(
             [...root.querySelectorAll<HTMLInputElement>("[data-auto]:checked")].map(

@@ -11,6 +11,7 @@ import { openWenguDialog } from "../../ui/Dialog";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
+import { parseQuestionKramdown } from "../data/BankParse";
 import { recordOf, replaceRecordKramdown } from "../data/BankRegen";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
@@ -123,12 +124,19 @@ function startRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note: str
     void runRegen(deps, q, srcRaw, note, stop).finally(() => regenInFlight.delete(q.id));
 }
 
-async function runRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note: string, stop: AiAbort): Promise<void> {
+async function runRegen(
+    deps: RegenDeps,
+    q: WenguQuestion,
+    srcRaw: string,
+    note: string,
+    stop: AiAbort,
+    opts?: { quiet?: boolean }
+): Promise<boolean> {
     const { t, bank, modelId } = deps;
     const record = await recordOf(bank, q.id);
     if (!record) {
         notifyError({ key: "regenNoRecord" });
-        return;
+        return false;
     }
     try {
         // 提供原文链接：拉原文块 kramdown；不提供：知识点小节正文（首个引用）
@@ -169,9 +177,40 @@ async function runRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note:
         const replaced = await replaceRecordKramdown(bank, q.id, kd);
         if (!replaced) throw new Error(t("regenNoRecord"));
         await bank.flush();
-        notifyInfo({ key: "regenDone" });
-        deps.onDone();
+        if (!opts?.quiet) {
+            notifyInfo({ key: "regenDone" });
+            deps.onDone();
+        }
+        return true;
     } catch (e) {
         notifyError(stop.signal.aborted ? deps.t("aiFlowAborted") : errText(e));
+        return false;
     }
+}
+
+/** 取一条记录并构造可重生成的题视图（parse-fail 记录退化：type/题干未知
+ *  走全量兜底，让 AI 依原 kramdown 推断题型）。 */
+async function regenViewOf(bank: QuestionBank, qid: string): Promise<WenguQuestion | undefined> {
+    const record = await recordOf(bank, qid);
+    if (!record) return undefined;
+    const parsed = bank.parsedOf(qid, record.hash) ?? parseQuestionKramdown(record.kramdown, qid, record.sourceDocId);
+    if (parsed) return parsed;
+    return { id: qid, attempts: 0, wrongCount: 0, stemMd: "" };
+}
+
+/** 批量重生成（题库体检「结构损坏」直修）：逐题复用单题重出（quiet：不
+ *  逐题通知/刷新，失败逐题已通知、不计成功数），终态统一通知并刷新。
+ *  返回成功数；供 RepairDialog 经 launchAiFlow 调起。 */
+export async function regenRecords(deps: RegenDeps, qids: string[], stop: AiAbort): Promise<number> {
+    let ok = 0;
+    for (const qid of qids) {
+        if (stop.signal.aborted) break;
+        if (regenInFlight.has(qid)) continue; // 题卡单题重出在飞：跳过防并发写冲突
+        const q = await regenViewOf(deps.bank, qid);
+        if (!q) continue;
+        if (await runRegen(deps, q, "", "", stop, { quiet: true })) ok++;
+    }
+    notifyInfo({ key: "regenBatchDone", vars: { n: String(ok) } });
+    deps.onDone();
+    return ok;
 }

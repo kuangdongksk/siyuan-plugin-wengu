@@ -2,6 +2,14 @@
 
 ## v0.1.1 unreleased
 
+- **题库体检结构损坏批量重生成**（20260910，bank 域）：全库体检「结构损坏」段
+  原先只按原因归类、强制逐卡手动「重新生成」；改为每行可勾选（默认全选）+
+  「重生成选中（AI）」按钮——点击即关窗，复用题卡单题重出
+  （`runRegen` 带 quiet，`regenRecords` 批量入口）后台逐题跑，调用带 track
+  进 AI 会话面板（实时进度），终态统一通知；parse-fail 题 type 未知走全量兜底
+  让 AI 按原 kramdown 推断题型，逐题跳过与卡片单题重出冲突的题。结构损坏题
+  无需再逐卡点击，体检弹窗内一键直修。
+
 - **prompt 集中收口 + 生题题型化**（20260910，ai 域）：全仓 26 处 AI
   prompt 构建点从 10 个业务文件纯搬迁进 `src/ai/prompts/` 八件套
   （common/protocol/convert/gen/route/judge/misc/companion），公共片段
