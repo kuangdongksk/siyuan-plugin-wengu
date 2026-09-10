@@ -3,6 +3,36 @@
 给 AI 编码代理的项目说明。**调试环境按机器区分**，两台机器各自一节，
 在别的机器上先确认本节路径/端口/token 再动手，并回填缺失信息。
 
+## 工作流（2026-09-10 起）：云端开发，本地只调度 —— 最高优先级约定
+
+**本项目所有业务代码改动一律在 CNB 上由 NPC 完成，本地不再直接改代码。**
+
+| 角色                    | 在哪       | 职责                                                                 |
+| ----------------------- | ---------- | -------------------------------------------------------------------- |
+| 飒飒 + 本地青简         | 本地       | 审查代码与 PR、出方案 / 设计稿、开 Issue、召唤 NPC、跟踪流水线、合并 |
+| 云端 NPC（青简 / 复核） | CNB 流水线 | 拉 `dev` 分支实现、写测试、跑自检、开 PR                             |
+
+标准流转：
+
+```
+本地出方案 → 开 Issue（附文件路径 + 可验证的验收标准）
+          → 评论召唤 NPC（必须勾「替我上班」）
+          → NPC 基于 dev 拉分支实现、开 PR（base 必须是 dev）
+          → 本地审查（拉分支到独立目录独立验证，不信自述）
+          → 合并进 dev
+```
+
+- **一次只跑一个 NPC 任务**：多个 PR 同时开，容易抢改同一个文件（尤其本文件）。
+- **例外（仍属「调度」范畴，本地可直接改并推送 `dev`）**：`.cnb/`、`.cnb.yml`、
+  本文件的协作约定段 —— 它们是 NPC 运行所依赖的**调度基础设施**。
+  **业务代码（`src/`、`tests/`、`docs/` 正式文档）没有例外，一律走云端。**
+- **审查 NPC 的 PR 时不要只信它的自述**：拉分支到独立目录（如
+  `git worktree add /tmp/wengu-review <branch>`）跑一遍
+  `pnpm test`、`pnpm check:svelte`、`pnpm lint`、`pnpm format:check`。
+  ⚠️ `pnpm lint` 是 `eslint . --fix`，**会就地改文件** —— 务必在独立目录里跑，
+  别在正在开发的工作区跑。
+- 只读操作（看代码、查内核 API、跑只读 SQL）不受此限，随时可做。
+
 ## 分支与协作（CNB + NPC）——动代码前先读
 
 双远端：`origin` = GitHub（历史存档），`cnb` = CNB（云原生构建，NPC 开发在这边跑）。
@@ -22,7 +52,8 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 - 开工基线：`git fetch cnb && git checkout -b <type>/<slug> cnb/dev`，
   分支名用 `feat/` `fix/` `refactor/` `docs/` `chore/` 前缀。
 - PR 的 base 一律 `dev`，描述里带 `Ref: #<Issue 编号>`。
-- 禁止直接向 `dev` / `main` 推送，一切改动走 PR。
+- 禁止直接向 `dev` / `main` 推送，一切改动走 PR。**唯一例外**：本地改「调度
+  基础设施」（`.cnb/`、`.cnb.yml`、本节协作约定）时可直接推 `dev`，见上一节。
 - NPC 角色与硬约束写在 `.cnb/settings.yml`；Issue 模板在
   `.cnb/ISSUE_TEMPLATE/`（两者都从**默认分支**读取）。
 - **模型与推理档位**在仓库根 `.cnb.yml` 的 `npc:go.options` 里配（`settings.yml`
