@@ -354,11 +354,46 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   精确相等即确定性挂引用（零 AI、歧义宁漏勿错）——「导入文档」登记后自动跑（导入即
   关联）；面板头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 + 可选 AI
   路由兜底，落库共用 applyRefsToRecord。
+- **同义词表 + AI 同义对齐层**（KnowSynonyms / KnowSynJudge，20260910 Issue #3）：
+  文本精确层漏挂跨写法（「洛必达」↔「L'Hôpital 法则」）——归一链加一层**前置表**：
+  `原文 → synKey 查同义表（零 AI）→ normalizeKnowledge 剥命名性后缀 → 精确相等`
+  （**并入同一条链，不另起并行归一体系**；synKey 只剥装饰+小写，剥后缀仍归
+  KnowledgeNorm）。表 `saveData("know-synonyms")`，词条带 source(ai|manual)/at，
+  UI「同义词表」弹窗可查看与两击清空（一次错判不被永久固化）。
+    - **查表一律走 `loadSynonyms()` / `store.snapshot()`，禁用 `peekSynonyms()` 做
+      「表里有没有」的判断**（20260910 审查修复，真机踩坑级）：peek 只看内存，插件
+      重载后盘上有表但尚未装载时它是**空表**——文本层据此查表就漏掉全部存量判定，
+      同一对词被重新问一遍 AI，「判过就不重问」在重载后**不成立**。initKnowSynonyms
+      顺带预热一次装载，但消费点仍必须 await（`lexiconOfRoots` / `linkRecordsByText`
+      都已改走 loadSynonyms）。
+    - **清单协议与 route 同源**（20260910 审查修复）：一批**共用一份编号小节清单**
+      （`candidateList`，近邻标题优先 + `SYN_LIST_CHARS` 预算），AI 逐行回
+      `标签编号|小节编号`。**旧的「每对词只塞 4 条候选」写法是硬伤**——跨语言对
+      （「洛必达」↔「L'Hôpital 法则」）正确项不在候选里，AI 只能答 `-`，而判否会
+      落表固化 → 该对词被判死，第二轮「零 AI」却永远不命中。别退回去。
+    - **三态判定防固化错判**：`-`=明确不同义（清单完整才落表记否，防重问）；
+      编号/标题=命中（落表 + 当轮挂引用）；**答非所问/说不清不落表**（下次重问）。
+      清单被截断时（病态大词表）连 `-` 也不落表。
+    - **AI 判定沉淀且只跑一次**：文本未命中的标签走 `pendingPairs`（按 synKey 去重、
+      跳过表里已判定的**含判否空串**、跳过文本层已能挂上的），按批走
+      `prompts/synonyms.synJudgePrompt`（编号行协议，`SYN_BATCH_SIZE=15`，AI 只能回
+      清单里的编号/逐字标题，不许造词）→ 判定写回表 + 当轮挂引用。第二对同词零 AI。
+    - 三弹窗共用 `ui/SynFlow.runSynonymPhase`（禁复制第二份）：**相内先跑零 AI 文本
+      层**再走 AI 判定（匹配入口原先没有文本层，相内统一后三入口口径一致），差异
+      只在拿哪些记录来跑；批量关联 phase1.5、生成标签核对补相、匹配前置相。
+      调用带 track(kind=route) 进 AI 会话面板。
+    - **失效口径（Issue #3 验收第 5 条结论）**：同义表**不进** RouteCache 的索引
+      代数指纹（`indexGenOf` 只覆盖章节结构+小节内容哈希）。理由：表插在词表匹配
+      之前、只决定「归一后是否采纳命中」，不改路由输入（题面）与路由输出（小节
+      集合）——改表不会让存量路由答案失真。表自身的失效由 `clear()` 承担（清空=
+      重新判定），不需要代数。
 - **生成标签**（TagDialog，20260831）：侧栏文档右键入口，已有标签核对挂引用、缺失
   标签 AI 生成（有知识文档按批路由按小节标题命名、无则整批自由生成），setKnowledgeAttr
   写 IAL + applyTagToRecord 落库。
 - **标签归一**（KnowledgeNorm，20260831）：knowledge 文本的 kn 聚合键剥命名性后缀归
   词干（「洛必达」=「洛必达法则」），只动键不动数据，四处聚合点统一 knKey。
+  20260910 起这条链前面多一层同义表（见上条）：**先查表拿规范词、再进 knKey**——
+  表是链的前置层不是并行体系，未接线/表为空时逐字节等同改造前行为。
 - **路由缓存**（RouteCache，20260831 增量哈希一期，20260909 三弹窗改按批路由）：
   匹配/批量关联/生成标签三弹窗的两级 AI 路由走 routeKnowledgeBatchCached 按题指纹
   缓存（saveData("route-cache") LRU 2000，索引结构/模型/路由代数变更整表作废——代数
@@ -464,7 +499,9 @@ width:100% }`。修复：复合选择器 `.b3-label.wengu-formrow { ... !importa
 
 存量用户数据兼容是最高约束——插件目录与 data/storage 随思源同步在两台
 机器间流转，任何格式变更都同时面对「升级」与「版本错位」两个方向。全部
-持久化存储（saveData 十店 + 词书工作区文件 `data/wengu/` + 题目块 IAL）
+持久化存储（saveData 十店 + 词书工作区文件 `data/wengu/` + 题目块 IAL；
+20260910 起加 `know-synonyms` 同义表——**纯派生可重建**，读异常归空表、
+丢=少数词对重问一次 AI，按纯缓存口径处置不设版本闩）
 一律遵守：
 
 - **字段只加不改名不删**：新字段一律 optional + 装载 backfill

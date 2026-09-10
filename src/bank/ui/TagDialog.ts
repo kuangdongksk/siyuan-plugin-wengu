@@ -17,6 +17,7 @@ import { applyTagToRecord, lexiconOfRoots, linkRecordsByText, parseFreeTags } fr
 import { knowTreesOf } from "../data/KnowTrees";
 import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
+import { runSynonymPhase } from "./SynFlow";
 
 /**
  * 生成标签（2026-08-31，侧栏文档右键入口）：对一份习题文档的题单分两相——
@@ -80,8 +81,25 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
         // 阶段一 核对：已有标签 → 归一匹配挂引用（零 AI）。已挂引用的题
         // 记 skip（不动），命中的挂引用，没命中的=标签在知识文档无对应小节
         const verified = await linkRecordsByText(bank, lex, tagged, { signal: stop.signal });
-        const linked = verified.hit;
-        const unmatched = verified.miss;
+        let linked = verified.hit;
+        // 阶段一之补：核对未命中的标签走同义判定（Issue #3；按批 AI，
+        // 判定落同义表——同对词第二轮零 AI）
+        let synLinked = 0;
+        if (verified.missed.length > 0 && !stop.signal.aborted && lex.size > 0) {
+            const group = { id: newAiGroupId(), title: `同义判定 · ${verified.missed.length} 题` };
+            const syn = await runSynonymPhase({
+                bank,
+                lex,
+                records: verified.missed,
+                modelId,
+                stop,
+                group,
+                completeLibrary: true, // 词表=全部登记根，判否可全局沉淀
+            });
+            synLinked = syn.synHit;
+            linked += syn.textHit + syn.synHit;
+        }
+        const unmatched = verified.miss - synLinked;
         // 阶段二 生成：无标签 → AI 打标签（逐题两级路由带按题指纹缓存，
         // 未变的题重跑零 AI 调用）
         let genOk = 0;

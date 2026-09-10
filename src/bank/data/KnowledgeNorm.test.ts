@@ -57,6 +57,17 @@ describe("knKey", () => {
     });
 });
 
+describe("同义表层与 knKey 链的关系（Issue #3：前置层不另起并行体系）", () => {
+    it("同义词表层剥装饰的键与 knKey 共享同一归一（前缀层剥装饰，后缀层剥后缀）", async () => {
+        const { synKey } = await import("./KnowSynonyms");
+        // 同义表键：剥装饰 + 小写；knKey 在此基础上再剥命名性后缀
+        expect(synKey("《洛必达法则》")).toBe("洛必达法则");
+        expect(knKey("洛必达法则")).toBe("kn:洛必达");
+        // 双层叠加 = 先查表得规范词、再进 knKey 链，最终与裸 knKey 同键
+        expect(knKey("洛必达")).toBe(knKey("洛必达法则"));
+    });
+});
+
 describe("pickStandardName（显示名取标准名，不用短名）", () => {
     it("同簇取信息最全写法：洛必达/洛必达法则 → 洛必达法则", () => {
         expect(pickStandardName(["洛必达", "洛必达法则"])).toBe("洛必达法则");

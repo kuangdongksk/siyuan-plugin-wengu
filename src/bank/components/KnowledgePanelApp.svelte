@@ -124,6 +124,8 @@
         <div class="wengu-ws-title">
             {t("knowPanelTitle")}
             <span class="wengu-ws-titlebtns">
+                <!-- 同义词表：AI 同义判定的沉淀，可查看/清空（SynonymDialog） -->
+                <Button type="button" variant="text" onclick={() => ctl.synonyms()}>{t("knowSynBtn")}</Button>
                 <!-- 批量关联：全根 × 全库，文本优先 + 可选 AI 路由兜底（BatchLinkDialog） -->
                 <Button type="button" variant="outline" onclick={() => ctl.batchLink()}>{t("knowBatchBtn")}</Button>
                 <!-- 导入文档：登记知识文档根（递归展开小节，挂 KnowRoots） -->

@@ -9,6 +9,7 @@ import { notifyError, notifyInfo, type NotifyMsg } from "../../ui/Notify";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
+import { openSynonymDialog } from "../ui/SynonymDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
 import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/knowledge/KnowledgeLink";
@@ -263,16 +264,16 @@ export class KnowPanelCtl {
         return docIds;
     }
 
+    /** 头部「同义词表」：查看/清空 AI 同义判定的沉淀（Issue #3）。 */
+    synonyms(): void {
+        void openSynonymDialog({ t: this.v.t });
+    }
+
     /** 头部「批量关联」：全部登记根 × 全库题，文本优先、可选 AI 兜底。 */
     batchLink(): void {
         const bank = this.bank();
-        if (!bank) return;
-        void openBatchLinkDialog({
-            t: this.v.t,
-            bank,
-            modelId: this.v.aiModelId(),
-            onDone: () => void this.load(),
-        });
+        if (bank)
+            void openBatchLinkDialog({ t: this.v.t, bank, modelId: this.v.aiModelId(), onDone: () => this.load() });
     }
 
     /* ── AI 索引（原「建知识树」，docs/knowledge-tree.md □1；20260903 起

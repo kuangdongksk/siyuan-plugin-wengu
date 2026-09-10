@@ -16,6 +16,7 @@ import { debounce } from "./ui/shared";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
+import { initKnowSynonyms } from "./bank/data/KnowSynonyms";
 import { knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
@@ -163,6 +164,12 @@ export default class WenguPlugin extends Plugin {
         initKnowHash({
             load: () => this.loadData("know-hash"),
             save: (v) => this.saveData("know-hash", v),
+        });
+        // 知识点同义词表（Issue #3）：文本关联归一链的前置层，AI 判定
+        // 结果沉淀于此（同一对词第二次出现零 AI 调用）
+        initKnowSynonyms({
+            load: () => this.loadData("know-synonyms"),
+            save: (v) => this.saveData("know-synonyms", v),
         });
         // 看板娘学伴（全局悬浮层挂 body，与页签渲染解耦；事件由各域收口
         // 一行接入，20260828 定稿）

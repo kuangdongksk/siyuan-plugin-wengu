@@ -17,6 +17,9 @@ import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
 import { applyRefsToRecord } from "../data/KnowLinkText";
 import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
+import { lexiconOfIndex } from "../data/KnowLinkText";
+import { loadSynonyms } from "../data/KnowSynonyms";
+import { runSynonymPhase } from "./SynFlow";
 
 /**
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
@@ -141,10 +144,28 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
         const cache = routeCache();
         // 预过滤：skipLinked 跳过已关联题，其余批量路由（20260909 起按批
         // 两级路由替代逐题——一批一次调用、逐题指纹缓存，未变的题重跑零 AI）
-        const toRoute: BankRecord[] = [];
+        let toRoute: BankRecord[] = [];
         for (const r of records) {
             if (skipLinked && r.kpRefs.length > 0) skip++;
             else toRoute.push(r);
+        }
+        // 同义判定前置相（Issue #3）：相内先跑零 AI 文本层（标签 ↔ 小节
+        // 标题归一匹配，含同义表前置层），未命中的标签再按批判同义；剩下
+        // 的才走 AI 两级路由。词表 **按选中文档的索引出**（lexiconOfIndex）
+        // ——用全部登记根会把题挂到选中文档以外的小节，越权挂引用
+        const synLex = lexiconOfIndex(index, await loadSynonyms());
+        if (synLex.size > 0 && toRoute.length > 0) {
+            const r = await runSynonymPhase({
+                bank,
+                lex: synLex,
+                records: toRoute,
+                modelId,
+                stop,
+                group,
+                onFail: (e) => fails.push({ stage: "chapter", error: e }),
+            });
+            hit += r.textHit + r.synHit;
+            toRoute = r.rest;
         }
         if (toRoute.length > 0) {
             const texts = toRoute.map((r) => routeTextOf(r));
