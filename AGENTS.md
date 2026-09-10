@@ -217,6 +217,17 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
     - 行入口「匹配」（MatchDialog）：选已入库习题文档→按批两级 AI 路由（15 题/批）→
       strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库；与「转习题」
       （QuizView.openConvertPrefilled 预填源=知识点根=该文档）。
+    - **导入后自动补索引**（20260910，KnowPanelCtl.runImport；Issue #2）：手动导入登记
+      成功后，对**本次新登记根**（与导入前登记清单 diff 得出）子树里 `pendingIndexIds`
+      （已知 trees 里没有的）自动跑一次索引——已索引的一个都不重跑（含 srcHash 已变的
+      存量树：stale 重索是用户显式动作，自动路径不动它）。顺序=零 AI 文本关联跑完 →
+      小节哈希基线 → 面板 reload → `yieldToBrowser` 让出首帧后起 AI（**不阻塞 reload**，
+      用户可能已离开页面，终态走通知 notifyOutlineAutoDone/notifyOutlineAutoNone）。
+      自动路径**跳过 armOutline 两击确认**，但执行体与手动「索引」完全共用
+      （`driveOutline` 编排 + `executeOutline` 串行循环 + `beginOutline`/`settleOutline`
+      坑位，禁复制第二份）；因此自动索引进行中用户点行内「索引」被 ui.outlining 挡下
+      （不起第二份任务），点在坑位行=中止。整链一条 catch 兜底（本文件历史踩过
+      unhandled rejection 坑），收尾段再抛走 resetOutline 保坑位必清。
 - **文本关联/批量关联**（KnowLinkText，20260831）：knowledge 标签 ↔ 小节标题归一
   精确相等即确定性挂引用（零 AI、歧义宁漏勿错）——「导入文档」登记后自动跑（导入即
   关联）；面板头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 + 可选 AI

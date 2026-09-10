@@ -1,11 +1,11 @@
-import { Armed, errText } from "./../../ui/shared";
+import { Armed, errText, yieldToBrowser } from "./../../ui/shared";
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
 import { collectKpRefs } from "../data/BankRegen";
 import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
-import { knowTreeByNode, knowTreesOf } from "../data/KnowTrees";
-import { notifyError, notifyInfo } from "../../ui/Notify";
+import { knowTreeByNode, knowTreesOf, pendingIndexIds } from "../data/KnowTrees";
+import { notifyError, notifyInfo, type NotifyMsg } from "../../ui/Notify";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
@@ -183,7 +183,9 @@ export class KnowPanelCtl {
 
     /** 头部「导入」：文档选择浮层（多选，锚定按钮）。导入即关联——
      *  登记后自动跑零 AI 文本关联（knowledge 标签 ↔ 新根小节标题归一
-     *  匹配），命中的题挂上引用，面板重载即可见计数。 */
+     *  匹配），命中的题挂上引用，面板重载即可见计数；随后对**本次新登记
+     *  根**子树里尚无索引的文档自动补一次 AI 索引（已索引的不重跑、不
+     *  经两击确认；AI 长任务不阻塞重载，终态走通知）。 */
     importRoots(anchor: HTMLElement): void {
         const bank = this.bank();
         if (!bank) return;
@@ -196,37 +198,7 @@ export class KnowPanelCtl {
                     current,
                     single: false,
                     onConfirm: (ids) => {
-                        void setKnowRoots(bank, ids)
-                            .then(() => bank.flush())
-                            .then(async () => {
-                                const trees = await knowTreesOf(bank);
-                                const lex = await lexiconOfRoots(ids, trees);
-                                if (lex.size > 0) {
-                                    const r = await linkBankByText(bank, lex, {});
-                                    if (r.hit > 0)
-                                        notifyInfo({ key: "notifyAutoLinkDone", vars: { n: String(r.hit) } });
-                                }
-                                // 导入即基线：小节内容哈希起点（stale 检测的比对基准）
-                                const kh = knowHash();
-                                if (kh) {
-                                    for (const rid of ids) {
-                                        const docs = await expandKnowDocs(rid, trees);
-                                        await kh.baselineDocs(
-                                            rid,
-                                            docs.map((d) => d.docId)
-                                        );
-                                    }
-                                }
-                            })
-                            .then(() => this.load())
-                            .catch((e: unknown): void => {
-                                // 整链原为 unhandled rejection（面板连重载都不发生）
-                                notifyError({
-                                    key: "notifyAutoLinkFail",
-                                    vars: { msg: errText(e) },
-                                });
-                                void this.load();
-                            });
+                        void this.runImport(ids, current, bank);
                     },
                 });
             } catch (e) {
@@ -235,6 +207,60 @@ export class KnowPanelCtl {
                 notifyError({ key: "notifyAutoLinkFail", vars: { msg: errText(e) } });
             }
         })();
+    }
+
+    /** 导入链（登记 → 落盘 → 零 AI 文本关联 → 小节哈希基线 → 面板重载 →
+     *  自动补索引）。整链一条 catch 兜底：原为 unhandled rejection（面板
+     *  连重载都不发生）；自动补索引本身自带 catch，不会把拒绝冒出链外。 */
+    private async runImport(ids: string[], before: string[], bank: QuestionBank): Promise<void> {
+        try {
+            // 选择器回传的是全量勾选：diff 出**本次新增**的登记根（自动补
+            // 索引只认它们，顺带避免把历史遗留的缺索引文档一并重跑）
+            const added = ids.filter((id) => !before.includes(id));
+            await setKnowRoots(bank, ids);
+            await bank.flush(); // 登记先落盘：索引写 knowTrees 自带 markDirty+flush，两次落盘串行不叠防抖
+            const trees = await knowTreesOf(bank);
+            const lex = await lexiconOfRoots(ids, trees);
+            if (lex.size > 0) {
+                const r = await linkBankByText(bank, lex, {});
+                if (r.hit > 0) notifyInfo({ key: "notifyAutoLinkDone", vars: { n: String(r.hit) } });
+            }
+            // 导入即基线：小节内容哈希起点（stale 检测的比对基准）
+            const kh = knowHash();
+            if (kh) {
+                for (const rid of ids) {
+                    const docs = await expandKnowDocs(rid, trees);
+                    await kh.baselineDocs(
+                        rid,
+                        docs.map((d) => d.docId)
+                    );
+                }
+            }
+            // 零 AI 关联跑完才收待索引清单（此时仍持导入时刻的 trees 快照，
+            // 已索引的一个都不进清单）；先出重载再起 AI——长任务不阻塞
+            // reload，用户可能已离开页面，终态靠通知
+            const pending = pendingIndexIds(await this.expandRootDocs(added), trees);
+            await this.load();
+            await yieldToBrowser(); // 让重载后的树先画出来，AI 流不占首帧
+            this.autoIndex(pending, bank);
+        } catch (e) {
+            notifyError({ key: "notifyAutoLinkFail", vars: { msg: errText(e) } });
+            void this.load().catch((err: unknown): void => {
+                // 已通知过导入失败；重载再失败只记日志，别冒成未捕获拒绝
+                console.warn("[wengu] 导入失败后面板重载失败", err);
+            });
+        }
+    }
+
+    /** 本轮新登记根 → 子树文档 id 清单（expandKnowDocs；展开失败退根
+     *  自身，与 resolveOutline 同口径）。零 AI，纯内核读。 */
+    private async expandRootDocs(rootIds: string[]): Promise<string[]> {
+        const docIds: string[] = [];
+        for (const rid of rootIds) {
+            const expanded = await expandKnowDocs(rid).catch((): KnowDocEntry[] => []);
+            docIds.push(...(expanded.length > 0 ? expanded.map((e) => e.docId) : [rid]));
+        }
+        return docIds;
     }
 
     /** 头部「批量关联」：全部登记根 × 全库题，文本优先、可选 AI 兜底。 */
@@ -278,7 +304,7 @@ export class KnowPanelCtl {
         const trees = await knowTreesOf(bank);
         const ids = expanded.length > 0 ? expanded.map((e) => e.docId) : [d.docId];
         if (ids.length > 1) {
-            const pending = ids.filter((id) => !trees[id]);
+            const pending = pendingIndexIds(ids, trees); // 筛选口径与自动补索引同一处
             if (pending.length === 0) {
                 notifyInfo({ key: "notifyOutlineAllIndexed" });
                 return;
@@ -297,53 +323,123 @@ export class KnowPanelCtl {
         this.runOutline(d.docId, [d.docId], bank);
     }
 
-    /** 串行执行（anchor=占「索引中」坑位的行；单篇沿用逐篇通知口径）。 */
+    /** 手动「索引」执行：占坑 → 共用收口编排（单篇逐篇口径，批量=汇总）。 */
     private runOutline(anchorId: string, ids: string[], bank: QuestionBank): void {
         this.disarmOutline();
         this.ui.outlineErr = undefined;
-        this.ui.outlining = anchorId;
-        const ctrl = new AbortController();
-        this.outlineCtrl = ctrl;
         const batch = ids.length > 1;
-        void (async (): Promise<void> => {
-            let ok = 0;
-            let skip = 0;
-            let fail = 0;
-            let count = 0;
-            let lastErr = "";
-            for (const id of ids) {
-                if (ctrl.signal.aborted) break;
-                try {
-                    const r = await generateKnowledgeOutline(id, this.v.aiModelId(), ctrl.signal, bank);
-                    ok++;
-                    count += r.count;
-                } catch (e) {
-                    if (ctrl.signal.aborted) break;
-                    const msg = errText(e);
-                    if (msg.includes("doc has no content"))
-                        skip++; // 空文档（目录壳）
-                    else {
-                        fail++;
-                        lastErr = msg;
-                    }
-                }
-            }
-            if (this.outlineCtrl === ctrl) this.outlineCtrl = undefined;
-            this.ui.outlining = undefined;
-            if (ctrl.signal.aborted) return; // 中止：静默复位（与单篇中止同口径）
-            if (fail === ids.length) {
-                // 全灭才算失败态（行内错误+通知）；部分失败走汇总不打断
-                this.ui.outlineErr = `${this.v.t("knowOutlineFail")}${lastErr}`;
-                notifyError({ key: "notifyOutlineFail", vars: { msg: lastErr } });
+        void this.driveOutline(ids, bank, this.beginOutline(anchorId), (run) =>
+            batch
+                ? {
+                      key: "notifyOutlineBatchDone",
+                      vars: { n: String(run.ok), k: String(run.skip), m: String(run.fail) },
+                  }
+                : { key: "notifyOutlineDone", vars: { n: String(run.count) } }
+        );
+    }
+
+    /** 导入后自动补索引（本次新登记根里尚无索引的文档）：零 AI 文本关联
+     *  跑完、面板重载之后才起；**不阻塞重载**，用户可能已离开页面故终态
+     *  走通知。与手动路径共用执行体与 outlineCtrl/ui.outlining 的「同时
+     *  只跑一份」坑位——索引中用户点行内「索引」会被 ui.outlining 挡下
+     *  （不起第二份任务；点在坑位行=沿用「再点=中止」，同批量口径）。
+     *  全是空文档（目录壳）=零产物，报「无可归纳内容」而不算错误。 */
+    private autoIndex(ids: string[], bank: QuestionBank): void {
+        if (ids.length === 0 || this.ui.outlining) return; // 已有任务在跑不抢坑位
+        this.ui.outlineErr = undefined;
+        void this.driveOutline(ids, bank, this.beginOutline(ids[0]), (run) =>
+            run.ok === 0
+                ? { key: "notifyOutlineAutoNone", vars: { k: String(run.skip) } } // 全为目录壳
+                : {
+                      key: "notifyOutlineAutoDone",
+                      vars: { n: String(run.ok), k: String(run.skip), m: String(run.fail) },
+                  }
+        );
+    }
+
+    /** 跑共用执行体并按结果收口（手动/自动两路共用，禁复制第二份）：中止
+     *  静默复位、全灭=失败态（行内错误行+通知）、否则由 onOk 给通知文案，
+     *  最后重载面板让新树/徽标就位。终态段（通知/重载）自带 catch——本
+     *  文件历史上裸 IIFE 的拒绝会冒成 unhandled rejection。 */
+    private async driveOutline(
+        ids: string[],
+        bank: QuestionBank,
+        ctrl: AbortController,
+        onOk: (run: OutlineRun) => NotifyMsg
+    ): Promise<void> {
+        try {
+            const run = await this.executeOutline(ids, bank, ctrl);
+            this.settleOutline(ctrl);
+            if (ctrl.signal.aborted) return;
+            if (run.fail === ids.length) {
+                this.failOutline(run.lastErr);
                 return;
             }
-            notifyInfo(
-                batch
-                    ? { key: "notifyOutlineBatchDone", vars: { n: String(ok), k: String(skip), m: String(fail) } }
-                    : { key: "notifyOutlineDone", vars: { n: String(count) } }
-            ); // AI 长任务，用户可能已离开
-            await this.load();
-        })();
+            const msg = onOk(run);
+            if (msg) notifyInfo(msg); // AI 长任务，用户可能已离开
+            if (this.alive) await this.load();
+        } catch (e) {
+            this.resetOutline();
+            this.failOutline(errText(e));
+        }
+    }
+
+    /** 占「索引中」坑位（手动/自动两路共用）。 */
+    private beginOutline(anchorId: string): AbortController {
+        const ctrl = new AbortController();
+        this.outlineCtrl = ctrl;
+        this.ui.outlining = anchorId;
+        return ctrl;
+    }
+
+    /** 正常收口复位坑位：仅当坑位仍是本次任务的 ctrl 才清（后起的任务
+     *  不该被前一个任务的收尾擦掉）。 */
+    private settleOutline(ctrl: AbortController): void {
+        if (this.outlineCtrl !== ctrl) return;
+        this.outlineCtrl = undefined;
+        this.ui.outlining = undefined;
+    }
+
+    /** 异常收口：收尾段再抛（如终态重载失败）时坑位必清——否则
+     *  ui.outlining 恒有值，手动「索引」被永久挡在门外。 */
+    private resetOutline(): void {
+        this.outlineCtrl = undefined;
+        this.ui.outlining = undefined;
+    }
+
+    /** 失败态收口：行内错误行 + 通知（全灭才走这里；部分失败按汇总通知）。 */
+    private failOutline(msg: string): void {
+        this.ui.outlineErr = `${this.v.t("knowOutlineFail")}${msg}`;
+        notifyError({ key: "notifyOutlineFail", vars: { msg } });
+    }
+
+    /** 共用执行体（手动「索引」与导入后自动补索引两路，**禁复制第二份**）：
+     *  逐篇串行（fetchSyncPost 串行约束）、可中止、空文档（doc has no
+     *  content）计入跳过、部分失败不打断；全灭与否由调用方判。 */
+    private async executeOutline(ids: string[], bank: QuestionBank, ctrl: AbortController): Promise<OutlineRun> {
+        let ok = 0;
+        let skip = 0;
+        let fail = 0;
+        let count = 0;
+        let lastErr = "";
+        for (const id of ids) {
+            if (ctrl.signal.aborted) break;
+            try {
+                const r = await generateKnowledgeOutline(id, this.v.aiModelId(), ctrl.signal, bank);
+                ok++;
+                count += r.count;
+            } catch (e) {
+                if (ctrl.signal.aborted) break;
+                const msg = errText(e);
+                if (msg.includes("doc has no content"))
+                    skip++; // 空文档（目录壳）
+                else {
+                    fail++;
+                    lastErr = msg;
+                }
+            }
+        }
+        return { ok, skip, fail, count, lastErr };
     }
 
     /** 进「确认重新索引/确认索引 N 篇」arm 态（3s 自动复位）。 */
@@ -385,4 +481,15 @@ export class KnowPanelCtl {
 /** 全部分支路径（装载时 openPaths 初值=分支全开）。 */
 function collectBranchPaths(nodes: KnowTreeNode[]): string[] {
     return nodes.flatMap((n) => [n.path, ...collectBranchPaths(n.children)]);
+}
+
+/** 索引批次执行结果（手动/自动两路共用执行体的返回）。 */
+interface OutlineRun {
+    ok: number;
+    skip: number;
+    fail: number;
+    /** 成功篇目的节点数合计（单篇通知「已索引 N 个知识点」用）。 */
+    count: number;
+    /** 最后一次失败原因（全灭时展示）。 */
+    lastErr: string;
 }

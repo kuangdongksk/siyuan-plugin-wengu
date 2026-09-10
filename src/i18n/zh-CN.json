@@ -590,6 +590,8 @@
   "notifyOutlineFail": "索引失败：{msg}",
   "notifyOutlineBatchDone": "批量索引完成：成功 {n} 篇、跳过 {k} 篇、失败 {m} 篇",
   "notifyOutlineAllIndexed": "子文档均已索引，无需补齐",
+  "notifyOutlineAutoDone": "导入后自动索引完成：成功 {n} 篇、跳过 {k} 篇、失败 {m} 篇",
+  "notifyOutlineAutoNone": "导入后自动索引：暂无可归纳内容（跳过 {k} 篇空文档）",
   "notifyConvertDone": "转换完成：共 {n} 题",
   "notifyConvertFail": "转换失败：{msg}",
   "notifyModelFallback": "所选模型已失效，本次已改用可用模型「{name}」",

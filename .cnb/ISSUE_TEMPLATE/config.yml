@@ -1,4 +1,4 @@
-blank_issues_enabled: false           # 强制走模板：每个 Issue 正文都带上分支铁律
+blank_issues_enabled: false # 强制走模板：每个 Issue 正文都带上分支铁律
 contact_links:
   - name: CNB 使用帮助
     url: https://docs.cnb.cool

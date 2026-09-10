@@ -590,6 +590,8 @@
   "notifyOutlineFail": "Indexing failed: {msg}",
   "notifyOutlineBatchDone": "Batch indexing done: {n} ok, {k} skipped, {m} failed",
   "notifyOutlineAllIndexed": "All sub-docs already indexed",
+  "notifyOutlineAutoDone": "Auto-indexing after import done: {n} ok, {k} skipped, {m} failed",
+  "notifyOutlineAutoNone": "Auto-indexing after import: nothing to outline ({k} empty docs skipped)",
   "notifyConvertDone": "Conversion finished: {n} questions",
   "notifyConvertFail": "Conversion failed: {msg}",
   "notifyModelFallback": "The selected model is no longer valid — fell back to \"{name}\" for this call",
