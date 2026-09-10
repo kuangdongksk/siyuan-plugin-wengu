@@ -227,13 +227,25 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   共用的题级收口 `dunnoCard`（题级空串记一错，instant 全步一次揭示 + 锁卡 +
   `dunnoMarked`，after 只置 graded 可反悔）。**只写题级账、不逐格写空串**
   （步骤没答过就不该有逐步记录）——恢复时题级账与逐步账分账
-  （`CardState.stepsBand`）：题级空串 = 主动认输 → 已收卷全步揭示 / after 未
-  收卷只认「已作答」且**步格保持干净未作答态**（让步格亮答案就是部分步有
-  内容、部分步空白的半揭示），逐步账一律滤掉空串。全步揭示只有
-  `AnswerFlow.revealStepsCard`（三态一起置 + `CardState.settleSteps` 逐格
-  落格与锁定）一个收口，`revealCard` 的 steps 转调 / `revealAll` / `finishCard`
-  / `dunnoSteps` 四处共用；`settleSteps` 是**唯一**给步格写 disabled 的地方
-  ——组件 `.wengu-step` 的闸只看 `step.locked`，不加它则收卷后步选项仍可点。
+  （`render/CardSteps.stepsBand`）：题级空串 = 主动认输 → 已收卷全步揭示 /
+  after 未收卷只认「已作答」且**步格保持干净未作答态**（让步格亮答案就是
+  部分步有内容、部分步空白的半揭示），逐步账一律滤掉空串。
+    - **步态整体外移 `render/CardSteps.ts`**（Issue #21 复审；CardState 曾
+      涨到 575 行破 500 红线）：步快照/分账/落格/实时步全在这，CardState
+      只留 `buildCardInit` 分派。`settleSteps` 是**唯一**给步格写 disabled
+      的地方——组件 `.wengu-step` 的闸只看 `step.locked`。
+    - **兜底揭示不许覆盖已落格**（复审真机级缺陷）：`revealStepsCard` 既是
+      当场收口的尾段、又是收卷统一揭示/恢复/「不会」的兜底。`settleSteps`
+      无快照时**只补未落格的步**（旧实现在此按「空串 + 全错」重写，真机
+      表现为「多步题答完答案行全变错、申诉基线被清成 0000」）；`stepOks`
+      也只按实际逐格态回写，不写「全错」占位。
+    - **after「不会」可反悔要认对闸**（复审真机级缺陷）：`StepsFlow` 的步内
+      守卫从 `ctl.graded` 改看 `ctl.ui.revealed || ctl.ui.locked`
+      （`stepsFrozen`）——「不会」在 after 只置 graded，挂 graded 会让点完
+      「不会」的题再也答不了（与验收 4 直接冲突）。同理收口闸、申诉钮也按
+      此口径：**没答过的步不挂申诉钮**（复核「你选的这一步」无意义）。
+      反悔改正常作答后题级空串账就地覆写（`recordAnswer` + `bankOverride`，
+      走「覆写」口径不动 attempts），否则收卷报告按「曾认输」计错。
 - **新增按钮要同步三处清理面**：预览装饰（`PreviewFlow` 摘
   `[data-submit-row]` 整行）、渐进呈现（`wengu-previewing` 的
   `pointer-events:none` 名单）、预览的 DOM 手术清单——漏一处就是

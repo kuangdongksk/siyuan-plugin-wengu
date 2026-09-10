@@ -11,8 +11,9 @@ import {
     resetStepsOffline,
     setStepResult,
     settleSteps,
+    stepAnswerLabel,
     stepResultsOf,
-} from "../render/CardState";
+} from "../render/CardSteps";
 import type { CardCtl } from "../render/CardCtl";
 import { gradeStep } from "../service/QuestionGrading";
 import type { WenguQuestion, WenguStep } from "../../types";
@@ -59,8 +60,16 @@ export function bindStepsMode(host: AnswerHost, q: WenguQuestion, ctl: CardCtl):
 /** 步骤选项点选（互斥单选）。 */
 export function pickStep(ctl: CardCtl, k: number, letter: string): void {
     const su = ctl.ui.steps?.[k];
-    if (!su || su.graded || ctl.graded) return;
+    if (!su || su.graded || stepsFrozen(ctl)) return;
     su.selected = letter;
+}
+
+/** 步级作答冻结判据（Issue #21）：只认**整卡揭示或锁定**，不认 graded
+ *  ——after 模式的「不会」只置 graded（题级已答、可反悔），若沿用
+ *  `ctl.graded` 当闸，点完「不会」整题就再也不能作答，与「可反悔改成
+ *  正常作答」的验收第 4 条直接冲突（普通卡走 answeredFrozen 同口径）。 */
+function stepsFrozen(ctl: CardCtl): boolean {
+    return ctl.ui.revealed || ctl.ui.locked;
 }
 
 /** 「下一步」提交（组件统一入口，按 rtMode 分流离线/实时）。 */
@@ -72,7 +81,7 @@ export function nextStep(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, k: nu
 async function submitOfflineStep(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, k: number): Promise<void> {
     const step = q.steps?.[k];
     const su = ctl.ui.steps?.[k];
-    if (!step || !su || su.graded || ctl.graded) return;
+    if (!step || !su || su.graded || stepsFrozen(ctl)) return;
     if (!su.selected) {
         setStepResult(su, esc(host.t("noAnswer")), "wengu-muted");
         return;
@@ -110,7 +119,7 @@ function gradeAndShowStep(
         su,
         ok
             ? esc(host.t("correct"))
-            : `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(host, step))}`,
+            : `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(stepAnswerLabel(step, host.t))}`,
         ok ? "wengu-right" : "wengu-wrong"
     );
     if (!ok && step.kind === "method") su.appeal = "idle";
@@ -141,7 +150,8 @@ export async function appealStep(host: AnswerHost, q: WenguQuestion, ctl: CardCt
         if (opt) opt.mark = 1;
         setStepResult(su, `${esc(host.t("stepAppealOk"))}${esc(v.comment)}`, "wengu-right");
         su.appeal = "";
-        if (ctl.graded) await refreshFinishedAppeal(host, q, ctl);
+        // 已收口（揭示/锁定）才就地重算整题；after 未落格的卡等收口时统一算
+        if (stepsFrozen(ctl)) await refreshFinishedAppeal(host, q, ctl);
     } catch (e) {
         su.appeal = "idle";
         setStepResult(su, esc(`${host.t("aiJudgeFailed")}${errText(e)}`), "wengu-muted");
@@ -171,7 +181,9 @@ async function finishFromState(
     ctl: CardCtl,
     persistStepState: boolean
 ): Promise<void> {
-    if (ctl.graded) return;
+    // 收口闸认 revealed/locked：after 的「不会」只置 graded（可反悔），
+    // 用户接着把每步正常答完仍须能收口（Issue #21 验收第 4 条）
+    if (stepsFrozen(ctl)) return;
     const steps = q.steps ?? [];
     const appealed = appealedSet(ctl);
     const letters: string[] = [];
@@ -198,10 +210,23 @@ async function finishCard(
     const ui = ctl.ui;
     ui.stepPersist = persistStepState;
     const allOk = oks.length > 0 && oks.every(Boolean);
-    // 逐格锁定由 settleSteps 统一落（含新增步），整卡三态与揭示态走
-    // AnswerFlow.revealStepsCard（与 dunnoSteps / 收卷统一揭示同一条收口）
+    // 逐格落格 + 锁定由 settleSteps 统一落（含新增步），整卡三态与揭示态
+    // 走 AnswerFlow.revealStepsCard（与 dunnoSteps / 收卷统一揭示同一收口）
     settleSteps(q, ui, { letters, oks, t: host.t });
-    host.bankMirror?.(q.id, letters.join(""), allOk, { kind: "steps", letters, oks, persist: persistStepState });
+    ui.stepOks = oks.map((ok) => (ok ? "1" : "0")).join(""); // 申诉翻对重算快照（真值，禁全错占位）
+    // after 模式「不会」后反悔改成正常作答（Issue #21 验收第 4 条）：题级
+    // 空串账必须被覆写，否则收卷报告按「曾认输」把本题计错、恢复时又撞上
+    // 认输形态。**只在题级账已存在（认输过）时走**——正常作答不写题级条目
+    // （逐步账才是 steps 的作答账，多写会让轮次 answered 翻倍）。记账走
+    // 「覆写」口径（重复提交幂等：会话 upsert 不涨 answered，题库不动
+    // attempts），故这里是 override 而非 mirror；两次 override 幂等。
+    const recant = (host.currentSession()?.results ?? []).some((r) => r.qid === q.id && r.submitted === "");
+    if (recant) {
+        host.recordAnswer(q.id, letters.join(""), allOk);
+        host.bankOverride?.(q.id, allOk, { kind: "steps", letters, oks });
+    } else {
+        host.bankMirror?.(q.id, letters.join(""), allOk, { kind: "steps", letters, oks, persist: persistStepState });
+    }
     revealStepsCard(host, q, ctl, letters.join(""), allOk);
     const firstWrong = oks.findIndex((ok) => !ok);
     const wrongLabel = firstWrong >= 0 ? fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) }) : host.t("noAnswer");
@@ -209,13 +234,6 @@ async function finishCard(
     const sec = host.timerController().questionSec(q.id);
     if (sec > 0) ctl.setNote(fmt(host.t("perQTime"), { t: mmss(sec) }));
     checkAllDone(host);
-}
-
-/** method 步揭示可行集合，result 步揭示正确答案。
- *  导出共用（Issue #21）：全步一次揭示（settleSteps）与预览装饰
- *  （PreviewFlow.revealSteps）都按同一口径出文案。 */
-export function stepAnswerLabel(host: AnswerHost, step: WenguStep): string {
-    return step.kind === "method" ? fmt(host.t("stepFeasibleLabel"), { s: step.answer }) : step.answer;
 }
 
 /** 一步的 DOM 节点（解锁滚动用；组件渲染后可查）。 */
@@ -234,7 +252,7 @@ function startRealtime(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): void {
 }
 
 async function requestRealtimeStep(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, k: number): Promise<void> {
-    if (ctl.graded) return;
+    if (stepsFrozen(ctl)) return;
     const ctx = rtCtx.get(ctl)!;
     ctl.setNote(host.t("aiStepLoading"));
     try {
@@ -266,7 +284,7 @@ async function submitRealtimeStep(host: AnswerHost, q: WenguQuestion, ctl: CardC
     const ctx = rtCtx.get(ctl)!;
     const su = ctl.ui.steps?.[k];
     const step = ctx.steps[k];
-    if (!su || !step || su.graded || ctl.graded) return;
+    if (!su || !step || su.graded || stepsFrozen(ctl)) return;
     if (!su.selected) {
         setStepResult(su, esc(host.t("noAnswer")), "wengu-muted");
         return;
@@ -283,5 +301,5 @@ async function submitRealtimeStep(host: AnswerHost, q: WenguQuestion, ctl: CardC
  *  记录保留，离线重做会追加记录）。 */
 export function rtFallback(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): void {
     ctl.ui.rtMode = false;
-    resetStepsOffline(q, ctl.ui, { t: host.t, interactive: ctl.interactive, locked: false });
+    resetStepsOffline(q, ctl.ui, host.t);
 }

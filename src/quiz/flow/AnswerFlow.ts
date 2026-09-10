@@ -1,7 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { judgeBrief } from "../service/AiJudge";
 import { isObjective } from "../render/CardHtml";
-import { settleSteps } from "../render/CardState";
+import { stepsSnapshotOf, settleSteps } from "../render/CardSteps";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
@@ -369,13 +369,18 @@ export function revealCard(
 
 /** steps 卡全步揭示收口（Issue #21）：三态一起置（graded + locked +
  *  revealed——解析区只认 .wengu-revealed）+ 逐格答案/描色落格。逐格落格
- *  走 CardState 的现成帮手 settleSteps（卡内按钮的 disabled 闸），故本函数
- *  对「新卡当场判分」与「恢复卡兜底揭示」都无害，三路共用禁复制第二份：
- *  revealCard 的 steps 转调、revealAll 收卷统一揭示、dunnoSteps「不会」。
- *  不传逐格快照（settleSteps 只给缺格补答案）：收口快照 stepOks 一律按
- *  「全错」预置——本函数的三条来路（收卷统一揭示、恢复兜底、「不会」）
- *  都不带整题对错；**已按快照收口的完整作答不走这里**（finishCard 自己
- *  写 stepOks 与整题结果行）。 */
+ *  走 settleSteps（卡内按钮的 disabled 闸），本函数是全形态**兜底揭示**
+ *  唯一入口：`revealCard` 的 steps 转调、`revealAll` 收卷统一揭示、
+ *  `dunnoSteps`「不会」三路共用，禁复制第二份。
+ *
+ *  **逐格快照按来路补**（Issue #21 复审修复，两条都是真机级）：
+ *  - 还没落格的卡（收卷统一揭示 / 恢复兜底）→ 用 `stepsSnapshotOf` 的
+ *    会话真值落格，缺答的步才补答案；
+ *  - 已落格的卡（当场收口 `StepsFlow.finishCard` 自己按真快照落过格、
+ *    或恢复卡已完成）→ **一格都不碰**，只补三态与未落格的步；
+ *  - `stepOks` 一律按 ui.steps 的**实际逐格态**回写，不再写「全错」占位：
+ *    占位会覆盖 finishCard 刚写的真快照，真机表现为「多步题答完答案行
+ *    全变错、申诉翻对基线被清成 0000」。 */
 export function revealStepsCard(
     host: AnswerHost,
     q: WenguQuestion,
@@ -387,8 +392,11 @@ export function revealStepsCard(
     ctl.reveal(submitted); // 置 revealed + 作答快照
     ctl.ui.graded = true;
     ctl.ui.locked = true;
-    ctl.ui.stepOks = (q.steps ?? []).map(() => "0").join(""); // 收口快照：全错
-    settleSteps(q, ctl.ui, { t: host.t });
+    const settled = (ctl.ui.steps ?? []).some((su) => su.graded);
+    const snap = stepsSnapshotOf(host.currentSession()?.results ?? [], q.id, q.steps?.length ?? 0);
+    const known = !settled && snap.letters.some((l) => l !== "");
+    settleSteps(q, ctl.ui, known ? { t: host.t, letters: snap.letters, oks: snap.oks } : { t: host.t });
+    ctl.ui.stepOks = (ctl.ui.steps ?? []).map((s) => (s.graded && s.ok ? "1" : "0")).join("");
 }
 
 /** 全部作答后收口：instant 模式直接给总结报告；**after 模式不自动
