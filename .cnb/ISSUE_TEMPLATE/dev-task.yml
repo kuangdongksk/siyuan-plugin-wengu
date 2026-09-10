@@ -1,0 +1,69 @@
+name: 开发任务（NPC 执行）
+description: 交给青简（NPC）实现的功能 / 重构 / 修复。基线固定为 dev，PR 也必须合回 dev。
+title: "[Task] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ 分支铁律（不随任务变化）
+
+        本仓库长期开发分支是 **`dev`**，`main` 只作稳定发布分支。
+
+        - 召唤青简开发时，**必须**从 `origin/dev` 拉开发分支：
+          `git fetch origin` → `git checkout -b <type>/<slug> origin/dev`
+        - 合并请求（PR）的 **base 必须是 `dev`**，禁止向 `main` 发起 PR。
+        - 禁止直接向 `dev` / `main` 推送提交，一切改动走 PR。
+
+        NPC 事件流水线固定跑在**仓库默认分支**下，所以本仓库默认分支也保持为 `dev`。
+    includeInBody: true
+
+  - type: dropdown
+    attributes:
+      label: 任务类型
+      options:
+        - feat 新功能
+        - fix 缺陷修复
+        - refactor 重构
+        - docs 文档
+        - chore 杂务
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 任务目标
+      description: 一句话说清要达成什么，避免写成方案
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 背景与相关代码
+      description: 涉及的分域 / 文件路径 / 已有约定；能贴路径就贴路径
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: 验收标准
+      description: 可验证的条件，例如「pnpm test 全绿」「题库面板出现 X 按钮」
+    validations:
+      required: true
+
+  - type: checkboxes
+    attributes:
+      label: 执行前确认
+      options:
+        - label: 基线是 origin/dev，PR base 为 dev
+          required: true
+        - label: 已知悉 AGENTS.md 中的分域约定
+          required: false
+
+  - type: textarea
+    attributes:
+      label: 召唤语（可直接复制到评论）
+      value: |
+        @青简 基于 origin/dev 拉开发分支，实现上述任务；完成后开 PR，**base 必须是 dev**。
+        提交前跑 `pnpm test` 与 `pnpm check:svelte`，全绿再提。
+    validations:
+      required: false

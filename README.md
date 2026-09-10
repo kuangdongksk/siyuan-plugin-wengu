@@ -80,6 +80,18 @@ pnpm build   # outputs to dist/
 Copy `dist/` into your SiYuan `data/plugins/siyuan-plugin-wengu/` to
 install. See [AGENTS.md](AGENTS.md) for development and debugging details.
 
+### Branching (CNB)
+
+CNB mirror: <https://cnb.cool/sasa1107/open-source/siyuan/siyuan-plugin-wengu>
+
+- `dev` is the long-lived development branch; `main` is release-only.
+- **Everything — branches and pull requests alike — is based on `dev`.**
+- The CNB repo's **default branch must stay `dev`**: NPC pipelines always run
+  on the default branch, so a `main` default would make the AI agent code
+  against `main`.
+- Tick "替我上班" in an Issue and mention `@青简` to let the NPC implement,
+  branch, and open a PR on its own.
+
 ## License
 
 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) —

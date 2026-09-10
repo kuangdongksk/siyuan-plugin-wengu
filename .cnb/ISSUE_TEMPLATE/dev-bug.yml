@@ -1,0 +1,61 @@
+name: 缺陷修复（NPC 执行）
+description: 记录可复现的 Bug 并交给青简修复。基线固定为 dev，PR 也必须合回 dev。
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ 分支铁律（不随任务变化）
+
+        修复分支必须从 `origin/dev` 拉出，PR 的 **base 必须是 `dev`**。
+        禁止向 `main` 直接提交或发起 PR。
+    includeInBody: true
+
+  - type: textarea
+    attributes:
+      label: 现象
+      description: 实际发生了什么，和预期有什么差别
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 观察到……
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 报错日志 / 截图
+      render: text
+      description: 控制台或 SiYuan 内核日志；截图可直接粘贴到本框
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: 版本与环境
+      placeholder: 插件版本 0.1.1 / SiYuan x.y.z / macOS 或 Windows
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: 初步定位
+      description: 怀疑涉及的分域或文件（可选）
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: 召唤语（可直接复制到评论）
+      value: |
+        @青简 基于 origin/dev 拉修复分支，定位并修掉上述缺陷；完成后开 PR，**base 必须是 dev**。
+        请在 PR 描述里写明根因，不要只打补丁。
+    validations:
+      required: false

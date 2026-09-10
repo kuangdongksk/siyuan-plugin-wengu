@@ -63,6 +63,16 @@ pnpm build   # 产物在 dist/
 将 `dist/` 拷贝到思源 `data/plugins/siyuan-plugin-wengu/` 即可安装。
 开发与调试细则见 [AGENTS.md](AGENTS.md)。
 
+### 分支协作（CNB）
+
+CNB 仓库：<https://cnb.cool/sasa1107/open-source/siyuan/siyuan-plugin-wengu>
+
+- `dev` 是长期开发分支，`main` 只作稳定发布分支。
+- **所有开发（含 NPC）都从 `dev` 拉分支，PR 的 base 也必须是 `dev`。**
+- CNB 仓库的默认分支保持为 `dev`：NPC 事件固定跑在默认分支下，
+  若默认分支变成 main，NPC 会拿 main 当基线。
+- 在 Issue 里勾选「替我上班」后 `@青简` 即可让 NPC 自主开发、提 PR。
+
 ## 许可
 
 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans)
