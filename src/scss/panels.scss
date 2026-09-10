@@ -299,6 +299,60 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* ── 同义词表弹窗（SynonymDialog）：AI 同义判定沉淀的查看/清空 ── */
+.wengu-syn-dialog .wengu-syn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow: auto;
+  margin-top: 8px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 6px;
+}
+
+.wengu-syn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 13px;
+}
+
+.wengu-syn-raw,
+.wengu-syn-canon {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wengu-syn-raw {
+  flex: 1;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-syn-canon {
+  flex: 1;
+}
+
+.wengu-syn-arrow {
+  flex: none;
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 判否行：规范词写「不同义」，弱化显示 */
+.wengu-syn-no {
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 清空按钮的两击确认武装态 */
+.wengu-syn-armed {
+  color: var(--b3-theme-error);
+}
+
 /* ── 转换管理面板（ConvertPanel）：进行中进度 + 未完成进度记录 ── */
 .wengu-convert-panel {
   min-width: 420px;

@@ -17,6 +17,9 @@ import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
 import { applyRefsToRecord } from "../data/KnowLinkText";
 import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
+import { lexiconOfRoots } from "../data/KnowLinkText";
+import { knowRootsOf } from "../data/KnowRoots";
+import { runSynonymPhase } from "./SynFlow";
 
 /**
  * 知识文档 × 存量题库匹配（20260828）：知识面板文档行「匹配」入口——
@@ -141,10 +144,26 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
         const cache = routeCache();
         // 预过滤：skipLinked 跳过已关联题，其余批量路由（20260909 起按批
         // 两级路由替代逐题——一批一次调用、逐题指纹缓存，未变的题重跑零 AI）
-        const toRoute: BankRecord[] = [];
+        let toRoute: BankRecord[] = [];
         for (const r of records) {
             if (skipLinked && r.kpRefs.length > 0) skip++;
             else toRoute.push(r);
+        }
+        // 同义判定前置相（Issue #3）：文本精确层能命中的先挂上（零 AI），
+        // 剩下的走 AI 两级路由；文本层未命中的标签顺带走一轮同义判定
+        const synLex = await lexiconOfRoots(await knowRootsOf(bank), await knowTreesOf(bank));
+        if (synLex.size > 0 && toRoute.length > 0) {
+            const r = await runSynonymPhase({
+                bank,
+                lex: synLex,
+                records: toRoute,
+                modelId,
+                stop,
+                group,
+                onFail: (e) => fails.push({ stage: "chapter", error: e }),
+            });
+            hit += r.hit;
+            toRoute = r.rest;
         }
         if (toRoute.length > 0) {
             const texts = toRoute.map((r) => routeTextOf(r));

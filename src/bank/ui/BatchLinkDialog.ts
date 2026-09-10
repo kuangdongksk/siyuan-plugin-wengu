@@ -9,19 +9,23 @@ import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
-import type { BankRecord, QuestionBank } from "../data/QuestionBank";
+import type { QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyRefsToRecord, lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
+import { runSynonymPhase } from "./SynFlow";
 import { knowTreesOf } from "../data/KnowTrees";
 import { routeCache, routeKnowledgeBatchCached } from "../data/RouteCache";
 import { routeTextOf } from "./MatchDialog";
 
 /**
- * 批量关联（2026-08-31）：全部登记知识文档 × 全库题。两级流水——
+ * 批量关联（2026-08-31）：全部登记知识文档 × 全库题。三层流水——
  * phase1 文本关联（knowledge 标签 ↔ 小节标题归一匹配，零 AI 瞬时，
- * 与「导入即关联」同一条路）；phase2 可选 AI 两级路由兜底未命中的题
- * （逐题独立会话，同 MatchDialog）。导入根后已自动跑过 phase1 的，
- * 这里再跑=增量（默认跳过已挂引用的题）。
+ * 与「导入即关联」同一条路；归一链含同义表前置层）；phase1.5 可选
+ * **同义判定**（Issue #3）：文本未命中的标签按批送 AI 判「是不是同一个
+ * 知识点」，判定落同义表 + 当轮挂引用，同对词第二轮查表零 AI；
+ * phase2 可选 AI 两级路由兜底仍未命中的题（逐题独立会话，同
+ * MatchDialog）。导入根后已自动跑过 phase1 的，这里再跑=增量（默认
+ * 跳过已挂引用的题）。
  *
  * 20260905 起点击开始即关窗（弹窗去阻塞改造）：后台流经 launchAiFlow
  * 单飞，进度与「停止」在 AI 会话面板，终态走思源通知。
@@ -44,6 +48,7 @@ export async function openBatchLinkDialog(deps: BatchDeps): Promise<void> {
       ${formGroup(
           t("matchGroup"),
           formRow(t("batchAiLabel"), t("batchAiHint"), formSwitch("batch-ai", false, "data-act")) +
+              formRow(t("batchSynLabel"), t("batchSynHint"), formSwitch("batch-syn", true, "data-act")) +
               formRow(t("matchSkipLabel"), t("matchSkipHint"), formSwitch("batch-skip", true, "data-act"))
       )}
     `,
@@ -59,13 +64,20 @@ export async function openBatchLinkDialog(deps: BatchDeps): Promise<void> {
             return;
         }
         const ai = root.querySelector<HTMLInputElement>("[data-act='batch-ai']")?.checked ?? false;
+        const syn = root.querySelector<HTMLInputElement>("[data-act='batch-syn']")?.checked ?? true;
         const skip = root.querySelector<HTMLInputElement>("[data-act='batch-skip']")?.checked ?? true;
         dialog.destroy(); // 点击即关窗：后台流，终态走通知
-        launchAiFlow((stop) => runBatch(deps, ai, skip, stop));
+        launchAiFlow((stop) => runBatch(deps, ai, syn, skip, stop));
     });
 }
 
-async function runBatch(deps: BatchDeps, useAi: boolean, skipLinked: boolean, stop: AiAbort): Promise<void> {
+async function runBatch(
+    deps: BatchDeps,
+    useAi: boolean,
+    useSyn: boolean,
+    skipLinked: boolean,
+    stop: AiAbort
+): Promise<void> {
     const { t, bank, modelId } = deps;
     try {
         const roots = await knowRootsOf(bank);
@@ -78,17 +90,34 @@ async function runBatch(deps: BatchDeps, useAi: boolean, skipLinked: boolean, st
         let miss = p1.miss;
         const skip = p1.skip;
         let aiHit = 0;
-        // phase2：AI 兜底（可选，只跑文本未命中的题；带按题指纹缓存，
-        // 未变的题重跑零 AI 调用）
+        let synHit = 0;
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
-        if (useAi && !stop.signal.aborted && p1.missed.length > 0) {
+        const group = { id: newAiGroupId(), title: `批量关联 · ${p1.missed.length} 题` };
+        // phase1.5：同义判定（Issue #3）——文本未命中的标签按批问 AI
+        // 「是不是同一个知识点」，判定落同义表 + 当轮挂引用；表里已有的
+        // 词对零 AI（第二轮重跑不再问）
+        let pending = p1.missed;
+        if (useSyn && !stop.signal.aborted && pending.length > 0) {
+            const r = await runSynonymPhase({
+                bank,
+                lex,
+                records: pending,
+                modelId,
+                stop,
+                group,
+                onFail: (e) => fails.push({ stage: "chapter", error: e }),
+            });
+            hit += r.hit;
+            synHit = r.hit;
+            pending = r.rest;
+        }
+        // phase2：AI 兜底（可选，只跑仍未命中的题；带按题指纹缓存，
+        // 未变的题重跑零 AI 调用）
+        if (useAi && !stop.signal.aborted && pending.length > 0) {
             const index = await buildKnowledgeIndex(roots, await knowTreesOf(bank));
             if (index.chapters.length > 0) {
-                const pending: BankRecord[] = p1.missed;
-                // 动作分组（AI 会话面板树归并）：本次批量关联的 AI 兜底挂同组
-                const group = { id: newAiGroupId(), title: `批量关联 · ${pending.length} 题` };
                 // 20260909 起按批两级路由替代逐题——一批一次调用、逐题指纹
                 // 缓存，未变的题重跑零 AI 调用
                 const texts = pending.map((r) => routeTextOf(r));
@@ -131,6 +160,7 @@ async function runBatch(deps: BatchDeps, useAi: boolean, skipLinked: boolean, st
             h: String(hit),
             x: String(p1.hit),
             y: String(aiHit),
+            k: String(synHit),
             m: String(miss),
             s: String(skip),
         });

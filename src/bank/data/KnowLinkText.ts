@@ -1,6 +1,7 @@
 import { expandKnowDocs } from "../../convert/service/knowledge/KnowledgeLink";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/knowledge/KnowRef";
 import { normalizeKnowledge } from "./KnowledgeNorm";
+import { peekSynonyms, synonymNormalize, type KnowSynonymsData } from "./KnowSynonyms";
 import { mergeRecordKpRefs } from "./KnowRoots";
 import type { KnowTreesMap } from "./KnowTrees";
 import type { BankRecord, QuestionBank } from "./QuestionBank";
@@ -15,6 +16,11 @@ import { replaceRecordKramdown } from "./BankRegen";
  *
  * 歧义策略同 KnowledgeNorm 的取舍：**宁漏勿错**——归一键命中多个小节
  * （同名校节）不挂，过短（<2 字）不挂。
+ *
+ * 20260910（Issue #3）起归一链前挂一层**同义表**（KnowSynonyms）：
+ * 原文 → 查表（零 AI）→ normalizeKnowledge 剥后缀 → 精确相等。表由
+ * AI 兜底层（KnowSynJudge）喂、UI 可查看/清空；表未接线/为空时逐字节
+ * 等同改造前行为。
  */
 
 /** 词表小节（标题块 id + 标题）。 */
@@ -23,12 +29,16 @@ export interface LexSection {
     title: string;
 }
 
-/** 小节清单 → 词表（归一键 → 小节列表）。标题两侧同走 normalizeKnowledge：
- *  「洛必达法则」小节与「洛必达」标签落同键。 */
-export function buildSectionLexicon(sections: LexSection[]): Map<string, LexSection[]> {
+/** 归一键 → 小节列表（词表形态，buildSectionLexicon 的产物）。 */
+export type LexSectionMap = Map<string, LexSection[]>;
+
+/** 小节清单 → 词表（归一键 → 小节列表）。标题两侧同走归一链（含同义
+ *  表前置层）：表里收到「L'Hôpital 法则 → 洛必达」时，同义写法的小节
+ *  与标签落同键。 */
+export function buildSectionLexicon(sections: LexSection[], syn?: KnowSynonymsData): LexSectionMap {
     const lex = new Map<string, LexSection[]>();
     for (const s of sections) {
-        const key = normalizeKnowledge(s.title);
+        const key = syn ? synonymNormalize(s.title, syn, normalizeKnowledge) : normalizeKnowledge(s.title);
         if (!key || key.length < 2) continue;
         const arr = lex.get(key) ?? [];
         arr.push(s);
@@ -38,9 +48,10 @@ export function buildSectionLexicon(sections: LexSection[]): Map<string, LexSect
 }
 
 /** 确定性文本匹配：knowledge 文本 → 小节引用。归一键**唯一**命中才挂
- *  （歧义/过短返回空）。 */
-export function textRefsFor(knowledge: string, lex: Map<string, LexSection[]>): LexSection[] {
-    const key = normalizeKnowledge(knowledge);
+ *  （歧义/过短返回空）。syn（同义表数据）可选——传了就先进前置层
+ *  （查表得规范词 → normalizeKnowledge 剥后缀），不传=改造前口径。 */
+export function textRefsFor(knowledge: string, lex: LexSectionMap, syn?: KnowSynonymsData): LexSection[] {
+    const key = syn ? synonymNormalize(knowledge, syn, normalizeKnowledge) : normalizeKnowledge(knowledge);
     if (!key || key.length < 2) return [];
     const hits = lex.get(key);
     return hits && hits.length === 1 ? [{ ...hits[0] }] : [];
@@ -145,7 +156,9 @@ export function parseFreeTags(reply: string): Map<number, string> {
 }
 
 /** 记录集的文本关联（核对/批量共用原语）：带 knowledge 标签且（默认）
- *  未挂引用的题走确定性匹配。返回计数与未命中的记录。 */
+ *  未挂引用的题走确定性匹配（**先过同义表**）。返回计数与未命中的记录
+ *  ——missed 是 AI 兜底层（KnowSynJudge）的输入：它的 knowledge 尚在
+ *  词表里找不到任何小节，才值得花 AI 判一次同义。 */
 export async function linkRecordsByText(
     bank: QuestionBank,
     lex: Map<string, LexSection[]>,
@@ -153,6 +166,7 @@ export async function linkRecordsByText(
     opts: { skipLinked?: boolean; signal?: AbortSignal } = {}
 ): Promise<{ hit: number; miss: number; skip: number; missed: BankRecord[] }> {
     const skipLinked = opts.skipLinked ?? true;
+    const syn = peekSynonyms(); // 同义表快照：本轮内不变（AI 判定的写回走下一轮）
     let hit = 0;
     let miss = 0;
     let skip = 0;
@@ -163,7 +177,7 @@ export async function linkRecordsByText(
             skip++;
             continue;
         }
-        const refs = r.knowledge ? textRefsFor(r.knowledge, lex) : [];
+        const refs = r.knowledge ? textRefsFor(r.knowledge, lex, syn) : [];
         if (refs.length > 0 && (await applyRefsToRecord(bank, r, refs))) hit++;
         else {
             miss++;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSectionLexicon, linkBankByText, parseFreeTags, setKnowledgeAttr, textRefsFor } from "./KnowLinkText";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
+import { synKey, type KnowSynonymsData } from "./KnowSynonyms";
 
 // QuestionBank.markDirty 走 window.setTimeout 防抖（浏览器全局），node
 // 测试环境补一个直通桩——flush 落到 saveRaw 桩，无副作用
@@ -70,6 +71,60 @@ describe("buildSectionLexicon / textRefsFor（确定性文本匹配）", () => {
     });
 });
 
+describe("同义表前置层（Issue #3）：原文 → 查表 → 剥后缀 → 精确相等", () => {
+    /** 同义表数据替身（键走 synKey 口径）。 */
+    const synWith = (raw: string, canonical: string): KnowSynonymsData => {
+        const key = synKey(raw);
+        return { version: 1, entries: { [key]: { key, raw, canonical, source: "ai", at: 1 } } };
+    };
+
+    it("跨写法对齐：表里「L'Hôpital 法则 → 洛必达法则」后，标签「洛必达」命中该小节", () => {
+        const lex = buildSectionLexicon([{ id: "s1", title: "洛必达法则" }]);
+        // 未挂表：拉丁写法对不上（改造前口径）
+        expect(textRefsFor("L'Hôpital 法则", lex)).toEqual([]);
+        // 挂表后命中（AI 已把两写法判定为同义）
+        const syn = synWith("L'Hôpital 法则", "洛必达法则");
+        expect(textRefsFor("L'Hôpital 法则", lex, syn)).toEqual([{ id: "s1", title: "洛必达法则" }]);
+    });
+
+    it("小节侧同样过表：词表建表时即对齐，同义写法的小节与标签落同键", () => {
+        const syn = synWith("L'Hôpital 法则", "洛必达法则");
+        const lex = buildSectionLexicon([{ id: "s1", title: "L'Hôpital 法则" }], syn);
+        expect(textRefsFor("洛必达", lex, syn)).toEqual([{ id: "s1", title: "L'Hôpital 法则" }]);
+        expect(textRefsFor("洛必达法则", lex, syn)).toEqual([{ id: "s1", title: "L'Hôpital 法则" }]);
+    });
+
+    it("判否（canonical 空串）不额外拦截：原词照走既有精确口径", () => {
+        const lex = buildSectionLexicon([{ id: "s1", title: "极限的计算" }]);
+        const syn = synWith("极限", "");
+        expect(textRefsFor("极限", lex, syn)).toEqual([]); // 表判否，仍不越过宁漏勿错
+        expect(textRefsFor("极限的计算", lex, syn)).toEqual([{ id: "s1", title: "极限的计算" }]);
+    });
+
+    it("歧义（多小节同键）经表对齐后仍不挂", () => {
+        const syn = synWith("L'Hôpital 法则", "洛必达法则");
+        const lex = buildSectionLexicon(
+            [
+                { id: "s1", title: "洛必达法则" },
+                { id: "s2", title: "洛必达法则" },
+            ],
+            syn
+        );
+        expect(textRefsFor("L'Hôpital 法则", lex, syn)).toEqual([]);
+    });
+
+    it("过短闸按**归一后键**口径（<2 字不挂；表命中后键够长即照挂）", () => {
+        const lex = buildSectionLexicon([{ id: "s1", title: "极限" }]);
+        expect(textRefsFor("极", lex)).toEqual([]); // 裸 1 字不挂
+        // 表命中后归一键是规范词（够长），照常挂——表只做对齐，不改闸口语义
+        const syn = synWith("题", "极限");
+        expect(textRefsFor("题", lex, syn)).toEqual([{ id: "s1", title: "极限" }]);
+        // 表把短词映到同样短的词：归一后仍 <2 字，不挂
+        const syn2 = synWith("题", "题本");
+        expect(textRefsFor("题", lex, syn2)).toEqual([]);
+    });
+});
+
 describe("linkBankByText（全库文本关联）", () => {
     it("命中题挂引用：kramdown 注入引用行、kpRefs 合并；源块同步失败不阻断", async () => {
         const bank = bankWith([rec("q1", "洛必达"), rec("q2", "文言虚词"), rec("q3")]);
@@ -94,6 +149,13 @@ describe("linkBankByText（全库文本关联）", () => {
         expect(out.hit).toBe(1);
         const data = await bank.all();
         expect(data.records.q1.kpRefs).toEqual([{ id: "sx", title: "别处" }]); // 原样不动
+    });
+
+    it("同义表前置层并入 linkBankByText 的文本层（表未接线=改造前口径，零副作用）", async () => {
+        const bank = bankWith([rec("q1", "洛必达")]);
+        const lex = buildSectionLexicon([{ id: "s1", title: "洛必达法则" }]);
+        const out = await linkBankByText(bank, lex, {});
+        expect(out.hit).toBe(1);
     });
 
     it("abort 后停止遍历", async () => {
