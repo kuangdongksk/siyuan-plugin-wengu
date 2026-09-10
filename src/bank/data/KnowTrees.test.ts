@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { BankKnowTree, KnowTreesMap } from "./KnowTrees";
 import type { BankData, QuestionBank } from "./QuestionBank";
 import { QuestionBank as Bank } from "./QuestionBank";
 import {
@@ -6,6 +7,7 @@ import {
     knowNodeText,
     knowTreeByNode,
     mintKnowNodeId,
+    pendingIndexIds,
     setKnowTree,
     stripChapterEcho,
     treePathsOf,
@@ -207,5 +209,27 @@ describe("stripChapterEcho 章节名回声剔除（20260908 真机：AI 常把�
             "1-行列式"
         );
         expect([...treePathsOf(stripChapterEcho(oldNodes, "1-行列式")).keys()]).toEqual([...treePathsOf(fresh).keys()]);
+    });
+});
+
+describe("pendingIndexIds（导入后自动补索引的筛选）", () => {
+    const tree = (srcId: string): BankKnowTree => ({ srcId, outlineMd: "", nodes: [], srcHash: "h", createdAt: 1 });
+
+    it("只留没有树的 id：已索引的一个都不重跑（含 stale 树）", () => {
+        const trees: KnowTreesMap = { a: tree("a"), c: tree("c") };
+        expect(pendingIndexIds(["a", "b", "c", "d"], trees)).toEqual(["b", "d"]);
+    });
+
+    it("保持入参顺序并去重（展开链可能重复同名文档）", () => {
+        expect(pendingIndexIds(["b", "a", "b", ""], {})).toEqual(["b", "a"]);
+    });
+
+    it("全已索引返回空（调用方据此不起 AI 任务）", () => {
+        expect(pendingIndexIds(["a"], { a: tree("a") })).toEqual([]);
+        expect(pendingIndexIds([], {})).toEqual([]);
+    });
+
+    it("空串 id 不入清单（源已删/查无文档的占位）", () => {
+        expect(pendingIndexIds(["", "x"], {})).toEqual(["x"]);
     });
 });

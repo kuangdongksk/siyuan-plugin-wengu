@@ -592,6 +592,8 @@
   "notifyOutlineFail": "Indexing failed: {msg}",
   "notifyOutlineBatchDone": "Batch indexing done: {n} ok, {k} skipped, {m} failed",
   "notifyOutlineAllIndexed": "All sub-docs already indexed",
+  "notifyOutlineAutoDone": "Auto-indexing after import done: {n} ok, {k} skipped, {m} failed",
+  "notifyOutlineAutoNone": "Auto-indexing after import: nothing to outline ({k} empty docs skipped)",
   "notifyConvertDone": "Conversion finished: {n} questions",
   "notifyConvertFail": "Conversion failed: {msg}",
   "notifyReimportCursor": "This set was generated segment-by-segment (batch boundaries are AI-decided and not reproducible) — re-import runs a full re-conversion",

@@ -143,3 +143,18 @@ export function internalRootMap(trees: KnowTreesMap): Map<string, string> {
     }
     return out;
 }
+
+/** 筛出「尚未索引」的文档 id（纯函数，导入后自动补索引用）：保持入参
+ *  顺序、去重；trees[id] 存在即视为已有索引（不论是否 stale——过期重索
+ *  是用户显式动作，自动路径不动它）。入参 docIds 通常是 expandKnowDocs
+ *  展开的「登记根 + 全部后代」，已索引的一个都不许重跑。 */
+export function pendingIndexIds(docIds: readonly string[], trees: KnowTreesMap): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const id of docIds) {
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        if (!trees[id]) out.push(id);
+    }
+    return out;
+}
