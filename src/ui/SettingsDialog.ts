@@ -28,8 +28,10 @@ export interface WenguSettingsShape {
     /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块，
      *  跳过逐块选弹窗（docs/incremental-hash-plan.md §二）。 */
     convertKeepOld?: boolean;
-    /** 转换并发批数（**兼容保留、20260910 起无 UI 且不生效**）：逐段自推进
-     *  的批边界由 AI 决定，批与批必须串行——存量设置值不参与执行。 */
+    /** 转换并发片流水线数（1=串行）：**转换弹窗并发度的默认值**——
+     *  设置面板照旧渲染该选择行（见本文件「AI 转换」分组），值经
+     *  quiz/index.ts convertParallelOf → convert/index.ts initialParallel
+     *  流入转换弹窗，作为分片并行的初始并发度（上限 4）。 */
     convertParallel?: number;
     /** 看板娘学伴（伴学域 companion：开关/AI 台词与对话/多套学伴配置）。 */
     companionEnabled?: boolean;
