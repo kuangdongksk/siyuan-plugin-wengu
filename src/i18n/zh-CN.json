@@ -232,7 +232,6 @@
   "reviewSecTimeline": "历次作答",
   "reviewSecAnswer": "正确答案",
   "reviewSecSolution": "解析",
-  "reviewGotoBlock": "查看原文",
   "reviewNoAttempts": "本页签内没有作答记录",
   "reviewTlAnswer": "我的答案：{a}",
   "settingShowAttempts": "显示刷题次数",

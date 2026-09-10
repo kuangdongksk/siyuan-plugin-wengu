@@ -232,7 +232,6 @@
   "reviewSecTimeline": "Attempts",
   "reviewSecAnswer": "Answer",
   "reviewSecSolution": "Solution",
-  "reviewGotoBlock": "View source",
   "reviewNoAttempts": "No attempts recorded in this tab",
   "reviewTlAnswer": "My answer: {a}",
   "settingShowAttempts": "Show attempt counts",
