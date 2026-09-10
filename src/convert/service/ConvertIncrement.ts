@@ -1,4 +1,4 @@
-import { buildPrompt } from "./ConvertService";
+import { buildPrompt } from "../../ai/prompts/convert";
 import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
 import { applyKnowDrafts, parseDrafts } from "./QuestionDraft";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "./SrcChunk";

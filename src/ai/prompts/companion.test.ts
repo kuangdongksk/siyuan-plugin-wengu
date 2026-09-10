@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WenguExpr } from "./Expressions";
+import { WenguExpr } from "../../companion/rules/Expressions";
 import {
     buildChatPrompt,
     buildExplainPrompt,
@@ -10,7 +10,7 @@ import {
     type ChatTurn,
     type SessionProfile,
     type UserProfile,
-} from "./Prompt";
+} from "./companion";
 
 const s: SessionProfile = { answered: 12, correct: 8, wrongStreak: 3, rightStreak: 0, wordDone: 0, hardN: 2 };
 const u: UserProfile = {

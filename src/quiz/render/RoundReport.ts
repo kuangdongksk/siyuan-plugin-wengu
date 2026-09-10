@@ -5,7 +5,7 @@ import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import type { WenguQuestion } from "../../types";
 import { baseQid } from "../../types";
-import { esc, mmss } from "../../ui/shared";
+import { esc } from "../../ui/shared";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import type { WeakCause, WeakTopRow, WeaknessStore } from "../../bank/data/WeaknessStore";
 import { openWeakDrill } from "../../bank/ui/WeakDrill";
@@ -34,50 +34,6 @@ export interface RoundReportModel {
     overtimeSec: number;
     /** 薄弱沉淀 Top 行（WeaknessStore 同步快照，空=不渲染）。 */
     weakRows: WeakTopRow[];
-}
-
-/** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
- *  ok=全步对、sec=各步求和；verdict 保留 brief 的 partial 标记）。 */
-export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
-    const out = new Map<string, { ok: boolean; sec: number; verdict?: string }>();
-    for (const r of s.results) {
-        const b = baseQid(r.qid);
-        const cur = out.get(b);
-        out.set(b, {
-            ok: cur ? cur.ok && r.ok : r.ok,
-            sec: (cur?.sec ?? 0) + (r.sec ?? 0),
-            verdict: cur?.verdict ?? r.verdict,
-        });
-    }
-    return out;
-}
-
-/** 把一轮数据交给 AI 判卷（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。 */
-export function buildAnalysisPrompt(m: RoundReportModel): string {
-    const { session: s, list, rounds } = m;
-    const byQid = byBaseQid(s);
-    const thoughts = s.thoughts ?? {};
-    const hasThoughts = Object.keys(thoughts).length > 0;
-    const perQ = list
-        .map((q, i) => {
-            const r = byQid.get(q.id);
-            const label = q.knowledge || q.chapter || String(i + 1);
-            // partial=方向对但有缺口（统计记错），AI 分析要单独点名
-            const state = !r ? "未答" : r.verdict === "partial" ? "部分正确" : r.ok ? "对" : "错";
-            const base = r ? `${i + 1}. ${label} ${state} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
-            return thoughts[q.id] ? `${base}｜思路：${thoughts[q.id]}` : base;
-        })
-        .join("；\n");
-    const history = rounds.map((r, i) => `第${i + 1}轮 ${r.correct}/${r.answered}`).join("；");
-    const overtime = m.overtimeSec > 0 ? `；超时 ${mmss(m.overtimeSec)}` : "";
-    const thoughtRule = hasThoughts
-        ? "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。"
-        : "";
-    return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分四段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议。${thoughtRule}
-本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
-每题：${perQ}
-历史轮次：${history}
-只输出报告正文，不要客套。`;
 }
 
 /** 倒计时归零的选择条：「继续作答」（转超时正计时）或「结束本轮」。 */

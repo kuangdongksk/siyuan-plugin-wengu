@@ -19,7 +19,7 @@ import {
     type ExplainCtx,
     type SessionProfile,
     type UserProfile,
-} from "../rules/Prompt";
+} from "../../ai/prompts/companion";
 import type { CompanionUi } from "./CompanionUi";
 import { CHAT_MAX_TURNS, ChatStore, DEFAULT_CHAT_KEY } from "./ChatStore";
 

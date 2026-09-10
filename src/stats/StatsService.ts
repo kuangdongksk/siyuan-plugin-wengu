@@ -146,33 +146,3 @@ function modeLabel(mode: WenguTimingMode): string {
 }
 
 export { modeLabel };
-
-/** AI 学习建议 prompt：文档轮次成绩 + 错题清单 → 趋势/薄弱点/建议。 */
-export function buildStatsPrompt(s: WenguDocStats): string {
-    const rounds = s.rounds
-        .map(
-            (r, i) =>
-                `第${i + 1}轮 ${new Date(r.startedAt).toLocaleString("zh-CN", {
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                })} ${r.correct}/${r.answered}(${r.answered > 0 ? Math.round((r.correct / r.answered) * 100) : 0}%) 用时${Math.round(
-                    r.elapsedSec / 60
-                )}分钟`
-        )
-        .join("；\n");
-    const wrongs = s.wrongs
-        .map(
-            (w) =>
-                `题${w.index}「${w.stemSummary}」${
-                    w.knowledge ? `知识点:${w.knowledge} ` : ""
-                }错${w.wrongCount}次 最近${w.right === "1" ? "已对" : "仍错"}`
-        )
-        .join("；\n");
-    return `你是刷题统计助手。根据一份习题文档的历史刷题统计给出学习建议，不超过 300 字，分三段：总体趋势（正确率走势与用时变化）；薄弱点（从错题的知识点与错次归纳，没有错题就点评掌握度）；下一步建议（重刷策略、优先攻克的知识点）。
-文档：《${s.docTitle}》共 ${s.total} 题，已刷 ${s.rounds.length} 轮
-逐轮成绩：${rounds || "（暂无轮次）"}
-错题清单：${wrongs || "（无错题）"}
-只输出建议正文，不要客套。`;
-}

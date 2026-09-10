@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { agentChatOnce } from "../../ai/client";
 import { defaultAgentModelId } from "../../ai/models";
+import { wordReviewPrompt } from "../../ai/prompts/misc";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { fmt } from "../../ui/shared";
 import { wordLib } from "./WordLib";
@@ -89,7 +90,7 @@ async function analyzeBatch(
 ): Promise<number> {
     // 一次性独立会话：独立 sessionID 天然并发——单词复盘与判分/转换
     // 互不阻塞（20260829 起走 agentChatOnce；20260830 全仓统一此通道）
-    const reply = await agentChatOnce(buildPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid, undefined, {
+    const reply = await agentChatOnce(wordReviewPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid, undefined, {
         kind: "word",
         title: `单词复盘 · ${inputs.length} 词`,
     });
@@ -113,35 +114,6 @@ async function analyzeAll(inputs: WordAiInput[], p: WenguWordProgress, save: () 
         done += await analyzeBatch(inputs.slice(i, i + BATCH_SIZE), p, save);
     }
     return done;
-}
-
-function buildPrompt(inputs: WordAiInput[]): string {
-    const list = inputs
-        .map((e, i) => {
-            const parts = [`${i + 1}. ${e.w}（${e.m.split("\n")[0]}）`];
-            if (e.correct !== undefined) parts.push(e.correct ? "答对" : "答错");
-            if (e.count > 0) parts.push(`累计答错 ${e.count} 次`);
-            if (e.mode && e.ms !== undefined) {
-                parts.push(`${e.mode} 有效用时 ${(e.ms / 1000).toFixed(1)} 秒${e.over ? "（超时）" : ""}`);
-            }
-            if (e.typed) parts.push(`拼成了「${e.typed}」`);
-            if (e.confused) parts.push(`学生自述认成了：${e.confused}`);
-            return parts.join("，");
-        })
-        .join("\n");
-    return `你是考研单词复习教练。下面是学生的作答数据，请逐词判断掌握程度并安排复习。
-判定规则（严格执行）：
-- 秒答且答对 → L: up
-- 答对但用时偏长或超时 → L: keep（不升档）
-- 答错、超时、或把该词认成了别的词 → L: down
-- 学生拼成了另一个真词、或自述认成了某词（可能是模糊描述，推断成最可能的英文单词）→ C: 写出那个词
-输出格式：每个词一组行，组间空行，除此之外不要输出任何文字：
-W: 单词原样
-L: up、keep 或 down
-C: 混淆对象单词（仅存在时输出）
-T: 辨析提示（仅 C 词输出：那个词的中文意思 + 一句话区别，不超过 60 个字）
-单词列表：
-${list}`;
 }
 
 /** 从回复中解析 W/L/C(/T) 块；无 L 行的块跳过。 */

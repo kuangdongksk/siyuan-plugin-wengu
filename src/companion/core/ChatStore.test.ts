@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHAT_MAX_TURNS, ChatStore, DEFAULT_CHAT_KEY } from "./ChatStore";
-import type { ChatTurn } from "../rules/Prompt";
+import type { ChatTurn } from "../../ai/prompts/companion";
 
 /** 内存版 loadRaw/saveRaw（saveRaw 落的数据能被新实例 loadRaw 读回）。 */
 function memStore() {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt, extractBlockId, isMaterialKramdown } from "./ConvertService";
+import { buildPrompt } from "../../ai/prompts/convert";
+import { extractBlockId, isMaterialKramdown } from "./ConvertService";
 
 /**
  * 转换侧纯函数：块 id 提取、prompt 开关（AI 回复解析与

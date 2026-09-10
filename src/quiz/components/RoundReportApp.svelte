@@ -3,8 +3,9 @@
     import Button from "../../ui/Button.svelte";
     import { fmt, mmss } from "../../ui/shared";
     import { runAgentTextOrPanel } from "../../ai/agentPanel";
+    import { byBaseQid, buildAnalysisPrompt } from "../../ai/prompts/judge";
     import type { WeakCause, WeakTopRow } from "../../bank/data/WeaknessStore";
-    import { byBaseQid, buildAnalysisPrompt, type RoundReportModel } from "../render/RoundReport";
+    import type { RoundReportModel } from "../render/RoundReport";
 
     /**
      * 轮次报告（四件套之组件半，挂载编排见 render/RoundReport.ts 的

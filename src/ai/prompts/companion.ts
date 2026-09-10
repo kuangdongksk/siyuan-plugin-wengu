@@ -1,7 +1,8 @@
-import { EXPR_KEYS, normalizeExpr, WenguExpr } from "./Expressions";
+import { EXPR_KEYS, normalizeExpr, WenguExpr } from "../../companion/rules/Expressions";
 
 /**
- * 看板娘的 prompt 组装与回复解析（纯函数，无 IO，单测覆盖）。
+ * 学伴 prompt 组装与回复解析（纯函数，无 IO，单测覆盖）。20260910 自
+ * companion/rules/Prompt.ts 整体迁入 prompt 集中地，文本逐字保持。
  *
  * 通道走智能体 agentChatOnce（一次性独立会话，可按次指定模型）；
  * 回复协议沿用仓库约定

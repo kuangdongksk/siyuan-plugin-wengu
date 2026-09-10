@@ -1,6 +1,7 @@
 import { runAgentTextOrPanel } from "../../ai/agentPanel";
+import { buildStatsPrompt } from "../../ai/prompts/misc";
 import { wrongOverviewNow } from "../../review";
-import { buildDocStats, buildQuizStats, buildStatsPrompt } from "../StatsService";
+import { buildDocStats, buildQuizStats } from "../StatsService";
 import type { StatsPanelDeps } from "../index";
 import type { StatsUi } from "./StatsUi";
 

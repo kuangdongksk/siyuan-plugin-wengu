@@ -2,8 +2,9 @@ import { errText } from "./../../ui/shared";
 import { agentChatOnce, aiAbort, type AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
+import { buildRegenPrompt } from "../../ai/prompts/gen";
 import { extractBlockId } from "../../convert/service/ConvertService";
-import { hasStemPart, parseDrafts, protocolSpec, renderUnit } from "../../convert/service/QuestionDraft";
+import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/QuestionDraft";
 import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
@@ -173,18 +174,4 @@ async function runRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note:
     } catch (e) {
         notifyError(stop.signal.aborted ? deps.t("aiFlowAborted") : errText(e));
     }
-}
-
-function buildRegenPrompt(kd: string, sourceBlock: string, section: string, note: string): string {
-    const srcPart = sourceBlock ? `\n【修正后的原文（以此为准，插图占位还原成图片行进题干）】\n${sourceBlock}` : "";
-    const secPart = !sourceBlock && section ? `\n【相关知识点小节（补全缺失数据的依据）】\n${section}` : "";
-    const notePart = note ? `\n【用户备注】\n${note}` : "";
-    return `你是思源笔记的题目修复助手。下面这道题存在问题（OCR 缺失/转换错误/答案算错），请重出这一道题。
-${srcPart || secPart ? "以补充材料为准修正；没有依据的部分不要编造，宁可保守。" : "依据题目自身与解析保守修复。"}${notePart}
-要求：输出与原题相同的题型结构（客观题保持客观题）；公式行内 $...$、块级 $$...$$；题干依赖的插图以「〔插图:assets/…〕」占位出现时，必须还原成标准 markdown 图片行（半角 ! + 空方括号 + 冒号后完整原路径，示意形如 ![](插图原路径)）逐字保留进题干，不要原样输出占位；正确答案与解析必须自洽。
-只输出一道题的行协议（格式如下），格式之外不要输出任何文字。
-${protocolSpec()}
-
-【原题 kramdown】
-${kd}${srcPart}${secPart}${notePart}`;
 }

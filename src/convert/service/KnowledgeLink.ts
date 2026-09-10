@@ -1,5 +1,15 @@
 import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
+import {
+    batchChapterPrompt,
+    batchSectionPrompt,
+    chapterRoutePrompt,
+    knowListBlock,
+    knowRule,
+    MAX_HIT_CHAPTERS,
+    MAX_SECTIONS,
+    sectionRoutePrompt,
+} from "../../ai/prompts/route";
 import { KernelQuery } from "../../siyuan/query";
 import { KernelBlock } from "../../siyuan/block";
 import { stripChapterEcho } from "../../bank/data/KnowTrees";
@@ -312,9 +322,6 @@ function parseBatchNums(reply: string, max: number, count: number): number[][] {
  *  只装 79 条（近半知识点 AI 根本看不到）。清单剥公共前缀后放宽到 4500
  *  ——超时按 SSE 空闲计（5000 字转换批先例），输入长度不再约束预算。 */
 const SECTION_INDEX_CHARS = 4500;
-/** 单批最多命中章 / 供生成标注的小节数。 */
-const MAX_HIT_CHAPTERS = 4;
-const MAX_SECTIONS = 10;
 /** 批量路由单批题数（20260909 三个弹窗省 AI 调用：一批一次调用替代逐题
  *  两级调用，清单只发一遍；与 TagDialog 自由生成 FREE_BATCH=15 同量级）。 */
 export const ROUTE_BATCH_SIZE = 15;
@@ -412,18 +419,7 @@ export async function routeKnowledgeDiag(
             const list = index.chapters.map((c, i) => `${i + 1}|${c.path}`).join("\n");
             let reply: string;
             try {
-                reply = await deps.call(
-                    `你是思源笔记的知识点路由器。下面是题目原文和章节清单（编号|路径）。
-判断这批题目考查的内容涉及哪些章节，只输出 JSON，格式之外不要输出任何文字：
-{"chapters":[编号,编号]}
-规则：只输出清单里存在的编号，最多 ${MAX_HIT_CHAPTERS} 个，按相关度降序；没有合适的输出 {"chapters":[]}。
-
-章节清单：
-${list}
-
-题目原文：
-${chunk}`
-                );
+                reply = await deps.call(chapterRoutePrompt(chunk, list));
             } catch (e) {
                 onFail?.({ stage: "chapter", error: e as Error });
                 return out;
@@ -449,18 +445,7 @@ ${chunk}`
         if (kept.length === 0) return out;
         let reply2: string;
         try {
-            reply2 = await deps.call(
-                `你是思源笔记的知识点路由器。下面是题目原文和${listTitle}。
-判断这批题目考查的具体知识点对应哪些小节，只输出 JSON，格式之外不要输出任何文字：
-{"sections":[编号,编号]}
-规则：只输出清单里存在的编号，最多 ${MAX_SECTIONS} 个，按相关度降序；没有合适的输出 {"sections":[]}。
-
-${listTitle}：
-${list2}
-
-题目原文：
-${chunk}`
-            );
+            reply2 = await deps.call(sectionRoutePrompt(chunk, listTitle, list2));
         } catch (e) {
             onFail?.({ stage: "section", error: e as Error });
             return out;
@@ -473,36 +458,6 @@ ${chunk}`
         // 路由失败降级：本批不加知识点链接
     }
     return out;
-}
-
-/** 批量章级路由 prompt：编号题目 + 章节清单，要求按题号返回逐题数组。 */
-function batchChapterPrompt(chunks: string[], list: string): string {
-    const qs = chunks.map((c, i) => `${i + 1}|${c}`).join("\n");
-    return `你是思源笔记的知识点路由器。下面是题目原文和章节清单（编号|路径）。
-判断下面每道题目考查的内容涉及哪些章节，只输出 JSON，格式之外不要输出任何文字：
-{"chapters":[[编号,编号],[编号,编号]]}
-规则：chapters 是数组，第 i 个元素对应第 i 道题（题目按编号 1,2,... 排列）；每道题只输出清单里存在的编号，最多 ${MAX_HIT_CHAPTERS} 个，按相关度降序；没有合适的输出 []。
-
-章节清单：
-${list}
-
-题目原文：
-${qs}`;
-}
-
-/** 批量小节级路由 prompt：编号题目 + 共享小节清单，要求按题号返回逐题数组。 */
-function batchSectionPrompt(chunks: string[], listTitle: string, list2: string): string {
-    const qs = chunks.map((c, i) => `${i + 1}|${c}`).join("\n");
-    return `你是思源笔记的知识点路由器。下面是题目原文和${listTitle}。
-判断下面每道题目考查的具体知识点对应哪些小节，只输出 JSON，格式之外不要输出任何文字：
-{"sections":[[编号,编号],[编号,编号]]}
-规则：sections 是数组，第 i 个元素对应第 i 道题（题目按编号 1,2,... 排列）；每道题只输出清单里存在的编号，最多 ${MAX_SECTIONS} 个，按相关度降序；没有合适的输出 []。
-
-${listTitle}：
-${list2}
-
-题目原文：
-${qs}`;
 }
 
 /**
@@ -576,22 +531,6 @@ export async function routeKnowledgeBatchDiag(
         }
     }
     return results;
-}
-
-/** 生成 prompt 的知识点标注规则（仅在路由出小节时追加；20260902 起
- *  标注挂在 @@Q 行 know= 上，渲染时由代码解析成真实引用并入解析块）。 */
-export function knowRule(): string {
-    return `
-知识点标注：文末「知识点清单」列出本批内容可能涉及的知识点（K 编号）。每道题按考查内容在 @@Q 行末尾追加 know="K1,K3"（1~3 个最相关编号，逗号分隔；只能用清单里的编号，不得编造；没有合适的不加）。`;
-}
-
-/** 生成 prompt 文末的知识点清单（K 别号 → 展示路径）。 */
-export function knowListBlock(map: Map<string, KnowSection>): string {
-    const lines = [...map.entries()].map(([k, s]) => `${k}|${s.path}`);
-    return `
-
-知识点清单（供知识点标注规则用）：
-${lines.join("\n")}`;
 }
 
 /** 路由+生成一体的批调用（ConvertBatch 的 worker 直接用）：先路由出

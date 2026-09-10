@@ -1,4 +1,4 @@
-import type { ChatTurn } from "../rules/Prompt";
+import type { ChatTurn } from "../../ai/prompts/companion";
 
 /**
  * 学伴聊天历史存储（每学伴一份）：插件 saveData("companion-chat")

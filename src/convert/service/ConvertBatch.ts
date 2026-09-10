@@ -1,7 +1,8 @@
 import { errText } from "./../../ui/shared";
+import { buildPrompt } from "../../ai/prompts/convert";
 import { detectQuestions, questionPreview } from "./ConvertDetect";
 import type { QuestionPreview } from "./ConvertDetect";
-import { buildPrompt, extractBlockId, getDocInfo } from "./ConvertService";
+import { extractBlockId, getDocInfo } from "./ConvertService";
 import { isHeadingOnlyChunk, structuralChunks } from "./SrcChunk";
 import { applyKnowDrafts, parseDrafts } from "./QuestionDraft";
 import type { DraftUnit } from "./QuestionDraft";

@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
 import { launchAiFlow } from "../../ai/flow";
+import { freeTagPrompt } from "../../ai/prompts/gen";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
@@ -174,19 +175,12 @@ async function genFreeTags(
         const list = batch.map((r, i) => `${i + 1}|${routeTextOf(r).slice(0, 300)}`).join("\n");
         let tags = new Map<number, string>();
         try {
-            const reply = await agentChatOnce(
-                `你是刷题库的知识点标注器。下面是编号题目的题干节选。给每道题标一个最贴切的知识点标签：不超过 12 字、沿用题目原文的术语、不造新词、不同题可以同标签。
-输出格式（每题一行，格式之外不要输出任何文字；没有合适标签的题输出 编号|-）：
-1|标签
-2|标签
-
-题目：
-${list}`,
-                modelId,
-                AI_TIMEOUT.batch,
-                stop.signal,
-                { kind: "tag", title: `自由生成标签 · ${batch.length} 题`, group, onSid: stop.onSid }
-            );
+            const reply = await agentChatOnce(freeTagPrompt(list), modelId, AI_TIMEOUT.batch, stop.signal, {
+                kind: "tag",
+                title: `自由生成标签 · ${batch.length} 题`,
+                group,
+                onSid: stop.onSid,
+            });
             tags = parseFreeTags(reply);
         } catch (_) {
             // 本批生成失败：跳过，下一批继续

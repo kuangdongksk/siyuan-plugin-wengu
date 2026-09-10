@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { buildOutlinePrompt } from "../../ai/prompts/convert";
 import { parseOutlineNodes } from "./KnowOutline";
-import { buildOutlinePrompt, chapterTextOf, extractOutlineMd } from "./KnowOutline";
+import { chapterTextOf, extractOutlineMd } from "./KnowOutline";
 
 describe("buildOutlinePrompt", () => {
     it("带层级约定与章节内容", () => {

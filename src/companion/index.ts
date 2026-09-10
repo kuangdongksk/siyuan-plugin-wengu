@@ -2,11 +2,11 @@ import { wordLib } from "../word/service/WordLib";
 import type { WordGrade } from "../word/core/WordStore";
 import type { WenguQuestion } from "../types";
 import type { QuizView } from "../quiz";
+import { plainOf, type ExplainCtx } from "../ai/prompts/companion";
 import CompanionApp from "./components/CompanionApp.svelte";
 import CompanionPanelApp from "./components/CompanionPanelApp.svelte";
 import { CompanionCtl, type CompanionDeps, type CompanionEvent } from "./core/CompanionCtl";
 import type { CompanionPanelDeps } from "./core/CompanionPanelCtl";
-import { plainOf, type ExplainCtx } from "./rules/Prompt";
 import { mountSvelteApp } from "../ui/mountApp";
 
 /**

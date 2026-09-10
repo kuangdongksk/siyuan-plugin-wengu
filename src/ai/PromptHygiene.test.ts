@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { restoreAiImages, sanitizeAiImages } from "./PromptHygiene";
-import { buildPrompt } from "../convert/service/ConvertService";
+import { buildPrompt } from "./prompts/convert";
 import { parseDrafts } from "../convert/service/QuestionDraft";
 
 /**

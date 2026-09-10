@@ -1,5 +1,6 @@
 import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
+import { detectWindowPrompt } from "../../ai/prompts/convert";
 import { chunkKramdown, isMaterialKramdown, parseVerdict } from "./ConvertService";
 
 /**
@@ -35,26 +36,6 @@ export function parseCount(reply: string): number | undefined {
     return cm ? Number(cm[1]) : undefined;
 }
 
-/** 单段计数 prompt：只数题干起点落在本段的题（段首承接上文的残题
- *  不计、段尾未完照计），各段之和即全文总数。首段额外产出 CAN/REASON。
- */
-function windowPrompt(win: string, withVerdict: boolean): string {
-    const lines: string[] = [];
-    if (withVerdict) lines.push("CAN_CONVERT: yes 或 no");
-    lines.push("COUNT: 数字（本段中现成题目的数量）");
-    if (withVerdict) lines.push("REASON: 一句话说明（注明文档类型：试卷题库或讲义笔记；不能转换时说明原因）");
-    const head = withVerdict
-        ? "你是思源笔记出题助手的前置检查。判断下面的内容是否适合出题，并统计其中现成题目的数量。"
-        : "你是思源笔记出题助手的题目计数器。统计下面这段内容里现成题目的数量。";
-    return `${head}
-只统计题干开头（题号如「1.」「(1)」，或一道题的完整设问起点）出现在本段中的题目：
-本段开头承接上文的未完残题不要计，本段末尾未写完的题目照常计；讲义/笔记等没有现成题目时计 0。
-输出严格${withVerdict ? "三行" : "一行"}，格式之外不要输出任何文字：
-${lines.join("\n")}
-内容：
-${win}`;
-}
-
 /** 分段并行计数（独立会话天然并发，小池限流）。首段失败=整个检测
  *  失败上抛（调用方不阻断转换）；其余段失败留空计 truncated，
  *  count 仍是成功段之和（N+ 下限）。 */
@@ -76,11 +57,17 @@ export async function detectQuestions(
             const i = cursor++;
             if (i >= wins.length) return;
             try {
-                const reply = await agentChatOnce(windowPrompt(wins[i], i === 0), modelId, AI_TIMEOUT.quick, signal, {
-                    kind: "detect",
-                    title: `前段检测 · ${i + 1}/${wins.length}`,
-                    group,
-                });
+                const reply = await agentChatOnce(
+                    detectWindowPrompt(wins[i], i === 0),
+                    modelId,
+                    AI_TIMEOUT.quick,
+                    signal,
+                    {
+                        kind: "detect",
+                        title: `前段检测 · ${i + 1}/${wins.length}`,
+                        group,
+                    }
+                );
                 if (i === 0) headReply = reply;
                 counts[i] = parseCount(reply);
             } catch (e) {
