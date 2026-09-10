@@ -1,0 +1,60 @@
+# 温故（siyuan-plugin-wengu）· NPC 事件流水线
+#
+# ⚠️ 本文件读取的是「仓库默认分支」的配置，默认分支必须始终保持为 `dev`。
+#
+# 结构（见 CNB 文档「按角色名配置」）：
+#   $ 顶层 key            = 所有角色的兜底配置
+#   角色名顶层 key        = 仅对该角色生效，同名事件覆盖 $ 下的同名事件
+#   角色名必须与 .cnb/settings.yml 的 npc.roles[].name 完全一致，
+#   **不要**带 @ 前缀、也不要带括号。
+#
+# 计费口径：NPC 消耗「云原生开发」用量。这里的两个模型在缓存命中率 ≥95% 时
+# 参考价均约 ¥0.00/MTok，属最省档。
+
+# ── 兜底：所有角色默认走 deepseek-v4.1-flash（276 tps，实测平台默认模型）──
+$:
+  issue.comment@npc:
+    default:
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc go
+          type: npc:go
+          options:
+            model: deepseek-v4.1-flash
+            thinkingLevel: high # 可选 off/minimal/low/medium/high/xhigh/max
+
+  pull_request.comment@npc:
+    default:
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc go
+          type: npc:go
+          options:
+            model: deepseek-v4.1-flash
+            thinkingLevel: high
+
+# ── 复核：代码审查角色，改用 glm-5.3-flash ──
+复核:
+  issue.comment@npc:
+    default:
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc go
+          type: npc:go
+          options:
+            model: glm-5.3-flash
+            thinkingLevel: high
+
+  pull_request.comment@npc:
+    default:
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc go
+          type: npc:go
+          options:
+            model: glm-5.3-flash
+            thinkingLevel: high
