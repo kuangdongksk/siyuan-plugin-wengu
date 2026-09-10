@@ -121,6 +121,21 @@ export class KnowSynonymsStore {
         return this.table();
     }
 
+    /** 预热装载（插件 onload 接线后 fire-and-forget 调一次）：让
+     *  「早于首个异步消费点」的同步 peek 兜底尽快看到存量判定——冷启动
+     *  窗口里表尚未装载，同步窥视一律空表，消费点若不 await 就会把已判定
+     *  的词对重问一遍 AI（Issue #3 审查 P1）。真正的消费点仍必须 await
+     *  {@link snapshot}，预热只负责把窗口压到最小。
+     *  失败不上抛：table() 内部已把读异常归空表，这里再兜一层同步抛
+     *  （loadRaw 自身 throw）——onload 路径不能冒未捕获拒绝。 */
+    async warm(): Promise<void> {
+        try {
+            await this.table();
+        } catch (_) {
+            // 读失败已归空表；预热不参与结果
+        }
+    }
+
     /** 同步窥视（未装载=空表；只作纯函数兜底的便利入口）。 */
     peek(): KnowSynonymsData {
         return this.data ?? { version: 1, entries: {} };
@@ -180,7 +195,7 @@ export function initKnowSynonyms(io: {
     save: (v: KnowSynonymsData) => Promise<unknown>;
 }): KnowSynonymsStore {
     instance = new KnowSynonymsStore(io.load, io.save);
-    void instance.snapshot();
+    void instance.warm(); // fire-and-forget：onload 时 loadData 一次，冷启动窗口最小化
     return instance;
 }
 
