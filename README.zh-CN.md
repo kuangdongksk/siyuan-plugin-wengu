@@ -65,7 +65,7 @@ pnpm build   # 产物在 dist/
 
 ### 分支协作（CNB）
 
-CNB 仓库：<https://cnb.cool/sasa1107/open-source/siyuan/siyuan-plugin-wengu>
+CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 
 - `dev` 是长期开发分支，`main` 只作稳定发布分支。
 - **所有开发（含 NPC）都从 `dev` 拉分支，PR 的 base 也必须是 `dev`。**

@@ -4,5 +4,5 @@ contact_links:
     url: https://docs.cnb.cool
     about: 平台相关问题（NPC、流水线、权限）在这里查
   - name: 温故 · 项目约定
-    url: https://cnb.cool/sasa1107/open-source/siyuan/siyuan-plugin-wengu/-/blob/dev/AGENTS.md
+    url: https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/blob/dev/AGENTS.md
     about: 动代码前必读的分域约定与已知踩坑

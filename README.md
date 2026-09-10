@@ -82,7 +82,7 @@ install. See [AGENTS.md](AGENTS.md) for development and debugging details.
 
 ### Branching (CNB)
 
-CNB mirror: <https://cnb.cool/sasa1107/open-source/siyuan/siyuan-plugin-wengu>
+CNB mirror: <https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 
 - `dev` is the long-lived development branch; `main` is release-only.
 - **Everything — branches and pull requests alike — is based on `dev`.**

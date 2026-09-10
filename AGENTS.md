@@ -6,13 +6,19 @@
 ## 分支与协作（CNB + NPC）——动代码前先读
 
 双远端：`origin` = GitHub（历史存档），`cnb` = CNB（云原生构建，NPC 开发在这边跑）。
+CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 
 - **`dev` 是长期开发分支，`main` 只作稳定发布分支。拉分支、提 PR、合并，
   三处都必须是 `dev`。**
 - **CNB 仓库的默认分支必须始终保持为 `dev`。** NPC 事件
   （`issue.comment@npc`）的流水线固定跑在「仓库默认分支」下——默认分支一旦
-  是 main，NPC 就会拿 main 当基线写代码。CNB OpenAPI 没有改默认分支的接口，
-  只能在网页改（仓库页 → 设置 → 默认分支）；发现被改动要立刻改回来。
+  是 main，NPC 就会拿 main 当基线写代码。
+- **建仓时的正确姿势（20260910 实测）**：CNB 建仓库时**不要勾选任何初始化**
+  （README / .gitignore 都不建），得到一个空仓库；首个推送的 `dev` 会自动
+  成为默认分支，`get-head` 直接返回 `dev`，无需手改。反之，若建仓时初始化过，
+  默认分支会固定为 `main`，而 **CNB OpenAPI 不提供修改默认分支的接口**
+  （`PATCH /{repo}` 只能改简介/站点/许可证，git 模块只有 `get-head`），
+  只能去网页改（仓库页 → 设置 → 默认分支）。
 - 开工基线：`git fetch cnb && git checkout -b <type>/<slug> cnb/dev`，
   分支名用 `feat/` `fix/` `refactor/` `docs/` `chore/` 前缀。
 - PR 的 base 一律 `dev`，描述里带 `Ref: #<Issue 编号>`。
