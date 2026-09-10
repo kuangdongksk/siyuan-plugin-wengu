@@ -49,12 +49,15 @@ export class CardCtl {
 
     /* ── 写（判分/揭示/恢复路径共用小件） ── */
 
-    /** 判分总闸：置 graded **并**锁作答位（instant 模式专用）。
-     *  after 模式（收卷后揭示）走 setPending——只置 graded 不锁，
-     *  收卷前可反复改答案（Issue #12 B2）。 */
+    /** 判分总闸（instant / steps / slots 的即时判分）：置 graded、锁作答位，
+     *  **并置 revealed**——即时判分本就该当场揭示答案与解析（Issue #12 遗留：
+     *  揭示态原先只有客观题的 revealCard 走 ctl.reveal 才落，brief/steps/slots
+     *  三条即时路径都漏了，改挂 .wengu-revealed 后它们的答案/解析不再显示）。
+     *  after 模式（收卷后揭示）走 setPending——只置 graded，两者都留到收卷。 */
     setGraded(): void {
         this.ui.graded = true;
         this.ui.locked = true;
+        this.ui.revealed = true;
     }
 
     /** after 模式判分：记账已入（graded=true → allCardsGraded/答满提示

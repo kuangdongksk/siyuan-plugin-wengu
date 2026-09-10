@@ -23,7 +23,7 @@ export class ProtyleHost {
     private mountGen = 0;
 
     /** 全量静态挂载：MdRender 渲染题干/选项 + 解析容器（作答前由 CSS
-     *  随 wengu-graded 显隐，防剧透），块引用渲染为「查看原文」链接
+     *  随 wengu-revealed 显隐，防剧透），块引用渲染为「查看原文」链接
      *  （document 级委托跳转，见插件入口）。材料面板按来源文档并集
      *  静态渲染。不碰内核，无串行约束。
      *  分片异步（20260828 长卷卡顿）：~200 题整卷渲染+KaTeX 是数秒级

@@ -161,17 +161,21 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 
 ### src/quiz/ —— 做题主流程
 
-- `index.ts` = QuizView 编排（**已 605 行，超 500 红线**：20260910 Issue #12
-  加了 `onAllAnswered`/`answeredFrozen`/`recordAnswer` upsert 分支；红线
-  技术上由「访问器表 + 编排职责外移破坏内聚」豁免，但下次改它**必须先
-  抽出一块外移**再动，别再净增）。
-- **揭示态与锁定态是两件事**（20260910 Issue #12，最易踩的语义坑）：
+- `index.ts` = QuizView 编排（546 行，压回基线；Issue #12 起记账镜像
+  外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、
+  右键弹窗动作外移 `service/DocActions.ts`）。**访问器表 + 编排职责
+  外移的两难仍在**：再加功能先看有没有能外移的成块职责，别再净增。
+- **揭示态 / 锁定态 / 记账态是三件事**（20260910 Issue #12，最易踩的语义坑）：
     - `ui.graded` = 记账已入（`allCardsGraded`/答满判据）；
-    - `ui.locked` = 作答位禁用；
-    - `ui.revealed` = 答案/解析可见（题卡类 `.wengu-revealed`，**DOM
-      钩子**，`.wengu-static-sol` 与 answer/solution part 显隐全靠它）。
-    - **instant 模式**：提交 → `setGraded()`（graded + locked + 随后的
-      `revealCard` 置 revealed），一提交就到底。
+    - `ui.locked` = 作答位禁用（**状态级**，重渲染后仍是闸）；
+    - `ui.revealed` = 答案/解析可见。题卡类 `.wengu-revealed` 是 **DOM
+      钩子**——answer/solution part、`part^="slot-"`、`.wengu-static-sol`
+      三处显隐全靠它。
+    - **instant / steps / slots（即时判分族）**：判分即到底——
+      `CardCtl.setGraded()` 一把置 `graded + locked + revealed`
+      （`StepsFlow.finishCard` 与 slots 恢复态同样补 revealed）；
+      `revealCard` 是**全形态**的揭示入口（即时/收卷统一/恢复兜底三路
+      都过它），进门无条件 `ctl.reveal(submitted)`——不能只给客观题置。
     - **after 模式**：提交 → `setPending()`（只 graded），**locked 与
       revealed 都留到收卷**（`manualFinishRound` → `revealAll` →
       `lockAllCards`）。作答位守卫一律用 `answeredFrozen`
@@ -181,11 +185,20 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       留着表示「已判分」（steps/slots/instant 卡两者同带）。新增任何
       「作答前不能看见」的内容，钩子挂 revealed 不挂 graded
       ——`.wengu-card-title`（考点标题防剧透，Issue #14）同挂 revealed。
+      **揭示态写入点是四类，别只改闸不补写入**：`setGraded`（即时判分族
+      一把置 graded+locked+revealed）、`revealCard`（**全形态**揭示入口，
+      即时/收卷统一/恢复兜底三路都过它）、`StepsFlow.finishCard` 与
+      steps/slots 恢复态——漏一处就是「答案解析整片消失」。
     - steps/slots 卡走自己的即时判分（`StepsFlow`/`SlotFlow` 直接
       `setGraded`），**不参与 after 可改答案**；两卡也不提供跳过/不会
       （作答单位是步/空，语义另议）。
-    - `restoreContextFor` 的 `batch` 字段 + `revealNow` 共同决定恢复卡的
-      locked：`revealed || !batch`。改恢复逻辑时别退回「恢复即锁」。
+    - **恢复判据＝「这一轮已收卷」而非「答满了」**（`restoreContextFor`
+      看 `session.endedAt`）：「答满但未收卷」在 B3 之后是可持久化状态，
+      按答满判揭示＝重开页签即泄题 + 编辑窗口关死。恢复卡的锁定只看
+      `revealNow`（`ui.locked = revealNow || !batch`），别退回「恢复即锁」。
+      ⚠️ 连带口径：**「未完成轮」判据只看 `endedAt`**（`StartPanel` 两处
+      `unfinished`）——原先还要求 `answered < 题数`，那条只在 instant 下
+      成立，after 答满未交卷的轮会被判成「已完成」而无法「继续上次」。
 - **重复提交必须幂等**：after 模式可反复改答案，同题会提交多次。会话侧
   `HistoryStore.pushSessionAnswer` 是 **upsert**（按 qid 原地覆写、
   `answered` 不涨、`correct` 按差值 ±1、三态字段以最后一次为准——本次
@@ -199,9 +212,20 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   **不 revealAll**。收卷唯一入口是头部「交卷并查看答案」
   （`endRound` → `manualFinishRound`）。instant 模式照旧 `roundComplete`。
   steps/slots 完成仍靠 `checkAllDone` 凑「全部 graded」信号，别整个删掉。
+  ⚠️ 连带口径：**「未完成轮」判据只看 `endedAt`**（`StartPanel` 两处
+  `unfinished`）——原先还要求 `answered < 题数`，那条只在 instant 下成立，
+  after 答满未交卷的轮会被判成「已完成」而无法「继续上次」改答案。
+  `lockAllCardsNow` 是**状态级 + DOM 级双管**（`ui.locked` 是真闸）。
 - **跳过是「没来过」**：`skipQuestion` 不记账不锁卡不揭示，只
   `onActiveQ` + `focusQuestion` 滚到下一题；末题零动作。「不会」才记账
   （`submitted=""`，objective 与 brief 都直接判错，brief **不调 AI**）。
+  「不会」在 instant 下仍补答案行（别整条 `setResult` 盖掉答案）；
+  brief 提交路径有 `judging` 单飞闸（after 不锁卡 + 判分异步 ⇒ 连点会
+  并发两次 AI 判分，重复烧调用）。
+- **新增按钮要同步三处清理面**：预览装饰（`PreviewFlow` 摘
+  `[data-submit-row]` 整行）、渐进呈现（`wengu-previewing` 的
+  `pointer-events:none` 名单）、预览的 DOM 手术清单——漏一处就是
+  永久不可用的死钮。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 

@@ -27,7 +27,7 @@
       （只覆写 `lastAnswer`/`right`，`wrongCount` 取「曾错不清零」口径）。
       它与 `overrideAnswer` 共用新抽的 `applyOverride` 收口。
     - **答满不自动收卷**：`checkAllDone` 在 after 模式不再 `revealAll`，改为
-      提示（题卡内 `answeredEditable` 常显 + 首次答满一条浮层），收卷只走
+      提示（题卡内 `answeredPending` 行 + 首次答满一条浮层），收卷只走
       头部「交卷并查看答案」（`manualFinishRound` → `revealAnsweredNow` →
       `revealAll` → `lockAllCards` 链路已存在）；头部按 revealMode 换文案并
       常显「做完后统一判卷」；instant 模式行为不变。
@@ -36,14 +36,33 @@
     提交即 `setGraded` → 提交当场泄题），整体改由**揭示态**驱动——题卡新增
     `.wengu-revealed` 类（由 `ui.revealed` 派生），`card-render.scss` 里
     answer/solution part、`part^="slot-"` 与 `.wengu-static-sol` 三处显隐一并
-    改挂它；`.wengu-graded` 退为「已判分」语义（steps/slots/instant 卡同时带
-    两者），不再参与内容显隐。
+    改挂它；`.wengu-graded` 退为「已判分」语义，不再参与内容显隐。
+    改闸连带补齐了三处**揭示态写入缺口**（否则各形态答案/解析会整片消失）：
+    `CardCtl.setGraded` 对即时判分族一把置 `graded+locked+revealed`；
+    `StepsFlow.finishCard` 与 steps/slots 恢复态同置；`revealCard` 作为
+    **全形态**揭示入口无条件 `ctl.reveal()`（原只在客观题分支置，brief 卡
+    收卷后仍不可见）。
+
+    **after 恢复判据**：`restoreContextFor` 的揭示从「答满即揭示」改为
+    **「这一轮已收卷」（`session.endedAt`）**——after 答满不收卷，按答满判
+    会让重开页签当场泄尽答案，且与「收卷前可改答案」自相矛盾。连带
+    `StartPanel` 两处「未完成轮」判据同步收敛为「有作答且未收卷」，答满未
+    交卷的轮仍能「继续上次」改答案。`lockAllCardsNow` 改状态级 + DOM 级双管
+    （`ui.locked` 才是真作答闸）。
+
+    另修：预览装饰整行摘除作答区（只摘 `submit` 会留下两枚死钮）、渐进呈现
+    屏蔽名单补两钮、「不会」instant 下保留答案行、brief 提交加 `judging`
+    单飞闸（after 不锁卡 + 判分异步 ⇒ 连点会并发两次 AI 判分）。
 
     steps 多步卡与 slots 逐空卡**维持现状**（作答单位是步/空，不加跳过/不会、
-    after 行为不变）。i18n zh-CN/en 补 skipBtn/skipHint/dunnoBtn/dunnoHint/
-    dunnoMarked/answeredEditable/allAnsweredPending/endRoundRevealBtn/
-    endRoundAfterHint 九键。新增单测：upsert 记账口径、after 恢复态解锁与
-    揭示态判据、`recordVerifyResult` 幂等。
+    after 行为不变，仍即时判分即揭示）。i18n zh-CN/en 补 skipBtn/skipHint/
+    dunnoBtn/dunnoHint/dunnoMarked/allAnsweredPending/endRoundRevealBtn/
+    endRoundAfterHint 八键，`answeredPending` 文案扩为「已作答，可继续修改；
+    结束后统一判卷」。**`src/quiz/index.ts` 由 574 涨到 605 行触红线，本轮
+    把记账镜像/销毁清单/右键弹窗动作三块外移**（`service/AnswerMirror.ts`、
+    `flow/Teardown.ts`、`service/DocActions.ts`）压回 545 行。新增单测：
+    upsert 记账口径、after 恢复态解锁与揭示判据（含 steps/slots）、
+    `recordVerifyResult` 幂等、「继续上次」判据。
 
     **复审修正两处 P1**（本地审查，20260910）：
     - **恢复揭示判据改「是否封卷」**：after 模式恢复揭示原按「答满」
