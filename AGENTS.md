@@ -179,7 +179,8 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       ——那是改造前的旧口径，会把「after 收卷前改答案」一次性打死。
     - CSS 侧同理：**答案/解析显隐只认 `.wengu-revealed`**，`.wengu-graded`
       留着表示「已判分」（steps/slots/instant 卡两者同带）。新增任何
-      「作答前不能看见」的内容，钩子挂 revealed 不挂 graded。
+      「作答前不能看见」的内容，钩子挂 revealed 不挂 graded
+      ——`.wengu-card-title`（考点标题防剧透，Issue #14）同挂 revealed。
     - steps/slots 卡走自己的即时判分（`StepsFlow`/`SlotFlow` 直接
       `setGraded`），**不参与 after 可改答案**；两卡也不提供跳过/不会
       （作答单位是步/空，语义另议）。

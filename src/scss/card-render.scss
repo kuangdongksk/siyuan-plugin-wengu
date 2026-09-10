@@ -310,6 +310,17 @@
   display: none;
 }
 
+/* 考点/章节标题：作答前隐藏防剧透（同解析闸口径），**揭示后**随 .wengu-revealed
+   显现——20260910 Issue #12 落地揭示态类后判据由 graded 改挂 revealed（#15 的
+   判分闸与本 PR 联动）：after 模式「已提交未收卷」的卡 graded=true 但未揭示，
+   挂 graded 会让考点提前显现（考点往往就是解法，等于剧透）。
+   必须用 visibility 而非 display —— .wengu-card-title 的 margin-right:auto 是卡头
+   右侧按钮右对齐的唯一来源，display:none 会连占位一起丢（补 margin-left:auto 会把
+   中间簇挤居中，已否决）。预览揭示态由 preview.scss 按需覆盖回 visible。 */
+.wengu-card:not(.wengu-revealed) .wengu-card-title {
+  visibility: hidden;
+}
+
 .wengu-static-sol {
   margin-top: 8px;
   padding-top: 8px;
