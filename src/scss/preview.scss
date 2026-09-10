@@ -99,6 +99,17 @@
   color: var(--b3-theme-on-surface);
 }
 
+/* 考点/章节标题对齐答案口径：预览=只读揭示态、照常显示（preview 后装载，压过
+   card-render 的判分闸）；保密模式未揭示卡同答案区一起隐藏，点答案区单卡揭示
+   （.wengu-pv-open）后恢复。 */
+.wengu-pv .wengu-card .wengu-card-title {
+  visibility: visible;
+}
+
+.wengu-pv.wengu-pv-secret .wengu-card:not(.wengu-pv-open) .wengu-card-title {
+  visibility: hidden;
+}
+
 /* 轻提示浮层（复制结果，右下角自散） */
 .wengu-pv-toast {
   position: fixed;
