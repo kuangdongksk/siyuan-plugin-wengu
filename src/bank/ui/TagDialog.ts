@@ -4,12 +4,8 @@ import { launchAiFlow } from "../../ai/flow";
 import { freeTagPrompt } from "../../ai/prompts/gen";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import {
-    buildKnowledgeIndex,
-    classifyMatchFail,
-    type KnowRouteFail,
-    type MatchFailKind,
-} from "../../convert/service/knowledge/KnowledgeLink";
+import { buildKnowledgeIndex } from "../../convert/service/knowledge/KnowledgeLink";
+import { classifyMatchFail, type KnowRouteFail, type MatchFailKind } from "../../convert/service/knowledge/KnowRoute";
 import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";

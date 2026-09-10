@@ -3,12 +3,8 @@ import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
 import { launchAiFlow } from "../../ai/flow";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import {
-    buildKnowledgeIndex,
-    classifyMatchFail,
-    type KnowRouteFail,
-    type MatchFailKind,
-} from "../../convert/service/knowledge/KnowledgeLink";
+import { buildKnowledgeIndex } from "../../convert/service/knowledge/KnowledgeLink";
+import { classifyMatchFail, type KnowRouteFail, type MatchFailKind } from "../../convert/service/knowledge/KnowRoute";
 import { knowTreesOf } from "../data/KnowTrees";
 import { setFallbackTitle } from "../data/BankSets";
 import { KernelDoc } from "../../siyuan/doc";

@@ -513,7 +513,7 @@ message, language, references, model?}`；`userEntryID` 是
 - **SQL API 无 LIMIT 静默截断 64 行**（20260823 真机验证）：
   `/api/query/sql` 不带 LIMIT 最多返回 64 行且 code=0 无异常（书架
   94 篇文档只回 64 篇的假象）；子查询不支持（返回空）。批量/
-  全量查询必须显式 `LIMIT n OFFSET k` 分页（见 KnowledgeLink.sqlAll）。
+  全量查询必须显式 `LIMIT n OFFSET k` 分页（工厂 `KernelQuery.rowsAll`）。
 - **SQL `ORDER BY sort` 不是文档序**（20260907 真机验证）：导入语料
   （MinerU 等）块 sort/created 全退化——实测 23/23 章节全部标题块
   sort 同值、created 整秒并列，SQLite 对并列序返回**任意序且时好时坏**

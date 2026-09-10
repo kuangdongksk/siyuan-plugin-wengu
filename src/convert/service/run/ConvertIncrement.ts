@@ -1,5 +1,6 @@
 import { buildPrompt } from "../../../ai/prompts/convert";
-import { buildKnowledgeIndex, makeKnowAwareAi } from "../knowledge/KnowledgeLink";
+import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
+import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../source/SrcChunk";
 import { shuffleDraftOptions } from "../draft/OptionShuffle";

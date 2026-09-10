@@ -1,9 +1,9 @@
+import type { KnowledgeIndex } from "../../convert/service/knowledge/KnowledgeLink";
 import {
     routeKnowledgeBatchDiag,
     ROUTE_BATCH_SIZE,
     type KnowRouteFail,
-    type KnowledgeIndex,
-} from "../../convert/service/knowledge/KnowledgeLink";
+} from "../../convert/service/knowledge/KnowRoute";
 import { questionHash } from "./BankParse";
 import { knowHash } from "./KnowHash";
 
