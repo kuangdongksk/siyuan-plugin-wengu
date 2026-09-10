@@ -2,6 +2,19 @@
 
 ## v0.1.1 unreleased
 
+- **导入知识文档后自动补跑一次 AI 索引**（20260910，bank 域，Issue #2）：手动导入
+  （登记）链尾新增一步——零 AI 文本关联与面板 reload 跑完、`yieldToBrowser` 让出
+  首帧之后，对**本次新登记根**（与导入前登记清单 diff 得出）子树里尚无索引的文档
+  自动跑一遍：`KnowTrees.pendingIndexIds`（纯函数，保序去重）滤掉已有索引的，
+  只补缺。已索引的一律不重跑（含 srcHash 已变的 stale 树——过期重索是用户显式
+  动作），重索仍走行内手动两击确认。自动路径**跳过两击确认**，但执行体与手动
+  「索引」完全共用（`driveOutline` 编排 + `executeOutline` 串行循环 +
+  `beginOutline`/`settleOutline` 坑位），沿用同一 `outlineCtrl` 坑位——自动索引
+  进行中再点行内「索引」不起第二份任务；空文档（目录壳）计入跳过、部分失败不打断、
+  全灭才报错，完成/全空通知走 `notifyOutlineAutoDone`/`notifyOutlineAutoNone`。
+  AI 长任务不阻塞面板 reload（用户可能已离开页面，终态靠通知），整链一条 catch
+  兜底（本文件历史踩过 unhandled rejection 坑）。
+
 - **题库体检结构损坏批量重生成**（20260910，bank 域）：全库体检「结构损坏」段
   原先只按原因归类、强制逐卡手动「重新生成」；改为每行可勾选（默认全选）+
   「重生成选中（AI）」按钮——点击即关窗，复用题卡单题重出
