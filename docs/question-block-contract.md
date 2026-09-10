@@ -298,9 +298,11 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
 - **专题**：`{id, title, qids[], origin}`；「按知识点收集」= 知识点
   索引（kpRefs 优先，降级 knowledge/chapter）勾选后并集收集成新专题。
 - **题库模式渲染**：静态路径（Lute Md2BlockDOM + KaTeX），解析/
-  答案在 `.wengu-static-sol` 容器里随 `wengu-graded` 显隐（与文档
-  模式 part 显隐同语义）；块引用静态渲染、点击 `siyuan://blocks/id`
-  跳转。静态输出在 luteToHtml 单点剥 `contenteditable="true"`（纯展示
+  答案在 `.wengu-static-sol` 容器里随 **`wengu-revealed`** 显隐（与文档
+  模式 part 显隐同语义；20260910 Issue #12 从 `wengu-graded` 改挂揭示态
+  ——instant 之外还有 after（收卷后揭示），判分与揭示是两件事，
+  `wengu-graded` 退为纯「已判分」语义）；块引用静态渲染、点击
+  `siyuan://blocks/id` 跳转。静态输出在 luteToHtml 单点剥 `contenteditable="true"`（纯展示
   防误编辑，20260829；文字仍可选中供「标为线索」）。题库落盘 kramdown
   里子块 IAL 的行内尾随/缩进/引用前缀残渣由 BankParse splitParts 清理
   （`- {: id=…}A. …` 不清会渲染成字面属性文本，20260829 真机踩坑）。

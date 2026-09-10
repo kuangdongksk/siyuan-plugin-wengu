@@ -95,10 +95,9 @@ async function finishSlots(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Pr
     const oks = s.marks.map((m) => m.ok);
     const allOk = oks.length > 0 && oks.every(Boolean);
     host.bankMirror?.(q.id, letters.join(""), allOk, { kind: "slots", letters, oks });
-    // 揭示闸（Issue #12 B4 复审修正）：逐空题整卡做完即揭示（自判分），
-    // 解析区只认 .wengu-revealed（setGraded 只置 graded/locked）。
+    // 揭示闸（Issue #12）：逐空题整卡做完即揭示（自判分）——setGraded 一把
+    // 置 graded+locked+revealed，解析区（只认 .wengu-revealed）随之显现。
     ctl.setGraded();
-    ctl.ui.revealed = true;
     const right = oks.filter(Boolean).length;
     ctl.setResult(
         esc(

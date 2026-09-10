@@ -42,7 +42,7 @@
   display: none;
 }
 
-.wengu-card.wengu-graded [custom-plugin-wengu-part^="slot-"] {
+.wengu-card.wengu-revealed [custom-plugin-wengu-part^="slot-"] {
   display: block;
 }
 
@@ -295,6 +295,8 @@
 .wengu-previewing .wengu-input,
 .wengu-previewing [data-judge],
 .wengu-previewing .wengu-card [data-act="submit"],
+.wengu-previewing .wengu-card [data-act="skip"],
+.wengu-previewing .wengu-card [data-act="dunno"],
 .wengu-previewing .wengu-step-opts,
 .wengu-previewing .wengu-step-next {
   pointer-events: none;

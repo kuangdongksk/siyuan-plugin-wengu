@@ -90,6 +90,9 @@ function decorateOneCard(card: HTMLElement, q: WenguQuestion, t: (k: string) => 
                 : "")
     );
     for (const sel of [
+        // 作答行整体摘除（跳过/提交/不会三钮，Issue #12 新增两枚；
+        // 只摘 [data-act=submit] 会留下两枚不可用的死钮）
+        "[data-submit-row]",
         "[data-act='submit']",
         "[data-self]",
         ".wengu-thought-toggle",

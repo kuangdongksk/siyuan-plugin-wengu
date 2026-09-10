@@ -2,11 +2,9 @@ import { errText } from "./../ui/shared";
 import type { App } from "siyuan";
 import type { AnswerHost } from "./flow/AnswerFlow";
 import { revealAll } from "./flow/AnswerFlow";
-import { detachCompanionPanel, notifyQuizAnswer, notifyRoundDone } from "../companion";
-import { detachBankPanels } from "../bank";
-import { detachAiSessionPanel } from "../ai/SessionPanel";
-import { detachReviewApp, filterReviewDocFor } from "../review";
-import { collectThoughts } from "./render/CardRegistry";
+import { notifyQuizAnswer, notifyRoundDone } from "../companion";
+import { filterReviewDocFor } from "../review";
+import { collectThoughts, lockAllCards as lockAllCardsState } from "./render/CardRegistry";
 import { reimportDocFrom, unregisterSetAsQuiz } from "./service/DocOps";
 import { resetPreviewSearch } from "./flow/PreviewFlow";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
@@ -16,17 +14,14 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/run/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { notifyError, notifyInfo } from "../ui/Notify";
-import {
-    overrideAnswer,
-    overrideStepsResult,
-    recordStepsResult,
-    recordSlotsResult,
-    recordVerifyResult,
-} from "../bank/data/BankRecording";
+import { mirrorAnswer, mirrorOverride, mirrorRepeatAnswer, mirrorResult } from "./service/AnswerMirror";
+import type { BankMirrorDetail } from "./service/AnswerMirror";
+import { genTagsAction, variantDrillAction, type DocActionCtx } from "./service/DocActions";
+import { teardownView } from "./flow/Teardown";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
-import { hideBar, type AnnoCallbacks } from "./flow/AnnoFlow";
+import type { AnnoCallbacks } from "./flow/AnnoFlow";
 import { refreshClueRow } from "./flow/ClueFlow";
 import type { DrillUnit } from "./render/DrillUnits";
 import { ProgressivePreview } from "./service/ProgressivePreview";
@@ -35,22 +30,11 @@ import { renderListFor } from "./render/QuizShell";
 import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
 import { loadPrefs, loadQuizState, savePrefs } from "./service/QuizLoader";
-import { openVariantDrillDialog } from "../bank/ui/VariantDrill";
-import { openTagDialog } from "../bank/ui/TagDialog";
-import {
-    detachRoundReport,
-    lockAllCards,
-    manualFinishRound,
-    roundFinishCtx,
-    showRoundReportNow,
-} from "./render/RoundReport";
-import { detachNumRail } from "./render/NumRail";
-import { detachRail } from "./render/RailMount";
-import { detachCardApps } from "./render/CardMount";
+import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
-import { beginDrillFor, detachStartPanel, startPanelModelFor } from "./render/StartPanel";
-import { destroyStatsPanel, openStatsPanelFor } from "../stats";
+import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
+import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
 import { sideActFor } from "./flow/SideMount";
@@ -192,20 +176,19 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         const sec = this.timer.takeQuestionSec(qid);
         pushSessionAnswer(s, qid, submitted, ok, sec, this.timer.elapsed(), extra);
         void this.history?.upsert(s);
-        // 题库统计镜像：首次提交走 recordAnswer（attempts+1）；重复提交
-        // （after 模式改答案）走 recordVerifyResult——只覆写 lastAnswer/right
-        // 不动 attempts（Issue #12 B2「重复提交记账不重复」）
+        // 题库统计镜像（薄壳在 service/AnswerMirror）：首答常规记账，重复提交
+        // （after 改答案）只覆写 lastAnswer/right 不动 attempts（Issue #12 B2）；
+        // qid#k 的逐空/逐步刻意跳过，整题由 bankMirror 补记
         if (!qid.includes("#")) {
-            const bank = this.bank; // bank 可选注入：与其余镜像调用同走守卫
-            if (former) {
-                if (bank) void recordVerifyResult(bank, qid, submitted, ok);
-            } else void bank?.recordAnswer(qid, submitted, ok);
+            // 守空在 AnswerMirror 内部统一做（与另两个镜像入口同口径）
+            if (former) mirrorRepeatAnswer(this.bank, qid, submitted, ok);
+            else mirrorAnswer(this.bank, qid, submitted, ok);
         }
         notifyQuizAnswer(this, qid, submitted, ok, sec); // 看板娘事件（含错题讲解上下文）
     };
 
     /** after 模式答满（未收卷）：一次性提示「可检查修改，结束后统一判卷」
-     *  （Issue #12 B3）。题卡内 answeredEditable 常显负责细粒度告知，
+     *  （Issue #12 B3）。题卡内 answeredPending 行负责细粒度告知，
      *  这里只在**首次**答满时补一条浮层——不重复打扰。全卷重渲染/换题集
      *  会重置标记（renderList 里清），新一轮答满能再提示一次。 */
     private allAnsweredNotified = false;
@@ -219,31 +202,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
      *  recordAnswer 刻意跳过题库，整题结果在此补（契约「调用方剥后缀」，
      *  20260828 审查：原整题从不进镜像，专题错题重刷对这类题失效）。
      *  detail 携带细粒度（自托管后题库是运行时统计唯一落点）。 */
-    readonly bankMirror = (
-        qid: string,
-        submitted: string,
-        ok: boolean,
-        detail?: { kind: "steps" | "slots"; letters: string[]; oks: boolean[]; persist?: boolean }
-    ): void => {
-        const bank = this.bank;
-        if (!bank) return;
-        if (detail?.kind === "steps")
-            void recordStepsResult(bank, qid, detail.letters, detail.oks, detail.persist === true);
-        else if (detail?.kind === "slots") void recordSlotsResult(bank, qid, detail.letters, detail.oks);
-        else void bank.recordAnswer(qid, submitted, ok);
-    };
+    readonly bankMirror = (qid: string, submitted: string, ok: boolean, detail?: BankMirrorDetail): void =>
+        mirrorResult(this.bank, qid, submitted, ok, detail);
 
     /** 改判镜像（brief 纠错/steps 申诉复核）：只翻 right 微调 wrongCount。 */
     readonly bankOverride = (
         qid: string,
         correct: boolean,
         detail?: { kind: "steps"; letters: string[]; oks: boolean[] }
-    ): void => {
-        const bank = this.bank;
-        if (!bank) return;
-        if (detail?.kind === "steps") void overrideStepsResult(bank, qid, detail.letters, detail.oks);
-        else void overrideAnswer(bank, qid, correct);
-    };
+    ): void => mirrorOverride(this.bank, qid, correct, detail);
 
     /** 设置页开关变更后由插件调用：立即按新设置重渲染。 */
     applySettings(): void {
@@ -268,19 +235,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.finishSession();
         void this.timerBinder.flush();
         this.annoCleanup?.();
-        hideBar();
         void this.bank?.flush();
         this.protyleHost.destroyAll(this.el);
-        destroyStatsPanel(); // 浮层 echarts 防 leak（此前 destroy 漏清，挂账项）
-        detachCompanionPanel();
-        detachBankPanels();
-        detachAiSessionPanel();
-        detachReviewApp();
-        detachStartPanel();
-        detachRoundReport();
-        detachRail();
-        detachNumRail();
-        detachCardApps(); // 题卡/组单元组件（6-4a 渲染层组件化）
+        teardownView(); // 模块级挂载物统一反挂（清单在 flow/Teardown）
     }
 
     /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */
@@ -374,35 +331,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         });
     }
 
-    /** 目录文档右键「变式重练」（V2）：整卷/仅错题按题生成变式专题。 */
-    readonly variantDrillOf = (docId: string): void => {
-        const doc = this.docs.find((d) => d.id === docId);
-        if (!doc || !this.bank) return;
-        openVariantDrillDialog(
-            {
-                t: this.t,
-                bank: this.bank,
-                modelId: () => this.aiModelId(),
-                onChanged: () => void this.colFlow.refresh().then(() => this.colFlow.refreshSide()),
-                onSelect: (id) => this.colFlow.switchTo(id),
-            },
-            docId,
-            doc.title
-        );
+    /** 目录文档右键的弹窗类动作（实现体在 service/DocActions，压行数外移）。 */
+    private readonly docActionCtx: DocActionCtx = {
+        docs: () => this.docs,
+        bank: () => this.bank,
+        modelId: () => this.aiModelId(),
+        colFlow: () => this.colFlow,
     };
-
-    /** 目录文档右键「生成标签」：已有标签核对挂引用、缺失标签 AI 生成。 */
-    readonly genTagsOf = (docId: string): void => {
-        const doc = this.docs.find((d) => d.id === docId);
-        if (!doc || !this.bank) return;
-        void openTagDialog({
-            t: this.t,
-            bank: this.bank,
-            modelId: this.aiModelId(),
-            docId,
-            docTitle: doc.title,
-        });
-    };
+    readonly variantDrillOf = (docId: string): void => variantDrillAction(this.docActionCtx, docId, this.t);
+    readonly genTagsOf = (docId: string): void => genTagsAction(this.docActionCtx, docId, this.t);
 
     finishSession(): void {
         const s = this.session;
@@ -517,7 +454,13 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.flushTime(); // 收卷即落库（未满 15s 的秒数不清零）
         this.timerBinder.updateLabel();
     };
-    readonly lockAllCardsNow = (): void => lockAllCards(this.el);
+    /** 收卷全锁：**状态级 + DOM 级双管**（Issue #12）。状态级锁 `ui.locked`
+     *  是真正的作答闸（`answeredFrozen` 认它——重渲染后按钮不会又活过来），
+     *  DOM 级补非响应式的输入位（textarea/input 只吃 disabled）。 */
+    readonly lockAllCardsNow = (): void => {
+        lockAllCardsState();
+        lockAllCards(this.el);
+    };
     readonly weaknessStore = (): WeaknessStore | undefined => this.weakness;
     readonly bankStore = (): QuestionBank | undefined => this.bank;
     readonly refreshCollections = (): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide());

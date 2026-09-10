@@ -80,7 +80,7 @@
         ctl.el = rootEl;
         registerCard(ctl);
         // 题干静态填充（旧 ProtyleHost.mountStatic 单节点语义）+ 解析区
-        // （CSS 随 wengu-graded 显隐）；KaTeX 惰性到接近视口
+        // （CSS 随 wengu-revealed 揭示闸显隐，Issue #12）；KaTeX 惰性到接近视口
         if (protoEl) {
             const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
             protoEl.innerHTML =
@@ -160,11 +160,6 @@
         {@html resultRowHtml(ui)}
     </div>
     <div class="wengu-note" data-note hidden={!ui.note}>{ui.note}</div>
-{/snippet}
-
-<!-- after 模式已答未收卷：提示「可继续改，结束后统一判卷」（Issue #12 B3） -->
-{#snippet pendingHint()}
-    <div class="wengu-pending-hint" data-pending-hint>{t("answeredEditable")}</div>
 {/snippet}
 
 <div
@@ -287,7 +282,6 @@
             </Button>
         </div>
         {@render tailRows()}
-        {#if ui.graded && !ui.revealed}{@render pendingHint()}{/if}
         <div class="wengu-ai-comment" data-ai-comment hidden={!ui.aiComment}>{ui.aiComment}</div>
         <div class="wengu-self" data-self hidden={!ui.selfOn}>
             <span>{ui.selfLabel}</span>

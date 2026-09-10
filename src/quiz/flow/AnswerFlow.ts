@@ -86,8 +86,14 @@ function answeredFrozen(ctl: CardCtl): boolean {
     return ctl.ui.revealed || ctl.ui.locked;
 }
 
+/** AI 判分在途的卡（Issue #12）：after 模式提交后不锁卡，brief 判分又
+ *  是异步的——用户连点提交会并发跑两次 judgeBrief（重复烧调用、评语
+ *  交叉覆写）。判分期间挂单飞闸，判完释放；重复提交在**判分完成后**
+ *  仍照走（Issue #12 明文允许「after 重复提交＝再走一次 AI 判分」）。 */
+const judging = new WeakSet<CardCtl>();
+
 export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Promise<void> {
-    if (answeredFrozen(ctl)) return;
+    if (answeredFrozen(ctl) || judging.has(ctl)) return;
     const objective = isObjective(q);
     const submitted = ctl.submitted();
     if (objective && !submitted) {
@@ -158,6 +164,7 @@ async function judgeBriefAnswer(
 ): Promise<void> {
     host.flushTime();
     if (!batch) ctl.setNote(host.t("aiJudging"));
+    judging.add(ctl);
     try {
         // 「思路」折叠区若填了内容，一并交给 AI（判 partial 的重要素材）
         const thought = ctl.ui.thought.trim();
@@ -166,6 +173,9 @@ async function judgeBriefAnswer(
         ctl.setAi(v.verdict, v.comment);
         host.recordAnswer(q.id, submitted, v.ok, { verdict: v.verdict, comment: v.comment, cause: v.cause });
         if (batch) {
+            // 统一展示：只说「已作答、可继续改」（评语进 aiComment 行，
+            // 对错留到收卷）——否则 after 的 brief 提交后毫无可见反馈
+            ctl.setResult(esc(host.t("answeredPending")), "warn");
             markNumAnswered(host, q);
             checkAllDone(host);
             return;
@@ -185,6 +195,8 @@ async function judgeBriefAnswer(
             markNumAnswered(host, q);
             checkAllDone(host);
         }
+    } finally {
+        judging.delete(ctl); // 判完释放单飞闸（重复提交照常可再走一次）
     }
 }
 
@@ -260,7 +272,7 @@ export function skipQuestion(host: AnswerHost, q: WenguQuestion): void {
  *    （重复提交走 upsert 覆写，见 HistoryStore.pushSessionAnswer）。
  *  steps/slots 卡不提供本入口（作答单位是步/空，语义另议，范围外）。 */
 export async function dunnoQuestion(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Promise<void> {
-    if (answeredFrozen(ctl)) return;
+    if (answeredFrozen(ctl) || judging.has(ctl)) return;
     const batch = host.currentRevealMode() === "after";
     if (batch) ctl.setPending();
     else ctl.setGraded();
@@ -272,8 +284,12 @@ export async function dunnoQuestion(host: AnswerHost, q: WenguQuestion, ctl: Car
         checkAllDone(host);
         return;
     }
+    // 先走常规揭示（chip 描色 + 答案/解析），再把结果行文案换成「已记为
+    // 不会」并**保留答案**——「不会」不比「答错」多给一分，但文案要说清
+    // 是主动认输，同时不能把答案行整条吃掉（客观题答案只在结果行展示）
     revealCard(host, ctl, q, { submitted: "", ok: false });
-    ctl.setResult(esc(host.t("dunnoMarked")), "wrong"); // 「不会」不比「答错」多给一分，但文案说清是主动认输
+    const answerTail = isObjective(q) ? `${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}` : "";
+    ctl.setResult(`${esc(host.t("dunnoMarked"))}${answerTail}`, "wrong");
     showQTime(host, ctl, q.id);
     checkAllDone(host);
 }
@@ -288,8 +304,13 @@ export function revealCard(
     r: { submitted: string; ok: boolean; verdict?: string; comment?: string }
 ): void {
     markNum(host, q, r.ok);
+    // 揭示态统一在此置位（Issue #12）：本函数是**全部**卡片形态的揭示
+    // 入口（即时判分、收卷统一揭示、恢复兜底三路都过它），显隐闸改挂
+    // `.wengu-revealed` 后必须无条件置——否则 brief 卡收卷后答案与解析
+    // 仍不可见（它的 revealed 原先只由客观题的这段分支置）。submitted
+    // 快照只被 choice 的 chipMarkOf 读，其余题型写入无害。
+    ctl.reveal(r.submitted);
     if (isObjective(q)) {
-        ctl.reveal(r.submitted); // chip 描色派生（right/wrong 由 optionIsRight 算）
         ctl.setResult(
             r.ok
                 ? esc(host.t("correct"))
@@ -311,7 +332,7 @@ export function revealCard(
  *  收卷**（Issue #12 B3）——答案要等「结束本次做题」（endRound →
  *  manualFinishRound → revealAll 链路）才统一揭示，若在末题提交的
  *  瞬间 revealAll，刚打开的可修改窗口立刻被关死，用户没机会回看。
- *  改为：答满只提示一次（题卡内 answeredEditable 常显 + 浮层提示），
+ *  改为：答满只提示一次（题卡内 answeredPending 行 + 浮层提示），
  *  编辑窗口保持到用户显式收卷。
  *  StepsFlow 完成多步卡后也走这里（steps 逐卡自判分，需靠它凑齐
  *  「全部 graded」这一收口信号，故本函数不能整个拿掉）。 */

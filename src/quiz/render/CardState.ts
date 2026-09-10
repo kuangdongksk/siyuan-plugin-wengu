@@ -76,7 +76,7 @@ export interface CardUi {
     thought: string;
     thoughtOpen: boolean;
     /* ── 判分/揭示 ── */
-    /** 已判分（data-graded + .wengu-graded，锁作答位的总闸）。 */
+    /** 已判分（data-graded + .wengu-graded；答满判据 / 结果行依据）。 */
     graded: boolean;
     /** 作答位禁用（提交/收卷/未开刷）。 */
     locked: boolean;
@@ -431,11 +431,13 @@ export function markClozeOpts(q: WenguQuestion, ui: CardUi, letter: string): voi
  *  旧 after 轮答满时必已被自动收卷（endedAt 已写）；instant 恒真不变；
  *  未答满的进行中轮不变（两种判据同取假）。 */
 export function restoreContextFor(
-    _list: WenguQuestion[],
+    list: WenguQuestion[],
     session: WenguSession | undefined,
     revealMode: WenguRevealMode
 ): CardInitCtx["restore"] | undefined {
-    if (!session || session.results.length === 0) return undefined;
+    // 空卡卷无恢复可言；`list` 保持实参与其它判据同源（不再改成 _list，
+    // 留个显式的空卷守卫比下划线占位有用——见下方签名）
+    if (!session || session.results.length === 0 || list.length === 0) return undefined;
     return {
         results: session.results,
         byQid: new Map(session.results.map((r) => [r.qid, r] as const)),
