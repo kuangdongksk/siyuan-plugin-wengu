@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { BankData, QuestionBank } from "../../bank/data/QuestionBank";
-import { QuestionBank as Bank } from "../../bank/data/QuestionBank";
-import { questionHash } from "../../bank/data/BankParse";
-import { SetWriter } from "./SetWriter";
-import type { DraftUnit } from "./QuestionDraft";
-import { parseQuestionKramdown } from "../../bank/data/BankParse";
+import type { BankData, QuestionBank } from "../../../bank/data/QuestionBank";
+import { QuestionBank as Bank } from "../../../bank/data/QuestionBank";
+import { questionHash } from "../../../bank/data/BankParse";
+import { SetWriter } from "../output/SetWriter";
+import type { DraftUnit } from "../draft/QuestionDraft";
+import { parseQuestionKramdown } from "../../../bank/data/BankParse";
 
 // node 测试环境无 window，markDirty 防抖定时器走 globalThis 顶上
 (globalThis as { window?: unknown }).window ??= globalThis;

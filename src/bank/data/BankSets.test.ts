@@ -14,7 +14,7 @@ import {
     setQuestions,
     staleRecords,
 } from "./BankSets";
-import { renderUnit } from "../../convert/service/QuestionDraft";
+import { renderUnit } from "../../convert/service/draft/QuestionDraft";
 
 import { questionHash } from "./BankParse";
 import { KernelQuery } from "../../siyuan/query";

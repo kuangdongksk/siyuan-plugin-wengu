@@ -1,7 +1,7 @@
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
-import type { IncrementPlan, StructChunk } from "../service/SrcChunk";
+import type { IncrementPlan, StructChunk } from "../service/source/SrcChunk";
 
 /**
  * 增量重转换弹窗（增量哈希二期）：重新导入的哈希检测报告——先给检测

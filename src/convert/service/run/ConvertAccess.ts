@@ -1,10 +1,10 @@
-import type { ConvertProgressRecord } from "./ConvertBatch";
-import type { ConvertViewAccess } from "../index";
-import { convertDoneText, showStatus, updateConvertBtn } from "../index";
-import type { ProgressivePreview } from "../../quiz/service/ProgressivePreview";
-import type { WenguSettingsShape as SettingsDialogShape } from "../../ui/SettingsDialog";
-import type { QuestionBank } from "../../bank/data/QuestionBank";
-import type { WenguMaterial, WenguQuestion } from "../../types";
+import type { ConvertProgressRecord } from "../run/ConvertBatch";
+import type { ConvertViewAccess } from "../../index";
+import { convertDoneText, showStatus, updateConvertBtn } from "../../index";
+import type { ProgressivePreview } from "../../../quiz/service/ProgressivePreview";
+import type { WenguSettingsShape as SettingsDialogShape } from "../../../ui/SettingsDialog";
+import type { QuestionBank } from "../../../bank/data/QuestionBank";
+import type { WenguMaterial, WenguQuestion } from "../../../types";
 
 /**
  * QuizView 的 ConvertViewAccess 实现体（从 QuizView 拆出压行数）：

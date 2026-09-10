@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyKnowDrafts, parseDrafts, renderUnit } from "./QuestionDraft";
-import { shuffleDraftOptions } from "./OptionShuffle";
-import type { KnowSection } from "./KnowledgeLink";
+import { applyKnowDrafts, parseDrafts, renderUnit } from "../draft/QuestionDraft";
+import { shuffleDraftOptions } from "../draft/OptionShuffle";
+import type { KnowSection } from "../knowledge/KnowledgeLink";
 
 /**
  * 行协议解析/渲染（20260902）：AI 回复 → DraftUnit → 确定性契约 kramdown。

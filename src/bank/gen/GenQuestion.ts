@@ -1,9 +1,9 @@
 import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { conceptPrompt, variantPrompt, verifyPrompt } from "../../ai/prompts/gen";
-import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/QuestionDraft";
-import { shuffleDraftOptions } from "../../convert/service/OptionShuffle";
-import { sectionKramdown } from "../../convert/service/KnowRef";
+import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
+import { shuffleDraftOptions } from "../../convert/service/draft/OptionShuffle";
+import { sectionKramdown } from "../../convert/service/knowledge/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
 import { recordsByKeys } from "../data/BankRegen";

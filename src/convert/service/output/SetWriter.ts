@@ -1,10 +1,10 @@
-import { GROUP_PREV } from "../../siyuan/attrs";
-import type { QuestionBank, BankRecord } from "../../bank/data/QuestionBank";
-import { mintMatId, mintQid, mintSetId, removeRecords } from "../../bank/data/BankSets";
-import { parseQuestionKramdown, questionHash } from "../../bank/data/BankParse";
-import { renderUnit } from "./QuestionDraft";
-import type { DraftUnit } from "./QuestionDraft";
-import type { WenguMaterial, WenguQuestion } from "../../types";
+import { GROUP_PREV } from "../../../siyuan/attrs";
+import type { QuestionBank, BankRecord } from "../../../bank/data/QuestionBank";
+import { mintMatId, mintQid, mintSetId, removeRecords } from "../../../bank/data/BankSets";
+import { parseQuestionKramdown, questionHash } from "../../../bank/data/BankParse";
+import { renderUnit } from "../draft/QuestionDraft";
+import type { DraftUnit } from "../draft/QuestionDraft";
+import type { WenguMaterial, WenguQuestion } from "../../../types";
 
 /**
  * 题集写入器（20260903 起转换产物不再落文档，直接写题库）：一次转换

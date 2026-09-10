@@ -1,5 +1,5 @@
-import { KernelQuery } from "../../siyuan/query";
-import { KernelDoc } from "../../siyuan/doc";
+import { KernelQuery } from "../../../siyuan/query";
+import { KernelDoc } from "../../../siyuan/doc";
 
 /**
  * AI 转换服务的内核侧原语：源文档定位/读取与判定解析（出题 prompt

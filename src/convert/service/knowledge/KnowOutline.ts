@@ -1,12 +1,12 @@
-import { agentChatOnce } from "../../ai/client";
-import { AI_TIMEOUT } from "../../ai/timeouts";
-import { buildOutlinePrompt } from "../../ai/prompts/convert";
-import { KernelQuery } from "../../siyuan/query";
-import { byDocOrder, KernelBlock } from "../../siyuan/block";
-import { questionHash } from "../../bank/data/BankParse";
-import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { mintKnowNodeId, setKnowTree, stripChapterEcho, treePathsOf } from "../../bank/data/KnowTrees";
-import type { BankKnowNode } from "../../bank/data/KnowTrees";
+import { agentChatOnce } from "../../../ai/client";
+import { AI_TIMEOUT } from "../../../ai/timeouts";
+import { buildOutlinePrompt } from "../../../ai/prompts/convert";
+import { KernelQuery } from "../../../siyuan/query";
+import { byDocOrder, KernelBlock } from "../../../siyuan/block";
+import { questionHash } from "../../../bank/data/BankParse";
+import type { QuestionBank } from "../../../bank/data/QuestionBank";
+import { mintKnowNodeId, setKnowTree, stripChapterEcho, treePathsOf } from "../../../bank/data/KnowTrees";
+import type { BankKnowNode } from "../../../bank/data/KnowTrees";
 
 /**
  * 知识树大纲归纳（docs/knowledge-tree.md □1，20260831；20260903 起不落

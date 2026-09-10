@@ -1,6 +1,6 @@
 import { Dialog } from "siyuan";
-import type { ConvertProgressRecord } from "../service/ConvertBatch";
-import type { ConvertRunCfg } from "../service/ConvertRun";
+import type { ConvertProgressRecord } from "../service/run/ConvertBatch";
+import type { ConvertRunCfg } from "../service/run/ConvertRun";
 import { ConvertDialogCtl } from "../core/ConvertDialogCtl";
 import ConvertDialogApp from "../components/ConvertDialogApp.svelte";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";

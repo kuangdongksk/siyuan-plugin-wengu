@@ -1,4 +1,4 @@
-import { expandKnowDocs, type KnowDocEntry, type KnowSectionNode } from "../../convert/service/KnowledgeLink";
+import { expandKnowDocs, type KnowDocEntry, type KnowSectionNode } from "../../convert/service/knowledge/KnowledgeLink";
 import type { KnowTreesMap } from "../data/KnowTrees";
 
 /**

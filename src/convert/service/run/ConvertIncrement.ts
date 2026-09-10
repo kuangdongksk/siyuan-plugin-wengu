@@ -1,16 +1,16 @@
-import { buildPrompt } from "../../ai/prompts/convert";
-import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
-import { applyKnowDrafts, parseDrafts } from "./QuestionDraft";
-import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "./SrcChunk";
-import { shuffleDraftOptions } from "./OptionShuffle";
-import { SetWriter } from "./SetWriter";
-import { removeRecords, setTypeUnion, staleRecords } from "../../bank/data/BankSets";
-import { knowTreesOf } from "../../bank/data/KnowTrees";
-import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { newAiGroupId, type AiSessionGroup } from "../../ai/client";
-import { KernelBlock } from "../../siyuan/block";
-import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
-import type { QuestionType } from "../../types";
+import { buildPrompt } from "../../../ai/prompts/convert";
+import { buildKnowledgeIndex, makeKnowAwareAi } from "../knowledge/KnowledgeLink";
+import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
+import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../source/SrcChunk";
+import { shuffleDraftOptions } from "../draft/OptionShuffle";
+import { SetWriter } from "../output/SetWriter";
+import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/BankSets";
+import { knowTreesOf } from "../../../bank/data/KnowTrees";
+import type { QuestionBank } from "../../../bank/data/QuestionBank";
+import { newAiGroupId, type AiSessionGroup } from "../../../ai/client";
+import { KernelBlock } from "../../../siyuan/block";
+import type { KnowSection, KnowledgeIndex } from "../knowledge/KnowledgeLink";
+import type { QuestionType } from "../../../types";
 
 /**
  * 增量重转换执行（增量哈希二期，docs/incremental-hash-plan.md §二）：

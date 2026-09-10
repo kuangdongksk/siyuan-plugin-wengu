@@ -1,9 +1,9 @@
-import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
-import { AI_TIMEOUT } from "../../ai/timeouts";
-import { detectWindowPrompt } from "../../ai/prompts/convert";
-import type { QuestionType } from "../../types";
-import { normalizeType } from "../../types";
-import { chunkKramdown, isMaterialKramdown, parseVerdict } from "./ConvertService";
+import { agentChatOnce, type AiSessionGroup } from "../../../ai/client";
+import { AI_TIMEOUT } from "../../../ai/timeouts";
+import { detectWindowPrompt } from "../../../ai/prompts/convert";
+import type { QuestionType } from "../../../types";
+import { normalizeType } from "../../../types";
+import { chunkKramdown, isMaterialKramdown, parseVerdict } from "../core/ConvertService";
 
 /**
  * 转换前置检测与预览行（从 ConvertBatch 拆出，保主文件 ≤500 行）：

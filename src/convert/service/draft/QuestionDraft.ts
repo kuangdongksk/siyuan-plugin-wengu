@@ -1,7 +1,7 @@
-import { LETTERS, normalizeAnswerMd } from "../../types";
-import { restoreAiImages } from "../../ai/PromptHygiene";
-import { knowledgeRefLine } from "./KnowRef";
-import type { KnowSection } from "./KnowledgeLink";
+import { LETTERS, normalizeAnswerMd } from "../../../types";
+import { restoreAiImages } from "../../../ai/PromptHygiene";
+import { knowledgeRefLine } from "../knowledge/KnowRef";
+import type { KnowSection } from "../knowledge/KnowledgeLink";
 
 /**
  * 题目行协议（20260902 起 AI 生成返回格式）：AI 不再产 kramdown 超级块，

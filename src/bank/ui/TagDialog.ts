@@ -9,8 +9,8 @@ import {
     classifyMatchFail,
     type KnowRouteFail,
     type MatchFailKind,
-} from "../../convert/service/KnowledgeLink";
-import { convertRunActive } from "../../convert/service/ConvertRun";
+} from "../../convert/service/knowledge/KnowledgeLink";
+import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";

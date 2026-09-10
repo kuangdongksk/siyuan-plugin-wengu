@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { restoreAiImages, sanitizeAiImages } from "./PromptHygiene";
 import { buildPrompt } from "./prompts/convert";
-import { parseDrafts } from "../convert/service/QuestionDraft";
+import { parseDrafts } from "../convert/service/draft/QuestionDraft";
 
 /**
  * 图片行消毒（20260903，MiniMax 2013）：发送侧 ![](assets/…) → 占位符

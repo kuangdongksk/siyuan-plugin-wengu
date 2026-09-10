@@ -11,8 +11,8 @@ import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
-import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/KnowledgeLink";
-import { generateKnowledgeOutline, outlineSrcHash } from "../../convert/service/KnowOutline";
+import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/knowledge/KnowledgeLink";
+import { generateKnowledgeOutline, outlineSrcHash } from "../../convert/service/knowledge/KnowOutline";
 import {
     buildKnowTree,
     groupKnowByDoc,

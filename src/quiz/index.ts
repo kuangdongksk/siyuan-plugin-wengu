@@ -13,7 +13,7 @@ import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
 import { normalizeWorkspace, type WenguWorkspace } from "./render/RailMount";
 import { buildSideTree } from "./render/SideTree";
 import { openConvertForView } from "../convert";
-import { ConvertAccess, type ConvertAccessHost } from "../convert/service/ConvertAccess";
+import { ConvertAccess, type ConvertAccessHost } from "../convert/service/run/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { notifyError, notifyInfo } from "../ui/Notify";
 import { overrideAnswer, overrideStepsResult, recordStepsResult, recordSlotsResult } from "../bank/data/BankRecording";

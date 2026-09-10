@@ -4,7 +4,7 @@ import {
     keepConvertRun,
     stopConvertRun,
     subscribeConvertRun,
-} from "../service/ConvertRun";
+} from "../service/run/ConvertRun";
 import type { ConvertPanelDeps } from "../ui/ConvertPanel";
 import type { ConvertPanelUi } from "./ConvertPanelUi";
 import { Armed } from "../../ui/shared";

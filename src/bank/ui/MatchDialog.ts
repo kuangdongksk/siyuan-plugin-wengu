@@ -8,11 +8,11 @@ import {
     classifyMatchFail,
     type KnowRouteFail,
     type MatchFailKind,
-} from "../../convert/service/KnowledgeLink";
+} from "../../convert/service/knowledge/KnowledgeLink";
 import { knowTreesOf } from "../data/KnowTrees";
 import { setFallbackTitle } from "../data/BankSets";
 import { KernelDoc } from "../../siyuan/doc";
-import { convertRunActive } from "../../convert/service/ConvertRun";
+import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";

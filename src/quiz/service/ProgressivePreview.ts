@@ -1,5 +1,5 @@
 import { replayConvertBar, showStatus } from "../../convert";
-import type { ConvertProgress } from "../../convert/service/ConvertBatch";
+import type { ConvertProgress } from "../../convert/service/run/ConvertBatch";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { fmt } from "../../ui/shared";
 

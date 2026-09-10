@@ -1,23 +1,23 @@
-import { errText } from "./../../ui/shared";
-import { buildPrompt } from "../../ai/prompts/convert";
-import { detectQuestions, questionPreview } from "./ConvertDetect";
-import type { QuestionPreview } from "./ConvertDetect";
-import { extractBlockId, getDocInfo } from "./ConvertService";
-import { isHeadingOnlyChunk, structuralChunks } from "./SrcChunk";
-import { applyKnowDrafts, parseDrafts } from "./QuestionDraft";
-import type { DraftUnit } from "./QuestionDraft";
-import { shuffleDraftOptions } from "./OptionShuffle";
-import { buildKnowledgeIndex, makeKnowAwareAi } from "./KnowledgeLink";
-import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
-import { newAiGroupId, type AiSessionGroup } from "../../ai/client";
-import { SetWriter } from "./SetWriter";
-import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { setTypeUnion } from "../../bank/data/BankSets";
-import { knowTreesOf } from "../../bank/data/KnowTrees";
-import { QuestionType } from "../../types";
-import type { WenguMaterial, WenguQuestion } from "../../types";
-import { KernelBlock } from "../../siyuan/block";
-import { fmt } from "../../ui/shared";
+import { errText } from "./../../../ui/shared";
+import { buildPrompt } from "../../../ai/prompts/convert";
+import { detectQuestions, questionPreview } from "../draft/ConvertDetect";
+import type { QuestionPreview } from "../draft/ConvertDetect";
+import { extractBlockId, getDocInfo } from "../core/ConvertService";
+import { isHeadingOnlyChunk, structuralChunks } from "../source/SrcChunk";
+import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
+import type { DraftUnit } from "../draft/QuestionDraft";
+import { shuffleDraftOptions } from "../draft/OptionShuffle";
+import { buildKnowledgeIndex, makeKnowAwareAi } from "../knowledge/KnowledgeLink";
+import type { KnowSection, KnowledgeIndex } from "../knowledge/KnowledgeLink";
+import { newAiGroupId, type AiSessionGroup } from "../../../ai/client";
+import { SetWriter } from "../output/SetWriter";
+import type { QuestionBank } from "../../../bank/data/QuestionBank";
+import { setTypeUnion } from "../../../bank/data/BankSets";
+import { knowTreesOf } from "../../../bank/data/KnowTrees";
+import { QuestionType } from "../../../types";
+import type { WenguMaterial, WenguQuestion } from "../../../types";
+import { KernelBlock } from "../../../siyuan/block";
+import { fmt } from "../../../ui/shared";
 
 /**
  * 分批转换编排（从 ConvertService 拆出）：长文档按**结构切块**（标题

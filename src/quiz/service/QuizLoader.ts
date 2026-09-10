@@ -1,5 +1,5 @@
 import { errText } from "./../../ui/shared";
-import type { ConvertProgressRecord } from "../../convert/service/ConvertBatch";
+import type { ConvertProgressRecord } from "../../convert/service/run/ConvertBatch";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import { ensureSets, migrateLegacyMaterials, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
 import type { HistoryStore } from "./HistoryStore";

@@ -1,5 +1,5 @@
-import { expandKnowDocs } from "../../convert/service/KnowledgeLink";
-import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/KnowRef";
+import { expandKnowDocs } from "../../convert/service/knowledge/KnowledgeLink";
+import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/knowledge/KnowRef";
 import { normalizeKnowledge } from "./KnowledgeNorm";
 import { mergeRecordKpRefs } from "./KnowRoots";
 import type { KnowTreesMap } from "./KnowTrees";

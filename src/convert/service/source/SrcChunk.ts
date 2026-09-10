@@ -1,5 +1,5 @@
-import { questionHash } from "../../bank/data/BankParse";
-import { chunkKramdown, CHUNK_CHARS } from "./ConvertService";
+import { questionHash } from "../../../bank/data/BankParse";
+import { chunkKramdown, CHUNK_CHARS } from "../core/ConvertService";
 
 /**
  * 结构切块 + 源块指纹（增量哈希二期，docs/incremental-hash-plan.md §二）：

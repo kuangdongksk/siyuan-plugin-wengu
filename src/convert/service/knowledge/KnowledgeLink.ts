@@ -1,5 +1,5 @@
-import { agentChatOnce, type AiSessionGroup } from "../../ai/client";
-import { AI_TIMEOUT } from "../../ai/timeouts";
+import { agentChatOnce, type AiSessionGroup } from "../../../ai/client";
+import { AI_TIMEOUT } from "../../../ai/timeouts";
 import {
     batchChapterPrompt,
     batchSectionPrompt,
@@ -9,11 +9,11 @@ import {
     MAX_HIT_CHAPTERS,
     MAX_SECTIONS,
     sectionRoutePrompt,
-} from "../../ai/prompts/route";
-import { KernelQuery } from "../../siyuan/query";
-import { KernelBlock } from "../../siyuan/block";
-import { stripChapterEcho } from "../../bank/data/KnowTrees";
-import type { KnowTreesMap } from "../../bank/data/KnowTrees";
+} from "../../../ai/prompts/route";
+import { KernelQuery } from "../../../siyuan/query";
+import { KernelBlock } from "../../../siyuan/block";
+import { stripChapterEcho } from "../../../bank/data/KnowTrees";
+import type { KnowTreesMap } from "../../../bank/data/KnowTrees";
 
 /**
  * 知识点反链（从 ConvertBatch 拆出的独立关注点）：

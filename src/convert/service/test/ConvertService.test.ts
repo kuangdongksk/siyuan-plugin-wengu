@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt } from "../../ai/prompts/convert";
-import { QuestionType as QT } from "../../types";
-import { extractBlockId, isMaterialKramdown } from "./ConvertService";
+import { buildPrompt } from "../../../ai/prompts/convert";
+import { QuestionType as QT } from "../../../types";
+import { extractBlockId, isMaterialKramdown } from "../core/ConvertService";
 
 /**
  * 转换侧纯函数：块 id 提取、prompt 开关（AI 回复解析与

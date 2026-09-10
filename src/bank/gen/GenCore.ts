@@ -1,6 +1,6 @@
 import { generateQuestion } from "./GenQuestion";
 import type { AiAbort } from "../../ai/client";
-import { injectKnowledgeRefs } from "../../convert/service/KnowRef";
+import { injectKnowledgeRefs } from "../../convert/service/knowledge/KnowRef";
 import { knowRootsOf } from "../data/KnowRoots";
 import { lexiconOfRoots, textRefsFor, type LexSection } from "../data/KnowLinkText";
 import { knowTreesOf } from "../data/KnowTrees";

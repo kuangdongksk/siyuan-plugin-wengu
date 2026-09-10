@@ -6,7 +6,7 @@ import {
     type KnowDocView,
     type KnowSectionTreeView,
 } from "./KnowledgePanel";
-import type { KnowSectionNode } from "../../convert/service/KnowledgeLink";
+import type { KnowSectionNode } from "../../convert/service/knowledge/KnowledgeLink";
 
 /** 题数扁平化（树 → "id:count" 清单，便于断言）。 */
 function flatCounts(ns: KnowSectionTreeView[]): string[] {

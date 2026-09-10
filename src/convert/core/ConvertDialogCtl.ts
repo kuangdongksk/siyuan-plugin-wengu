@@ -1,6 +1,6 @@
-import type { ConvertProgressRecord } from "../service/ConvertBatch";
-import type { ConvertRunCfg } from "../service/ConvertRun";
-import { extractBlockId, getDocInfo } from "../service/ConvertService";
+import type { ConvertProgressRecord } from "../service/run/ConvertBatch";
+import type { ConvertRunCfg } from "../service/run/ConvertRun";
+import { extractBlockId, getDocInfo } from "../service/core/ConvertService";
 import type { ConvertDialogDeps } from "../ui/ConvertDialog";
 import { openKnowPicker, parseKnowIds } from "../../ui/KnowPicker";
 import type { ConvertDialogUi } from "./ConvertDialogUi";

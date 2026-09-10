@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCount, parseTypes } from "./ConvertDetect";
-import { chunkKramdown } from "./ConvertService";
+import { parseCount, parseTypes } from "../draft/ConvertDetect";
+import { chunkKramdown } from "../core/ConvertService";
 
 /**
  * 检测计数的纯逻辑：分段覆盖全文（总和语义的事实源）+ COUNT 解析

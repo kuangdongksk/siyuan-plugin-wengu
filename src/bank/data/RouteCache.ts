@@ -3,7 +3,7 @@ import {
     ROUTE_BATCH_SIZE,
     type KnowRouteFail,
     type KnowledgeIndex,
-} from "../../convert/service/KnowledgeLink";
+} from "../../convert/service/knowledge/KnowledgeLink";
 import { questionHash } from "./BankParse";
 import { knowHash } from "./KnowHash";
 

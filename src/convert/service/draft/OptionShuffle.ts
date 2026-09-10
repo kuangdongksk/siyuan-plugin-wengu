@@ -1,5 +1,5 @@
-import { LETTERS } from "../../types";
-import type { DraftUnit } from "./QuestionDraft";
+import { LETTERS } from "../../../types";
+import type { DraftUnit } from "../draft/QuestionDraft";
 
 /**
  * AI 生成选择题的选项洗牌（draft 层，20260902 随行协议重构从 kramdown

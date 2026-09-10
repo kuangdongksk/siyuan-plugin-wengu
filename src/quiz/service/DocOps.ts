@@ -1,9 +1,9 @@
 import { errText } from "./../../ui/shared";
 import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
-import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/ConvertRun";
-import { extractBlockId, getDocInfo } from "../../convert/service/ConvertService";
-import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/SrcChunk";
-import { convertIncremental, sourceChunksOf } from "../../convert/service/ConvertIncrement";
+import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/run/ConvertRun";
+import { extractBlockId, getDocInfo } from "../../convert/service/core/ConvertService";
+import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/source/SrcChunk";
+import { convertIncremental, sourceChunksOf } from "../../convert/service/run/ConvertIncrement";
 import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { readRecordSrcGroups } from "../../bank/data/BankSets";
 import { esc, fmt } from "../../ui/shared";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyChunks, isHeadingOnlyChunk, structuralChunks, type SrcGroup } from "./SrcChunk";
+import { classifyChunks, isHeadingOnlyChunk, structuralChunks, type SrcGroup } from "../source/SrcChunk";
 
 /** 造一份带标题结构的源 markdown（两个章节 + 前导段）。 */
 const MD = `开头引言，不属于任何章节。

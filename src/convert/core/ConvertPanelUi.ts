@@ -1,5 +1,5 @@
-import type { ConvertProgressRecord } from "../service/ConvertBatch";
-import type { ConvertRunSnapshot } from "../service/ConvertRun";
+import type { ConvertProgressRecord } from "../service/run/ConvertBatch";
+import type { ConvertRunSnapshot } from "../service/run/ConvertRun";
 
 /**
  * 转换管理面板的响应态形状（四件套之一）。运行中快照经

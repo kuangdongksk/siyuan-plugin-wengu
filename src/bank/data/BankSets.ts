@@ -6,7 +6,7 @@ import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
 import { parseQuestionKramdown, parseMaterialKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import type { QuestionBank, BankSet } from "./QuestionBank";
-import type { SrcGroup } from "../../convert/service/SrcChunk";
+import type { SrcGroup } from "../../convert/service/source/SrcChunk";
 import type { WenguDoc, WenguMaterial } from "../../types";
 
 /**
@@ -17,7 +17,7 @@ import type { WenguDoc, WenguMaterial } from "../../types";
  * - **存量零迁移**：records 的 sourceDocId 就是题集 id（旧习题文档 id），
  *   ensureSets 按它分组补齐 sets 条目（标题尽力从仍在的旧文档读一次，
  *   读不到显示短 id）；历史轮次/docStats/影子专题的键因此全部天然延续。
- * - 新转换的题集由 convert/service/SetWriter 直写（含有序 qids 与材料）。
+ * - 新转换的题集由 convert/service/output/SetWriter 直写（含有序 qids 与材料）。
  */
 
 /** 题集 id（set- 前缀，风格同 col-/gen-）。 */

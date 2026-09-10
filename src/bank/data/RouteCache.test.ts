@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KnowledgeIndex, KnowRouteFail } from "../../convert/service/KnowledgeLink";
+import type { KnowledgeIndex, KnowRouteFail } from "../../convert/service/knowledge/KnowledgeLink";
 import { ROUTE_CACHE_CAP, RouteCache, indexGenOf, initRouteCache, routeKnowledgeBatchCached } from "./RouteCache";
 
 /** 造 N 章索引：每章两小节（路由两级都用得到）。 */

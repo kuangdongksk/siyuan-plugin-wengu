@@ -1,10 +1,10 @@
-import { errText } from "./../../ui/shared";
-import { convertDocBatched } from "./ConvertBatch";
-import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "./ConvertBatch";
-import { SetWriter } from "./SetWriter";
-import { esc, fmt } from "../../ui/shared";
-import { notifyError, notifyInfo } from "../../ui/Notify";
-import type { QuestionBank } from "../../bank/data/QuestionBank";
+import { errText } from "./../../../ui/shared";
+import { convertDocBatched } from "../run/ConvertBatch";
+import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "../run/ConvertBatch";
+import { SetWriter } from "../output/SetWriter";
+import { esc, fmt } from "../../../ui/shared";
+import { notifyError, notifyInfo } from "../../../ui/Notify";
+import type { QuestionBank } from "../../../bank/data/QuestionBank";
 /**
  * 转换执行器（从转换弹窗拆出的单例运行器）：弹窗只负责收集参数，
  * 点「开始转换」即关窗，批次循环在这里跑完。状态条/停止/终止后的

@@ -1,5 +1,5 @@
-import { KernelQuery } from "../../siyuan/query";
-import { byDocOrder, KernelBlock } from "../../siyuan/block";
+import { KernelQuery } from "../../../siyuan/query";
+import { byDocOrder, KernelBlock } from "../../../siyuan/block";
 
 /**
  * 知识点引用的注入与生成后处理（自 KnowledgeLink 拆出压 500 行红线，

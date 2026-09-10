@@ -2,7 +2,7 @@
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
     import Button from "../../ui/Button.svelte";
-    import { progressStatusText } from "../service/ConvertRun";
+    import { progressStatusText } from "../service/run/ConvertRun";
     import type { ConvertPanelDeps } from "../ui/ConvertPanel";
     import type { ConvertPanelCtl } from "../core/ConvertPanelCtl";
     import { initialConvertPanelUi } from "../core/ConvertPanelUi";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { shuffleDraftOptions } from "./OptionShuffle";
-import { parseDrafts, type DraftUnit } from "./QuestionDraft";
+import { shuffleDraftOptions } from "../draft/OptionShuffle";
+import { parseDrafts, type DraftUnit } from "../draft/QuestionDraft";
 
 /**
  * 选项洗牌的核心不变量：**正确项的内容跟着答案字母走**——无论洗成

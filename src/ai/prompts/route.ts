@@ -1,5 +1,5 @@
 /**
- * 知识点路由族 prompt（20260910 自 convert/service/KnowledgeLink 迁入
+ * 知识点路由族 prompt（20260910 自 convert/service/knowledge/KnowledgeLink 迁入
  * prompt 集中地，文本逐字保持）：两级路由（章清单 → 小节清单）的
  * 单批/批量四个变体，与生成 prompt 的知识点标注插槽。
  *

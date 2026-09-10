@@ -1,4 +1,4 @@
-import type { ConvertProgressRecord } from "../service/ConvertBatch";
+import type { ConvertProgressRecord } from "../service/run/ConvertBatch";
 
 /**
  * AI 转习题弹窗的响应态形状（四件套之一，模式见

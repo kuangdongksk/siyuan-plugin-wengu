@@ -2,7 +2,7 @@ import { QuestionType } from "../../types";
 
 /**
  * 行协议格式约定与题型注册表（生成 prompt 共用：转换/增量/单题重生成/
- * 出题）。20260910 自 convert/service/QuestionDraft.ts 迁入 prompt 集中地
+ * 出题）。20260910 自 convert/service/draft/QuestionDraft.ts 迁入 prompt 集中地
  * （bank 域 import convert 域的层级倒挂随之消解），并升级**题型化**：
  * 前置检测先判断材料含哪些题型，生题 prompt 只带相关题型的部件说明与
  * 写法约定（数学卷不再背英语四类的规则）。

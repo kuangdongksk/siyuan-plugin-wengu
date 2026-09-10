@@ -1,4 +1,4 @@
-import type { ConvertProgressRecord } from "./service/ConvertBatch";
+import type { ConvertProgressRecord } from "./service/run/ConvertBatch";
 import { openConvertDialog } from "./ui/ConvertDialog";
 import { openConvertPanel } from "./ui/ConvertPanel";
 import {
@@ -9,7 +9,7 @@ import {
     stopConvertRun,
     type ConvertRunCfg,
     type ConvertRunEvents,
-} from "./service/ConvertRun";
+} from "./service/run/ConvertRun";
 import type { ProgressivePreview } from "../quiz/service/ProgressivePreview";
 import { showBatchPreview } from "../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";

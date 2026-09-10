@@ -11,7 +11,7 @@ import {
     treePathsOf,
 } from "./KnowTrees";
 import { parseKpRefs, parseQuestionKramdown } from "./BankParse";
-import { renderUnit } from "../../convert/service/QuestionDraft";
+import { renderUnit } from "../../convert/service/draft/QuestionDraft";
 
 /**
  * 内部知识树（20260903 起不落文档）：id 形态硬约束（kpRefs 经 kramdown

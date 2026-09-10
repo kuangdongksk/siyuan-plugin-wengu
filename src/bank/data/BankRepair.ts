@@ -1,5 +1,5 @@
 import { LETTERS, normalizeType } from "../../types";
-import { POSITION_SENSITIVE } from "../../convert/service/OptionShuffle";
+import { POSITION_SENSITIVE } from "../../convert/service/draft/OptionShuffle";
 import { stripIal } from "../../siyuan/kramdown";
 
 /**
