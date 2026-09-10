@@ -7,6 +7,14 @@ import { sectionKramdown } from "../../convert/service/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
 import { recordsByKeys } from "../data/BankRegen";
+import { normalizeType } from "../../types";
+import type { QuestionType } from "../../types";
+
+/** 契约 kramdown 容器的题型（变式/重生成按题重出时取原题题型，
+ *  让行协议只带该题型的部件约定；无 type 属性=undefined 全量兜底）。 */
+function typeOfKd(kd: string): QuestionType | undefined {
+    return normalizeType(/custom-plugin-wengu-type="([a-z]+)"/.exec(kd)?.[1]);
+}
 
 /**
  * 单题生成核（薄弱加练与知识点补题共用）：变式=以该点入库题（错得
@@ -38,6 +46,7 @@ export async function generateQuestion(
     const section =
         mode === "concept" && kpId ? (await sectionKramdown(kpId)) || knowNodeText(await knowTreesOf(bank), kpId) : "";
     let template = "";
+    let templateType: QuestionType | undefined;
     if (mode === "variant") {
         const records = await recordsByKeys(bank, [point.key]);
         const wrongMost =
@@ -45,6 +54,7 @@ export async function generateQuestion(
             records[0];
         template = wrongMost?.kramdown ?? "";
         if (!template) return ""; // 变式必须有真题模板
+        templateType = normalizeType(wrongMost?.type); // record.type 权威（契约 type 属性同源）
     }
     const statLine = (() => {
         const bits: string[] = [];
@@ -54,7 +64,9 @@ export async function generateQuestion(
         return bits.length > 0 ? `（${bits.join("；")}）` : "";
     })();
     const prompt =
-        mode === "variant" ? variantPrompt(template, statLine) : conceptPrompt(point.title, statLine, section);
+        mode === "variant"
+            ? variantPrompt(template, statLine, templateType)
+            : conceptPrompt(point.title, statLine, section);
     return genWithVerify(prompt, modelId, track, abort);
 }
 
@@ -62,7 +74,12 @@ export async function generateQuestion(
  *  出变式（整卷/仅错题变式重练用），prompt 与自检和知识点变式同款。 */
 export async function generateVariantOf(templateKramdown: string, modelId: string, abort?: AiAbort): Promise<string> {
     if (!templateKramdown) return "";
-    return genWithVerify(variantPrompt(templateKramdown, ""), modelId, { kind: "regen", title: "变式重练" }, abort);
+    return genWithVerify(
+        variantPrompt(templateKramdown, "", typeOfKd(templateKramdown)),
+        modelId,
+        { kind: "regen", title: "变式重练" },
+        abort
+    );
 }
 
 /** 发 prompt 出题 + AI 自检（独立重做校验答案，不过检丢弃返回空串）。

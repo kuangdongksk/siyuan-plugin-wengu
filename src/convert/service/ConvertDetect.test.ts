@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseCount } from "./ConvertDetect";
+import { parseCount, parseTypes } from "./ConvertDetect";
 import { chunkKramdown } from "./ConvertService";
 
 /**
  * 检测计数的纯逻辑：分段覆盖全文（总和语义的事实源）+ COUNT 解析
- * 容错（AI 回复格式漂移不崩、缺 COUNT 不误报数字）。
+ * 容错（AI 回复格式漂移不崩、缺 COUNT 不误报数字）+ TYPES 解析
+ * （20260910 题型化 prompt 的输入，中英别名容错、并集去重）。
  */
 
 describe("parseCount", () => {
@@ -19,6 +20,18 @@ describe("parseCount", () => {
         expect(parseCount("CAN_CONVERT: yes\nREASON: 讲义")).toBeUndefined();
         expect(parseCount("COUNT: 很多")).toBeUndefined();
         expect(parseCount("")).toBeUndefined();
+    });
+});
+
+describe("parseTypes", () => {
+    it("中英文混用解析并去重", () => {
+        expect(parseTypes("TYPES: single,多选,判断\nCOUNT: 3")).toEqual(["single", "multiple", "judge"]);
+        expect(parseTypes("TYPES: 作文、完形填空、翻译")).toEqual(["essay", "cloze", "trans"]);
+        expect(parseTypes("TYPES: Brief/single/single")).toEqual(["brief", "single"]);
+    });
+    it("无 TYPES 行或全无法识别返回空数组", () => {
+        expect(parseTypes("CAN_CONVERT: yes\nCOUNT: 1")).toEqual([]);
+        expect(parseTypes("TYPES: 谜一样的东西")).toEqual([]);
     });
 });
 

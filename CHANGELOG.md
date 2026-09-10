@@ -2,6 +2,19 @@
 
 ## v0.1.1 unreleased
 
+- **prompt 集中收口 + 生题题型化**（20260910，ai 域）：全仓 26 处 AI
+  prompt 构建点从 10 个业务文件纯搬迁进 `src/ai/prompts/` 八件套
+  （common/protocol/convert/gen/route/judge/misc/companion），公共片段
+  （错因枚举/单题输出约束/行协议/路由上限常量）抽共享，文本逐字保持
+  （protocolSpec 自 QuestionDraft 迁入顺带消解 bank→convert 跨域倒挂），
+  纯搬迁零行为变化。随后升级**生题题型化**：前置检测顺带判断材料含哪些
+  题型（TYPES 行，零额外 AI 调用），转换/增量/出题/变式/重生成的生成
+  prompt 只带在场题型的格式约定——数学卷不再背英语四类（cloze/match/
+  essay/trans）的规则，主观题恒含 brief 兜底；续跑/增量跳过检测时用
+  题集既有记录的题型并集（`BankSets.setTypeUnion` 零 AI）；填空转选择/
+  大题拆多步两个显式开关的产出题型不受检测影响恒在；完成消息附「题型」
+  摘要（convertTypeList 键）。
+
 - **设置入口挪 rail**（20260910，quiz 域）：设置钮自刷题侧栏头部挪到
   左栏 rail 底部（第六钮，`margin-top:auto` 钉底与五个工作区钮分组），
   所有工作区（刷题/复习/专题/知识/AI 会话/学伴）恒可见，点击开设置

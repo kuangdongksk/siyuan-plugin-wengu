@@ -4,12 +4,13 @@ import { applyKnowDrafts, parseDrafts } from "./QuestionDraft";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "./SrcChunk";
 import { shuffleDraftOptions } from "./OptionShuffle";
 import { SetWriter } from "./SetWriter";
-import { removeRecords, staleRecords } from "../../bank/data/BankSets";
+import { removeRecords, setTypeUnion, staleRecords } from "../../bank/data/BankSets";
 import { knowTreesOf } from "../../bank/data/KnowTrees";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import { newAiGroupId, type AiSessionGroup } from "../../ai/client";
 import { KernelBlock } from "../../siyuan/block";
 import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
+import type { QuestionType } from "../../types";
 
 /**
  * 增量重转换执行（增量哈希二期，docs/incremental-hash-plan.md §二）：
@@ -106,13 +107,18 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     // 标题带题集名，标题缺失退化用块数
     const label = run.title ?? `${run.chunks.length} 块`;
     const group: AiSessionGroup = { id: newAiGroupId(), title: `增量补生成 · ${label}` };
+    // 生成 prompt 的题型先验：目标题集既有记录的题型并集（增量不跑
+    // 前置检测，这比全量省规则；空集=全量兜底）
+    const priorTypes = await setTypeUnion(run.bank, run.setId);
+    const genTypes: QuestionType[] | undefined = priorTypes.length > 0 ? priorTypes : undefined;
     const callAi = makeKnowAwareAi({
         modelId: run.modelId,
         signal: run.signal ?? new AbortController().signal,
         knowIndex,
         label,
         group,
-        buildPrompt: (source, rule, list) => buildPrompt(source, run.fillToChoice, run.bigToSteps, rule, list),
+        buildPrompt: (source, rule, list) =>
+            buildPrompt(source, run.fillToChoice, run.bigToSteps, rule, list, genTypes),
     });
     const writer = new SetWriter(run.bank);
     for (let i = 0; i < run.chunks.length; i++) {

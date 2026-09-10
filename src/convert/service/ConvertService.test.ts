@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPrompt } from "../../ai/prompts/convert";
+import { QuestionType as QT } from "../../types";
 import { extractBlockId, isMaterialKramdown } from "./ConvertService";
 
 /**
@@ -47,5 +48,28 @@ describe("buildPrompt", () => {
         const p = buildPrompt("s", false, false, "\n标注规则", "\n\n知识点清单：\nK1|极限");
         expect(p).toContain("标注规则");
         expect(p).toContain("K1|极限");
+    });
+    it("题型化：只带在场题型的约定，英语四类规则裁剪（数学卷无背景噪音）", () => {
+        const p = buildPrompt("s", false, false, "", "", [QT.Single, QT.Multiple]);
+        expect(p).toContain("type 只取 single/multiple/brief");
+        expect(p).toContain("单选写字母如 B");
+        expect(p).not.toContain('完形填空用 type="cloze"');
+        expect(p).not.toContain("slot-opt、@@P slot-ans");
+        expect(p).toContain("阅读文章等共用语篇"); // 材料组示例收缩
+        expect(p).not.toContain("多步引导题（type=steps）");
+    });
+    it("题型化：英语四类在场时体现对应约定与逐步部件", () => {
+        const p = buildPrompt("s", false, false, "", "", [QT.Cloze, QT.Essay]);
+        expect(p).toContain('完形填空用 type="cloze"');
+        expect(p).toContain("slot-opt、@@P slot-ans");
+        expect(p).toContain("作文省略 @@P ans，解析写范文");
+        expect(p).not.toContain("多步引导题（type=steps）");
+        expect(p).toContain("阅读文章、完形语篇、翻译原文、新题型文章");
+    });
+    it("fillToChoice/bigToSteps 开关开启时其产出题型加入规则（显式设置不受检测影响）", () => {
+        const p = buildPrompt("s", true, true, "", "", [QT.Fill]);
+        expect(p).toContain("type 只取 single/fill/brief/steps");
+        expect(p).toContain("填空转选择");
+        expect(p).toContain("多步引导题（type=steps）");
     });
 });

@@ -12,7 +12,9 @@ import type { KnowSection, KnowledgeIndex } from "./KnowledgeLink";
 import { newAiGroupId, type AiSessionGroup } from "../../ai/client";
 import { SetWriter } from "./SetWriter";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
+import { setTypeUnion } from "../../bank/data/BankSets";
 import { knowTreesOf } from "../../bank/data/KnowTrees";
+import { QuestionType } from "../../types";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { KernelBlock } from "../../siyuan/block";
 import { fmt } from "../../ui/shared";
@@ -44,6 +46,20 @@ function detectedText(detected: number | undefined, truncated: boolean, t: (key:
         ? fmt(t("convertDetectedCount"), { n: String(detected) }) + (truncated ? "+" : "")
         : "";
 }
+
+/** 题型 i18n 键（完成消息展示检测/先验题型）。 */
+const TYPE_I18N: Record<QuestionType, string> = {
+    [QuestionType.Single]: "typeSingle",
+    [QuestionType.Multiple]: "typeMultiple",
+    [QuestionType.Judge]: "typeJudge",
+    [QuestionType.Fill]: "typeFill",
+    [QuestionType.Brief]: "typeBrief",
+    [QuestionType.Steps]: "typeSteps",
+    [QuestionType.Cloze]: "typeCloze",
+    [QuestionType.Match]: "typeMatch",
+    [QuestionType.Essay]: "typeEssay",
+    [QuestionType.Trans]: "typeTrans",
+};
 
 /** 转换进度回调（弹窗状态行展示）。 */
 export interface ConvertProgress {
@@ -210,18 +226,26 @@ export async function convertDocBatched(
 
     let detected: number | undefined;
     let detectedTruncated = false;
-    if (!resume) {
+    /** 生成 prompt 的题型先验：检测出的题型并集；续跑跳过检测时改用
+     *  题集既有记录的题型并集（零 AI）；两头皆无 → undefined 全量兜底。 */
+    let genTypes: QuestionType[] | undefined;
+    if (resume) {
+        const prior = await setTypeUnion(opts.bank, resume.setId);
+        genTypes = prior.length > 0 ? prior : undefined;
+    } else {
         opts.onProgress({ phase: "detect", batch: 0, total: chunks.length, count: 0, lastBatch: 0 });
         try {
             const d = await detectQuestions(kramdown, opts.modelId, opts.signal, trackGroup);
             if (!d.can) return zero("failed", d.reason || t("convertRefused"), chunks.length);
             detected = d.count;
             detectedTruncated = !!d.truncated;
+            genTypes = d.types;
         } catch (e) {
             if ((e as Error)?.name === "AbortError") {
                 return zero("aborted", "", chunks.length);
             }
-            // 检测失败不阻断：继续逐批生成（批内仍有 CAN_CONVERT 兜底）
+            // 检测失败不阻断：继续逐批生成（批内仍有 CAN_CONVERT 兜底，
+            // 题型缺省全量=旧行为）
         }
     }
 
@@ -247,7 +271,8 @@ export async function convertDocBatched(
         knowIndex,
         label: info.title,
         group: trackGroup,
-        buildPrompt: (source, rule, list) => buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list),
+        buildPrompt: (source, rule, list) =>
+            buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list, genTypes),
     });
     /** 已落库累积视图（渐进预览直用）与本次运行写入清单（丢弃回收）。 */
     const previewList: WenguQuestion[] = [];
@@ -409,6 +434,9 @@ export async function convertDocBatched(
     const detectedMsg = detectedText(detected, detectedTruncated, t);
     const doneMsg: string[] = [];
     if (detectedMsg) doneMsg.push(detectedMsg);
+    if (genTypes && genTypes.length > 0) {
+        doneMsg.push(fmt(t("convertTypeList"), { types: genTypes.map((x) => t(TYPE_I18N[x])).join("、") }));
+    }
     if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
     return {
         status: "done",

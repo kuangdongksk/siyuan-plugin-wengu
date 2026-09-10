@@ -17,6 +17,18 @@
       等非块文件走它））+ 题目契约属性常量
       `attrs.ts`。新增内核调用先走工厂，别散落 fetchSyncPost。
     - `src/ai/`——**AI 基础设施域**（2026-08-27 从 convert/AgentClient
+      `prompts/` 子域（20260910 起全仓 prompt 集中收口：八文件按场景家族
+      分域——common 逐字共用片段/protocol（行协议+**题型注册表**，
+      `protocolSpec(types?)`/`typeRulesFor`/`materialRulesFor`，types=undefined
+      走全量兜底与改造前逐字节一致）/convert（buildPrompt 题型化+检测
+      窗口+大纲归纳）/gen（概念/变式/重生成/自检/自由标签，单题场景题型
+      已知按题裁剪）/route（章小节×单批批量四联+knowRule 插槽，路由
+      上限常量随 prompt 落此）/judge（判分族+轮报分析+byBaseQid）/misc/
+      companion；**生题题型化**（20260910）：前置检测 TYPES 行顺带报题型
+      （parseTypes 中英别名容错、分段并集），buildPrompt 只拼在场题型
+      规则（数学卷不再带英语四类约定）；续跑/增量跳过检测时用题集既有
+      记录题型并集（BankSets.setTypeUnion 零 AI）；开关产出题型（填空转
+      选择→single、大题拆多步→steps）不受检测影响恒在
       抽离，六域共用，无 index.ts 同 siyuan/ 惯例）：`client.ts` 对外通道
       两条——**agentChatOnce**（一次性独立会话：saveSession→chat→
       removeSession，独立 sessionID 天然并发+可按次指定模型；可选

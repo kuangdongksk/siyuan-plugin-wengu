@@ -1,29 +1,35 @@
+import type { QuestionType } from "../../types";
+import { QuestionType as QT } from "../../types";
 import { SINGLE_Q_NOTE } from "./common";
 import { protocolSpec } from "./protocol";
 
 /**
  * 单题生成族 prompt（20260910 自 bank 域 GenQuestion/RegenDialog/TagDialog
- * 迁入 prompt 集中地，文本逐字保持）：概念辨析出题、变式出题、生成后
- * AI 自检验算、单题修复重生成、无知识文档时的自由标签生成。
+ * 迁入 prompt 集中地）：概念辨析出题、变式出题、生成后 AI 自检验算、
+ * 单题修复重生成、无知识文档时的自由标签生成。
+ *
+ * 单题场景题型已知（概念=单选/判断、变式/重生成=原题题型），行协议
+ * 按该题型裁剪——AI 只看到要写的那类题的部件与答案约定。
  */
 
-/** 概念辨析出题 prompt（薄弱加练/收集补题 concept 模式）。 */
+/** 概念辨析出题 prompt（薄弱加练/收集补题 concept 模式，固定单选/判断）。 */
 export function conceptPrompt(title: string, statLine: string, section: string): string {
     return `你是考研刷题的概念辨析出题助手。依据知识点小节出一道概念/辨析题（单选或判断）。
 要求：只考概念辨析（不考计算）；干扰项来自常见误解；正确答案与解析自洽。
 ${SINGLE_Q_NOTE}
-${protocolSpec()}
+${protocolSpec([QT.Single, QT.Judge])}
 
 【知识点：${title}${statLine}】
 ${section}`;
 }
 
-/** 变式出题 prompt（知识点变式/按题变式重练共用，模板=原题 kramdown）。 */
-export function variantPrompt(template: string, statLine: string): string {
+/** 变式出题 prompt（知识点变式/按题变式重练共用，模板=原题 kramdown；
+ *  type=原题题型（未知=undefined 走全量协议兜底）。 */
+export function variantPrompt(template: string, statLine: string, type?: QuestionType): string {
     return `你是考研刷题的变式出题助手。以原题为模板，改数字/换条件/反向提问出一道同知识点的变式题。
 要求：结构、题型与原题一致；新数据必须凑巧（答案干净可验算）；正确答案与解析自洽完整。
 ${SINGLE_Q_NOTE}
-${protocolSpec()}
+${protocolSpec(type ? [type] : undefined)}
 
 【原题${statLine}】
 ${template}`;
@@ -38,8 +44,15 @@ ${kd}`;
 }
 
 /** 单题修复重生成 prompt（题卡「重新生成」：OCR 缺失/转换错误/答案算错）。
- *  材料三选一：原文块 kramdown > 知识点小节正文 > 无材料保守修复。 */
-export function buildRegenPrompt(kd: string, sourceBlock: string, section: string, note: string): string {
+ *  材料三选一：原文块 kramdown > 知识点小节正文 > 无材料保守修复；
+ *  type=原题题型（输出结构钉死为同题型，未知=undefined 走全量兜底）。 */
+export function buildRegenPrompt(
+    kd: string,
+    sourceBlock: string,
+    section: string,
+    note: string,
+    type?: QuestionType
+): string {
     const srcPart = sourceBlock ? `\n【修正后的原文（以此为准，插图占位还原成图片行进题干）】\n${sourceBlock}` : "";
     const secPart = !sourceBlock && section ? `\n【相关知识点小节（补全缺失数据的依据）】\n${section}` : "";
     const notePart = note ? `\n【用户备注】\n${note}` : "";
@@ -47,7 +60,7 @@ export function buildRegenPrompt(kd: string, sourceBlock: string, section: strin
 ${srcPart || secPart ? "以补充材料为准修正；没有依据的部分不要编造，宁可保守。" : "依据题目自身与解析保守修复。"}${notePart}
 要求：输出与原题相同的题型结构（客观题保持客观题）；公式行内 $...$、块级 $$...$$；题干依赖的插图以「〔插图:assets/…〕」占位出现时，必须还原成标准 markdown 图片行（半角 ! + 空方括号 + 冒号后完整原路径，示意形如 ![](插图原路径)）逐字保留进题干，不要原样输出占位；正确答案与解析必须自洽。
 ${SINGLE_Q_NOTE}
-${protocolSpec()}
+${protocolSpec(type ? [type] : undefined)}
 
 【原题 kramdown】
 ${kd}${srcPart}${secPart}${notePart}`;

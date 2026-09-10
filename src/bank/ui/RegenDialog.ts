@@ -148,7 +148,7 @@ async function runRegen(deps: RegenDeps, q: WenguQuestion, srcRaw: string, note:
             : kp
               ? (await sectionKramdown(kp.id)) || knowNodeText(await knowTreesOf(bank), kp.id)
               : "";
-        const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note);
+        const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note, q.type);
         const stem16 = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16);
         const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, stop.signal, {
             kind: "regen",

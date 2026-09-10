@@ -1,4 +1,5 @@
-import { mintPrefixedId } from "../../types";
+import { mintPrefixedId, normalizeType } from "../../types";
+import type { QuestionType } from "../../types";
 import { KernelQuery } from "../../siyuan/query";
 import { KernelBlock } from "../../siyuan/block";
 import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
@@ -50,6 +51,19 @@ export const AGGREGATE_ID = "all";
  *  **任何聚合都不重排**（题集先后 × 集内 qids 序，两层都不动）。 */
 export async function orderedSetIds(bank: QuestionBank): Promise<string[]> {
     return Object.keys((await bank.all()).sets ?? {});
+}
+
+/** 题集既有记录的题型并集（20260910 生成 prompt 题型化）：增量补生成/
+ *  续跑跳过前置检测时，用题集先验代替 AI 检测（零 AI 调用）；空集=
+ *  无先验，调用方回退全题型。 */
+export async function setTypeUnion(bank: QuestionBank, setId: string): Promise<QuestionType[]> {
+    const data = await bank.all();
+    const out: QuestionType[] = [];
+    for (const qid of data.sets?.[setId]?.qids ?? []) {
+        const t = normalizeType(data.records[qid]?.type);
+        if (t && !out.includes(t)) out.push(t);
+    }
+    return out;
 }
 
 /** 全部题集聚合题目（聚合专题刷题列表；空题集自然无贡献）。 */
