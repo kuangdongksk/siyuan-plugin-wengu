@@ -195,6 +195,12 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `draft/ConvertDetect.ts` 只剩 parseTypes / questionPreview 两个纯解析。
 - **进度按已读比例**：批数事前未知，`ConvertProgress.readPct` 出「已读原文
   p% · 累计 c 题」（并行下 = 各片进度之和）。
+- **批数两种口径必须分账**（20260910 并行回归）：`ConvertProgress.batch` =
+  **已落库批数**（`submit` 每落一批 +1）；`BatchedResult.batches/total` 与
+  `ConvertProgressRecord.batches/total` = **实际 AI 调用批数**（= Σ
+  `SegmentResult.batches`，含零产物批、不含纯标题跳过窗口）。两者同时发生但
+  语义不同，混用一个变量即面板/终止提示批数翻倍；回归测试
+  `convert/service/test/ConvertBatchCount.test.ts` 锁死该口径。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
