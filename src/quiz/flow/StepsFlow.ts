@@ -3,9 +3,16 @@ import { flushSync } from "svelte";
 import { appealMethodStep, nextRealtimeStep } from "../service/AiJudge";
 import type { RealtimeHistoryItem } from "../service/AiJudge";
 import type { AnswerHost } from "./AnswerFlow";
-import { appealSessionResult, checkAllDone } from "./AnswerFlow";
+import { appealSessionResult, checkAllDone, revealStepsCard } from "./AnswerFlow";
 import { markNum } from "../render/FlowDom";
-import { appendRealtimeStep, markStepOpts, resetStepsOffline, setStepResult, stepResultsOf } from "../render/CardState";
+import {
+    appendRealtimeStep,
+    markStepOpts,
+    resetStepsOffline,
+    setStepResult,
+    settleSteps,
+    stepResultsOf,
+} from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
 import { gradeStep } from "../service/QuestionGrading";
 import type { WenguQuestion, WenguStep } from "../../types";
@@ -189,18 +196,13 @@ async function finishCard(
     persistStepState: boolean
 ): Promise<void> {
     const ui = ctl.ui;
-    ui.graded = true;
-    ui.locked = true;
-    // 揭示闸（Issue #12 B4 复审修正）：steps 自判分即时揭示——答案/解析
-    // 区（part=answer/solution 与 .wengu-static-sol）自 B4 起只认
-    // .wengu-revealed，这里必须置位，否则做完多步题的解析区永久隐藏。
-    ui.revealed = true;
-    ui.stepOks = oks.map((ok) => (ok ? "1" : "0")).join("");
     ui.stepPersist = persistStepState;
-    for (const su of ui.steps ?? []) su.locked = true;
     const allOk = oks.length > 0 && oks.every(Boolean);
+    // 逐格锁定由 settleSteps 统一落（含新增步），整卡三态与揭示态走
+    // AnswerFlow.revealStepsCard（与 dunnoSteps / 收卷统一揭示同一条收口）
+    settleSteps(q, ui, { letters, oks, t: host.t });
     host.bankMirror?.(q.id, letters.join(""), allOk, { kind: "steps", letters, oks, persist: persistStepState });
-    markNum(host, q, allOk);
+    revealStepsCard(host, q, ctl, letters.join(""), allOk);
     const firstWrong = oks.findIndex((ok) => !ok);
     const wrongLabel = firstWrong >= 0 ? fmt(host.t("stepWrongAt"), { n: String(firstWrong + 1) }) : host.t("noAnswer");
     ctl.setResult(esc(allOk ? host.t("stepAllCorrect") : wrongLabel), allOk ? "right" : "wrong");
@@ -209,8 +211,10 @@ async function finishCard(
     checkAllDone(host);
 }
 
-/** method 步揭示可行集合，result 步揭示正确答案。 */
-function stepAnswerLabel(host: AnswerHost, step: WenguStep): string {
+/** method 步揭示可行集合，result 步揭示正确答案。
+ *  导出共用（Issue #21）：全步一次揭示（settleSteps）与预览装饰
+ *  （PreviewFlow.revealSteps）都按同一口径出文案。 */
+export function stepAnswerLabel(host: AnswerHost, step: WenguStep): string {
     return step.kind === "method" ? fmt(host.t("stepFeasibleLabel"), { s: step.answer }) : step.answer;
 }
 

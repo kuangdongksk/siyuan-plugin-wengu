@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCardInit, restoreContextFor, type CardInitCtx } from "./CardState";
+import { buildCardInit, restoreContextFor, settleSteps, type CardInitCtx } from "./CardState";
 import type { WenguSession } from "../service/HistoryStore";
 import { QuestionType, type WenguQuestion } from "../../types";
 
@@ -181,5 +181,105 @@ describe("buildCardInit · slots 卡做完即揭示", () => {
         const restore = restoreContextFor([slotsQ], s, "after");
         const ui = buildCardInit(slotsQ, baseCtx({ restore }));
         expect([ui.graded, ui.locked, ui.revealed]).toEqual([false, false, false]);
+    });
+});
+
+describe("buildCardInit · steps「不会」恢复（Issue #21）", () => {
+    // 「不会」= 会话里只有**题级**空串条目（步骤一条都没答，不逐格写空串：
+    // 库里没有「答过这步」的记录）。恢复必须按题级账形态分流，否则要么
+    // 半揭示（题号说做过、步格空着）、要么 after 未收卷就泄答案。
+    const dunnoSession = (endedAt?: number): WenguSession =>
+        sessionOf([{ qid: "s1", submitted: "", ok: false }], endedAt);
+
+    it("after 未收卷：只认「已作答」（graded、不锁、不揭示），步格保持干净未作答态", () => {
+        const restore = restoreContextFor([stepsQ], dunnoSession(), "after");
+        const ui = buildCardInit(stepsQ, baseCtx({ restore }));
+        expect([ui.graded, ui.locked, ui.revealed]).toEqual([true, false, false]);
+        expect(ui.resultStatus).toBe("warn");
+        // 步格全部展开但一律未作答（不是「部分步亮答案、部分步空白」的半揭示）
+        for (const su of ui.steps!) {
+            expect([su.hidden, su.graded, su.selected, su.resultOn]).toEqual([false, false, "", false]);
+        }
+        expect(ui.stepOks).toBe("");
+    });
+
+    it("已收卷（endedAt 已写）：全步一次揭示 + 锁定 + 题号标错", () => {
+        const restore = restoreContextFor([stepsQ], dunnoSession(99), "after");
+        const ui = buildCardInit(stepsQ, baseCtx({ restore }));
+        expect([ui.graded, ui.locked, ui.revealed]).toEqual([true, true, true]);
+        expect(ui.resultHtml).toBe("dunnoMarked");
+        expect(ui.resultStatus).toBe("wrong");
+        expect(ui.stepOks).toBe("00");
+        for (const su of ui.steps!) {
+            expect([su.hidden, su.locked, su.graded, su.resultOn]).toEqual([false, true, true, true]);
+            expect(su.selected).toBe(""); // 不伪装成「答错 A/B」
+        }
+    });
+
+    it("instant：揭示判据恒真（同已收卷）", () => {
+        const restore = restoreContextFor([stepsQ], dunnoSession(), "instant");
+        const ui = buildCardInit(stepsQ, baseCtx({ restore }));
+        expect([ui.graded, ui.locked, ui.revealed]).toEqual([true, true, true]);
+        expect(ui.resultHtml).toBe("dunnoMarked");
+    });
+
+    it("部分作答 + 题级空串条目：不误判为「不会」（逐步账优先）", () => {
+        // 混合态：答了第一步后题级又落了空串（异常/历史数据）——逐步账
+        // 非空即按部分作答恢复（解锁下一格），题级空串不改变形态
+        const s = sessionOf([
+            { qid: "s1#0", submitted: "A", ok: true },
+            { qid: "s1", submitted: "", ok: false },
+        ]);
+        const restore = restoreContextFor([stepsQ], s, "after");
+        const ui = buildCardInit(stepsQ, baseCtx({ restore }));
+        expect(ui.revealed).toBe(false);
+        expect(ui.steps![0].graded).toBe(true);
+        expect(ui.steps![1].hidden).toBe(false); // 续答下一步
+    });
+
+    it("逐步账里的空串条目被滤掉（防「不会」把步渲染成错误+答案的半揭示）", () => {
+        const s = sessionOf([
+            { qid: "s1#0", submitted: "", ok: false },
+            { qid: "s1#1", submitted: "B", ok: true },
+        ]);
+        const restore = restoreContextFor([stepsQ], s, "after");
+        const ui = buildCardInit(stepsQ, baseCtx({ restore }));
+        expect(ui.steps![0].graded).toBe(false); // 空串不算作答（不亮答案）
+        expect(ui.steps![1].graded).toBe(true);
+        expect(ui.revealed).toBe(false);
+    });
+});
+
+describe("settleSteps · 全步落格与锁定（Issue #21）", () => {
+    const uiCtx: CardInitCtx = { t, interactive: true, locked: false };
+
+    it("按快照落格：隐藏步全展开、逐格锁定（组件 disabled 闸只看 step.locked）", () => {
+        const ui = buildCardInit(stepsQ, uiCtx);
+        settleSteps(stepsQ, ui, { letters: ["A", "B"], oks: [true, false], t });
+        expect(ui.steps!.map((s) => s.hidden)).toEqual([false, false]);
+        expect(ui.steps!.map((s) => s.locked)).toEqual([true, true]);
+        expect(ui.steps!.map((s) => s.selected)).toEqual(["A", "B"]);
+        expect(ui.steps!.map((s) => s.resultOn)).toEqual([true, true]);
+    });
+
+    it("步原型少于静态步（AI 实时模式）：缺格跳过，不炸不越界", () => {
+        const ui = buildCardInit(stepsQ, uiCtx);
+        ui.steps = [ui.steps![0]]; // 实时模式只生成了第一步
+        expect(() => settleSteps(stepsQ, ui, { letters: ["A", "B"], oks: [true, false], t })).not.toThrow();
+        expect(ui.steps[0].locked).toBe(true);
+    });
+
+    it("快照短于步数：缺省按空串（不谎报答过哪一项）", () => {
+        const ui = buildCardInit(stepsQ, uiCtx);
+        settleSteps(stepsQ, ui, { letters: ["A"], oks: [true], t });
+        expect(ui.steps![1].selected).toBe("");
+        expect(ui.steps![1].ok).toBe(false);
+    });
+
+    it("「不会」形态（无快照）：步格落答案而非伪装作答", () => {
+        const ui = buildCardInit(stepsQ, uiCtx);
+        settleSteps(stepsQ, ui, { t });
+        expect(ui.steps!.map((s) => s.selected)).toEqual(["", ""]);
+        expect(ui.steps!.every((s) => s.resultOn && s.locked)).toBe(true);
     });
 });

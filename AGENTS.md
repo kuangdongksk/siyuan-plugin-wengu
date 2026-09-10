@@ -222,6 +222,18 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   「不会」在 instant 下仍补答案行（别整条 `setResult` 盖掉答案）；
   brief 提交路径有 `judging` 单飞闸（after 不锁卡 + 判分异步 ⇒ 连点会
   并发两次 AI 判分，重复烧调用）。
+- **steps 也有「跳过 / 不会」**（Issue #21；slots 维持现状不给）：跳过复用
+  `skipQuestion`（对题型无感）；「不会」走 `AnswerFlow.dunnoSteps` → 与普通卡
+  共用的题级收口 `dunnoCard`（题级空串记一错，instant 全步一次揭示 + 锁卡 +
+  `dunnoMarked`，after 只置 graded 可反悔）。**只写题级账、不逐格写空串**
+  （步骤没答过就不该有逐步记录）——恢复时题级账与逐步账分账
+  （`CardState.stepsBand`）：题级空串 = 主动认输 → 已收卷全步揭示 / after 未
+  收卷只认「已作答」且**步格保持干净未作答态**（让步格亮答案就是部分步有
+  内容、部分步空白的半揭示），逐步账一律滤掉空串。全步揭示只有
+  `AnswerFlow.revealStepsCard`（三态一起置 + `CardState.settleSteps` 逐格
+  落格与锁定）一个收口，`revealCard` 的 steps 转调 / `revealAll` / `finishCard`
+  / `dunnoSteps` 四处共用；`settleSteps` 是**唯一**给步格写 disabled 的地方
+  ——组件 `.wengu-step` 的闸只看 `step.locked`，不加它则收卷后步选项仍可点。
 - **新增按钮要同步三处清理面**：预览装饰（`PreviewFlow` 摘
   `[data-submit-row]` 整行）、渐进呈现（`wengu-previewing` 的
   `pointer-events:none` 名单）、预览的 DOM 手术清单——漏一处就是

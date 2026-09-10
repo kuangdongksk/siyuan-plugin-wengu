@@ -354,6 +354,32 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   （`questionToMd`：题型/题干/选项/steps/slots/答案/解析拼 markdown）
   写剪贴板，供粘贴思源 AI 对话。错题本详情同款复制按钮（hydrate
   后的题对象）。预览不作答、不建会话、不写任何块属性。
+- **题卡作答入口：跳过 / 不会**（Issue #12 A 起普通卡，Issue #21 扩到
+  steps 多步题；slots 逐空题维持现状不提供——作答单位是空）：
+    - **跳过**＝纯导航，不是作答：`skipQuestion` 不记账、不锁卡、不揭示，
+      只 `host.onActiveQ + focusQuestion` 滚到下一题（与题号栏点击逐字
+      同源），末题零动作。对题型无感，steps 卡渲染同款钮即接入。
+    - **不会**＝题级语义（普通卡与 steps 共用 `dunnoCard` 收口）：
+      题级 `recordAnswer(qid, "", false)` 记一次 ok=false（会话 submitted
+      存空串——恢复路径吃空串无副作用），instant 模式一把置
+      graded+locked+revealed 并出 `dunnoMarked` 文案（普通卡附题级答案；
+      steps 走全步一次揭示）、after 模式只置 graded（可反悔改正常作答，
+      重复提交走 upsert 覆写，同 `HistoryStore.pushSessionAnswer`）。
+    - **steps 的「不会」不逐格写空串**：步骤一条都没答，库里不该有
+      「答过这步」的记录（逐格空串账会污染逐步统计）。故恢复时题级账
+      与逐步账分账（`CardState.stepsBand`）：题级空串条目 = 主动认输
+      → 已收卷/instant 走全步一次揭示 + 锁定 + 题号标错，after 未收卷
+      **只认「已作答」且步格保持干净未作答态**（让步格亮 dunnoMarked/
+      答案就是「部分步有内容、部分步空白」的半揭示，Issue #21 验收 5）；
+      逐步账一律滤掉空串条目（防对应步被渲染成「错误 + 答案」）。
+    - **全步揭示一个收口**：`AnswerFlow.revealStepsCard`（三态一起置 +
+      `CardState.settleSteps` 逐格落格/锁定，与 StepsFlow 的自判分收口
+      同口径），`revealCard` 的 steps 转调、`revealAll` 收卷统一揭示、
+      `dunnoSteps` 三路共用；StepsFlow 的 `finishCard` 退化为记账 +
+      调它（禁复制第二份）。
+    - i18n 复用现有键（skipBtn/skipHint/dunnoBtn/dunnoHint/dunnoMarked），
+      未新增；预览装饰的 `[data-submit-row]` 整行摘除自动覆盖 steps
+      新增的作答行。
 
 ### 专题补全：会话域 / 材料并集 / 可编辑 / 补题（2026-08-25 起）
 
