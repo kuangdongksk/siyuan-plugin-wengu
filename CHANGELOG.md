@@ -2,6 +2,17 @@
 
 ## v0.1.1 unreleased
 
+- **题卡考点标题作答前隐藏防剧透**（20260910，quiz 域，Issue #14）：题卡卡头的
+  考点/章节标题（`q.knowledge || q.chapter`，如「洛必达法则」）原先作答前直接
+  可见——考点往往就是解题方法，等于剧透思路。改为**与解析区同口径**：纯 CSS 三规则、
+  零组件零 ts 改动——`card-render.scss` 加判分闸 `.wengu-card:not(.wengu-graded)
+.wengu-card-title { visibility: hidden }`；`preview.scss` 两条把预览还原：
+  预览=只读揭示态照常 `visible`，保密模式未揭示卡同答案区一起 `hidden`、点答案
+  区单卡揭示（`.wengu-pv-open`）后恢复。刻意用 `visibility` 而非 `display`——
+  `.wengu-card-title` 的 `margin-right:auto` 是卡头右侧按钮右对齐的唯一来源。
+  行为矩阵：开刷未作答/转换中渐进呈现=隐藏，判分后（含恢复已答、自评完成）=显示，
+  预览正常=显示，预览保密未揭示=隐藏。
+
 - **导入知识文档后自动补跑一次 AI 索引**（20260910，bank 域，Issue #2）：手动导入
   （登记）链尾新增一步——零 AI 文本关联与面板 reload 跑完、`yieldToBrowser` 让出
   首帧之后，对**本次新登记根**（与导入前登记清单 diff 得出）子树里尚无索引的文档
