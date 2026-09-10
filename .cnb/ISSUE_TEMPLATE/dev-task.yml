@@ -61,9 +61,9 @@ body:
 
   - type: textarea
     attributes:
-      label: 召唤语（可直接复制到评论）
+      label: 召唤语（复制到评论，记得勾「替我上班」）
       value: |
-        @青简 基于 origin/dev 拉开发分支，实现上述任务；完成后开 PR，**base 必须是 dev**。
-        提交前跑 `pnpm test` 与 `pnpm check:svelte`，全绿再提。
+        @sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简) 基于 origin/dev 拉开发分支，实现上述任务；完成后开 PR，**base 必须是 dev**。
+        提交前跑 `pnpm test`、`pnpm check:svelte`、`pnpm lint`、`pnpm format:check`，全绿再提。
     validations:
       required: false

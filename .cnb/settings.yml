@@ -32,8 +32,10 @@ npc:
 
         ## 项目约定
         - 动代码前先读 `AGENTS.md`：项目按功能分域，各域约定与已知踩坑都记在里面。
-        - 提交前自检：`pnpm test`（vitest）与 `pnpm check:svelte` 必须通过。
-        - 提交信息用语义化格式，一行标题、禁止括号、禁止写分支名。
+        - 提交前自检，四项都要过：`pnpm test`（vitest）、`pnpm check:svelte`、
+          `pnpm lint`、`pnpm format:check`；改到构建相关配置时再跑一次 `pnpm build`。
+        - 提交信息用 `type(scope): 中文描述`（如 `fix(convert): 游标越界兜底`），
+          一行标题；**不要写分支名**。type 取 feat/fix/refactor/docs/chore/test/perf。
         - 语言 TypeScript，遵循仓库既有 eslint / prettier 配置。
         - 改动小而聚焦，一个 PR 解决一个 Issue。
         - 回复用简体中文。
@@ -60,7 +62,7 @@ npc:
           全量查询是否走 `rowsAll/rowsMapAll` 分页。
         - 各域 `index.ts` 是否为编排代码（禁止纯 re-export barrel）。
         - AI 调用是否走 `src/ai/client.ts` 通道、prompt 是否收口在 `src/ai/prompts/`。
-        - 改动是否小而聚焦，提交信息是否一行标题、语义化、无括号、不写分支名。
+        - 改动是否小而聚焦，提交信息是否 `type(scope): 中文描述` 一行标题、不写分支名。
         - 自检口径：`pnpm test`、`pnpm check:svelte`、`pnpm lint` 是否通过；
           本机构建需 `NODE_OPTIONS= pnpm run build`（沙箱注入的 shim 会拦 mkdir）。
 

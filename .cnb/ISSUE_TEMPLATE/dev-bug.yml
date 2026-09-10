@@ -53,9 +53,9 @@ body:
 
   - type: textarea
     attributes:
-      label: 召唤语（可直接复制到评论）
+      label: 召唤语（复制到评论，记得勾「替我上班」）
       value: |
-        @青简 基于 origin/dev 拉修复分支，定位并修掉上述缺陷；完成后开 PR，**base 必须是 dev**。
+        @sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简) 基于 origin/dev 拉修复分支，定位并修掉上述缺陷；完成后开 PR，**base 必须是 dev**。
         请在 PR 描述里写明根因，不要只打补丁。
     validations:
       required: false

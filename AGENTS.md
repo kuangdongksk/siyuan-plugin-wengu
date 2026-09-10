@@ -25,6 +25,15 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 - 禁止直接向 `dev` / `main` 推送，一切改动走 PR。
 - NPC 角色与硬约束写在 `.cnb/settings.yml`；Issue 模板在
   `.cnb/ISSUE_TEMPLATE/`（两者都从**默认分支**读取）。
+- **模型与推理档位**在仓库根 `.cnb.yml` 的 `npc:go.options` 里配（`settings.yml`
+  没有 model 字段）：`$` 兜底 `deepseek-v4.1-flash`，「复核」角色覆盖为
+  `glm-5.3-flash`。改完要实跑一次，用
+  `cnb build get-build-ai-audit --sn <sn> --pipelineId <sn>-001` 核对
+  `models{}` 里的 key 是不是写对的那个 —— ID 写错会让流水线直接失败。
+- **召唤青简必须写完整路径**：`@sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简)`。
+  裸 `@青简` 不会触发任何流水线（20260910 实测），系统内置的才写 `@CodeBuddy`。
+- 要让它真的写代码，评论时必须开 **「替我上班」**（API：`post-issue-comment --work-mode`）。
+  不开只有读权限，`npc.work_mode` 会是 `false`。
 
 ## 项目速览
 
