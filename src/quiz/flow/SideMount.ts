@@ -127,7 +127,9 @@ export function mountHeadFor(
     v: SideViewAccess,
     workspace: WenguWorkspace,
     subheadHtml: string,
-    canEndRound: boolean
+    canEndRound: boolean,
+    /** after 模式（收卷后揭示）：按钮措辞与提示随语义变（Issue #12 B3） */
+    afterMode = false
 ): void {
     unmountHead();
     if (workspace !== "drill") return;
@@ -139,6 +141,9 @@ export function mountHeadFor(
         sideCollapsed: v.sideCollapsedOf(),
         subheadHtml,
         canEndRound,
+        // after 模式收卷＝交卷看答案（用户唯一能结束编辑窗口的入口）
+        endRoundLabel: afterMode ? "endRoundRevealBtn" : "endRoundBtn",
+        showFinishHint: canEndRound && afterMode,
         onAct: (act: string) => v.sideAct(act),
     });
 }

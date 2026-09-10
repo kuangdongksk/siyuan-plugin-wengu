@@ -146,19 +146,6 @@ export function slotResultsOf(results: WenguSessionResult[], qid: string): Wengu
     return results.filter((r) => r.qid.startsWith(prefix) && /^\d+$/.test(r.qid.slice(prefix.length)));
 }
 
-/** 全卷是否全部作答完（steps/slots 按逐 #k 口径，旧 restoreAnsweredCards 同款）。 */
-export function allAnswered(list: WenguQuestion[], s: WenguSession): boolean {
-    if (list.length === 0) return false;
-    const byQid = new Map(s.results.map((r) => [r.qid, r] as const));
-    return list.every((q) =>
-        hasSteps(q)
-            ? stepResultsOf(s.results, q.id).length >= (q.steps?.length ?? Number.POSITIVE_INFINITY)
-            : hasSlots(q)
-              ? slotResultsOf(s.results, q.id).length >= (q.slots?.length ?? 0)
-              : byQid.has(q.id)
-    );
-}
-
 /** 构建一张题卡的初始态（新卡与恢复卡同一条路）。 */
 export function buildCardInit(q: WenguQuestion, ctx: CardInitCtx): CardUi {
     const ui: CardUi = {
@@ -202,12 +189,17 @@ function initRestoredNormal(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): voi
     const r = ctx.restore!.byQid.get(q.id);
     if (!r) return;
     ui.graded = true;
-    ui.locked = true;
+    // 锁定只跟揭示走（Issue #12 B2③）：after 模式未收卷的进行中轮，
+    // 恢复回来的已答题**仍可修改**（旧实现无条件 locked=true，重开
+    // 页签/「继续上次」就把编辑窗口关死了）；已收卷（revealNow）或
+    // instant 模式照旧锁。
+    const revealed = ctx.restore!.revealNow;
+    ui.locked = revealed || !ctx.restore!.batch;
     ui.submitted = r.submitted;
     if (isChoice(q)) ui.letters = r.submitted;
     else if (q.type === QuestionType.Judge) ui.judge = r.submitted;
     else ui.mine = r.submitted;
-    if (!ctx.restore!.revealNow) {
+    if (!revealed) {
         ui.resultHtml = esc(ctx.t("answeredPending"));
         ui.resultStatus = "warn";
         return;
@@ -288,6 +280,10 @@ function initSteps(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
         const allOk = oks.every(Boolean);
         ui.graded = true;
         ui.locked = true;
+        // 已完成 steps 卡恢复同揭示（Issue #12 B4 复审修正）：解析区只认
+        // .wengu-revealed，恢复的完成卡与当场做完的卡同态——否则重开页签
+        // 后解析区永久隐藏。部分作答分支维持隐藏（该卡尚未收口）。
+        ui.revealed = true;
         ui.stepOks = oks.map((ok) => (ok ? "1" : "0")).join("");
         setResult(
             ui,
@@ -388,6 +384,7 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
     const allOk = marks.every((m) => m.ok);
     ui.graded = true;
     ui.locked = true;
+    ui.revealed = true; // 完整作答恢复同揭示（同上：解析区只认 .wengu-revealed）
     setResult(
         ui,
         allOk
@@ -423,18 +420,26 @@ export function markClozeOpts(q: WenguQuestion, ui: CardUi, letter: string): voi
     }
 }
 
-/** 恢复上下文（挂载编排一次算好，全部卡片共用）。 */
+/** 恢复上下文（挂载编排一次算好，全部卡片共用）。
+ *
+ *  揭示判据（Issue #12 B3 复审修正）：after 模式的揭示**只看轮次是否已
+ *  封卷**（`session.endedAt` 已写）。B3「答满不自动收卷」落地后「答满但
+ *  未收卷」成了可持久化状态（旧实现答满即自动收卷，该状态不存在），若
+ *  仍按「答满」判揭示，重开页签/「继续上次」会把全卷恢复成已揭示+锁定：
+ *  答案泄了、编辑窗口也被关死。「答满提示」另走 QuizView.onAllAnswered
+ *  链路，与揭示判据无关。存量兼容天然成立——
+ *  旧 after 轮答满时必已被自动收卷（endedAt 已写）；instant 恒真不变；
+ *  未答满的进行中轮不变（两种判据同取假）。 */
 export function restoreContextFor(
-    list: WenguQuestion[],
+    _list: WenguQuestion[],
     session: WenguSession | undefined,
     revealMode: WenguRevealMode
 ): CardInitCtx["restore"] | undefined {
     if (!session || session.results.length === 0) return undefined;
-    const allDone = allAnswered(list, session);
     return {
         results: session.results,
         byQid: new Map(session.results.map((r) => [r.qid, r] as const)),
-        revealNow: revealMode === "instant" || allDone,
+        revealNow: revealMode === "instant" || !!session.endedAt,
         batch: revealMode === "after",
     };
 }

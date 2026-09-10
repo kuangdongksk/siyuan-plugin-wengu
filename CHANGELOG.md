@@ -2,16 +2,84 @@
 
 ## v0.1.1 unreleased
 
+- **跳过 / 不会 按钮 + after 模式收卷前可改答案**（20260910，quiz 域，Issue #12）：
+  做题模式两个交互缺口一次补齐。
+
+    普通题卡（choice/judge/填空/brief/essay/trans）作答行由「单提交钮」改为
+    「跳过 / 提交 / 不会」三钮同行（`wengu-submit-row`，两侧 outline 风格、
+    提交居中）：
+    - **跳过**：不记作答、不锁卡、不揭示，只滚到下一题（`skipQuestion` 走
+      `host.onActiveQ` + `MaterialFlow.focusQuestion`，与题号栏点击逐字同源，
+      材料组自动切显）；末题零动作。题号栏不标已答。
+    - **不会**：记一次 `ok=false` 的作答（会话 submitted 存空串，恢复路径
+      吃空串无副作用），brief 类**跳过 AI 判分**直接判错（不烧调用）；
+      instant 模式揭示答案/解析并锁卡，after 模式只记「已作答」可反悔。
+
+    after 模式（收卷后揭示）自「提交即锁卡」改为**收卷前可反复改答案**：
+    - 提交只置 `graded`（记账已入）不置 `locked`，作答位守卫从 `ctl.graded`
+      收敛到新增的 `answeredFrozen` 判据（只认 `revealed || locked`，
+      `pickLetter`/`pickJudge`/`submitQuestion` 三处统一）；`initRestoredNormal`
+      同步解锁——重开页签/「继续上次」恢复的进行中轮不再被锁死。
+    - **重复提交记账不重复**：`HistoryStore.pushSessionAnswer` 由纯追加改
+      **upsert**（按 qid 原地覆写、`answered` 不涨、`correct` 按差值修正、
+      三态字段以最后一次为准）；题库镜像首次提交走 `recordAnswer`
+      （attempts+1），重复提交走新增的 `BankRecording.recordVerifyResult`
+      （只覆写 `lastAnswer`/`right`，`wrongCount` 取「曾错不清零」口径）。
+      它与 `overrideAnswer` 共用新抽的 `applyOverride` 收口。
+    - **答满不自动收卷**：`checkAllDone` 在 after 模式不再 `revealAll`，改为
+      提示（题卡内 `answeredEditable` 常显 + 首次答满一条浮层），收卷只走
+      头部「交卷并查看答案」（`manualFinishRound` → `revealAnsweredNow` →
+      `revealAll` → `lockAllCards` 链路已存在）；头部按 revealMode 换文案并
+      常显「做完后统一判卷」；instant 模式行为不变。
+
+    **防剧透前置修复**：答案/解析显隐原先挂在 `.wengu-graded`（after 模式
+    提交即 `setGraded` → 提交当场泄题），整体改由**揭示态**驱动——题卡新增
+    `.wengu-revealed` 类（由 `ui.revealed` 派生），`card-render.scss` 里
+    answer/solution part、`part^="slot-"` 与 `.wengu-static-sol` 三处显隐一并
+    改挂它；`.wengu-graded` 退为「已判分」语义（steps/slots/instant 卡同时带
+    两者），不再参与内容显隐。
+
+    steps 多步卡与 slots 逐空卡**维持现状**（作答单位是步/空，不加跳过/不会、
+    after 行为不变）。i18n zh-CN/en 补 skipBtn/skipHint/dunnoBtn/dunnoHint/
+    dunnoMarked/answeredEditable/allAnsweredPending/endRoundRevealBtn/
+    endRoundAfterHint 九键。新增单测：upsert 记账口径、after 恢复态解锁与
+    揭示态判据、`recordVerifyResult` 幂等。
+
+    **复审修正两处 P1**（本地审查，20260910）：
+    - **恢复揭示判据改「是否封卷」**：after 模式恢复揭示原按「答满」
+      （`allAnswered`）判，B3 改「答满不自动收卷」后「答满但未收卷」成了可
+      持久化状态——重开页签/「继续上次」会把全卷恢复成已揭示+锁定（泄题 +
+      编辑窗口关死）。改为 `!!session.endedAt`（`restoreContextFor`），
+      存量兼容天然成立（旧 after 轮答满必已自动收卷）；`allAnswered` 随之
+      无消费方，一并删除。
+    - **steps / slots 完成路径补置 `ui.revealed`**：B4 把显隐改挂
+      `.wengu-revealed` 后，steps 收口（`StepsFlow.finishCard`）与 slots
+      整卡收口（`SlotFlow.finishSlots`）都从不置 revealed，做完多步/逐空题
+      解析区永久 `display:none`（纯回归）。两条完成路径与
+      `initSteps`/`initSlots` 的「完整作答」恢复分支一并补置；部分作答
+      恢复分支维持隐藏（与 dev 一致）。
+    - 顺手：`QuizView.recordAnswer` 重复提交分支的 `recordVerifyResult`
+      改用本地 `bank` 守卫（bank 为可选注入，原 `this.bank!` 有 undefined
+      崩风险），与其余镜像调用口径对齐。
+
 - **题卡考点标题作答前隐藏防剧透**（20260910，quiz 域，Issue #14）：题卡卡头的
   考点/章节标题（`q.knowledge || q.chapter`，如「洛必达法则」）原先作答前直接
   可见——考点往往就是解题方法，等于剧透思路。改为**与解析区同口径**：纯 CSS 三规则、
-  零组件零 ts 改动——`card-render.scss` 加判分闸 `.wengu-card:not(.wengu-graded)
+  零组件零 ts 改动——`card-render.scss` 加揭示闸 `.wengu-card:not(.wengu-revealed)
 .wengu-card-title { visibility: hidden }`；`preview.scss` 两条把预览还原：
   预览=只读揭示态照常 `visible`，保密模式未揭示卡同答案区一起 `hidden`、点答案
   区单卡揭示（`.wengu-pv-open`）后恢复。刻意用 `visibility` 而非 `display`——
   `.wengu-card-title` 的 `margin-right:auto` 是卡头右侧按钮右对齐的唯一来源。
-  行为矩阵：开刷未作答/转换中渐进呈现=隐藏，判分后（含恢复已答、自评完成）=显示，
+  行为矩阵：开刷未作答/转换中渐进呈现=隐藏，揭示后（含恢复已答、自评完成）=显示，
   预览正常=显示，预览保密未揭示=隐藏。
+
+    **与 Issue #12 揭示态联动**（合并 #15 时顺手改一行）：闸的判据由
+    `.wengu-graded` 改挂 `.wengu-revealed`——#12 重新定义了 graded 语义
+    （after 模式「已提交未收卷」= graded 但未揭示），挂 graded 会让该态的考点
+    标题提前显现，违背「随解析显现」口径。instant 卡两态同置无差别，
+    steps/slots 完成卡经 #12 的 P1 修复后同样带 revealed，仅 after 未收卷态
+    受影响（正是要修的态）。preview.scss 两条覆盖规则不动（预览卡无 revealed
+    类，覆盖仍必要）。
 
 - **导入知识文档后自动补跑一次 AI 索引**（20260910，bank 域，Issue #2）：手动导入
   （登记）链尾新增一步——零 AI 文本关联与面板 reload 跑完、`yieldToBrowser` 让出

@@ -316,3 +316,53 @@
 .wengu-wrong-count {
   color: var(--b3-theme-error);
 }
+
+/* ── 作答行：跳过 / 提交 / 不会 同行（Issue #12 A）──
+   「提交」为主按钮居中，但两枚 outline 侧钮按**选项行**风格（浅底+
+   主题边框，见 .wengu-btn 与 .wengu-chip），而非 b3-button--outline 的
+   透明底——1px 边框在浅色主题下几乎看不见，用户找不到这两个钮
+   （20260910 走查定夺）。三钮等宽（3×minmax(0,140px)）使中钮在
+   行为约束下自然居中；窄屏收缩不换行。 */
+.wengu-submit-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 140px));
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.wengu-submit-row .wengu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.wengu-skip-btn,
+.wengu-dunno-btn {
+  border: 1px solid var(--b3-theme-border);
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+}
+
+.wengu-skip-btn:hover,
+.wengu-dunno-btn:hover {
+  border-color: var(--b3-theme-primary);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-submit-row .wengu-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* after 模式已答未收卷的行内提示（题卡内，弱化配色） */
+.wengu-pending-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}

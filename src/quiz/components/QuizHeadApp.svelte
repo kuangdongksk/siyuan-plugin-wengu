@@ -20,6 +20,8 @@
         subheadHtml,
         canEndRound,
         onAct,
+        endRoundLabel,
+        showFinishHint,
     }: {
         t(key: string): string;
         sideCollapsed: boolean;
@@ -29,6 +31,11 @@
         canEndRound: boolean;
         /** 按钮（act 名同 data-act：side-toggle/end-round）。 */
         onAct(act: string): void;
+        /** after 模式按钮文案（结束本次 / 交卷并查看答案）。
+         *  由编排侧按 revealMode 算好传入。 */
+        endRoundLabel: string;
+        /** after 模式提示「做完后统一判卷」（同类按钮旁常显，Issue #12 B3） */
+        showFinishHint: boolean;
     } = $props();
 </script>
 
@@ -46,8 +53,11 @@
         title={t("endRoundHint")}
         onclick={() => onAct("end-round")}
     >
-        {t("endRoundBtn")}
+        {t(endRoundLabel)}
     </Button>
+{/if}
+{#if showFinishHint}
+    <span class="wengu-finish-hint" data-finish-hint>{t("endRoundAfterHint")}</span>
 {/if}
 <span class="wengu-timer" data-timer title={t("totalTimeHint")}
     >{@html svgIcon("iconClock", "wengu-timer-icon")}<span data-timer-text>0:00</span></span

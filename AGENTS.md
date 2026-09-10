@@ -161,7 +161,47 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 
 ### src/quiz/ —— 做题主流程
 
-- `index.ts` = QuizView 编排。
+- `index.ts` = QuizView 编排（**已 605 行，超 500 红线**：20260910 Issue #12
+  加了 `onAllAnswered`/`answeredFrozen`/`recordAnswer` upsert 分支；红线
+  技术上由「访问器表 + 编排职责外移破坏内聚」豁免，但下次改它**必须先
+  抽出一块外移**再动，别再净增）。
+- **揭示态与锁定态是两件事**（20260910 Issue #12，最易踩的语义坑）：
+    - `ui.graded` = 记账已入（`allCardsGraded`/答满判据）；
+    - `ui.locked` = 作答位禁用；
+    - `ui.revealed` = 答案/解析可见（题卡类 `.wengu-revealed`，**DOM
+      钩子**，`.wengu-static-sol` 与 answer/solution part 显隐全靠它）。
+    - **instant 模式**：提交 → `setGraded()`（graded + locked + 随后的
+      `revealCard` 置 revealed），一提交就到底。
+    - **after 模式**：提交 → `setPending()`（只 graded），**locked 与
+      revealed 都留到收卷**（`manualFinishRound` → `revealAll` →
+      `lockAllCards`）。作答位守卫一律用 `answeredFrozen`
+      （`revealed || locked`，AnswerFlow 内私有），**别再写 `ctl.graded`**
+      ——那是改造前的旧口径，会把「after 收卷前改答案」一次性打死。
+    - CSS 侧同理：**答案/解析显隐只认 `.wengu-revealed`**，`.wengu-graded`
+      留着表示「已判分」（steps/slots/instant 卡两者同带）。新增任何
+      「作答前不能看见」的内容，钩子挂 revealed 不挂 graded
+      ——`.wengu-card-title`（考点标题防剧透，Issue #14）同挂 revealed。
+    - steps/slots 卡走自己的即时判分（`StepsFlow`/`SlotFlow` 直接
+      `setGraded`），**不参与 after 可改答案**；两卡也不提供跳过/不会
+      （作答单位是步/空，语义另议）。
+    - `restoreContextFor` 的 `batch` 字段 + `revealNow` 共同决定恢复卡的
+      locked：`revealed || !batch`。改恢复逻辑时别退回「恢复即锁」。
+- **重复提交必须幂等**：after 模式可反复改答案，同题会提交多次。会话侧
+  `HistoryStore.pushSessionAnswer` 是 **upsert**（按 qid 原地覆写、
+  `answered` 不涨、`correct` 按差值 ±1、三态字段以最后一次为准——本次
+  不带就删键，防旧 verdict 残留）；题库侧 `QuizView.recordAnswer` 用
+  `results.some(qid)` 先判「是否重复」分流：首次 `recordAnswer`
+  （attempts+1），重复 `BankRecording.recordVerifyResult`（覆写
+  lastAnswer/right，**不动 attempts**；wrongCount 口径＝曾错不清零，
+  由 `applyOverride` 统一）。加任何新记账通道都要过这条口径。
+- **答满不等于收卷**（after 模式）：`checkAllDone` 在 after 下只调
+  `host.onAllAnswered`（视图侧一次性浮层提示，`renderList` 重置去重标记），
+  **不 revealAll**。收卷唯一入口是头部「交卷并查看答案」
+  （`endRound` → `manualFinishRound`）。instant 模式照旧 `roundComplete`。
+  steps/slots 完成仍靠 `checkAllDone` 凑「全部 graded」信号，别整个删掉。
+- **跳过是「没来过」**：`skipQuestion` 不记账不锁卡不揭示，只
+  `onActiveQ` + `focusQuestion` 滚到下一题；末题零动作。「不会」才记账
+  （`submitted=""`，objective 与 brief 都直接判错，brief **不调 AI**）。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 

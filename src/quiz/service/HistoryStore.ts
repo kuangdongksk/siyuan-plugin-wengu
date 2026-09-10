@@ -160,7 +160,15 @@ export function newSessionId(): string {
     return mintPrefixedId("", 6);
 }
 
-/** 把一次作答记入会话（计数/用时/三态评语；落库由持有方调用）。 */
+/** 把一次作答记入会话（计数/用时/三态评语；落库由持有方调用）。
+ *
+ *  **upsert 语义**（20260910，Issue #12 B2）：after 模式（收卷后揭示）
+ *  允许在收卷前反复修改答案，同一题会提交多次。按 qid 命中已有记录则
+ *  原地覆写——submitted/ok/sec/verdict/comment/cause 全以最后一次为准，
+ *  `answered` **不再累加**、`correct` 按 ok 差值修正（错改对 +1、对改错
+ *  -1）；未命中照旧追加并推进两个计数。
+ *  覆写是**原地赋值**（不新建对象、不改数组位置）——重复提交不重排
+ *  results、不翻倍统计，收卷报告与「继续上次」恢复口径逐字不变。 */
 export function pushSessionAnswer(
     s: WenguSession,
     qid: string,
@@ -170,16 +178,39 @@ export function pushSessionAnswer(
     elapsedSec: number,
     extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
 ): void {
-    s.results.push({
-        qid,
-        submitted,
-        ok,
-        ...(sec > 0 ? { sec } : {}),
-        ...(extra?.verdict ? { verdict: extra.verdict } : {}),
-        ...(extra?.comment ? { comment: extra.comment } : {}),
-        ...(extra?.cause ? { cause: extra.cause } : {}),
-    });
-    s.answered++;
-    if (ok) s.correct++;
+    const hit = s.results.find((r) => r.qid === qid);
+    if (hit) {
+        if (hit.ok !== ok) s.correct += ok ? 1 : -1;
+        hit.submitted = submitted;
+        hit.ok = ok;
+        if (sec > 0) hit.sec = sec;
+        // 三态类字段可选：本次没带的（如客观题重复提交）清空旧值，
+        // 防上一轮的 verdict/comment 残留到新结果上（口径「以最后一次为准」）
+        setOrClear(hit, "verdict", extra?.verdict);
+        setOrClear(hit, "comment", extra?.comment);
+        setOrClear(hit, "cause", extra?.cause);
+    } else {
+        s.results.push({
+            qid,
+            submitted,
+            ok,
+            ...(sec > 0 ? { sec } : {}),
+            ...(extra?.verdict ? { verdict: extra.verdict } : {}),
+            ...(extra?.comment ? { comment: extra.comment } : {}),
+            ...(extra?.cause ? { cause: extra.cause } : {}),
+        });
+        s.answered++;
+        if (ok) s.correct++;
+    }
     s.elapsedSec = Math.max(s.elapsedSec, elapsedSec);
+}
+
+/** 可选字段覆写（空值删键而非留空串，形态与追加路径逐字一致）。 */
+function setOrClear<K extends "verdict" | "comment" | "cause">(
+    r: WenguSessionResult,
+    key: K,
+    value: WenguSessionResult[K]
+): void {
+    if (value) r[key] = value;
+    else delete r[key];
 }

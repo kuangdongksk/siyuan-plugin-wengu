@@ -290,6 +290,15 @@
   font-size: 12px;
 }
 
+/* after 模式「交卷并查看答案」旁的提示：说清打卷时机，否则用户不知
+   什么时候能看到答案（Issue #12 B3） */
+.wengu-finish-hint {
+  flex: none;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
 /* ── 转换管理面板（ConvertPanel）：进行中进度 + 未完成进度记录 ── */
 .wengu-convert-panel {
   min-width: 420px;
