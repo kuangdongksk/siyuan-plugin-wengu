@@ -196,8 +196,10 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         // （after 模式改答案）走 recordVerifyResult——只覆写 lastAnswer/right
         // 不动 attempts（Issue #12 B2「重复提交记账不重复」）
         if (!qid.includes("#")) {
-            if (former) void recordVerifyResult(this.bank!, qid, submitted, ok);
-            else void this.bank?.recordAnswer(qid, submitted, ok);
+            const bank = this.bank; // bank 可选注入：与其余镜像调用同走守卫
+            if (former) {
+                if (bank) void recordVerifyResult(bank, qid, submitted, ok);
+            } else void bank?.recordAnswer(qid, submitted, ok);
         }
         notifyQuizAnswer(this, qid, submitted, ok, sec); // 看板娘事件（含错题讲解上下文）
     };

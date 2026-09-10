@@ -45,6 +45,23 @@
     endRoundAfterHint 九键。新增单测：upsert 记账口径、after 恢复态解锁与
     揭示态判据、`recordVerifyResult` 幂等。
 
+    **复审修正两处 P1**（本地审查，20260910）：
+    - **恢复揭示判据改「是否封卷」**：after 模式恢复揭示原按「答满」
+      （`allAnswered`）判，B3 改「答满不自动收卷」后「答满但未收卷」成了可
+      持久化状态——重开页签/「继续上次」会把全卷恢复成已揭示+锁定（泄题 +
+      编辑窗口关死）。改为 `!!session.endedAt`（`restoreContextFor`），
+      存量兼容天然成立（旧 after 轮答满必已自动收卷）；`allAnswered` 随之
+      无消费方，一并删除。
+    - **steps / slots 完成路径补置 `ui.revealed`**：B4 把显隐改挂
+      `.wengu-revealed` 后，steps 收口（`StepsFlow.finishCard`）与 slots
+      整卡收口（`SlotFlow.finishSlots`）都从不置 revealed，做完多步/逐空题
+      解析区永久 `display:none`（纯回归）。两条完成路径与
+      `initSteps`/`initSlots` 的「完整作答」恢复分支一并补置；部分作答
+      恢复分支维持隐藏（与 dev 一致）。
+    - 顺手：`QuizView.recordAnswer` 重复提交分支的 `recordVerifyResult`
+      改用本地 `bank` 守卫（bank 为可选注入，原 `this.bank!` 有 undefined
+      崩风险），与其余镜像调用口径对齐。
+
 - **导入知识文档后自动补跑一次 AI 索引**（20260910，bank 域，Issue #2）：手动导入
   （登记）链尾新增一步——零 AI 文本关联与面板 reload 跑完、`yieldToBrowser` 让出
   首帧之后，对**本次新登记根**（与导入前登记清单 diff 得出）子树里尚无索引的文档

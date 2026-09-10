@@ -191,6 +191,10 @@ async function finishCard(
     const ui = ctl.ui;
     ui.graded = true;
     ui.locked = true;
+    // 揭示闸（Issue #12 B4 复审修正）：steps 自判分即时揭示——答案/解析
+    // 区（part=answer/solution 与 .wengu-static-sol）自 B4 起只认
+    // .wengu-revealed，这里必须置位，否则做完多步题的解析区永久隐藏。
+    ui.revealed = true;
     ui.stepOks = oks.map((ok) => (ok ? "1" : "0")).join("");
     ui.stepPersist = persistStepState;
     for (const su of ui.steps ?? []) su.locked = true;
