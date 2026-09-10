@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { normalizeKnowledge } from "./KnowledgeNorm";
-import { canonicalOf, KnowSynonymsStore, loadSynonyms, peekSynonyms, synKey, synonymNormalize } from "./KnowSynonyms";
+import {
+    canonicalOf,
+    initKnowSynonyms,
+    KnowSynonymsStore,
+    loadSynonyms,
+    peekSynonyms,
+    synKey,
+    synonymNormalize,
+} from "./KnowSynonyms";
 
 /** 内核 IO 替身：load 回放 saved，save 捕获快照。 */
 function makeIo(): { load: () => Promise<unknown>; save: (v: unknown) => Promise<unknown> } {
@@ -148,8 +156,41 @@ describe("KnowSynonymsStore 存取", () => {
         expect(await s2.size()).toBe(1);
     });
 
+    it("warm 预热：装载完成后同步 peek 不再为空（冷启动 P1 回归锁）", async () => {
+        const io = makeIo();
+        const s1 = new KnowSynonymsStore(io.load, io.save);
+        await s1.put("洛必达", "洛必达法则");
+        await s1.flush();
+        // 重载：新实例盘上有表、尚未装载
+        const s2 = new KnowSynonymsStore(io.load, io.save);
+        expect(s2.peek().entries).toEqual({}); // 装载前空表
+        await s2.warm();
+        expect(canonicalOf(s2.peek(), "洛必达")).toBe("洛必达法则"); // 预热后同步视角即有
+    });
+
+    it("warm 读失败不上抛（onload 路径不冒未捕获拒绝）", async () => {
+        const s = new KnowSynonymsStore(
+            () => Promise.reject(new Error("io")),
+            () => Promise.resolve()
+        );
+        await expect(s.warm()).resolves.toBeUndefined();
+        expect(s.peek().entries).toEqual({});
+    });
+
     it("loadSynonyms 未接线 → 空表（零副作用）", async () => {
         await expect(loadSynonyms()).resolves.toEqual({ version: 1, entries: {} });
+    });
+
+    it("initKnowSynonyms 接线即预热：onload 后不等消费点，同步 peek 已见存量表", async () => {
+        const io = makeIo();
+        const seed = new KnowSynonymsStore(io.load, io.save);
+        await seed.put("洛必达", "洛必达法则");
+        await seed.flush();
+        initKnowSynonyms(io);
+        expect(peekSynonyms().entries).toEqual({}); // fire-and-forget，同步立即读仍空
+        await new Promise((r) => setTimeout(r, 0)); // 让出队列一轮，预热落地
+        expect(canonicalOf(peekSynonyms(), "洛必达")).toBe("洛必达法则");
+        expect(canonicalOf(await loadSynonyms(), "洛必达")).toBe("洛必达法则");
     });
 
     it("list 按写入时间倒序（UI 展示口径）", async () => {
