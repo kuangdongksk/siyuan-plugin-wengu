@@ -39,9 +39,7 @@
                     {#if snap.running}
                         <div class="wengu-status wengu-status-muted wengu-convert-bar">
                             <span class="wengu-convert-bar-text"
-                                >{snap.progress
-                                    ? progressStatusText(t, snap.parallel, snap.progress)
-                                    : t("converting")}</span
+                                >{snap.progress ? progressStatusText(t, snap.progress) : t("converting")}</span
                             >
                             <Button variant="outline" onclick={() => ctl.stopRun()}>{t("convertStop")}</Button>
                         </div>

@@ -15,7 +15,8 @@
      * 常显 AI 模型/源文档，其余收进「更多选项」details 折叠区（类名与
      * 旧字符串模板逐字一致）。表单状态全在 ui（旧实现散在 DOM 控件、
      * start 时逐个 querySelector 收集）。产物直写题库（20260903 起不落
-     * 文档，无「生成位置」选项）。
+     * 文档，无「生成位置」选项）；并发度 20260910 回归——分片并行
+     * （片间并行、片内仍由 AI 自推进），1 = 串行。
      */
     let { ctl, deps, onClose }: { ctl: ConvertDialogCtl; deps: ConvertDialogDeps; onClose: () => void } = $props();
 

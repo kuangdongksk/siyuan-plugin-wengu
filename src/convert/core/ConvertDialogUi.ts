@@ -13,6 +13,8 @@ export interface ConvertDialogUi {
     modelId: string;
     fillToChoice: boolean;
     bigToSteps: boolean;
+    /** 并发批次数（兼容保留，20260910 起弹窗不再露出该选择）：逐段自推进
+     *  必须串行，本值不再影响执行。 */
     parallel: number;
     knowRoots: string;
     /* 回显（getDocInfo 解析的标题路径；空=占位「选择…」） */

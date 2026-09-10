@@ -72,4 +72,25 @@ describe("buildPrompt", () => {
         expect(p).toContain("填空转选择");
         expect(p).toContain("多步引导题（type=steps）");
     });
+    it("逐段模式首批：要求判定三行 + 题型 + @@TO 定位约定", () => {
+        const p = buildPrompt("片段", false, false, "", "", undefined, { batch: 1, first: true });
+        expect(p).toContain("TYPES:");
+        expect(p).toContain("@@TO:");
+        expect(p).toContain("第 1 批");
+        expect(p).toContain("本批原文片段");
+        expect(p).not.toContain("文档内容：");
+    });
+    it("逐段模式后续批次：免判定行，仍带定位约定", () => {
+        const p = buildPrompt("片段", false, false, "", "", [QT.Single], { batch: 3, first: false });
+        expect(p).not.toContain("TYPES:");
+        expect(p).toContain("@@TO:");
+        expect(p).toContain("第 3 批");
+        expect(p).toContain("不需要输出 CAN_CONVERT");
+    });
+    it("缺省 step 不带逐段约定（增量重转换 prompt 保持旧语义）", () => {
+        const p = buildPrompt("s");
+        expect(p).not.toContain("@@TO:");
+        expect(p).not.toContain("本批原文片段");
+        expect(p).toContain("文档内容：");
+    });
 });

@@ -24,6 +24,8 @@ export interface ConvertRunCfg {
     modelId: string;
     fillToChoice: boolean;
     bigToSteps: boolean;
+    /** 并发片流水线数（分片并行：片间并行、片内仍由 AI 自推进；1=串行）。
+     *  上限 4，由转换弹窗/设置面板给值。 */
     parallel: number;
     knowRoots: string[];
     resume?: { offset: number; setId?: string };
@@ -119,34 +121,17 @@ export function convertRunSnapshot(): ConvertRunSnapshot | undefined {
     };
 }
 
-/** 进度行文案（页内转换条与转换管理面板共用；返回 HTML 安全串）。 */
-export function progressStatusText(t: (k: string) => string, parallel: number, p: ConvertProgress): string {
+/** 进度行文案（页内转换条与转换管理面板共用；返回 HTML 安全串）。逐段
+ *  自推进的总批数事前未知，进度按「已读原文百分比 + 累计题数」呈现。 */
+export function progressStatusText(t: (k: string) => string, p: ConvertProgress): string {
     if (p.phase === "detect") return esc(t("convertDetecting"));
     if (p.phase === "writing") return esc(t("settling"));
-    const totalHint =
-        p.detected !== undefined && p.detected > 0
-            ? ` · ${esc(fmt(t("convertDetected"), { n: String(p.detected) }))}${p.detectedTruncated ? "+" : ""}`
-            : p.total > 1
-              ? ` · ${esc(t("convertTotalUnknown"))}`
-              : "";
     const lastDelta = p.lastBatch > 0 ? ` · ${esc(fmt(t("convertLastBatch"), { k: String(p.lastBatch) }))}` : "";
     const main =
-        parallel > 1
-            ? esc(
-                  fmt(t("convertBatchParallel"), {
-                      b: String(p.batch),
-                      n: String(p.total),
-                      c: String(p.count),
-                  })
-              )
-            : esc(
-                  fmt(t("convertBatchProgress"), {
-                      i: String(p.batch + 1),
-                      n: String(p.total),
-                      c: String(p.count),
-                  })
-              );
-    return `${main}${lastDelta}${totalHint}`;
+        p.readPct !== undefined
+            ? esc(fmt(t("convertStepProgress"), { p: String(p.readPct), c: String(p.count) }))
+            : esc(fmt(t("convertBatchProgress"), { i: String(p.batch + 1), n: String(p.total), c: String(p.count) }));
+    return `${main}${lastDelta}`;
 }
 
 /** 启动一次转换（已有在途运行/待抉择则拒绝，返回 false）。 */
@@ -190,7 +175,7 @@ export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boole
                     }
                     // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
                     if (p.setId) ev.onBatch(p);
-                    ev.onStatus(progressStatusText(t, cfg.parallel, p), "muted");
+                    ev.onStatus(progressStatusText(t, p), "muted");
                     notify();
                 },
             });

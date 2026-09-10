@@ -53,17 +53,52 @@ function specTypesOf(
     return [...new Set([...types, ...extra])];
 }
 
+/** 逐段自推进的批次上下文（20260910 起整卷转换不再预切块，批边界改由
+ *  AI 按题目边界决定）：step 缺省=旧的「一次一块」批语义，增量重转换沿用。 */
+export interface StepContext {
+    /** 本批序号（从 1 起）。 */
+    batch: number;
+    /** 是否首批——首批额外输出 CAN_CONVERT/REASON/TYPES 判定行（判定步骤
+     *  已合并进首批生成，不再单独跑一轮检测）。 */
+    first: boolean;
+}
+
+/** 逐段批的阅读约定 + `@@TO` 定位行协议（代码按该片段定位推进游标；
+ *  末尾未完题留给下一批，故不会把一道题拦腰切断）。 */
+function stepRulesOf(step: StepContext): string {
+    return `\n\n本批的阅读方式（**必须遵守**）：你正在分段处理一份很长的文档，这是第 ${step.batch} 批，下面给你的**只是全文的一个片段**，不是全文：
+- 片段开头可能承接上一批的未完内容，直接接着处理即可；
+- 片段末尾可能有一道**没写完**的题（题干没结束、选项不全、解答没写完）——**不要**转这道题，把它整道留给下一批；
+- 一道题的题干与其答案/解析**必须在同一批里处理完**，不许把题干与解答拆到两批。
+本批处理完后，最后必须另起一行输出定位行（这一行不属于任何题目）：
+@@TO: <原文逐字片段>
+它表示「本批已处理到该片段所在的那一行为止」。片段取**本批处理完的最后一道题的最后一行**里的连续 10~20 个字，必须与原文**完全一致**（不得改写、省略、补全公式、翻译），不要加引号或任何说明。若本片段里的内容已全部处理完（末尾那道题也是完整的），输出 @@TO: END`;
+}
+
+/** 判定行措辞（逐段首批报三行、后续批次免报；旧模式两行与改造前一致）。 */
+function verdictOf(step?: StepContext): string {
+    const verdict = `CAN_CONVERT: yes 或 no
+REASON: 一句话说明（不能转换时说明原因，能转换时概括题目覆盖范围）`;
+    if (!step) return verdict;
+    if (!step.first) return "（本批不需要输出 CAN_CONVERT / REASON / TYPES 判定行，直接输出题目）";
+    return `${verdict}
+TYPES: 本片段的题型，逗号分隔（从 single/multiple/judge/fill/brief/steps/cloze/match/essay/trans 里挑，写中文也可以，如 单选/多选/判断/填空/简答/多步/完形/新题型/作文/翻译）；本片段没有现成题目时留空`;
+}
+
 /** 出题 prompt（20260902 起输出走行协议，kramdown 由代码渲染——格式
  *  规则只剩内容语义，超级块/IAL 语法全部消失）。knowRule/knowList 是
  *  知识点反链的追加插槽（KnowledgeLink 路由出小节时才有值）；
- *  types=前置检测/题集先验给出的本卷题型（undefined=全量兜底）。 */
+ *  types=题型先验（首批检测顺带报出/题集既有记录并集；undefined=全量兜底）；
+ *  step=逐段自推进的批次上下文（undefined 走旧的一次一块批语义，增量
+ *  重转换沿用，此时 prompt 与改造前逐字节一致）。 */
 export function buildPrompt(
     source: string,
     fillToChoice = false,
     bigToSteps = false,
     knowRuleBlock = "",
     knowList = "",
-    types?: QuestionType[]
+    types?: QuestionType[],
+    step?: StepContext
 ): string {
     const specTypes = specTypesOf(types, fillToChoice, bigToSteps);
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
@@ -78,13 +113,17 @@ export function buildPrompt(
 ${STEPS_EXAMPLE}`
         : "";
     const englishRules = materialRulesFor(specTypes);
-    return `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目。
+    const head = step
+        ? `你是思源笔记的出题助手。你把一份长文档**分段**转换成刷题题目——下面给你的只是全文的一个片段，不是全文。
+${step.first ? "第一批先判断这段内容是否适合出题（有可考查的知识点、内容足够具体）并报出题型，先输出三行判定：" : "直接输出题目。"}`
+        : `你是思源笔记的出题助手。把下面的文档内容转换成刷题题目。
 
-判断该文档内容是否适合出题（有可考查的知识点、内容足够具体），先输出两行判定：
-CAN_CONVERT: yes 或 no
-REASON: 一句话说明（不能转换时说明原因，能转换时概括题目覆盖范围）
+判断该文档内容是否适合出题（有可考查的知识点、内容足够具体），先输出两行判定：`;
+    const lead = step && !step.first ? "每道题" : "可出题时，随后每道题";
+    return `${head}
+${verdictOf(step)}
 
-可出题时，随后每道题按以下${protocolSpec(specTypes)}
+${lead}按以下${protocolSpec(specTypes)}
 硬性规则：
 ${typeRulesFor(specTypes)}
 2. 公式行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。
@@ -97,9 +136,9 @@ ${typeRulesFor(specTypes)}
 - 讲义正文里夹带的**例题**（「例 1」「例 2」「【例】」「例题」等）及其示范解答——例题是讲解演示，不是练习，整段跳过。**例外：习题册的答案/解答不算例题**——「答案」「题解」类标题下、只有【解】【证】【分析】等求解过程的段落是练习内容而非讲解演示：把其中每道解答还原成**一道**完整题目输出（一解答只对应一题，求解过程写进解析），同样遵守第 4 条一题对一题；
 - 章节开头的**引言/导读/学习目标**（「本章将介绍…」「学习目标」「导读」）——开场白没有可考知识点；
 - 章末的**小结/重点回顾/知识框架/思维导图**（「本章小结」「重点回顾」「知识框架」）——收尾总结不出题；
-判断依据是内容性质而非标题字面：讲解正文里附带完整解答的演示题即例题，习题册答案区的解答不是；只对知识做归纳梳理、无新考点的首尾段落即引言或小结。跳过这些内容后，按剩余正文的知识点正常出题。${fillRule}${stepsRule}${knowRuleBlock}
+判断依据是内容性质而非标题字面：讲解正文里附带完整解答的演示题即例题，习题册答案区的解答不是；只对知识做归纳梳理、无新考点的首尾段落即引言或小结。跳过这些内容后，按剩余正文的知识点正常出题。${fillRule}${stepsRule}${knowRuleBlock}${step ? stepRulesOf(step) : ""}
 
-文档内容：
+${step ? "本批原文片段" : "文档内容"}：
 ${source}${knowList}`;
 }
 

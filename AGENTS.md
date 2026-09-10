@@ -120,7 +120,7 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
 - **逐段自推进**（20260910 起整卷转换**不再预切块**）：从「`structuralChunks`
-  按标题链切块 → 逐块发 AI」改为**串行游标循环**——`source/CursorWindow.ts`
+  按标题链切块 → 逐块发 AI」改为**自推进游标循环**——`source/CursorWindow.ts`
   取「游标起约 6k 字符」的窗口（`stepWindow`；窗口只是给 AI 看多少，**不是
   批边界**），AI 出题并在回复末尾输出定位行 `@@TO: <原文逐字片段>`（或 END），
   `advanceCursor` 把片段还原成偏移推进游标（去空白去标点归一化匹配 + 行尾
@@ -128,15 +128,42 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   定位失败计数）。**批边界因此落在题目边界上**：片段末尾没写完的题由 AI
   整道留给下一批（prompt 约定见 `StepContext`），题干与解答同批，不再有旧
   切块把题拦腰切断、答案块与题干块分离的情形；`@@TO` 行由 `stripToDirective`
-  解析前剥除。代价：批与批必须**串行**（下一批起点依赖本批回报）——并发池
-  与并发度设置整体退役（弹窗选择行、设置面板项已移除，字段兼容保留）。
+  解析前剥除。
+- **分片并行**（20260910，与上一项配套）：**「任务并行单元」与「批边界」是
+  两件事**——批边界仍由 AI 的 `@@TO` 定（片内不变），并行度由外层分片提供：
+    - `source/ShardPlan.ts` 的 `planShards(md, target, from)` 取**切点**把源卷
+      切片：候选**按可靠性分级**（应对千奇百怪的源格式）——`heading`（`#` 至
+      `######`，及 HTML `<h1>` 至 `<h6>`）、`marker`（超级块 `{{{`、分割线 `---`、HTML 块级
+      标签）、`qnum`（`第N题`/`习题N`/`(N)`/`N.`/`【…】`）。选点用**代价函数**
+      `质量分 - 归一化距离`（`KIND_SCORE`：heading 1.5 / marker 1 / qnum 0.5，
+      以理想片长为单位），即「质量优先、距离差一个量级时让步」。片间连续覆盖
+      全文、互不重叠；`from` = 续跑起点（断点落在片中间也天然接续）。
+    - **弱边界不参与分片**（空行、任意行首）：切点若不在题目边界上，片尾那道题
+      会被硬切成两半——前片按「末尾没写完」约定跳过、后片只看到后半截，结果是
+      **漏题**且无兜底（硬切点由代码定，与 AI 的 `@@TO` 无关，事后无法校正）。
+      因此拿不到可靠切点就**退化为单片**（= 纯串行，零风险）。
+    - `refineShards` **超长片二次细分**：贪心是局部最优，某理想位置附近只有很远
+      的高级切点时会留下超长片（实测某卷 8 片里出现 2 倍长片，等于并行度白丢
+      一半）。对超过 1.35 倍理想片长的片在片内再补一刀，补不动就跳过。真机 45
+      篇 4 万~25 万字符文档实测：**45/45 拿到 8+ 片**，最大片偏差 31%、平均 12%
+      （无细分时 108%/21%）。
+    - `run/ConvertSegment.ts` 的 `runSegment(shard, deps)` 只跑片内循环：窗口
+      上限取片尾（`stepWindow(..., seg.end)`），产物经 `deps.submit` 交付，本身
+      **不落库、不报进度**；每片首批照旧带判定与 TYPES（各片题型取并集）。
+    - `run/ConvertBatch.ts` 编排：worker 池按 `parallel`（1~4，弹窗/设置面板给值，
+      1 = 改造前行为）并发跑片；**片序闸门**（`submit` 里 `await gate[i-1]`）保证
+      落库恒为按源顺序的**连续前缀**——SetWriter 的题单顺序与材料链
+      （`lastMaterialId`：小题引用文中紧邻其前的材料）都是顺序敏感的，乱序落库
+      会跨片错位。连续前缀也让**续跑断点仍是单游标**、终止「保留」语义不变。
+      目标片数 = 并发度 × 2（片略多于流水线数，消化片长不均）；任一片失败即
+      中止其余片，已落库部分仍是可续跑的连续前缀。
 - **判定合并进首批**（20260910）：独立前置检测（原先按 12k 分段并行问「能否
   出题 + 题数 + 题型」）整体退役——首批生成顺带输出 CAN_CONVERT/REASON/TYPES
   三行，题型先验喂后续批次的题型化 prompt；单窗口文档首批即判 no 直接拒绝，
   长文档首段可能只是封面/目录故不据此拒绝（零产物收口时才报该原因）。
   `draft/ConvertDetect.ts` 只剩 parseTypes / questionPreview 两个纯解析。
-- **进度按已读比例**：逐段批数事前未知，`ConvertProgress.readPct` 出「已读
-  原文 p% · 累计 c 题」；`progressStatusText` 去掉并发分支。
+- **进度按已读比例**：批数事前未知，`ConvertProgress.readPct` 出「已读原文
+  p% · 累计 c 题」（并行下 = 各片进度之和）。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进

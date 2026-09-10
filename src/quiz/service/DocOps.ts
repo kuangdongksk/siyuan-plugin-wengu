@@ -138,8 +138,13 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
     }
     const rec = v.convertAccess.convertProgressOf(srcId);
     const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
-    // 增量分支（二期）：带指纹的题集一律按哈希检测续做（优先于断点）
-    if (groups.length > 0) {
+    // 逐段自推进生成的题集（20260910 起，批键前缀 A:）：批边界由 AI 决定、
+    // 不可复现，增量三态分类失去确定性依据 → 不走增量，整卷重转
+    // （有续跑记录仍接着断点续写同一题集，无记录则清旧题集重转）
+    const byCursor = groups.some((g) => g.key.startsWith("A:"));
+    if (byCursor) notifyInfo({ key: "notifyReimportCursor" });
+    // 增量分支（二期）：带确定性结构块指纹的题集按哈希检测续做（优先于断点）
+    if (groups.length > 0 && !byCursor) {
         if (rec?.setId === setId) v.convertAccess.saveConvertProgress(srcId, undefined);
         await runIncrementalReimport(v, setId, srcId, groups);
         return;

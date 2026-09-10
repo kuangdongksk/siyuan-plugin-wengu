@@ -28,7 +28,8 @@ export interface WenguSettingsShape {
     /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块，
      *  跳过逐块选弹窗（docs/incremental-hash-plan.md §二）。 */
     convertKeepOld?: boolean;
-    /** 默认转换并发批数（1=串行；>1 走内置直连通道）。 */
+    /** 转换并发批数（**兼容保留、20260910 起无 UI 且不生效**）：逐段自推进
+     *  的批边界由 AI 决定，批与批必须串行——存量设置值不参与执行。 */
     convertParallel?: number;
     /** 看板娘学伴（伴学域 companion：开关/AI 台词与对话/多套学伴配置）。 */
     companionEnabled?: boolean;
@@ -247,13 +248,13 @@ export function openWenguSetting(opts: {
         opts.settings.defaultTiming = v === "countdown" || v === "perQuestion" || v === "none" ? v : "countUp";
         opts.settings.save?.();
     });
+    root.querySelector<HTMLSelectElement>("[data-set='defreveal']")?.addEventListener("change", (ev) => {
+        opts.settings.defaultReveal = (ev.target as HTMLSelectElement).value === "after" ? "after" : "instant";
+        opts.settings.save?.();
+    });
     root.querySelector<HTMLSelectElement>("[data-set='defparallel']")?.addEventListener("change", (ev) => {
         const n = Number((ev.target as HTMLSelectElement).value);
         opts.settings.convertParallel = n >= 2 && n <= 4 ? n : 1;
-        opts.settings.save?.();
-    });
-    root.querySelector<HTMLSelectElement>("[data-set='defreveal']")?.addEventListener("change", (ev) => {
-        opts.settings.defaultReveal = (ev.target as HTMLSelectElement).value === "after" ? "after" : "instant";
         opts.settings.save?.();
     });
     root.querySelector<HTMLInputElement>("[data-set='defminutes']")?.addEventListener("change", (ev) => {
