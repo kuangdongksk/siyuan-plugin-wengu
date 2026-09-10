@@ -65,7 +65,7 @@ Lute 源码调研证实 Vditor 三模式全由 Lute 驱动、公式渲染完整�
 - **kpRefs 全家**：`bank/data/{BankParse,BankRegen,BankReconcile,
 KnowRoots,KnowTrees,BankSets,LiveCols}.ts`——题→知识节点引用、
   对账、活专题 `col-kp-{块id}` 键。
-- **纯函数切块**：`convert/service/SrcChunk.ts structuralChunks`（标题
+- **纯函数切块**：`convert/service/source/SrcChunk.ts structuralChunks`（标题
   链边界+questionHash 同款指纹），输入是纯 markdown 文本，直吃 .md 成立。
 - **自包含渲染**：`ui/MdRender.ts`（markdown-it，思源同款占位形态：
   `div.p` 段落 / inline-math span / NodeMathBlock div）。

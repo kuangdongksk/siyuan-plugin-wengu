@@ -45,7 +45,7 @@ API**；且文件历史需在设置里开启才有数据。就算能拿到 diff�
 
 ### 第二期：结构切块 + 块级 src-hash + 增量重转换（✅ 2026-08-31 已落地）
 
-实现：切块/注入/分类纯函数在 `src/convert/service/SrcChunk.ts`
+实现：切块/注入/分类纯函数在 `src/convert/service/source/SrcChunk.ts`
 （单测 SrcChunk.test.ts 14 例），落盘执行在 `ConvertIncrement.ts`，
 入口接线 DocOps.runIncrementalReimport + `convert/ui/IncrementDialog`
 （逐块选弹窗）+ ConvertRun.startExclusiveConvertRun（独占运行槽）。

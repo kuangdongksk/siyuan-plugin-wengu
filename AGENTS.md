@@ -29,55 +29,55 @@
 > siyuan/ 惯例）。
 
 - `client.ts` 对外通道两条：
-  - **agentChatOnce**（一次性独立会话）：saveSession→chat→removeSession。
-    独立 sessionID 天然并发 + 可按次指定模型。可选 `track{kind,title,group?}`
-    把调用登记进 AI 会话面板；`group={id,title}` 把一次动作触发的多次调用
-    挂同组（id 由动作入口 `newAiGroupId` 生成；**AiTrack 接口定义在
-    data/AiSessions**，client 转发导出）。20260830 起 chatGPT 直答与共享
-    `""` 会话两条路已弃用——agentChat 收为模块私有，queue.ts/enqueueAi
-    整体退役。
-  - **agentChatContinued**（面板重试失败记录）：历史轮次以 user/assistant
-    条目回放播种新会话、重发末条 user 消息。
+    - **agentChatOnce**（一次性独立会话）：saveSession→chat→removeSession。
+      独立 sessionID 天然并发 + 可按次指定模型。可选 `track{kind,title,group?}`
+      把调用登记进 AI 会话面板；`group={id,title}` 把一次动作触发的多次调用
+      挂同组（id 由动作入口 `newAiGroupId` 生成；**AiTrack 接口定义在
+      data/AiSessions**，client 转发导出）。20260830 起 chatGPT 直答与共享
+      `""` 会话两条路已弃用——agentChat 收为模块私有，queue.ts/enqueueAi
+      整体退役。
+    - **agentChatContinued**（面板重试失败记录）：历史轮次以 user/assistant
+      条目回放播种新会话、重发末条 user 消息。
 - `models.ts`：模型清单与默认。`timeouts.ts`：AI_TIMEOUT 档位（调用点禁
   自造超时数字；超时统一按 SSE 空闲计）。`agentPanel.ts`：智能体面板
   DOM 自动化 + 「面板优先、页内降级」按钮帮手。
 - **AI 会话登记与管理工作区面板**（20260831）：
-  - 登记簿 `data/AiSessions.ts`：saveData("ai-sessions")，LRU 双上限全局
-    150/单类 40、600ms 去抖 + 串行链落盘，重载时 running 改判「已中断」；
-    记录可选 group/groupTitle 随组冗余落盘；index.ts onload
-    initAiSessions 接线。
-  - rail「AI 会话」工作区面板：components/SessionPanelApp.svelte 四件套，
-    挂载编排 `SessionPanel.ts`。
-  - **两栏式**（20260901 改版）：左栏=会话清单常驻（类别过滤/状态徽标/
-    两击删除/选中高亮）；点行右栏出完整轮次明细 + 失败记录重试钮。
-  - **自由追问已退役**（20260905）：闲聊会把业务记录混污染且每次全量回放
-    烧 token；重试取代之——error 记录重跑末次调用走新会话，`retrying` 转回
-    running 后复用 succeed/fail 收口原地翻案，appendTurns/ask/composer
-    随之删除。
-  - **树状分组**（20260902 引入，20260903 改版=**种类优先两级树**）：顶层
-    一类一棵树（转换/检测/判题…）；类内按主题=组标题/标题第一个「 · 」后的
-    部分（转换是文档名——高等数学、线代；跨次运行同文档合并）出第二级，调用
-    行挂底层；种类或主题只有 1 条时不设空层直接上提。
-  - 树渲染走共享组件 `ui/TreeList.svelte`（与知识面板/侧栏树同源）；树化纯
-    函数 `core/SessionTree.ts`——类别过滤=记录透镜、状态聚合 running>error>done；
-    行内徽标/条数走 main/trailing 片段，展开集合 ui.openGroups=SvelteSet。
-  - 文档分支行两击删该文档全部记录（removeIds 按树算出的成员 id 精确删），
-    种类级不配删除。登记数据仍按动作组落（track.group；20260902 组机制保留在
-    数据层，渲染不再按组）。
-  - 判题/转换/检测/标签/路由/出题/单词复盘等带 track 的调用自动登记，面板
-    回看完整轮次与产出，失败可重试。
+    - 登记簿 `data/AiSessions.ts`：saveData("ai-sessions")，LRU 双上限全局
+      150/单类 40、600ms 去抖 + 串行链落盘，重载时 running 改判「已中断」；
+      记录可选 group/groupTitle 随组冗余落盘；index.ts onload
+      initAiSessions 接线。
+    - rail「AI 会话」工作区面板：components/SessionPanelApp.svelte 四件套，
+      挂载编排 `SessionPanel.ts`。
+    - **两栏式**（20260901 改版）：左栏=会话清单常驻（类别过滤/状态徽标/
+      两击删除/选中高亮）；点行右栏出完整轮次明细 + 失败记录重试钮。
+    - **自由追问已退役**（20260905）：闲聊会把业务记录混污染且每次全量回放
+      烧 token；重试取代之——error 记录重跑末次调用走新会话，`retrying` 转回
+      running 后复用 succeed/fail 收口原地翻案，appendTurns/ask/composer
+      随之删除。
+    - **树状分组**（20260902 引入，20260903 改版=**种类优先两级树**）：顶层
+      一类一棵树（转换/检测/判题…）；类内按主题=组标题/标题第一个「 · 」后的
+      部分（转换是文档名——高等数学、线代；跨次运行同文档合并）出第二级，调用
+      行挂底层；种类或主题只有 1 条时不设空层直接上提。
+    - 树渲染走共享组件 `ui/TreeList.svelte`（与知识面板/侧栏树同源）；树化纯
+      函数 `core/SessionTree.ts`——类别过滤=记录透镜、状态聚合 running>error>done；
+      行内徽标/条数走 main/trailing 片段，展开集合 ui.openGroups=SvelteSet。
+    - 文档分支行两击删该文档全部记录（removeIds 按树算出的成员 id 精确删），
+      种类级不配删除。登记数据仍按动作组落（track.group；20260902 组机制保留在
+      数据层，渲染不再按组）。
+    - 判题/转换/检测/标签/路由/出题/单词复盘等带 track 的调用自动登记，面板
+      回看完整轮次与产出，失败可重试。
 - **prompts/ 子域**（20260910 起全仓 prompt 集中收口，八文件按场景家族分域）：
-  - common：逐字共用片段。protocol：行协议 + **题型注册表**（`protocolSpec(types?)`
-    / `typeRulesFor` / `materialRulesFor`；types=undefined 走全量兜底与改造前
-    逐字节一致）。convert：buildPrompt 题型化 + 检测窗口 + 大纲归纳。gen：
-    概念/变式/重生成/自检/自由标签，单题场景题型已知按题裁剪。route：章小节×
-    单批批量四联 + knowRule 插槽，路由上限常量随 prompt 落此。judge：判分族+
-    轮报分析 + byBaseQid。misc / companion。
-  - **生题题型化**（20260910）：前置检测 TYPES 行顺带报题型（parseTypes 中英
-    别名容错、分段并集），buildPrompt 只拼在场题型规则（数学卷不再带英语四类
-    约定）；续跑/增量跳过检测时用题集既有记录题型并集（BankSets.setTypeUnion
-    零 AI）；开关产出题型（填空转选择→single、大题拆多步→steps）不受检测影响
-    恒在。
+    - common：逐字共用片段。protocol：行协议 + **题型注册表**（`protocolSpec(types?)`
+      / `typeRulesFor` / `materialRulesFor`；types=undefined 走全量兜底与改造前
+      逐字节一致）。convert：buildPrompt 题型化 + 检测窗口 + 大纲归纳。gen：
+      概念/变式/重生成/自检/自由标签，单题场景题型已知按题裁剪。route：章小节×
+      单批批量四联 + knowRule 插槽，路由上限常量随 prompt 落此。judge：判分族+
+      轮报分析 + byBaseQid。misc / companion。
+    - **生题题型化**（20260910）：前置检测 TYPES 行顺带报题型（parseTypes 中英
+      别名容错、分段并集），buildPrompt 只拼在场题型规则（数学卷不再带英语四类
+      约定）；续跑/增量跳过检测时用题集既有记录题型并集（BankSets.setTypeUnion
+      零 AI）；开关产出题型（填空转选择→single、大题拆多步→steps）不受检测影响
+      恒在。
 
 ### src/quiz/ —— 做题主流程
 
@@ -85,36 +85,36 @@
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
-- **20260903 存储收口：转换零落盘，产物直写题库**：`service/SetWriter.ts`——
+- **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
   bank.materials、小题 group 写时直配材料 id；每批 flush 崩溃安全，终止「保留」
   零动作/「丢弃」按写入 qid 清单回收；渐进呈现改内存视图直出，无内核索引轮询；
   题集=BankSet 库内实体见 bank 域。
 - **生成输出行协议**（20260902）：AI 不手写 kramdown，改输出 `@@Q/@@P/@@END`
-  标记行定界文本。`service/QuestionDraft.ts` 解析成 DraftUnit、`renderUnit`
+  标记行定界文本。`service/draft/QuestionDraft.ts` 解析成 DraftUnit、`renderUnit`
   **确定性渲染**成契约 kramdown 入库——选项字母按序自动编、正确项写最前由
-  `OptionShuffle.ts` draft 层洗牌消剧透。选行协议非 JSON/YAML 因数学 LaTeX
+  `draft/OptionShuffle.ts` 洗牌消剧透。选行协议非 JSON/YAML 因数学 LaTeX
   零转义 + 无缩进 + 坏一题不坏一批。四生成入口共用：转换/增量/题库出题
   （GenQuestion）/单题重生成（RegenDialog）。`extractQuestions` 修补层已退役。
 - **纯标题块跳过**：`isHeadingOnlyChunk`（章标题直挂子标题的零内容段不发 AI）。
 - **例题筛选带例外**（20260903 真机踩坑）：题解书「答案」节独立成块被整批误跳
   ——prompt 加例外：习题册答案/解答区是练习内容照转，题干由解答还原。
 - **增量重转换**（20260831 增量哈希二期）：
-  - `SrcChunk.ts` 结构切块：标题链键 `H:章/节` + questionHash 指纹，替代空行
-    偏移切块；20260903 起答案类子节「习题N/答案」并入父题块——一题一答硬口径：
-    题干与解答同块进 AI 只出一题，真实机 369 块并成 189 块，存量指纹经三态弹窗
-    走变更/消失非静默漂移。
-  - **两阶段三态分类**（全局指纹匹配→键配对：相同/新增/变更/消失）。生成时
-    src-key/src-hash 随 BankRecord 字段落库（20260903 起从容器 IAL 迁入记录，
-    键格式/算法冻结不变）。重新导入入口 DocOps.runIncrementalReimport 按
-    `set.srcId` 门控、对带指纹题集走增量（20260903 起优先于续跑记录，陈旧 rec
-    清掉）。
-  - **检测必过目**：IncrementDialog 先出摘要（源共/已入库/待处理块数；纯标题块
-    入口前置滤除）再逐块选。ConvertIncrement 纯题库执行（删旧/标 stale/串行补生成
-    追加到既有题集，中止自愈无需续跑记录；零产物块无指纹每次重导重算新增，终态报
-    empty 计数）。设置 convertKeepOld=省费模式（20260903 起=只出摘要不出逐块
-    清单，不再静默直跑）。方案与分期见 docs/incremental-hash-plan.md。
+    - `source/SrcChunk.ts` 结构切块：标题链键 `H:章/节` + questionHash 指纹，替代空行
+      偏移切块；20260903 起答案类子节「习题N/答案」并入父题块——一题一答硬口径：
+      题干与解答同块进 AI 只出一题，真实机 369 块并成 189 块，存量指纹经三态弹窗
+      走变更/消失非静默漂移。
+    - **两阶段三态分类**（全局指纹匹配→键配对：相同/新增/变更/消失）。生成时
+      src-key/src-hash 随 BankRecord 字段落库（20260903 起从容器 IAL 迁入记录，
+      键格式/算法冻结不变）。重新导入入口 DocOps.runIncrementalReimport 按
+      `set.srcId` 门控、对带指纹题集走增量（20260903 起优先于续跑记录，陈旧 rec
+      清掉）。
+    - **检测必过目**：IncrementDialog 先出摘要（源共/已入库/待处理块数；纯标题块
+      入口前置滤除）再逐块选。ConvertIncrement 纯题库执行（删旧/标 stale/串行补生成
+      追加到既有题集，中止自愈无需续跑记录；零产物块无指纹每次重导重算新增，终态报
+      empty 计数）。设置 convertKeepOld=省费模式（20260903 起=只出摘要不出逐块
+      清单，不再静默直跑）。方案与分期见 docs/incremental-hash-plan.md。
 
 ### src/word/ —— 单词域（`index.ts`=mountWordView 挂载编排，控制器在 `WordView.ts`）
 
@@ -135,31 +135,31 @@
 - 专题标题含「/」即目录专题（如 高数/极限/洛必达）：normalizeCollectionPath
   规范化、CollectionPanel buildColTree 树形展示。
 - **知识文档（KnowledgePanel）**：
-  - 手动导入**递归展开**：KnowRoots 登记 + KnowledgeLink.expandKnowDocs 根+全部
-    后代逐行。小节按 h1~~h6 **层级树**展示——20260831 起 headingsByRoot 取 subtype
-    建 buildSectionTree 真树，路由 path=祖先标题链，不再「文档路径/本标题」两段假
-    层级。
-  - **AI 索引（原「建知识树」，20260908 改名）不落文档**（20260903，data/KnowTrees）：
-    手动导入章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点 id 铸内核
-    块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，kpRefs 经 kramdown
-    ((id "标题")) 往返零兼容成本）。重新索引**同路径复用旧 id**，存量引用/活视图/
-    薄弱画像不悬空。新旧两侧先过 stripChapterEcho 剔头部章节名回声（AI 常把章节名
-    写成首个 h1 包全树——「1-行列式/行列式/…」双层嵌套；展示侧 treeHeads 同剔，
-    存量带回声的树读时免迁移）。
-  - 面板按钮恒名「索引」、全部手动导入文档行常显（20260908 起不再限「结构单薄」——
-    旧门槛小节≥6 且顶层≥3 的章不显按钮，2-矩阵/3-向量这类多节章被拒之门外）；已有
-    索引再点=两击确认（3s 复位）后重跑。
-  - **文件夹式文档**（思源文档当目录用，自身空、子文档有内容）点=**批量补齐**子树
-    缺索引的文档（expandKnowDocs 展开、串行逐篇、空文档跳过、部分失败不打断、确认
-    文案带篇数；已索引的不动，重索单篇走行内）。
-  - expandKnowDocs/buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
-    词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点引用归到源文档
-    名下、对账不误判悬空）；「查看原文」与面板小节点击对树节点**降级跳源章节文档**；
-    staleness=srcHash 比对出「源已变更」徽标（不走 KnowHash）；存量《·知识树》
-    文档照旧走文档路径（双形态在并流点兼容）。
-  - 行入口「匹配」（MatchDialog）：选已入库习题文档→按批两级 AI 路由（15 题/批）→
-    strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库；与「转习题」
-    （QuizView.openConvertPrefilled 预填源=知识点根=该文档）。
+    - 手动导入**递归展开**：KnowRoots 登记 + KnowledgeLink.expandKnowDocs 根+全部
+      后代逐行。小节按 h1~~h6 **层级树**展示——20260831 起 headingsByRoot 取 subtype
+      建 buildSectionTree 真树，路由 path=祖先标题链，不再「文档路径/本标题」两段假
+      层级。
+    - **AI 索引（原「建知识树」，20260908 改名）不落文档**（20260903，data/KnowTrees）：
+      手动导入章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点 id 铸内核
+      块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，kpRefs 经 kramdown
+      ((id "标题")) 往返零兼容成本）。重新索引**同路径复用旧 id**，存量引用/活视图/
+      薄弱画像不悬空。新旧两侧先过 stripChapterEcho 剔头部章节名回声（AI 常把章节名
+      写成首个 h1 包全树——「1-行列式/行列式/…」双层嵌套；展示侧 treeHeads 同剔，
+      存量带回声的树读时免迁移）。
+    - 面板按钮恒名「索引」、全部手动导入文档行常显（20260908 起不再限「结构单薄」——
+      旧门槛小节≥6 且顶层≥3 的章不显按钮，2-矩阵/3-向量这类多节章被拒之门外）；已有
+      索引再点=两击确认（3s 复位）后重跑。
+    - **文件夹式文档**（思源文档当目录用，自身空、子文档有内容）点=**批量补齐**子树
+      缺索引的文档（expandKnowDocs 展开、串行逐篇、空文档跳过、部分失败不打断、确认
+      文案带篇数；已索引的不动，重索单篇走行内）。
+    - expandKnowDocs/buildKnowledgeIndex/lexiconOfRoots 传 trees 即并流（面板/路由/
+      词表/打标自动含树节点）；kpRootMap 先并 internalRootMap（树节点引用归到源文档
+      名下、对账不误判悬空）；「查看原文」与面板小节点击对树节点**降级跳源章节文档**；
+      staleness=srcHash 比对出「源已变更」徽标（不走 KnowHash）；存量《·知识树》
+      文档照旧走文档路径（双形态在并流点兼容）。
+    - 行入口「匹配」（MatchDialog）：选已入库习题文档→按批两级 AI 路由（15 题/批）→
+      strip+inject 注入引用，KnowRoots.mergeRecordKpRefs 同步题库；与「转习题」
+      （QuizView.openConvertPrefilled 预填源=知识点根=该文档）。
 - **文本关联/批量关联**（KnowLinkText，20260831）：knowledge 标签 ↔ 小节标题归一
   精确相等即确定性挂引用（零 AI、歧义宁漏勿错）——「导入文档」登记后自动跑（导入即
   关联）；面板头部「批量关联」（BatchLinkDialog）= 全根 × 全库，文本优先 + 可选 AI
@@ -183,36 +183,36 @@
   parsedOf/invalidateParse 友元钩子。
 - **题库体检**（20260905 选项挤行单病扫描，20260909 升级全库体检：data/BankHealth +
   专题工作区「题库体检」入口）三层一次扫：
-  - ①题目结构（解析失败/题干/答案缺失/答案字母越界/判断题答案形态/完形无空/多步缺步答，
-    按原因归类；20260910 起弹窗内可勾选后经 RegenDialog.regenRecords 批量 AI 重生成
-    ——复用单题重出 runRegen 带 quiet，点击即关窗、后台跑、终态通知，不再逐卡手动点
-    「重新生成」；挤行形态下这些判分断点检查跳过——选项视图塌陷时「越界」是影子不是
-    独立病）。
-  - ②引用完整性（题集/专题悬空 qid 剪除、组链指向不存在材料解除、孤儿材料清除、缺题集
-    条目补建——确定性自动修复，孤儿删除与组链解除级联有序：先删孤儿再剥链）。
-  - ③索引一致性（record.hash 与内容不符重算——含旧版单段指纹格式、指纹索引重建、
-    kpRefs 并入题面引用、stats 补零、题型/知识点元数据以题面为准）。**②③勾选即修零
-    AI**；同指纹多条只报告不自动删（删谁涉及题集归属与作答统计保留）。
-  - 挤行修复 = BankRepair.planOptionRepair 单题修复计划（确定性拆行+按「首行=正确项」
-    重写答案+洗牌，经 replaceRecordKramdown 原题位回写，预览即所得；多选挤行正确集合
-    不可推导只报告走单题重生成）；生成侧同类预防在 OptionShuffle.unpackPackedSingle
-    （draft 层拆行，四生成入口共用）。
+    - ①题目结构（解析失败/题干/答案缺失/答案字母越界/判断题答案形态/完形无空/多步缺步答，
+      按原因归类；20260910 起弹窗内可勾选后经 RegenDialog.regenRecords 批量 AI 重生成
+      ——复用单题重出 runRegen 带 quiet，点击即关窗、后台跑、终态通知，不再逐卡手动点
+      「重新生成」；挤行形态下这些判分断点检查跳过——选项视图塌陷时「越界」是影子不是
+      独立病）。
+    - ②引用完整性（题集/专题悬空 qid 剪除、组链指向不存在材料解除、孤儿材料清除、缺题集
+      条目补建——确定性自动修复，孤儿删除与组链解除级联有序：先删孤儿再剥链）。
+    - ③索引一致性（record.hash 与内容不符重算——含旧版单段指纹格式、指纹索引重建、
+      kpRefs 并入题面引用、stats 补零、题型/知识点元数据以题面为准）。**②③勾选即修零
+      AI**；同指纹多条只报告不自动删（删谁涉及题集归属与作答统计保留）。
+    - 挤行修复 = BankRepair.planOptionRepair 单题修复计划（确定性拆行+按「首行=正确项」
+      重写答案+洗牌，经 replaceRecordKramdown 原题位回写，预览即所得；多选挤行正确集合
+      不可推导只报告走单题重生成）；生成侧同类预防在 OptionShuffle.unpackPackedSingle
+      （draft 层拆行，四生成入口共用）。
 - **题集实体 BankSets**（20260903 存储 pivot）：题目内容唯一真相=题库
   （BankRecord.kramdown 契约格式）。题集 `{id,title,hPath,srcId,qids[]}` 存 bank.sets
   （data/BankSets 函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集——
   零迁移机制，历史/docStats/影子专题键天然延续；setQuestions/setDocsView/setMaterials
   是装载侧全部供给，quiz 域文档 SQL/hydrate 管线 QuestionService/QuestionBatch/
   MaterialService 整体退役）。
-  - **聚合视图「全部习题」**（20260903）：保留 id `all`（BankSets.AGGREGATE_ID，
-    **不落 collections**、不进专题管理，仅流程层认它）——CollectionFlow.questions/
-    restore/activeTitle 与 colLoadContext 各自分流，题目=allSetQuestions、材料=
-    allSetMaterials（题集插入序 × 集内 qids 序，**聚合绝不重排**），轮次按 col:all
-    归档；侧栏 SidePanelApp「全部习题」组行（≥2 套才现）点行进聚合，树行仍逐套。
-  - 多集合刷的题号栏组间横线（hover 伸展+title 显套题标题，点击跳套首题——NumRailApp/
-    NumRail）与正文题集标题行（QuizShell 分片插 .wengu-set-head）由 buildSetGroups
-    连续段驱动（DrillUnits，分组源=记录 rootId，setQuestions/questionsOf 解析归位；
-    同集再现=新段）。顺修专题模式开刷面板缺失（QuizShell hasDoc 旧值在专题模式落空态，
-    20260826 引入的回归）。
+    - **聚合视图「全部习题」**（20260903）：保留 id `all`（BankSets.AGGREGATE_ID，
+      **不落 collections**、不进专题管理，仅流程层认它）——CollectionFlow.questions/
+      restore/activeTitle 与 colLoadContext 各自分流，题目=allSetQuestions、材料=
+      allSetMaterials（题集插入序 × 集内 qids 序，**聚合绝不重排**），轮次按 col:all
+      归档；侧栏 SidePanelApp「全部习题」组行（≥2 套才现）点行进聚合，树行仍逐套。
+    - 多集合刷的题号栏组间横线（hover 伸展+title 显套题标题，点击跳套首题——NumRailApp/
+      NumRail）与正文题集标题行（QuizShell 分片插 .wengu-set-head）由 buildSetGroups
+      连续段驱动（DrillUnits，分组源=记录 rootId，setQuestions/questionsOf 解析归位；
+      同集再现=新段）。顺修专题模式开刷面板缺失（QuizShell hasDoc 旧值在专题模式落空态，
+      20260826 引入的回归）。
 - **数据自托管**（20260831 三线收口，20260903 收完）：作答运行时统计
   （attempts/wrong-count/right/last-answer/step-_/slot-_/文档级 total-time）唯一真相在
   题库 stats/docStats（作答记账在 data/BankRecording）；镜像漂移检测 DriftWatch 与
@@ -265,7 +265,7 @@
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器
   `class="fn__flex b3-label config__item wengu-formrow"`——思源运行时主题注入的
   `.b3-label` 单类选择器同特异性后定义会覆盖我们的 `.wengu-formrow { display:flex;
-  width:100% }`。修复：复合选择器 `.b3-label.wengu-formrow { ... !important }`
+width:100% }`。修复：复合选择器 `.b3-label.wengu-formrow { ... !important }`
   把特异性抬到 0,2,0。工作区面板（`.wengu-ws-page`）没有 `.config__items` 父容器作
   兜底，所有 formRow 都需要这条复合规则。
 - 改行为必须同步 `docs/question-block-contract.md`。

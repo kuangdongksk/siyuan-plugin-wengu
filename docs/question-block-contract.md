@@ -597,7 +597,7 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
   AI 不再手写 kramdown——`QuestionDraft.renderUnit` 把协议**确定性渲染**
   成 §一 的超级块形态落盘（格式正确性由代码保证；选行协议而非 JSON/
   YAML 的原因：数学 LaTeX 零转义、无缩进语义、漏 END 自动收口坏一题
-  不坏一批，详见 src/convert/service/QuestionDraft.ts 文件头）。
+  不坏一批，详见 src/convert/service/draft/QuestionDraft.ts 文件头）。
   **纯标题块跳过**：结构切块里「标题行下无正文」的段（章标题直接挂
   子标题）不发 AI（isHeadingOnlyChunk），省白耗调用。
 
