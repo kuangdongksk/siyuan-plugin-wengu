@@ -26,11 +26,18 @@
 - **例外（仍属「调度」范畴，本地可直接改并推送 `dev`）**：`.cnb/`、`.cnb.yml`、
   本文件的协作约定段 —— 它们是 NPC 运行所依赖的**调度基础设施**。
   **业务代码（`src/`、`tests/`、`docs/` 正式文档）没有例外，一律走云端。**
-- **审查 NPC 的 PR 时不要只信它的自述**：拉分支到独立目录（如
-  `git worktree add /tmp/wengu-review <branch>`）跑一遍
-  `pnpm test`、`pnpm check:svelte`、`pnpm lint`、`pnpm format:check`。
-  ⚠️ `pnpm lint` 是 `eslint . --fix`，**会就地改文件** —— 务必在独立目录里跑，
-  别在正在开发的工作区跑。
+- **CI 已替你做机械检查**（20260910 落地）：`.cnb.yml` 的 `$` 节点下配了
+  `quality-gate`，`push` 与 `pull_request` 都自动跑「格式 → eslint →
+  svelte-check → 测试」四件套（由快到慢，尽早失败）。审查 PR 时**先看 CI 结论**；
+  只有要复现失败、或怀疑它动了四件套覆盖不到的地方，才在独立目录重跑。
+  ⚠️ 四件套**不含 webpack 打包** —— 动了入口 / 依赖 / `webpack*.js` 时本地补一次
+  `pnpm build`。
+- **审查 NPC 的 PR 时不要只信它的自述**：要重跑就拉分支到独立目录（如
+  `git worktree add /tmp/wengu-review <branch>`），跑 `pnpm test`、
+  `pnpm check:svelte`、`pnpm format:check`，eslint 一律用
+  **`pnpm exec eslint .`（不带 `--fix`）** 对齐 CI 口径。
+  ⚠️ 本地 `pnpm lint` 是 `eslint . --fix`，**会就地改文件** —— 别在正在开发的
+  工作区跑。CI 里刻意不用它：`--fix` 会把违规直接改掉再退出 0，门禁形同虚设。
 - 只读操作（看代码、查内核 API、跑只读 SQL）不受此限，随时可做。
 
 ## 分支与协作（CNB + NPC）——动代码前先读
@@ -61,6 +68,14 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `glm-5.3-flash`。改完要实跑一次，用
   `cnb build get-build-ai-audit --sn <sn> --pipelineId <sn>-001` 核对
   `models{}` 里的 key 是不是写对的那个 —— ID 写错会让流水线直接失败。
+- **`.cnb.yml` 里严禁新增 `dev:` 顶层节点**（20260910 查文档确认）：分支匹配是
+  「**分支级独占**」而非「事件级回落」—— 系统先做 glob 匹配，**只有未命中 glob 的
+  分支才走 `$` 兜底**。两个 NPC 事件都挂在 `$` 下且都跑在 dev 上
+  （`issue.comment@npc` 用默认分支、`pull_request.comment@npc` 用 PR 目标分支），
+  一旦加了 `dev:`，dev 就不再走 `$` → **召唤 NPC 毫无反应且不报任何错**，极难排查。
+  所以 `quality-gate` 也配在 `$` 下与 NPC 事件共存。顶层另两个合法语义：分支 glob
+  （按触发分支匹配）、角色名（与 `.cnb/settings.yml` 的 `npc.roles[].name` 逐字一致
+  时才加载，与 `$` 合并、同名事件覆盖）。
 - **召唤青简必须写完整路径**：`@sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简)`。
   裸 `@青简` 不会触发任何流水线（20260910 实测），系统内置的才写 `@CodeBuddy`。
 - 要让它真的写代码，评论时必须开 **「替我上班」**（API：`post-issue-comment --work-mode`）。
