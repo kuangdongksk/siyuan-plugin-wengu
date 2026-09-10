@@ -366,6 +366,22 @@ export async function setOfRecord(bank: QuestionBank, qid: string): Promise<stri
     return data.records[qid]?.sourceDocId ?? "";
 }
 
+/** 「查看原文」的跳转目标（20260910 Issue #13）：qid → records.sourceDocId
+ *  （题集 id）→ sets.srcId（源讲义文档 id）。20260903 存储收口后题目
+ *  bank-only（gen- 前缀无内核块），旧「跳题块」逻辑失效，跳转目标改为
+ *  源讲义文档——与知识面板「查看原文」同口径（KnowPanelCtl.open）。
+ *
+ *  **只到文档级**：srcKey 是结构键/偏移、无块锚点，不定位卷内题目位置。
+ *  调用方按以下降级链处理（本帮手只解源讲义，第二级自判）：
+ *  ① 有 srcId → 跳它；② 无 srcId 且 `qidHasBlock(qid)` → 跳原块；
+ *  ③ 都无 → 不渲染该钮。 */
+export async function originDocIdOf(bank: QuestionBank, qid: string): Promise<string> {
+    const data = await bank.all();
+    const setId = data.records[qid]?.sourceDocId ?? "";
+    if (!setId) return "";
+    return data.sets?.[setId]?.srcId ?? "";
+}
+
 /** 题集某题是否 bank-only（无对应源块可跳——siyuan://blocks 跳转降级）。
  *  gen-/mat- 前缀 id 与新 mint 的题天然无源块。 */
 export function qidHasBlock(qid: string): boolean {

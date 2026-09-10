@@ -85,6 +85,9 @@ export function listReviewModel(
 export interface ReviewDetailModel {
     qid: string;
     docTitle: string;
+    /** 「查看原文」跳转门控（Issue #13）：非空才渲染该钮（无目标不出
+     *  死钮）；本字段即待跳 qid，实际目标由 ReviewCtl.gotoBlock 降级解。 */
+    gotoId?: string;
     stemHtml: string;
     optionsHtml: string;
     stepsHtml: string;

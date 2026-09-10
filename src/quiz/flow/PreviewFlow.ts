@@ -2,7 +2,8 @@ import { typeKey } from "../render/CardParts";
 import { mdFragmentHtml, renderMathWhenVisible } from "../service/ProtyleHost";
 import { optionIsRight } from "../service/QuestionGrading";
 import { svgIcon } from "../../ui/FormHtml";
-import { qidHasBlock } from "../../bank/data/BankSets";
+import { originDocIdOf, qidHasBlock } from "../../bank/data/BankSets";
+import type { QuestionBank } from "../../bank/data/QuestionBank";
 import type { WenguQuestion, WenguStep } from "../../types";
 import { LETTERS, optionDisplayMd } from "../../types";
 import { esc, fmt } from "../../ui/shared";
@@ -15,7 +16,8 @@ import { matchIndices } from "./PreviewSearch";
  * 全展开；「模糊答案」开关给保密场景（模糊答案区+隐去正确项描色，
  * 点答案区可单卡揭示）。每卡带「快捷复制」：题干/选项/答案/解析拼
  * markdown 写入剪贴板，供粘贴到思源 AI 对话（类内置「添加到智能体
- * 对话」）；存量题另带「查看原块」（siyuan:// 协议定位原块）。
+ * 对话」）；另带「查看原文」——跳源讲义文档（20260910 Issue #13），
+ * 存量块题兜底跳原块。
  * 模糊开关为模块级状态，重渲染不丢。
  *
  * 搜题：工具行关键词框（匹配逻辑在 PreviewSearch），输入即过滤——
@@ -45,16 +47,17 @@ export function decoratePreview(
     root: HTMLElement,
     list: WenguQuestion[],
     t: (k: string) => string,
-    onExit: () => void
+    onExit: () => void,
+    bank?: QuestionBank
 ): void {
     root.classList.add("wengu-pv");
     root.classList.toggle("wengu-pv-secret", secret);
     root.querySelector(".wengu-body")?.insertAdjacentHTML("beforebegin", previewToolbarHtml(t, list.length));
     for (const card of Array.from(root.querySelectorAll<HTMLElement>(".wengu-card"))) {
         const q = list.find((x) => x.id === card.dataset.qid);
-        if (q) decorateOneCard(card, q, t);
+        if (q) decorateOneCard(card, q, t, bank);
     }
-    bindPreviewEvents(root, list, t, onExit);
+    bindPreviewEvents(root, list, t, onExit, bank);
     applySearch(root, list, t); // 重渲染恢复搜题态（空词=纯回显题量，零动作）
 }
 
@@ -74,16 +77,25 @@ function previewToolbarHtml(t: (k: string) => string, count: number): string {
 </div>`;
 }
 
-/** 单卡装饰：卡头加复制钮与「查看原块」钮 → 摘作答件 → 揭示多步/
- *  正确项 → 答案区。「查看原块」只在存量题（qid=内核块 id）出——
- *  bank-only 题（新版转换 gen- id）无块可跳，不渲染死钮。 */
-function decorateOneCard(card: HTMLElement, q: WenguQuestion, t: (k: string) => string): void {
+/** 单卡装饰：卡头加复制钮与「查看原文」钮 → 摘作答件 → 揭示多步/
+ *  正确项 → 答案区。「查看原文」按两级降级渲染（Issue #13）：
+ *  ①有源讲义（set.srcId）→ 跳源讲义；②存量块题（qid=内核块 id）→
+ *  维持跳原块；③都无 → 不渲染该钮（不出死钮）。
+ *  渲染门控与点击跳转同走 originTargetOf（唯一判据，不复制第二份），
+ *  点击时异步查库、渲染期按判据决定出不出钮。 */
+async function decorateOneCard(
+    card: HTMLElement,
+    q: WenguQuestion,
+    t: (k: string) => string,
+    bank?: QuestionBank
+): Promise<void> {
+    const hasOrigin = (await originTargetOf(bank, q.id)) !== "";
     card.querySelector(".wengu-card-head")?.insertAdjacentHTML(
         "beforeend",
         `<button class="wengu-side-iconbtn wengu-pv-copybtn" data-act="pv-copy" title="${esc(
             t("pvCopyTitle")
         )}">${svgIcon("iconCopy")}</button>` +
-            (qidHasBlock(q.id)
+            (hasOrigin
                 ? `<button class="wengu-side-iconbtn wengu-pv-originbtn" data-act="pv-origin" title="${esc(
                       t("pvOriginTitle")
                   )}">${svgIcon("iconLink")}</button>`
@@ -184,7 +196,8 @@ function bindPreviewEvents(
     root: HTMLElement,
     list: WenguQuestion[],
     t: (k: string) => string,
-    onExit: () => void
+    onExit: () => void,
+    bank?: QuestionBank
 ): void {
     root.querySelector("[data-act='pv-exit']")?.addEventListener("click", () => {
         searchTerm = "";
@@ -224,12 +237,13 @@ function bindPreviewEvents(
             if (q) void copyQuestionText(q, t);
             return;
         }
-        // 查看原块：siyuan:// 协议开思源并定位原块（钮只在存量题渲染）
+        // 查看原文：点击时异步解源讲义（bank.all() 已缓存，零额外 IO），
+        // 解不到再落回原块——与渲染门控同一降级链，不静默死钮
         const origin = target.closest<HTMLElement>("[data-act='pv-origin']");
         if (origin) {
             const card = origin.closest<HTMLElement>(".wengu-card");
             const q = list.find((x) => x.id === card?.dataset.qid);
-            if (q) window.open(`siyuan://blocks/${q.id}`);
+            if (q) void openOrigin(bank, q.id);
             return;
         }
         // 保密模式：点答案区单卡揭示
@@ -238,6 +252,24 @@ function bindPreviewEvents(
             ans.closest(".wengu-card")?.classList.add("wengu-pv-open");
         }
     });
+}
+
+/** 「查看原文」的跳转目标（Issue #13）：有源讲义跳源讲义，否则退回
+ *  原块（存量块题）。都无返回空——调用方据此不渲染/不动作。 */
+export async function originTargetOf(bank: QuestionBank | undefined, qid: string): Promise<string> {
+    try {
+        const src = bank ? await originDocIdOf(bank, qid) : "";
+        if (src) return src;
+    } catch (e) {
+        console.warn("[wengu] 源讲义解析失败，降级跳原块", qid, e); // 查库失败不该吞掉跳转
+    }
+    return qidHasBlock(qid) ? qid : "";
+}
+
+/** 打开「查看原文」（无目标零动作；解析失败已在上游降级）。 */
+async function openOrigin(bank: QuestionBank | undefined, qid: string): Promise<void> {
+    const target = await originTargetOf(bank, qid);
+    if (target) window.open(`siyuan://blocks/${target}`);
 }
 
 /** 应用搜题过滤：未命中单卡隐藏；材料组整组零命中才隐藏，有命中

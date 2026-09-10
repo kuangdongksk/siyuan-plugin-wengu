@@ -149,7 +149,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
     if (pv)
         void task.then((fresh) => {
-            if (fresh) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz"));
+            if (fresh) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz"), v.bankStore());
         });
     return task.then((): void => {
         /* 就绪信号（restore 等收尾由调用方挂） */
