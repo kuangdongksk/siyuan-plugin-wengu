@@ -143,12 +143,12 @@ export interface MarkPlan {
 }
 
 /**
- * 为多条线索算出高亮计划（逐条独立匹配——线索之间不互相避让：重叠
- * 高亮由 DOM 包装顺序自然嵌套，视觉可接受，强行拆分反而易错）。节点
- * 列表由 DOM 侧按标记元素收集（跳过既有 mark/脚本/词表/解析区等）。
+ * 为多条线索算出高亮计划（逐条独立匹配——线索之间不做避让，区间重叠
+ * 时由 `markSlots` 的施工序决定谁落格，强拆反而易错）。节点列表由 DOM
+ * 侧按标记元素收集（跳过既有 mark/脚本/词表/解析区等）。
  *
- * 计划基于同一份**未改动**的节点表算出：DOM 侧在施工前算好全部计划再
- * 逐条施工，避免前一条的 `splitText` 让后一条偏移漂移。
+ * 计划基于同一份**未改动**的节点表算出：DOM 侧在施工前算好全部计划，
+ * 再交给 `markSlots` 排序后统一落格（偏移不随后续 `splitText` 漂移）。
  */
 export function planMarks(nodes: string[], clues: string[]): MarkPlan[] {
     const seen = new Set<string>();
