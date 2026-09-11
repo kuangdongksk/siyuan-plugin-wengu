@@ -1,7 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { judgeClue } from "../service/AiJudge";
-import { renderClueRow } from "./MaterialFlow";
-import { clueOwnerQid } from "./ClueMark";
+import { getGroupQi, renderClueRow } from "./MaterialFlow";
+import { clueOwnerQid, isGroupCurrentPick } from "./ClueMark";
 import { applyClueMarks, clickChipForDelete, disarmClueChip } from "./ClueMarkDom";
 import type { WenguSession } from "../service/HistoryStore";
 import type { WenguMaterial, WenguQuestion } from "../../types";
@@ -33,6 +33,8 @@ export interface ClueHost {
     currentQuestion(): WenguQuestion | undefined;
     /** 按 qid 找题（长卷全卡常驻：非当前题卡上的 chip 要删自己的线索）。 */
     questionById(qid: string): WenguQuestion | undefined;
+    /** 整卷题表（组内共享槽只认组内当前题，需按材料归组）。 */
+    questions?(): WenguQuestion[];
     /** 材料正文（AI 复核的输入；非组题为 undefined）。 */
     materialOf(q: WenguQuestion): WenguMaterial | undefined;
     /** 会话变更落库。 */
@@ -76,6 +78,22 @@ function ownerQuestion(host: ClueHost, el: HTMLElement): WenguQuestion | undefin
     return qid ? host.questionById(qid) : undefined;
 }
 
+/** 该题是否「组内当前题」：组题的材料面板与底部 chips 槽**组内共享**
+ *  （组内一次只显示一题），只有当前显示的那题能刷——详见
+ *  ClueMark.isGroupCurrentPick 的两级判据。非组题恒真。 */
+function isGroupCurrent(host: ClueHost, q: WenguQuestion): boolean {
+    if (!q.group) return true;
+    const card = host.el.querySelector<HTMLElement>('.wengu-card[data-qid="' + q.id + '"]');
+    const members = (host.questions?.() ?? []).filter((x) => x.group === q.group);
+    return isGroupCurrentPick({
+        grouped: true,
+        // 卡未渲染（材料缺失降级/尚未挂载）时 visible=undefined ⇒ 不拦
+        visible: card ? !card.hasAttribute("hidden") : undefined,
+        groupQi: members.length > 1 ? getGroupQi(q.group) : undefined,
+        myQi: members.length > 1 ? members.findIndex((x) => x.id === q.id) : undefined,
+    });
+}
+
 /** 该题当前会话里的线索（无则空数组）。 */
 function cluesOf(host: ClueHost, q: WenguQuestion): string[] {
     return host.currentSession()?.clues?.[q.id] ?? [];
@@ -87,6 +105,7 @@ function cluesOf(host: ClueHost, q: WenguQuestion): string[] {
  * chips 整行重渲染。
  */
 export function refreshClueMarkFor(host: ClueHost, q: WenguQuestion): void {
+    if (!isGroupCurrent(host, q)) return;
     const clues = cluesOf(host, q);
     applyClueMarks(markRootOf(host, q), clues);
     const slot = clueSlotOf(host, q);
@@ -102,9 +121,11 @@ export function refreshAllClueMarks(host: ClueHost, list: WenguQuestion[]): void
 }
 
 /** 选中浮层「标为线索」入口（AnnoFlow 回调进来）。 */
-export function addClue(host: ClueHost, text: string): void {
+export function addClue(host: ClueHost, text: string, anchorEl?: HTMLElement | null): void {
     const s = host.currentSession();
-    const q = host.currentQuestion();
+    // 归属题按**选段所在卡**反查（滚动跟踪滞后时「当前题」可能还没跟上，
+    // 按当前题会挂到上一题的 clues 上）；组题材料面板无卡 qid，回落当前题
+    const q = anchorEl ? ownerQuestion(host, anchorEl) : host.currentQuestion();
     if (!s || !q) return;
     const clues = (s.clues ?? (s.clues = {}))[q.id] ?? (s.clues[q.id] = []);
     if (clues.includes(text)) return;

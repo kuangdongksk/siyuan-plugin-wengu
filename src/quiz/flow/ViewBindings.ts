@@ -34,7 +34,7 @@ export function bindViewFrameFor(
     });
     const cleanup = bindAnnotationLayer(v.el, {
         t: v.t,
-        onMarkClue: (text) => addClue(v, text),
+        onMarkClue: (text, anchorEl) => addClue(v, text, anchorEl),
         wordStore,
     });
     bindClueJudge(v);

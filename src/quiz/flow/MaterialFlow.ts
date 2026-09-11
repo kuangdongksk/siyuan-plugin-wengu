@@ -97,8 +97,7 @@ export function syncGroupReveal(root: HTMLElement, list: { id: string; group?: s
  *  非组题题干槽共用同一份渲染**（Issue #28；槽位由 [data-clues] 定位，
  *  禁复制第二份）。chip 两击删除：首击加警示类（3s 复位，状态机在
  *  ClueMarkDom），再击由 ClueFlow 的委托收口删线索；title 带删除提示。 */
-export function renderClueRow(el: HTMLElement, t: (k: string) => string, clues: string[]): void {
-    const row = el.querySelector<HTMLElement>("[data-clues]");
+export function renderClueRow(row: HTMLElement, t: (k: string) => string, clues: string[]): void {
     if (!row) return;
     if (clues.length === 0) {
         row.setAttribute("hidden", "");

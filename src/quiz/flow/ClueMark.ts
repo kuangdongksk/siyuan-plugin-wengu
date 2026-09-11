@@ -23,43 +23,44 @@ export interface TextHit {
  *  换行与源文本不一致（材料 md 的软换行渲染成空格、段落间是块边界），
  *  空白差异必须忽略，否则长选段永远定位不到。 */
 export function normForMatch(s: string): string {
-    return s.replace(/\s+/g, " ").trim();
+    return normWithMap(s).text.trim();
 }
 
-/** 归一化后每个字符回指原串下标（折叠空白时丢弃的字符记到下一个保留
- *  字符上）——把「归一坐标」还原成「节点内真实偏移」用。 */
-function indexMap(s: string): number[] {
+/** 归一化 + 坐标回映射（一次扫描同时产出）：空白段折叠成一个空格
+ *  （坐标记到该段起点），其余字符原样。**归一串与映射必须同源产出**——
+ *  旧实现只返回归一串、另建「第 k 个非空白字符」的下标表，而归一串里
+ *  还留着折叠出来的空格，两套坐标错位：命中的区间整段偏移（多词选段
+ *  的高亮首尾都错，见单测「返回原串坐标」组）。 */
+function normWithMap(s: string): { text: string; map: number[] } {
+    let text = "";
     const map: number[] = [];
-    let pending = -1;
-    for (let i = 0; i < s.length; i++) {
+    let i = 0;
+    while (i < s.length) {
         if (/\s/.test(s[i])) {
-            if (pending < 0) pending = i;
-            continue;
-        }
-        if (map.length === 0) {
-            // 首个保留字符：把它前面被折叠的空白一并算进起点
-            map.push(pending >= 0 ? pending : i);
+            const start = i;
+            while (i < s.length && /\s/.test(s[i])) i++;
+            text += " ";
+            map.push(start);
         } else {
+            text += s[i];
             map.push(i);
+            i++;
         }
-        pending = -1;
     }
-    return map;
+    return { text, map };
 }
 
 /** 在单个文本里找 needle（空白不敏感）；返回原串坐标区间，未命中 null。
  *  同一个 needle 取**首个**命中（宁缺勿错：首个包含完整文本处即锚点）。 */
 export function findInText(haystack: string, needle: string): { start: number; end: number } | null {
-    const h = normForMatch(haystack);
+    const h = normWithMap(haystack);
     const n = normForMatch(needle);
-    if (!n || n.length > h.length) return null;
-    const at = h.indexOf(n);
+    if (!n) return null;
+    const at = h.text.indexOf(n); // needle 已去首尾空白 ⇒ 命中点必落在非空字符上
     if (at < 0) return null;
-    const hMap = indexMap(haystack);
-    const start = hMap[at] ?? 0;
-    const lastN = n.length - 1;
-    const endIdx = hMap[at + lastN] ?? haystack.length - 1;
-    return { start, end: endIdx + 1 };
+    const start = h.map[at] ?? 0;
+    const last = h.map[at + n.length - 1] ?? haystack.length - 1;
+    return { start, end: last + 1 };
 }
 
 /**
@@ -159,4 +160,41 @@ export interface ClueOwnerPick {
  */
 export function clueOwnerQid(pick: ClueOwnerPick): string | undefined {
     return pick.cardQid ?? pick.currentQid;
+}
+
+/* ── 组内共享槽的刷新归属 ── */
+
+/** 判断「该题是否组内当前题」所需的观测（DOM 侧读出，纯函数只做判定）。 */
+export interface GroupCurrentPick {
+    /** 是否组题：非组题卡各自独占槽位，恒可刷。 */
+    grouped: boolean;
+    /** 该题的卡当前是否可见（DOM 权威；undefined=卡未渲染，无从判断）。 */
+    visible: boolean | undefined;
+    /** 组运行态当前题下标（组内切题后先更新它，DOM 的 hidden 要等一拍）。 */
+    groupQi: number | undefined;
+    /** 该题在组内的下标。 */
+    myQi: number | undefined;
+}
+
+/**
+ * 组题的材料面板与底部 chips 槽是**组内共享**的（组内一次只显示一题），
+ * 只有当前显示的那题能刷——非当前题刷会覆盖当前题的 chips 与 mark
+ * （整壳全量补齐按题表遍历，最后一道有线索的组内题会赢）。判据四级：
+ * ① DOM 明确可见 ⇒ 放行（短路掉边角形态的误拦）；② 组运行态下标比对
+ * （同步更新，判定组内切题同一拍的情形）；③ 无运行态而 DOM 明确隐藏
+ * ⇒ 拦；④ 两侧都读不到 ⇒ 不拦（宁可不拦，别把正常刷新掐掉）。
+ */
+export function isGroupCurrentPick(p: GroupCurrentPick): boolean {
+    if (!p.grouped) return true;
+    // ① 它自己就是可见的那张卡 ⇒ 一定是当前题（**先给放行**：中段那份
+    //    「运行态比对」在材料 id 复用等边角形态下可能算出不同下标，放行
+    //    短路保证那些形态不被误拦）
+    if (p.visible === true) return true;
+    // ② 组运行态与「该显示哪张卡」同源且**同步**更新（组内切题先改 qi、
+    //    再走 onActive），而 DOM 的 hidden 要等组件重渲染一拍才落——同一
+    //    拍内只能靠它判
+    if (p.groupQi !== undefined && p.myQi !== undefined) return p.groupQi === p.myQi;
+    // ③ 无运行态记录（从未切过题）而 DOM 明确说它隐藏 ⇒ 非当前题
+    if (p.visible === false) return false;
+    return true; // ④ 两侧都读不到：宁可不拦，别把正常刷新掐掉
 }

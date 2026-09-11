@@ -19,8 +19,9 @@ import { esc } from "../../ui/shared";
 /** 标注层回调（QuizView 组装：线索进会话，生词进背单词）。 */
 export interface AnnoCallbacks {
     t: (k: string) => string;
-    /** 选段标为当前题的线索。 */
-    onMarkClue(text: string): void;
+    /** 选段标为线索；anchorEl=选段起点所在元素（长卷全卡常驻，归属题
+     *  要按它反查所在卡，不能按视图「当前题」猜——滚动跟踪有延迟）。 */
+    onMarkClue(text: string, anchorEl?: HTMLElement | null): void;
     /** 查/收一个生词（word 归一后仍找不到时弹提示行）。 */
     wordStore?: { get(): Promise<WenguWordProgress>; save(p: WenguWordProgress): Promise<unknown> };
 }
@@ -103,9 +104,12 @@ function barChildren(cb: AnnoCallbacks, cluable: boolean): HTMLElement[] {
         clue.innerHTML = `${svgIcon("iconInfo")} ${esc(cb.t("clueMark"))}`;
         clue.addEventListener("mousedown", (ev) => {
             ev.preventDefault(); // 不清选区
-            const text = document.getSelection()?.toString().trim() ?? "";
+            const sel = document.getSelection();
+            const text = sel?.toString().trim() ?? "";
+            const anchorNode = sel?.anchorNode ?? null;
+            const anchorEl = anchorNode instanceof HTMLElement ? anchorNode : (anchorNode?.parentElement ?? null);
             hideBar();
-            if (text) cb.onMarkClue(text);
+            if (text) cb.onMarkClue(text, anchorEl);
         });
         buttons.push(clue);
     }
