@@ -4,6 +4,11 @@
    否则自评按钮/答案揭示会在未作答时露出（真机踩坑）。b3-button 的
    inline-flex 同理压过 UA hidden（转换弹窗「终止生成/查看进行中的转换」
    常驻 hidden 却露出，20260826 网页版复现实锤）。 */
+/* 线索 chips 槽同理（Issue #28 补齐）：两槽都是 display:flex，空槽靠
+   hidden 收起——不加这条，空槽照样占位（组单元底部多一条空虚线，非组题
+   卡多出 12px 间距）。组槽的这条在 #28 前就漏着，本次一并补上。 */
+.wengu-gclues[hidden],
+.wengu-cclues[hidden],
 .wengu-self[hidden],
 .wengu-judge[hidden],
 .wengu-result[hidden],

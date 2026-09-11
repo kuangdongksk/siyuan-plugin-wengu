@@ -273,7 +273,12 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   **线索归属题按卡反查**（`clueOwnerQid`）：长卷全卡常驻，非当前题卡的
   chip 删除与「AI 复核」都用 `closest(".wengu-card").dataset.qid` 经 host
   `questionById` 取题；组题行无卡 qid 时回落 `currentQuestion()`——写死
-  「当前题」两路都会错（删错题 / 拿错题线索判、结论贴错卡）。
+  「当前题」两路都会错（删错题 / 拿错题线索判、结论贴错卡）。「标为线索」
+  同样按选段起点卡反查（滚动跟踪有延迟，按「当前题」会把线索挂上一题）。
+  两个曾踩的坑：**chips 槽本身就是 `[data-clues]` 行元素**（`renderClueRow`
+  直收它，别再找后代 `[data-clues]`，否则静默早退、chips 与复核钮全不
+  渲染）；组题材料面板与底部槽**组内共享**，刷新要过 `isGroupCurrent`
+  守卫，否则全量补齐会用最后一道有线索的组内题覆盖当前题。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
