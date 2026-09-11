@@ -1,5 +1,6 @@
 import { chaseScrollIntoView } from "../render/NumRail";
-import { esc } from "../../ui/shared";
+import { esc, fmt } from "../../ui/shared";
+import { syncChipArmState } from "./ClueMarkDom";
 
 /**
  * 材料组交互（E1，6-4b 状态化）：组内导航/材料折叠/滚动记忆已收进
@@ -92,7 +93,10 @@ export function syncGroupReveal(root: HTMLElement, list: { id: string; group?: s
     }
 }
 
-/** 组内当前题的线索 chips（M5 线索标注，ClueFlow 渲染/刷新）。 */
+/** 线索 chips 行（M5 线索标注，ClueFlow 渲染/刷新）——**组题材料槽与
+ *  非组题题干槽共用同一份渲染**（Issue #28；槽位由 [data-clues] 定位，
+ *  禁复制第二份）。chip 两击删除：首击加警示类（3s 复位，状态机在
+ *  ClueMarkDom），再击由 ClueFlow 的委托收口删线索；title 带删除提示。 */
 export function renderClueRow(el: HTMLElement, t: (k: string) => string, clues: string[]): void {
     const row = el.querySelector<HTMLElement>("[data-clues]");
     if (!row) return;
@@ -107,8 +111,10 @@ export function renderClueRow(el: HTMLElement, t: (k: string) => string, clues: 
         clues
             .map(
                 (c, i) =>
-                    `<span class="wengu-clue-chip" data-clue="${i}" title="${esc(c)}">${esc(c.slice(0, 40))}…</span>`
+                    `<span class="wengu-clue-chip" data-clue="${i}" title="${esc(fmt(t("clueChipTitle"), { c, h: t("clueChipDeleteHint") }))}">${esc(c.slice(0, 40))}…</span>`
             )
             .join("") +
         `<button class="wengu-btn" data-act="clue-judge">${esc(t("clueJudge"))}</button>`;
+    // 重铺丢掉警示类，把未复位的待确认态刷回来（chips 因删除/判分重渲染时）
+    syncChipArmState(row);
 }

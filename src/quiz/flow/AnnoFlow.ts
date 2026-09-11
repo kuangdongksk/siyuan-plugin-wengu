@@ -10,6 +10,10 @@ import { esc } from "../../ui/shared";
  * 一段后浮出操作条——「标为线索」（当前组内题的定位依据，进会话
  * clues）与「查生词」（词书检索 → 加入生词本=写入复习队列+星标）。
  * 只读 Protyle 内用 window.getSelection 实现，不改块内容。
+ *
+ * 按钮按选择位置分流（Issue #28）：**「标为线索」只在可标区域出现**
+ * ——组题的材料面板（[data-mprotyle]）或非组题的题干区
+ * （.wengu-qprotyle）；解析区/选项区/作答区里选段只给「查生词」。
  */
 
 /** 标注层回调（QuizView 组装：线索进会话，生词进背单词）。 */
@@ -38,6 +42,27 @@ export function bindAnnotationLayer(host: HTMLElement, cb: AnnoCallbacks): () =>
     };
 }
 
+/** 题干区里**不算原文**的部分（Issue #28）：答案解析区与选项区都渲染在
+ *  `.wengu-qprotyle` 内（fallbackQuestionHtml 把选项行与解析块拼在同一
+ *  容器里），在它们里选段只应对「查生词」——标成线索等于把答案/干扰项
+ *  当定位依据，语义错且剧透。 */
+const NON_SOURCE_SELECTOR = ".wengu-static-sol, .wengu-opts, .wengu-option-fallback";
+
+/** 选区是否落在**可标区域**（Issue #28）：组题=材料面板
+ *  （`[data-mprotyle]`），非组题=题干区（不在组单元里的
+ *  `.wengu-qprotyle`）。解析区/选项区（与题干同容器）不命中——只出
+ *  「查生词」；组内题自身的题干也不算（组题的可标范围就是材料，
+ *  chips 也挂在组单元底部，与「定位依据在原文」的训练语义一致）。 */
+export function isCluableNode(node: Node | null | undefined): boolean {
+    const el = node instanceof Element ? node : node?.parentElement;
+    if (!el) return false;
+    if (el.closest("[data-mprotyle]")) return true;
+    if (el.closest(NON_SOURCE_SELECTOR)) return false;
+    const stem = el.closest(".wengu-qprotyle");
+    if (!stem) return false;
+    return !stem.closest(".wengu-gunit");
+}
+
 function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
     const sel = document.getSelection();
     const text = sel?.toString().trim() ?? "";
@@ -50,31 +75,40 @@ function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
         hideBar();
         return;
     }
-    getBar(cb).style.left = `${Math.max(8, Math.min(window.innerWidth - 220, rect.left + rect.width / 2 - 100))}px`;
-    getBar(cb).style.top = `${Math.max(8, rect.top - 40)}px`;
+    // 分流只看**选区起点**（拖选方向不定，起点决定用户从哪片区域拉起）；
+    // anchor 在控件/浮层里（不可选区）不出现「标为线索」
+    const cluable = isCluableNode(sel.anchorNode);
+    getBar(cb, cluable).style.left =
+        `${Math.max(8, Math.min(window.innerWidth - 220, rect.left + rect.width / 2 - 100))}px`;
+    getBar(cb, cluable).style.top = `${Math.max(8, rect.top - 40)}px`;
 }
 
-function getBar(cb: AnnoCallbacks): HTMLElement {
+function getBar(cb: AnnoCallbacks, cluable: boolean): HTMLElement {
     if (bar?.isConnected) {
-        bar.replaceChildren(...barChildren(cb));
+        bar.replaceChildren(...barChildren(cb, cluable));
         return bar;
     }
     bar = document.createElement("div");
     bar.className = "wengu-annobar";
     document.body.appendChild(bar);
+    bar.replaceChildren(...barChildren(cb, cluable));
     return bar;
 }
 
-function barChildren(cb: AnnoCallbacks): HTMLElement[] {
-    const clue = document.createElement("button");
-    clue.className = "wengu-annobar-btn";
-    clue.innerHTML = `${svgIcon("iconInfo")} ${esc(cb.t("clueMark"))}`;
-    clue.addEventListener("mousedown", (ev) => {
-        ev.preventDefault(); // 不清选区
-        const text = document.getSelection()?.toString().trim() ?? "";
-        hideBar();
-        if (text) cb.onMarkClue(text);
-    });
+function barChildren(cb: AnnoCallbacks, cluable: boolean): HTMLElement[] {
+    const buttons: HTMLElement[] = [];
+    if (cluable) {
+        const clue = document.createElement("button");
+        clue.className = "wengu-annobar-btn";
+        clue.innerHTML = `${svgIcon("iconInfo")} ${esc(cb.t("clueMark"))}`;
+        clue.addEventListener("mousedown", (ev) => {
+            ev.preventDefault(); // 不清选区
+            const text = document.getSelection()?.toString().trim() ?? "";
+            hideBar();
+            if (text) cb.onMarkClue(text);
+        });
+        buttons.push(clue);
+    }
     const word = document.createElement("button");
     word.className = "wengu-annobar-btn";
     word.innerHTML = `${svgIcon("iconList")} ${esc(cb.t("wordMark"))}`;
@@ -84,7 +118,8 @@ function barChildren(cb: AnnoCallbacks): HTMLElement[] {
         hideBar();
         if (text) showWordPopup(text, cb);
     });
-    return [clue, word];
+    buttons.push(word);
+    return buttons;
 }
 
 export function hideBar(): void {

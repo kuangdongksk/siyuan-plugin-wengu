@@ -250,6 +250,14 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `[data-submit-row]` 整行）、渐进呈现（`wengu-previewing` 的
   `pointer-events:none` 名单）、预览的 DOM 手术清单——漏一处就是
   永久不可用的死钮。
+- **滑选标注（Issue #28）**：可标区域两态——组题=材料面板，非组题=
+  题干区 `.wengu-qprotyle`（浮条按钮按选择位置分流）；高亮与 chips
+  只有一个入口 `ClueFlow.refreshClueMarkFor`（材料填充后/题干挂载后/
+  会话恢复后三处都过它，幂等），选段定位与 chip 两击删除状态机的纯
+  判定在 `flow/ClueMark.ts`（带单测）、DOM 手术在 `flow/ClueMarkDom.ts`。
+  **chip 归属题按卡反查**（`clueOwnerQid`）：长卷全卡常驻，非当前题卡的
+  chip 用 `row.closest(".wengu-card").dataset.qid` 经 host `questionById`
+  取题；组题行无卡 qid 时回落 `currentQuestion()`——写死「当前题」会删错题。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 

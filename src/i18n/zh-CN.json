@@ -61,6 +61,8 @@
   "slotNO": "第 {n} 空",
   "slotWrong": "答错，正确答案 {L}",
   "slotsSummary": "共 {n} 空，答对 {r} 空",
+  "clueChipTitle": "{c}（{h}）",
+  "clueChipDeleteHint": "再点一次删除这条线索",
   "clueMark": "标为线索",
   "clueChips": "线索：",
   "clueJudge": "AI 复核线索",

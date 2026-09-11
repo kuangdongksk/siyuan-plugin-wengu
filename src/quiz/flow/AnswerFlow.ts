@@ -59,6 +59,10 @@ export interface AnswerHost {
     /** after 模式答满（全部 graded 但尚未收卷）：提示一次「可检查修改」
      *  （视图侧做一次性去重，见 QuizView 实现）。可选。 */
     onAllAnswered?(): void;
+    /** 线索高亮后处理（Issue #28）：材料填充后 / 题干挂载后 / 会话恢复后
+     *  三处时机由题卡与组单元组件直调，实现收口在 ClueFlow
+     *  （ClueHost 适配，禁复制第二份）。可选——测试/预览壳不实现即跳过。 */
+    refreshClueMarks?(q: WenguQuestion): void;
 }
 
 /** 字母 chip 点选：单选互斥（重选保持选中），多选可增删（序保持升序）。

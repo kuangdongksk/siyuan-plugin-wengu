@@ -61,6 +61,8 @@
   "slotNO": "Blank {n}",
   "slotWrong": "Wrong, answer {L}",
   "slotsSummary": "{r}/{n} blanks correct",
+  "clueChipTitle": "{c} ({h})",
+  "clueChipDeleteHint": "click again to remove this clue",
   "clueMark": "Mark as clue",
   "clueChips": "Clues:",
   "clueJudge": "AI review clues",

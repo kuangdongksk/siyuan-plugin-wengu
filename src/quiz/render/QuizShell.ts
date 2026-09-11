@@ -11,6 +11,7 @@ import { buildDrillUnits, buildSetGroups, type DrillUnit, type SetGroup } from "
 import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { restoreContextFor, type CardInitCtx } from "./CardState";
 import { focusQuestion } from "../flow/MaterialFlow";
+import { refreshAllClueMarks } from "../flow/ClueFlow";
 import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
 import { detachRoundReport } from "./RoundReport";
@@ -151,8 +152,12 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         void task.then((fresh) => {
             if (fresh) decoratePreview(v.el, v.list, v.t, () => v.switchMode("quiz"), v.bankStore());
         });
-    return task.then((): void => {
-        /* 就绪信号（restore 等收尾由调用方挂） */
+    return task.then((fresh): void => {
+        // Issue #28：整壳就绪后补一遍线索高亮/chips（会话恢复/重开页签
+        // 的第三处挂载时机——组单元材料填充走的是自己那份 onMount，
+        // 并行挂载下组内非当前题的顺序不保证，这里按表收口，幂等）；
+        // stale 批次不补（新壳自己会补）
+        if (fresh) refreshAllClueMarks(v, v.list);
     });
 }
 

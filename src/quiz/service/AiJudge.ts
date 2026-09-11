@@ -9,6 +9,7 @@ import {
     buildTransPrompt,
     wrongCausesPrompt,
 } from "../../ai/prompts/judge";
+import type { ClueSource } from "../../ai/prompts/judge";
 import type { WenguQuestion } from "../../types";
 import type { WenguStep } from "../../types";
 import { optionDisplayMd, QuestionType } from "../../types";
@@ -95,16 +96,19 @@ export interface ClueVerdict {
     comment: string;
 }
 
-/** 复核学生为某题标注的线索段是否是该题的定位依据。 */
+/** 复核学生为某题标注的线索段是否是该题的定位依据。
+ *  `body` 由调用方按题型选源（Issue #28）：组题=材料正文，
+ *  非组题=题干本身；`from` 只影响 prompt 的措辞（骨架不变）。 */
 export async function judgeClue(
-    materialBody: string,
+    body: string,
     q: WenguQuestion,
     submitted: string,
     clues: string[],
-    modelId: string
+    modelId: string,
+    from: ClueSource = "material"
 ): Promise<ClueVerdict> {
     const reply = await agentChatOnce(
-        buildCluePrompt(materialBody, q, submitted, clues),
+        buildCluePrompt(body, q, submitted, clues, from),
         modelId,
         AI_TIMEOUT.quick,
         undefined,

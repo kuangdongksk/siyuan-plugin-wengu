@@ -62,17 +62,33 @@ ${ref}
 ${mine}`;
 }
 
-/** 定位线索复核 prompt（M5：hit/near/miss 三态）。 */
-export function buildCluePrompt(materialBody: string, q: WenguQuestion, submitted: string, clues: string[]): string {
-    return `你是考研英语阅读的定位复核助手。学生在阅读文章后做题时，为该题标注了他认为的「定位线索」文段；请判断这些线索是否真的是该题答案的定位依据。
+/** 线索复核的输入来源（Issue #28）：组题=共享材料正文；非组题（政治
+ *  材料题/语文阅读等题干自带长文本）=题干本身。prompt 骨架不变，只把
+ *  来源写进提示词，避免 AI 按「阅读文章」的成见硬套。 */
+export type ClueSource = "material" | "stem";
+
+/** 定位线索复核 prompt（M5：hit/near/miss 三态；Issue #28 起通用于
+ *  材料组题与非组题题干）。 */
+export function buildCluePrompt(
+    body: string,
+    q: WenguQuestion,
+    submitted: string,
+    clues: string[],
+    from: ClueSource = "material"
+): string {
+    const stemSource = from === "stem";
+    const intro = stemSource
+        ? "你是定位复核助手。题目自带长文本（材料/阅读原文与题干同体），学生在这段文本里标注了他认为的「定位线索」；请判断这些线索是否真的是该题答案的定位依据。"
+        : "你是考研英语阅读的定位复核助手。学生在阅读文章后做题时，为该题标注了他认为的「定位线索」文段；请判断这些线索是否真的是该题答案的定位依据。";
+    const head = stemSource ? "【材料与题干】" : "【文章】";
+    const stemBlock = stemSource ? "" : `\n【题目】\n${q.stemMd ?? ""}`;
+    return `${intro}
 判定标准：hit=线索包含该题答案的出处句；near=线索落在相关段落但未覆盖定位句；miss=与该题无关。
 输出严格两行，格式之外不要输出任何文字：
 CLUE: hit 或 near 或 miss
 COMMENT: 一句话点评（定位对在哪/错在哪，可指出正确定位应在的方向）
-【文章】
-${materialBody}
-【题目】
-${q.stemMd ?? ""}
+${head}
+${body}${stemBlock}
 【学生所选】
 ${submitted || "（未作答）"}
 【学生标注的线索】
