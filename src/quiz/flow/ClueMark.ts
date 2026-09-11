@@ -162,6 +162,32 @@ export function planMarks(nodes: string[], clues: string[]): MarkPlan[] {
     return out;
 }
 
+/** 一处待落格的高亮段：命中节点 + 节点内区间 + 归属线索原文。 */
+export interface MarkSlot extends NodeRange {
+    /** 该段归属的线索原文（施工与排查用；chips 侧另有同一份）。 */
+    text: string;
+}
+
+/**
+ * 把多线索计划拍平成**施工序列**（DOM 侧唯一就绪的入参口径）。
+ *
+ * 顺序是这里唯一的关键：偏移口径是**未改动**节点表的拼接坐标，而
+ * 施工用的 `splitText` 会截短节点——同一节点内**靠后的段必须先切**，
+ * 否则前一段切完后节点变短、后一段的区间越界被保护性跳过，真机表现
+ * 为「同一段原文里只高亮第一条线索，其余静默不出」。
+ *
+ * 故排序为 **节点升序 + 节点内起点降序**：节点之间各持引用、互不
+ * 干扰（不必整体倒序），同节点内自后向前。区间**重叠**时后切的那段
+ * 会越界跳过——与改造前一致地降级（只留 chip），宁缺勿错。
+ */
+export function markSlots(plan: MarkPlan[]): MarkSlot[] {
+    const out: MarkSlot[] = [];
+    for (const item of plan) {
+        for (const hit of item.hits) out.push({ node: hit.node, start: hit.start, end: hit.end, text: item.text });
+    }
+    return out.sort((a, b) => a.node - b.node || b.start - a.start);
+}
+
 /* ── chips 两击删除状态机 ── */
 
 /** chips 删除的两击确认态：armed=待确认的 chip 下标（undefined=未 arm）。 */

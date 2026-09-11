@@ -298,10 +298,13 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
     - **高亮必须支持跨文本节点**（跨段/跨 `**加粗**`/公式节点是常态）：
       `ClueMark.locateAcrossNodes` 把全部文本节点拼起来、**空白全丢**后
       匹配（`BlankIndex` 同源产坐标），命中区间逐节点取交集返回；
-      `applyClueMarks` 先对**未改动**节点表算全部计划（`planMarks`）再倒序
-      施工——正向施工会把同一节点里的后一处命中推出已被 `splitText`
-      截短的节点（与 `GlossDom.assignHitsToNodes` 同款口径）。匹配不上仍
-      降级（只 chips 不高亮，宁缺勿错）。
+      `applyClueMarks` 先对**未改动**节点表算全部计划（`planMarks`），再由
+      `ClueMark.markSlots` 拍平成**节点升序 + 节点内起点降序**的施工序
+      ——同一节点里靠后的段必须先切，否则前段 `splitText` 把节点截短、
+      后段区间越界被跳过（与 `GlossDom.assignHitsToNodes` 同款口径）。
+      ⚠️ **按线索逐条施工是错的**（PR #38 首版即此，已修）：同一节点里的
+      **第二条线索**区间越界静默不落格，真机表现「一段话里只高亮第一条」。
+      匹配不上仍降级（只 chips 不高亮，宁缺勿错）。
     - **空白必须全丢而不是折叠**：DOM 里 `</p><p>`、`<strong>` 边界之间是
       **零空白**，用户拖选得到的是换行——只折叠不丢，跨块边界永远匹配不上。
     - 桌面客户端「点按钮无反应」防御三件套（Web 端复现不了）：浮条根**捕获

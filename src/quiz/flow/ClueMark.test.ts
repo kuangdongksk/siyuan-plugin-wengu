@@ -7,6 +7,7 @@ import {
     disarmClueChip,
     findInText,
     locateAcrossNodes,
+    markSlots,
     newClueDeleteState,
     normForMatch,
     planMarks,
@@ -175,6 +176,48 @@ describe("planMarks", () => {
         const nodes = ["甲乙丙丁戊", "己庚辛"];
         const plan = planMarks(nodes, ["乙丙", "己庚", "丁戊"]);
         for (const p of plan) expect(normForMatch(sliceJoin(nodes, p.hits))).toBe(normForMatch(p.text));
+    });
+});
+
+describe("markSlots（施工序列，Issue #36 复审）", () => {
+    // 回归：PR #38 首版按「线索序 + 线索内倒序」施工，**同一文本节点里的
+    // 第二条线索区间越界被静默跳过**（真机表现：一段话里只高亮第一条）。
+    // 施工必须按「节点升序 + 节点内起点降序」全局排。
+    it("同一节点内多段按起点降序（后段先切，前段偏移不被截短）", () => {
+        const plan = [
+            { text: "quick brown", hits: [{ node: 0, start: 4, end: 15 }] },
+            { text: "lazy dog", hits: [{ node: 0, start: 35, end: 43 }] },
+        ];
+        expect(markSlots(plan).map((s) => s.start)).toEqual([35, 4]);
+    });
+
+    it("跨节点按节点升序（各节点持自己的引用，互不干扰）", () => {
+        const plan = [
+            { text: "法则", hits: [{ node: 1, start: 0, end: 2 }] },
+            { text: "洛必达", hits: [{ node: 0, start: 0, end: 3 }] },
+        ];
+        expect(markSlots(plan).map((s) => s.node)).toEqual([0, 1]);
+    });
+
+    it("不丢段：拍平后段数等于全部命中数，且带回归属线索原文", () => {
+        const plan = [
+            {
+                text: "甲乙",
+                hits: [
+                    { node: 0, start: 0, end: 2 },
+                    { node: 1, start: 0, end: 2 },
+                ],
+            },
+            { text: "丙", hits: [] },
+        ];
+        const slots = markSlots(plan);
+        expect(slots).toHaveLength(2);
+        expect(slots.map((s) => s.text)).toEqual(["甲乙", "甲乙"]);
+    });
+
+    it("空计划零动作", () => {
+        expect(markSlots([])).toEqual([]);
+        expect(markSlots([{ text: "找不到", hits: [] }])).toEqual([]);
     });
 });
 
