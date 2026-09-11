@@ -11,8 +11,8 @@ import { WordStore } from "./word/core/WordStore";
 import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
-import { initNotify } from "./ui/Notify";
-import { debounce } from "./ui/shared";
+import { initNotify, notifyInfo } from "./ui/Notify";
+import { debounce, isMobileUi } from "./ui/shared";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
@@ -207,6 +207,15 @@ export default class WenguPlugin extends Plugin {
             title: this.i18n.pluginName,
             position: "right",
             callback: async () => {
+                // 移动端分流（Issue #10）：插件页签在移动端打不开——思源
+                // app/src/plugin/API.ts 的 `/// #if MOBILE` 分支里 openTab
+                // 是空桩（/\* TODO: Mobile \*/），点击原本**静默无反应**。
+                // 移动端唯一可用的插件面板通道是 dock（addDock 被包装为
+                // mobileModel 挂移动侧栏），且无程序化打开 API——只提示。
+                if (isMobileUi()) {
+                    notifyInfo({ key: "notifyMobileQuizOnly" });
+                    return;
+                }
                 // 记录当前活动文档，页签据此渲染该文档的题目
                 const editor = getActiveEditor();
                 targetDocId = editor?.protyle?.block?.rootID ?? "";

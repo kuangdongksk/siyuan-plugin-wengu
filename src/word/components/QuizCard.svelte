@@ -1,7 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { statusIcon } from "../../ui/FormHtml";
-    import { fmt } from "../../ui/shared";
+    import { fmt, isMobileUi } from "../../ui/shared";
 
     import { confusableHtml, wordNoteHtml } from "../service/WordConfusables";
     import { keyOf } from "../core/WordStore";
@@ -10,6 +10,7 @@
     import { phoneticsOf, phoneticsReady } from "../service/WordPhonetics";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
+    import { autoSpeakSite, mayAutoSpeak } from "../core/TapSpeech";
     import Button from "../../ui/Button.svelte";
 
     /** 一张答题卡（五题型；题面标色/详情/自述输入按作答态切换）。 */
@@ -29,13 +30,18 @@
         if (ui.cardMode === "spell" && ui.phase === "prompt" && !ui.answered) spellEl?.focus();
         else cardEl?.focus();
     });
-    // 听音题进卡自动播一次（redesign §一：梯③；空格可重听）
+    // 听音题进卡自动播一次（redesign §一：梯③；空格可重听）。
+    // 移动端改由控制器在换卡同步栈里播（手势内，iOS 首播要求；见
+    // core/TapSpeech）——此处只服务桌面，落点判定收口在 autoSpeakSite，
+    // 桌面分支与改造前逐字同行为（进卡即播），移动端不会双播。
+    const speakSite = autoSpeakSite(isMobileUi());
     $effect(() => {
         void ui.idx;
         void ui.cardMode;
         void ui.phase;
         void ui.answered;
-        if (ui.cardMode === "listen" && ui.phase === "prompt" && !ui.answered) view.playCurrentWord();
+        if (speakSite !== "effect") return;
+        if (mayAutoSpeak(ui.cardMode, ui.phase === "prompt", !!ui.answered)) view.playCurrentWord();
     });
 
     const p = $derived(ui.progress!);

@@ -33,6 +33,36 @@ export function isLifecycleGone(e: unknown): boolean {
     return /lifecycle/i.test(errText(e));
 }
 
+/** 思源宿主全局（只取本帮手需要的字段，不引新类型依赖）。 */
+interface SiyuanHostWindow {
+    siyuan?: { mobile?: unknown };
+}
+
+/** 是否移动端 UI（Issue #10）：思源移动端 App 的 `window.siyuan` 带
+ *  `mobile` 字段（types 1.2.4 已声明 `ISiyuan.mobile`），桌面端恒无——
+ *  比 `getFrontend` 可靠（1.2.4 类型里没有它）。单测/内核侧无 window 时
+ *  按桌面处理。 */
+export function isMobileUi(): boolean {
+    if (typeof window === "undefined") return false;
+    return !!(window as unknown as SiyuanHostWindow).siyuan?.mobile;
+}
+
+/** 移动端环境标记类：触屏样式一律写成它的后代选择器——桌面不带标记，
+ *  样式逐字节不变（Issue #10）。 */
+export const MOBILE_CLASS = "wengu-mobile";
+
+/** 给宿主元素（单词面板根元素）与 document.body 各打一份移动端标记，
+ *  桌面空操作（返回是否移动端）。body 那份供挂 body 的浮层
+ *  （标注操作条/生词卡，scss/english.scss）分流。
+ *  分流一律认这个类，**禁用 media query**——桌面浏览器窄窗口会误伤，
+ *  触屏适配只该按环境而不是按视口宽度分流（见 scss/words-mobile.scss）。 */
+export function markMobileUi(host?: HTMLElement | null): boolean {
+    if (!isMobileUi()) return false;
+    host?.classList.add(MOBILE_CLASS);
+    if (typeof document !== "undefined") document.body?.classList.add(MOBILE_CLASS);
+    return true;
+}
+
 /** HTML 转义（文本与属性通用）。 */
 export function esc(s: string): string {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

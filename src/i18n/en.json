@@ -606,6 +606,7 @@
   "notifyReimportCursor": "This set was generated segment-by-segment (batch boundaries are AI-decided and not reproducible) — re-import runs a full re-conversion",
   "notifyModelFallback": "The selected model is no longer valid — fell back to \"{name}\" for this call",
   "notifyModelFallbackDefault": "The selected model is no longer valid — fell back to SiYuan's default model for this call",
+  "notifyMobileQuizOnly": "Mobile currently supports Words only: open the Words panel from the sidebar dock",
   "notifyMigrateFail": "Failed to load question bank data: {msg}",
   "aiKindAll": "All",
   "aiKindJudge": "Judge",

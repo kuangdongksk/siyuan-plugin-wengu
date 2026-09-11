@@ -541,6 +541,28 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 width:100% }`。修复：复合选择器 `.b3-label.wengu-formrow { ... !important }`
   把特异性抬到 0,2,0。工作区面板（`.wengu-ws-page`）没有 `.config__items` 父容器作
   兜底，所有 formRow 都需要这条复合规则。
+- **移动端适配约定**（Issue #10，20260910）：
+    - **openTab 在移动端是空桩**（思源 `app/src/plugin/API.ts` 的
+      `/// #if MOBILE` 分支 `openTab = () => { /* TODO: Mobile */ }`），
+      自定义页签打不开——顶栏入口必须分流（现走 `notifyInfo` 提示，
+      见 `src/index.ts` addTopBar 回调首段）。
+    - **dock 是插件面板唯一的移动通道**：`addDock` 在移动端被包装成
+      `mobileModel`（`app/src/mobile/dock/MobileCustom.ts`，构造签名与桌面
+      Custom 同款），init/destroy 生命周期同构 ⇒ 挂载链零改动即兼容；
+      无程序化打开 dock 的公开 API，别造私有通道。
+    - **环境探测一律 `ui/shared.isMobileUi()`**（`window.siyuan.mobile !==
+undefined`；types 1.2.4 有该字段，`getFrontend` 反而没有类型）。
+    - **触屏样式走根元素标记类分流**：挂载层 `markMobileUi` 给单词面板
+      根元素（+ `document.body`）打 `.wengu-mobile`，触屏规则全部写成
+      它的后代选择器（`src/scss/words-mobile.scss`；挂 body 的浮层适配在
+      `english.scss` 尾段）。**禁用 media query**——桌面浏览器窄窗口会误伤，
+      触屏适配只按环境分流；无标记时样式逐字节不变（桌面零回归）。
+    - **iOS speechSynthesis 首播要在手势栈内**（20260910 定论）：`$effect`
+      是微任务，脱离手势的首次播放会被系统静默丢弃。故**自动播报落点按环境
+      分流**——移动端在控制器 `enterPrompt` 的同步栈里播（换卡动作的 click
+      链路，天生在手势内），桌面仍走组件 `$effect`（与改造前逐字同行为），
+      两侧互斥不双播。落点判定收口在 `word/core/TapSpeech.ts`
+      （`autoSpeakSite`/`mayAutoSpeak`，带单测）。
 - 改行为必须同步 `docs/question-block-contract.md`。
 
 ## 数据演进守则（20260901 存储前瞻审查定稿）

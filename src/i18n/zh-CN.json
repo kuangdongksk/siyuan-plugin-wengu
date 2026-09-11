@@ -606,6 +606,7 @@
   "notifyReimportCursor": "此题集由逐段生成（批边界由 AI 决定，不可复现），重新导入按整卷重转处理",
   "notifyModelFallback": "所选模型已失效，本次已改用可用模型「{name}」",
   "notifyModelFallbackDefault": "所选模型已失效，本次已改用思源默认模型",
+  "notifyMobileQuizOnly": "移动端暂只支持背单词：请从侧栏 dock 打开背单词面板",
   "notifyMigrateFail": "题库数据加载失败：{msg}",
   "aiKindAll": "全部",
   "aiKindJudge": "判题",

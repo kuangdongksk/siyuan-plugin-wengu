@@ -3,6 +3,7 @@ import { initialWordUi } from "./core/WordUi";
 import type { WordStore } from "./core/WordStore";
 import { WordView } from "./core/WordView";
 import { mountSvelteApp } from "../ui/mountApp";
+import { markMobileUi } from "../ui/shared";
 
 /**
  * 单词域入口：Dock/页签的挂载编排（Svelte 化改造）。控制器本体在
@@ -27,6 +28,10 @@ export interface MountedWordView {
  *  控制器清理由 WordApp onMount 的 cleanup（view.destroy）承担，unmount
  *  只卸组件——与 mountApp.ts 的约定一致。 */
 export function mountWordView(el: HTMLElement, i18n: Record<string, string>, store: WordStore): MountedWordView {
+    // 移动端触屏样式分流（Issue #10）：在**挂载层**打环境标记类，样式一律
+    // 写成它的后代选择器（桌面不带标记 → 样式逐字节不变）；Dock 面板与
+    // 页签兜底共用本入口，标记只需这一处
+    markMobileUi(el);
     // *.svelte 的环境声明不带实例导出类型，view 这里收口一次（KnowPicker 同款）
     const mounted = mountSvelteApp<WordAppProps>(WordApp, el, { i18n, store });
     const view = (mounted.app as { view: WordView }).view;

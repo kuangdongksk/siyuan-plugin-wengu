@@ -1,0 +1,213 @@
+/* 背单词移动端触屏适配（Issue #10）：**全部规则挂在 `.wengu-mobile` 标记类
+   之下**——标记由挂载层（src/word/index.ts → ui/shared.markMobileUi，按
+   window.siyuan.mobile 判定）打在单词面板根元素（Dock 宿主）与 document.body
+   上；桌面不带标记 ⇒ 本文件一条都不生效，桌面渲染逐字节不变。
+   为什么不用 media query：桌面浏览器窄窗口会误伤，触屏适配只该按**环境**
+   而不是按视口宽度分流。规则一律再收一层 `.wengu-word`，防标记落在 body 时
+   外溢到其它域的面板。
+   口径：hover 依赖的反馈改 :active 或常显（触屏 hover 会粘住）；点击区
+   ≥40px（主操作 ≥44px）；关键字号上调；输入框字号 ≥16px（iOS 聚焦不缩放）。 */
+
+.wengu-mobile .wengu-word {
+  /* 面板边距收窄 + 去点按灰块（移动侧栏宽度有限） */
+  padding: 8px 10px;
+  -webkit-tap-highlight-color: transparent;
+
+  /* 头部图标钮：3px 内边距的桌面触区太小，撑到 40×40 */
+  .wengu-iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 15px;
+  }
+
+  .wengu-word-head {
+    margin-bottom: 10px;
+  }
+
+  .wengu-word-title {
+    font-size: 16px;
+  }
+
+  .wengu-word-stats {
+    font-size: 13px;
+  }
+
+  /* 切书：hover 变色在触屏会粘住 → 改按下反馈；触区 40px */
+  .wengu-word-bookbtn {
+    min-height: 40px;
+    font-size: 13px;
+
+    &:hover {
+      color: var(--b3-theme-on-surface-light);
+    }
+
+    &:active {
+      color: var(--b3-theme-primary);
+    }
+  }
+
+  .wengu-word-bookmenu .b3-list-item {
+    min-height: 40px;
+  }
+
+  /* 卡片：内边距略收，题面字号保证一屏可读 */
+  .wengu-word-card {
+    padding: 16px;
+    gap: 10px;
+  }
+
+  .wengu-word-text {
+    font-size: 34px;
+  }
+
+  .wengu-word-zh {
+    font-size: 20px;
+  }
+
+  .wengu-word-meaning {
+    font-size: 17px;
+  }
+
+  .wengu-word-hint {
+    font-size: 13px;
+  }
+
+  .wengu-word-detail {
+    max-width: none;
+  }
+
+  .wengu-word-detail-meaning,
+  .wengu-word-ainote {
+    font-size: 15px;
+  }
+
+  .wengu-word-feedback {
+    font-size: 14px;
+    max-width: none;
+  }
+
+  .wengu-word-phonetic {
+    font-size: 15px;
+  }
+
+  /* 选项瓦片：整行 ≥44px（原 min-height 34 在触屏上太密） */
+  .wengu-word-opt {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 15px;
+  }
+
+  /* 查词结果行：hover 高亮改按下（触屏 hover 粘住会一直亮） */
+  .wengu-word-opt.wengu-word-lk {
+    min-height: 44px;
+
+    &:hover {
+      background: none;
+    }
+
+    &:active {
+      background: var(--b3-theme-background-light);
+    }
+  }
+
+  .wengu-word-lk-meaning {
+    font-size: 13px;
+  }
+
+  /* 卡右上角工具组：触屏没有 hover 提示，星标 0.4 透明度太隐 → 常显 */
+  .wengu-word-tools {
+    top: 4px;
+    right: 4px;
+  }
+
+  .wengu-word-star {
+    opacity: 0.7;
+  }
+
+  /* 「看答案」原 min-height 24（误点即按错计的小按钮）→ 抬到 40 */
+  .wengu-word-peek {
+    min-height: 40px;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  /* 三档/收尾底条：触区与字号再上一档 */
+  .wengu-word-grades .b3-button {
+    min-height: 60px;
+    font-size: 16px;
+  }
+
+  /* 「认成了…」自述行：窄面板竖排，输入框整宽 */
+  .wengu-word-confess {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .wengu-word-confess-label {
+    white-space: normal;
+  }
+
+  /* 拼写/查词输入框：≥16px 防 iOS 聚焦自动缩放 */
+  .wengu-word-spell {
+    min-height: 44px;
+    max-width: none;
+    font-size: 16px;
+  }
+
+  /* 首页入口卡：hover 边框改按下，内边距放大 */
+  .wengu-word-entry {
+    padding: 16px;
+
+    &:hover {
+      border-color: var(--b3-border-color);
+    }
+
+    &:active {
+      border-color: var(--b3-theme-primary);
+    }
+  }
+
+  .wengu-word-entry-title {
+    font-size: 17px;
+  }
+
+  .wengu-word-entry-count {
+    font-size: 14px;
+  }
+
+  /* 统计页字号 */
+  .wengu-stats-num {
+    font-size: 24px;
+  }
+
+  .wengu-stats-label,
+  .wengu-stats-bar-count,
+  .wengu-stats-bar-label {
+    font-size: 12px;
+  }
+
+  /* 起点/设置表单：原生控件与按钮触区抬高 */
+  .wengu-word-form {
+    margin: 12px auto 0;
+
+    .b3-button,
+    .b3-select,
+    .b3-text-field {
+      min-height: 40px;
+    }
+  }
+
+  .wengu-word-del svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* 进度条加粗一档（4px 细条触屏看不清进度） */
+  .b3-progress__bar {
+    height: 6px;
+  }
+}
