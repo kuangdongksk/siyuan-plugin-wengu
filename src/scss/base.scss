@@ -19,64 +19,92 @@
    自定义页签整棵挂在其下（Protyle 编辑器自己覆盖了，我们之前没有）——
    页签内 selectstart 被宿主压住、选区恒 collapsed，英语滑选标注
    （AnnoFlow 靠 document.selectionchange 起浮条）整条链死掉。
-   口径：**根容器统一下放 text，再对交互面收窄 none**——否则动作钮
-   （复习「重练」等）的 click 不是「控件原生激活」而是「组件冒泡手动
-   处理」，会在 mousedown 清空既有选区（真机上「选一段 → 点重练」的
-   选区丢失即此因）。
-   不写 `-webkit-user-select`：Chromium 的 user-select 自 Chrome 54 起
-   已按标准解析、支持继承，桌面端另有内联 `-webkit-user-select: none`
-   会把单带前缀的 `text` 干掉（base.css 的 `.b3-label` 与刷新按钮就是
-   这种形态），反而失效；只带 -webkit- 但不带标准的写法能被继承覆盖。
-   控制面清单：rail/侧栏/SiYuan 清单行/头部/题号栏/预览工具行/操作条与
-   浮层的按钮——`<button>` 的元素级 `user-select:none` 会被继承的
-   `text` 压过，必须显式兜底（`.wengu-annobar-btn` / `.wengu-wordpop .b3-button`
-   真机拖选出现即此因）。表单控件（input/textarea）是 UA 的
-   `user-select: auto`，先于本类解析，不受影响。 */
-.wengu-panel,
-.wengu-panel *,
-.wengu-panel *::before,
-.wengu-panel *::after {
+   口径：**根容器下放 text，控件面收窄 none**。
+   ⚠️ 两条铁律（20260911 无头 Chromium 真拖拽实测，别踩）：
+   1. **别在根上写 `.wengu-panel *` 下放 text**——`user-select` 不是纯继承
+      属性，`text` 一旦直接声明到每个后代上，会压过从祖先控件继承来的
+      `none`；通配铺满全树后，**嵌在控件里的文本全部可选**：材料折叠钮内
+      「材料」、步选项钮内选项文本、槽位钮文本、配对池字母都能拖出选区
+      （实测 9 处泄漏），收窄段再写 `none` 也救不回来（那些 span 不在
+      收窄选择器名单里，且通配声明在它们自身上）。
+      正解=**只在面板根声明一次 `text`**：子元素的 `auto` 按父级 used
+      value 解析，控件内的 span 自然继承控件的 `none`（泄漏 9 → 0）。
+   2. **收窄要覆盖到后代**：`button` 的 `user-select:none` 只管自己那一格，
+      里面的 span 走 `auto` 继承——中间若有别的 `text` 声明（铁律 1）即洞开。
+   不写 `-webkit-user-select`：Chromium 自 54 起按标准解析 `user-select`、
+      `auto` 走父级；桌面端另有内联 `-webkit-user-select: none`（`.b3-label`、
+      刷新钮）会把单带前缀的 `text` 干掉，只写前缀反而失效。
+    ⚠️ 滑选标注（#28/#29）靠 `document.selectionchange` 起浮条，浮条放行
+      判据含 `host.contains(anchorNode)`——控件面若能被拖出选区，浮条会
+      在按钮文字上误弹，所以下面的收窄不是洁癖。 */
+.wengu-panel {
   user-select: text;
 }
 
+/* 控件面收窄。范围以 Issue #26 验收第 2 条为准：头部 / 题号栏 / 侧栏树 /
+   组单元翻题钮 / 浮层操作条自身。**别顺手扩大化**——卡头（考点标题、来源
+   meta、刷题次数）与复习清单行、统计行属阅读面，保持可选（可复制考点名）。
+   也不用 `[onclick]` 通配去兜点击行：Svelte 把 `onclick` 编译成元素
+   property 赋值、**不落 DOM 属性**，属性选择器一个都匹配不到（实测）。 */
 .wengu-panel
   :is(
+    /* 区域整棵：rail / 侧栏 / 头部 / 题号栏 / 预览工具行 / SiYuan 清单行 */
     .wengu-rail,
-    .wengu-rail-btn,
     .wengu-side,
-    .b3-list,
-    .b3-list-item,
     .wengu-head,
     .wengu-nums,
+    .wengu-pv-tools,
+    .b3-list,
+    .b3-list-item,
+    /* 区内控件 */
     .wengu-num,
     .wengu-num-gap,
-    .wengu-pv-tools
-  ),
-.wengu-panel :is(.wengu-rail, .wengu-side, .wengu-head, .wengu-nums, .wengu-pv-tools) *,
-.wengu-panel
-  :is(
+    /* Svelte Button 的动作钮（挂语义化类名，无统一基类） */
     button,
     .b3-button,
     .wengu-btn,
     .wengu-chip,
+    .wengu-clue-chip,
     .wengu-iconbtn,
     .wengu-side-iconbtn,
-    .wengu-annobar-btn,
-    .wengu-gmat-fold,
-    .wengu-gnav-btn,
-    /* Svelte Button 组件的动作钮（无 .wengu-btn 类，只挂语义化类名） */
     .wengu-end-round,
     .wengu-side-convert,
     .wengu-review-redrill,
-    .wengu-start-actions button,
-    /* 组内翻题的序号是 label 而非钮：选中数字时点它会把选区压掉，
-       影响 AnnoFlow 的 `host.contains(anchorNode)` 判据 */
+    /* 组内翻题的序号是 label 而非钮（点它会把选区压掉，影响 AnnoFlow
+       的 `host.contains(anchorNode)` 判据），折叠钮同款 */
+    .wengu-gmat-fold,
+    .wengu-gnav-btn,
     .wengu-gq-label,
-    /* 配对题候选池：池项无点击（点它不选中任何东西），但拖选池内字母/词
-       毫无意义且会与空选项交互打架——整池按控件面收 */
+    /* 配对题候选池：池项无点击，但拖选池内字母/词毫无意义且会与空选项
+       交互打架——整池按控件面收 */
     .wengu-match-poolitem
-  ) {
+  ),
+/* 后代一并收（铁律 2）：只收容器的话，子 span 的 `auto` 仍会回落到面板根
+   的 `text`——按钮文字照样拖得出来。 */
+.wengu-panel
+  :is(
+    .wengu-rail,
+    .wengu-side,
+    .wengu-head,
+    .wengu-nums,
+    .wengu-pv-tools,
+    .b3-list,
+    .b3-list-item,
+    button,
+    .b3-button,
+    .wengu-btn,
+    .wengu-chip,
+    .wengu-clue-chip,
+    .wengu-match-poolitem
+  ) * {
   user-select: none;
+}
+
+/* 表单控件显式拉回：侧栏搜索框在 `.wengu-side` 整棵收窄段内，不拉回
+   则 computed 落到 `none`（Chromium 下输入与选择仍可用，实测
+   `setSelectionRange` 与真拖拽都正常，但别依赖这条隐含行为）。 */
+.wengu-panel :is(input, textarea, select, .b3-text-field, .b3-select, .wengu-input) {
+  user-select: text;
 }
 
 /* 浮层根挂 body（不在 .wengu-panel 子树内，收窄段罩不到）：选中操作条
