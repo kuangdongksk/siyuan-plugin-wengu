@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { dunnoQuestion, dunnoSteps, revealStepsCard, skipQuestion } from "./AnswerFlow";
+import { afterEach, describe, expect, it } from "vitest";
+import { dunnoQuestion, dunnoSteps, revealAll, revealStepsCard, skipQuestion } from "./AnswerFlow";
 import type { AnswerHost } from "./AnswerFlow";
 import type { CardUi } from "../render/CardState";
 import { buildCardInit, type CardInitCtx } from "../render/CardState";
+import { registerCard, unregisterCard } from "../render/CardRegistry";
 import { CardCtl } from "../render/CardCtl";
+import { nextStep, pickStep } from "./StepsFlow";
 import { QuestionType, type WenguQuestion } from "../../types";
 
 /**
@@ -38,6 +40,10 @@ interface Rec {
 class FakeHost implements AnswerHost {
     readonly recs: Rec[] = [];
     readonly activeQ: number[] = [];
+    readonly mirrors: { qid: string; ok: boolean }[] = [];
+    readonly overrides: { qid: string; ok: boolean }[] = [];
+    /** 会话结果（revealStepsCard 的兜底快照与反悔判据都读它）。 */
+    results: { qid: string; submitted: string; ok: boolean }[] = [];
     list: WenguQuestion[] = [stepsQ];
     constructor(private readonly mode: "instant" | "after") {}
 
@@ -49,20 +55,39 @@ class FakeHost implements AnswerHost {
     currentRevealMode = (): "instant" | "after" => this.mode;
     timerController = () =>
         ({ elapsed: (): number => 0, questionSec: (): number => 3, takeQuestionSec: (): number => 3 }) as never;
-    currentSession = (): never => ({ results: [] }) as never;
+    currentSession = (): never => ({ results: this.results }) as never;
     aiModelId = (): string => "";
-    recordAnswer = (qid: string, submitted: string, ok: boolean): void => void this.recs.push({ qid, submitted, ok });
+    recordAnswer = (qid: string, submitted: string, ok: boolean): void => {
+        this.recs.push({ qid, submitted, ok });
+        // 会话 upsert（真实 HistoryStore.pushSessionAnswer 的语义：同 qid 原地覆写）
+        const hit = this.results.find((r) => r.qid === qid);
+        if (hit) Object.assign(hit, { submitted, ok });
+        else this.results.push({ qid, submitted, ok });
+    };
+    bankMirror = (qid: string, _s: string, ok: boolean): void => void this.mirrors.push({ qid, ok });
+    bankOverride = (qid: string, ok: boolean): void => void this.overrides.push({ qid, ok });
     flushTime = (): void => undefined;
     roundComplete = (): void => undefined;
     onActiveQ = (idx: number): void => void this.activeQ.push(idx);
 }
 
-/** 真 CardCtl（真 ui / 真 setGraded/setPending/reveal，别 mock 掉被测口径）。 */
-function ctlOf(q: WenguQuestion, restore?: CardInitCtx["restore"]): { ctl: CardCtl; ui: CardUi } {
+/** 真 CardCtl（真 ui / 真 setGraded/setPending/reveal，别 mock 掉被测口径）。
+ *  登记进题卡表：revealAll（收卷统一揭示）按表遍历，不登记它就测不到。 */
+function ctlOf(
+    q: WenguQuestion,
+    mode: "instant" | "after" = "instant",
+    restore?: CardInitCtx["restore"],
+    host?: FakeHost
+): { ctl: CardCtl; ui: CardUi; host: FakeHost } {
+    const h = host ?? new FakeHost(mode);
     const ctx: CardInitCtx = { t, interactive: true, locked: false, restore };
     const ui = buildCardInit(q, ctx);
-    return { ctl: new CardCtl(new FakeHost("instant"), q, 0, ui, true), ui };
+    const ctl = new CardCtl(h, q, 0, ui, true);
+    registerCard(ctl);
+    return { ctl, ui, host: h };
 }
+
+afterEach(() => unregisterCard({ q: stepsQ } as unknown as CardCtl));
 
 describe("steps「不会」· instant 模式", () => {
     it("题级记一错（空串）、全部步骤一次揭示、卡锁、dunnoMarked 文案", async () => {
@@ -174,5 +199,111 @@ describe("revealStepsCard · 全步揭示收口", () => {
         expect([ui.graded, ui.locked, ui.revealed]).toEqual([true, true, true]);
         expect(ui.submitted).toBe("A");
         for (const su of ui.steps!) expect([su.hidden, su.locked, su.graded]).toEqual([false, true, true]);
+    });
+});
+
+/* ── 真流程回归（Issue #21 复审修复） ──
+   上面几条是「单点分支」锁；这一段走**真实编排**（pickStep/nextStep/
+   dunnoSteps/revealAll 串起来），锁三处真机级缺陷——它们在单点测试里
+   全绿，只有在整条流程串起来时才暴露：
+
+   1. 正常答完 steps 被 revealStepsCard 的「全错占位快照」覆盖成
+      「全错 + 空选」——单测只看三态，看不到逐格被清空；
+   2. after「不会」后无法反悔（守卫认 `ctl.graded`，而「不会」只置
+      graded）——验收第 4 条直接失效；
+   3. 没答过的步被挂上「AI 复核」申诉钮（复核「你选的这一步」无意义）。 */
+
+describe("真流程 · 正常答完 steps（缺陷 1 回归）", () => {
+    it("逐格真值落格、stepOks 真快照、整题结果行透真对错", async () => {
+        const host = new FakeHost("instant");
+        const { ctl, ui } = ctlOf(stepsQ, "instant", undefined, host);
+        pickStep(ctl, 0, "A"); // 方法步对
+        await nextStep(host, stepsQ, ctl, 0);
+        pickStep(ctl, 1, "B"); // 结果步对
+        await nextStep(host, stepsQ, ctl, 1);
+
+        expect(ui.steps!.map((s) => s.selected)).toEqual(["A", "B"]);
+        expect(ui.steps!.map((s) => s.ok)).toEqual([true, true]);
+        expect(ui.stepOks).toBe("11"); // 申诉翻对基线（旧实现被清成 00）
+        expect(ui.resultStatus).toBe("right");
+    });
+
+    it("答错也保真值：申诉钮挂答错的方法步，快照按步序记真对错", async () => {
+        const host = new FakeHost("instant");
+        const { ctl, ui } = ctlOf(stepsQ, "instant", undefined, host);
+        pickStep(ctl, 0, "B"); // 方法步错（可行集合 A）
+        await nextStep(host, stepsQ, ctl, 0);
+        expect(ui.steps![0].ok).toBe(false);
+        expect(ui.steps![0].appeal).toBe("idle"); // 答错的方法步可申诉
+        pickStep(ctl, 1, "B");
+        await nextStep(host, stepsQ, ctl, 1);
+        expect(ui.stepOks).toBe("01");
+        expect(ui.resultStatus).toBe("wrong");
+    });
+});
+
+describe("真流程 · after「不会」可反悔（验收 4 / 缺陷 2 回归）", () => {
+    it("点「不会」后仍能逐步作答并收口，题级账被覆写", async () => {
+        const host = new FakeHost("after");
+        const { ctl, ui } = ctlOf(stepsQ, "after", undefined, host);
+        await dunnoSteps(host, stepsQ, ctl);
+        expect([ui.graded, ui.locked, ui.revealed]).toEqual([true, false, false]);
+
+        pickStep(ctl, 0, "A"); // 旧实现在这里被 graded 闸打死
+        expect(ui.steps![0].selected).toBe("A");
+        await nextStep(host, stepsQ, ctl, 0);
+        pickStep(ctl, 1, "B");
+        await nextStep(host, stepsQ, ctl, 1);
+
+        expect(ui.steps!.map((s) => s.ok)).toEqual([true, true]);
+        expect(ui.stepOks).toBe("11");
+        // 逐步账照记（#k），题级账在收口时**原地覆写**（同 qid 不新增条目）
+        expect(host.recs.map((r) => r.qid)).toEqual(["s1", "s1#0", "s1#1", "s1"]);
+        expect(host.recs.at(-1)).toEqual({ qid: "s1", submitted: "AB", ok: true });
+        // 覆写走 override 口径（不动 attempts），整题不再按「曾认输」计错
+        expect(host.overrides).toEqual([{ qid: "s1", ok: true }]);
+        expect(host.mirrors).toEqual([]); // 覆写走 override，不重复记 attempts
+    });
+
+    it("未认输过的正常作答不写题级条目（轮次 answered 不翻倍）", async () => {
+        const host = new FakeHost("after");
+        const { ctl } = ctlOf(stepsQ, "after", undefined, host);
+        pickStep(ctl, 0, "A");
+        await nextStep(host, stepsQ, ctl, 0);
+        pickStep(ctl, 1, "B");
+        await nextStep(host, stepsQ, ctl, 1);
+        expect(host.recs.map((r) => r.qid)).toEqual(["s1#0", "s1#1"]); // 逐步账，无题级条目
+        expect(host.mirrors).toEqual([{ qid: "s1", ok: true }]);
+    });
+});
+
+describe("真流程 · 收卷统一揭示（验收 5 回归）", () => {
+    it("「不会」的卡全步展开，未答步不挂申诉钮（缺陷 3 回归）", async () => {
+        const host = new FakeHost("after");
+        const { ctl, ui } = ctlOf(stepsQ, "after", undefined, host);
+        await dunnoSteps(host, stepsQ, ctl);
+        void ctl;
+        revealAll(host);
+
+        expect([ui.graded, ui.locked, ui.revealed]).toEqual([true, true, true]);
+        for (const su of ui.steps!) {
+            expect([su.hidden, su.locked, su.graded, su.resultOn]).toEqual([false, true, true, true]);
+            expect(su.selected).toBe(""); // 不伪装成「答错 A/B」
+            expect(su.appeal).toBe(""); // 没答过的步无从复核
+        }
+    });
+
+    it("已作答的卡收卷揭示：真值不被兜底快照覆盖（缺陷 1 回归）", async () => {
+        const host = new FakeHost("after");
+        const { ctl, ui } = ctlOf(stepsQ, "after", undefined, host);
+        pickStep(ctl, 0, "A");
+        await nextStep(host, stepsQ, ctl, 0);
+        pickStep(ctl, 1, "B");
+        await nextStep(host, stepsQ, ctl, 1);
+        revealAll(host);
+        expect(ui.steps!.map((s) => s.selected)).toEqual(["A", "B"]);
+        expect(ui.steps!.map((s) => s.ok)).toEqual([true, true]);
+        expect(ui.stepOks).toBe("11");
+        expect(ui.resultHtml).toContain("stepAllCorrect");
     });
 });

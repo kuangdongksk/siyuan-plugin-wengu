@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildCardInit, restoreContextFor, settleSteps, type CardInitCtx } from "./CardState";
+import { buildCardInit, restoreContextFor, type CardInitCtx } from "./CardState";
+import { settleSteps } from "./CardSteps";
 import type { WenguSession } from "../service/HistoryStore";
 import { QuestionType, type WenguQuestion } from "../../types";
 

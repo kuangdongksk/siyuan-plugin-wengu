@@ -373,10 +373,15 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
       答案就是「部分步有内容、部分步空白」的半揭示，Issue #21 验收 5）；
       逐步账一律滤掉空串条目（防对应步被渲染成「错误 + 答案」）。
     - **全步揭示一个收口**：`AnswerFlow.revealStepsCard`（三态一起置 +
-      `CardState.settleSteps` 逐格落格/锁定，与 StepsFlow 的自判分收口
-      同口径），`revealCard` 的 steps 转调、`revealAll` 收卷统一揭示、
+      `render/CardSteps.settleSteps` 逐格落格/锁定，与 StepsFlow 的自判分
+      收口同口径），`revealCard` 的 steps 转调、`revealAll` 收卷统一揭示、
       `dunnoSteps` 三路共用；StepsFlow 的 `finishCard` 退化为记账 +
-      调它（禁复制第二份）。
+      调它（禁复制第二份）。**兜底揭示不覆盖已落格的步**（`settleSteps`
+      无快照时只补未落格的），`stepOks` 按实际逐格态回写——否则当场答完的
+      卡会被「全错占位」清空（Issue #21 复审）。
+    - **after「不会」后可反悔**：步内守卫认「揭示或锁定」而非 `graded`
+      （`StepsFlow.stepsFrozen`），反悔改正常作答时题级空串账就地覆写
+      （走覆写口径、不动 attempts）；没答过的步不挂申诉钮。
     - i18n 复用现有键（skipBtn/skipHint/dunnoBtn/dunnoHint/dunnoMarked），
       未新增；预览装饰的 `[data-submit-row]` 整行摘除自动覆盖 steps
       新增的作答行。
