@@ -65,11 +65,12 @@ function markRootOf(host: ClueHost, q: WenguQuestion): HTMLElement | null {
     return host.el.querySelector<HTMLElement>(`.wengu-card[data-qid="${q.id}"] .wengu-qprotyle`);
 }
 
-/** 被操作题：卡上 chip 按卡反查归属题（长卷全卡常驻，非当前题也渲染）；
- *  组题行只渲染组内当前题、无 qid 可查，回落当前题。 */
-function ownerQuestion(host: ClueHost, chip: HTMLElement): WenguQuestion | undefined {
+/** 被操作题：按被点元素反查归属题（长卷全卡常驻，非当前题卡的 chip
+ *  删除与「AI 复核」都点得到，两路共用）；组题行只渲染组内当前题、
+ *  无 qid 可查，回落当前题。 */
+function ownerQuestion(host: ClueHost, el: HTMLElement): WenguQuestion | undefined {
     const qid = clueOwnerQid({
-        cardQid: chip.closest<HTMLElement>(".wengu-card")?.dataset.qid,
+        cardQid: el.closest<HTMLElement>(".wengu-card")?.dataset.qid,
         currentQid: host.currentQuestion()?.id,
     });
     return qid ? host.questionById(qid) : undefined;
@@ -153,15 +154,17 @@ export function bindClueJudge(host: ClueHost): void {
         }
         const btn = target.closest<HTMLElement>("[data-act='clue-judge']");
         if (!btn) return;
+        // 复核结果行贴在**被点卡**里，归属题同样要按卡反查——按「当前题」
+        // 会拿错题的线索去判、再把结论贴到另一张卡上（与 chip 删除同源）
         const scope = btn.closest<HTMLElement>(".wengu-gunit, .wengu-card") ?? host.el;
-        void judgeClueNow(host, scope);
+        const q = ownerQuestion(host, scope);
+        if (q) void judgeClueNow(host, q, scope);
     });
 }
 
-async function judgeClueNow(host: ClueHost, scope: HTMLElement): Promise<void> {
+async function judgeClueNow(host: ClueHost, q: WenguQuestion, scope: HTMLElement): Promise<void> {
     const s = host.currentSession();
-    const q = host.currentQuestion();
-    if (!s || !q) return;
+    if (!s) return;
     const clues = cluesOf(host, q);
     if (clues.length === 0) return;
     // 复核输入：组题=材料正文；非组题（题干自带长文本）=题干 md

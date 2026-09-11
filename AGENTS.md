@@ -255,9 +255,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   只有一个入口 `ClueFlow.refreshClueMarkFor`（材料填充后/题干挂载后/
   会话恢复后三处都过它，幂等），选段定位与 chip 两击删除状态机的纯
   判定在 `flow/ClueMark.ts`（带单测）、DOM 手术在 `flow/ClueMarkDom.ts`。
-  **chip 归属题按卡反查**（`clueOwnerQid`）：长卷全卡常驻，非当前题卡的
-  chip 用 `row.closest(".wengu-card").dataset.qid` 经 host `questionById`
-  取题；组题行无卡 qid 时回落 `currentQuestion()`——写死「当前题」会删错题。
+  **线索归属题按卡反查**（`clueOwnerQid`）：长卷全卡常驻，非当前题卡的
+  chip 删除与「AI 复核」都用 `closest(".wengu-card").dataset.qid` 经 host
+  `questionById` 取题；组题行无卡 qid 时回落 `currentQuestion()`——写死
+  「当前题」两路都会错（删错题 / 拿错题线索判、结论贴错卡）。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
