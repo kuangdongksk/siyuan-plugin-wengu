@@ -2,6 +2,7 @@ import { buildPrompt } from "../../../ai/prompts/convert";
 import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
+import { foldGlossIntoDrafts } from "../gloss/GlossFold";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../source/SrcChunk";
 import { shuffleDraftOptions } from "../draft/OptionShuffle";
 import { SetWriter } from "../output/SetWriter";
@@ -146,6 +147,9 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         }
         const drafts = parseDrafts(gen.reply);
         if (drafts.length === 0) out.empty++; // AI 判定无可转内容（例题/引言等筛选口径）
+        // 词条行保真（Issue #30）：与逐段自推进同一条口径——本块的源文本里
+        // 认词条行补进材料尾部，`^{...}` 残渣落库前剥净
+        foldGlossIntoDrafts(drafts, chunk.text);
         drafts.forEach(shuffleDraftOptions);
         if (gen.byAlias && drafts.length > 0) out.knowLinked += applyKnowDrafts(drafts, gen.byAlias);
         const res = await writer.append(

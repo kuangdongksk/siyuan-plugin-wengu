@@ -124,15 +124,27 @@ export function typeRulesFor(types?: QuestionType[]): string {
     return `1. type 只取 ${list}；@@P ans 按题型约定写（${hints}）。`;
 }
 
+/** 词条行保真约定（Issue #30）：英语原卷在正文里对「特殊词」做下划线+
+ *  标号，并在段后给词条行（`词 ^{记号} 音标 释义`）。这条**只要求 AI 把
+ *  词条行原样搬进材料尾部**，正文不做任何改写——词表区的落库标记
+ *  （`@@G`）与正文划线联动由代码做，不占 AI 的注意力。
+ *
+ *  与 materialRulesFor 同在「英语题型约定」段（cloze/match/essay/trans
+ *  在场才拼）——非英语卷的 prompt 产物因此逐字节不含本段。 */
+const GLOSS_RULE =
+    "词条保真：源文里形如「词 ^{记号} 音标 释义」的**词条行**（紧跟其解释段落之后、成组出现的特殊词注）原样搬进该材料 @@P body 的**末尾**，回收时每行一条、内容不增不减不改写、顺序与原卷一致；**正文本身不得因词条做任何改写**（句子照抄、不许插标号、不许省略词条对应的词）。没有词条行时一个字都不要加。";
+
 /** buildPrompt 规则 7 的「英语题型约定」段：仅在场题型的约定拼装；
  *  四类全不在场时返回空串（整段省略）。types=undefined 时四类全拼
- *  （与改造前逐字节一致）。 */
+ *  （与题型化改造前逐字节一致——**词条保真段是 20260910 Issue #30 的
+ *  新增内容，是全量的组成部分**，undefined 兜底与英语题型在场两条路
+ *  都带它；非英语卷才整段省略）。 */
 export function materialRulesFor(types?: QuestionType[]): string {
     const english = [QuestionType.Cloze, QuestionType.Match, QuestionType.Essay, QuestionType.Trans];
     const present = types ? english.filter((t) => types.includes(t)) : english;
     const frags = present.map((t) => MATERIAL_TYPE_RULES[t]).filter(Boolean);
     if (frags.length === 0) return "";
-    return `英语题型约定：${frags.join("；")}。`;
+    return `英语题型约定：${frags.join("；")}。${GLOSS_RULE}`;
 }
 
 /** 材料组示例清单（规则 7 括号内）：英语题型在场时列全，纯客观/数学

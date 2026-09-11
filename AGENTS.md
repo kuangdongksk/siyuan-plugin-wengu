@@ -246,6 +246,21 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       此口径：**没答过的步不挂申诉钮**（复核「你选的这一步」无意义）。
       反悔改正常作答后题级空串账就地覆写（`recordAnswer` + `bankOverride`，
       走「覆写」口径不动 attempts），否则收卷报告按「曾认输」计错。
+- **词表区与正文词形联动**（Issue #30 渲染侧）：`quiz/service/GlossDom.applyGloss`
+  是材料填充的**唯一**词表后处理入口（两个挂载点 `GroupUnitApp` 与
+  `ProtyleHost.mountStatic` 都过它）——`@@G` 行渲染为 `ul.wengu-gloss`
+  （词条下划线/音标弱化/释义常规），正文里与词表词形精确匹配的**首次**出现
+  包 `span.wengu-gloss-link > u + sup`。样式在 `scss/english.scss`。
+    - **与 #29 线索 mark 两条后处理互不嵌套**（接口约定，别只改一侧）：
+      GlossDom 的匹配跳过 `mark.wengu-clue-mark`；`ClueMarkDom` 的
+      `SKIP_SELECTOR` 也已加 `.wengu-gloss` / `.wengu-gloss-link`。挂载顺序
+      固定「词表 → 线索」（两处调用点同款）；两侧都幂等（先摘旧标记再重铺）。
+    - `^{...}` 渲染兜底在 `ui/MdRender` 的 `wengu_kram_sup` inline 规则
+      （tokenizer 级，代码围栏内不受影响）——漏网的 `^{补}` 出 `<sup>` 不出
+      字面文本。
+    - 无词表材料走原路（`root.innerHTML = renderMdHtml(md)`），存量渲染产物
+      逐字节不变。
+
 - **新增按钮要同步三处清理面**：预览装饰（`PreviewFlow` 摘
   `[data-submit-row]` 整行）、渐进呈现（`wengu-previewing` 的
   `pointer-events:none` 名单）、预览的 DOM 手术清单——漏一处就是
@@ -299,6 +314,25 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       会跨片错位。连续前缀也让**续跑断点仍是单游标**、终止「保留」语义不变。
       目标片数 = 并发度 × 2（片略多于流水线数，消化片长不均）；任一片失败即
       中止其余片，已落库部分仍是可续跑的连续前缀。
+- **词条行保真**（20260910 起，Issue #30）：英语原卷的词条行（`词 ^{记号}
+音标 释义`，考研真相形态）在转换时被 AI 整行剥掉、正文的 `^{补}` 残渣
+  漏成字面文本。链接两端：
+    - `src/convert/service/gloss/`（纯逻辑 + 后处理）：`GlossEntry` 行协议
+      （`@@G 词 | 音标 | 释义`）往返、`^{...}` 记号采集/剥除、正文词形
+      **精确匹配**（词边界对齐、含 possessive、不做词干还原）与**原卷词条行
+      确定性解析**（`parseRawEntryLine`：词 + `^{记号}` + 音标 + 释义三段收
+      紧，防把正文句子当词条）；`GlossFold.foldGlossIntoDrafts` 是本批
+      **消费源区间**里的兜底采集（AI 没给词表才补，AI 给了以它为准；片内多
+      篇材料不补防串篇）、`^{...}` 残渣落库前一律剥净。接线在 `ConvertSegment`
+      （区间定下后、洗牌前）。
+    - prompt 约定在 `ai/prompts/protocol.materialRulesFor` 的英语题型段——
+      **四类英语题型不在场则整段省略**（非英语卷 prompt 产物零词条段）；
+      词表区的落库标记 `@@G` **不进 `questionHash`**（材料正文不是题目记录
+      kramdown，冻结清单不碰）。
+    - ⚠️ 踩坑：`MARK_RE` 用 `\s*` 作前导会**跨行**把上一行的词吃进来（记号
+      归属误挂）；词形归一 `normWord` 必须保留 `\p{L}\p{N}`（中文「补」「同」
+      也是合法记号，只认 ASCII 会静默丢条目）。
+
 - **判定合并进首批**（20260910）：独立前置检测（原先按 12k 分段并行问「能否
   出题 + 题数 + 题型」）整体退役——首批生成顺带输出 CAN_CONVERT/REASON/TYPES
   三行，题型先验喂后续批次的题型化 prompt；单窗口文档首批即判 no 直接拒绝，

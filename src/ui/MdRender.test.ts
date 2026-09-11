@@ -87,3 +87,33 @@ describe("renderMdHtml：kramdown 残渣", () => {
         expect(renderMdHtml("(甲) ((乙))")).not.toContain("wengu-blockref");
     });
 });
+
+describe("renderMdHtml：kramdown 上标 ^{...} 兜底（Issue #30）", () => {
+    it("字面 ^{补} 渲染为 sup，不出现在产物里", () => {
+        const html = renderMdHtml("funding ^{补} is key");
+        expect(html).toContain("<sup>补</sup>");
+        expect(html).not.toContain("^{补}");
+    });
+
+    it("行外公式的指数不被吞（$..$ 由 mathInline 先吃）", () => {
+        const html = renderMdHtml("求 $x^{2}$ 值");
+        expect(html).toContain('data-content="x^{2}"');
+        expect(html).not.toContain("<sup>2</sup>");
+    });
+
+    it("代码围栏内的 ^{} 不转 sup（tokenizer 级规则）", () => {
+        expect(renderMdHtml("```\na^{b}\n```")).not.toContain("<sup>");
+    });
+
+    it("未闭合的 ^{ 保持字面不吞文本", () => {
+        const html = renderMdHtml("a ^{unclosed");
+        expect(html).toContain("^{unclosed");
+        expect(html).not.toContain("<sup>");
+    });
+
+    it("上标内容经 html:false 转义（不注入）", () => {
+        const html = renderMdHtml("x ^{<b>y</b>}");
+        expect(html).not.toContain("<b>");
+        expect(html).toContain("&lt;b&gt;");
+    });
+});

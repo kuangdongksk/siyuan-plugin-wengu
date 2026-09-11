@@ -105,6 +105,25 @@ function mathBlock(state: StateBlock, startLine: number, endLine: number, silent
     return true;
 }
 
+/**
+ * kramdown 上标 `^{...}` 的 inline 规则（Issue #30 验收第 3 条：源文的
+ * `^{补}` 不许以字面形态出现在任何渲染产物里）。路线对齐自产的
+ * `wengu_math_inline`：tokenizer 规则优于后处理（代码围栏内不受影响），
+ * 渲染为 `<sup>`。**不是**数学桥——思源 `$..$` 公式由 mathInline 先吃，
+ * 只有漏网的行外 `^{...}` 才落到这里。
+ */
+function kramSup(state: StateInline, silent: boolean): boolean {
+    const start = state.pos;
+    if (state.src[start] !== "^" || state.src[start + 1] !== "{") return false;
+    const close = state.src.indexOf("}", start + 2);
+    if (close < 0) return false;
+    const content = state.src.slice(start + 2, close);
+    if (!content.trim() || content.includes("\n")) return false;
+    if (!silent) state.push("wengu_kram_sup", "", 0).content = content;
+    state.pos = close + 1;
+    return true;
+}
+
 /** 块引用占位符的内控标记（markdown-it html:false 下占位符按纯文本
  *  直通，渲染后再置换回安全构造的 span——esc 已在构造时做过）。 */
 const WBR = "\u0001";
@@ -135,7 +154,9 @@ function renderer(): MarkdownIt {
     sharedMd.renderer.rules.paragraph_close = (): string => "</div>";
     sharedMd.renderer.rules.wengu_math_inline = (tokens, idx): string => inlineMathHtml(tokens[idx].content);
     sharedMd.renderer.rules.wengu_math_block = (tokens, idx): string => blockMathHtml(tokens[idx].content);
+    sharedMd.renderer.rules.wengu_kram_sup = (tokens, idx): string => `<sup>${esc(tokens[idx].content)}</sup>`;
     sharedMd.inline.ruler.after("escape", "wengu_math_inline", mathInline);
+    sharedMd.inline.ruler.after("wengu_math_inline", "wengu_kram_sup", kramSup);
     sharedMd.block.ruler.after("blockquote", "wengu_math_block", mathBlock, { alt: ["paragraph", "reference"] });
     return sharedMd;
 }
