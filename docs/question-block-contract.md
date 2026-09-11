@@ -848,6 +848,40 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
     - `trans` 翻译：题干=原句/原段，answer=参考译文，solution=采分点
       解析；逐句考查=每句一个题块、共用同一材料块（group 引用）。
       判分走采分点 prompt（同 brief 三态）。
+- **词条行保真（Issue #30，英语卷特殊词）**：原卷（考研真相形态）在正文里
+  对「特殊词」做下划线+标号，并在段后给一行词条（`词 ^{记号} 音标 释义`）。
+  现状是转换时词条被整行剥掉、正文的 `^{补}` 残渣漏成字面文本——阅读时
+  看不到划线词与注释指向。
+    - **词表区 = 材料正文尾部的一组行协议行**（`@@G 词 | 音标 | 释义`，一行
+      一条；竖线分隔，规避释义里高频的冒号/井号；内容不增不减不改写）。
+      与 @@Q/@@P/@@END 生成协议同为 `@@` 前缀但**互不冲突**（词表行落在
+      `@@P body` 内，不是标记行）。**注意：材料正文（`bank.materials.bodyMd`）
+      不是题目记录 kramdown，不进 `questionHash` 口径**——新增词表标记对
+      指纹/增量哈希零影响，无需迁存量。
+    - **转换侧双保险**：prompt 约定（`materialRulesFor` 的英语题型段，四类
+      英语题型不在场时整段省略——非英语卷的 prompt 产物逐字节不含词条段）
+        - 代码确定性兜底（`gloss/GlossFold.foldGlossIntoDrafts`：本批**消费的
+          源区间**里逐行认词条行，AI 没给词表时补进材料尾部；AI 给了就以它为准
+          不重复补；片内多篇材料时不补，防串篇）。`^{...}` 残渣在落库前一律剥净。
+    - **渲染侧**（`quiz/service/GlossDom.applyGloss`，材料填充的**唯一**词表
+      后处理入口，两个挂载点 GroupUnitApp / ProtyleHost 都过它）：`@@G` 行
+      渲染为 `ul.wengu-gloss`（词条下划线/加粗、音标弱化色、释义常规）；
+      正文里与词表词形**精确匹配**（大小写不敏感、词边界对齐、含 possessive
+      `'s`，**不做词干还原**——屈折变形一律不高亮）的**首次**出现包
+      `<span class="wengu-gloss-link"><u>词</u><sup>序号</sup></span>`。
+      判定纯函数在 `convert/service/gloss/GlossEntry`（单测覆盖），本处只做
+      DOM 手术。
+    - **与 #29 线索 mark 互不嵌套**（接口约定）：GlossDom 不碰
+      `mark.wengu-clue-mark` 内的文本，ClueMarkDom 的跳过名单也含
+      `.wengu-gloss` / `.wengu-gloss-link`；两侧都幂等（先摘旧标记再重铺）。
+      挂载顺序固定为「词表后处理 → 线索高亮后处理」（两个调用点同款）。
+    - **`^{...}` 渲染兜底**：`ui/MdRender` 加 `wengu_kram_sup` inline 规则
+      （路线对齐自产 `wengu_math_inline`，tokenizer 级、代码围栏内不受影响），
+      漏网的 `^{补}` 渲染成 `<sup>补</sup>` 而非字面文本。
+    - **存量材料（无词表区）渲染零变化、零迁移**：`splitGlossBlock` 无 `@@G`
+      行时正文逐字节原样，`applyGloss` 走 `root.innerHTML = renderMdHtml(md)`
+      同一条老路。
+
 - **材料组渲染（E1 分栏壳）**：DrillUnits 把列表组装成「独立题 /
   材料组」单元——组单元=上栏材料（独立滚动、可折叠、滚动位置按组
   记忆跨重渲染恢复）+ 下栏组内题**一次一题**（上一题/下一题导航、

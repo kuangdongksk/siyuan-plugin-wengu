@@ -2,6 +2,7 @@ import { ProtyleMethod } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { optionDisplayMd, estimateOptWidth, LETTERS } from "../../types";
 import { renderMdHtml } from "../../ui/MdRender";
+import { applyGloss } from "./GlossDom";
 import { yieldToBrowser } from "../../ui/shared";
 
 /**
@@ -43,7 +44,8 @@ export class ProtyleHost {
             if (node.hasAttribute("data-mprotyle")) {
                 const mat = materials.find((x) => x.id === this.nodeBlockId(node));
                 if (!mat?.bodyMd) continue;
-                node.innerHTML = renderMdHtml(mat.bodyMd);
+                // 词表区 + 正文词形联动（Issue #30；无词表时产物与改造前一致）
+                applyGloss(node, mat.bodyMd);
             } else {
                 const card = node.closest<HTMLElement>(".wengu-card");
                 const q = list.find((x) => x.id === card?.dataset.qid);

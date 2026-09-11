@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
-    import { renderMdHtml } from "../../ui/MdRender";
+    import { applyGloss } from "../service/GlossDom";
     import { renderMathWhenVisible } from "../service/ProtyleHost";
     import Button from "../../ui/Button.svelte";
     import type { CardHtmlModel } from "../render/CardParts";
@@ -70,7 +70,8 @@
         registerGroup(mid, { focusIdx, unitEl: () => rootEl });
         // 材料静态填充（旧 mountStatic 的 [data-mprotyle] 单节点语义）
         if (matEl && material?.bodyMd) {
-            matEl.innerHTML = renderMdHtml(material.bodyMd);
+            // 词表区 + 正文词形联动（Issue #30；无词表时渲染产物与改造前一致）
+            applyGloss(matEl, material.bodyMd);
             const top = getGroupScroll(mid);
             if (top !== undefined) matEl.scrollTop = top;
             if (rootEl) renderMathWhenVisible(rootEl);

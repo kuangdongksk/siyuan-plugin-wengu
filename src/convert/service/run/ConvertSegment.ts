@@ -6,6 +6,7 @@ import { parseVerdict } from "../core/ConvertService";
 import { parseTypes } from "../draft/ConvertDetect";
 import { shuffleDraftOptions } from "../draft/OptionShuffle";
 import { parseDrafts } from "../draft/QuestionDraft";
+import { foldGlossIntoDrafts } from "../gloss/GlossFold";
 import type { DraftUnit } from "../draft/QuestionDraft";
 import type { KnowSection } from "../knowledge/KnowledgeLink";
 import { advanceCursor, parseToDirective, stepWindow, stripToDirective } from "../source/CursorWindow";
@@ -134,7 +135,6 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         const to = parseToDirective(gen.reply);
         const drafts = parseDrafts(stripToDirective(gen.reply));
         if (drafts.length === 0) res.emptyBatches++;
-        drafts.forEach(shuffleDraftOptions);
         // 单窗口文档首批即判「不能出题」：直接收口（长文档首段可能只是
         // 封面/目录，不据此拒绝整卷——那由编排层的零产物分支处理）
         if (deps.single && verdict && !verdict.can && drafts.length === 0 && win.end >= deps.kramdown.length) {
@@ -144,6 +144,11 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         if (!next.located) res.anchorMiss++;
         // 游标不越片尾（AI 读到重叠区后可能报出重叠区内的位置）；恒前进防死循环
         const end = Math.max(cursor + 1, Math.min(next.cursor, seg.end));
+        // 词条行保真（Issue #30）：本批**消费的源区间**里认词条行补进材料
+        // 尾部，并剥掉正文里漏网的 `^{...}` 残渣（在区间定下之后做，与
+        // 洗牌同层——都在落库前、下标无关）
+        foldGlossIntoDrafts(drafts, deps.kramdown.slice(cursor, end));
+        drafts.forEach(shuffleDraftOptions);
         if (drafts.length > 0) {
             try {
                 res.count += await deps.submit({

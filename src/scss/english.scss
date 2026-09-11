@@ -281,6 +281,70 @@
   box-shadow: inset 0 0 0 1px var(--b3-theme-error);
 }
 
+/* ── 词条行保真（Issue #30）：材料尾部词表区 + 正文词形联动 ──
+   词条下划线、音标弱化、释义常规；正文联动词形同样下划线 + 序号上标。
+   线色/弱化色一律随主题变量，暗色主题下保持可读。 */
+
+.wengu-gloss {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed var(--b3-border-color);
+}
+
+.wengu-gloss-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.7;
+}
+
+.wengu-gloss-word {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--b3-theme-primary);
+}
+
+.wengu-gloss-ph {
+  font-size: 87.5%;
+  color: var(--b3-theme-on-surface-light, var(--b3-theme-on-surface));
+  opacity: 0.75;
+}
+
+.wengu-gloss-mn {
+  font-size: 93.75%;
+}
+
+/* 正文里与词表精确匹配的首次出现：下划线 + 序号上标（原卷划线词的等价呈现） */
+.wengu-gloss-link > u,
+.wengu-gloss-link {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--b3-theme-primary);
+}
+
+.wengu-gloss-link > u {
+  text-decoration: none;
+}
+
+.wengu-gloss-sup {
+  font-size: 68.75%;
+  line-height: 0;
+  color: var(--b3-theme-primary);
+  margin-left: 1px;
+}
+
+/* 原文 kramdown 上标 `^{...}` 的渲染兜底（不出现字面 ^{补}） */
+.wengu-gmat sup,
+.wengu-qprotyle sup {
+  font-size: 68.75%;
+  line-height: 0;
+}
+
 /* 原文持久高亮（Issue #28）：线索段在材料/题干里的视觉锚点，色随主题。
    高亮只做背景/下划线，不改字色——材料正文在暗色主题下也保持可读。 */
 mark.wengu-clue-mark {

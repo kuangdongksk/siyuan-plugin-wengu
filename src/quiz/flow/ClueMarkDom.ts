@@ -18,9 +18,13 @@ export const CLUE_ARM_CLASS = "wengu-clue-chip-armed";
  *  被当成文本源）、脚本/样式、交互控件（按钮里的字母/选项文本不是原文
  *  ——标记它毫无意义且会打乱控件）、以及**答案解析区与选项区**（与题干
  *  同容器；解析在揭示前不可见，把 mark 埋进去会在收卷后显出一段莫名的
- *  高亮，且解析文本本就不是「原文」）。 */
+ *  高亮，且解析文本本就不是「原文」）。
+ *
+ *  **词表区与词形联动标记也跳过**（Issue #30）：词表行不是原文正文、
+ *  联动标记里的文本已由 GlossDom 包过一层（再包 mark 就是嵌套手术，
+ *  且会打乱序号上标）——两条后处理互不嵌套（#29/#30 的接口约定）。 */
 const SKIP_SELECTOR =
-    "script, style, mark, button, .wengu-clue-chip, .wengu-gclues, .wengu-annobar, .wengu-opt-letter, .wengu-static-sol, .wengu-opts";
+    "script, style, mark, button, .wengu-clue-chip, .wengu-gclues, .wengu-annobar, .wengu-opt-letter, .wengu-static-sol, .wengu-opts, .wengu-gloss, .wengu-gloss-link";
 
 /** 收集某标记元素下的文本节点（跳过 SKIP_SELECTOR 子树）。 */
 function textNodesOf(root: HTMLElement): Text[] {
