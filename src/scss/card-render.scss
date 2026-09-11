@@ -338,7 +338,20 @@
 
 /* ── MdRender 静态产物的标签基线（20260830 渲染自包含化；div.p 与
    Lute 形态对齐无默认 margin，但 markdown-it 的列表/表格是标准标签，
-   主题 reset 对插件 DOM 的覆盖不确定——显式给基线防漂移）── */
+   主题 reset 对插件 DOM 的覆盖不确定——显式给基线防漂移）──
+   挂 `.p` 而非「容器 > 顶层 .p」：材料/题干/解析都只经 .wengu-qprotyle /
+   .wengu-gmat / .wengu-static-sol 三个容器输出（ProtyleHost 全量静态
+   / GroupUnitApp 材料面板 / 复习详情），后代式一次覆盖到位；顶层限制
+   会在「静态产物被壳容器再包一层」时静默失效（段距无声回到 0）。
+   ⚠️ 选项行不回归：optionInline 把单段选项剥壳成内联 HTML（.p 壳已摘），
+   其内联 `<strong>/<em>` 等行内标签不命中 `:where(.p)`——只有选项正文
+   本身是多段时才落 .p 并吃 4px 段距，正是期许行为。 */
+.wengu-gmat :where(.p),
+.wengu-static-sol :where(.p),
+.wengu-qprotyle :where(.p) {
+  margin: 4px 0;
+}
+
 .wengu-qprotyle :where(ul, ol) {
   margin: 4px 0;
   padding-left: 1.6em;

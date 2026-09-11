@@ -14,6 +14,82 @@
   display: none;
 }
 
+/* ── 文本拖选（Issue #26）──
+   宿主 base.css 有全局 `.layout-tab-container { user-select: none }`，温故
+   自定义页签整棵挂在其下（Protyle 编辑器自己覆盖了，我们之前没有）——
+   页签内 selectstart 被宿主压住、选区恒 collapsed，英语滑选标注
+   （AnnoFlow 靠 document.selectionchange 起浮条）整条链死掉。
+   口径：**根容器统一下放 text，再对交互面收窄 none**——否则动作钮
+   （复习「重练」等）的 click 不是「控件原生激活」而是「组件冒泡手动
+   处理」，会在 mousedown 清空既有选区（真机上「选一段 → 点重练」的
+   选区丢失即此因）。
+   不写 `-webkit-user-select`：Chromium 的 user-select 自 Chrome 54 起
+   已按标准解析、支持继承，桌面端另有内联 `-webkit-user-select: none`
+   会把单带前缀的 `text` 干掉（base.css 的 `.b3-label` 与刷新按钮就是
+   这种形态），反而失效；只带 -webkit- 但不带标准的写法能被继承覆盖。
+   控制面清单：rail/侧栏/SiYuan 清单行/头部/题号栏/预览工具行/操作条与
+   浮层的按钮——`<button>` 的元素级 `user-select:none` 会被继承的
+   `text` 压过，必须显式兜底（`.wengu-annobar-btn` / `.wengu-wordpop .b3-button`
+   真机拖选出现即此因）。表单控件（input/textarea）是 UA 的
+   `user-select: auto`，先于本类解析，不受影响。 */
+.wengu-panel,
+.wengu-panel *,
+.wengu-panel *::before,
+.wengu-panel *::after {
+  user-select: text;
+}
+
+.wengu-panel
+  :is(
+    .wengu-rail,
+    .wengu-rail-btn,
+    .wengu-side,
+    .b3-list,
+    .b3-list-item,
+    .wengu-head,
+    .wengu-nums,
+    .wengu-num,
+    .wengu-num-gap,
+    .wengu-pv-tools
+  ),
+.wengu-panel :is(.wengu-rail, .wengu-side, .wengu-head, .wengu-nums, .wengu-pv-tools) *,
+.wengu-panel
+  :is(
+    button,
+    .b3-button,
+    .wengu-btn,
+    .wengu-chip,
+    .wengu-iconbtn,
+    .wengu-side-iconbtn,
+    .wengu-annobar-btn,
+    .wengu-gmat-fold,
+    .wengu-gnav-btn,
+    /* Svelte Button 组件的动作钮（无 .wengu-btn 类，只挂语义化类名） */
+    .wengu-end-round,
+    .wengu-side-convert,
+    .wengu-review-redrill,
+    .wengu-start-actions button,
+    /* 组内翻题的序号是 label 而非钮：选中数字时点它会把选区压掉，
+       影响 AnnoFlow 的 `host.contains(anchorNode)` 判据 */
+    .wengu-gq-label,
+    /* 配对题候选池：池项无点击（点它不选中任何东西），但拖选池内字母/词
+       毫无意义且会与空选项交互打架——整池按控件面收 */
+    .wengu-match-poolitem
+  ) {
+  user-select: none;
+}
+
+/* 浮层根挂 body（不在 .wengu-panel 子树内，收窄段罩不到）：选中操作条
+   与生词卡整片不可选——拖选浮条是选区上的常驻层，浮条自身文字若可选，
+   在浮条上按下左键会起新选区、Lute 侧 `host.contains(anchorNode)` 落空
+   → 浮条自灭（点空落=按不动）。 */
+.wengu-annobar,
+.wengu-annobar *,
+.wengu-wordpop,
+.wengu-wordpop * {
+  user-select: none;
+}
+
 .wengu-panel {
   display: flex;
   height: 100%;
