@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     extractRawEntries,
     hasRawEntries,
+    isConfidentEntry,
     parseRawEntryLine,
     collectGlossMarks,
     GLOSS_MARK,
@@ -77,9 +78,23 @@ describe("collectGlossMarks / stripGlossMarks：^{...} 记号", () => {
         expect(stripGlossMarks("Funding ^{补} is $x^2$ ok ^{2}")).toBe("Funding is $x^2$ ok");
     });
 
-    it("数学指数 $x^{2}$ 里的记号也剥（裸残渣一律不许出现），裸 ^ 不受影响", () => {
-        expect(stripGlossMarks("$x^{2}$ 与 a^b")).toBe("$x$ 与 a^b");
-        expect(stripGlossMarks("a^b 与 x^{补}")).toBe("a^b 与 x");
+    it("数学/代码区间**不受影响**（$x^{2}$ 是 LaTeX 指数，不是词条记号）", () => {
+        expect(stripGlossMarks("$x^{2}$ 与 a^b")).toBe("$x^{2}$ 与 a^b");
+        expect(stripGlossMarks("$$\\int x^{n} dx$$")).toBe("$$\\int x^{n} dx$$");
+        expect(stripGlossMarks("由 $a^{n}+b^{2}$ 得 $$x^{3}$$")).toBe("由 $a^{n}+b^{2}$ 得 $$x^{3}$$");
+        expect(stripGlossMarks("`y^{2}` 与 funding ^{补}")).toBe("`y^{2}` 与 funding");
+        expect(stripGlossMarks("```\na^{b}\n```\nc^{补}")).toBe("```\na^{b}\n```\nc");
+    });
+
+    it("数学区间外的记号照剥（与数学同段共存时各归各）", () => {
+        expect(stripGlossMarks("求 $x^{2}$ 的导数。funding ^{补}")).toBe("求 $x^{2}$ 的导数。funding");
+        // 未闭合的 $：本行余下按普通文本走（与 MdRender 同口径），记号照剥
+        expect(stripGlossMarks("价 $5 与 ^{补}")).toBe("价 $5 与");
+    });
+
+    it("数学/代码区间内的 ^{...} 不采集（不挂到数学符号上）", () => {
+        const marks = collectGlossMarks("$x^{2}$ 与 funding ^{补} 与 `y^{3}`");
+        expect([...marks.keys()]).toEqual(["funding"]);
     });
 
     it("记号归属只在同行内判定（跨行不误挂）", () => {
@@ -138,6 +153,11 @@ describe("planGlossLinks：正文词形精确匹配", () => {
 
     it("词边界对齐：前缀/后缀误伤一律不命中", () => {
         expect(planGlossLinks("prefunding and fundinglike", entries)).toEqual([]);
+    });
+
+    it("连字符算词边界（复合词照命中，与 `prefunding` 区分）", () => {
+        expect(planGlossLinks("funding-based approach", entries).map((h) => h.text)).toEqual(["funding"]);
+        expect(planGlossLinks("co-funding rocks", entries).map((h) => h.text)).toEqual(["funding"]);
     });
 
     it("possessive 词形整体命中", () => {
@@ -204,6 +224,14 @@ describe("parseRawEntryLine / extractRawEntries：原卷词条行（确定性）
         expect(parseRawEntryLine("funding is the key to the research.")).toBeUndefined();
         expect(parseRawEntryLine("funding ^{补} is the key to research")).toBeUndefined();
         expect(parseRawEntryLine("")).toBeUndefined();
+    });
+
+    it("置信判据：带音标或词性标签才算真词条（数学/正文伪词条被滤掉）", () => {
+        expect(isConfidentEntry({ word: "funding", phonetic: "['fʌndɪŋ]", meaning: "" })).toBe(true);
+        expect(isConfidentEntry({ word: "crucial", phonetic: "", meaning: "adj. 决定性的" })).toBe(true);
+        expect(isConfidentEntry({ word: "ratio", phonetic: "", meaning: "n. 比；比率" })).toBe(true);
+        expect(isConfidentEntry({ word: "in particular", phonetic: "", meaning: "adv. 尤其" })).toBe(true);
+        expect(isConfidentEntry({ word: "a", phonetic: "", meaning: "表示 n 次幂" })).toBe(false);
     });
 
     it("extractRawEntries：按出现序、同词形去重、忽略非词条行", () => {

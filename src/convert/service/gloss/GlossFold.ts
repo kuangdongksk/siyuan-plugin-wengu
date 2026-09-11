@@ -1,5 +1,5 @@
 import { DraftUnit } from "../draft/QuestionDraft";
-import { extractRawEntries, renderGlossBlock, splitGlossBlock, stripGlossMarks } from "./GlossEntry";
+import { extractRawEntries, isConfidentEntry, renderGlossBlock, splitGlossBlock, stripGlossMarks } from "./GlossEntry";
 import type { GlossEntry } from "./GlossEntry";
 
 /**
@@ -9,11 +9,13 @@ import type { GlossEntry } from "./GlossEntry";
  *   1. **确定性预采集**：本批消费的源窗口里逐行认词条行（形态固定：
  *      `词 ^{记号} 音标 释义`，见 GlossEntry.extractRawEntries）；
  *   2. 材料正文尾部若 AI 已给词表行（`@@G` 或原卷形态）→ 以 AI 的为准
- *      （它能判断哪些词条属于哪篇材料）；
- *   3. 否则把本窗口采集到的词条**补进材料尾部**（片内多篇材料时按序
- *      均分不可靠，故只在**只有一篇材料**时补，宁缺勿错）；
+ *      （它能判断哪些词条属于哪篇材料），规整成 `@@G` 规范形态；
+ *   3. 否则把本窗口采集到的词条**补进材料尾部**——但仅限「本批只有
+ *      **一篇**材料」：多篇时源区间跨篇、词条归属无从判定，按序均分
+ *      不可靠、全量补首篇会串篇，故不补（宁缺勿错）；
  *   4. 正文里漏网的 `^{...}` 残渣一律剥掉（验收第 3 条：任何渲染产物
- *      都不许出现字面 `^{补}`）。
+ *      都不许出现字面 `^{补}`）——**数学/代码区间内的 `^{...}` 保留**
+ *      （见 GlossEntry.stripGlossMarks）。
  */
 
 /** 词条行归一：去掉词条行自身的 `^{...}`、裁掉空段。 */
@@ -53,24 +55,34 @@ export function foldGlossIntoDrafts(drafts: DraftUnit[], windowText: string): nu
     }
     const mats = drafts.filter(isMaterial);
     if (mats.length === 0) return 0;
-    // ② AI 已在某材料尾部给了词表行 → 以它为准（全批认一次）
-    const aiGiven = mats.some((m) => splitGlossBlock(bodyOf(m)).entries.length > 0);
+    // ② AI 给的词表行一律规整成 `@@G` 规范形态（防它用别的写法漏进正文）。
+    //    只对**本材料自己**的词表行判定——AI 每篇材料各给各的，逐篇认领。
     let folded = 0;
+    const aiGiven = mats.some((m) => splitGlossBlock(bodyOf(m)).entries.length > 0);
     for (const m of mats) {
         const split = splitGlossBlock(bodyOf(m));
         if (split.entries.length > 0) {
-            // AI 给的词表行改写为 `@@G` 规范形态（防它用别的写法漏进正文）
             setBody(m, joinBody(split.body, renderGlossBlock(split.entries)));
             folded++;
-            continue;
         }
-        if (aiGiven) continue; // 别的材料已给词表，本材料不再补（防串篇）
+    }
+    // ③ 确定性兜底补词表：**只在「本批恰好一篇材料」时补**。多篇材料时
+    //    源区间是整批的（跨篇），词条行按篇归属无从判定——按序均分不可靠、
+    //    全量补进第一篇会把 B 篇的词条挂到 A 篇（串篇），故宁缺勿错不补。
+    //    此闸下 AI 给过词表也照样不补（避免同一词条在 AI 词表后再叠一份）。
+    //    另加**置信判据**（isConfidentEntry）：只认带音标或词性标签的词条行，
+    //    数学习题/笔记里 `a^{n} 表示 n 次幂` 这类与词条行形态无从区分的行
+    //    因此不会变成伪词表（宁缺勿错）。
+    if (mats.length === 1 && !aiGiven) {
         const entries = extractRawEntries(windowText)
             .map(cleanEntry)
-            .filter((e) => e.word);
-        if (entries.length === 0) continue;
-        setBody(m, joinBody(split.body, renderGlossBlock(entries)));
-        folded++;
+            .filter((e) => e.word && isConfidentEntry(e));
+        if (entries.length > 0) {
+            const m = mats[0];
+            const split = splitGlossBlock(bodyOf(m));
+            setBody(m, joinBody(split.body, renderGlossBlock(entries)));
+            folded++;
+        }
     }
     return folded;
 }
