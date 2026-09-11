@@ -287,6 +287,32 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   渲染）；组题材料面板与底部槽**组内共享**，刷新要过 `isGroupCurrent`
   守卫，否则全量补齐会用最后一道有线索的组内题覆盖当前题。
 
+    **浮条与跨节点高亮**（Issue #36，20260911）：
+    - 浮条两钮只剩「标为线索」「标生词」——**做题时不允许查词义**（产品
+      决策）：生词钮从「查生词」改为**直接收入生词本**（`seedWord` +
+      `starred`，与背单词面板同一 store），结果走 `ui/Notify` 通知
+      （`wordAdded` / `wordNotInBook`），**不再弹释义卡**（`.wengu-wordpop`
+      与 `showWordPopup` 已整体删除）。
+    - 长度闸 `SELECT_MAX = 1000`（只挡整页全选）——旧上限 120 字符会让
+      144/500 字符的选段**整个不出浮条且无提示**。
+    - **高亮必须支持跨文本节点**（跨段/跨 `**加粗**`/公式节点是常态）：
+      `ClueMark.locateAcrossNodes` 把全部文本节点拼起来、**空白全丢**后
+      匹配（`BlankIndex` 同源产坐标），命中区间逐节点取交集返回；
+      `applyClueMarks` 先对**未改动**节点表算全部计划（`planMarks`）再倒序
+      施工——正向施工会把同一节点里的后一处命中推出已被 `splitText`
+      截短的节点（与 `GlossDom.assignHitsToNodes` 同款口径）。匹配不上仍
+      降级（只 chips 不高亮，宁缺勿错）。
+    - **空白必须全丢而不是折叠**：DOM 里 `</p><p>`、`<strong>` 边界之间是
+      **零空白**，用户拖选得到的是换行——只折叠不丢，跨块边界永远匹配不上。
+    - 桌面客户端「点按钮无反应」防御三件套（Web 端复现不了）：浮条根**捕获
+      阶段** `mousedown` → `stopPropagation`（隔离宿主全局监听）、按钮监听
+      改 `pointerdown`（更早快照选区）、`lastSelText` 选区快照兜底（选区在
+      某层被清也能标上；`hideBar` 一并清掉，别标到陈旧选段）。
+    - ⚠️ **`SKIP_SELECTOR` 与词表区 `.wengu-gloss`/`.wengu-gloss-link` 的
+      互不嵌套约定不许破坏**（#33/#34 定的接口）：`GlossDom` 跳
+      `mark.wengu-clue-mark`，`ClueMarkDom` 跳词表区，两侧幂等，挂载顺序
+      固定「词表 → 线索」。
+
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
 - **逐段自推进**（20260910 起整卷转换**不再预切块**）：从「`structuralChunks`

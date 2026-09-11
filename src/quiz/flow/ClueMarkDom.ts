@@ -1,4 +1,4 @@
-import { CLUE_ARM_MS, clickClueChip, locateInNodes, newClueDeleteState, type ClueDeleteState } from "./ClueMark";
+import { CLUE_ARM_MS, clickClueChip, newClueDeleteState, planMarks, type ClueDeleteState } from "./ClueMark";
 
 /**
  * 线索标注的 DOM 手术层（Issue #28）：原文高亮包装（mark 元素）与
@@ -66,28 +66,34 @@ function wrapRange(node: Text, start: number, end: number): void {
 
 /**
  * 高亮后处理（唯一入口，幂等）：先摘旧 mark，再把每条线索按
- * 「文本节点级子串匹配」定位并包装。定位不到的线索只留 chip，不报错
- * （跨标签边界按降级策略处理，见 ClueMark.locateInNodes）。
+ * 「全部文本节点原文拼接 + 归一匹配」定位并包装。定位不到的线索只留
+ * chip，不报错（归一匹配不上按降级策略处理，见 ClueMark.locateAcrossNodes）。
+ *
+ * ⚠️ **落格映射一次性算好再「倒序」施工**（与 GlossDom.assignHitsToNodes
+ * 同款口径，Issue #36）：偏移是**全部文本节点原文的拼接**口径，正向施工
+ * 会把同一节点内的后一处命中/后续线索推出已被 `splitText` 截短的节点。
+ * 故先按**未改动**的节点表算出全部计划（`planMarks`），再按线索序、线索内
+ * 从后往前逐段包装。
  */
 export function applyClueMarks(root: HTMLElement | undefined | null, clues: string[]): void {
     if (!root) return;
     clearClueMarks(root);
     if (clues.length === 0) return;
-    // 逐个线索重扫文本节点：包装 mark 后节点列表变了，用**当前**节点表
-    // 重新定位（线索少、节点少，成本可忽略；一次算好再批量包会因偏移
-    // 漂移错位）
-    for (const raw of clues) {
-        const text = raw.trim();
-        if (!text) continue;
-        const nodes = textNodesOf(root);
-        const hit = locateInNodes(
-            nodes.map((n) => n.nodeValue ?? ""),
-            text
-        );
-        if (!hit) continue;
-        const node = nodes[hit.node];
-        if (!node?.isConnected) continue;
-        wrapRange(node, hit.start, hit.end);
+    const nodes = textNodesOf(root);
+    const plan = planMarks(
+        nodes.map((n) => n.nodeValue ?? ""),
+        clues
+    );
+    for (const item of plan) {
+        // 线索内自后向前：同一条线索在同一节点里命中多段（如「the … the」
+        // 两处）时，后段的偏移不受前段 splitText 影响；不同节点之间互不
+        // 干扰，节点表漂移不影响已确认的 node 下标（只切分、不删节点）。
+        for (let i = item.hits.length - 1; i >= 0; i--) {
+            const hit = item.hits[i];
+            const node = nodes[hit.node];
+            if (!node?.isConnected) continue;
+            wrapRange(node, hit.start, hit.end);
+        }
     }
 }
 
