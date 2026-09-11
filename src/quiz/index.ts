@@ -160,8 +160,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** ClueHost 结构匹配：当前题/材料定位/会话落库（线索标注用）。 */
     readonly currentQuestion = (): WenguQuestion | undefined => this.list[this.activeQIdx];
     readonly materialOf = (q: WenguQuestion): WenguMaterial | undefined => this.materials.find((m) => m.id === q.group);
-    /** AnswerHost 结构匹配（Issue #28）：材料填充后/题干挂载后/会话恢复后
-     *  三处都由组件直调，实现收口在 ClueFlow（同一份后处理）。 */
+    readonly questionById = (qid: string): WenguQuestion | undefined => this.list.find((q) => q.id === qid);
+    /** AnswerHost 结构匹配（Issue #28）：三处挂载时机直调，实现收口在 ClueFlow。 */
     readonly refreshClueMarks = (q: WenguQuestion): void => refreshClueMarkFor(this, q);
     readonly persist = (): void => {
         const s = this.session ?? this.finished;

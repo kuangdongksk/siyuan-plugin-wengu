@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    clueOwnerQid,
     clickClueChip,
     disarmClueChip,
     findInText,
@@ -99,5 +100,19 @@ describe("chips 两击删除状态机", () => {
         clickClueChip(st, 0);
         disarmClueChip(st);
         expect(clickClueChip(st, 0)).toBe("first");
+    });
+});
+
+describe("clueOwnerQid（chip 归属题反查）", () => {
+    it("卡上 chip 取该卡 qid（长卷全卡常驻，非当前题也要删对）", () => {
+        expect(clueOwnerQid({ cardQid: "q7", currentQid: "q1" })).toBe("q7");
+    });
+
+    it("组题行在 .wengu-gunit 里、无卡 qid 时回落当前题", () => {
+        expect(clueOwnerQid({ cardQid: undefined, currentQid: "q1" })).toBe("q1");
+    });
+
+    it("两侧都没有则 undefined", () => {
+        expect(clueOwnerQid({ cardQid: undefined, currentQid: undefined })).toBeUndefined();
     });
 });

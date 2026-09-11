@@ -1,6 +1,7 @@
 import { errText } from "./../../ui/shared";
 import { judgeClue } from "../service/AiJudge";
 import { renderClueRow } from "./MaterialFlow";
+import { clueOwnerQid } from "./ClueMark";
 import { applyClueMarks, clickChipForDelete, disarmClueChip } from "./ClueMarkDom";
 import type { WenguSession } from "../service/HistoryStore";
 import type { WenguMaterial, WenguQuestion } from "../../types";
@@ -30,6 +31,8 @@ export interface ClueHost {
     currentSession(): WenguSession | undefined;
     /** 当前题（组内当前题由 MaterialFlow 切换时同步 activeQIdx）。 */
     currentQuestion(): WenguQuestion | undefined;
+    /** 按 qid 找题（长卷全卡常驻：非当前题卡上的 chip 要删自己的线索）。 */
+    questionById(qid: string): WenguQuestion | undefined;
     /** 材料正文（AI 复核的输入；非组题为 undefined）。 */
     materialOf(q: WenguQuestion): WenguMaterial | undefined;
     /** 会话变更落库。 */
@@ -60,6 +63,16 @@ function markRootOf(host: ClueHost, q: WenguQuestion): HTMLElement | null {
         return unit?.querySelector<HTMLElement>("[data-mprotyle]") ?? null;
     }
     return host.el.querySelector<HTMLElement>(`.wengu-card[data-qid="${q.id}"] .wengu-qprotyle`);
+}
+
+/** 被操作题：卡上 chip 按卡反查归属题（长卷全卡常驻，非当前题也渲染）；
+ *  组题行只渲染组内当前题、无 qid 可查，回落当前题。 */
+function ownerQuestion(host: ClueHost, chip: HTMLElement): WenguQuestion | undefined {
+    const qid = clueOwnerQid({
+        cardQid: chip.closest<HTMLElement>(".wengu-card")?.dataset.qid,
+        currentQid: host.currentQuestion()?.id,
+    });
+    return qid ? host.questionById(qid) : undefined;
 }
 
 /** 该题当前会话里的线索（无则空数组）。 */
@@ -128,9 +141,7 @@ export function bindClueJudge(host: ClueHost): void {
             const row = chip.closest<HTMLElement>("[data-clues]");
             if (!row) return;
             const i = Number(chip.dataset.clue ?? "-1");
-            // 行归属=当前题：组题行只渲染当前题，非组题卡的 chips 也随
-            // 切题同步（onActiveQ → refreshClueRow）
-            const q = host.currentQuestion();
+            const q = ownerQuestion(host, chip);
             if (!q) return;
             // 首击=arm（警示），再击=确认删除；删完 refreshClueRow 重铺行，
             // 行的待确认态随 innerHTML 复位（armStates 是 WeakMap）

@@ -871,6 +871,11 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
   节点，完全不命中只留 chip 不高亮、不报错。
   **chip 两击删除**（对齐 AiSessions 惯例，不用 confirm）：首击进待
   确认（红框警示，3s 复位），再击删线索并同步摘掉原文 mark。
+  **chip 归属题按卡反查**（长卷边界）：全卡常驻渲染下非当前题卡的 chip
+  也点得到，归属取被点行最近的 `.wengu-card[data-qid]`（判定收口
+  `ClueMark.clueOwnerQid`）；组题行在 `.wengu-gunit` 里、行内只渲染
+  当前题，无卡 qid 可查时回落当前题。按「当前题」删会删错题的线索并在
+  错题上重铺 mark/chips。
   「AI 复核线索」走 judgeClue（CLUE: hit|near|miss + 点评，答错时错因
   二分定位错/理解错）；**复核输入随来源**——组题=材料正文，非组题=
   题干本身（prompt 骨架不动，只把来源写进措辞）。

@@ -139,3 +139,24 @@ export function disarmClueChip(state: ClueDeleteState): void {
 
 /** 两击确认窗口（ms，对齐 AiSessions 的 Armed 默认值）。 */
 export const CLUE_ARM_MS = 3000;
+
+/* ── chip 归属题反查 ── */
+
+/** chip 所在的 DOM 归属信息（由 DOM 侧读出，纯函数只做判定）。 */
+export interface ClueOwnerPick {
+    /** 最近的 .wengu-card 上的 data-qid（组题行在 .wengu-gunit 里，无卡=undefined）。 */
+    cardQid: string | undefined;
+    /** 视图当前题 qid（组题行只渲染组内当前题，拿到空时回落它）。 */
+    currentQid: string | undefined;
+}
+
+/**
+ * 被点 chip 的归属题 qid（长卷边界，Issue #28 复审）：本插件长卷是
+ * **全卡常驻渲染**（题号栏滚跳的前提），非当前题卡上的 chip 也点得到——
+ * 归属只能从被点行反查，按「当前题」删会删错题的线索并在错题上重铺
+ * mark/chips。组题行在 .wengu-gunit 里、行内只渲染当前题，无卡 qid 可查，
+ * 此时回落当前题。
+ */
+export function clueOwnerQid(pick: ClueOwnerPick): string | undefined {
+    return pick.cardQid ?? pick.currentQid;
+}
