@@ -64,27 +64,37 @@ function textNodesOf(root: HTMLElement): Text[] {
     return out;
 }
 
-/** 全根文本的拼接（与 textNodesOf 同口径），供偏移映射用。 */
-function joinedText(nodes: Text[]): string {
-    return nodes.map((n) => n.nodeValue ?? "").join("");
+/** 命中 → 节点下标 + 节点内区间（`hit` 的偏移口径是所有节点原文的拼接）。 */
+export interface HitSlot {
+    /** 命中的节点下标；跨节点命中为 -1（放弃，宁缺勿错）。 */
+    node: number;
+    /** 节点内起始偏移。 */
+    from: number;
+    /** 节点内结束偏移。 */
+    to: number;
 }
 
-/** 把命中区间映射回「节点下标 + 节点内区间」，并包一层联动标记。 */
-function wrapHit(nodes: Text[], nodeStarts: number[], hit: GlossHit): void {
-    let idx = -1;
-    for (let i = 0; i < nodes.length; i++) {
-        const s = nodeStarts[i];
-        const text = nodes[i].nodeValue ?? "";
-        if (hit.start >= s && hit.end <= s + text.length) {
-            idx = i;
-            break;
+/**
+ * 把命中区间映射回「节点下标 + 节点内区间」——**纯函数**（单测覆盖）。
+ * `nodeTexts` 必须是**未被 DOM 手术改动过**的原文节点内容（调用侧在
+ * 任何 splitText 之前算好；这也是它必须独立成纯函数的原因）。
+ */
+export function assignHitsToNodes(nodeTexts: string[], nodeStarts: number[], hits: GlossHit[]): HitSlot[] {
+    return hits.map((hit) => {
+        for (let i = 0; i < nodeTexts.length; i++) {
+            const s = nodeStarts[i];
+            const text = nodeTexts[i] ?? "";
+            if (hit.start >= s && hit.end <= s + text.length) {
+                return { node: i, from: hit.start - s, to: hit.end - s };
+            }
         }
-    }
-    if (idx < 0) return; // 跨节点命中：放弃（宁缺勿错，与线索高亮同策略）
-    const node = nodes[idx];
+        return { node: -1, from: 0, to: 0 };
+    });
+}
+
+/** 把一处命中包进联动标记（`from < to`，落格范围由调用侧保证）。 */
+function wrapHit(node: Text, from: number, to: number, hit: GlossHit): void {
     if (!node.isConnected) return;
-    const from = hit.start - nodeStarts[idx];
-    const to = hit.end - nodeStarts[idx];
     const text = node.nodeValue ?? "";
     if (from < 0 || to > text.length || from >= to) return;
     const target = node.splitText(from);
@@ -124,12 +134,22 @@ export function applyGloss(root: HTMLElement | undefined | null, materialMd: str
     root.innerHTML = renderMdHtml(body) + glossTableHtml(entries);
     const nodes = textNodesOf(root);
     if (nodes.length === 0) return;
+    const texts = nodes.map((n) => n.nodeValue ?? "");
     const starts: number[] = [];
     let acc = 0;
-    for (const n of nodes) {
+    for (const t of texts) {
         starts.push(acc);
-        acc += (n.nodeValue ?? "").length;
+        acc += t.length;
     }
-    for (const hit of planGlossLinks(joinedText(nodes), entries, true, collectGlossMarks(materialMd ?? "")))
-        wrapHit(nodes, starts, hit);
+    const hits = planGlossLinks(texts.join(""), entries, true, collectGlossMarks(materialMd ?? ""));
+    if (hits.length === 0) return;
+    // 落格映射一次性算好（基于**未被改动**的原文节点表），再**按下标倒序**
+    // 施工：正向施工会把同一节点内的后一处命中推出已被截短的节点——
+    // 首词之外的词形全都不落格；倒序先切后段，前段偏移始终有效。
+    const slots = assignHitsToNodes(texts, starts, hits);
+    for (let i = hits.length - 1; i >= 0; i--) {
+        const slot = slots[i];
+        if (slot.node < 0) continue; // 跨节点命中：放弃（宁缺勿错）
+        wrapHit(nodes[slot.node], slot.from, slot.to, hits[i]);
+    }
 }

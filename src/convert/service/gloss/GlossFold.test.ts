@@ -52,13 +52,41 @@ describe("foldGlossIntoDrafts：源窗口 → 材料尾部词表区", () => {
         expect(drafts[1].parts[0].text).toBe("The word funding means?");
     });
 
-    it("片内多篇材料且 AI 未给词表：不补（防串篇，宁缺勿错）", () => {
+    it("片内多篇材料且 AI 未给词表：**一篇都不补**（源区间跨篇，归属无从判定）", () => {
         const drafts = [unit([{ name: "body", text: "篇一正文。" }]), unit([{ name: "body", text: "篇二正文。" }])];
         const win = "funding ^{补} ['fʌndɪŋ] n. 资金";
-        foldGlossIntoDrafts(drafts, win);
-        // 恒有一篇被补（首篇），二篇不串
-        const first = parseGlossLines(drafts[0].parts.find((p) => p.name === "body")!.text);
-        expect(first).toHaveLength(1);
+        expect(foldGlossIntoDrafts(drafts, win)).toBe(0);
+        expect(parseGlossLines(drafts[0].parts.find((p) => p.name === "body")!.text)).toEqual([]);
+        expect(parseGlossLines(drafts[1].parts.find((p) => p.name === "body")!.text)).toEqual([]);
+        // 正文逐字不变
+        expect(drafts[0].parts.find((p) => p.name === "body")!.text).toBe("篇一正文。");
+        expect(drafts[1].parts.find((p) => p.name === "body")!.text).toBe("篇二正文。");
+    });
+
+    it("片内多篇材料各带 AI 词表：逐篇认领、各归各（不串篇）", () => {
+        const drafts = [
+            unit([{ name: "body", text: "A 篇正文。\n\n@@G aaa | ['a] | n. 甲" }]),
+            unit([{ name: "body", text: "B 篇正文。\n\n@@G bbb | ['b] | n. 乙" }]),
+        ];
+        expect(foldGlossIntoDrafts(drafts, "x")).toBe(2);
+        expect(parseGlossLines(drafts[0].parts.find((p) => p.name === "body")!.text).map((e) => e.word)).toEqual([
+            "aaa",
+        ]);
+        expect(parseGlossLines(drafts[1].parts.find((p) => p.name === "body")!.text).map((e) => e.word)).toEqual([
+            "bbb",
+        ]);
+    });
+
+    it("数学题（源区间无词条行）：公式与记号一字不动（不误剥、不误补）", () => {
+        const drafts = [unit([{ name: "stem", text: "由 $a^{n}+b^{2}$ 求 $$\\int x^{3}dx$$" }], false)];
+        expect(foldGlossIntoDrafts(drafts, "由 $a^{n}+b^{2}$ 求 $$\\int x^{3}dx$$")).toBe(0);
+        expect(drafts[0].parts[0].text).toBe("由 $a^{n}+b^{2}$ 求 $$\\int x^{3}dx$$");
+    });
+
+    it("数学习题里与词条行同形态的伪词条（无音标无词性标签）不补", () => {
+        const drafts = [unit([{ name: "body", text: "定理：本段解释幂记号。" }])];
+        expect(foldGlossIntoDrafts(drafts, "a^{n} 表示 n 次幂")).toBe(0);
+        expect(parseGlossLines(drafts[0].parts.find((p) => p.name === "body")!.text)).toEqual([]);
     });
 
     it("纯题目批次（无材料）零动作，但残渣仍剥", () => {

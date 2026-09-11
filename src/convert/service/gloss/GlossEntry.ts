@@ -113,10 +113,76 @@ const MARK_RE = /[ \t]*\^\{([^{}\n]*)\}/g;
 /** `^{...}` 记号**之前**的那个词（含 possessive 撇号），取不到返回空串。 */
 const PREV_WORD_RE = /([\p{L}\p{N}]+(?:['\u2019][\p{L}]+)*)[ \t]*$/u;
 
+/** 行内代码围栏开关（``` / ~~~）。 */
+const FENCE_RE = /^[ \t]*(```|~~~)/;
+
+/** 一行的**数学/代码区间**：`^{...}` 落在这些位置的语义是 LaTeX 上标或
+ *  代码字面量，**不是**词条记号——记号处理必须整体跳过（数学卷的
+ *  `$x^{2}$` 被当记号剥掉就是公式静默丢指数）。区间允许相互重叠，
+ *  调用侧只做「命中是否落在任一区间内」的判定。 */
+function protectedSpans(line: string): [number, number][] {
+    const spans: [number, number][] = [];
+    for (const m of line.matchAll(/`[^`\n]*`/g)) spans.push([m.index, m.index + m[0].length]);
+    let i = 0;
+    while (i < line.length) {
+        if (line[i] !== "$") {
+            i++;
+            continue;
+        }
+        const dbl = line[i + 1] === "$";
+        const open = i + (dbl ? 2 : 1);
+        let j = open;
+        let close = -1;
+        while (j < line.length) {
+            if (line[j] === "\\") {
+                j += 2;
+                continue;
+            }
+            if (line[j] === "$" && (!dbl || line[j + 1] === "$")) {
+                close = j;
+                break;
+            }
+            j++;
+        }
+        if (close < 0) break; // 未闭合：本行余下按普通文本走（与 MdRender 同口径）
+        const end = close + (dbl ? 2 : 1);
+        spans.push([i, end]);
+        i = end;
+    }
+    return spans;
+}
+
+/** 逐行扫 `^{...}` 命中：跳过代码围栏（多行态）与本行数学/代码区间。
+ *  回调收到**全文字符串**里的区间（`[start, end)` 含前导空白、记号文本
+ *  与所在行起点）。 */
+function eachMark(text: string, cb: (start: number, end: number, mark: string, lineStart: number) => void): void {
+    const src = text ?? "";
+    let offset = 0;
+    let fence = "";
+    for (const line of src.split("\n")) {
+        const fenceMark = FENCE_RE.exec(line)?.[1];
+        if (fenceMark) {
+            fence = fence ? "" : fenceMark; // 闭合围栏（只在同种围栏间配对）
+            offset += line.length + 1;
+            continue;
+        }
+        if (!fence) {
+            const spans = protectedSpans(line);
+            for (const m of line.matchAll(MARK_RE)) {
+                const at = m.index;
+                if (spans.some(([s, e]) => at >= s && at < e)) continue;
+                cb(offset + at, offset + at + m[0].length, (m[1] ?? "").trim(), offset);
+            }
+        }
+        offset += line.length + 1;
+    }
+}
+
 /**
  * 采集原文里的 `^{...}` 记号：`word ^{mark}` 形态在英语卷里是**词后
  * 附注**——mark 修饰的是它前面那个词。返回「规范化词形 → 记号文本」
- * （同词多记号取首个）。
+ * （同词多记号取首个）。数学/代码区间内的 `^{...}` 不采集（见
+ * protectedSpans）。
  *
  * 正文渲染时记号并入该词的上标（`word²`），这样即使原文没给词条行，
  * 也不会以字面 `^{补}` 出现（验收第 3 条）。
@@ -124,25 +190,32 @@ const PREV_WORD_RE = /([\p{L}\p{N}]+(?:['\u2019][\p{L}]+)*)[ \t]*$/u;
 export function collectGlossMarks(text: string): Map<string, string> {
     const src = text ?? "";
     const out = new Map<string, string>();
-    MARK_RE.lastIndex = 0;
-    for (const m of src.matchAll(MARK_RE)) {
-        // 只在**同一行**内回看前一个词（跨行不误挂）
-        const lineStart = src.lastIndexOf("\n", (m.index ?? 0) - 1) + 1;
-        const before = src.slice(lineStart, m.index).match(PREV_WORD_RE)?.[1] ?? "";
+    eachMark(src, (start, _end, mark, lineStart) => {
+        // 只回看**同一行内、命中之前**的片段（跨行不误挂）
+        const before = src.slice(lineStart, start).match(PREV_WORD_RE)?.[1] ?? "";
         const key = normWord(before);
-        const mark = m[1].trim();
         if (key && mark && !out.has(key)) out.set(key, mark);
-    }
+    });
     return out;
 }
 
 /**
  * 剥掉正文里的 `^{...}`（正文进材料前先剥，渲染不再看到残渣）。
- * 连带它前面的空白一起吃掉，避免剥完留双空格。
+ * 连带它前面的空白一起吃掉，避免剥完留双空格；**数学/代码区间内的
+ * `^{...}` 一律保留**（那是 LaTeX/代码语法，不是记号）。
  */
 export function stripGlossMarks(text: string): string {
-    MARK_RE.lastIndex = 0;
-    return (text ?? "").replace(MARK_RE, "");
+    const src = text ?? "";
+    const ranges: [number, number][] = [];
+    eachMark(src, (start, end) => ranges.push([start, end]));
+    if (ranges.length === 0) return src;
+    let out = "";
+    let at = 0;
+    for (const [s, e] of ranges) {
+        out += src.slice(at, s);
+        at = e;
+    }
+    return out + src.slice(at);
 }
 
 /**
@@ -181,11 +254,17 @@ export interface GlossHit {
 
 /**
  * 正文词形**精确匹配**（宁缺勿错）：大小写不敏感、词边界对齐（前后不得
- * 再是字母/数字/撇号/连字符）、possessive `'s` 含在词形内。**不做词干
+ * 再是字母/数字/撇号——`prefunding`/`fundinglike`/`funding's` 都不命中）、
+ * possessive `'s` 含在词形内（词条词形带 `'s` 就整体命中）。**不做词干
  * 还原**——`fund` 不会被 `funding` 命中，屈折变形一律不高亮。
  *
- * 每词只取**首次**出现（`firstOnly`），词与词之间互不避让（重叠的命中
- * 由 DOM 包装顺序自然嵌套，强行切分反而易错）。返回按 start 升序排列。
+ * 连字符**算词边界**（`funding-based` 里 `funding` 是独立词形，照命中；
+ * 对比 `prefunding` 是另一个词，不命中）——英语复合词高频，把连字符也
+ * 当阻断会造成大量漏标。
+ *
+ * 每词只取**首次**出现（`firstOnly`，逐词各自算首次，不是全段只标一处），
+ * 词与词之间互不避让（重叠的命中由 DOM 包装顺序自然嵌套，强行切分反而
+ * 易错）。返回按 start 升序排列。
  */
 export function planGlossLinks(
     bodyMd: string,
@@ -216,8 +295,9 @@ export function planGlossLinks(
     return out;
 }
 
-/** 词边界收尾判据：后一字符不得是字母/数字/撇号（词内连字符已由匹配式
- *  兜住，此处只堵 `funding` 里命中 `fun` 这类前缀误伤）。 */
+/** 词边界收尾判据：前后字符不得是字母/数字/撇号——只堵「词内命中」的
+ *  误伤（`prefunding` 里命中 `funding`、`fundinglike` 的前缀），连字符不算
+ *  阻断（复合词 `funding-based` 照命中）。 */
 function boundaryOk(before: string | undefined, after: string | undefined): boolean {
     if (before !== undefined && /[a-z0-9']/i.test(before)) return false;
     if (after !== undefined && /[a-z0-9']/i.test(after)) return false;
@@ -288,6 +368,22 @@ export function parseRawEntryLine(line: string): GlossEntry | undefined {
     return { word, phonetic, meaning: rest };
 }
 
+/** 词条的「置信」判据：带音标段、或释义段有词性标签（`n.`/`adj.`/`v.`…
+ *  或中文词性词）。原卷词条行（考研真相形态）**恒有其中之一**；两条都没有
+ *  的多半是正文/数学行被形态误判（如数学笔记里的 `a^{n} 表示 n 次幂`——
+ *  词形+记号+纯中文释义，形态上与词条行无从区分）。
+ *
+ *  兜底采集只认置信词条（宁缺勿错）：错挂在数学/正文材料上的伪词条行是
+ *  可见缺陷，漏一条无音标无词性的词条只是少一行。 */
+const POS_IN_MEANING_RE = /(?:^|[;；,，、\s])(?:n|vt|vi|v|adj|adv|prep|conj|pron|num|art|int|aux|abbr|phr)\./i;
+const POS_CN_RE = /^(?:名词|动词|形容词|副词|介词|连词|代词|数词|冠词|感叹词|短语|词组|缩写)/;
+
+export function isConfidentEntry(e: GlossEntry): boolean {
+    if ((e.phonetic ?? "").trim()) return true;
+    const meaning = (e.meaning ?? "").trim();
+    return POS_IN_MEANING_RE.test(meaning) || POS_CN_RE.test(meaning);
+}
+
 /** 从原文里抽出全部词条行（逐行扫，保持出现序；同一词形去重取首条）。 */
 export function extractRawEntries(md: string): GlossEntry[] {
     const out: GlossEntry[] = [];
@@ -303,8 +399,9 @@ export function extractRawEntries(md: string): GlossEntry[] {
     return out;
 }
 
-/** 原文里是否含词条行（生成 prompt 的类型先验之外的第二道闸：没词条就
- *  不拼词表约定段，防无关卷被 prompt 带偏）。 */
+/** 原文里是否含**置信**词条行：判据与 GlossFold 的兜底采集同口径
+ *  （数学习题里 `a^{n} 表示 n 次幂` 这类伪词条不算数），供调用方在拼
+ *  prompt / 走词条链之前先判「这份源文值不值得做词条处理」。*/
 export function hasRawEntries(md: string): boolean {
-    return extractRawEntries(md).length > 0;
+    return extractRawEntries(md).some(isConfidentEntry);
 }
