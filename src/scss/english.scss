@@ -252,6 +252,16 @@
   color: var(--b3-theme-on-surface);
 }
 
+/* 非组题（题干自带长文本）的线索槽：卡内题干与作答区之间（Issue #28）。
+   与组槽同款视觉，只重置上边框（组槽靠边框与材料区隔，卡内靠间距）。 */
+.wengu-cclues {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
 .wengu-clue-chip {
   max-width: 260px;
   overflow: hidden;
@@ -261,6 +271,24 @@
   border-radius: 99px;
   background: color-mix(in srgb, var(--b3-theme-primary) 15%, transparent);
   font-size: 81.25%;
+  cursor: pointer;
+}
+
+/* 两击删除的待确认态（Issue #28）：第一击给红框警示，3s 复位。
+   对齐 AiSessions 删除惯例（不用 confirm 弹窗）。 */
+.wengu-clue-chip.wengu-clue-chip-armed {
+  background: color-mix(in srgb, var(--b3-theme-error) 25%, transparent);
+  box-shadow: inset 0 0 0 1px var(--b3-theme-error);
+}
+
+/* 原文持久高亮（Issue #28）：线索段在材料/题干里的视觉锚点，色随主题。
+   高亮只做背景/下划线，不改字色——材料正文在暗色主题下也保持可读。 */
+mark.wengu-clue-mark {
+  background: color-mix(in srgb, var(--b3-theme-primary) 32%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
 }
 
 .wengu-clue-result {

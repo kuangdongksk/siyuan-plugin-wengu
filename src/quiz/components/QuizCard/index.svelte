@@ -89,6 +89,9 @@
                 (sol ? `<div class="wengu-static-sol" data-static-sol">${renderMdHtml(sol)}</div>` : "");
             if (rootEl) renderMathWhenVisible(rootEl);
         }
+        // Issue #28：题干挂载后过统一的高亮后处理（会话恢复/重开页签
+        // 的线索在此重新落 mark；组题在材料面板侧由组单元调）
+        host.refreshClueMarks?.(q);
         // after 恢复的已答题：题号标「已答」不透对错（旧 restore 路径补标）
         if (ui.graded && ui.resultStatus === "warn") markNumRailAnswered(idx + 1);
         // steps 模式分派：AI 实时引导开跑（离线初始态已含内容）
@@ -142,9 +145,15 @@
     </div>
 {/snippet}
 
-<!-- 题干静态渲染占位（onMount 填 MdRender 产物 + 解析区） -->
+<!-- 题干静态渲染占位（onMount 填 MdRender 产物 + 解析区）。
+     Issue #28：非组题（题干自带长文本）的线索 chips 槽紧随题干——渲染
+     位置在题干与作答区之间；组题的材料槽在组单元底部，此处不重复出
+     （[data-clues] 命中以最近的祖先为界：组内卡的这层空槽会与组槽打架）。 -->
 {#snippet protyle()}
     <div class="wengu-qprotyle" data-qprotyle bind:this={protoEl}><span class="wengu-muted">…</span></div>
+    {#if !q.group}
+        <div class="wengu-cclues" data-clues hidden></div>
+    {/if}
 {/snippet}
 
 <!-- 结果/提示行（steps/slots/普通卡尾部件） -->

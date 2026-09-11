@@ -75,6 +75,8 @@
             if (top !== undefined) matEl.scrollTop = top;
             if (rootEl) renderMathWhenVisible(rootEl);
         }
+        // Issue #28：材料填充后过统一高亮后处理（组题线索高亮落在材料面板）
+        host.refreshClueMarks?.(qs[qi].q);
         onActive(qs[qi].idx); // 首帧同步当前题（旧 bindOneGroupUnit 首调）
         return () => unregisterGroup(mid);
     });
