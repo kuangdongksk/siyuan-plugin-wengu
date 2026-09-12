@@ -31,6 +31,9 @@
     const subCount = $derived(ui.subDocs.length);
     const batchOpen = $derived(subCount > 0 && (ui.includeSub || ui.docEmpty));
     const batchNames = $derived(ui.subDocs.map((d) => d.title).join("、"));
+    // 有子文档但未展开（非空源、未勾选）：给一句可发现性提示——否则用户
+    // 根本不知道这篇下面挂着 N 个子文档（Issue #37 验收 1 的入口前提）
+    const batchHidden = $derived(subCount > 0 && !batchOpen);
 
     onMount(() => {
         ctl.attach(ui, deps, onClose);
@@ -117,6 +120,8 @@
             {@html fmt(t("convertBatchHint"), { n: String(subCount) })}<br />
             <span class="wengu-muted">{batchNames}</span>
         </div>
+    {:else if batchHidden}
+        <div class="wengu-muted">{@html fmt(t("convertBatchHintOff"), { n: String(subCount) })}</div>
     {/if}
     {#if ui.status}
         <div class="wengu-status wengu-status-{ui.status.kind}">

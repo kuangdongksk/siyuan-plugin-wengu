@@ -21,6 +21,20 @@
 
     const hasRunning = $derived(!!(ui.snap?.running || (ui.snap?.pendingChoice && ui.snap.pending)));
 
+    // 未完成记录行补队列维度（批量转换里失败/终止的篇）：「 · 第 i/N 篇 · 队列名」
+    const recordBatchSuffix = (
+        tr: (k: string) => string,
+        rec: { batch?: { index: number; total: number; groupTitle?: string } }
+    ): string =>
+        rec.batch
+            ? " · " +
+              fmt(tr("convertPanelRecordBatch"), {
+                  i: String(rec.batch.index + 1),
+                  n: String(rec.batch.total),
+                  title: rec.batch.groupTitle ?? "",
+              })
+            : "";
+
     onMount(() => {
         ctl.attach(ui, deps, onClose);
         return () => ctl.detach();
@@ -90,7 +104,7 @@
                                 c: String(rec.count),
                                 b: String(rec.batches),
                                 n: String(rec.total),
-                            })}
+                            }) + recordBatchSuffix(t, rec)}
                         >
                             <Button variant="outline" onclick={() => ctl.resume(srcDocId)}
                                 >{t("convertPanelResume")}</Button

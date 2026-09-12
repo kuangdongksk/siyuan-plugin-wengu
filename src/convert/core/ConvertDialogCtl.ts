@@ -1,7 +1,7 @@
 import type { ConvertProgressRecord } from "../service/run/ConvertBatch";
 import type { ConvertRunCfg } from "../service/run/ConvertRun";
 import { extractBlockId, getDocInfo } from "../service/core/ConvertService";
-import { buildBatchQueue, planSubDocs } from "../service/source/SubDocs";
+import { buildBatchQueue, isBatchQueue, planSubDocs } from "../service/source/SubDocs";
 import type { ConvertDialogDeps } from "../ui/ConvertDialog";
 import { openKnowPicker, parseKnowIds } from "../../ui/KnowPicker";
 import type { ConvertDialogUi } from "./ConvertDialogUi";
@@ -230,6 +230,9 @@ export class ConvertDialogCtl {
         // 展开；resume 只对单篇有意义（排队中的篇还没有续跑记录）——故有
         // 续跑记录时不展开队列，让「继续生成」走单篇续跑语义
         const queue = resumeRec ? [] : this.batchQueue();
+        // 队列与「单篇=源自身」等价时才退化（判据见 isBatchQueue——空壳
+        // 文件夹只有 1 个子文档时也必须走队列，否则转的是空壳源本身）
+        const asQueue = isBatchQueue(queue, extractBlockId(target));
         const batchTitle = this.batchTitle();
         const cfg: ConvertRunCfg = {
             srcDocId: target,
@@ -242,8 +245,8 @@ export class ConvertDialogCtl {
                 .map((s) => extractBlockId(s))
                 .filter((s) => /^\d{14}-[a-z0-9]+$/i.test(s)),
             resume: resumeRec ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined,
-            subDocs: queue.length > 1 ? queue : undefined,
-            batchTitle: queue.length > 1 ? batchTitle : undefined,
+            subDocs: asQueue ? queue : undefined,
+            batchTitle: asQueue ? batchTitle : undefined,
         };
         const started = d.startRun(cfg);
         this.closeFn?.();

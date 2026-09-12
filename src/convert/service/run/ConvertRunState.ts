@@ -33,6 +33,28 @@ export interface AbortedRun {
     cfg: ConvertRunCfg;
     ev: ConvertRunEvents;
     items?: ConvertBatchItem[];
+    /** 所属队列维度（Issue #37）：保留记录据此落 batch 字段——面板「未完成
+     *  记录」行要能标出「第 i/N 篇」，否则重开思源后分不清是哪一篇。 */
+    batch?: BatchMeta;
+}
+
+/** 进度记录的批量维度（= ConvertProgressRecord.batch 的载荷）。 */
+export interface BatchMeta {
+    /** 队列内序号（0 起）。 */
+    index: number;
+    total: number;
+    groupTitle?: string;
+}
+
+/** 某源文档在队列里的批量维度（纯函数）：不在队列里/队列为空 → undefined
+ *  （单篇转换的记录**不带** batch 键，装载侧照旧——数据演进守则
+ *  「optional + 只加不改名」，不 bump version、无 backfill）。 */
+export function batchMetaOf(cfg: ConvertRunCfg, docId: string): BatchMeta | undefined {
+    const list = cfg.subDocs;
+    if (!list || list.length === 0) return undefined;
+    const index = list.findIndex((d) => d.id === docId);
+    if (index < 0) return undefined;
+    return { index, total: list.length, groupTitle: cfg.batchTitle };
 }
 
 let aborted: AbortedRun | undefined;

@@ -125,3 +125,16 @@ export function buildBatchQueue(plan: SubDocPlan, includeRoot: boolean): SubDocR
     queue.push(...plan.children);
     return queue;
 }
+
+/**
+ * 队列是否值得起（纯函数，带单测）：队列与「单篇流程 = 就转源自身」
+ * 等价时退化回单篇（长度 0 或 1 且那唯一一篇就是源本身）。
+ *
+ * ⚠️ **空壳文件夹只有 1 个子文档时也必须走队列**（队列唯一元素 ≠ 源
+ * 自身）：源是空壳，转它只会报「文档内容为空」白跑一趟，而用户点这个
+ * 文件夹的本意就是转子文档——退化成单篇等于白干。
+ */
+export function isBatchQueue(queue: SubDocRef[], srcDocId: string): boolean {
+    if (queue.length > 1) return true;
+    return queue.length === 1 && queue[0].id !== srcDocId;
+}

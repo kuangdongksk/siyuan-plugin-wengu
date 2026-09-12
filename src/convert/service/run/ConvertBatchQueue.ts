@@ -14,18 +14,22 @@ import { notifyState, setActive, type ActiveRun } from "./ConvertRunState";
  * 四条硬口径：
  *  1. **串行**：内层 await 逐篇 resolve，绝不并发起第二篇；
  *  2. **队列全程占住 active 槽**：换篇时 `setActive(run)` 把槽再占回来
- *     （内层单篇 done/failed 收口会清空槽）；只有整队列收口或转抉择态才
- *     真正释放——否则用户能在换篇间隙插队。
+ *     （内层单篇 done/failed 收口会清空槽）+ `setConverting(true)` 复位
+ *     页内「转换中」标记；只有整队列收口或转抉择态才真正释放——否则用户
+ *     能在换篇间隙插队（页内转换按钮也会误判成空闲）；
  *  3. **单篇失败不打断队列**：记一行失败、继续下一篇；终态汇总
  *     「N 篇完成、M 篇失败：清单」走 Notify + 状态条。
  *  4. **「停止」= 整队列停**：当前篇若已有产物转保留/丢弃抉择（沿用单篇
  *     aborted 语义），剩余篇全部标 cancelled 并给汇总。
  */
 
-/** 队列汇总（终态通知/状态条）。 */
+/** 队列汇总（终态通知/状态条）。四段之和 = 队列总篇数（不许有篇被漏计）。 */
 interface QueueTail {
     done: number;
+    /** 用户终止时**正在跑**的那篇（未跑完，也无产物可保留）。 */
+    stopped: number;
     failed: string[];
+    /** 因终止而**没跑**的剩余篇。 */
     cancelled: number;
 }
 
@@ -57,10 +61,14 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
     const docs = cfg.subDocs ?? [];
     const failed: string[] = [];
     let done = 0;
+    /** 已标取消的篇数（循环 break 与停止两条路径都会累计）。 */
+    let cancelled = 0;
     /** 最后一篇成功产物（队列收口时切到它——与单篇 onDone 同口径）。 */
     let last: BatchedResult | undefined;
 
-    /** 剩余篇全部取消（停止时：未跑的篇一篇都别跑）。 */
+    /** 从 from 起把仍未跑的篇标取消（停止时：剩余篇一篇都别跑）。
+     *  返回本次翻掉的篇数——**必须真翻**：只算总数不改状态的话，面板
+     *  分篇行会永远停在「排队中」，而汇总却报「已取消 N 篇」。 */
     const cancelRest = (from: number): number => {
         let n = 0;
         for (let j = from; j < docs.length; j++) {
@@ -73,10 +81,16 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
     };
 
     for (let i = 0; i < docs.length; i++) {
-        if (signal.aborted) break; // 停止后剩余篇全部取消
+        if (signal.aborted) {
+            // 停止后剩余篇一篇都不跑（当前篇的收口已在上轮循环处理）
+            cancelled += cancelRest(i);
+            break;
+        }
         flip(run, i, { status: "running" });
-        // 换篇：清掉上一篇的进度/标题，面板切到本篇（槽**不**释放）
+        // 换篇：清掉上一篇的进度/标题，面板切到本篇；槽与「转换中」标记
+        // **不**释放（内层单篇 failed 收口会清槽 + 复位该标记，这里占回来）
         run.progress = undefined;
+        ev.setConverting(true);
         ev.onStatus(
             esc(fmt(t("convertBatchHead"), { i: String(i + 1), n: String(docs.length), title: run.batchTitle ?? "" })),
             "muted"
@@ -90,7 +104,6 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             // 意外异常（runSingleDoc 已收口为 err 终态）：记失败继续下一篇
             flip(run, i, { status: "failed", message: t("convertAiFailed").trim() });
             failed.push(docs[i].title);
-            setActive(run);
             continue;
         }
         if (r.status === "done") {
@@ -100,11 +113,13 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             continue;
         }
         if (r.status === "aborted") {
-            flip(run, i, { status: "cancelled", count: r.count });
-            const cancelled = cancelRest(i + 1);
+            // 本篇=用户终止时**正在跑**的那篇（已生成部分待抉择），与剩余
+            // 未跑的篇（cancelled）是两回事——面板分篇行据此区分显示
+            flip(run, i, { status: "stopped", count: r.count });
+            cancelled += cancelRest(i + 1);
             if (!r.setId) {
                 // 首批前终止（该篇零产物）：无保留/丢弃可言 → 队列直接收口
-                await finishQueue(ev, t, { done, failed, cancelled: cancelled + 1 }, last);
+                await finishQueue(ev, t, { done, stopped: 1, failed, cancelled }, last);
                 return;
             }
             // 有产物：该篇转抉择态（runSingleDoc 已置 aborted，items 随之
@@ -114,20 +129,14 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             setActive(undefined);
             ev.setConverting(false);
             notifyState();
-            notifyQueueTail(ev, t, { done, failed, cancelled: cancelled + 1 });
+            notifyQueueTail(ev, t, { done, stopped: 1, failed, cancelled });
             return;
         }
         // 中途失败：有部分产物则记续跑进度（该篇可「继续生成」），继续下一篇
         failed.push(docs[i].title);
         flip(run, i, { status: "failed", message: r.message || t("convertNoQuestions"), count: r.count });
-        setActive(run);
     }
-    await finishQueue(
-        ev,
-        t,
-        { done, failed, cancelled: signal.aborted ? docs.length - done - failed.length : 0 },
-        last
-    );
+    await finishQueue(ev, t, { done, stopped: 0, failed, cancelled }, last);
 }
 
 /** 队列收口：释放槽 + 切到最后一篇产物（onDone）+ 汇总状态条/通知。
@@ -150,7 +159,13 @@ async function finishQueue(
 
 /** 队列汇总文案（成功/失败/取消三段拼装）→ 状态条 + Notify。 */
 function notifyQueueTail(ev: ConvertRunEvents, t: (k: string) => string, tail: QueueTail): void {
-    const parts = [fmt(t("convertBatchTailDone"), { n: String(tail.done) })];
+    const parts: string[] = [];
+    // 成功段在「一篇没成」且另有说法时省掉——「完成 0 篇 · 3 篇已取消」的
+    // 前半句是噪音，用户只关心后段
+    if (tail.done > 0 || (tail.failed.length === 0 && tail.cancelled === 0 && tail.stopped === 0)) {
+        parts.push(fmt(t("convertBatchTailDone"), { n: String(tail.done) }));
+    }
+    if (tail.stopped > 0) parts.push(fmt(t("convertBatchTailStopped"), { n: String(tail.stopped) }));
     if (tail.failed.length > 0) {
         parts.push(fmt(t("convertBatchTailFail"), { n: String(tail.failed.length), list: tail.failed.join("；") }));
     }

@@ -8,6 +8,7 @@ import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import type { SubDocRef } from "../source/SubDocs";
 import { runBatchQueue } from "./ConvertBatchQueue";
 import {
+    batchMetaOf,
     getAborted,
     getActive,
     notifyState,
@@ -82,7 +83,10 @@ export interface ConvertBatchItem {
     total: number;
     docId: string;
     title: string;
-    status: "queued" | "running" | "done" | "failed" | "cancelled";
+    /** queued=排队中；running=进行中；done/failed=终态；stopped=用户在中途
+     *  终止的**那一篇**（已生成部分待「保留/丢弃」抉择）；cancelled=因终止
+     *  而**未被跑**的剩余篇。 */
+    status: "queued" | "running" | "done" | "failed" | "stopped" | "cancelled";
     /** 该篇已落库题数（done/failed 时有意义）。 */
     count: number;
     /** 该篇最近一次进度（running 时）。 */
@@ -164,6 +168,8 @@ export function batchItemStatusText(t: (k: string) => string, item: ConvertBatch
             return esc(t("convertBatchQueued"));
         case "cancelled":
             return esc(t("convertBatchCancelled"));
+        case "stopped":
+            return esc(fmt(t("convertBatchStoppedItem"), { c: String(item.count) }));
         case "failed":
             return esc(fmt(t("convertBatchFailed"), { msg: item.message || t("convertNoQuestions") }));
         case "done":
@@ -178,13 +184,15 @@ export function batchHeadText(t: (k: string) => string, batch: { title?: string;
     const items = batch.items ?? [];
     const total = items.length;
     const running = items.findIndex((x) => x.status === "running");
-    const settled = items.filter(
-        (x) => x.status === "done" || x.status === "failed" || x.status === "cancelled"
-    ).length;
+    const settled = items.filter((x) => x.status !== "running" && x.status !== "queued").length;
     const cur = running >= 0 ? running + 1 : Math.max(1, settled);
-    return esc(
-        fmt(t("convertBatchHead"), { i: String(Math.min(total, cur)), n: String(total), title: batch.title ?? "" })
-    );
+    const text = fmt(t("convertBatchHead"), {
+        i: String(Math.min(total, cur)),
+        n: String(total),
+        title: batch.title ?? "",
+    });
+    // 队名为空（根文档标题拿不到时的兜底）不留孤零零的分隔符
+    return esc(batch.title ? text : text.replace(/\s*·\s*$/, ""));
 }
 
 /** 启动一次转换（已有在途运行/待抉择则拒绝，返回 false）。 */
@@ -332,13 +340,20 @@ function settleAborted(run: ActiveRun, r: BatchedResult, docId: string): void {
     }
     const head = r.message ? `${esc(r.message)}<br>` : "";
     ev.onStopChoice({ count: r.count, batches: r.batches, total: r.total, message: head });
-    setAborted({ r, cfg: { ...cfg, srcDocId: docId }, ev, items: run.items });
+    setAborted({
+        r,
+        cfg: { ...cfg, srcDocId: docId },
+        ev,
+        items: run.items,
+        // 队列维度随抉择记录留下：「保留已生成」要按**本篇**落 batch 字段
+        batch: batchMetaOf(cfg, docId),
+    });
     notifyState();
 }
 
 /** failed：清槽；有部分产物则记**本篇**进度可「继续生成」。 */
 function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
-    const { ev } = run;
+    const { cfg, ev } = run;
     const t = ev.t;
     if (getActive() === run) {
         setActive(undefined);
@@ -347,6 +362,7 @@ function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
     const partial = r.count > 0 ? `<br>${esc(t("convertPartialKept"))}` : "";
     ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
     notifyError({ key: "notifyConvertFail", vars: { msg: r.message || t("convertNoQuestions") } });
+    const meta = batchMetaOf(cfg, docId);
     if (r.count > 0 && r.setId) {
         ev.saveProgress(docId, {
             setId: r.setId,
@@ -355,6 +371,10 @@ function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
             batches: r.batches,
             total: r.total,
             count: r.count,
+            // 批量维度（Issue #37）：队列里失败/终止的篇带 index/total/组标题，
+            // 面板「未完成记录」才能标出这是队列里第几篇；**单篇不带此键**
+            //（条件展开：单篇记录的形状与改造前逐字节一致）
+            ...(meta ? { batch: meta } : {}),
         });
     }
     notifyState();
@@ -420,6 +440,9 @@ export function keepConvertRun(): Promise<void> {
             batches: a.r.batches,
             total: a.r.total,
             count: a.r.count,
+            // 队列里终止的篇：记录带队列维度（a.batch 在 settleAborted 时定），
+            // 面板未完成记录行据此标出「第 i/N 篇」；单篇条件展开不带此键
+            ...(a.batch ? { batch: a.batch } : {}),
         });
         await finishRun(a.ev, a.r);
     })()
