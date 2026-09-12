@@ -4,7 +4,7 @@ import type { QuestionBank } from "../data/QuestionBank";
 import { kpRootMap } from "../data/BankReconcile";
 import { collectKpRefs } from "../data/BankRegen";
 import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
-import { knowTreeByNode, knowTreesOf, pendingIndexIds } from "../data/KnowTrees";
+import { knowTreesOf, pendingIndexIds } from "../data/KnowTrees";
 import { notifyError, notifyInfo, type NotifyMsg } from "../../ui/Notify";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
@@ -12,6 +12,8 @@ import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
 import { openSynonymDialog } from "../ui/SynonymDialog";
 import { lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
 import { knowHash } from "../data/KnowHash";
+import { dropSnapshot, jumpToKnowNode, runRescan, sectionsByRoot, staleRootsOf } from "./KnowSnapshot";
+import type { RootSections } from "./KnowSnapshot";
 import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/knowledge/KnowledgeLink";
 import { generateKnowledgeOutline, outlineSrcHash } from "../../convert/service/knowledge/KnowOutline";
 import {
@@ -61,6 +63,11 @@ export class KnowPanelCtl {
         this.outlineArm.disarm();
     }
 
+    /** 快照过期判定用（装载时填）：根→小节 id 集、登记根清单、重扫单飞集。 */
+    private secsByRoot: RootSections = new Map();
+    private regRoots: string[] = [];
+    private readonly rescanning = new Set<string>();
+
     private bank(): QuestionBank | undefined {
         return this.v.bankStore();
     }
@@ -82,19 +89,22 @@ export class KnowPanelCtl {
         const info = await KernelDoc.infoOf([...new Set([...rootsMap.values(), ...registered])]);
         const titles = new Map([...info].map(([k, v]) => [k, v.title]));
         let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
+        this.regRoots = [...registered];
+        this.secsByRoot = new Map();
         if (registered.length > 0) {
             const imp = await importedKnowDocs(registered, titles, trees);
             for (const [k, v] of imp.info) info.set(k, v); // 展开行自带标题/hPath，供树化分支
+            // 快照过期判定：登记根 → 子树小节 id 集（零额外内核读）
+            this.secsByRoot = sectionsByRoot(imp.rootDocIds, imp.docs);
             docs = mergeKnowDocs(docs, imp.docs, imp.manualAll, new Set(registered));
         }
         if (!this.alive) return; // 骨架已被重建，本次结果作废
         this.ui.docs = docs;
         this.ui.info = info;
-        // 分支默认全展开（知识树浅、文档即叶子）；小节容器不进集合=默认收起
+        // 分支默认全展开（知识浅、文档即叶子）；小节容器不进集合=默认收起
         this.ui.openPaths = new SvelteSet(collectBranchPaths(buildKnowTree(docs, info)));
         this.ui.phase = "ready";
-        // 后台：内部知识树 staleness（源内容指纹比对，树行出「源已变更」
-        // 徽标）+ 小节漂移检测（自托管三期：内容哈希基线，基线自推进）
+        // 后台：知识树 staleness（源指纹）+ 小节漂移（内容哈希基线自推进）
         const staleTrees = new Set<string>();
         for (const [srcId, tree] of Object.entries(trees)) {
             const cur = await outlineSrcHash(srcId).catch((): string => "");
@@ -105,9 +115,19 @@ export class KnowPanelCtl {
         const docIds = this.ui.docs.map((d) => d.docId);
         if (kh && docIds.length > 0) {
             void kh.diffDocs(docIds).then((stale) => {
-                if (this.alive) this.ui.staleSecs = stale;
+                if (this.alive) {
+                    this.ui.staleSecs = stale;
+                    this.ui.staleRoots = staleRootsOf(this.regRoots, this.secsByRoot, stale);
+                }
             });
         }
+    }
+
+    /** 「重扫」：重跑该登记根的标题树捕获并落库，随后重载面板。 */
+    rescan(docId: string): void {
+        runRescan(docId, this.rescanning, async (): Promise<void> => {
+            if (this.alive) await this.load();
+        });
     }
 
     /* ── 行内动作（匹配/转习题/关联/打开） ── */
@@ -164,29 +184,12 @@ export class KnowPanelCtl {
     }
 
     open(id: string): void {
-        // 内部知识树节点无真实块——降级跳到源章节文档
-        void (async (): Promise<void> => {
-            try {
-                const bank = this.bank();
-                if (bank) {
-                    const hit = knowTreeByNode(await knowTreesOf(bank), id);
-                    if (hit) {
-                        window.open(`siyuan://blocks/${hit.tree.srcId}`);
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.warn("[wengu] 知识树节点定位失败，降级直跳", e); // 查库失败不该吞掉跳转
-            }
-            window.open(`siyuan://blocks/${id}`);
-        })();
+        void jumpToKnowNode(id, this.bank());
     }
 
-    /** 头部「导入」：文档选择浮层（多选，锚定按钮）。导入即关联——
-     *  登记后自动跑零 AI 文本关联（knowledge 标签 ↔ 新根小节标题归一
-     *  匹配），命中的题挂上引用，面板重载即可见计数；随后对**本次新登记
-     *  根**子树里尚无索引的文档自动补一次 AI 索引（已索引的不重跑、不
-     *  经两击确认；AI 长任务不阻塞重载，终态走通知）。 */
+    /** 头部「导入」：文档选择浮层（多选，锚定按钮）。导入即关联——登记
+     *  后自动跑零 AI 文本关联，随后对**本次新登记根**子树里尚无索引的文档
+     *  自动补一次 AI 索引（已索引的不重跑、不经两击确认；不阻塞重载）。 */
     importRoots(anchor: HTMLElement): void {
         const bank = this.bank();
         if (!bank) return;
@@ -469,12 +472,13 @@ export class KnowPanelCtl {
         this.outlineArm.disarm();
     }
 
-    /** 退册整个登记子树。 */
+    /** 退册整个登记子树（快照一并清账，见 dropSnapshot）。 */
     private async removeRoot(docId: string): Promise<void> {
         const bank = this.bank();
         if (!bank) return;
         await removeKnowRoot(bank, docId);
         await bank.flush();
+        await dropSnapshot(docId);
         await this.load();
     }
 }
@@ -483,13 +487,12 @@ export class KnowPanelCtl {
 function collectBranchPaths(nodes: KnowTreeNode[]): string[] {
     return nodes.flatMap((n) => [n.path, ...collectBranchPaths(n.children)]);
 }
-
 /** 索引批次执行结果（手动/自动两路共用执行体的返回）。 */
 interface OutlineRun {
     ok: number;
     skip: number;
     fail: number;
-    /** 成功篇目的节点数合计（单篇通知「已索引 N 个知识点」用）。 */
+    /** 成功篇目的节点数合计（单篇通知用）。 */
     count: number;
     /** 最后一次失败原因（全灭时展示）。 */
     lastErr: string;

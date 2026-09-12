@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildOutlinePrompt } from "../../../ai/prompts/convert";
-import { parseOutlineNodes } from "../knowledge/KnowOutline";
+import { attachSrcIds, normHeadTitle, parseOutlineNodes } from "../knowledge/KnowOutline";
 import { chapterTextOf, extractOutlineMd } from "../knowledge/KnowOutline";
 
 describe("buildOutlinePrompt", () => {
@@ -17,6 +17,22 @@ describe("buildOutlinePrompt", () => {
         expect(p).toContain("至多合并成一个条目");
         expect(p).toContain("禁止起比本章更宽泛的学科名");
         expect(p).toContain("不出题的背景性、科普性内容不进树");
+    });
+
+    it("升级（Issue #39）：不收录题干/例题/空壳节 + 例题反哺切分（验收 3）", () => {
+        const p = buildOutlinePrompt("x");
+        // 不收录三类噪音
+        expect(p).toContain("不收录的内容");
+        expect(p).toContain("题号题干");
+        expect(p).toContain("例题/示例/习题的标题");
+        expect(p).toContain("空壳节");
+        expect(p).toContain("综合题举例");
+        expect(p).toContain("基础习题精练");
+        // 例题反哺：读例题切得更细
+        expect(p).toContain("例题反哺");
+        expect(p).toContain("切得更细");
+        // 层级约定与禁空标题的既有约束不因升级丢失
+        expect(p).toContain("每个标题必须实义");
     });
 });
 
@@ -92,5 +108,34 @@ describe("parseOutlineNodes", () => {
     it("超三级标题不入表；空标题滤除；无标题返回空", () => {
         expect(parseOutlineNodes("#### 太深\n# 一级").map((n) => n.title)).toEqual(["一级"]);
         expect(parseOutlineNodes("纯正文没有标题")).toEqual([]);
+    });
+});
+
+describe("attachSrcIds / normHeadTitle（Issue #39 节点源指针，验收 3）", () => {
+    const heads = new Map<string, string>([
+        [normHeadTitle("1.1 洛必达法则"), "h-lh"],
+        [normHeadTitle("等价无穷小代换"), "h-dj"],
+    ]);
+
+    it("按归一标题挂上真实块 id；未命中留空（跳源降级）", () => {
+        const nodes = parseOutlineNodes("# 洛必达法则\n## 夹逼准则\n### 等价无穷小代换");
+        const hit = attachSrcIds(nodes, heads);
+        expect(hit).toBe(2);
+        expect(nodes[0].srcId).toBe("h-lh");
+        expect(nodes[1].srcId).toBeUndefined();
+        expect(nodes[2].srcId).toBe("h-dj");
+    });
+
+    it("归一剥编号/例题号/空白，大小写无关——AI 抄写走样也能认", () => {
+        expect(normHeadTitle("1.1 洛必达法则")).toBe(normHeadTitle("洛必达法则"));
+        expect(normHeadTitle("例 1.2 求极限")).toBe(normHeadTitle("求极限"));
+        expect(normHeadTitle("第 2 章 极限")).toBe(normHeadTitle("极限"));
+        expect(normHeadTitle("L'Hôpital")).toBe(normHeadTitle("l'hôpital"));
+    });
+
+    it("不挂任何指针时节点列表原样（缺省行为不变）", () => {
+        const nodes = parseOutlineNodes("# 查无此项");
+        expect(attachSrcIds(nodes, heads)).toBe(0);
+        expect(nodes[0].srcId).toBeUndefined();
     });
 });

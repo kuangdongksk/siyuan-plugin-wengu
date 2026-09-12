@@ -75,3 +75,25 @@ WenguWorkspace 枚举减一（collection 退役），prefs 旧值 normalize 落�
   （LiveCols.test.ts 单测覆盖确定性 id/回流/快照不动）
 - □4：旧 prefs 恢复不落空工作区；专题清单操作与合并前逐项等价。
   （RailMount.test.ts 覆盖旧值规整）
+
+## 四、Issue #39 追加（2026-09-12）：知识索引插件自管化
+
+装载源从「每次实时 SQL 查文档 h1~h6」改为**快照店 `know-index`**：
+
+- 新店 `saveData("know-index")`：登记根的文档标题树**一次性捕获**（嵌套、
+  节点 id=真实标题块 id），配版本闩（遇未来 version 拒写）；
+- **懒捕获**：装载遇快照缺根 → 现场捕获并落库，存量登记根零用户动作。
+  此后装载**零内核 SQL**，捕获是唯一标题查询场景；
+- 消费面 `expandKnowDocs` / `buildKnowledgeIndex` 签名不变、内部换源，
+  面板/匹配/批量/打标/转换路由/词表全部受益；
+- 快照即**全量原始树**（不引入确定性过滤、不加 filtered 清单），被 AI
+  索引滤掉的噪音天然可从快照找回；
+- **过期与重扫**：小节内容哈希（KnowHash）报变更的登记根出「快照过期」
+  徽标 + 行内「重扫」（重跑捕获，零 AI）；退册时快照一并清账；
+- **AI 索引升级**：prompt 不收录题干/例题/空壳节噪音、例题反哺细化知识点
+  切分；`BankKnowNode.srcId?`（optional 只加）挂源标题块指针，跳源优先
+  块级直跳、无则维持降级跳章文档。`treePathsOf` 同路径复用旧 id 机制不变，
+  存量 kpRefs/活视图/薄弱键零悬空；
+- 硬约束：`bank.knowTrees` 存量格式冻结（只加 `srcId?`）、`parseKpRefs` /
+  `MdRender.BLOCK_REF` 正则冻结、`route-cache` `indexGenOf` 代数输入不变
+  （存量缓存存活）。

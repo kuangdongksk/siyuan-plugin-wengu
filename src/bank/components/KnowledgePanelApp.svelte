@@ -173,6 +173,10 @@
                                 {#if ui.staleTrees.has(d.docId)}<span class="wengu-cp-meta wengu-know-stale"
                                         >{t("knowTreeStale")}</span
                                     >{/if}
+                                <!-- 快照过期（Issue #39）：标题树快照落后于源文档，行尾给「重扫」 -->
+                                {#if d.registered && ui.staleRoots.has(d.docId)}
+                                    <span class="wengu-cp-meta wengu-know-stale">{t("knowSnapshotStale")}</span>
+                                {/if}
                                 <span class="wengu-cp-meta">{fmt(t("knowQCount"), { n: String(bsub ?? d.total) })}</span
                                 >
                                 <span class="b3-list-item__action">
@@ -208,6 +212,15 @@
                                         >{t("knowOpen")}</Button
                                     >
                                     {#if d.registered}
+                                        <!-- 重扫：快照过期时给手动刷新入口（重跑标题树捕获，零 AI） -->
+                                        {#if ui.staleRoots.has(d.docId)}
+                                            <Button
+                                                type="button"
+                                                variant="text"
+                                                title={t("knowRescanTip")}
+                                                onclick={() => ctl.rescan(d.docId)}>{t("knowRescanBtn")}</Button
+                                            >
+                                        {/if}
                                         <!-- 移除：未登记不显示；点一次进 arm 态，再点确认才真删 -->
                                         <Button type="button" variant="text" onclick={() => ctl.armRemove(d.docId)}
                                             >{ui.rmArmed === d.docId ? t("collectConfirm") : t("knowRemoveBtn")}</Button

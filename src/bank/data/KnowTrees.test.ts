@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { BankKnowTree, KnowTreesMap } from "./KnowTrees";
+import type { BankKnowNode, BankKnowTree, KnowTreesMap } from "./KnowTrees";
 import type { BankData, QuestionBank } from "./QuestionBank";
 import { QuestionBank as Bank } from "./QuestionBank";
 import {
     internalRootMap,
+    knowJumpTarget,
     knowNodeText,
     knowTreeByNode,
     mintKnowNodeId,
@@ -231,5 +232,53 @@ describe("pendingIndexIds（导入后自动补索引的筛选）", () => {
 
     it("空串 id 不入清单（源已删/查无文档的占位）", () => {
         expect(pendingIndexIds(["", "x"], {})).toEqual(["x"]);
+    });
+});
+
+describe("knowJumpTarget（Issue #39：srcId 优先块级直跳）", () => {
+    const trees: KnowTreesMap = {
+        doc1: {
+            srcId: "doc1",
+            outlineMd: "",
+            srcHash: "h",
+            createdAt: 1,
+            nodes: [
+                { id: "20260901000000-aaaaaaa", title: "有源指针", level: 1, srcId: "20260901000000-src0001" },
+                { id: "20260901000000-bbbbbbb", title: "无源指针", level: 1 },
+            ],
+        },
+    };
+
+    it("节点带 srcId → 跳真实标题块", () => {
+        expect(knowJumpTarget(trees, "20260901000000-aaaaaaa")).toBe("20260901000000-src0001");
+    });
+
+    it("节点无 srcId → 降级跳源章节文档", () => {
+        expect(knowJumpTarget(trees, "20260901000000-bbbbbbb")).toBe("doc1");
+    });
+
+    it("非树节点（真块引用）原样返回", () => {
+        expect(knowJumpTarget(trees, "20260801000000-real001")).toBe("20260801000000-real001");
+    });
+});
+
+describe("treePathsOf 对带 srcId 节点照常工作（验收 3）", () => {
+    it("id 复用按路径对齐，srcId 不影响路径键", () => {
+        const nodes: BankKnowNode[] = [
+            { id: "old-1", title: "极限", level: 1, srcId: "h-1" },
+            { id: "old-2", title: "洛必达", level: 2, srcId: "h-2" },
+        ];
+        const paths = treePathsOf(nodes);
+        expect([...paths.keys()]).toEqual(["极限", "极限/洛必达"]);
+        expect(paths.get("极限/洛必达")?.id).toBe("old-2");
+    });
+
+    it("stripChapterEcho 保留 srcId 字段", () => {
+        const nodes: BankKnowNode[] = [
+            { id: "e", title: "1-行列式", level: 1 },
+            { id: "a", title: "行列式的性质", level: 1, srcId: "h-9" },
+        ];
+        const kept = stripChapterEcho(nodes, "1-行列式");
+        expect(kept.map((n) => [n.id, n.srcId])).toEqual([["a", "h-9"]]);
     });
 });

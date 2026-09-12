@@ -29,6 +29,9 @@ export interface KnowPanelUi {
     /** 源已变更的内部知识树（源文档 id）：装载时比 srcHash 得出，
      *  行上出「源已变更」徽标（提示重新索引）。 */
     staleTrees: Set<string>;
+    /** 快照已过期的登记根（Issue #39）：子树内有小节内容变更时，
+     *  行上出「快照过期」徽标并提供「重扫」入口（重跑捕获落库）。 */
+    staleRoots: Set<string>;
     /** AI 索引进行中的 docId（行按钮转「索引中」，再点=中止；批量时=
      *  发起的文件夹行）。 */
     outlining: string | undefined;
@@ -51,6 +54,7 @@ export function initialKnowPanelUi(): KnowPanelUi {
         rmArmed: undefined,
         staleSecs: new Set(),
         staleTrees: new Set(),
+        staleRoots: new Set(),
         outlining: undefined,
         outlineArmed: undefined,
         outlineArmTotal: undefined,

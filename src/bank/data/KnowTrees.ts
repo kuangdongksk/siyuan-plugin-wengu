@@ -23,6 +23,11 @@ export interface BankKnowNode {
     level: 1 | 2 | 3;
     /** 标题下的补充说明（prompt 约定 ≤30 字，可整篇省略）。 */
     note?: string;
+    /** 源标题块 id（Issue #39，optional 只加）：AI 归纳时按标题匹配挂上的
+     *  真实标题块指针——跳源优先块级直跳（`siyuan://blocks/{srcId}`），
+     *  缺省/未匹配则维持降级跳章文档。**不进任何指纹**，存量树无此字段
+     *  行为逐字不变。 */
+    srcId?: string;
 }
 
 /** 一棵内部知识树。 */
@@ -118,6 +123,16 @@ export function knowTreeByNode(
         if (node) return { tree, node };
     }
     return undefined;
+}
+
+/** 跳转目标（Issue #39）：节点有源标题块指针 `srcId` 时**块级直跳**
+ *  （真块 id），否则降级跳源章节文档（AI 铸的节点 id 不可解析）。返回
+ *  的 id 交给 `siyuan://blocks/{id}` 用。未命中任何树=原样返回（调用方
+ *  按普通块引用处理）。 */
+export function knowJumpTarget(trees: KnowTreesMap, nodeId: string): string {
+    const hit = knowTreeByNode(trees, nodeId);
+    if (!hit) return nodeId;
+    return hit.node.srcId ?? hit.tree.srcId;
 }
 
 /** 节点的「小节正文」：自身说明行 + 子树标题拼串——sectionKramdown 查空
