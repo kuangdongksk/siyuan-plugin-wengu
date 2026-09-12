@@ -64,6 +64,27 @@ function countMissingImages(srcMd: string, outMd: string): number {
     return n;
 }
 
+/**
+ * 源 kramdown 是否「空得只剩残渣」（Issue #42）：逐行剥掉 IAL 属性行与
+ * 围栏标记行后，看还剩不剩实质性字符。分叉模板/文献清单这类全是 IAL 孤行
+ * 的垃圾 kramdown 一并在此收口（同样白烧 AI）。
+ *
+ * 只做「有没有正文」的二值判定，**不改 kramdown 本体**——AI 出题用的是
+ * 未改动的 `kramdown`，剥行只是判空的一次性视图。
+ *
+ * 导出仅为单测（转换主流程唯一消费点就在本文件）。
+ */
+export function isBlankSource(md: string): boolean {
+    for (const line of md.split("\n")) {
+        const t = line
+            .replace(/^\s*(?:>\s*)?\{:[^}\n]*\}\s*$/, "") // 整行 IAL（含引用前缀）
+            .replace(/^\s*```.*$/, "") // 围栏开合标记（无正文的空代码块）
+            .trim();
+        if (t) return false;
+    }
+    return true;
+}
+
 /** 已读百分比（逐段模式的「批总数」事前未知，用原文消费比例做进度）。 */
 function percentOf(cursor: number, total: number): number {
     if (total <= 0) return 100;
@@ -216,7 +237,13 @@ export async function convertDocBatched(
         /^\s*(?:>\s*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm,
         ""
     );
-    if (!kramdown.trim()) return zero("failed", t("convertEmptyDoc"));
+    // 源判空（Issue #42）：空壳文档的 kramdown 真身是「仅剩空白 + 文档根
+    // IAL」——`{: id="…"}` 与 `{: id="…" type="doc" …}` 的行里**没有块 id
+    // 也不是 id 片段**，上面那条正则剥不掉，`trim()` 因此非空，壳文档要白
+    // 烧一次 AI 调用才被判「不能出题」（批量队列里每个空壳中间层都撞一次）。
+    // 这里把残渣剥净后再判空：空就直接快速失败报「文档内容为空」。
+    // 纯读侧判空，不碰 questionHash 冻结口径。
+    if (!kramdown.trim() || isBlankSource(kramdown)) return zero("failed", t("convertEmptyDoc"));
 
     const writer = new SetWriter(opts.bank);
     // 继续生成：开跑前接管既有题集（首批期间终止也有 setId 可保留/丢弃；
