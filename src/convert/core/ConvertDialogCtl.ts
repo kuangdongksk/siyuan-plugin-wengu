@@ -1,6 +1,7 @@
 import type { ConvertProgressRecord } from "../service/run/ConvertBatch";
 import type { ConvertRunCfg } from "../service/run/ConvertRun";
 import { extractBlockId, getDocInfo } from "../service/core/ConvertService";
+import { buildBatchQueue, isBatchQueue, planSubDocs } from "../service/source/SubDocs";
 import type { ConvertDialogDeps } from "../ui/ConvertDialog";
 import { openKnowPicker, parseKnowIds } from "../../ui/KnowPicker";
 import type { ConvertDialogUi } from "./ConvertDialogUi";
@@ -18,6 +19,8 @@ export class ConvertDialogCtl {
     private closeFn?: () => void;
     /** 回显解析的竞态序号（输入又变了/已重挂则旧结果丢弃）。 */
     private echoSeq = 0;
+    /** 子文档探查的竞态序号（与回显分开：探查只改 subDocs/docEmpty）。 */
+    private subSeq = 0;
 
     attach(ui: ConvertDialogUi, deps: ConvertDialogDeps, close: () => void): void {
         this.ui = ui;
@@ -33,6 +36,7 @@ export class ConvertDialogCtl {
         ui.running = deps.isRunning();
         this.syncResume();
         this.resolveDocEcho();
+        void this.resolveSubDocs();
         void this.resolveKnowEcho();
     }
 
@@ -104,6 +108,52 @@ export class ConvertDialogCtl {
         this.ui.docId = v;
         this.syncResume();
         this.resolveDocEcho();
+        void this.resolveSubDocs();
+    }
+
+    /** 「连同子文档」勾选（只改回显，起点跑时才定队列）。 */
+    setIncludeSub(v: boolean): void {
+        if (this.ui) this.ui.includeSub = v;
+    }
+
+    /** 探查源文档的子文档清单（文件夹式文档提示与批量队列都靠它）。
+     *  与回显共用竞态口径：序列号对不上/已卸载则丢弃结果。 */
+    private async resolveSubDocs(): Promise<void> {
+        const ui = this.ui;
+        const d = this.deps;
+        if (!ui || !d) return;
+        const seq = ++this.subSeq;
+        const raw = extractBlockId(ui.docId.trim());
+        if (!raw) {
+            ui.subDocs = [];
+            ui.docEmpty = false;
+            return;
+        }
+        const plan = await planSubDocs(raw).catch((): undefined => undefined);
+        if (seq !== this.subSeq || !this.alive) return;
+        ui.subDocs = plan?.children ?? [];
+        ui.docEmpty = plan?.rootEmpty ?? false;
+    }
+
+    /** 队列标题（=根文档标题；回显为空时用 id 兜底）。 */
+    private batchTitle(): string {
+        const ui = this.ui;
+        if (!ui) return "";
+        return ui.docEcho || extractBlockId(ui.docId.trim());
+    }
+
+    /** 批量队列（未勾选且源非空壳=空队列，start 走单篇流程）。 */
+    private batchQueue(): import("../service/source/SubDocs").SubDocRef[] {
+        const ui = this.ui;
+        if (!ui) return [];
+        return buildBatchQueue(
+            {
+                root: { id: extractBlockId(ui.docId.trim()), title: ui.docEcho || "" },
+                children: ui.subDocs,
+                rootEmpty: ui.docEmpty,
+            },
+            ui.includeSub
+        );
     }
 
     private resolveDocEcho(): void {
@@ -176,6 +226,14 @@ export class ConvertDialogCtl {
             return;
         }
         d.saveChoice(ui.modelId, ui.fillToChoice, ui.bigToSteps, ui.knowRoots);
+        // 批量队列（Issue #37）：「连同子文档」勾选或源为空壳子文档文件夹时
+        // 展开；resume 只对单篇有意义（排队中的篇还没有续跑记录）——故有
+        // 续跑记录时不展开队列，让「继续生成」走单篇续跑语义
+        const queue = resumeRec ? [] : this.batchQueue();
+        // 队列与「单篇=源自身」等价时才退化（判据见 isBatchQueue——空壳
+        // 文件夹只有 1 个子文档时也必须走队列，否则转的是空壳源本身）
+        const asQueue = isBatchQueue(queue, extractBlockId(target));
+        const batchTitle = this.batchTitle();
         const cfg: ConvertRunCfg = {
             srcDocId: target,
             modelId: ui.modelId,
@@ -187,6 +245,8 @@ export class ConvertDialogCtl {
                 .map((s) => extractBlockId(s))
                 .filter((s) => /^\d{14}-[a-z0-9]+$/i.test(s)),
             resume: resumeRec ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined,
+            subDocs: asQueue ? queue : undefined,
+            batchTitle: asQueue ? batchTitle : undefined,
         };
         const started = d.startRun(cfg);
         this.closeFn?.();

@@ -2,7 +2,7 @@
     import { onMount } from "svelte";
     import FormRow from "../../ui/FormRow.svelte";
     import Button from "../../ui/Button.svelte";
-    import { progressStatusText } from "../service/run/ConvertRun";
+    import { batchHeadText, batchItemStatusText, progressStatusText } from "../service/run/ConvertRun";
     import type { ConvertPanelDeps } from "../ui/ConvertPanel";
     import type { ConvertPanelCtl } from "../core/ConvertPanelCtl";
     import { initialConvertPanelUi } from "../core/ConvertPanelUi";
@@ -21,6 +21,20 @@
 
     const hasRunning = $derived(!!(ui.snap?.running || (ui.snap?.pendingChoice && ui.snap.pending)));
 
+    // 未完成记录行补队列维度（批量转换里失败/终止的篇）：「 · 第 i/N 篇 · 队列名」
+    const recordBatchSuffix = (
+        tr: (k: string) => string,
+        rec: { batch?: { index: number; total: number; groupTitle?: string } }
+    ): string =>
+        rec.batch
+            ? " · " +
+              fmt(tr("convertPanelRecordBatch"), {
+                  i: String(rec.batch.index + 1),
+                  n: String(rec.batch.total),
+                  title: rec.batch.groupTitle ?? "",
+              })
+            : "";
+
     onMount(() => {
         ctl.attach(ui, deps, onClose);
         return () => ctl.detach();
@@ -36,7 +50,18 @@
             <div class="config-group">
                 <div class="config-title">{t("convertPanelRunning")}</div>
                 <div class="config-items">
-                    {#if snap.running}
+                    {#if snap.running && snap.batch}
+                        <div class="wengu-status wengu-status-muted wengu-convert-bar">
+                            <span class="wengu-convert-bar-text">{batchHeadText(t, snap.batch)}</span>
+                            <Button variant="outline" onclick={() => ctl.stopRun()}>{t("convertStop")}</Button>
+                        </div>
+                        {#each snap.batch.items as item (item.docId + item.index)}
+                            <div class="wengu-batch-row">
+                                <span class="wengu-batch-name">{item.title}</span>
+                                <span class="wengu-muted">{batchItemStatusText(t, item)}</span>
+                            </div>
+                        {/each}
+                    {:else if snap.running}
                         <div class="wengu-status wengu-status-muted wengu-convert-bar">
                             <span class="wengu-convert-bar-text"
                                 >{snap.progress ? progressStatusText(t, snap.progress) : t("converting")}</span
@@ -44,6 +69,14 @@
                             <Button variant="outline" onclick={() => ctl.stopRun()}>{t("convertStop")}</Button>
                         </div>
                     {:else if snap.pendingChoice && snap.pending}
+                        {#if snap.batch}
+                            {#each snap.batch.items as item (item.docId + item.index)}
+                                <div class="wengu-batch-row">
+                                    <span class="wengu-batch-name">{item.title}</span>
+                                    <span class="wengu-muted">{batchItemStatusText(t, item)}</span>
+                                </div>
+                            {/each}
+                        {/if}
                         <div class="wengu-status wengu-status-muted wengu-convert-bar">
                             <span class="wengu-convert-bar-text"
                                 >{fmt(t("convertStopped"), {
@@ -71,7 +104,7 @@
                                 c: String(rec.count),
                                 b: String(rec.batches),
                                 n: String(rec.total),
-                            })}
+                            }) + recordBatchSuffix(t, rec)}
                         >
                             <Button variant="outline" onclick={() => ctl.resume(srcDocId)}
                                 >{t("convertPanelResume")}</Button

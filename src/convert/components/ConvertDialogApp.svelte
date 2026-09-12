@@ -26,6 +26,15 @@
 
     const pickText = (echo: string): string => echo || t("knowPickBtn");
 
+    // 子文档提示（文件夹式文档自动展开；勾选「连同子文档」时总是列出清单）：
+    // 空壳源不勾也展开（点它的本意就是转子文档），非空源只在勾选时展开
+    const subCount = $derived(ui.subDocs.length);
+    const batchOpen = $derived(subCount > 0 && (ui.includeSub || ui.docEmpty));
+    const batchNames = $derived(ui.subDocs.map((d) => d.title).join("、"));
+    // 有子文档但未展开（非空源、未勾选）：给一句可发现性提示——否则用户
+    // 根本不知道这篇下面挂着 N 个子文档（Issue #37 验收 1 的入口前提）
+    const batchHidden = $derived(subCount > 0 && !batchOpen);
+
     onMount(() => {
         ctl.attach(ui, deps, onClose);
         return () => ctl.detach();
@@ -86,6 +95,14 @@
                         onchange={(e) => ctl.setParallel(Number(e.currentTarget.value) || 1)}
                     />
                 </FormRow>
+                <FormRow label={t("convertIncludeSub")} desc={t("convertIncludeSubHint")}>
+                    <input
+                        class="b3-switch fn__flex-center"
+                        type="checkbox"
+                        checked={ui.includeSub}
+                        onchange={(e) => ctl.setIncludeSub(e.currentTarget.checked)}
+                    />
+                </FormRow>
                 <FormRow label={t("convertKnowLabel")}>
                     <Button
                         variant="outline"
@@ -98,6 +115,14 @@
         </div>
     </div>
 
+    {#if batchOpen}
+        <div class="wengu-status wengu-status-muted">
+            {@html fmt(t("convertBatchHint"), { n: String(subCount) })}<br />
+            <span class="wengu-muted">{batchNames}</span>
+        </div>
+    {:else if batchHidden}
+        <div class="wengu-muted">{@html fmt(t("convertBatchHintOff"), { n: String(subCount) })}</div>
+    {/if}
     {#if ui.status}
         <div class="wengu-status wengu-status-{ui.status.kind}">
             {@html ui.status.html}

@@ -400,6 +400,49 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `SegmentResult.batches`，含零产物批、不含纯标题跳过窗口）。两者同时发生但
   语义不同，混用一个变量即面板/终止提示批数翻倍；回归测试
   `convert/service/test/ConvertBatchCount.test.ts` 锁死该口径。
+- **批量转换 = 串行队列**（Issue #37，20260912）：弹窗选中的「文件夹式
+  文档」（自身空、子文档有货）或勾了「连同子文档」的源 → 展开成子文档
+  清单，**同一 ConvertRun 单例**逐篇串行跑（`ConvertBatchQueue.runBatchQueue`
+  → `runSingleDoc`），一篇跑完/终止再起下一篇（与 ConvertIncrement 串行
+  补生成、BankHealth.regenRecords 同款）。四条硬口径：
+    - **队列全程占住 active 槽**：内层单篇 done/failed 收口会清槽，队列
+      每起下一篇前 `setActive(run)` 占回；只有整队列收口或转抉择态才真
+      释放——否则用户能在换篇间隙点别的转换插队；
+    - **每篇各自成题集**：`BankSets` 按源文档推导天然支持，零新存储；
+      `ConvertProgressRecord.batch?{index,total,groupTitle}` 只加不改名
+      （optional、**单篇记录不带此键**、无 backfill、不 bump version）；
+      写入点两处（失败篇 `settleFailed`、终止篇 `settleAborted`→`keepConvertRun`），
+      载荷由纯函数 `ConvertRunState.batchMetaOf(cfg, docId)` 算；消费点是
+      管理面板「未完成记录」行尾（`convertPanelRecordBatch` 标「第 i/N 篇 · 队列名」）——
+      重开思源后仍能认出这条记录属于哪个队列的哪一篇。面板分篇行进度的
+      实时态走运行中的 `ConvertRunSnapshot.batch.items`（内存，不落盘）；
+    - **单篇失败不打断队列**：记一行失败继续下一篇，终态汇总
+      「N 篇完成、M 篇失败：清单」走 `ui/Notify`；
+    - **「停止」= 整队列停**：当前篇转保留/丢弃抉择（沿用单篇 aborted 语义，
+      抉择记录里的 cfg.srcDocId 换成**当前篇**——单篇的 keep/discard 按
+      cfg.srcDocId 记/清进度），剩余篇全部标 cancelled。
+    - ⚠️ **逐篇清/记进度必须用本篇 id**（`settleDone/settleFailed` 收 docId
+      参数）：批量下 `cfg.srcDocId` 是根，直接拿它记进度=清错篇的记录。
+    - **分篇状态六态**（`ConvertBatchItem.status`）：queued/running/done/failed
+        - `stopped`（用户终止时**正在跑**的那篇，已生成部分待保留/丢弃）+
+          `cancelled`（因终止而**没跑**的剩余篇）——别把两者混成一个（面板分篇行、
+          终态汇总都各按各的口径；`QueueTail` 四段 done/stopped/failed/cancelled
+          之和恒 = 队列总篇数，不许有篇被漏计）。
+    - **停止时剩余篇的 items 必须真翻牌**：`cancelRest` 只累加计数不改状态
+      的话，面板分篇行永远停在「排队中」而汇总却报「已取消 N 篇」。
+    - **换篇要占回槽 + 复位「转换中」**：内层单篇 **failed** 收口会
+      `setActive(undefined)` + `setConverting(false)`（done 分支 inQueue=true
+      不清，故这是兜底不是唯一写入点），队列每起下一篇前两者都补一遍
+      （漏 `setConverting` 会让页内转换按钮在篇间误判空闲、用户能插队）。
+    - 子文档发现走 `service/source/SubDocs.planSubDocs`（同笔记本 path LIKE
+      递归、`rowsAll` 分页防 64 行截断、hpath 字典序=文件树序）；
+      `buildBatchQueue` 纯函数（带单测）定队列组成：勾选=根+后代，未勾选
+      且根空壳=只后代（空壳根永不入队——转换注定零产物）；`isBatchQueue`
+      定「是否真起队列」——队列与「单篇=源自身」等价才退化，**空壳文件夹
+      只有 1 个子文档时也必须走队列**（否则转的是空壳源本身，白跑一趟报
+      「文档内容为空」）。
+    - 回归测试 `convert/service/test/ConvertBatchQueue.test.ts`（串行/占槽/
+      失败续跑/停止取消/分篇进度）与 `SubDocs.test.ts`（队列组装）。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
