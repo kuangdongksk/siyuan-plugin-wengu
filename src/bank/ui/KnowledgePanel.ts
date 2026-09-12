@@ -151,10 +151,22 @@ export async function importedKnowDocs(
     rootIds: string[],
     titles: Map<string, string>,
     trees?: KnowTreesMap
-): Promise<{ docs: ImportedKnowDoc[]; info: Map<string, { title: string; hPath: string }>; manualAll: Set<string> }> {
+): Promise<{
+    docs: ImportedKnowDoc[];
+    info: Map<string, { title: string; hPath: string }>;
+    manualAll: Set<string>;
+    /** 登记根 → 该根子树展开出的文档 id 集（快照过期判定按根归口用）。 */
+    rootDocIds: Map<string, Set<string>>;
+}> {
     const docs: ImportedKnowDoc[] = [];
     const info = new Map<string, { title: string; hPath: string }>();
     const manualAll = new Set<string>();
+    const rootDocIds = new Map<string, Set<string>>();
+    const mark = (rid: string, docIds: string[]): void => {
+        const set = rootDocIds.get(rid) ?? new Set<string>();
+        for (const id of docIds) set.add(id);
+        rootDocIds.set(rid, set);
+    };
     const absorb = (entries: KnowDocEntry[]): void => {
         for (const e of entries) {
             docs.push({
@@ -179,11 +191,16 @@ export async function importedKnowDocs(
             if (!title) continue; // 根已删（查无标题）不展示
             docs.push({ docId: rid, title, sectionTree: [] });
             manualAll.add(rid);
+            mark(rid, [rid]);
             continue;
         }
         absorb(entries);
+        mark(
+            rid,
+            entries.map((e) => e.docId)
+        );
     }
-    return { docs, info, manualAll };
+    return { docs, info, manualAll, rootDocIds };
 }
 
 /* ── hPath 树化（跟思源原生文档树同款观感；算法同 PickerTree）── */

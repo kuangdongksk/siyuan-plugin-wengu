@@ -23,6 +23,11 @@ export interface BankKnowNode {
     level: 1 | 2 | 3;
     /** 标题下的补充说明（prompt 约定 ≤30 字，可整篇省略）。 */
     note?: string;
+    /** 源标题块 id（Issue #39，optional 只加）：AI 归纳时按标题匹配挂上的
+     *  真实标题块指针——跳源优先块级直跳（`siyuan://blocks/{srcId}`），
+     *  缺省/未匹配则维持降级跳章文档。**不进任何指纹**，存量树无此字段
+     *  行为逐字不变。 */
+    srcId?: string;
 }
 
 /** 一棵内部知识树。 */
@@ -45,7 +50,7 @@ export function mintKnowNodeId(): string {
 }
 
 /** 全部节点 → 全路径（祖先标题链/标题；level 栈式就近挂靠，与
- *  buildSectionTree 口径一致）——id 复用与展示路径共用的纯函数。
+ *  bankNodesToTree/nestHeads 建树口径一致）——id 复用与展示路径共用的纯函数。
  *  同父同名兄弟按文档序追加 ~2/~3 消歧：直接后写覆盖会让先出节点
  *  在「同路径复用旧 id」对齐里永远落空、每轮重归纳都被 mint 新 id
  *  （20260903 审查 P2）；新旧两侧走同一函数，消歧结果按位对齐。 */
@@ -118,6 +123,16 @@ export function knowTreeByNode(
         if (node) return { tree, node };
     }
     return undefined;
+}
+
+/** 跳转目标（Issue #39）：节点有源标题块指针 `srcId` 时**块级直跳**
+ *  （真块 id），否则降级跳源章节文档（AI 铸的节点 id 不可解析）。返回
+ *  的 id 交给 `siyuan://blocks/{id}` 用。未命中任何树=原样返回（调用方
+ *  按普通块引用处理）。 */
+export function knowJumpTarget(trees: KnowTreesMap, nodeId: string): string {
+    const hit = knowTreeByNode(trees, nodeId);
+    if (!hit) return nodeId;
+    return hit.node.srcId ?? hit.tree.srcId;
 }
 
 /** 节点的「小节正文」：自身说明行 + 子树标题拼串——sectionKramdown 查空

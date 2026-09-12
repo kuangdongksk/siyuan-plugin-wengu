@@ -6,6 +6,7 @@ import { byDocOrder, KernelBlock } from "../../../siyuan/block";
 import { questionHash } from "../../../bank/data/BankParse";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import { mintKnowNodeId, setKnowTree, stripChapterEcho, treePathsOf } from "../../../bank/data/KnowTrees";
+import { knowIndex, type KnowIndexNode } from "../../../bank/data/KnowIndex";
 import type { BankKnowNode } from "../../../bank/data/KnowTrees";
 
 /**
@@ -117,6 +118,34 @@ export function parseOutlineNodes(md: string): BankKnowNode[] {
     return out.filter((n) => n.title);
 }
 
+/** 归一标题（挂源指针的匹配键）：剥编号/分隔/空白后小写，容 AI 抄写
+ *  时的轻微走样（「洛必达法则」↔「2.1 洛必达法则」）。纯函数。 */
+export function normHeadTitle(s: string): string {
+    return s
+        .trim()
+        .replace(
+            /^(?:[0-9]{1,3}(?:\.[0-9]{1,3})*\s*[-—–.、．:：]?\s*|第\s*[0-9一二三四五六七八九十百零]+\s*[章节讲节]\s*[:：]?\s*|[一二三四五六七八九十百]+\s*[、.．]\s*|[（(]\s*[0-9一二三四五六七八九十]+\s*[）)]\s*|例\s*[0-9.]+\s*)/,
+            ""
+        )
+        .replace(/[\s　]+/g, "")
+        .toLowerCase();
+}
+
+/** 给 AI 节点挂源标题块指针（纯函数）：入参是「归一标题 → 源标题块 id
+ *  列表」。**只有唯一命中才挂**——同文档多个同名标题时挂谁都可能错，
+ *  留空走降级跳章文档（歧义宁漏勿错）。 */
+export function attachSrcIds(nodes: BankKnowNode[], heads: Map<string, string[]>): number {
+    let hit = 0;
+    for (const n of nodes) {
+        const ids = heads.get(normHeadTitle(n.title));
+        if (ids?.length === 1) {
+            n.srcId = ids[0];
+            hit++;
+        }
+    }
+    return hit;
+}
+
 /**
  * 归纳并入库知识树（覆盖语义=重新归纳）。返回节点数（调用方提示）。
  * 任何一步失败抛错（调用方提示）；全程零内核写，无需与转换互斥。
@@ -155,6 +184,10 @@ export async function generateKnowledgeOutline(
     const oldPaths = old ? treePathsOf(stripChapterEcho(old.nodes, title)) : new Map<string, BankKnowNode>();
     const newPaths = treePathsOf(fresh);
     for (const [path, node] of newPaths) node.id = oldPaths.get(path)?.id ?? mintKnowNodeId();
+    // 源标题块指针（Issue #39）：从快照取该文档的原始标题树建「归一标题 →
+    // 真实块 id」表，把 AI 节点按标题挂上（歧义/未命中留空，跳源降级）。
+    // 快照缺此文档（登记根未覆盖它）时零动作——不因此多打一次内核查询。
+    await attachSrcIdsFromSnapshot(fresh, docId);
     await setKnowTree(bank, {
         srcId: docId,
         outlineMd: md,
@@ -164,6 +197,27 @@ export async function generateKnowledgeOutline(
     });
     await bank.flush();
     return { count: fresh.length };
+}
+
+/** 从快照取该文档的真实标题树，给 AI 节点挂源指针（零内核 SQL）。快照
+ *  未接线/未覆盖该文档时不挂（节点 srcId 留空，跳源维持降级）。 */
+async function attachSrcIdsFromSnapshot(nodes: BankKnowNode[], docId: string): Promise<number> {
+    const store = knowIndex();
+    if (!store) return 0;
+    const found = await store.findDoc(docId).catch((): null => null);
+    if (!found) return 0;
+    // 归一标题 → 源块 id **列表**：同名多个都收下，唯一才挂（见 attachSrcIds）
+    const heads = new Map<string, string[]>();
+    const walk = (ns: KnowIndexNode[]): void => {
+        for (const n of ns) {
+            const key = normHeadTitle(n.title);
+            if (!key) continue;
+            heads.set(key, [...(heads.get(key) ?? []), n.id]);
+            walk(n.children);
+        }
+    };
+    walk(found.children);
+    return attachSrcIds(nodes, heads);
 }
 
 /** 源章节的内容指纹（stale 判定：与树记录的 srcHash 比对，源变更→树过期）。 */

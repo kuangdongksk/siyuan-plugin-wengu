@@ -455,16 +455,36 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 - 专题标题含「/」即目录专题（如 高数/极限/洛必达）：normalizeCollectionPath
   规范化、CollectionPanel buildColTree 树形展示。
 - **知识文档（KnowledgePanel）**：
+    - **装载源 = `saveData("know-index")` 快照**（Issue #39，20260912，
+      `data/KnowIndex`）：登记根的文档标题树**一次性捕获**（嵌套、节点 id=真实
+      标题块 id）落库，`KnowledgeLink` 的 expandKnowDocs/buildKnowledgeIndex
+      只读快照——**装载零内核 SQL**。改这块别再往装载路径加 SQL。
+        - **懒捕获**：装载遇快照缺根 → 现场捕获并落库（存量登记根零用户动作），
+          捕获是唯一标题查询场景；同一根单飞（并发装载只捕获一次）。
+        - 快照即**全量原始树**：不引入确定性过滤、不加 filtered 清单；被 AI
+          索引滤掉的噪音天然可从快照找回。
+        - 配版本闩（遇未来 version → 内存空表 + 拒写）；退册时 `drop` 清账
+          （不清会让 findDoc 把已退册根的旧树误认领）。
+        - 过期=小节内容哈希（KnowHash）报变更的登记根 → 行上「快照过期」徽标
+            - 行内「重扫」（`rescan` 重跑捕获，零 AI）；归口判定在 `core/KnowSnapshot`。
+        - **跳源**：`KnowTrees.knowJumpTarget` —— AI 节点有 `srcId?`（源标题块
+          指针）则块级直跳，无则降级跳源章节文档；两个跳转点（`index.ts`
+          `onBlockRefClick`、`KnowPanelCtl.open`）都走它（现在收口在
+          `KnowSnapshot.jumpToKnowNode`）。
     - 手动导入**递归展开**：KnowRoots 登记 + KnowledgeLink.expandKnowDocs 根+全部
-      后代逐行。小节按 h1~~h6 **层级树**展示——20260831 起 headingsByRoot 取 subtype
-      建 buildSectionTree 真树，路由 path=祖先标题链，不再「文档路径/本标题」两段假
-      层级。
+      后代逐行。小节按 h1~~h6 **层级树**展示——小节树由捕获阶段 `nestHeads`
+      建好（与 `bankNodesToTree` 就近挂靠口径逐字一致，两条链路同一组单测锁死），
+      路由 path=祖先标题链，不再「文档路径/本标题」两段假层级。
+    - **AI 索引 prompt 升级**（Issue #39）：`buildOutlinePrompt` 明列**不收录**
+      题号题干/例题标题/空壳节（习题/解答/答案/综合题举例/基础习题精练…）+ **例题
+      反哺**（读例题把知识点切得更细）；归纳后按归一标题在快照里挂 `srcId`（歧义/
+      未命中留空），回 echo 与同路径 id 复用照旧。
     - **AI 索引（原「建知识树」，20260908 改名）不落文档**（20260903，data/KnowTrees）：
       手动导入章节的 AI 归纳大纲直写 bank.knowTrees（键=源章节文档 id；节点 id 铸内核
       块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，kpRefs 经 kramdown
       ((id "标题")) 往返零兼容成本）。重新索引**同路径复用旧 id**，存量引用/活视图/
       薄弱画像不悬空。新旧两侧先过 stripChapterEcho 剔头部章节名回声（AI 常把章节名
-      写成首个 h1 包全树——「1-行列式/行列式/…」双层嵌套；展示侧 treeHeads 同剔，
+      写成首个 h1 包全树——「1-行列式/行列式/…」双层嵌套；展示侧 treeOf 同剔，
       存量带回声的树读时免迁移）。
     - 面板按钮恒名「索引」、全部手动导入文档行常显（20260908 起不再限「结构单薄」——
       旧门槛小节≥6 且顶层≥3 的章不显按钮，2-矩阵/3-向量这类多节章被拒之门外）；已有
@@ -665,9 +685,11 @@ undefined`；types 1.2.4 有该字段，`getFrontend` 反而没有类型）。
 
 存量用户数据兼容是最高约束——插件目录与 data/storage 随思源同步在两台
 机器间流转，任何格式变更都同时面对「升级」与「版本错位」两个方向。全部
-持久化存储（saveData 十店 + 词书工作区文件 `data/wengu/` + 题目块 IAL；
+持久化存储（saveData 十二店 + 词书工作区文件 `data/wengu/` + 题目块 IAL；
 20260910 起加 `know-synonyms` 同义表——**纯派生可重建**，读异常归空表、
-丢=少数词对重问一次 AI，按纯缓存口径处置不设版本闩）
+丢=少数词对重问一次 AI，按纯缓存口径处置不设版本闩；20260912 起加
+`know-index` 标题树快照——**纯派生可重建**（丢=下次装载懒捕获重扫），
+按缓存口径处再加一层版本闩：装载遇未来 version 归空表 + 拒写）
 一律遵守：
 
 - **字段只加不改名不删**：新字段一律 optional + 装载 backfill
@@ -921,7 +943,8 @@ message, language, references, model?}`；`userEntryID` 是
   **文档序唯一权威来源=根块 kramdown 里 IAL `id="…"` 的出现序**——
   `KernelBlock.docOrder`（siyuan/block.ts，按文档 updated 缓存）+
   `byDocOrder` 回排帮手；读块顺序的代码一律过这层，别再信 ORDER BY
-  sort（消费点：headingsByRoot/docBlocks/sectionKramdown/docSectionHashes）。
+  sort（消费点：KnowIndex.headingsByRoot/docBlocks/sectionKramdown/
+  docSectionHashes）。
 - Lute：**只能用全局 `window.Lute`**——插件加载器给 `"siyuan"` 模块
   注入的固定对象里没有 Lute（3.8.1 加载器实测：window.eval 包合成
   require，模块表只有 fetch*/Protyle/ProtyleMethod/Dialog 等；

@@ -28,9 +28,10 @@ Lute 源码调研证实 Vditor 三模式全由 Lute 驱动、公式渲染完整�
    （ws-main、open-menu-content 右键注入）。
 2. 内核工厂 `src/siyuan/`：EApi 17 端点（api.ts 枚举实测）+ Kernel
    Block/Doc/Notebook/Query + files.ts（putFile multipart）。
-3. saveData 十店 → SQLite：ai-sessions/bank/companion-chat/history/
-   know-hash/quiz/route-cache/settings/weakness/words（knowTrees 在
-   bank.json 内非独立店；词书是 `data/wengu/` 工作区文件）。
+3. saveData 十二店 → SQLite：ai-sessions/bank/companion-chat/history/
+   know-hash/know-index/know-synonyms/quiz/route-cache/settings/weakness/
+   words（knowTrees 在 bank.json 内非独立店；词书是 `data/wengu/`
+   工作区文件）。
 4. AI 通道：`ai/client.ts` 走内核 agent/chat（saveSession→chat→
    removeSession 独立会话）→ 直连供应商；`ai/models.ts` 读
    `window.siyuan.config.ai` → 自建配置。
@@ -89,7 +90,7 @@ Tauri 窗口（单窗口多页签 + 左侧树；不复刻思源 dock 布局系�
 │  ├ src/host/      替 "siyuan" 包：HostApp 页签壳 / HostDialog / Toast /
 │  │                b3-lite 主题层 / KaTeX 直连（替 ProtyleMethod.mathRender）
 │  ├ src/editor/    Vditor 封装（本地 cdn、IR、引用插入器、预览后处理、反链面板）
-│  ├ src/store/     invoke → Rust；SQLite 装载层（替 saveData 十店与 src/siyuan/）
+│  ├ src/store/     invoke → Rust；SQLite 装载层（替 saveData 十二店与 src/siyuan/）
 │  │                + resolveAsset 资产单出口
 │  ├ src/ai/        client.ts 内部换直连供应商（agentChatOnce 签名不变）
 │  ├ src/ingest/    md 文件夹 / PDF / Word → SrcChunk
@@ -110,21 +111,21 @@ scss 里 387 处 `var(--b3-*)`。host 层需本地实现这批类与 CSS 变量
 
 ### 4.1 SQLite 表映射
 
-| 插件侧存储             | 表                                                                                                                | 说明                                                     |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| bank（questions）      | questions                                                                                                         | id,kramdown,hash,srcId,srcHash,sourceDocId,rootId,type,  |
-|                        |                                                                                                                   | knowledge,chapter,difficulty,source,attempts,wrongCount, |
-|                        |                                                                                                                   | right,lastAnswer,step_,slot_,totalTime                   |
-| bank.sets              | sets                                                                                                              | id,title,hPath,srcId,qids(JSON)                          |
-| 专题                   | collections                                                                                                       | id,path,qids(JSON)                                       |
-| bank.materials         | materials                                                                                                         | id,正文                                                  |
-| bank.knowTrees         | know_trees                                                                                                        | srcId→节点树 JSON                                        |
-| 知识文档（原思源文档） | know_docs                                                                                                         | id,title,content(md),parent,updated（Vditor 编辑存此）   |
-| 双链反链               | refs                                                                                                              | fromDocId,fromAnchor,toId,text（保存时扫 md 重建）       |
-| 旧 id 映射             | legacy_id_map                                                                                                     | 思源小节块 id → 新标题锚 id（见「六」）                  |
-| 源文件清单             | source_files                                                                                                      | id,kind(md/pdf/word/image/audio),local_path,             |
-|                        |                                                                                                                   | **s3_key(NULL)**,content_hash,size,sync_state            |
-| 其余十店同名表         | know_roots/words/wordbooks/history/weakness/quiz_rounds/ai_sessions/route_cache/know_hash/settings/companion_chat | 同义直迁                                                 |
+| 插件侧存储             | 表                                                                                                                                         | 说明                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| bank（questions）      | questions                                                                                                                                  | id,kramdown,hash,srcId,srcHash,sourceDocId,rootId,type,  |
+|                        |                                                                                                                                            | knowledge,chapter,difficulty,source,attempts,wrongCount, |
+|                        |                                                                                                                                            | right,lastAnswer,step_,slot_,totalTime                   |
+| bank.sets              | sets                                                                                                                                       | id,title,hPath,srcId,qids(JSON)                          |
+| 专题                   | collections                                                                                                                                | id,path,qids(JSON)                                       |
+| bank.materials         | materials                                                                                                                                  | id,正文                                                  |
+| bank.knowTrees         | know_trees                                                                                                                                 | srcId→节点树 JSON                                        |
+| 知识文档（原思源文档） | know_docs                                                                                                                                  | id,title,content(md),parent,updated（Vditor 编辑存此）   |
+| 双链反链               | refs                                                                                                                                       | fromDocId,fromAnchor,toId,text（保存时扫 md 重建）       |
+| 旧 id 映射             | legacy_id_map                                                                                                                              | 思源小节块 id → 新标题锚 id（见「六」）                  |
+| 源文件清单             | source_files                                                                                                                               | id,kind(md/pdf/word/image/audio),local_path,             |
+|                        |                                                                                                                                            | **s3_key(NULL)**,content_hash,size,sync_state            |
+| 其余十二店同名表       | know_roots/words/wordbooks/history/weakness/quiz_rounds/ai_sessions/route_cache/know_hash/know_index/know_synonyms/settings/companion_chat | 同义直迁（know_index=标题树快照，纯派生可重建）          |
 
 版本闩移植：装载/落盘闸改为 `PRAGMA user_version`；数据演进守则
 （字段只加不改名不删、冻结清单）整段照搬适用。

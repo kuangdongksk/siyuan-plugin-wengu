@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionTree } from "../knowledge/KnowledgeLink";
+import { bankNodesToTree } from "../knowledge/KnowledgeLink";
+import { nestHeads } from "../../../bank/data/KnowIndex";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "../knowledge/KnowRef";
 
 /** 带解析引述块的最小题目 kramdown（契约 §一：容器 + part IAL 行）。 */
@@ -72,51 +73,80 @@ describe("strip + inject 幂等往返（20260828 审查：重跑匹配不得破�
     });
 });
 
-describe("buildSectionTree（20260831 知识导入层级树）", () => {
-    it("嵌套：低级标题挂到前方最近的高级标题下", () => {
-        const tree = buildSectionTree([
-            { id: "1", title: "极限", level: 1 },
-            { id: "2", title: "极限计算", level: 2 },
-            { id: "3", title: "0/0 与 ∞/∞", level: 3 },
-            { id: "4", title: "洛必达法则", level: 4 },
-        ]);
-        expect(tree).toHaveLength(1);
-        expect(tree[0].id).toBe("1");
-        expect(tree[0].children[0].id).toBe("2");
-        expect(tree[0].children[0].children[0].id).toBe("3");
-        expect(tree[0].children[0].children[0].children[0].id).toBe("4");
-    });
+/** 建树口径两条入口（AI 树平铺走 bankNodesToTree、快照标题平铺走
+ *  nestHeads）——**必须逐字同口径**：AI 树命中时整体替换快照树，两条
+ *  链路的层级观感不能有差。这里用同一组用例同时锁两边。 */
+interface Head {
+    id: string;
+    title: string;
+    level: number;
+}
+interface TNode {
+    id: string;
+    children: TNode[];
+}
+const builds: { name: string; build: (h: Head[]) => TNode[] }[] = [
+    { name: "bankNodesToTree", build: bankNodesToTree as (h: Head[]) => TNode[] },
+    { name: "nestHeads", build: nestHeads },
+];
 
-    it("同级并列：回到同级的标题开启新分支，不互相嵌套", () => {
-        const tree = buildSectionTree([
+describe("小节树就近挂靠（AI 树 / 快照捕获同口径）", () => {
+    for (const { name, build } of builds) {
+        it(`${name}：低级标题挂到前方最近的高级标题下`, () => {
+            const tree = build([
+                { id: "1", title: "极限", level: 1 },
+                { id: "2", title: "极限计算", level: 2 },
+                { id: "3", title: "0/0 与 ∞/∞", level: 3 },
+                { id: "4", title: "洛必达法则", level: 4 },
+            ]);
+            expect(tree).toHaveLength(1);
+            expect(tree[0].id).toBe("1");
+            expect(tree[0].children[0].id).toBe("2");
+            expect(tree[0].children[0].children[0].id).toBe("3");
+            expect(tree[0].children[0].children[0].children[0].id).toBe("4");
+        });
+
+        it(`${name}：同级并列开启新分支，不互相嵌套`, () => {
+            const tree = build([
+                { id: "1", title: "极限", level: 1 },
+                { id: "2", title: "极限计算", level: 2 },
+                { id: "3", title: "洛必达", level: 3 },
+                { id: "4", title: "泰勒展开", level: 3 },
+                { id: "5", title: "导数", level: 1 },
+            ]);
+            expect(tree.map((n) => n.id)).toEqual(["1", "5"]);
+            expect(tree[0].children[0].children.map((n) => n.id)).toEqual(["3", "4"]);
+            expect(tree[1].children).toEqual([]);
+        });
+
+        it(`${name}：跳级收编（h1 直下 h3 挂为子级）`, () => {
+            const tree = build([
+                { id: "1", title: "极限", level: 1 },
+                { id: "2", title: "洛必达", level: 3 },
+            ]);
+            expect(tree[0].children[0].id).toBe("2");
+        });
+
+        it(`${name}：无更高级标题（h2 起头）平层挂根`, () => {
+            const tree = build([
+                { id: "1", title: "绪论", level: 2 },
+                { id: "2", title: "正文", level: 2 },
+            ]);
+            expect(tree.map((n) => n.id)).toEqual(["1", "2"]);
+        });
+
+        it(`${name}：空输入 → 空树`, () => {
+            expect(build([])).toEqual([]);
+        });
+    }
+
+    it("两条链路输出逐字相等（同输入同结果）", () => {
+        const heads = [
             { id: "1", title: "极限", level: 1 },
-            { id: "2", title: "极限计算", level: 2 },
             { id: "3", title: "洛必达", level: 3 },
-            { id: "4", title: "泰勒展开", level: 3 },
-            { id: "5", title: "导数", level: 1 },
-        ]);
-        expect(tree.map((n) => n.id)).toEqual(["1", "5"]);
-        expect(tree[0].children[0].children.map((n) => n.id)).toEqual(["3", "4"]);
-        expect(tree[1].children).toEqual([]);
-    });
-
-    it("跳级收编：h1 直下 h3 照常挂为子级（就近挂靠，与大纲一致）", () => {
-        const tree = buildSectionTree([
-            { id: "1", title: "极限", level: 1 },
-            { id: "2", title: "洛必达", level: 3 },
-        ]);
-        expect(tree[0].children[0].id).toBe("2");
-    });
-
-    it("无更高级标题：h2 起头的文档平层挂根", () => {
-        const tree = buildSectionTree([
-            { id: "1", title: "绪论", level: 2 },
-            { id: "2", title: "正文", level: 2 },
-        ]);
-        expect(tree.map((n) => n.id)).toEqual(["1", "2"]);
-    });
-
-    it("空文档 → 空树", () => {
-        expect(buildSectionTree([])).toEqual([]);
+            { id: "4", title: "泰勒", level: 3 },
+            { id: "5", title: "导数", level: 2 },
+        ];
+        expect(bankNodesToTree(heads.map((h) => ({ ...h, level: h.level as 1 | 2 | 3 })))).toEqual(nestHeads(heads));
     });
 });

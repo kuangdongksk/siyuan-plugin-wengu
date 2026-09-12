@@ -17,7 +17,8 @@ import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 import { initKnowSynonyms } from "./bank/data/KnowSynonyms";
-import { knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
+import { initKnowIndex } from "./bank/data/KnowIndex";
+import { knowJumpTarget, knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
@@ -170,6 +171,12 @@ export default class WenguPlugin extends Plugin {
         initKnowSynonyms({
             load: () => this.loadData("know-synonyms"),
             save: (v) => this.saveData("know-synonyms", v),
+        });
+        // 知识索引快照（Issue #39）：登记根的文档标题树一次性捕获，
+        // 面板/路由/词表装载零内核 SQL；懒捕获兜住存量登记根
+        initKnowIndex({
+            load: () => this.loadData("know-index"),
+            save: (v) => this.saveData("know-index", v),
         });
         // 看板娘学伴（全局悬浮层挂 body，与页签渲染解耦；事件由各域收口
         // 一行接入，20260828 定稿）
@@ -351,9 +358,10 @@ export default class WenguPlugin extends Plugin {
         void (async (): Promise<void> => {
             const bank = WenguPlugin.instance?.bank();
             if (bank) {
-                const hit = knowTreeByNode(await knowTreesOf(bank), id);
-                if (hit) {
-                    window.open(`siyuan://blocks/${hit.tree.srcId}`);
+                const trees = await knowTreesOf(bank);
+                // AI 树节点：源标题块指针优先块级直跳，无则降级跳源章节文档
+                if (knowTreeByNode(trees, id)) {
+                    window.open(`siyuan://blocks/${knowJumpTarget(trees, id)}`);
                     return;
                 }
             }
