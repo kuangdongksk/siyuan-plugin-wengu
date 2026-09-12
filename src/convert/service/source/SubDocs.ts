@@ -56,18 +56,25 @@ async function docRow(docId: string): Promise<DocRow | null> {
     return null;
 }
 
-/** 待判空的文档 id 列表 → 「有无正文」的 SQL 片段（Map 的 key 保住原始
- *  id 形态）。IN 列表 + CROSS JOIN 取值表：一次查询判定整批候选。
+/** 「有正文」探针 SQL（纯函数，导出仅为单测）：一次判整批候选文档。
+ *  **每篇一行**（DISTINCT 收口），调用方拿到的就是「有正文的文档 id 集合」。
  *  候选为空返回 ""（调用方直接跳过查询）。
- *  ⚠️ 行里的 `d` 是 CROSS JOIN 的取值表别名，不是文档列——Select 里显式
- *  起 `AS docId`，避免与 `blocks` 的同名列（无）混淆。 */
-function probeSql(ids: string[]): string {
+ *
+ *  ⚠️ 两个真机/复审踩坑，形状别改：
+ *    - **必须是「按篇聚合」而不是「取一条命中」**：`LIMIT 1` 会让整批只回
+ *      一篇，多候选判定直接失真（复审 PR 首版即此病）；
+ *    - **极性靠命名锁死**：本函数回的是「有正文」集合，空壳 = 候选减去它
+ *      （见 shellIds）。反过来当「空壳集合」用会静默**删掉有货的中间层**
+ *      ——那是有真实内容被漏转的静默数据丢失，比不剔除更坏。
+ *
+ *  ⚠️ 无 LIMIT 的 64 行静默截断（AGENTS.md 内核坑）：消费点只对「hPath 是
+ *  别人前缀」的目录级候选发起，量级是 10^0~10^1，一次查询天然装得下。 */
+export function hasTextProbeSql(ids: string[]): string {
     const uniq = Array.from(new Set(ids.filter((id) => !!id)));
     if (uniq.length === 0) return "";
-    const values = uniq.map((id) => `SELECT '${id}' AS d`).join(" UNION ALL ");
-    return `SELECT p.d AS docId FROM (${values}) p
-            JOIN blocks b ON b.root_id = p.d
-            WHERE b.type != 'd' AND ${HAS_TEXT_SQL} LIMIT 1`;
+    return `SELECT DISTINCT b.root_id AS docId FROM blocks b
+            WHERE b.root_id IN (${uniq.map((id) => `'${id}'`).join(",")})
+            AND b.type != 'd' AND ${HAS_TEXT_SQL}`;
 }
 
 /** 判空口径（Issue #42 真机踩坑）：**只有正文去空白后非空的块才算货**。
@@ -83,13 +90,13 @@ function probeSql(ids: string[]): string {
  *  误判成有正文。
  *
  *  从「有无块」放宽到「有无正文」是**保守方向**（更少文档被判空 → 更少自动
- *  展开），故两个消费点（判空、中间层剔除）包一层 try：单点查询失败一律按
+ *  展开），故两个消费点（判空、中间层剔除）包一层 try：查询失败一律按
  *  「非空」处置，不阻断流程、不乱提示。 */
 const HAS_TEXT_SQL = "TRIM(REPLACE(REPLACE(REPLACE(b.content, char(10), ' '), char(13), ' '), char(9), ' ')) != ''";
 
 /** 单点判空：文档是否「无正文内容」（空段落不算货）。查询失败按非空。 */
 async function isEmptyDoc(docId: string): Promise<boolean> {
-    const sql = probeSql([docId]);
+    const sql = hasTextProbeSql([docId]);
     if (!sql) return true;
     try {
         const rows = await KernelQuery.rowsMap(sql);
@@ -99,13 +106,21 @@ async function isEmptyDoc(docId: string): Promise<boolean> {
     }
 }
 
-/** 批量判空（中间层剔除用）：只对前缀命中的候选发起，查到的即为「空壳」。 */
-async function emptyOf(ids: string[]): Promise<Set<string>> {
-    const sql = probeSql(ids);
+/** 候选里去正文后仍为空的（纯函数，带单测）：入参必须是**有正文集合**。
+ *  查询失败按「都不空」= 返回空数组（保守：不剔除任何中间层）。 */
+export function shellIds(candidates: string[], withText: Iterable<string>): string[] {
+    const good = new Set(withText);
+    return candidates.filter((id) => !good.has(id));
+}
+
+/** 批量挑出空壳候选（中间层剔除用）：只对前缀命中的候选发起一次查询。 */
+async function shellsOf(ids: string[]): Promise<Set<string>> {
+    const sql = hasTextProbeSql(ids);
     if (!sql) return new Set();
     try {
         const rows = await KernelQuery.rowsMap(sql);
-        return new Set(rows.map((r) => r.get("docId")).filter((id) => !!id));
+        const withText = rows.map((r) => r.get("docId")).filter((id) => !!id);
+        return new Set(shellIds(ids, withText));
     } catch (_) {
         return new Set(); // 失败按「都不空」（保守：不剔除任何中间层）
     }
@@ -151,7 +166,7 @@ export async function planSubDocs(docIdRaw: string): Promise<SubDocPlan | undefi
     // 中间层（本身是目录、下头还有别的队列成员）先按标题路径确定性选出，
     // 再只对这一小撮候选问一次 SQL：**空壳才剔除**，有真实内容的照常入队。
     const middle = middleLayerIds([rootRef, ...children]);
-    const emptyMiddle = await emptyOf(middle);
+    const emptyMiddle = await shellsOf(middle);
     return {
         root: rootRef,
         children: children.filter((c) => !emptyMiddle.has(c.id)),

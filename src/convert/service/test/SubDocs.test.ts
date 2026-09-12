@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildBatchQueue, isBatchQueue, middleLayerIds, type SubDocPlan, type SubDocRef } from "../source/SubDocs";
+import {
+    buildBatchQueue,
+    hasTextProbeSql,
+    isBatchQueue,
+    middleLayerIds,
+    shellIds,
+    type SubDocPlan,
+    type SubDocRef,
+} from "../source/SubDocs";
+// @ts-expect-error 仓库 tsconfig 不带 @types/node（node:sqlite 无类型声明）；判空探针的真行为必须真跑 SQL 才算验过
+import { DatabaseSync } from "node:sqlite";
 
 /**
  * 批量转换队列组装（Issue #37）：纯函数口径——勾选「连同子文档」=根+后代；
@@ -153,5 +163,65 @@ describe("buildBatchQueue（Issue #42 真机结构）", () => {
             leaves[0].id,
             "20260912000019-mid003",
         ]);
+    });
+});
+
+/**
+ * 判空探针的真行为（Issue #42 复审）：**端到端跑真 SQLite**——极性（回的是
+ * 「有正文」还是「空壳」）与 LIMIT 截断这两条口径在纯函数断言里都验不出来，
+ * 而它们各自都能静默毁掉一个真机场景：
+ *  - 极性反了 → 有货的中间层被当空壳剔除 = **静默漏转**（比不剔除更坏）；
+ *  - 带了 LIMIT 1 → 整批只回一篇，多候选判定失真。
+ * 故这里建内存库复刻 660 真机结构，拿 probeSql 的产物直接查。
+ */
+describe("hasTextProbeSql / shellIds（真机结构，真 SQL）", () => {
+    /** 复刻 blocks 表（判空只用 root_id/type/content 三列）。 */
+    function dbWith(rows: [string, string, string][]) {
+        const db = new DatabaseSync(":memory:");
+        db.exec("CREATE TABLE blocks(id TEXT, root_id TEXT, type TEXT, content TEXT);");
+        const ins = db.prepare("INSERT INTO blocks VALUES (?,?,?,?)");
+        for (const [id, rootId, content] of rows) ins.run(id, rootId, "p", content);
+        return db;
+    }
+    const query = (db: InstanceType<typeof DatabaseSync>, ids: string[]): string[] =>
+        (db.prepare(hasTextProbeSql(ids)).all() as { docId: string }[]).map((r) => r.docId);
+
+    /** 660 真机结构：根 + 3 个中间篇（各 1 个**空段落**）+ 3 篇有正文叶子。 */
+    const MID = ["20260912000002-mid000", "20260912000003-mid001", "20260912000004-mid002"];
+    const LEAF = ["20260912000005-leaf00", "20260912000006-leaf01", "20260912000007-leaf02"];
+    const db = dbWith([
+        ["20260912000001-root00-p", "20260912000001-root00", ""],
+        ...MID.map((m): [string, string, string] => [m + "-p", m, ""]),
+        ...LEAF.map((l): [string, string, string] => [l + "-p", l, "第 1 题 求极限"]),
+    ]);
+
+    it("空段落不算货：满屏空段落的中间篇一律不落「有正文」集合", () => {
+        expect(query(db, ["20260912000001-root00", ...MID])).toEqual([]);
+    });
+
+    it("只含换行/制表符的段落同样不算货（TRIM 只去空格，故先 REPLACE）", () => {
+        const db2 = dbWith([["20260912000008-mid003-p", "20260912000008-mid003", "\n\t\r  \n"]]);
+        expect(query(db2, ["20260912000008-mid003"])).toEqual([]);
+    });
+
+    it("每篇一行：多候选一次查全（LIMIT 1 会让这里只剩一篇 → 锁定该回归）", () => {
+        expect(query(db, LEAF).sort()).toEqual([...LEAF].sort());
+    });
+
+    it("有正文的中间层不落空壳（防「极性反了 = 静默漏转有货文档」）", () => {
+        const cand = [...MID];
+        const withText = query(db, cand);
+        expect(shellIds(cand, withText).sort()).toEqual([...MID].sort()); // 3 篇全空壳 → 全剔
+        // 其中「概率篇」补上正文 → 只有它被留住（不再剔除）
+        const db3 = dbWith([["20260912000009-mid009-p", "20260912000009-mid009", "本篇正文"]]);
+        expect(shellIds(["20260912000009-mid009"], query(db3, ["20260912000009-mid009"]))).toEqual([]);
+    });
+
+    it("SQL 形状：DISTINCT 按篇聚合、无 LIMIT（64 行截断坑同族）", () => {
+        const sql = hasTextProbeSql(MID);
+        expect(sql).toContain("DISTINCT");
+        expect(sql).not.toMatch(/LIMIT/i);
+        expect(hasTextProbeSql([])).toBe("");
+        expect(hasTextProbeSql(["a", "a"]).split("'a'").length - 1).toBe(1); // 去重：同一 id 只进 IN 列表一次
     });
 });

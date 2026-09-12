@@ -66,8 +66,13 @@ function countMissingImages(srcMd: string, outMd: string): number {
 
 /**
  * 源 kramdown 是否「空得只剩残渣」（Issue #42）：逐行剥掉 IAL 属性行与
- * 围栏标记行后，看还剩不剩实质性字符。分叉模板/文献清单这类全是 IAL 孤行
- * 的垃圾 kramdown 一并在此收口（同样白烧 AI）。
+ * 围栏标记行后，看还剩不剩实质性字符。
+ *
+ * ⚠️ **这不是空壳文档的判据主力**（复审实测校正，别当根因写）：
+ * `getBlockKramdown` 回的文档根 IAL 一定带 `id="…"`，上面那条剥 id 的
+ * 正则已经吃掉了它，`!kramdown.trim()` 早已把这批空壳挡住。本函数真正
+ * 多挡的是**不带 id 的属性行**（`{: title="…"}` 这类分叉模板残渣）与
+ * **空代码围栏**——它们同样会白烧一次 AI 调用。属加固，不是修复根因。
  *
  * 只做「有没有正文」的二值判定，**不改 kramdown 本体**——AI 出题用的是
  * 未改动的 `kramdown`，剥行只是判空的一次性视图。
@@ -237,12 +242,10 @@ export async function convertDocBatched(
         /^\s*(?:>\s*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm,
         ""
     );
-    // 源判空（Issue #42）：空壳文档的 kramdown 真身是「仅剩空白 + 文档根
-    // IAL」——`{: id="…"}` 与 `{: id="…" type="doc" …}` 的行里**没有块 id
-    // 也不是 id 片段**，上面那条正则剥不掉，`trim()` 因此非空，壳文档要白
-    // 烧一次 AI 调用才被判「不能出题」（批量队列里每个空壳中间层都撞一次）。
-    // 这里把残渣剥净后再判空：空就直接快速失败报「文档内容为空」。
-    // 纯读侧判空，不碰 questionHash 冻结口径。
+    // 源判空加固（Issue #42）：带 id 的文档根 IAL 已被上面那条正则剥掉、
+    // `trim()` 足以挡住空壳；这里再收口一遍**不带 id 的属性行**与空围栏
+    // 残渣，免得同类的垃圾源白烧一次 AI 调用才被判「不能出题」。
+    // 纯读侧判空，不改 kramdown 本体，不碰 questionHash 冻结口径。
     if (!kramdown.trim() || isBlankSource(kramdown)) return zero("failed", t("convertEmptyDoc"));
 
     const writer = new SetWriter(opts.bank);

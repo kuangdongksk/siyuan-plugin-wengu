@@ -443,6 +443,31 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       「文档内容为空」）。
     - 回归测试 `convert/service/test/ConvertBatchQueue.test.ts`（串行/占槽/
       失败续跑/停止取消/分篇进度）与 `SubDocs.test.ts`（队列组装）。
+    - **空壳判据 = 「有无正文」不是「有无块」**（Issue #42，20260912）：
+      MinerU 等导入器的壳文档**全都带一个空段落块**（`content=''` 的 `p`），
+      旧判据「`root_id` 下有无任何非 doc 块」在真机上恒为「非空」→
+      `rootEmpty` 永假 → 未勾选时不自动展开（队列=根自身 → 转空壳报
+      「文档内容为空」），勾选了则根 + 全部中间篇各报一次失败噪音。
+      故 `SubDocs.HAS_TEXT_SQL` 只认「content 去空白后非空」的块，且
+      **SQLite `TRIM` 只去空格**——换行/制表符要先 `REPLACE` 成空格
+      （char(10)/char(13)/char(9)）再 TRIM，否则「只含换行的段落」会被
+      误判成有正文。
+    - **中间层空壳不入队**（`SubDocs.shellIds` / `hasTextProbeSql`）：
+      `planSubDocs` 先按 hPath 前缀确定性选出目录级候选
+      （`middleLayerIds`），再**只对候选发一次 SQL** 判空，**空壳才剔**、
+      有真实内容的中间层照常入队。剔除落在 `planSubDocs`（唯一 SQL 供给
+      点）而不是 `buildBatchQueue`——后者是签名固定的纯函数、拿不到
+      「谁是空壳」，语义与既有用例全不动。
+        - ⚠️ 探针**极性靠命名锁死**：`hasTextProbeSql` 回的是「**有正文**」
+          集合，空壳 = 候选减去它。反过来当「空壳集合」用会**删掉有货的
+          中间层** = 有真实内容被漏转，比不剔除更坏。
+        - ⚠️ 探针必须**按篇聚合**（SELECT DISTINCT root_id … WHERE root_id
+          IN (…)），不能写成「取一条命中」——`LIMIT 1` 让整批只回一篇，
+          多候选判定失真。
+        - 两条都用**真 SQLite 端到端**锁死：`SubDocsPlan.test.ts` 复刻 660
+          真机结构（空壳根 + 3 个空壳中间篇 + 6 篇有正文叶子）跑整链，
+          `SubDocs.test.ts` 直接跑探针 SQL 验极性与聚合——这两条纯函数
+          断言验不出来，极性反了能全绿。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
