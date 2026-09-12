@@ -94,7 +94,7 @@ export interface BankKnowTree {
    收益却是零。
 2. **锚点必须落在树节点 id 上**：`kpRefs`（题目记录的知识点引用）、
    活视图专题键 `col-kp-{id}`、薄弱画像键 `kp:{id}` 全都以这个 id 空间为
-   键（`KnowledgeLink.treeHeads` 已把树节点当章节小节输出）。条目独立成表
+   键（`KnowledgeLink.treeOf` 已把树节点当章节小节输出）。条目独立成表
    就得重写 `internalRootMap` 与全部聚合点的对账口径——正是 Issue 里点名
    要避免的「并行体系」。
 3. **兼容成本为零**：按数据演进守则（AGENTS.md），新增字段一律

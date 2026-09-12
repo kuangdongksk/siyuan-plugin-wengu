@@ -14,8 +14,10 @@ import { knowIndex, leafDocsOf, type KnowIndexDoc, type KnowIndexRoot } from "..
  * **装载源 = know-index 快照**（Issue #39，20260912）：文档标题树一次性
  * 捕获进 saveData("know-index")（`bank/data/KnowIndex.ts`），本模块的
  * `expandKnowDocs` / `buildKnowledgeIndex` 只读快照——**装载零内核 SQL**。
- * 快照缺根时由快照店懒捕获并落库（存量登记根零用户动作）。未接线（单测/
- * 异常）时退回原现场 SQL 口径，行为与改造前逐字一致。
+ * 快照缺根时由快照店懒捕获并落库（存量登记根零用户动作）。
+ *  **未接线（快照店未 init）时装载归空**——不再有现场 SQL 兜底：捕获是
+ *  唯一标题查询场景（插件 onload 必先 initKnowIndex，未接线只出现在
+ *  单测/异常环境，此时宁可为空也不偷偷回退打 SQL）。
  *
  * 真机数据（20260823，/MinerU 书架）：61 个实质章节 304 万字，章中位
  * 4.7 万字——正文挂载不可行，本模块只做标题级路由与引用注入。
@@ -28,8 +30,8 @@ export interface KnowSection {
     id: string;
     /** 小节标题。 */
     title: string;
-    /** 展示路径：文档标题路径 + 祖先标题链 + 本标题（buildSectionTree 建树后
-     *  才有真层级——同文档不同 h1 下的同名小节不再撞车）。 */
+    /** 展示路径：文档标题路径 + 祖先标题链 + 本标题（建树后才有真层级——
+     *  同文档不同 h1 下的同名小节不再撞车；建树走 nestHeads/bankNodesToTree）。 */
     path: string;
 }
 
@@ -119,8 +121,9 @@ function toEntry(doc: KnowIndexDoc, trees: KnowTreesMap | undefined): KnowDocEnt
     };
 }
 
-/** 快照根 → 全部文档条目（面板按文档树观感逐文档展示）。
- *  未接线/根查无 → null（调用方按标题兜底区分「已删跳过」与「保留空节」）。 */
+/** 快照根 → 全部文档条目（面板按文档观感逐文档展示）。
+ *  根查无（含快照店未接线）→ null；调用方（importedKnowDocs）统一折成
+ *  空数组，再按标题兜底区分「已删跳过」与「保留空节登记行」。 */
 async function entriesOfRoot(rootId: string, trees?: KnowTreesMap): Promise<KnowDocEntry[] | null> {
     const store = knowIndex();
     if (!store) return null;

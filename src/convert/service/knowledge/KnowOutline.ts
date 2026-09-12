@@ -131,17 +131,15 @@ export function normHeadTitle(s: string): string {
         .toLowerCase();
 }
 
-/** 给 AI 节点挂源标题块指针（纯函数）：按归一标题在源文档的真实标题树
- *  里找**唯一**命中（歧义宁漏勿错——同文档多个同名标题时挂谁都可能错，
- *  留空走降级跳章文档）。同标题的多个源块按先序取首个。 */
-export function attachSrcIds(nodes: BankKnowNode[], heads: Map<string, string>): number {
+/** 给 AI 节点挂源标题块指针（纯函数）：入参是「归一标题 → 源标题块 id
+ *  列表」。**只有唯一命中才挂**——同文档多个同名标题时挂谁都可能错，
+ *  留空走降级跳章文档（歧义宁漏勿错）。 */
+export function attachSrcIds(nodes: BankKnowNode[], heads: Map<string, string[]>): number {
     let hit = 0;
     for (const n of nodes) {
-        const key = normHeadTitle(n.title);
-        if (!key) continue;
-        const srcId = heads.get(key);
-        if (srcId) {
-            n.srcId = srcId;
+        const ids = heads.get(normHeadTitle(n.title));
+        if (ids?.length === 1) {
+            n.srcId = ids[0];
             hit++;
         }
     }
@@ -208,11 +206,13 @@ async function attachSrcIdsFromSnapshot(nodes: BankKnowNode[], docId: string): P
     if (!store) return 0;
     const found = await store.findDoc(docId).catch((): null => null);
     if (!found) return 0;
-    const heads = new Map<string, string>();
+    // 归一标题 → 源块 id **列表**：同名多个都收下，唯一才挂（见 attachSrcIds）
+    const heads = new Map<string, string[]>();
     const walk = (ns: KnowIndexNode[]): void => {
         for (const n of ns) {
             const key = normHeadTitle(n.title);
-            if (key && !heads.has(key)) heads.set(key, n.id);
+            if (!key) continue;
+            heads.set(key, [...(heads.get(key) ?? []), n.id]);
             walk(n.children);
         }
     };

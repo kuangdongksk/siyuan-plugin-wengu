@@ -75,7 +75,7 @@ describe("treePathsOf / knowNodeText / internalRootMap", () => {
         ],
     };
 
-    it("全路径按 level 栈式就近挂靠（与 buildSectionTree 口径一致）", () => {
+    it("全路径按 level 栈式就近挂靠（与 bankNodesToTree 口径一致）", () => {
         const paths = [...treePathsOf(tree.nodes).keys()];
         expect(paths).toEqual(["求极限", "求极限/洛必达法则", "求极限/洛必达法则/适用条件", "求极限/夹逼准则"]);
     });

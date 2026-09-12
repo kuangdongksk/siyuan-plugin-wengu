@@ -156,18 +156,6 @@ export async function captureRoot(rootId: string): Promise<KnowIndexRoot | null>
     };
 }
 
-/** 深度优先摊平文档树 → 小节平铺表（含祖先标题链 path；纯函数）。
- *  快照结点 id 即真块 id，path 仅作展示与路由输入。 */
-export function flattenNodes(nodes: KnowIndexNode[], prefix: string): { id: string; title: string; path: string }[] {
-    const out: { id: string; title: string; path: string }[] = [];
-    for (const n of nodes) {
-        const path = `${prefix}/${n.title}`;
-        out.push({ id: n.id, title: n.title, path });
-        out.push(...flattenNodes(n.children, path));
-    }
-    return out;
-}
-
 /** 快照里某文档的章节标题（叶子文档判定用：有后代文档即非叶子）。 */
 export function leafDocsOf(root: KnowIndexRoot): KnowIndexDoc[] {
     const dirs = new Set<string>();
@@ -235,7 +223,9 @@ export class KnowIndexStore {
     }
 
     /** 取某根的快照；缺根且 lazy 时现场捕获并落库（存量登记根零用户
-     *  动作）。捕获失败返回 null（调用方降级）。 */
+     *  动作）。捕获失败返回 null（调用方降级）。
+     *  ⚠️ 返回的是**店内缓存的活引用**（同 QuestionBank.all 口径）：消费点
+     *  只读；要改先自己拷一份，别就地改——改了会污染内存快照。 */
     async root(rootId: string): Promise<KnowIndexRoot | null> {
         const t = await this.table();
         const hit = t.roots[rootId];
@@ -321,7 +311,9 @@ export function initKnowIndex(io: {
     return instance;
 }
 
-/** 取共享单例（未接线=undefined，消费点自动退回旧现场查询口径）。 */
+/** 取共享单例（未接线=undefined）。⚠️ 消费点**没有**现场 SQL 兜底：未
+ *  接线时装载归空——插件 onload 必先 initKnowIndex，未接线只出现在测试/
+ *  异常环境，此时宁可为空也不偷偷回退打 SQL（捕获是唯一标题查询场景）。 */
 export function knowIndex(): KnowIndexStore | undefined {
     return instance;
 }

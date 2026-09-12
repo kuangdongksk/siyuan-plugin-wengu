@@ -91,6 +91,7 @@ export class KnowPanelCtl {
         let docs = groupKnowByDoc(refs, rootsMap, await bank.knowledgeIndex(), titles);
         this.regRoots = [...registered];
         this.secsByRoot = new Map();
+        this.ui.staleRoots = new Set(); // 归口表重建，旧徽标随之作废
         if (registered.length > 0) {
             const imp = await importedKnowDocs(registered, titles, trees);
             for (const [k, v] of imp.info) info.set(k, v); // 展开行自带标题/hPath，供树化分支

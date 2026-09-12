@@ -455,7 +455,7 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       块 id 形态——parseKpRefs/BLOCK_REF 正则冻结不动，kpRefs 经 kramdown
       ((id "标题")) 往返零兼容成本）。重新索引**同路径复用旧 id**，存量引用/活视图/
       薄弱画像不悬空。新旧两侧先过 stripChapterEcho 剔头部章节名回声（AI 常把章节名
-      写成首个 h1 包全树——「1-行列式/行列式/…」双层嵌套；展示侧 treeHeads 同剔，
+      写成首个 h1 包全树——「1-行列式/行列式/…」双层嵌套；展示侧 treeOf 同剔，
       存量带回声的树读时免迁移）。
     - 面板按钮恒名「索引」、全部手动导入文档行常显（20260908 起不再限「结构单薄」——
       旧门槛小节≥6 且顶层≥3 的章不显按钮，2-矩阵/3-向量这类多节章被拒之门外）；已有
@@ -656,9 +656,11 @@ undefined`；types 1.2.4 有该字段，`getFrontend` 反而没有类型）。
 
 存量用户数据兼容是最高约束——插件目录与 data/storage 随思源同步在两台
 机器间流转，任何格式变更都同时面对「升级」与「版本错位」两个方向。全部
-持久化存储（saveData 十店 + 词书工作区文件 `data/wengu/` + 题目块 IAL；
+持久化存储（saveData 十二店 + 词书工作区文件 `data/wengu/` + 题目块 IAL；
 20260910 起加 `know-synonyms` 同义表——**纯派生可重建**，读异常归空表、
-丢=少数词对重问一次 AI，按纯缓存口径处置不设版本闩）
+丢=少数词对重问一次 AI，按纯缓存口径处置不设版本闩；20260912 起加
+`know-index` 标题树快照——**纯派生可重建**（丢=下次装载懒捕获重扫），
+按缓存口径处再加一层版本闩：装载遇未来 version 归空表 + 拒写）
 一律遵守：
 
 - **字段只加不改名不删**：新字段一律 optional + 装载 backfill
@@ -912,7 +914,8 @@ message, language, references, model?}`；`userEntryID` 是
   **文档序唯一权威来源=根块 kramdown 里 IAL `id="…"` 的出现序**——
   `KernelBlock.docOrder`（siyuan/block.ts，按文档 updated 缓存）+
   `byDocOrder` 回排帮手；读块顺序的代码一律过这层，别再信 ORDER BY
-  sort（消费点：headingsByRoot/docBlocks/sectionKramdown/docSectionHashes）。
+  sort（消费点：KnowIndex.headingsByRoot/docBlocks/sectionKramdown/
+  docSectionHashes）。
 - Lute：**只能用全局 `window.Lute`**——插件加载器给 `"siyuan"` 模块
   注入的固定对象里没有 Lute（3.8.1 加载器实测：window.eval 包合成
   require，模块表只有 fetch*/Protyle/ProtyleMethod/Dialog 等；

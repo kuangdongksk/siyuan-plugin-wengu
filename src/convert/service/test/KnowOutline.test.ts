@@ -112,9 +112,9 @@ describe("parseOutlineNodes", () => {
 });
 
 describe("attachSrcIds / normHeadTitle（Issue #39 节点源指针，验收 3）", () => {
-    const heads = new Map<string, string>([
-        [normHeadTitle("1.1 洛必达法则"), "h-lh"],
-        [normHeadTitle("等价无穷小代换"), "h-dj"],
+    const heads = new Map<string, string[]>([
+        [normHeadTitle("1.1 洛必达法则"), ["h-lh"]],
+        [normHeadTitle("等价无穷小代换"), ["h-dj"]],
     ]);
 
     it("按归一标题挂上真实块 id；未命中留空（跳源降级）", () => {
@@ -124,6 +124,13 @@ describe("attachSrcIds / normHeadTitle（Issue #39 节点源指针，验收 3）
         expect(nodes[0].srcId).toBe("h-lh");
         expect(nodes[1].srcId).toBeUndefined();
         expect(nodes[2].srcId).toBe("h-dj");
+    });
+
+    it("同名多个源标题 = 歧义 → 一律留空（宁漏勿错，不猜第一个）", () => {
+        const heads2 = new Map<string, string[]>([[normHeadTitle("复习"), ["h-a", "h-b"]]]);
+        const nodes = parseOutlineNodes("# 复习");
+        expect(attachSrcIds(nodes, heads2)).toBe(0);
+        expect(nodes[0].srcId).toBeUndefined();
     });
 
     it("归一剥编号/例题号/空白，大小写无关——AI 抄写走样也能认", () => {

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     KnowIndexStore,
     emptyKnowIndex,
-    flattenNodes,
     leafDocsOf,
     nestHeads,
     captureRoot,
@@ -85,21 +84,7 @@ describe("nestHeads（捕获建树：与 bankNodesToTree 同口径）", () => {
     });
 });
 
-describe("flattenNodes / leafDocsOf", () => {
-    it("摊平带祖先链 path", () => {
-        const flat = flattenNodes(
-            nestHeads([
-                { id: "1", title: "极限", level: 1 },
-                { id: "2", title: "洛必达", level: 2 },
-            ]),
-            "/卷/章"
-        );
-        expect(flat.map((s) => [s.id, s.path])).toEqual([
-            ["1", "/卷/章/极限"],
-            ["2", "/卷/章/极限/洛必达"],
-        ]);
-    });
-
+describe("leafDocsOf", () => {
     it("叶子文档=无后代文档；全为中间层时退首个文档", () => {
         const root = rootOf([
             { docId: "shelf", title: "书", hPath: "/书" },

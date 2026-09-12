@@ -65,8 +65,10 @@ export function staleRootsOf(roots: string[], secsByRoot: RootSections, staleSec
     return out;
 }
 
-/** 「重扫」执行（同一根单飞）：重跑标题树捕获并落库；失败只通知不上抛
- *  （调用方的重载链不能被它打断）。零 AI、只读内核。 */
+/** 「重扫」执行（同一根单飞）：重跑标题树捕获并落库，随后回调用方
+ *  重载面板。捕获/重载任一失败只通知不上抛——**整链一条 catch**（点击
+ *  入口是 void 调用，漏出去的拒绝就是控制台未捕获拒绝刷屏）。零 AI、
+ *  只读内核。 */
 export function runRescan(rootId: string, running: Set<string>, after: () => Promise<void>): void {
     if (running.has(rootId)) return;
     const store = knowIndex();
@@ -75,13 +77,13 @@ export function runRescan(rootId: string, running: Set<string>, after: () => Pro
     void (async (): Promise<void> => {
         try {
             await store.rescan(rootId);
-        } catch (e) {
-            notifyError({ key: "notifyKnowRescanFail", vars: { msg: errText(e) } });
         } finally {
             running.delete(rootId);
         }
         await after();
-    })();
+    })().catch((e: unknown): void => {
+        notifyError({ key: "notifyKnowRescanFail", vars: { msg: errText(e) } });
+    });
 }
 
 /** 知识节点跳源（Issue #39）：AI 树节点有源标题块指针则**块级直跳**

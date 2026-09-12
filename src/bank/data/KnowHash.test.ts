@@ -47,7 +47,7 @@ describe("sectionHashesOfDoc · 包含式切段", () => {
         ]);
         expect(m.get("h2b")).toBe(mid.get("h2b"));
     });
-    it("同级新标题顶替旧的、更深级清空（树语义同 buildSectionTree）", () => {
+    it("同级新标题顶替旧的、更深级清空（树语义同 nestHeads）", () => {
         const m = sectionHashesOfDoc([h("a", 2, "A"), h("b", 2, "B"), p("x", "X")]);
         expect(m.has("a")).toBe(true); // 段存在（含自身标题），X 不属于它
         const aOnly = sectionHashesOfDoc([h("a", 2, "A")]);
