@@ -1,7 +1,7 @@
 /**
  * 线索标注的纯逻辑层（Issue #28 滑选标注重设计）：选段定位 → 原文高亮
- * 包装、跨标签边界降级匹配、chips 两击删除状态机。全部与 DOM 无关的
- * 判定收在这（单测覆盖），DOM 手术在 ClueMarkDom.ts，编排在 ClueFlow。
+ * 包装、跨节点定位、chips 两击删除状态机。全部与 DOM 无关的判定
+ * 收在这（单测覆盖），DOM 手术在 ClueMarkDom.ts，编排在 ClueFlow。
  *
  * 「选段」= 用户在材料/题干里拖选得到的纯文本（会话 clues 存的锚点）；
  * 「高亮」= 渲染后把该文本在原 DOM 里定位并包一层 mark——文本与 DOM
@@ -9,19 +9,10 @@
  * 因此**宁缺勿错**：定位不到就只留 chip，不报错也不乱高亮。
  */
 
-/** 选段在文本节点里的定位结果：节点下标 + 命中区间。 */
-export interface TextHit {
-    /** 文本节点在传入数组里的下标。 */
-    node: number;
-    /** 起始偏移（含）。 */
-    start: number;
-    /** 结束偏移（不含）。 */
-    end: number;
-}
-
 /** 匹配用的归一化：空白折叠 + 去首尾。选段跨行/跨段时 DOM 文本节点的
  *  换行与源文本不一致（材料 md 的软换行渲染成空格、段落间是块边界），
- *  空白差异必须忽略，否则长选段永远定位不到。 */
+ *  空白差异必须忽略，否则长选段永远定位不到。跨节点路径（locateAcrossNodes）
+ *  更彻底：那里**空白全丢**，见下。 */
 export function normForMatch(s: string): string {
     return normWithMap(s).text.trim();
 }
@@ -63,34 +54,101 @@ export function findInText(haystack: string, needle: string): { start: number; e
     return { start, end: last + 1 };
 }
 
-/**
- * 单节点级定位（降级路径）：选段跨标签边界（跨 `<strong>`/`<em>`/公式
- * 占位等）时，多节点拼接匹配会横跨元素——包装 mark 就得切 DOM 边界，
- * 风险高。按需求「宁缺勿错」，降级为**按文本节点级子串匹配**：返回
- * 首个包含该段完整文本的节点（单节点内含全部选段文本才命中），完全
- * 不命中返回 null（调用方只留 chip，不高亮、不报错）。
- */
-export function locateInNodes(nodes: string[], needle: string): TextHit | null {
-    for (let i = 0; i < nodes.length; i++) {
-        const hit = findInText(nodes[i], needle);
-        if (hit) return { node: i, start: hit.start, end: hit.end };
-    }
-    return null;
+/** 跨节点定位命中的一段：节点下标 + 该节点内的区间。 */
+export interface NodeRange {
+    /** 文本节点在传入数组里的下标。 */
+    node: number;
+    /** 起始偏移（含）。 */
+    start: number;
+    /** 结束偏移（不含）。 */
+    end: number;
 }
 
-/** 一条线索在当前题/材料里的高亮计划：命中哪个节点、区间多少。 */
+/**
+ * 跨节点归一匹配的索引：**空白一律不参与匹配**（跨块边界时 DOM 里
+ * 相邻文本节点之间是零空白，而用户拖选得到的是换行/段落边界——只有
+ * 把两侧空白全部丢掉才能对齐），非空白字符逐字挂在「节点 + 节点内偏移」
+ * 上，命中后据此回映射。
+ */
+interface BlankIndex {
+    /** 全部文本节点拼起来、丢掉空白后的字符序列。 */
+    text: string;
+    /** 与 text 等长：第 k 个字符来自哪个节点、节点内什么偏移。 */
+    refs: { node: number; offset: number }[];
+}
+
+/** 建索引（空白全部丢弃；与匹配同源产出，禁另建一套坐标表）。 */
+function blankIndexOf(nodes: string[]): BlankIndex {
+    let text = "";
+    const refs: { node: number; offset: number }[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+        const src = nodes[i] ?? "";
+        for (let k = 0; k < src.length; k++) {
+            if (/\s/.test(src[k])) continue;
+            text += src[k];
+            refs.push({ node: i, offset: k });
+        }
+    }
+    return { text, refs };
+}
+
+/** 归一化匹配 + 坐标回映射成「节点 + 节点内区间」列表。 */
+function locateInJoined(nodes: string[], needle: string): NodeRange[] | null {
+    const idx = blankIndexOf(nodes);
+    const n = normForMatch(needle).replace(/\s+/g, "");
+    if (!n) return null;
+    const at = idx.text.indexOf(n); // 首个命中（宁缺勿错）
+    if (at < 0) return null;
+    // 逐字符并成「每节点一段」：段取该节点内首末字符的闭区间。节点内
+    // 的空白只要落在命中区间里就自然被包进该段（首末字符跨过它）。
+    const out: NodeRange[] = [];
+    for (let c = at; c < at + n.length; c++) {
+        const ref = idx.refs[c];
+        if (!ref) continue;
+        const last = out[out.length - 1];
+        if (last && last.node === ref.node) {
+            last.end = Math.max(last.end, ref.offset + 1);
+        } else {
+            out.push({ node: ref.node, start: ref.offset, end: ref.offset + 1 });
+        }
+    }
+    return out.filter((r) => r.start < r.end);
+}
+
+/**
+ * 跨节点定位（Issue #36）：选段跨文本节点（跨段、跨 `**加粗**`/公式
+ * 节点、跨行）是常态，单节点匹配对它们全部失败 ⇒ 只出 chips 不高亮。
+ * 故升级为「**全部文本节点原文拼接 + 归一匹配**」——拼接文本（空白全
+ * 丢）上跑一次匹配，命中区间横跨多节点时逐节点取交集返回，各段由 DOM
+ * 侧分别包装。
+ *
+ * 为什么空白全丢：DOM 里相邻文本节点之间（`</p><p>`、`<strong>` 边界）
+ * 是**零空白**，而用户拖选得到的是换行/段落边界；反过来节点内的换行、
+ * 缩进折叠成一个空格。两侧都不带空白地比才等价——只折叠、不丢，跨块
+ * 边界的选段永远匹配不上。
+ *
+ * 匹配不上时返回空数组（降级）：调用方只留 chip 不高亮、不报错——定位
+ * 是文本匹配、没有 id 级对应关系，**宁缺勿错**。
+ */
+export function locateAcrossNodes(nodes: string[], needle: string): NodeRange[] {
+    return locateInJoined(nodes, needle) ?? [];
+}
+
+/** 一条线索在当前题/材料里的高亮计划：命中哪些节点、各自区间多少。 */
 export interface MarkPlan {
     /** 线索原文（chips 用同一份）。 */
     text: string;
-    /** 命中区间；null=定位不到（只留 chip，不高亮）。 */
-    hit: TextHit | null;
+    /** 命中区间列表（按节点序）；空=定位不到（只留 chip，不高亮）。 */
+    hits: NodeRange[];
 }
 
 /**
- * 为多条线索算出高亮计划（一次遍历各文本节点，逐条独立匹配——
- * 线索之间不互相避让：重叠高亮由 DOM 包装顺序自然嵌套，视觉可接受，
- * 强行拆分反而易错）。节点列表由 DOM 侧按标记元素收集（跳过既有
- * mark/脚本/不可见节点）。
+ * 为多条线索算出高亮计划（逐条独立匹配——线索之间不做避让，区间重叠
+ * 时由 `markSlots` 的施工序决定谁落格，强拆反而易错）。节点列表由 DOM
+ * 侧按标记元素收集（跳过既有 mark/脚本/词表/解析区等）。
+ *
+ * 计划基于同一份**未改动**的节点表算出：DOM 侧在施工前算好全部计划，
+ * 再交给 `markSlots` 排序后统一落格（偏移不随后续 `splitText` 漂移）。
  */
 export function planMarks(nodes: string[], clues: string[]): MarkPlan[] {
     const seen = new Set<string>();
@@ -99,9 +157,35 @@ export function planMarks(nodes: string[], clues: string[]): MarkPlan[] {
         const text = raw.trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);
-        out.push({ text, hit: locateInNodes(nodes, text) });
+        out.push({ text, hits: locateAcrossNodes(nodes, text) });
     }
     return out;
+}
+
+/** 一处待落格的高亮段：命中节点 + 节点内区间 + 归属线索原文。 */
+export interface MarkSlot extends NodeRange {
+    /** 该段归属的线索原文（施工与排查用；chips 侧另有同一份）。 */
+    text: string;
+}
+
+/**
+ * 把多线索计划拍平成**施工序列**（DOM 侧唯一就绪的入参口径）。
+ *
+ * 顺序是这里唯一的关键：偏移口径是**未改动**节点表的拼接坐标，而
+ * 施工用的 `splitText` 会截短节点——同一节点内**靠后的段必须先切**，
+ * 否则前一段切完后节点变短、后一段的区间越界被保护性跳过，真机表现
+ * 为「同一段原文里只高亮第一条线索，其余静默不出」。
+ *
+ * 故排序为 **节点升序 + 节点内起点降序**：节点之间各持引用、互不
+ * 干扰（不必整体倒序），同节点内自后向前。区间**重叠**时后切的那段
+ * 会越界跳过——与改造前一致地降级（只留 chip），宁缺勿错。
+ */
+export function markSlots(plan: MarkPlan[]): MarkSlot[] {
+    const out: MarkSlot[] = [];
+    for (const item of plan) {
+        for (const hit of item.hits) out.push({ node: hit.node, start: hit.start, end: hit.end, text: item.text });
+    }
+    return out.sort((a, b) => a.node - b.node || b.start - a.start);
 }
 
 /* ── chips 两击删除状态机 ── */

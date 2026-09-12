@@ -6,7 +6,8 @@ import {
     clickClueChip,
     disarmClueChip,
     findInText,
-    locateInNodes,
+    locateAcrossNodes,
+    markSlots,
     newClueDeleteState,
     normForMatch,
     planMarks,
@@ -70,34 +71,85 @@ describe("normForMatch / findInText", () => {
     });
 });
 
-describe("locateInNodes（跨标签边界降级）", () => {
-    it("跨标签选段命中首个包含完整文本的节点", () => {
-        // <p>洛必达<strong>法则</strong>适用</p> 渲染成三个文本节点
-        const nodes = ["洛必达", "法则", "适用"];
-        expect(locateInNodes(nodes, "法则")).toEqual({ node: 1, start: 0, end: 2 });
+/** 把命中区间切出来拼回去、去掉空白，验证覆盖的正是选段（跨节点口径）。 */
+const sliceJoin = (nodes: string[], hits: { node: number; start: number; end: number }[]): string =>
+    hits
+        .map((h) => nodes[h.node].slice(h.start, h.end))
+        .join("")
+        .replace(/\s+/g, "");
+
+describe("locateAcrossNodes（Issue #36 跨节点定位）", () => {
+    it("单节点：区间落在该节点内", () => {
+        const nodes = ["The quick brown fox"];
+        expect(locateAcrossNodes(nodes, "quick brown")).toEqual([{ node: 0, start: 4, end: 15 }]);
     });
 
-    it("跨节点选段整体不落在单节点时不命中（宁缺勿错）", () => {
+    it("跨两节点：逐节点取交集（选段横跨元素边界）", () => {
+        // <p>洛必达<strong>法则</strong></p>：选段拖过加粗边界
         const nodes = ["洛必达", "法则"];
-        expect(locateInNodes(nodes, "洛必达法则")).toBeNull();
+        expect(locateAcrossNodes(nodes, "洛必达法则")).toEqual([
+            { node: 0, start: 0, end: 3 },
+            { node: 1, start: 0, end: 2 },
+        ]);
     });
 
-    it("部分包含（尾部越出）也不命中", () => {
-        expect(locateInNodes(["甲乙"], "乙丙")).toBeNull();
+    it("跨三节点：中间节点整段命中", () => {
+        const nodes = ["前文 ", "中间那句", " 后文"];
+        const hits = locateAcrossNodes(nodes, "前文 中间那句 后文");
+        expect(hits.map((h) => h.node)).toEqual([0, 1, 2]);
+        expect(sliceJoin(nodes, hits)).toBe("前文中间那句后文");
     });
 
-    it("按节点序取首个命中", () => {
-        const nodes = ["线索", "线索"];
-        expect(locateInNodes(nodes, "线索")?.node).toBe(0);
+    it("跨段（节点间无空白）：段落边界不影响命中", () => {
+        // DOM 里 </p><p> 拖选得到的是换行，拼接串是零空白——归一化两侧都折叠
+        const nodes = ["第一段落结尾", "第二段落开头"];
+        const hits = locateAcrossNodes(nodes, "段落结尾\n第二段落");
+        expect(sliceJoin(nodes, hits)).toBe("段落结尾第二段落");
+    });
+
+    it("归一空白折叠：节点内换行/缩进与选段单空格等价", () => {
+        const nodes = ["The quick\n   brown fox"];
+        const hits = locateAcrossNodes(nodes, "quick brown");
+        expect(sliceJoin(nodes, hits)).toBe("quickbrown");
+    });
+
+    it("跨节点处的空白折叠：节点间零空白与选段单空格等价", () => {
+        // 拖选跨段得到的是换行，节点拼接串是零空白——归一化两侧都折叠
+        const nodes = ["甲乙丙", "丁戊己"];
+        expect(sliceJoin(nodes, locateAcrossNodes(nodes, "丙\n丁"))).toBe("丙丁");
+    });
+
+    it("节点内空白只有落在选段内的部分被包进 mark", () => {
+        const nodes = ["甲乙丙 ", "丁戊己"];
+        const hits = locateAcrossNodes(nodes, "丙 丁");
+        expect(sliceJoin(nodes, hits)).toBe("丙丁");
+        // 末段是「丁」所在节点：末字符的闭区间，不含其后字符
+        expect(hits[hits.length - 1].end).toBe(1);
+    });
+
+    it("匹配不上返回空数组（降级：只留 chip，不硬造高亮）", () => {
+        expect(locateAcrossNodes(["甲乙丙"], "完全无关")).toEqual([]);
+        expect(locateAcrossNodes(["甲乙丙"], "   ")).toEqual([]);
+        expect(locateAcrossNodes(["甲乙丙", "丁"], "丙戊")).toEqual([]);
+    });
+
+    it("多处出现取首个命中（宁缺勿错）", () => {
+        const nodes = ["abc abc"];
+        expect(locateAcrossNodes(nodes, "abc")).toEqual([{ node: 0, start: 0, end: 3 }]);
+    });
+
+    it("空节点表不命中", () => {
+        expect(locateAcrossNodes([], "甲乙")).toEqual([]);
+        expect(locateAcrossNodes(["  ", "  "], "甲")).toEqual([]);
     });
 });
 
 describe("planMarks", () => {
-    it("逐条算计划，未命中的 hit 为 null", () => {
+    it("逐条算计划，未命中的 hits 为空数组", () => {
         const plan = planMarks(["定位句在此", "无关文本"], ["定位句", "找不到的话"]);
-        expect(plan[0].hit).toEqual({ node: 0, start: 0, end: 3 });
+        expect(plan[0].hits).toEqual([{ node: 0, start: 0, end: 3 }]);
         expect(plan[1].text).toBe("找不到的话");
-        expect(plan[1].hit).toBeNull();
+        expect(plan[1].hits).toEqual([]);
     });
 
     it("去重且丢掉空选段，保持原始顺序", () => {
@@ -109,9 +161,63 @@ describe("planMarks", () => {
         const nodes = ["The quick brown fox jumps over the lazy dog."];
         const plan = planMarks(nodes, ["quick brown", "lazy dog"]);
         for (const p of plan) {
-            expect(p.hit, p.text).not.toBeNull();
-            expect(normForMatch(nodes[0].slice(p.hit!.start, p.hit!.end))).toBe(normForMatch(p.text));
+            expect(p.hits, p.text).not.toHaveLength(0);
+            expect(normForMatch(sliceJoin(nodes, p.hits))).toBe(normForMatch(p.text).replace(/\s+/g, ""));
         }
+    });
+
+    it("跨节点选段的计划带多个节点区间", () => {
+        const nodes = ["洛必达", "法则"];
+        const plan = planMarks(nodes, ["洛必达法则"]);
+        expect(plan[0].hits.map((h) => h.node)).toEqual([0, 1]);
+    });
+
+    it("多条线索共用同一份未改动节点表（偏移互不干扰）", () => {
+        const nodes = ["甲乙丙丁戊", "己庚辛"];
+        const plan = planMarks(nodes, ["乙丙", "己庚", "丁戊"]);
+        for (const p of plan) expect(normForMatch(sliceJoin(nodes, p.hits))).toBe(normForMatch(p.text));
+    });
+});
+
+describe("markSlots（施工序列，Issue #36 复审）", () => {
+    // 回归：PR #38 首版按「线索序 + 线索内倒序」施工，**同一文本节点里的
+    // 第二条线索区间越界被静默跳过**（真机表现：一段话里只高亮第一条）。
+    // 施工必须按「节点升序 + 节点内起点降序」全局排。
+    it("同一节点内多段按起点降序（后段先切，前段偏移不被截短）", () => {
+        const plan = [
+            { text: "quick brown", hits: [{ node: 0, start: 4, end: 15 }] },
+            { text: "lazy dog", hits: [{ node: 0, start: 35, end: 43 }] },
+        ];
+        expect(markSlots(plan).map((s) => s.start)).toEqual([35, 4]);
+    });
+
+    it("跨节点按节点升序（各节点持自己的引用，互不干扰）", () => {
+        const plan = [
+            { text: "法则", hits: [{ node: 1, start: 0, end: 2 }] },
+            { text: "洛必达", hits: [{ node: 0, start: 0, end: 3 }] },
+        ];
+        expect(markSlots(plan).map((s) => s.node)).toEqual([0, 1]);
+    });
+
+    it("不丢段：拍平后段数等于全部命中数，且带回归属线索原文", () => {
+        const plan = [
+            {
+                text: "甲乙",
+                hits: [
+                    { node: 0, start: 0, end: 2 },
+                    { node: 1, start: 0, end: 2 },
+                ],
+            },
+            { text: "丙", hits: [] },
+        ];
+        const slots = markSlots(plan);
+        expect(slots).toHaveLength(2);
+        expect(slots.map((s) => s.text)).toEqual(["甲乙", "甲乙"]);
+    });
+
+    it("空计划零动作", () => {
+        expect(markSlots([])).toEqual([]);
+        expect(markSlots([{ text: "找不到", hits: [] }])).toEqual([]);
     });
 });
 

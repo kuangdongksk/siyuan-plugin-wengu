@@ -113,13 +113,11 @@
 }
 
 /* 浮层根挂 body（不在 .wengu-panel 子树内，收窄段罩不到）：选中操作条
-   与生词卡整片不可选——拖选浮条是选区上的常驻层，浮条自身文字若可选，
-   在浮条上按下左键会起新选区、Lute 侧 `host.contains(anchorNode)` 落空
-   → 浮条自灭（点空落=按不动）。 */
+   整片不可选——它是选区上的常驻层，浮条自身文字若可选，在浮条上按下
+   左键会起新选区、Lute 侧 `host.contains(anchorNode)` 落空 → 浮条自灭
+   （点空落=按不动）。 */
 .wengu-annobar,
-.wengu-annobar *,
-.wengu-wordpop,
-.wengu-wordpop * {
+.wengu-annobar * {
   user-select: none;
 }
 

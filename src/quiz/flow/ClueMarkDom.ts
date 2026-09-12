@@ -1,4 +1,4 @@
-import { CLUE_ARM_MS, clickClueChip, locateInNodes, newClueDeleteState, type ClueDeleteState } from "./ClueMark";
+import { CLUE_ARM_MS, clickClueChip, markSlots, newClueDeleteState, planMarks, type ClueDeleteState } from "./ClueMark";
 
 /**
  * 线索标注的 DOM 手术层（Issue #28）：原文高亮包装（mark 元素）与
@@ -66,28 +66,32 @@ function wrapRange(node: Text, start: number, end: number): void {
 
 /**
  * 高亮后处理（唯一入口，幂等）：先摘旧 mark，再把每条线索按
- * 「文本节点级子串匹配」定位并包装。定位不到的线索只留 chip，不报错
- * （跨标签边界按降级策略处理，见 ClueMark.locateInNodes）。
+ * 「全部文本节点原文拼接 + 归一匹配」定位并包装。定位不到的线索只留
+ * chip，不报错（归一匹配不上按降级策略处理，见 ClueMark.locateAcrossNodes）。
+ *
+ * ⚠️ **落格映射一次性算好，施工按 `markSlots` 的全局序**（与
+ * GlossDom.assignHitsToNodes 同款口径，Issue #36）：偏移是**全部文本节点
+ * 原文的拼接**口径，而 `splitText` 会截短节点——同一节点内的段必须
+ * **自后向前**切。故先按**未改动**的节点表算出全部计划（`planMarks`），
+ * 再由 `markSlots` 统一排序施工（节点升序 + 节点内起点降序）。
+ * 按线索逐条施工是错的：第二条线索落在同一节点时区间越界，静默不落格。
  */
 export function applyClueMarks(root: HTMLElement | undefined | null, clues: string[]): void {
     if (!root) return;
     clearClueMarks(root);
     if (clues.length === 0) return;
-    // 逐个线索重扫文本节点：包装 mark 后节点列表变了，用**当前**节点表
-    // 重新定位（线索少、节点少，成本可忽略；一次算好再批量包会因偏移
-    // 漂移错位）
-    for (const raw of clues) {
-        const text = raw.trim();
-        if (!text) continue;
-        const nodes = textNodesOf(root);
-        const hit = locateInNodes(
-            nodes.map((n) => n.nodeValue ?? ""),
-            text
-        );
-        if (!hit) continue;
-        const node = nodes[hit.node];
+    const nodes = textNodesOf(root);
+    const plan = planMarks(
+        nodes.map((n) => n.nodeValue ?? ""),
+        clues
+    );
+    // 施工序列由 ClueMark.markSlots 给出（节点升序 + 节点内起点降序）：
+    // 同一节点里靠后的段先切，前段偏移才不被 splitText 截短——按线索
+    // 逐条施工会让**第二条线索在同一节点内静默不落格**。
+    for (const slot of markSlots(plan)) {
+        const node = nodes[slot.node];
         if (!node?.isConnected) continue;
-        wrapRange(node, hit.start, hit.end);
+        wrapRange(node, slot.start, slot.end);
     }
 }
 

@@ -371,7 +371,7 @@ mark.wengu-clue-mark {
   color: var(--b3-theme-error);
 }
 
-/* ── 标注浮层与生词卡（选中操作条，fixed 定位在 body 下）── */
+/* ── 标注浮层（选中操作条，fixed 定位在 body 下）── */
 .wengu-annobar {
   position: fixed;
   z-index: 1000;
@@ -400,33 +400,6 @@ mark.wengu-clue-mark {
   background: var(--b3-list-hover);
 }
 
-.wengu-wordpop {
-  position: fixed;
-  z-index: 1001;
-  width: 260px;
-  padding: 10px 12px;
-  border-radius: var(--b3-border-radius-b);
-  background: var(--b3-theme-surface);
-  box-shadow: var(--b3-dialog-shadow);
-}
-
-.wengu-wordpop-word {
-  font-weight: bold;
-  font-size: 106.25%;
-}
-
-.wengu-wordpop-meaning {
-  margin: 6px 0;
-  font-size: 87.5%;
-  color: var(--b3-theme-on-surface);
-  white-space: pre-wrap;
-}
-
-.wengu-wordpop-row {
-  font-size: 87.5%;
-  color: var(--b3-theme-on-surface);
-}
-
 /* ── 作文词数（E3）── */
 .wengu-wordcount {
   text-align: right;
@@ -439,13 +412,13 @@ mark.wengu-clue-mark {
    ui/shared.markMobileUi 按 window.siyuan.mobile 打的标记类；桌面无此标记
    ⇒ 本段整段不生效，禁 media query —— 口径见 scss/words-mobile.scss 首注）。
 
-   本段覆盖**挂 body 的浮层（选中文本操作条 / 生词卡）与英文题型组壳**。
+   本段覆盖**挂 body 的浮层（选中文本操作条）与英文题型组壳**。
    它们目前只出现在刷题页签里，而页签在移动端打不开（openTab 空桩，本期
    范围外）——故属「标记已就位、尺寸预先备好」的预防性适配，成本为零
    （标记不存在即整段不生效），将来页签落到移动端时无需再补。
    hover 依赖项一律改按下态或常显（触屏 hover 会粘住）。 ── */
 body.wengu-mobile {
-  /* 选中文本操作条 / 生词卡：挂 body 的浮层，触区抬高到 40px */
+  /* 选中文本操作条：挂 body 的浮层，触区抬高到 40px */
   .wengu-annobar-btn {
     min-height: 40px;
     padding: 8px 12px;
@@ -457,15 +430,6 @@ body.wengu-mobile {
 
     &:active {
       background: var(--b3-list-hover);
-    }
-  }
-
-  .wengu-wordpop {
-    width: min(320px, calc(100vw - 32px));
-    padding: 12px 14px;
-
-    .b3-button {
-      min-height: 40px;
     }
   }
 
