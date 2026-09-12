@@ -13,10 +13,11 @@ import { notifyState, setActive, type ActiveRun } from "./ConvertRunState";
  *
  * 四条硬口径：
  *  1. **串行**：内层 await 逐篇 resolve，绝不并发起第二篇；
- *  2. **队列全程占住 active 槽**：换篇时 `setActive(run)` 把槽再占回来
- *     （内层单篇 done/failed 收口会清空槽）+ `setConverting(true)` 复位
- *     页内「转换中」标记；只有整队列收口或转抉择态才真正释放——否则用户
- *     能在换篇间隙插队（页内转换按钮也会误判成空闲）；
+ *  2. **队列全程占住 active 槽**：换篇时 `setActive(run)` + `setConverting(true)`
+ *     都补一次——内层单篇 **failed 收口会清空槽并复位「转换中」标记**
+ *     （done 分支的 inQueue=true 不清，故这里补的是兜底、不是唯一写入点）；
+ *     只有整队列收口或转抉择态才真正释放——否则用户能在换篇间隙插队
+ *     （页内转换按钮也会误判成空闲）；
  *  3. **单篇失败不打断队列**：记一行失败、继续下一篇；终态汇总
  *     「N 篇完成、M 篇失败：清单」走 Notify + 状态条。
  *  4. **「停止」= 整队列停**：当前篇若已有产物转保留/丢弃抉择（沿用单篇

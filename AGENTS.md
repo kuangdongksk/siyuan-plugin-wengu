@@ -430,9 +430,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
           之和恒 = 队列总篇数，不许有篇被漏计）。
     - **停止时剩余篇的 items 必须真翻牌**：`cancelRest` 只累加计数不改状态
       的话，面板分篇行永远停在「排队中」而汇总却报「已取消 N 篇」。
-    - **换篇要占回槽 + 复位「转换中」**：内层单篇 failed/done 收口会
-      `setActive(undefined)` + `setConverting(false)`，队列每起下一篇前两者
-      都补回来（漏 setConverting 会让页内转换按钮在篇间误判空闲）。
+    - **换篇要占回槽 + 复位「转换中」**：内层单篇 **failed** 收口会
+      `setActive(undefined)` + `setConverting(false)`（done 分支 inQueue=true
+      不清，故这是兜底不是唯一写入点），队列每起下一篇前两者都补一遍
+      （漏 `setConverting` 会让页内转换按钮在篇间误判空闲、用户能插队）。
     - 子文档发现走 `service/source/SubDocs.planSubDocs`（同笔记本 path LIKE
       递归、`rowsAll` 分页防 64 行截断、hpath 字典序=文件树序）；
       `buildBatchQueue` 纯函数（带单测）定队列组成：勾选=根+后代，未勾选

@@ -310,8 +310,9 @@ export async function runSingleDoc(
 
 /** done：清槽 + 清**本篇**的残留进度记录（残留会让面板永远显示「有未完成
  *  转换」，「丢弃」按钮更会直接删掉已完成的题集、「继续生成」会重复收口
- *  ——20260829 三轮审查 P1）。inQueue=false（单篇）才由本处收尾；队列内
- *  由 ConvertBatchQueue 记分篇终态、逐篇清进度，整队列末尾只收尾一次。 */
+ *  ——20260829 三轮审查 P1）。inQueue=true（队列内）**不清槽也不收尾**
+ *  ——槽由队列全程占着（每篇起跑前 setActive 占回），收尾只在整队列末尾
+ *  做一次；逐篇 done 只清自己那篇的进度记录。 */
 function settleDone(run: ActiveRun, r: BatchedResult, docId: string, inQueue: boolean): void {
     const { ev } = run;
     if (!inQueue && getActive() === run) {
