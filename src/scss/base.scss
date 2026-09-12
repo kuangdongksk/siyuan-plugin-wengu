@@ -422,3 +422,21 @@
     min-width: 200px;
   }
 }
+
+/* 批量转换：面板分篇进度行（文档名 + 状态，逐篇一行） */
+.wengu-batch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 0.9em;
+
+  .wengu-batch-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

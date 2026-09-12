@@ -400,6 +400,30 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `SegmentResult.batches`，含零产物批、不含纯标题跳过窗口）。两者同时发生但
   语义不同，混用一个变量即面板/终止提示批数翻倍；回归测试
   `convert/service/test/ConvertBatchCount.test.ts` 锁死该口径。
+- **批量转换 = 串行队列**（Issue #37，20260912）：弹窗选中的「文件夹式
+  文档」（自身空、子文档有货）或勾了「连同子文档」的源 → 展开成子文档
+  清单，**同一 ConvertRun 单例**逐篇串行跑（`ConvertBatchQueue.runBatchQueue`
+  → `runSingleDoc`），一篇跑完/终止再起下一篇（与 ConvertIncrement 串行
+  补生成、BankHealth.regenRecords 同款）。四条硬口径：
+    - **队列全程占住 active 槽**：内层单篇 done/failed 收口会清槽，队列
+      每起下一篇前 `setActive(run)` 占回；只有整队列收口或转抉择态才真
+      释放——否则用户能在换篇间隙点别的转换插队；
+    - **每篇各自成题集**：`BankSets` 按源文档推导天然支持，零新存储；
+      `ConvertProgressRecord.batch?{index,total,groupTitle}` 只加不改名
+      （optional、无 backfill、不 bump version），面板分篇行读它；
+    - **单篇失败不打断队列**：记一行失败继续下一篇，终态汇总
+      「N 篇完成、M 篇失败：清单」走 `ui/Notify`；
+    - **「停止」= 整队列停**：当前篇转保留/丢弃抉择（沿用单篇 aborted 语义，
+      抉择记录里的 cfg.srcDocId 换成**当前篇**——单篇的 keep/discard 按
+      cfg.srcDocId 记/清进度），剩余篇全部标 cancelled。
+    - ⚠️ **逐篇清/记进度必须用本篇 id**（`settleDone/settleFailed` 收 docId
+      参数）：批量下 `cfg.srcDocId` 是根，直接拿它记进度=清错篇的记录。
+    - 子文档发现走 `service/source/SubDocs.planSubDocs`（同笔记本 path LIKE
+      递归、`rowsAll` 分页防 64 行截断、hpath 字典序=文件树序）；
+      `buildBatchQueue` 纯函数（带单测）定队列组成：勾选=根+后代，未勾选
+      且根空壳=只后代（空壳根永不入队——转换注定零产物）。
+    - 回归测试 `convert/service/test/ConvertBatchQueue.test.ts`（串行/占槽/
+      失败续跑/停止取消/分篇进度）与 `SubDocs.test.ts`（队列组装）。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进

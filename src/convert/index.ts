@@ -151,6 +151,10 @@ export function convertRunEventsFor(v: ConvertViewAccess): ConvertRunEvents {
             v.onConvertDone(r);
         },
         saveProgress: (srcDocId, rec) => v.saveConvertProgress(srcDocId, rec),
+        // 批量队列（Issue #37）：逐篇查各篇自己的续跑记录（断点续跑语义
+        // 与单篇一致），分篇终态仅用于运行器内部翻牌——页内转换条由
+        // onStatus 的队列总行文案承担，这里无需额外渲染
+        getProgress: (srcDocId) => v.convertProgressOf(srcDocId),
     };
 }
 

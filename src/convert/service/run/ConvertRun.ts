@@ -5,6 +5,18 @@ import { SetWriter } from "../output/SetWriter";
 import { esc, fmt } from "../../../ui/shared";
 import { notifyError, notifyInfo } from "../../../ui/Notify";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
+import type { SubDocRef } from "../source/SubDocs";
+import { runBatchQueue } from "./ConvertBatchQueue";
+import {
+    getAborted,
+    getActive,
+    notifyState,
+    setAborted,
+    setActive,
+    subscribeConvertState,
+    type ActiveRun,
+} from "./ConvertRunState";
+
 /**
  * 转换执行器（从转换弹窗拆出的单例运行器）：弹窗只负责收集参数，
  * 点「开始转换」即关窗，批次循环在这里跑完。状态条/停止/终止后的
@@ -16,6 +28,10 @@ import type { QuestionBank } from "../../../bank/data/QuestionBank";
  * 弹窗只能报「已有转换在进行中」（真机踩坑：一次超时后继续转换
  * 永久不可用）。当前运行状态通过 convertRunSnapshot/subscribeConvertRun
  * 暴露给转换管理面板（ConvertPanel）单独呈现。
+ *
+ * **批量队列**（Issue #37）：`cfg.subDocs` 非空时同一单例运行器改跑
+ * 一个串行队列——见 ConvertBatchQueue。队列**全程占住 active 槽**
+ * （篇与篇之间不释放，防用户中途点别的转换插队）。
  */
 
 /** 一次转换的全部参数（弹窗收集后传入）。 */
@@ -29,6 +45,11 @@ export interface ConvertRunCfg {
     parallel: number;
     knowRoots: string[];
     resume?: { offset: number; setId?: string };
+    /** 批量队列（Issue #37）：非空时按序串行转换这些源文档（每篇各自成
+     *  题集）。长度 1 与不传等价（单篇流程的退化形态）。 */
+    subDocs?: SubDocRef[];
+    /** 队列标题（=根文档标题，面板总行展示「第 x/N 篇 · 队列名」）。 */
+    batchTitle?: string;
 }
 
 /** 页面侧事件（ConvertHost 组装：页内转换条 + 渐进呈现 + 收尾）。 */
@@ -47,40 +68,35 @@ export interface ConvertRunEvents {
     onCancel?(): void;
     onDone(r: { setId: string; title: string; count: number; message: string }): void;
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
+    /** 批量队列里一篇的终态（进度行翻牌用；单篇流程不调）。 */
+    onBatchItem?(item: ConvertBatchItem): void;
+    /** 某源文档的未完成续跑记录（批量队列逐篇查用；单篇走 cfg.resume）。 */
+    getProgress?(srcDocId: string): ConvertProgressRecord | undefined;
 }
 
-/** 在途运行（含终止后待抉择的部分结果）。 */
-interface ActiveRun {
-    cfg: ConvertRunCfg;
-    ev: ConvertRunEvents;
-    abort: () => void;
-    /** 面板快照用：最近一次进度。 */
+/** 批量队列里一篇的状态（面板分篇进度行）。 */
+export interface ConvertBatchItem {
+    /** 队列序号（0 起）。 */
+    index: number;
+    /** 队列总篇数。 */
+    total: number;
+    docId: string;
+    title: string;
+    status: "queued" | "running" | "done" | "failed" | "cancelled";
+    /** 该篇已落库题数（done/failed 时有意义）。 */
+    count: number;
+    /** 该篇最近一次进度（running 时）。 */
     progress?: ConvertProgress;
-    /** 题集标题（onBatch 里累积，面板展示用）。 */
-    title?: string;
+    /** 失败原因（status=failed）。 */
+    message?: string;
 }
-
-let active: ActiveRun | undefined;
-
-/** 终止后待抉择的部分结果（保留/丢弃的执行体用）。 */
-let aborted: { r: BatchedResult; cfg: ConvertRunCfg; ev: ConvertRunEvents } | undefined;
-
-/** 运行状态变化订阅（转换管理面板刷新用）。 */
-const listeners = new Set<() => void>();
 
 /** 订阅运行状态变化（进度推进/终止/收口/抉择落定都通知），返回退订函数。 */
-export function subscribeConvertRun(cb: () => void): () => void {
-    listeners.add(cb);
-    return () => listeners.delete(cb);
-}
-
-function notify(): void {
-    for (const l of [...listeners]) l();
-}
+export const subscribeConvertRun: (cb: () => void) => () => void = subscribeConvertState;
 
 /** 是否有转换在跑（含终止后待抉择——此时开新转换会让旧抉择悬空）。 */
 export function convertRunActive(): boolean {
-    return !!active || !!aborted;
+    return !!getActive() || !!getAborted();
 }
 
 /** 运行快照（转换管理面板渲染用；无任何在途状态返回 undefined）。 */
@@ -95,18 +111,24 @@ export interface ConvertRunSnapshot {
     progress?: ConvertProgress;
     /** 题集标题。 */
     title?: string;
+    /** 批量队列分篇进度（cfg.subDocs 非空时；每篇一行）。 */
+    batch?: { title?: string; items: ConvertBatchItem[] };
     /** 待抉择部分结果（pendingChoice 时有）。 */
     pending?: { count: number; batches: number; total: number };
 }
 
 /** 当前运行状态快照（running=false 且无待抉择时返回 undefined）。 */
 export function convertRunSnapshot(): ConvertRunSnapshot | undefined {
+    const aborted = getAborted();
+    const active = getActive();
     if (aborted) {
+        const items = aborted.items;
         return {
             running: false,
             pendingChoice: true,
             srcDocId: aborted.cfg.srcDocId,
             parallel: aborted.cfg.parallel,
+            batch: items ? { title: aborted.cfg.batchTitle, items } : undefined,
             pending: { count: aborted.r.count, batches: aborted.r.batches, total: aborted.r.total },
         };
     }
@@ -118,6 +140,7 @@ export function convertRunSnapshot(): ConvertRunSnapshot | undefined {
         parallel: active.cfg.parallel,
         progress: active.progress,
         title: active.title,
+        batch: active.items ? { title: active.batchTitle, items: active.items } : undefined,
     };
 }
 
@@ -134,113 +157,213 @@ export function progressStatusText(t: (k: string) => string, p: ConvertProgress)
     return `${main}${lastDelta}`;
 }
 
+/** 批量队列的分篇进度行文案（面板每篇一行 + 总行）。 */
+export function batchItemStatusText(t: (k: string) => string, item: ConvertBatchItem): string {
+    switch (item.status) {
+        case "queued":
+            return esc(t("convertBatchQueued"));
+        case "cancelled":
+            return esc(t("convertBatchCancelled"));
+        case "failed":
+            return esc(fmt(t("convertBatchFailed"), { msg: item.message || t("convertNoQuestions") }));
+        case "done":
+            return esc(fmt(t("convertBatchDoneItem"), { c: String(item.count) }));
+        default:
+            return item.progress ? progressStatusText(t, item.progress) : esc(t("converting"));
+    }
+}
+
+/** 队列总行文案（「第 x/N 篇 · 队列名」）；cur=当前进行中（或最后收口）那篇。 */
+export function batchHeadText(t: (k: string) => string, batch: { title?: string; items: ConvertBatchItem[] }): string {
+    const items = batch.items ?? [];
+    const total = items.length;
+    const running = items.findIndex((x) => x.status === "running");
+    const settled = items.filter(
+        (x) => x.status === "done" || x.status === "failed" || x.status === "cancelled"
+    ).length;
+    const cur = running >= 0 ? running + 1 : Math.max(1, settled);
+    return esc(
+        fmt(t("convertBatchHead"), { i: String(Math.min(total, cur)), n: String(total), title: batch.title ?? "" })
+    );
+}
+
 /** 启动一次转换（已有在途运行/待抉择则拒绝，返回 false）。 */
 export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boolean {
-    if (active || aborted) return false;
+    if (getActive() || getAborted()) return false;
     const controller = new AbortController();
-    active = { cfg, ev, abort: () => controller.abort() };
+    const run: ActiveRun = { cfg, ev, abort: () => controller.abort() };
+    if (cfg.subDocs && cfg.subDocs.length > 0) {
+        run.batchTitle = cfg.batchTitle ?? cfg.subDocs[0].title;
+        run.items = cfg.subDocs.map((d, index) => ({
+            index,
+            total: cfg.subDocs!.length,
+            docId: d.id,
+            title: d.title,
+            status: "queued",
+            count: 0,
+        }));
+    }
+    setActive(run);
     const t = ev.t;
     ev.setConverting(true);
     ev.onStatus(esc(t("converting")), "muted");
-    notify();
+    notifyState();
     void (async () => {
-        let r: BatchedResult;
-        try {
-            if (!ev.bank) throw new Error("bank unavailable");
-            r = await convertDocBatched(cfg.srcDocId, {
-                t,
-                modelId: cfg.modelId,
-                fillToChoice: cfg.fillToChoice,
-                bigToSteps: cfg.bigToSteps,
-                parallel: cfg.parallel,
-                signal: controller.signal,
-                resume: cfg.resume,
-                knowRoots: cfg.knowRoots,
-                bank: ev.bank,
-                onProgress: (p) => {
-                    if (active) {
-                        active.progress = p;
-                        if (p.title) active.title = p.title;
-                    }
-                    if (p.phase === "detect") {
-                        ev.onStatus(esc(t("convertDetecting")), "muted");
-                        notify();
-                        return;
-                    }
-                    if (p.phase === "writing") {
-                        ev.onStatus(esc(t("settling")), "muted");
-                        if (p.setId) ev.onBatch(p);
-                        notify();
-                        return;
-                    }
-                    // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
-                    if (p.setId) ev.onBatch(p);
-                    ev.onStatus(progressStatusText(t, p), "muted");
-                    notify();
-                },
-            });
-        } catch (e) {
-            // 意外异常同样必须清 active，否则单例卡死（见文件头注释）
-            active = undefined;
-            ev.setConverting(false);
-            const msg = errText(e);
-            ev.onStatus(esc(msg), "err", true); // 终态：状态条不再带终止钮/replay
-            notifyError({ key: "notifyConvertFail", vars: { msg } }); // 用户可能已切走页签
-            notify();
-            return;
+        if (cfg.subDocs && cfg.subDocs.length > 0) {
+            await runBatchQueue(run, controller.signal);
+        } else {
+            await runSingleDoc(run, controller.signal, cfg.srcDocId, cfg.resume, 0);
         }
-        if (r.status === "done") {
-            active = undefined;
-            ev.setConverting(false);
-            // 完成即清进度记录：残留会让面板永远显示「有未完成转换」，
-            // 「丢弃」按钮更会直接删掉已完成的题集、「继续生成」会重复
-            // 收口（20260829 三轮审查 P1）
-            ev.saveProgress(cfg.srcDocId, undefined);
-            notify();
-            await finishRun(ev, r);
-            return;
-        }
-        if (r.status === "aborted") {
-            active = undefined;
-            ev.setConverting(false);
-            if (!r.setId) {
-                // 首批前终止：题库零产物，无保留/丢弃可言
-                ev.onStatus(esc(t("convertStoppedEmpty")), "err", true);
-                notify();
-                return;
-            }
-            const head = r.message ? `${esc(r.message)}<br>` : "";
-            ev.onStopChoice({ count: r.count, batches: r.batches, total: r.total, message: head });
-            aborted = { r, cfg, ev };
-            notify();
-            return;
-        }
-        // 中途失败但已有部分内容：题库记录已在（每批已 flush），记进度
-        // 可继续生成。active 必须清（失败收口，转换管理面板/继续生成
-        // 都依赖它复位）
-        active = undefined;
-        ev.setConverting(false);
-        const partial = r.count > 0 ? `<br>${esc(t("convertPartialKept"))}` : "";
-        ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
-        notifyError({ key: "notifyConvertFail", vars: { msg: r.message || t("convertNoQuestions") } });
-        if (r.count > 0 && r.setId) {
-            ev.saveProgress(cfg.srcDocId, {
-                setId: r.setId,
-                title: r.title ?? "",
-                offset: r.doneOffset,
-                batches: r.batches,
-                total: r.total,
-                count: r.count,
-            });
-        }
-        notify();
     })();
     return true;
 }
 
-/** 页内/面板「停止」：中止批次循环，转保留/丢弃抉择。 */
+/**
+ * 单篇执行全过程（批量队列里也逐篇走它——队列只是它外面的一层串行
+ * 循环）。收口时按三种终态分别落定：done→清槽+收尾；aborted→抉择态；
+ * failed→清槽+（有产物则记续跑进度）+通知。
+ */
+export async function runSingleDoc(
+    run: ActiveRun,
+    signal: AbortSignal,
+    docId: string,
+    resume: { offset: number; setId?: string } | undefined,
+    batchIndex: number,
+    /** 队列内（批量）逐篇：清槽/记进度/收尾都按篇来，由调用方收口；
+     *  单篇（false）沿用原行为。 */
+    inQueue = false
+): Promise<BatchedResult | undefined> {
+    const { cfg, ev } = run;
+    const t = ev.t;
+    let r: BatchedResult;
+    try {
+        if (!ev.bank) throw new Error("bank unavailable");
+        r = await convertDocBatched(docId, {
+            t,
+            modelId: cfg.modelId,
+            fillToChoice: cfg.fillToChoice,
+            bigToSteps: cfg.bigToSteps,
+            parallel: cfg.parallel,
+            signal,
+            resume,
+            knowRoots: cfg.knowRoots,
+            bank: ev.bank,
+            onProgress: (p) => {
+                if (getActive() === run) {
+                    run.progress = p;
+                    if (p.title) run.title = p.title;
+                    const item = run.items?.[batchIndex];
+                    if (item) {
+                        item.status = "running";
+                        item.progress = p;
+                        item.count = p.count;
+                    }
+                }
+                if (p.phase === "detect") {
+                    ev.onStatus(esc(t("convertDetecting")), "muted");
+                    notifyState();
+                    return;
+                }
+                if (p.phase === "writing") {
+                    ev.onStatus(esc(t("settling")), "muted");
+                    if (p.setId) ev.onBatch(p);
+                    notifyState();
+                    return;
+                }
+                // batch=i 表示第 i+1 批进行中；lastBatch 是刚完成那批的题数
+                if (p.setId) ev.onBatch(p);
+                ev.onStatus(progressStatusText(t, p), "muted");
+                notifyState();
+            },
+        });
+    } catch (e) {
+        // 意外异常同样必须清 active，否则单例卡死（见文件头注释）
+        if (getActive() === run) {
+            setActive(undefined);
+            ev.setConverting(false);
+        }
+        const msg = errText(e);
+        ev.onStatus(esc(msg), "err", true);
+        notifyError({ key: "notifyConvertFail", vars: { msg } });
+        notifyState();
+        return undefined;
+    }
+    if (r.status === "done") {
+        settleDone(run, r, docId, inQueue);
+        return r;
+    }
+    if (r.status === "aborted") {
+        settleAborted(run, r, docId);
+        return r;
+    }
+    settleFailed(run, r, docId);
+    return r;
+}
+
+/** done：清槽 + 清**本篇**的残留进度记录（残留会让面板永远显示「有未完成
+ *  转换」，「丢弃」按钮更会直接删掉已完成的题集、「继续生成」会重复收口
+ *  ——20260829 三轮审查 P1）。inQueue=false（单篇）才由本处收尾；队列内
+ *  由 ConvertBatchQueue 记分篇终态、逐篇清进度，整队列末尾只收尾一次。 */
+function settleDone(run: ActiveRun, r: BatchedResult, docId: string, inQueue: boolean): void {
+    const { ev } = run;
+    if (!inQueue && getActive() === run) {
+        setActive(undefined);
+        ev.setConverting(false);
+    }
+    ev.saveProgress(docId, undefined);
+    notifyState();
+    if (!inQueue) void finishRun(ev, r);
+}
+
+/** aborted：首批前零产物=无保留/丢弃可言（直接终态）；否则转抉择态。
+ *  抉择记录里的 cfg 换成**本篇**的副本——单篇的 keep/discard 用
+ *  cfg.srcDocId 记/清进度，队列里那必须是当前篇而不是根。 */
+function settleAborted(run: ActiveRun, r: BatchedResult, docId: string): void {
+    const { cfg, ev } = run;
+    const t = ev.t;
+    if (getActive() === run) {
+        setActive(undefined);
+        ev.setConverting(false);
+    }
+    if (!r.setId) {
+        ev.onStatus(esc(t("convertStoppedEmpty")), "err", true);
+        notifyState();
+        return;
+    }
+    const head = r.message ? `${esc(r.message)}<br>` : "";
+    ev.onStopChoice({ count: r.count, batches: r.batches, total: r.total, message: head });
+    setAborted({ r, cfg: { ...cfg, srcDocId: docId }, ev, items: run.items });
+    notifyState();
+}
+
+/** failed：清槽；有部分产物则记**本篇**进度可「继续生成」。 */
+function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
+    const { ev } = run;
+    const t = ev.t;
+    if (getActive() === run) {
+        setActive(undefined);
+        ev.setConverting(false);
+    }
+    const partial = r.count > 0 ? `<br>${esc(t("convertPartialKept"))}` : "";
+    ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
+    notifyError({ key: "notifyConvertFail", vars: { msg: r.message || t("convertNoQuestions") } });
+    if (r.count > 0 && r.setId) {
+        ev.saveProgress(docId, {
+            setId: r.setId,
+            title: r.title ?? "",
+            offset: r.doneOffset,
+            batches: r.batches,
+            total: r.total,
+            count: r.count,
+        });
+    }
+    notifyState();
+}
+
+/** 页内/面板「停止」：中止批次循环，转保留/丢弃抉择。
+ *  批量队列下=当前篇转抉择 + 剩余篇取消（见 ConvertBatchQueue）。 */
 export function stopConvertRun(): void {
-    active?.abort();
+    getActive()?.abort();
 }
 
 /** 独占运行槽（增量重转换等非整卷流程共用）：占住 active 单例防并发
@@ -252,9 +375,9 @@ export function startExclusiveConvertRun(
     srcDocId: string,
     run: (signal: AbortSignal) => Promise<void>
 ): boolean {
-    if (active || aborted) return false;
+    if (getActive() || getAborted()) return false;
     const controller = new AbortController();
-    active = {
+    setActive({
         cfg: {
             srcDocId,
             modelId: "",
@@ -265,17 +388,17 @@ export function startExclusiveConvertRun(
         },
         ev,
         abort: () => controller.abort(),
-    };
+    });
     ev.setConverting(true);
-    notify();
+    notifyState();
     void run(controller.signal)
         .catch((e) => {
             ev.onStatus(esc(errText(e)), "err", true);
         })
         .finally(() => {
-            active = undefined;
+            setActive(undefined);
             ev.setConverting(false);
-            notify();
+            notifyState();
         });
     return true;
 }
@@ -283,10 +406,10 @@ export function startExclusiveConvertRun(
 /** 页内/面板「保留已生成」：题目记录已在题库（每批已 flush），只记
  *  断点进度供「继续生成」。 */
 export function keepConvertRun(): Promise<void> {
-    const a = aborted;
+    const a = getAborted();
     if (!a) return Promise.resolve();
-    aborted = undefined;
-    notify();
+    setAborted(undefined);
+    notifyState();
     const { saveProgress } = a.ev;
     return (async () => {
         if (!a.r.setId) return; // 无产物无保留（入口已拦，防御）
@@ -301,20 +424,20 @@ export function keepConvertRun(): Promise<void> {
         await finishRun(a.ev, a.r);
     })()
         .catch((e) => a.ev.onStatus(esc(errText(e)), "err", true))
-        .then(() => notify());
+        .then(() => notifyState());
 }
 
 /** 页内/面板「全部丢弃」：按本次写入 qid 回收题库记录（题集清空连
  *  元数据一起删）、清进度、页面复位。 */
 export function discardConvertRun(): void {
-    const a = aborted;
+    const a = getAborted();
     if (!a) return;
-    aborted = undefined;
+    setAborted(undefined);
     if (a.ev.bank) void new SetWriter(a.ev.bank).discard(a.r.setId, a.r.writtenQids);
     a.ev.saveProgress(a.cfg.srcDocId, undefined);
     a.ev.onCancel?.();
     a.ev.onStatus(esc(a.ev.t("convertDiscarded")), "muted", true);
-    notify();
+    notifyState();
 }
 
 /** 转换收尾：题库最终 flush → 通知宿主（切题集/重载/状态条）。 */

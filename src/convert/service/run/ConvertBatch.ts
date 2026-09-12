@@ -137,6 +137,11 @@ export interface ConvertProgressRecord {
     total: number;
     /** 已生成题数。 */
     count: number;
+    /** 批量转换（Issue #37）维度：本记录属于一个串行队列时才有值——索引
+     *  0 起、总篇数、队列标题（=根文档标题，面板总行展示「第 x/N 篇 ·
+     *  队列名」）。**只加不改名**：单篇转换的记录不带此键，装载侧照旧
+     *  （数据演进守则：optional + 无 backfill，不 bump version）。 */
+    batch?: { index: number; total: number; groupTitle?: string };
 }
 
 /** 批式转换结果：done=全部完成；aborted=用户终止（已落库部分待抉择）。 */
