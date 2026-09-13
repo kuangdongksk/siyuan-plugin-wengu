@@ -656,6 +656,12 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
     - **回顾** = 错题本 `ReviewCtl.filterQids(qids)`（`listReviewModel` 加 qidFilter 维，
       空集=不筛；进入时清 docFilter 防静默变窄；头部「相关题筛选」徽标一键取消）
       —— 详情/时间线全走既有通道，**不新做重刷**。
+        - ⚠️ **复习入口必须先切回 `drill` 工作区**（20260913 复审修复）：壳渲染是
+          **workspace 优先**——非 drill 时 `renderQuizShellFor` 直接出工作区面板并
+          **早退**，`mode="review"` 根本不渲染；而相关题弹窗的行入口就在知识文档
+          工作区，「回顾」只切 mode 就是**死钮**。故 `enterReviewFor` 里
+          `switchWorkspace("drill")` 必须排在 `switchMode("review")` **之前**
+          （两次 renderList 幂等，无副作用；`ModeOps.test` 锁调用次序）。
     - **AI 分析** = 一次 `agentChatOnce` + `track{kind:"analyze"}`（SessionPanelApp 的
       `KIND_KEYS` 已加 analyze→aiKindAnalyze）；prompt 在 `ai/prompts/related.ts`
       （三路材料按预算截断），**零作答数据省略薄弱段 + prompt 明令不得编造**；
