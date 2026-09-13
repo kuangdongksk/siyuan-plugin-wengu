@@ -50,7 +50,7 @@ export interface StatsViewAccess {
     fullListOf(): WenguQuestion[];
     switchDocSelect(id: string): void;
     markReopenStats(tab: "overview" | "doc"): void;
-    enterReviewMode(opt: { docId?: string; qid?: string }): void;
+    enterReviewMode(opt: { docId?: string; qid?: string; qids?: string[] }): void;
     aiModelId(): string;
 }
 

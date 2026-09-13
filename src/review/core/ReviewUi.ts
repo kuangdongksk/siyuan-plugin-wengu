@@ -42,6 +42,9 @@ export interface ReviewUi {
     sort: "recent" | "count";
     /** 侧栏筛选的文档 id（空=全部；quiz 侧栏点击联动写入）。 */
     docFilter: string;
+    /** 相关题弹窗「回顾」的 qid 集筛选（Issue #44；空/缺省=不筛，
+     *  头部出「相关题筛选」徽标可一键取消）。 */
+    qidFilter?: Set<string>;
     /** 当前选中的题（清单 cur 高亮 + 详情装载目标）。 */
     selQid: string;
     /** 详情面板（惰性 hydrate 的串行链产出；empty=未选）。 */
@@ -55,5 +58,13 @@ export interface ReviewDetailState {
 
 /** 初始态（$state 包装在 ReviewApp 内完成；持久初值由 ctl.attach 覆写）。 */
 export function initialReviewUi(): ReviewUi {
-    return { items: [], filter: "all", sort: "recent", docFilter: "", selQid: "", detail: { phase: "empty" } };
+    return {
+        items: [],
+        filter: "all",
+        sort: "recent",
+        docFilter: "",
+        qidFilter: undefined,
+        selQid: "",
+        detail: { phase: "empty" },
+    };
 }

@@ -3,6 +3,7 @@
     import type { ReviewViewAccess } from "../index";
     import { REVIEW_CTX, initialReviewUi } from "../core/ReviewUi";
     import { reviewCtl } from "../core/ReviewCtl";
+    import { clearReviewQidFilter } from "../index";
     import { listReviewModel } from "../ReviewHtml";
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
@@ -25,7 +26,11 @@
     const ui = $state(initialReviewUi());
     setContext(REVIEW_CTX, { ctl: reviewCtl, ui, t });
 
-    const m = $derived(listReviewModel(ui.items, ui.filter, ui.sort, ui.docFilter, (id) => reviewCtl.docTitleOf(id)));
+    const m = $derived(
+        listReviewModel(ui.items, ui.filter, ui.sort, ui.docFilter, (id) => reviewCtl.docTitleOf(id), ui.qidFilter)
+    );
+    // 相关题筛选徽标（Issue #44）：来自相关题弹窗「回顾」，一键取消回全部
+    const qidFilterN = $derived(ui.qidFilter?.size ?? 0);
 
     onMount(() => {
         reviewCtl.attach(ui, v);
@@ -63,6 +68,14 @@
                 m: String(m.mastered),
             })}</span
         >
+        {#if qidFilterN > 0}
+            <span class="wengu-review-qidfilter" title={t("reviewQidFilterHint")}
+                >{fmt(t("reviewQidFilterBadge"), { n: String(qidFilterN) })}
+                <Button variant="text" class="wengu-review-qidfilter-x" onclick={() => clearReviewQidFilter()}
+                    >{t("reviewQidFilterClear")}</Button
+                ></span
+            >
+        {/if}
         <Button class="wengu-side-iconbtn" title={t("quizRefresh")} onclick={() => void reviewCtl.refresh(true)}
             >{@html svgIcon("iconRefresh")}</Button
         >

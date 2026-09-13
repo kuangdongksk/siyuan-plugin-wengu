@@ -3,7 +3,7 @@ import "./index.scss";
 import { HistoryStore } from "./quiz/service/HistoryStore";
 import { QuestionBank } from "./bank/data/QuestionBank";
 import { QuizView } from "./quiz";
-import { openRelatedDialog } from "./bank/ui/RelatedDialog";
+import { openRelatedDialog, type RelatedViewAccess } from "./bank/ui/RelatedDialog";
 import { openWenguSetting } from "./ui/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/data/WeaknessStore";
@@ -116,6 +116,12 @@ export default class WenguPlugin extends Plugin {
             (v) => this.saveData("weakness", v)
         );
         return this.weaknessStore;
+    }
+
+    /** 相关题弹窗的视图能力（Issue #44）：页签不在场返回 undefined，
+     *  弹窗动作退化为「不可用」提示（列表照常可看）。 */
+    relatedAccess(): RelatedViewAccess | undefined {
+        return this.activeView?.relatedAccessOf();
     }
 
     bank(): QuestionBank | undefined {
@@ -344,7 +350,9 @@ export default class WenguPlugin extends Plugin {
         detail.menu.addItem({
             icon: "iconSearch",
             label: this.tKey("relatedMenu"),
-            click: () => void openRelatedDialog(bank, this.tKey, ids[0]),
+            // 弹窗动作（预览/开刷/回顾）要刷题页签在场；页签不在时 access
+            // 缺省 → 列表照常、联动动作提示（Issue #44）
+            click: () => void openRelatedDialog(bank, this.tKey, ids[0], WenguPlugin.instance?.relatedAccess()),
         });
     };
 

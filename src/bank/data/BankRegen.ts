@@ -3,6 +3,7 @@ import type { QuestionBank, BankRecord } from "./QuestionBank";
 import { normKn } from "./KnowledgeNorm";
 import { knKey } from "./KnowledgeNorm";
 import { mintPrefixedId } from "../../types";
+import { relatedRecordsOf } from "./RelatedQids";
 
 /**
  * 题库「对账 / 重生成 / 反查 / 生成入库」段（契约 §三的 ③④⑤⑥）——
@@ -64,27 +65,26 @@ export async function remapKpRef(bank: QuestionBank, oldId: string, newId: strin
     return n;
 }
 
-/** 某知识文档的相关题目（引用落在该文档下的记录；反查入口用）。
- *  kpRoots 由调用方查好（kp 块 id → 所在文档 id）。 */
+/** 某知识文档的相关题目（反查入口用）。kpRoots 由调用方查好
+ *  （kp 块 id → 所在文档 id）。
+ *  命中判据与 related 活视图专题题单**同源**（RelatedQids.relatedRecordsOf，
+ *  Issue #44）：弹窗列表 = 专题题单恒一致。**全量不截断**——弹窗可滚动，
+ *  旧 slice(0,50) 会让专题题单与列表对不上。 */
 export async function questionsRelatedToDoc(
     bank: QuestionBank,
     docId: string,
     kpRoots: Map<string, string>
 ): Promise<{ qid: string; stem: string; attempts: number; wrongCount: number }[]> {
     const data = await bank.all();
-    const out: { qid: string; stem: string; attempts: number; wrongCount: number }[] = [];
-    for (const r of Object.values(data.records)) {
-        const hit = r.sourceDocId === docId || r.kpRefs.some((k) => kpRoots.get(k.id) === docId);
-        if (!hit) continue;
+    return relatedRecordsOf(Object.values(data.records), docId, kpRoots).map((r) => {
         const parsed = bank.parsedOf(r.qid, r.hash) ?? parseQuestionKramdown(r.kramdown, r.qid);
-        out.push({
+        return {
             qid: r.qid,
             stem: (parsed?.stemMd ?? r.kramdown).replace(/\s+/g, " ").trim().slice(0, 60),
             attempts: r.stats.attempts,
             wrongCount: r.stats.wrongCount,
-        });
-    }
-    return out.sort((a, b) => b.wrongCount - a.wrongCount || b.attempts - a.attempts).slice(0, 50);
+        };
+    });
 }
 
 /** 按薄弱键取记录（针对性生成找错题模板用；键含 kp:/kn:/ch: 前缀，

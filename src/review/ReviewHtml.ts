@@ -42,15 +42,28 @@ export interface ReviewListModel {
     mastered: number;
 }
 
-/** 组装清单模型：筛选（状态/文档）→ 排序 → 按文档分组。 */
+/**
+ * 组装清单模型：qid 集筛选 → 状态/文档筛选 → 排序 → 按文档分组。
+ *
+ * qidFilter（Issue #44「回顾」）：相关题弹窗传入的 qid 集，只留这组题里
+ * 的错题——**空集 = 不筛**（不是「筛出零条」，否则取消筛选后会空清单）。
+ * 它是「数据域」，统计口径（total/pending/mastered）随之走；状态/文档筛
+ * 是「看哪部分」，不影响统计（与改造前口径一致）。与 docFilter 并存时按
+ * 交集语义（先 qid 后 doc，纯合取，无隐含优先级）。
+ */
 export function listReviewModel(
     items: ReviewItemModel[],
     filter: "all" | "pending" | "mastered",
     sort: "recent" | "count",
     docFilter: string,
-    docTitleOf: (docId: string) => string
+    docTitleOf: (docId: string) => string,
+    qidFilter?: Set<string>
 ): ReviewListModel {
-    const filtered = items.filter((it) => {
+    // qid 集是**数据域**（这组相关题里有哪些错题），先收窄再走状态/文档
+    // 筛选——统计口径（total/pending）只随它变，不随状态/文档筛变（那两维
+    // 是「看哪部分」，改概览会推翻旧口径）。空集=不筛。
+    const scoped = qidFilter && qidFilter.size > 0 ? items.filter((it) => qidFilter.has(it.qid)) : items;
+    const filtered = scoped.filter((it) => {
         if (filter === "pending" && it.mastered) return false;
         if (filter === "mastered" && !it.mastered) return false;
         if (docFilter && it.docId !== docFilter) return false;
@@ -77,8 +90,8 @@ export function listReviewModel(
         });
     }
     groups.sort((a, b) => (b.items[0]?.lastWrongAt ?? 0) - (a.items[0]?.lastWrongAt ?? 0));
-    const pending = items.filter((x) => !x.mastered).length;
-    return { groups, total: items.length, pending, mastered: items.length - pending };
+    const pending = scoped.filter((x) => !x.mastered).length;
+    return { groups, total: scoped.length, pending, mastered: scoped.length - pending };
 }
 
 /** 详情模型（ReviewCtl 惰性 hydrate 后构建；html 均已 Lute 渲染）。 */

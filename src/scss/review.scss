@@ -270,3 +270,21 @@
   background: var(--b3-theme-surface);
   border-radius: var(--b3-border-radius-b, 6px);
 }
+
+/* 相关题筛选徽标（Issue #44「回顾」入口的筛选态；点「查看全部」清除） */
+.wengu-review-qidfilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--b3-theme-primary);
+  border-radius: var(--b3-border-radius);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-review-qidfilter-x {
+  padding: 0 4px !important;
+  font-size: 12px;
+}

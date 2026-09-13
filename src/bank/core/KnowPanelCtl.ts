@@ -153,7 +153,7 @@ export class KnowPanelCtl {
 
     related(d: KnowDocView): void {
         const bank = this.bank();
-        if (bank) void openRelatedDialog(bank, this.v.t, d.docId);
+        if (bank) void openRelatedDialog(bank, this.v.t, d.docId, this.v.relatedAccessOf());
     }
 
     /* ── 小节节点行动作（docs/knowledge-tree.md □3/□4） ── */

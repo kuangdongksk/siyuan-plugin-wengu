@@ -451,11 +451,25 @@ stats(镜像 attempts/wrongCount/right/lastAnswer)}`。作答统计双轨
   不动，只换内容）、确定性注回原 kpRefs（AI 不写引用），题库主记录
   替换（指纹更新、解析缓存失效）+ `updateBlock` 尽力同步源文档块
   （失败不阻断——题库是主记录）。
-- **⑤ 思源右键「温故：查相关题目」（RelatedDialog）**：open-menu-content
-  单选块 → 定位根文档 → 命中 `sourceDocId` 或 kpRefs 落在该文档的
-  记录（kp 块 id → root 文档 id 分块 SQL 映射）→ 按错数降序列题
-  （≤50，含作答/错次）→ 点击 `siyuan://blocks/qid` 跳源块。纯本地
-  反查，零 AI。
+- **⑤ 相关题弹窗（RelatedDialog，知识文档面板行 + 思源右键两入口）**：
+  open-menu-content 单选块 → 定位根文档 → 命中 `sourceDocId` 或 kpRefs
+  落在该文档的记录（kp 块 id → root 文档 id 分块 SQL 映射）→ 按记录序
+  列题（**全量不截断**，含作答/错次；旧 `slice(0,50)` 已删）→ 点击
+  `siyuan://blocks/qid` 跳源块。
+  **收集口径唯一**（`RelatedQids.relatedRecordsOf` 纯函数）：弹窗列表与
+  related 活视图专题题单同源——含「sourceDocId 命中但无 kpRefs」的题，
+  故**不得复用 `col-kp-{id}`**（那条腿按 kp 键收集，题单会与列表对不上）。
+    - **四个联动动作（Issue #44）**：预览/开刷都先物化 **related 活视图
+      专题**（`col-related-{docId}`，`nodeKey="related:{docId}"`，题单读取时
+      重算）→ 刷新侧栏 → `switchTo` → 预览/开刷工作区（与知识树行「刷此
+      知识点」逐字同链路）；专题标题 = `相关题·{来源文档标题}`，侧栏/专题
+      管理可见可删可编辑，删除后重开弹窗点动作即重建（确定性 id，轮次按
+      `col:<id>` 归档天然连续）。回顾 = 错题本既有清单加 `qidFilter`
+      维度（`ReviewCtl.filterQids`，空集=不筛、与 docFilter 并存时清文档筛；
+      头部出「相关题筛选」徽标可一键取消），**不新做重刷**。AI 分析 =
+      一次 `agentChatOnce`（`track kind="analyze"`）+ 三路材料（文档小节
+      正文 / 题清单+统计 / 命中这组题的薄弱摘要；**零作答数据时省略薄弱段
+      并如实说明，不编造**），弹窗内渲染，关窗不中止。
 - **⑥ 针对性生成（WeakDrill）**：收卷报告薄弱区块「针对性加练」。
   模式 A 错题变式（以该点错得最多的真题为模板改数字/换条件）/ 模式
   B 概念辨析（依小节正文出概念题，避开计算大题）。每题生成后 AI

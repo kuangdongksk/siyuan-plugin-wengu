@@ -366,3 +366,59 @@
     margin-left: 4px;
   }
 }
+
+/* ── 相关题弹窗（Issue #44：四动作 + 列表 + AI 分析区） ── */
+
+.wengu-related-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* 图标与文案同一行（svgIcon 产物是裸 svg，文本节点紧随） */
+.wengu-related-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wengu-related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow: auto;
+  margin-top: 8px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 6px;
+}
+
+.wengu-related-row {
+  cursor: pointer;
+}
+
+.wengu-related-analysis {
+  margin-top: 10px;
+  border-top: 1px solid var(--b3-border-color);
+  padding-top: 8px;
+}
+
+.wengu-related-analysis-head {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface);
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.wengu-related-analysis-body {
+  max-height: 240px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.wengu-related-analysis-body p {
+  margin: 0 0 6px;
+}

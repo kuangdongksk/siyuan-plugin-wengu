@@ -286,7 +286,7 @@ export function mountStartPanelFor(
     v: DrillViewAccess & {
         el: HTMLElement;
         enterPreviewMode(): void;
-        enterReviewMode(opt: { docId?: string; qid?: string }): void;
+        enterReviewMode(opt: { docId?: string; qid?: string; qids?: string[] }): void;
         bankStore?(): import("../../bank/data/QuestionBank").QuestionBank | undefined;
         reloadView(): Promise<void>;
     }

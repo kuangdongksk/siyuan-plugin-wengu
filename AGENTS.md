@@ -638,6 +638,28 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 - **题库「对账/重生成/反查/生成入库」段**（data/BankRegen 函数式友元）：20260901
   从 QuestionBank 类拆出压 500 行红线，调用形 `foo(bank,…)`，解析缓存经
   parsedOf/invalidateParse 友元钩子。
+- **相关题弹窗 × 刷题联动（Issue #44，20260913）**：`bank/ui/RelatedDialog`（知识文档
+  面板行「查看相关题」+ 思源右键两入口）四动作接刷题模板既有机制，不自造轮子。
+    - **收集口径唯一**：`data/RelatedQids.relatedRecordsOf` 纯函数（sourceDocId 命中
+      ∪ kpRefs 落该文档下，**含「sourceDocId 命中但无 kpRefs」的题**）——弹窗列表与
+      related 活视图专题题单**同源**；`questionsRelatedToDoc` 与 LiveCols 都走它，
+      **旧的 slice(0,50) 截断已删**（题单与列表必须一致，弹窗可滚动）。
+    - **related 活视图是第二种绑定**（LiveCols）：`nodeKey="related:{docId}"`、id
+      `col-related-{docId}`、**不带 subKeys**（自带收集腿，`refreshLiveCollections`
+      分流）；`ensureRelatedCollection` 物化，标题 `相关题·{来源文档标题}`（空标题
+      不覆盖现值——文档删了也保住用户改过的名）。⚠️ **不得复用 col-kp-{id}**：那条腿
+      按 kp 键收集（collectQids），漏掉无 kpRefs 的 sourceDocId 命中题，题单与列表对不上。
+    - **预览/开刷** = 物化 → flush → 刷新侧栏 → `switchTo` → `switchWorkspace("drill")`
+      （预览再叠 `enterPreviewMode`），与 `KnowPanelCtl.drillNode` 逐字同链路；对话调用
+      点经 `QuizView.relatedAccessOf()`（实现 flow/RelatedAccess），**页签不在场时 access
+      缺省**（思源右键在插件视图外触发）→ 列表照常、联动动作给 `relatedNoView` 提示。
+    - **回顾** = 错题本 `ReviewCtl.filterQids(qids)`（`listReviewModel` 加 qidFilter 维，
+      空集=不筛；进入时清 docFilter 防静默变窄；头部「相关题筛选」徽标一键取消）
+      —— 详情/时间线全走既有通道，**不新做重刷**。
+    - **AI 分析** = 一次 `agentChatOnce` + `track{kind:"analyze"}`（SessionPanelApp 的
+      `KIND_KEYS` 已加 analyze→aiKindAnalyze）；prompt 在 `ai/prompts/related.ts`
+      （三路材料按预算截断），**零作答数据省略薄弱段 + prompt 明令不得编造**；
+      弹窗内 `renderMdHtml` 渲染，关窗不中止。
 - **题库体检**（20260905 选项挤行单病扫描，20260909 升级全库体检：data/BankHealth +
   专题工作区「题库体检」入口）三层一次扫：
     - ①题目结构（解析失败/题干/答案缺失/答案字母越界/判断题答案形态/完形无空/多步缺步答，

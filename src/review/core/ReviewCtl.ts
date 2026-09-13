@@ -25,6 +25,9 @@ export class ReviewCtl {
     private filter: "all" | "pending" | "mastered" = "all";
     private sort: "recent" | "count" = "recent";
     private docFilter = "";
+    /** 相关题弹窗「回顾」传入的 qid 集（Issue #44；空集=不筛）。
+     *  与 docFilter 并存时按交集语义（listReviewModel 纯合取）。 */
+    private qidFilter?: Set<string> = undefined;
     private selQid = "";
     private cache?: { items: ReviewItem[]; at: number };
     private cacheSeq = 0; // 在途装载的代数：重挂/刷新时旧结果放弃
@@ -42,6 +45,7 @@ export class ReviewCtl {
         ui.filter = this.filter;
         ui.sort = this.sort;
         ui.docFilter = this.docFilter;
+        ui.qidFilter = this.qidFilter;
         ui.selQid = this.selQid;
         ui.items = this.cache?.items ?? [];
         void this.renderDetail(this.selQid);
@@ -63,6 +67,41 @@ export class ReviewCtl {
     filterDoc(docId: string): void {
         this.docFilter = this.docFilter === docId ? "" : docId;
         if (this.ui) this.ui.docFilter = this.docFilter;
+    }
+
+    /** 相关题弹窗「回顾」：按 qid 集筛选错题（同集再点=取消，回全部）。
+     *  只管筛选口径，错题清单/详情/时间线全走既有通道——不新做重刷。
+     *  进入时**清掉 docFilter**：头部徽标只展示 qid 集这一维，留着上一轮
+     *  侧栏点文档的文档筛会让「回顾」静默变窄（用户看不懂为何少了几题）。 */
+    filterQids(qids: string[]): void {
+        const next = new Set(qids);
+        const same = this.qidFilter?.size === next.size && [...next].every((q) => this.qidFilter?.has(q) === true);
+        this.qidFilter = same || next.size === 0 ? undefined : next;
+        if (this.qidFilter) this.docFilter = "";
+        this.cache = undefined; // 筛选维度变了：定位/概览缓存不再代表当前集
+        if (this.ui) {
+            this.ui.qidFilter = this.qidFilter;
+            this.ui.docFilter = this.docFilter;
+        }
+    }
+
+    /** 清除 qid 集筛选（头部徽标「查看全部」）。 */
+    clearQidFilter(): void {
+        if (!this.qidFilter) return;
+        this.qidFilter = undefined;
+        this.cache = undefined;
+        if (this.ui) this.ui.qidFilter = this.qidFilter;
+        void this.reload();
+    }
+
+    /** 当前 qid 集筛选（头部徽标文案用；undefined=未筛）。 */
+    qidFilterNow(): Set<string> | undefined {
+        return this.qidFilter;
+    }
+
+    /** 文档筛现值（侧栏选中态/头部展示用；空=全部）。 */
+    docFilterNow(): string {
+        return this.docFilter;
     }
 
     /** 统计面板「进错题本」/错题行点击的定位（切模式后由渲染消费）。 */
@@ -89,6 +128,11 @@ export class ReviewCtl {
     setSort(s: "recent" | "count"): void {
         this.sort = s;
         if (this.ui) this.ui.sort = s;
+    }
+
+    /** 清空 qid 集筛选（外部域在视图外调用；重置/切走时机）。 */
+    resetQidFilter(): void {
+        this.qidFilter = undefined;
     }
 
     /** 清单条目点击：选中 + 详情惰性装载。 */

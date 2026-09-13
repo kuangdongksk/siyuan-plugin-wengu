@@ -149,6 +149,12 @@ export class WeaknessStore {
         return this.snapshot.slice(0, n);
     }
 
+    /** 全部薄弱条目（只读快照；相关题 AI 分析按聚合键过滤命中项用，
+     *  与 topSync 同源，不改任何计数）。 */
+    pointsSync(): WeakPointEntry[] {
+        return Object.values(this.cache?.points ?? {});
+    }
+
     /** 错因分布（统计总览用：全部薄弱点 causes 按六键求和，降序）。 */
     causeDistSync(): { cause: WeakCause; n: number }[] {
         const sum = new Map<WeakCause, number>();
