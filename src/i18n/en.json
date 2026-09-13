@@ -741,5 +741,18 @@
   "aiStop": "Stop",
   "aiFlowStarted": "Started; you will be notified on completion — progress & Stop live in the AI sessions panel",
   "aiFlowBusy": "A background AI task is already running; wait or stop it from the AI sessions panel",
-  "aiFlowAborted": "Aborted (finished parts kept)"
+  "aiFlowAborted": "Aborted (finished parts kept)",
+  "relatedPreview": "Preview",
+  "relatedDrill": "Drill",
+  "relatedReview": "Review wrong",
+  "relatedAnalyze": "AI analysis",
+  "relatedAnalyzeHead": "AI analysis (full text is kept in the AI sessions panel)",
+  "relatedAnalyzeGroup": "Related questions analysis",
+  "relatedAnalyzeLoading": "Analyzing…",
+  "relatedAnalyzeFail": "Analysis failed: {msg}",
+  "relatedNoView": "Open a Wengu tab first, then use this action",
+  "reviewQidFilterBadge": "Related filter: {n} questions",
+  "reviewQidFilterHint": "Showing only the questions picked in the related-questions dialog; click “Show all” to clear",
+  "reviewQidFilterClear": "Show all",
+  "aiKindAnalyze": "Analyze"
 }

@@ -38,6 +38,8 @@ import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
 import { sideActFor } from "./flow/SideMount";
+import { relatedAccessFor } from "./flow/RelatedAccess";
+import type { RelatedViewAccess } from "../bank/ui/RelatedDialog";
 import { TimerController } from "./service/TimerController";
 import type { WenguDoc, WenguMaterial, WenguQuestion, WenguRevealMode } from "../types";
 
@@ -284,7 +286,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly enterPreviewMode = (): void => enterPreviewFor(this);
 
     /** 复习模式统一入口：右键文档预筛 / 统计 qid 定位 / 直入（统计面板先关）。 */
-    readonly enterReviewMode = (opt: { docId?: string; qid?: string }): void => enterReviewFor(this, opt);
+    readonly enterReviewMode = (opt: { docId?: string; qid?: string; qids?: string[] }): void =>
+        enterReviewFor(this, opt);
 
     /** 左栏工作区切换（刷题/学伴/专题/知识文档）；prefs 记住上次。 */
     readonly switchWorkspace = (ws: WenguWorkspace): void => {
@@ -468,6 +471,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly bankStore = (): QuestionBank | undefined => this.bank;
     readonly refreshCollections = (): void => void this.colFlow.refresh().then((): void => this.colFlow.refreshSide());
     readonly colFlowOf = (): CollectionFlow => this.colFlow;
+    /** 相关题弹窗的视图能力（Issue #44；实现体 see flow/RelatedAccess）。 */
+    readonly relatedAccessOf = (): RelatedViewAccess => relatedAccessFor(this);
     readonly convertingOf = (): boolean => this.convertAccess.converting;
     readonly setSideFilter = (text: string): void => void (this.sideFilter = text);
     readonly setSideCollapsed = (collapsed: boolean): void => {

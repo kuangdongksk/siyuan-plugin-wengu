@@ -741,5 +741,18 @@
   "aiStop": "停止",
   "aiFlowStarted": "已开始，完成后通知；进度与「停止」在 AI 会话面板",
   "aiFlowBusy": "已有一个后台 AI 任务在跑：等它完成，或到 AI 会话面板停止它",
-  "aiFlowAborted": "已中止（已产出部分保留）"
+  "aiFlowAborted": "已中止（已产出部分保留）",
+  "relatedPreview": "预览",
+  "relatedDrill": "开刷",
+  "relatedReview": "回顾错题",
+  "relatedAnalyze": "AI 分析",
+  "relatedAnalyzeHead": "AI 分析（可在「AI 会话」面板回看全文）",
+  "relatedAnalyzeGroup": "相关题分析",
+  "relatedAnalyzeLoading": "正在分析……",
+  "relatedAnalyzeFail": "分析失败：{msg}",
+  "relatedNoView": "刷题页签未打开：先打开温故页签再点此动作",
+  "reviewQidFilterBadge": "相关题筛选 {n} 题",
+  "reviewQidFilterHint": "只看相关题弹窗选中的那组题；点「查看全部」取消",
+  "reviewQidFilterClear": "查看全部",
+  "aiKindAnalyze": "分析"
 }

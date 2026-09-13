@@ -71,6 +71,16 @@ export function filterReviewDocFor(docId: string): void {
     reviewCtl.filterDoc(docId);
 }
 
+/** 相关题弹窗「回顾」：按 qid 集筛选错题（Issue #44）。 */
+export function filterReviewQidsFor(qids: string[]): void {
+    reviewCtl.filterQids(qids);
+}
+
+/** 清除 qid 集筛选（头部徽标一键取消）。 */
+export function clearReviewQidFilter(): void {
+    reviewCtl.clearQidFilter();
+}
+
 /** 统计面板「进错题本」/错题行点击的定位（切模式后由渲染消费）。 */
 export function selectReviewQid(qid: string): void {
     reviewCtl.selectQid(qid);

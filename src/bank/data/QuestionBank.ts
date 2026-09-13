@@ -85,7 +85,8 @@ export interface BankCollection {
     qids: string[];
     origin: "manual" | "knowledge";
     createdAt: number;
-    /** 活视图绑定（□3）：知识树节点主键（kp:{块id}）。缺省=死快照。 */
+    /** 活视图绑定（□3）：知识树节点主键（kp:{块id}）/ 相关题绑定的来源
+     *  文档（related:{docId}，Issue #44）。缺省=死快照（手动专题）。 */
     nodeKey?: string;
     /** 活视图刷新入参：节点子树引用键并集（含自身；questionsOf 读取时
      *  按 collectQids 口径重算 qids，题库变化自动回流）。 */
