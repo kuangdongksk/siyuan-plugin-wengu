@@ -5,6 +5,7 @@ import { seedWord } from "../../word/core/WordFsrs";
 import { notifyInfo } from "../../ui/Notify";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc } from "../../ui/shared";
+import { annoEnabled, pickAnnobarButtons, type BarPicks, type ViewMode } from "./AnnoScope";
 
 /**
  * 材料标注层（M5 线索标注 + E4 生词标记共用）：材料/题干文本里选中
@@ -30,6 +31,18 @@ import { esc } from "../../ui/shared";
  * 客户端）可能挂的全局捕获监听（清选区/吞事件）；② 按钮监听用
  * `pointerdown`（比 mousedown 更早，选区快照更稳）；③ 选区快照兜底
  * `lastSelText`——选区若在某层被清掉，仍能标上用户刚选的那段。
+ *
+ * **作用域闸（Issue #45，判定纯逻辑在 flow/AnnoScope，带单测）**：
+ * ① 模式闸——标注是做题功能，**只有 quiz 模式**出条（预览/复习/学习
+ * 零浮条；切模式由 QuizView.hideAnnobar 立即收条，见下 `annoEnabled`）；
+ * ② 标生词——生词本是英语功能，按**卷级**判（该卷题型并集含英语四类
+ * 任一，见 isEnglishTypes）：「英语阅读也是 single、数学单选也是 single」
+ * 题级判不开，只能看卷；归属按**选区起点所在卡**反查源卷——组题的材料
+ * 面板不在任何 `.wengu-card` 里，按组内可见卡反查（annoOwnerQid，英语
+ * 阅读/完形的正文就在那片区域）；反查失败宁可不出现（宁缺勿错）。卷级
+ * 判定结果按题集缓存在 service/AnnoScopeCtl，由 QuizView 在装载/切题集/
+ * 切模式时清理（selectionchange 高频回调里不 await 查库）。
+ * 两钮都不出 ⇒ 浮条整体不出现（不出空条）。
  */
 
 /** 标注层回调（QuizView 组装：线索进会话，生词进背单词）。 */
@@ -40,6 +53,11 @@ export interface AnnoCallbacks {
     onMarkClue(text: string, anchorEl?: HTMLElement | null): void;
     /** 收一个生词（检索命中即入本；查无此词只通知，见 markWord）。 */
     wordStore?: { get(): Promise<WenguWordProgress>; save(p: WenguWordProgress): Promise<unknown> };
+    /** 视图模式（Issue #45 模式闸：只有 "quiz" 放行），拉取式取当前值。 */
+    mode(): ViewMode;
+    /** 选区起点所在卷是否英语卷（Issue #45 卷级判定；反查失败返回
+     *  false=不放行标生词）。实现体做按卷缓存，selectionchange 里不查库。 */
+    isEnglishDoc(anchorEl: HTMLElement | null): boolean;
 }
 
 let bar: HTMLElement | undefined;
@@ -90,6 +108,12 @@ export function isCluableNode(node: Node | null | undefined): boolean {
 }
 
 function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
+    // 模式闸**首查**（Issue #45）：标注是做题功能——预览/复习/学习下选段
+    // 一律不出条，连选区都不必读（宿主里那些模式下根本没有可标内容）。
+    if (!annoEnabled(cb.mode())) {
+        hideBar();
+        return;
+    }
     const sel = document.getSelection();
     const text = sel?.toString().trim() ?? "";
     if (
@@ -110,16 +134,26 @@ function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
     // 快照当前选区文本：按钮监听里选区被清时用它兜底（#4）
     lastSelText = text;
     // 分流只看**选区起点**（拖选方向不定，起点决定用户从哪片区域拉起）；
-    // anchor 在控件/浮层里（不可选区）不出现「标为线索」
-    const cluable = isCluableNode(sel.anchorNode);
-    getBar(cb, cluable).style.left =
-        `${Math.max(8, Math.min(window.innerWidth - 220, rect.left + rect.width / 2 - 100))}px`;
-    getBar(cb, cluable).style.top = `${Math.max(8, rect.top - 40)}px`;
+    // anchor 在控件/浮层里（不可选区）不出现「标为线索」；卷级判定同样
+    // 按起点所在卡反查（聚合混合刷各卡按各自源卷）
+    const anchorEl = sel.anchorNode instanceof HTMLElement ? sel.anchorNode : (sel.anchorNode?.parentElement ?? null);
+    const picks = pickAnnobarButtons({
+        mode: cb.mode(), // 上面已首查，这里带上让判定保持唯一出口（单测锁死）
+        isCluable: isCluableNode(sel.anchorNode),
+        english: cb.isEnglishDoc(anchorEl),
+    });
+    if (!picks.show) {
+        hideBar(); // 两钮都不出=空条，整体不出现（非英语卷在解析区选段即此）
+        return;
+    }
+    const el = getBar(cb, picks);
+    el.style.left = `${Math.max(8, Math.min(window.innerWidth - 220, rect.left + rect.width / 2 - 100))}px`;
+    el.style.top = `${Math.max(8, rect.top - 40)}px`;
 }
 
-function getBar(cb: AnnoCallbacks, cluable: boolean): HTMLElement {
+function getBar(cb: AnnoCallbacks, picks: BarPicks): HTMLElement {
     if (bar?.isConnected) {
-        bar.replaceChildren(...barChildren(cb, cluable));
+        bar.replaceChildren(...barChildren(cb, picks));
         return bar;
     }
     bar = document.createElement("div");
@@ -129,15 +163,15 @@ function getBar(cb: AnnoCallbacks, cluable: boolean): HTMLElement {
     // 冒泡到它就会在按钮监听前把选区清掉——表现为「点了没反应」。
     bar.addEventListener("mousedown", (ev) => ev.stopPropagation(), true);
     document.body.appendChild(bar);
-    bar.replaceChildren(...barChildren(cb, cluable));
+    bar.replaceChildren(...barChildren(cb, picks));
     return bar;
 }
 
-function barChildren(cb: AnnoCallbacks, cluable: boolean): HTMLElement[] {
+function barChildren(cb: AnnoCallbacks, picks: BarPicks): HTMLElement[] {
     const buttons: HTMLElement[] = [];
     /** 按钮按下的统一取词：选区在（优先）→ 快照兜底（#4）。 */
     const pickText = (): string => document.getSelection()?.toString().trim() || lastSelText;
-    if (cluable) {
+    if (picks.clue) {
         const clue = document.createElement("button");
         clue.className = "wengu-annobar-btn";
         clue.innerHTML = `${svgIcon("iconInfo")} ${esc(cb.t("clueMark"))}`;
@@ -154,16 +188,18 @@ function barChildren(cb: AnnoCallbacks, cluable: boolean): HTMLElement[] {
         });
         buttons.push(clue);
     }
-    const word = document.createElement("button");
-    word.className = "wengu-annobar-btn";
-    word.innerHTML = `${svgIcon("iconList")} ${esc(cb.t("wordMark"))}`;
-    word.addEventListener("pointerdown", (ev) => {
-        ev.preventDefault();
-        const text = pickText();
-        hideBar();
-        if (text) void markWord(text, cb);
-    });
-    buttons.push(word);
+    if (picks.word) {
+        const word = document.createElement("button");
+        word.className = "wengu-annobar-btn";
+        word.innerHTML = `${svgIcon("iconList")} ${esc(cb.t("wordMark"))}`;
+        word.addEventListener("pointerdown", (ev) => {
+            ev.preventDefault();
+            const text = pickText();
+            hideBar();
+            if (text) void markWord(text, cb);
+        });
+        buttons.push(word);
+    }
     return buttons;
 }
 

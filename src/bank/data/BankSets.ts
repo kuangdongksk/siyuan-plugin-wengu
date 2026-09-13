@@ -5,7 +5,7 @@ import { KernelBlock } from "../../siyuan/block";
 import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
 import { parseQuestionKramdown, parseMaterialKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
-import type { QuestionBank, BankSet } from "./QuestionBank";
+import type { BankData, QuestionBank, BankSet } from "./QuestionBank";
 import type { SrcGroup } from "../../convert/service/source/SrcChunk";
 import type { WenguDoc, WenguMaterial } from "../../types";
 
@@ -53,17 +53,32 @@ export async function orderedSetIds(bank: QuestionBank): Promise<string[]> {
     return Object.keys((await bank.all()).sets ?? {});
 }
 
-/** 题集既有记录的题型并集（20260910 生成 prompt 题型化）：增量补生成/
- *  续跑跳过前置检测时，用题集先验代替 AI 检测（零 AI 调用）；空集=
- *  无先验，调用方回退全题型。 */
-export async function setTypeUnion(bank: QuestionBank, setId: string): Promise<QuestionType[]> {
-    const data = await bank.all();
+/** 题型并集的**唯一计算体**（异步版与同步窥视版同源，口径不许分叉）：
+ *  题集题单序 + normalizeType 过滤 + 去重。 */
+function typeUnionOf(data: BankData | undefined, setId: string): QuestionType[] {
+    if (!data || !setId) return [];
     const out: QuestionType[] = [];
     for (const qid of data.sets?.[setId]?.qids ?? []) {
         const t = normalizeType(data.records[qid]?.type);
         if (t && !out.includes(t)) out.push(t);
     }
     return out;
+}
+
+/** 题集既有记录的题型并集（20260910 生成 prompt 题型化）：增量补生成/
+ *  续跑跳过前置检测时，用题集先验代替 AI 检测（零 AI 调用）；空集=
+ *  无先验，调用方回退全题型。 */
+export async function setTypeUnion(bank: QuestionBank, setId: string): Promise<QuestionType[]> {
+    return typeUnionOf(await bank.all(), setId);
+}
+
+/** 卷级题型并集的**同步窥视版**（Issue #45 标生词的卷级英语判定用）：
+ *  判定是选段回调里的高频同步路径（浮条要当场决定出不出现），不能
+ *  await——只看已装载缓存（`bank.peek()`），题目未装载时返回空集=
+ *  调用方按「非英语」收口（宁缺勿错），随后走 setTypeUnion 异步补正。
+ *  与 setTypeUnion 共用 `typeUnionOf`，口径不分叉。 */
+export function peekSetTypeUnion(bank: QuestionBank, setId: string): QuestionType[] {
+    return typeUnionOf(bank.peek(), setId);
 }
 
 /** 全部题集聚合题目（聚合专题刷题列表；空题集自然无贡献）。 */
