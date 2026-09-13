@@ -13,6 +13,7 @@ import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
 import { parseQuestionKramdown } from "../data/BankParse";
 import { recordOf, replaceRecordKramdown } from "../data/BankRegen";
+import { badMarkedQids, markBad } from "../data/BadMark";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
 import { KernelBlock } from "../../siyuan/block";
@@ -49,6 +50,9 @@ export function bindCardActions(
         bank?: QuestionBank;
         modelId(): string;
         reload(): void;
+        /** 卡头「标记为错题」开关（Issue #46；预览模式两态切换，实现体
+         *  在 quiz/flow/BadMarkFlow——本模块不依赖视图）。 */
+        toggleBadMark?(qid: string): void;
     }
 ): void {
     el.addEventListener("click", (ev) => {
@@ -56,6 +60,13 @@ export function bindCardActions(
         const ref = target.closest<HTMLElement>("[data-type='block-ref']")?.dataset.id;
         if (ref) {
             window.open(`siyuan://blocks/${ref}`);
+            return;
+        }
+        // 「标记为错题」（Issue #46）：与 regen 钮同机制（卡 qid 反查），
+        // 不做 openRegenDialog——两态切换，视图侧刷新回灌新态
+        if (target.closest("[data-act='badmark']")) {
+            const qid = target.closest<HTMLElement>(".wengu-card")?.dataset.qid ?? "";
+            if (qid) deps.toggleBadMark?.(qid);
             return;
         }
         if (!target.closest("[data-act='regen']")) return;
@@ -212,5 +223,38 @@ export async function regenRecords(deps: RegenDeps, qids: string[], stop: AiAbor
     }
     notifyInfo({ key: "regenBatchDone", vars: { n: String(ok) } });
     deps.onDone();
+    return ok;
+}
+
+/**
+ * 批量重转「标记为错题」（Issue #46，预览模式顶部入口）：跨卷全局收集标记
+ * 题 → 复用 regenRecords 逐题串行重出（单飞闸/进度与停止/失败通知全在既有
+ * 通道，零新账）→ **成功重转的题自动清标记**（失败的保留，用户可再转）。
+ * 返回成功数；供预览头钮经 launchAiFlow 调起。
+ *
+ * 与单题「重新生成」弹窗并发靠 regenRecords 内既有 regenInFlight 防重入
+ * （在飞的题被跳过，标记保留——不会「没重转却清了标记」）。
+ *
+ * ⚠️ 两次刷新的次序有意为之：regenRecords 尾调 deps.onDone 时标记**尚未
+ * 清**——若视图那时自行 flush（渲染前落盘），会把「已重转但仍带标记」的
+ * 记录写下去（重开页签标记复活）。故本函数在它之后再清标记 + 显式 flush，
+ * **flush 完成后**才发最终刷新：新内容与已清标记一起可见。
+ */
+export async function regenBadMarkedRecords(deps: RegenDeps, stop: AiAbort): Promise<number> {
+    const qids = await badMarkedQids(deps.bank);
+    if (qids.length === 0) {
+        notifyInfo({ key: "regenBadNone" });
+        return 0;
+    }
+    const ok = await regenRecords(deps, qids, stop);
+    // 清标记：成功重转过的（含被驳回的题）——重出已换掉内容，标记不再适用；
+    // 被 regenInFlight 跳过或被中止的保留标记，待下一轮
+    let cleared = 0;
+    for (const qid of qids) {
+        if (stop.signal.aborted) break;
+        if (await markBad(deps.bank, qid, false)) cleared++;
+    }
+    if (cleared > 0) await deps.bank.flush(); // 标记落盘先于刷新（防旧态被读回）
+    deps.onDone(); // 最终刷新：新内容 + 已清标记一起可见
     return ok;
 }

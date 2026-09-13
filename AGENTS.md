@@ -771,9 +771,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   （三类题卡+材料组壳逐单元 mount）、6-4b 作答态收敛（三写统一进卡内 CardUi 响应态）、
   6-5 侧栏/头部壳（SidePanelApp/QuizHeadApp，2026-08-31，quiz 域收官）。组件零
   `<style>`，类名与迁移前逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
-- **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 基线豁免 574 行——20260826
-  预览改版至 20260903 聚合/组链修复持续增长，访问器表+编排职责外移破坏内聚，改动它
-  前后注意别再净增；见迁移文档 6-5 节与 20260903 审查）。界面规范见
+- **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 基线豁免 579 行——20260826
+  预览改版至 20260913 相关题/标注闸/错题标记持续增长，访问器表+编排职责外移破坏内聚，
+  改动它前后注意别再净增；Issue #46 的三个访问器实现体外移
+  `service/BadMarkRegen` 即此口径的又一次实践；见迁移文档 6-5 节与 20260903 审查）。界面规范见
   `docs/design-review.md §〇`（图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml
   行样式）。
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器

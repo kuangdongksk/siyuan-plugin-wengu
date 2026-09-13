@@ -44,6 +44,7 @@
         ctx,
         host,
         hidden = false,
+        badMarked = false,
     }: {
         q: WenguQuestion;
         idx: number;
@@ -52,6 +53,8 @@
         host: AnswerHost;
         /** 材料组内非当前题初始隐藏（组导航切换）。 */
         hidden?: boolean;
+        /** 预览模式「标记为错题」初值（Issue #46；非预览恒 false=不出钮）。 */
+        badMarked?: boolean;
     } = $props();
 
     // 快照语义：props（题目/开关/恢复源）整壳重建才变=卸载重挂（NumRail 同款）
@@ -120,6 +123,22 @@
         <Button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title={t("regenTitle")}>
             {@html svgIcon("iconRefresh")}
         </Button>
+        <!-- 预览模式专属「标记为错题」（Issue #46）：语义=题目本身出错/生成
+             质量差，待批量重转——**不是**错题本的「作答错误」。两态：点击
+             标记并高亮，已标记再点取消；点击由 bindCardActions 的
+             [data-act='badmark'] 分支处理（与 regen 钮同机制，组件不持状态，
+             标记态由视图刷新回灌） -->
+        {#if m.preview}
+            <Button
+                variant="outline"
+                class="wengu-side-iconbtn wengu-badmark-btn{badMarked ? ' wengu-badmark-on' : ''}"
+                data-act="badmark"
+                data-marked={badMarked ? "1" : undefined}
+                title={badMarked ? t("badMarkCancelTitle") : t("badMarkTitle")}
+            >
+                {@html svgIcon("iconExclamation")}
+            </Button>
+        {/if}
     </div>
 {/snippet}
 

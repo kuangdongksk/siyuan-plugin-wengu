@@ -110,6 +110,34 @@
   visibility: hidden;
 }
 
+/* 卡头「标记为错题」（Issue #46）：两态——已标记=警示色高亮（on/data-marked
+   同时给，兜底样式选择器与 data 查询各取所需），未标记=与 regen 钮同款的
+   中性图标钮（.wengu-side-iconbtn 提供基底） */
+.wengu-side-iconbtn.wengu-badmark-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.wengu-badmark-btn.wengu-badmark-on,
+.wengu-badmark-btn[data-marked="1"] {
+  color: var(--b3-theme-error);
+  background: var(--b3-theme-error-surface, var(--b3-theme-background-light));
+}
+
+.wengu-badmark-btn.wengu-badmark-on:hover,
+.wengu-badmark-btn[data-marked="1"]:hover {
+  color: var(--b3-theme-error);
+  background: var(--b3-theme-error-surface, var(--b3-theme-background-light));
+  opacity: 0.85;
+}
+
+/* 头部「重转错题(N)」（Issue #46）：预览模式且有标记才渲染，N=0 不出钮 */
+.wengu-regen-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* 轻提示浮层（复制结果，右下角自散） */
 .wengu-pv-toast {
   position: fixed;

@@ -33,17 +33,28 @@ export function detachCardApps(): void {
 }
 
 /** 挂载一个渲染单元到容器尾（静态分片管线逐片调用）。
- *  单元渲染失败给占位卡，不拖垮整个列表（旧 tryCard 同策）。 */
+ *  单元渲染失败给占位卡，不拖垮整个列表（旧 tryCard 同策）。
+ *  badMarks（Issue #46）= 已标记为错题的 qid 清单，逐卡回灌标记钮初态。 */
 export function mountDrillUnit(
     container: HTMLElement,
     u: DrillUnit,
     m: CardHtmlModel,
     ctx: CardInitCtx,
-    host: AnswerHost
+    host: AnswerHost,
+    badMarks: string[] = []
 ): void {
     try {
         if (u.kind === "single") {
-            apps.push(mountSvelteApp(QuizCardApp, container, { q: u.q!, idx: u.idx!, m, ctx, host }));
+            apps.push(
+                mountSvelteApp(QuizCardApp, container, {
+                    q: u.q!,
+                    idx: u.idx!,
+                    m,
+                    ctx,
+                    host,
+                    badMarked: badMarks.includes(u.q!.id),
+                })
+            );
         } else {
             apps.push(
                 mountSvelteApp(GroupUnitApp, container, {
@@ -55,6 +66,7 @@ export function mountDrillUnit(
                     ctx,
                     host,
                     onActive: (idx: number): void => host.onActiveQ?.(idx),
+                    badMarks,
                 })
             );
         }

@@ -82,7 +82,17 @@ function previewToolbarHtml(t: (k: string) => string, count: number): string {
  *  ①有源讲义（set.srcId）→ 跳源讲义；②存量块题（qid=内核块 id）→
  *  维持跳原块；③都无 → 不渲染该钮（不出死钮）。
  *  渲染门控与点击跳转同走 originTargetOf（唯一判据，不复制第二份），
- *  点击时异步查库、渲染期按判据决定出不出钮。 */
+ *  点击时异步查库、渲染期按判据决定出不出钮。
+ *
+ *  ⚠️ **三处清理面与本钮的关系（Issue #46 新增钮必查）**：
+ *  ①本函数的摘行名单（[data-submit-row]/[data-act='submit']/… 作答件）
+ *    **不碰卡头**——「标记为错题」与 regen 钮同处卡头，不被当提交行摘掉；
+ *  ②`wengu-previewing` 的 pointer-events 名单（渐进呈现）同样只屏蔽作答
+ *    位，卡头两钮照常可点；
+ *  ③DOM 手术清单：卡头只做**追加**（本函数 beforeend 插复制/查看原文钮），
+ *    无整体重写——逐题重转后视图重渲染整壳重建，标记钮随组件重新渲染，
+ *    不会残留旧态。
+ *  故新增标记钮无需改动上述任何名单（逐一确认过，而非默认无事）。 */
 async function decorateOneCard(
     card: HTMLElement,
     q: WenguQuestion,

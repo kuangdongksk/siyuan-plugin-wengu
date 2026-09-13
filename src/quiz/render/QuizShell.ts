@@ -14,6 +14,7 @@ import { focusQuestion } from "../flow/MaterialFlow";
 import { refreshAllClueMarks } from "../flow/ClueFlow";
 import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
+import { badMarkedQids } from "../../bank/data/BadMark";
 import { detachRoundReport } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { detachRail, mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
@@ -33,23 +34,35 @@ import { esc, fmt, yieldToBrowser } from "../../ui/shared";
  *  兜底。6-4b 起已答恢复收敛进题卡初始态（buildCardInit 恢复源由
  *  renderStaticChunked 挂第一张卡前一次算好）——renderList 是整壳
  *  innerHTML 重建（收起目录/设置变更/切工作区/继续上轮全走它），
- *  恢复态随组件挂载自然回位，无需落幕统一恢复。 */
+ *  恢复态随组件挂载自然回位，无需落幕统一恢复。
+ *  ⚠️ renderQuizShellFor 现在 **async**（Issue #46 起预览要 await 查库
+ *  取标记清单）：同步段抛错变成 rejected Promise，try/catch 接不住——
+ *  错误兜底挂 .catch（另同步的 renderTask 赋值仍可在 try 内）。 */
 export function renderListFor(v: QuizView): void {
     v.el.classList.add("wengu-panel");
     try {
-        v.renderTask = renderQuizShellFor(v); // 手动收卷揭示等分片就绪（revealAnsweredNow）
+        const task = renderQuizShellFor(v);
+        v.renderTask = task; // 手动收卷揭示等分片就绪（revealAnsweredNow）
+        void task.catch((e: unknown) => renderErrorFallback(v, e));
     } catch (e) {
-        v.protyleHost.destroyAll(v.el);
-        v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-head"></div>
-    <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(errText(e))}</div>`;
-        mountRailFor(v); // 错误兜底 rail 一并挂载（旧路径渲染了 rail 却漏绑事件，顺修）
+        renderErrorFallback(v, e);
     }
 }
 
-/** renderListInner 主体（QuizView.renderList 调；错误兜底留在视图）。
- *  静态路径（题库/长卷）返回「题卡全部就绪」的 Promise——预览装饰等
- *  收尾须等它；其余路径同步完成返回 undefined。 */
-export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
+/** 整壳渲染失败的兜底壳（原 try/catch 体，async 化后由 .catch 复用）。 */
+function renderErrorFallback(v: QuizView, e: unknown): void {
+    v.protyleHost.destroyAll(v.el);
+    v.el.innerHTML = `${RAIL_ANCHOR_HTML}<div class="wengu-head"></div>
+    <div class="wengu-status wengu-status-err">${esc(v.t("loadFailed"))}${esc(errText(e))}</div>`;
+    mountRailFor(v); // 错误兜底 rail 一并挂载（旧路径渲染了 rail 却漏绑事件，顺修）
+}
+
+/** renderListInner 主体（QuizView.renderList 调；错误兜底留在视图——
+ *  本函数现为 async，同步段抛错会走 rejected Promise，**不再能被
+ *  renderListFor 的 try/catch 接住**，故整壳渲染段旧有的意外一律重抛：
+ *  renderListFor 侧改挂 .catch 兜底（与静态路径「题卡渲染失败返回
+ *  false」的既有模式同款，不依赖 await）。 */
+export async function renderQuizShellFor(v: QuizView): Promise<void> {
     v.protyleHost.destroyAll(v.el);
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
     detachCompanionPanel(); // Svelte 面板先卸再挂（防实例滞留，同 statsPanel 位）
@@ -95,7 +108,12 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         showAttempts: v.settings?.showAttempts !== false,
         // 预览不透历史对错（题号/徽标/描色全中性，保密）
         showWrongBadge: !pv && v.settings?.showWrong !== false && v.revealMode !== "after",
+        // 「标记为错题」钮只在预览模式渲染（Issue #46；做题模式不加）
+        preview: pv,
     };
+    // 已标记为错题的 qid 清单（Issue #46；跨卷全局收集，卡头标记钮初态
+    // 回灌；非预览不查库——做题模式没有这个钮）
+    const badMarks = pv && v.bankStore() ? await badMarkedQids(v.bankStore()!) : [];
     // 渲染路径：全量静态（20260830 起内嵌 Protyle 轨退役）——无内核
     // 请求、无 N 个 Protyle 实例。静态路径「视口优先」：壳先落（题卡
     // 列表空）、单元逐片插入+绑定+填充，消灭整壳一次性解析的冻结；
@@ -144,7 +162,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     mountSideFor(sideQuizAccess(v), "drill");
     mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv, v.revealMode === "after");
     v.timerBinder.updateLabel();
-    const task = renderStaticChunked(v, cardModel, setGroups);
+    const task = renderStaticChunked(v, cardModel, setGroups, badMarks);
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
     // 卡）；stale 放弃的批次不装饰——新批次自己会装饰，旧批次补挂会
     // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
@@ -168,7 +186,13 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
  * 分片以 locked=true 初始态直锁。代数变更（整壳重建）或中途异常
  * resolve false，收尾方据此跳过预览装饰等后续。setGroups 非单段时
  * 在每段首单元前插题集标题行（多集合刷的正文分组）。 */
-async function renderStaticChunked(v: QuizView, m: CardHtmlModel, setGroups: SetGroup[]): Promise<boolean> {
+async function renderStaticChunked(
+    v: QuizView,
+    m: CardHtmlModel,
+    setGroups: SetGroup[],
+    /** 已标记为错题的 qid 清单（Issue #46；非预览恒空）。 */
+    badMarks: string[] = []
+): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
     if (!container) return false;
     const showHeads = setGroups.length > 1;
@@ -212,7 +236,7 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel, setGroups: Set
                 const g = start >= 0 ? headAt.get(start) : undefined;
                 if (g) container.insertAdjacentHTML("beforeend", setHeadHtml(g, v.t));
             }
-            mountDrillUnit(container, u, m, ctx, v); // 组件根追加到容器尾（恢复/作答态随挂载就位）
+            mountDrillUnit(container, u, m, ctx, v, badMarks); // 组件根追加到容器尾（恢复/作答态随挂载就位）
             done += nodesOf(u);
             if (counter) counter.textContent = `${done}/${total}`;
         }
@@ -260,6 +284,10 @@ function sideQuizAccess(v: QuizView): import("../flow/SideMount").SideViewAccess
     return {
         el: v.el,
         t: v.t,
+        // 预览头部「批量重转标记的错题(N)」闸与徽标（Issue #46；
+        // 非预览恒 false/0=不出钮）
+        previewingOf: () => v.mode === "preview",
+        badMarkCountOf: () => v.badMarkCountOf(),
         docsOf: () => v.docs,
         docIdOf: () => v.docId,
         sideCollapsedOf: () => v.sideCollapsed,

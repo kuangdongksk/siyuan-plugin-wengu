@@ -19,6 +19,8 @@ export interface SideActAccess {
     colFlowOf(): CollectionFlow;
     setSideCollapsed(collapsed: boolean): void;
     endRound(): void;
+    /** 预览头部「批量重转标记的错题」（Issue #46）。 */
+    regenBadMarked(): void;
 }
 
 /** sideAct 工厂（QuizView.sideAct 的实现体，拆出压 index.ts 行数）。 */
@@ -46,6 +48,9 @@ export function sideActFor(v: SideActAccess): (act: string) => void {
             case "end-round":
                 v.endRound();
                 break;
+            case "regen-bad":
+                v.regenBadMarked();
+                break;
         }
     };
 }
@@ -66,6 +71,10 @@ export function sideActFor(v: SideActAccess): (act: string) => void {
 
 export interface SideViewAccess {
     readonly el: HTMLElement;
+    /** 预览模式（头部「批量重转标记的错题」钮的渲染闸）。 */
+    previewingOf(): boolean;
+    /** 已标记为错题的题数（跨卷全局；0=不显示该钮）。 */
+    badMarkCountOf(): number;
     t(key: string): string;
     docsOf(): WenguDoc[];
     docIdOf(): string;
@@ -144,6 +153,9 @@ export function mountHeadFor(
         // after 模式收卷＝交卷看答案（用户唯一能结束编辑窗口的入口）
         endRoundLabel: afterMode ? "endRoundRevealBtn" : "endRoundBtn",
         showFinishHint: canEndRound && afterMode,
+        // 预览头部「批量重转标记的错题(N)」（Issue #46；N=0 不显示）
+        showRegenBad: v.previewingOf() && v.badMarkCountOf() > 0,
+        badMarkCount: v.badMarkCountOf(),
         onAct: (act: string) => v.sideAct(act),
     });
 }

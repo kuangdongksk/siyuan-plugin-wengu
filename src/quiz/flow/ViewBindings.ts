@@ -3,6 +3,7 @@ import { bindCardActions } from "../../bank/ui/RegenDialog";
 import { livingSourceOf } from "../service/DocOps";
 import { bindAnnotationLayer, type AnnoCallbacks } from "./AnnoFlow";
 import { addClue, bindClueJudge } from "./ClueFlow";
+import { toggleBadMark } from "./BadMarkFlow";
 import type { QuizView } from "../index";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 
@@ -31,6 +32,8 @@ export function bindViewFrameFor(
         bank,
         modelId: v.aiModelId,
         reload,
+        // 卡头「标记为错题」两态切换（Issue #46；预览模式专属）
+        toggleBadMark: (qid) => void toggleBadMark(v, qid),
     });
     const cleanup = bindAnnotationLayer(v.el, {
         t: v.t,

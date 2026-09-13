@@ -14,4 +14,7 @@ export interface CardHtmlModel {
     t: (key: string) => string;
     showAttempts: boolean;
     showWrongBadge: boolean;
+    /** 预览模式（Issue #46）：卡头「标记为错题」钮只在预览下渲染
+     *  （做题模式不加）。缺省 undefined=非预览。 */
+    preview?: boolean;
 }
