@@ -52,9 +52,16 @@ export const SUP_SELECTOR = ".wengu-gloss-sup";
 
 /** 收集某标记元素下的文本节点（跳过 SKIP_SELECTOR 子树）。
  *
- *  ⚠️ 这里对文本节点回 `FILTER_REJECT` 与 `FILTER_SKIP` **等价**：
- *  `SHOW_TEXT` 下 `acceptNode` 只会收到文本节点，而 REJECT 的「连子树
- *  一起拒」语义只对**元素**成立（对非元素节点两者同义），故不必改。 */
+ *  ⚠️ **真根因（Issue #51）：SKIP_SELECTOR 里的 `.wengu-gloss-link` 把
+ *  联动词形整片排除出了匹配文本源**——`<u>` 包的就是原文本身，haystack
+ *  里少了这几个字，含联动词的选段子串匹配必败（偏移缺失只发生在 link 处，
+ *  故 link **之前**的线索仍能高亮=「缺一段」）。修法是把它移出
+ *  SKIP_SELECTOR，**不是**改 walker 的 filter：曾经「REJECT 对文本节点仍
+ *  进子树 ⇒ 同一原文占两遍、偏移错位」的说法不成立，在 SHOW_TEXT 下
+ *  `acceptNode` 只会收到文本节点、文本节点没有子树，两者等价。
+ *
+ *  REJECT→SKIP 的保留只是**防御性口径**：与 SKIP 语义等价（文本节点无
+ *  子树），防未来 whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒。 */
 function textNodesOf(root: HTMLElement): Text[] {
     const out: Text[] = [];
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {

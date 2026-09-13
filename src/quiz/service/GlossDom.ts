@@ -49,7 +49,14 @@ export function clearGlossLinks(root: HTMLElement): void {
     }
 }
 
-/** 收集参与词形匹配的文本节点（跳过线索 mark/脚本/词表自身）。 */
+/** 收集参与词形匹配的文本节点（跳过线索 mark/脚本/词表自身）。
+ *
+ *  ⚠️ **跳过口径直接决定匹配文本源**（Issue #51 同款教训）：SKIP_INNER 多
+ *  写一个类 = 该类文本从匹配源消失、选段子串匹配随之静默失败——两侧
+ *  `textNodesOf` 的跳表都别顺手加类。
+ *  `FILTER_REJECT` 与 `FILTER_SKIP` 在 `SHOW_TEXT` 下**等价**（acceptNode
+ *  只收到文本节点，文本节点无子树），这里用 REJECT 只是防御性写法：防未来
+ *  whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒。 */
 function textNodesOf(root: HTMLElement): Text[] {
     const out: Text[] = [];
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {

@@ -261,12 +261,20 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       `applyClueMarks` 落格循环按 `SUP_SELECTOR` 挡「不许被包」——上标不包
       mark，`<u>` 内的词本身照常出 mark。即 **mark 可进 `<u>`、词表永不包
       mark**，嵌套只单向发生。
-    - ⚠️ **两个 `textNodesOf` 的 `FILTER_REJECT` 不必改**（Issue #51 实测
-      澄清）：`SHOW_TEXT` 下 `acceptNode` 只会收到文本节点，而 REJECT 的
-      「连子树一起拒」语义只对**元素**成立、对非元素节点与 SKIP 同义——
-      jsdom 26 与 linkedom 0.18 双引擎实测两者产出的节点表**逐字节相同**
-      （含「跳过容器内既有直接文本节点、又有嵌套元素」的判别场景）。
-      别照搬「REJECT 会漏进子树导致偏移双计」的说法，它不是本条缺陷的成因。
+    - ⚠️ **跳过口径直接决定匹配文本源**（Issue #51 真根因）：`SKIP_SELECTOR`
+      多排除一个类 = 该类文本从匹配源消失——`textNodesOf` 的 haystack 少了
+      那几个字，含它的选段子串匹配必败、静默降级只留 chip。本次缺陷即
+      `.wengu-gloss-link` 混进跳表（`<u>` 包的就是原文本身）。偏移缺失只
+      发生在被排除处、之前的内容照常高亮=「缺一段」（与「同一原文占两遍、
+      偏移错位」的假说方向相反，**该假说已被证伪**，别照搬）。两侧
+      `textNodesOf` 的跳表都别顺手加类。
+    - ⚠️ **REJECT/SKIP 对 `SHOW_TEXT` 的文本节点等价**：`createTreeWalker`
+      的 filter **只对通过 whatToShow 的节点调用**（SHOW_TEXT ⇒ 只有文本
+      节点），而 REJECT 的「连子树一起拒」语义只对**元素**成立——文本节点
+      没有子树，故与 SKIP 行为完全等价（jsdom 26 与 linkedom 0.18 双引擎
+      实测节点表逐字节相同）。生产代码保留 REJECT 只是**防御性口径**：防未来
+      whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒；它从来不是
+      本条缺陷的成因，改它（REJECT→SKIP）是 no-op。
     - 挂载顺序固定「词表 → 线索」（两处调用点同款）；两侧都幂等（先摘旧标记
       再重铺）。带词的 `applyGloss` 整段重铺会连带抹掉线上 mark，**靠既有
       「材料填充后 refreshClueMarks」时机重铺，别加新通道**。
