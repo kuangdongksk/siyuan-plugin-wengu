@@ -473,7 +473,6 @@ export default class WenguPlugin extends Plugin {
             bank: this.bank(),
             history: this.history(),
             weakness: this.weakness(),
-            storage: { load: () => this.loadData("quiz"), save: (v) => this.saveData("quiz", v) },
             settings: this.settings,
         });
         drillUnmount = mounted.unmount;

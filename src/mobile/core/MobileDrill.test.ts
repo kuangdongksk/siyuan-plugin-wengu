@@ -247,6 +247,80 @@ describe("错题再练一轮", () => {
     });
 });
 
+describe("作答形态分派（answerKindOf 唯一判据）", () => {
+    it("填空题可提交并即时判分（改造前无作答位、提交无反应）", async () => {
+        const fill = q("f", { type: QuestionType.Fill, answer: "42", optionMd: [] });
+        const { drill, calls } = armed({ questions: [fill] });
+        drill.setMine(" 42 ");
+        await drill.submit();
+        expect(drill.ui.cards[0].graded).toBe(true);
+        expect(drill.ui.cards[0].revealed).toBe(true);
+        expect(drill.ui.cards[0].ok).toBe(true);
+        expect(calls[0]).toMatchObject({ kind: "first", qid: "f", ok: true });
+    });
+
+    it("填空题空提交不记账（noAnswer 提示）", async () => {
+        const fill = q("f", { type: QuestionType.Fill, answer: "42", optionMd: [] });
+        const { drill, calls } = armed({ questions: [fill] });
+        await drill.submit();
+        expect(drill.ui.cards[0].graded).toBe(false);
+        expect(calls).toHaveLength(0);
+    });
+
+    it("逐空题不给作答位：提交只提示、零记账零揭示", async () => {
+        const cloze = q("z", {
+            type: QuestionType.Cloze,
+            answer: "B",
+            optionMd: [],
+            slots: [{ optionMd: ["甲", "乙"], answer: "B" }],
+        });
+        const { drill, calls } = armed({ questions: [cloze] });
+        await drill.submit();
+        expect(drill.ui.cards[0].resultText).toBe("mobileSlotsDesktopOnly");
+        expect(drill.ui.cards[0].graded).toBe(false);
+        expect(drill.ui.cards[0].revealed).toBe(false);
+        expect(calls).toHaveLength(0);
+        // 「不会」同口径：不把整题记成一笔空串（逐空记账是 qid#k）
+        drill.dunno();
+        expect(calls).toHaveLength(0);
+        expect(drill.ui.session?.results).toHaveLength(0);
+    });
+
+    it("无题型兜底题：即时揭示露自评、先不记账；自评才落账", async () => {
+        const plain = q("p", { type: undefined, answer: undefined, optionMd: [] });
+        const { drill, calls } = armed({ questions: [plain] });
+        await drill.submit();
+        expect(drill.ui.cards[0].revealed).toBe(true);
+        expect(drill.ui.cards[0].selfOn).toBe(true);
+        expect(drill.ui.session?.results).toHaveLength(0);
+        expect(calls).toHaveLength(0);
+        drill.selfAssess(true);
+        expect(drill.ui.session?.results).toHaveLength(1);
+    });
+
+    it("收卷模式下兜底题只置已答（不提前揭示）", async () => {
+        const plain = q("p", { type: undefined, answer: undefined, optionMd: [] });
+        const { drill } = armed({ questions: [plain], reveal: "after" });
+        await drill.submit();
+        expect(drill.ui.cards[0].graded).toBe(true);
+        expect(drill.ui.cards[0].revealed).toBe(false);
+        expect(drill.ui.cards[0].resultText).toBe("answeredPending");
+    });
+
+    it("收卷模式的填空只置已答，交卷才揭示", async () => {
+        const fill = q("f", { type: QuestionType.Fill, answer: "42", optionMd: [] });
+        const { drill, calls } = armed({ questions: [fill], reveal: "after" });
+        drill.setMine("42");
+        await drill.submit();
+        expect(drill.ui.cards[0].revealed).toBe(false);
+        expect(calls).toHaveLength(0); // 收卷模式推迟到交卷补记
+        drill.endRound();
+        expect(drill.ui.cards[0].revealed).toBe(true);
+        expect(drill.ui.cards[0].locked).toBe(true);
+        expect(calls.filter((c) => c.kind === "first")).toHaveLength(1);
+    });
+});
+
 describe("AI 判分失败回落自评", () => {
     it("简答提交失败时露自评钮且不静默丢账", async () => {
         const brief = q("e", { type: QuestionType.Essay, answer: "略" });

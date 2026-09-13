@@ -796,7 +796,6 @@
   "mobileConfirm": "确认答案",
   "mobileAnswerNone": "未作答",
   "mobileWrongAdded": "本题已记入错题，轮次报告后可「错题再练一轮」",
-  "mobileStepsHint": "解答题已按步骤展开作答",
   "mobileDrawerTitle": "答题卡",
   "mobileDrawerClose": "收起答题卡",
   "mobileDrawerResume": "继续作答",
@@ -812,5 +811,13 @@
   "mobileWrongList": "错题清单",
   "mobileBackToSet": "返回题集",
   "mobileRetryWrong": "错题再练一轮",
-  "mobileNoBank": "题库不可用，请先在桌面端生成题目"
+  "mobileNoBank": "题库不可用，请先在桌面端生成题目",
+  "mobileMarkAnswer": "答案",
+  "mobileMarkMine": "你的选择",
+  "mobileVerdictRight": "答对",
+  "mobileVerdictWrong": "答错",
+  "mobileSelfHint": "本题无自动判分，请自评",
+  "mobileSlotsDesktopOnly": "完形/新题型需在桌面端逐空作答",
+  "mobileSetGroupCount": "{n} 个题集",
+  "mobileSetActive": "当前"
 }

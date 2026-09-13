@@ -1,5 +1,6 @@
 <script lang="ts">
     import { getContext } from "svelte";
+    import { svgIcon } from "../../ui/FormHtml";
     import Button from "../../ui/Button.svelte";
     import { MOBILE_DRILL_CTX, type MobileDrill } from "../core/MobileCtx";
     import { reportStats, wrongRows } from "../core/MobileModel";
@@ -20,8 +21,8 @@
 </script>
 
 <div class="wengu-md-toolrow">
-    <button class="wengu-md-iconbtn" aria-label={t("back")} onclick={() => drill.backHome()}>
-        {@html ""}
+    <button class="wengu-md-iconbtn" aria-label={t("mobileBackToSet")} onclick={() => drill.backHome()}>
+        {@html svgIcon("iconLeft")}
     </button>
     <div class="wengu-md-brand wengu-md-brand-center">{t("reportTitle")}</div>
     <span class="wengu-md-spacer"></span>
@@ -45,11 +46,11 @@
         </div>
         <div class="wengu-md-stat3">
             <div class="wengu-md-cell">
-                <span class="wengu-md-lab">{t("correct")}</span>
+                <span class="wengu-md-lab">{t("mobileLegendOk")}</span>
                 <span class="wengu-md-num ok">{stats.right}</span>
             </div>
             <div class="wengu-md-cell">
-                <span class="wengu-md-lab">{t("wrong")}</span>
+                <span class="wengu-md-lab">{t("mobileLegendBad")}</span>
                 <span class="wengu-md-num bad">{stats.wrong}</span>
             </div>
             <div class="wengu-md-cell">

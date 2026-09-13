@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+    answerKindOf,
     answeredPct,
     countChoices,
     countLabel,
     drawerCells,
+    groupSetsByDoc,
+    isMobileText,
+    isMultiSelect,
     lettersOf,
     reportStats,
     typeLabelKey,
@@ -53,6 +57,94 @@ function session(
         ...over,
     };
 }
+
+describe("answerKindOf 作答形态（唯一判据）", () => {
+    it("有选项的单选/多选 = choice；判断题 = judge", () => {
+        expect(answerKindOf(q("a"))).toBe("choice");
+        expect(answerKindOf(q("b", { type: QuestionType.Multiple }))).toBe("choice");
+        expect(answerKindOf(q("c", { type: QuestionType.Judge, optionMd: [], answer: "√" }))).toBe("judge");
+    });
+
+    it("填空题走单行输入（改造前落进「都不是」的空档 = 整题不可作答）", () => {
+        const fill = q("f", { type: QuestionType.Fill, optionMd: [], answer: "42" });
+        expect(answerKindOf(fill)).toBe("fill");
+        expect(isMobileText(fill)).toBe(false);
+    });
+
+    it("简答族与多步题 = text（steps 按整题文本作答）", () => {
+        for (const type of [QuestionType.Brief, QuestionType.Essay, QuestionType.Trans]) {
+            expect(answerKindOf(q("x", { type, optionMd: [] }))).toBe("text");
+        }
+        const steps = q("s", {
+            type: QuestionType.Steps,
+            optionMd: [],
+            steps: [{ kind: "result", stemMd: "第 1 步", optionMd: [], answer: "A" }],
+        });
+        expect(answerKindOf(steps)).toBe("text");
+        expect(isMobileText(steps)).toBe(true);
+    });
+
+    it("逐空题（完形/新题型）= slots——优先于 choice，候选池不当本题选项", () => {
+        const cloze = q("c", {
+            type: QuestionType.Cloze,
+            answer: "B",
+            optionMd: [],
+            slots: [{ optionMd: ["甲", "乙"], answer: "B" }],
+        });
+        expect(answerKindOf(cloze)).toBe("slots");
+        // match 的题级 optionMd 是候选池：落 choice 会把候选当本题选项误判
+        const match = q("m", {
+            type: QuestionType.Match,
+            answer: "AB",
+            optionMd: ["候选一", "候选二"],
+            slots: [
+                { optionMd: [], answer: "A" },
+                { optionMd: [], answer: "B" },
+            ],
+        });
+        expect(answerKindOf(match)).toBe("slots");
+        expect(isMultiSelect(match)).toBe(false);
+    });
+
+    it("无题型/无答案是 plain 兜底（揭示后自评）", () => {
+        expect(answerKindOf(q("p", { type: undefined, optionMd: [], answer: undefined }))).toBe("plain");
+    });
+
+    it("多选判据只在真选择题上成立（多步题的选项属步内，不算多选）", () => {
+        expect(isMultiSelect(q("a", { type: QuestionType.Multiple }))).toBe(true);
+        // steps 题的 optionMd 若有也属步内选项：hasSteps 先判 ⇒ 落 text
+        const steps = q("s", {
+            type: QuestionType.Steps,
+            steps: [{ kind: "result", stemMd: "第 1 步", optionMd: ["甲", "乙"], answer: "A" }],
+        });
+        expect(answerKindOf(steps)).toBe("text");
+        expect(isMultiSelect(steps)).toBe(false);
+    });
+});
+
+describe("groupSetsByDoc 题集按源文档分组（屏 ①）", () => {
+    it("同 hPath 并一组，组头取文件名最后一段", () => {
+        const groups = groupSetsByDoc([
+            { id: "a", title: "卷一", hPath: "/资料/肖八.pdf" },
+            { id: "b", title: "卷二", hPath: "/资料/肖八.pdf" },
+            { id: "c", title: "阅读", hPath: "/资料/英语真题.pdf" },
+        ]);
+        expect(groups).toHaveLength(2);
+        expect(groups[0].title).toBe("肖八.pdf");
+        expect(groups[0].sets.map((s) => s.id)).toEqual(["a", "b"]);
+        expect(groups[1].title).toBe("英语真题.pdf");
+    });
+
+    it("同名不同目录不并组；无 hPath 各自成组并用标题兜底", () => {
+        const groups = groupSetsByDoc([
+            { id: "a", title: "卷A", hPath: "/甲/同名.pdf" },
+            { id: "b", title: "卷B", hPath: "/乙/同名.pdf" },
+            { id: "c", title: "孤儿卷" },
+        ]);
+        expect(groups).toHaveLength(3);
+        expect(groups[2].title).toBe("孤儿卷");
+    });
+});
 
 describe("drawerCells 题号抽屉", () => {
     it("逐题一格；材料组整组连成一格并带副标签", () => {

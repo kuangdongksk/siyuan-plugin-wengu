@@ -3,7 +3,7 @@
     import { svgIcon } from "../../ui/FormHtml";
     import Button from "../../ui/Button.svelte";
     import { MOBILE_DRILL_CTX, type MobileDrill } from "../core/MobileCtx";
-    import { countChoices, countLabel } from "../core/MobileModel";
+    import { countChoices, countLabel, groupSetsByDoc } from "../core/MobileModel";
     import { fmt } from "../../ui/shared";
 
     /**
@@ -84,21 +84,40 @@
                     </button>
                 {/each}
             </div>
-            <div class="wengu-md-sets">
-                {#each drill.ui.home.sets as s (s.id)}
-                    <button
-                        class="wengu-md-setitem{s.id === drill.ui.home.activeSetId ? ' on' : ''}"
-                        onclick={() => void drill.selectSet(s.id)}
-                    >
-                        <span class="wengu-md-setrow1">
-                            <b>{s.title || s.id}</b>
-                            <span class="wengu-md-setcount">{fmt(t("exerciseCount"), { n: String(s.total) })}</span>
-                        </span>
-                        <span class="wengu-md-setrow2">
-                            <span class="wengu-md-pbar"><i style="width:{pct(s.attempted, s.total)}%"></i></span>
-                            <span>{s.attempted}/{s.total}</span>
-                        </span>
-                    </button>
+            <div class="wengu-md-setgroups">
+                {#each groupSetsByDoc(drill.ui.home.sets) as g (g.key)}
+                    <div class="wengu-md-setgroup">
+                        <div class="wengu-md-setgroup-head">
+                            {@html svgIcon("iconDoc")}{g.title}
+                            <span class="wengu-md-setcount"
+                                >{fmt(t("mobileSetGroupCount"), { n: String(g.sets.length) })}</span
+                            >
+                        </div>
+                        <div class="wengu-md-sets">
+                            {#each g.sets as s (s.id)}
+                                <button
+                                    class="wengu-md-setitem{s.id === drill.ui.home.activeSetId ? ' on' : ''}"
+                                    onclick={() => void drill.selectSet(s.id)}
+                                >
+                                    <span class="wengu-md-setrow1">
+                                        <b>{s.title || s.id}</b>
+                                        {#if s.id === drill.ui.home.activeSetId}
+                                            <span class="wengu-md-setbadge">{t("mobileSetActive")}</span>
+                                        {/if}
+                                        <span class="wengu-md-setcount"
+                                            >{fmt(t("exerciseCount"), { n: String(s.total) })}</span
+                                        >
+                                    </span>
+                                    <span class="wengu-md-setrow2">
+                                        <span class="wengu-md-pbar"
+                                            ><i style="width:{pct(s.attempted, s.total)}%"></i></span
+                                        >
+                                        <span>{s.attempted}/{s.total}</span>
+                                    </span>
+                                </button>
+                            {/each}
+                        </div>
+                    </div>
                 {/each}
             </div>
         </section>

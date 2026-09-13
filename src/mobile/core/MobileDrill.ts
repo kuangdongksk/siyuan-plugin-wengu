@@ -8,7 +8,19 @@ import { mirrorResult } from "../../quiz/service/AnswerMirror";
 import type { WeaknessStore } from "../../bank/data/WeaknessStore";
 import { notifyInfo } from "../../ui/Notify";
 import { errText } from "../../ui/shared";
-import { applyVerdict, curOf, dunno, pickLetter, qOf, selfAssess, setMine, skip, submit } from "./MobileAnswering";
+import {
+    applyVerdict,
+    curOf,
+    dunno,
+    pickLetter,
+    qOf,
+    revealPlainFallback,
+    selfAssess,
+    setMine,
+    skip,
+    submit,
+} from "./MobileAnswering";
+import { answerKindOf } from "./MobileModel";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
 
 /**
@@ -184,9 +196,6 @@ export class MobileDrill {
         await this.restoreResumeFor();
     }
 
-    /** 题集全量题目（本次题数裁剪前的源）。 */
-    fullList: WenguQuestion[] = [];
-
     /** 未完成轮的恢复探测（题集切换/回开刷面板后调用）。
      *  「未完成轮」判据**只看 endedAt**（Issue #12 口径）：after 模式答满
      *  但未交卷的轮必须仍能「继续上次」改答案——别再按「答满」判。 */
@@ -336,8 +345,17 @@ export class MobileDrill {
         for (let i = 0; i < this.ui.list.length; i++) {
             const ui = this.ui.cards[i];
             if (!ui?.graded) continue;
-            const r = s.results.find((x) => baseQid(x.qid) === this.ui.list[i].id);
-            if (r) applyVerdict(this, i, this.ui.list[i], r.ok, r);
+            const q = this.ui.list[i];
+            const r = s.results.find((x) => baseQid(x.qid) === q.id);
+            if (r) {
+                applyVerdict(this, i, q, r.ok, r);
+            } else if (answerKindOf(q) === "plain") {
+                // 兜底题（无题型/无答案）在收卷前只记了「已答」、没记账也没
+                // 揭示：与桌面 revealAll 同款——补齐揭示并露自评钮，否则交卷
+                // 后这题既无答案也无自评入口（用户无法收口）。写入体在
+                // MobileAnswering（揭示态只从那一处写）
+                revealPlainFallback(this, i);
+            }
             ui.locked = true;
         }
         s.endedAt = Date.now();

@@ -796,7 +796,6 @@
   "mobileConfirm": "Confirm",
   "mobileAnswerNone": "No answer",
   "mobileWrongAdded": "Added to wrong list; retry it from the round report",
-  "mobileStepsHint": "Step-by-step answers are laid out below",
   "mobileDrawerTitle": "Answer sheet",
   "mobileDrawerClose": "Collapse sheet",
   "mobileDrawerResume": "Keep answering",
@@ -812,5 +811,13 @@
   "mobileWrongList": "Wrong list",
   "mobileBackToSet": "Back to set",
   "mobileRetryWrong": "Retry wrong",
-  "mobileNoBank": "Bank unavailable — generate questions on desktop first"
+  "mobileNoBank": "Bank unavailable — generate questions on desktop first",
+  "mobileMarkAnswer": "Answer",
+  "mobileMarkMine": "Yours",
+  "mobileVerdictRight": "Correct",
+  "mobileVerdictWrong": "Wrong",
+  "mobileSelfHint": "No auto grading for this question — self-assess",
+  "mobileSlotsDesktopOnly": "Cloze/matching needs per-blank answering on desktop",
+  "mobileSetGroupCount": "{n} sets",
+  "mobileSetActive": "Current"
 }

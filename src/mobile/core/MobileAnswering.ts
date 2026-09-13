@@ -7,7 +7,7 @@ import { pushSessionAnswer } from "../../quiz/service/HistoryStore";
 import type { WenguSessionResult } from "../../quiz/service/HistoryStore";
 import { errText } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
-import { isMobileText } from "./MobileModel";
+import { answerKindOf } from "./MobileModel";
 import type { MobileCardState, MobileDrill } from "./MobileDrill";
 
 /**
@@ -55,7 +55,7 @@ export function pickLetter(d: MobileDrill, letter: string): void {
     const q = qOf(d);
     const ui = curOf(d);
     if (!q || !ui || frozen(ui)) return;
-    if (q.type === QuestionType.Judge) {
+    if (answerKindOf(q) === "judge") {
         ui.judge = letter;
         ui.letters = "";
         return;
@@ -81,20 +81,39 @@ export function setMine(d: MobileDrill, text: string): void {
 /** 当前题的作答串（提交通道口径）。 */
 
 function submittedOf(q: WenguQuestion, ui: MobileCardState): string {
-    if (q.type === QuestionType.Single || q.type === QuestionType.Multiple) return ui.letters;
-    if (q.type === QuestionType.Judge) return ui.judge;
-    return ui.mine.trim();
+    const kind = answerKindOf(q);
+    if (kind === "choice") return ui.letters;
+    if (kind === "judge") return ui.judge;
+    // 填空与文本作答都走输入区；逐空题移动端不给作答位（见 answerKindOf）
+    if (kind === "fill" || kind === "text") return ui.mine.trim();
+    return "";
 }
 
-/** 提交（客观题即时判分；简答走 AI 判分；after 只记已答）。 */
+/**
+ * 提交：客观题即时判分（含填空）、简答类走 AI 判分、无题型兜底题揭示后
+ * 自评、逐空题移动端不给作答位（只提示）。
+ *
+ * 分流口径一律取 `answerKindOf`（唯一判据，见 MobileModel）——别在这里
+ * 再写一份「有没有选项 / 是不是 brief」的派生判断：改造前正是那种写法
+ * 让填空题落进空档（提交按钮点了什么都不发生）。
+ */
 
 export async function submit(d: MobileDrill): Promise<void> {
     const q = qOf(d);
     const ui = curOf(d);
     if (!q || !ui || frozen(ui) || ui.busy) return;
+    const kind = answerKindOf(q);
+    // 逐空题（完形/新题型）：移动端本轮不给作答位——逐空作答是桌面
+    // SlotFlow 的重型交互（空号条 + 候选池 + 逐空判分），小屏无落脚点；
+    // 整题文本作答又会把它记成「一道题的一个答案」，与 qid#k 的逐空记账
+    // 口径冲突（统计与错题清单全错位），故只提示、不记账。
+    if (kind === "slots") {
+        ui.resultText = d.t("mobileSlotsDesktopOnly");
+        return;
+    }
     // 多步题在移动端**不做逐步作答**：桌面 StepsFlow 的步态/申诉链
     // 属重型交互，小屏上无落脚点。按「整题文本作答」处理——steps 卡
-    // 由 isText 分支给多行输入区，判分走 brief 同族（AI 判分）。
+    // 由 text 分支给多行输入区，判分走 brief 同族（AI 判分）。
     const submitted = submittedOf(q, ui);
     const objective = isObjective(q);
     if (objective && !submitted) {
@@ -105,11 +124,14 @@ export async function submit(d: MobileDrill): Promise<void> {
     // 简答类（含 essay/trans）走 AI 判分：**收卷模式也要先判分**才能在
     // 交卷时给三态评语（与桌面 judgeBriefAnswer 同款——桌面在 after 下
     // 同样调 AI，只是结果行只显示「已答」）
-    if (!objective && isMobileText(q) && submitted) {
+    if (kind === "text") {
+        if (!submitted) {
+            ui.resultText = d.t("noAnswer");
+            return;
+        }
         if (batch) {
             record(d, q, submitted, false, batch);
-            ui.graded = true;
-            ui.resultText = d.t("answeredPending");
+            markPending(d, ui);
             void judgeBriefCard(d, q, ui, submitted, true).then(() => checkAllDone(d));
             checkAllDone(d);
             return;
@@ -117,11 +139,28 @@ export async function submit(d: MobileDrill): Promise<void> {
         await judgeBriefCard(d, q, ui, submitted, false);
         return;
     }
-    const ok = objective ? gradeQuestion(q, submitted) : false;
+    // 无题型/无答案的兜底题：与桌面 submitQuestion 同款——**先不记账**
+    // （对错由用户自评给，见 selfAssess），揭示后露自评钮。
+    // 收卷模式只置「已答」（与桌面同款：揭示留到交卷，提前揭示即泄题）；
+    // 即时模式三态一起置并露自评钮。
+    if (!objective) {
+        if (batch) {
+            markPending(d, ui);
+            checkAllDone(d);
+            return;
+        }
+        ui.graded = true;
+        ui.locked = true;
+        ui.revealed = true;
+        ui.resultText = d.t("mobileSelfHint");
+        ui.selfOn = true;
+        checkAllDone(d);
+        return;
+    }
+    const ok = gradeQuestion(q, submitted);
     record(d, q, submitted, ok, batch);
     if (batch) {
-        ui.graded = true;
-        ui.resultText = d.t("answeredPending");
+        markPending(d, ui);
         checkAllDone(d);
         return;
     }
@@ -130,8 +169,25 @@ export async function submit(d: MobileDrill): Promise<void> {
     ui.revealed = true;
     ui.ok = ok;
     applyVerdict(d, d.ui.qIdx, q, ok);
-    if (!objective) ui.selfOn = true;
     checkAllDone(d);
+}
+
+/** 兜底题（无题型/无答案）在交卷时补揭示（与桌面 revealAll 同款）：
+ *  这类题在收卷前只置了「已答」、没记账也没揭示，交卷后必须补揭示 +
+ *  露自评钮，否则用户既看不到答案也没有收口入口。
+ *  ⚠️ 揭示态的写入一律留在本模块（编排层只调，不自己写字段）。 */
+export function revealPlainFallback(d: MobileDrill, idx: number): void {
+    const ui = d.ui.cards[idx];
+    if (!ui) return;
+    ui.revealed = true;
+    ui.resultText = d.t("mobileSelfHint");
+    ui.selfOn = true;
+}
+
+/** 收卷模式的「已答」态（与桌面 setPending 同口径：只置 graded）。 */
+function markPending(d: MobileDrill, ui: MobileCardState): void {
+    ui.graded = true;
+    ui.resultText = d.t("answeredPending");
 }
 
 /** 简答/作文 AI 判分（挂单飞闸；失败回落自评）。
@@ -202,6 +258,12 @@ export function dunno(d: MobileDrill): void {
     const q = qOf(d);
     const ui = curOf(d);
     if (!q || !ui || frozen(ui)) return;
+    // 逐空题不给「不会」（与桌面 slots 同口径）：作答单位是「空」，
+    // 题级空串会把整题的逐空账记成一笔（统计与错题清单错位）
+    if (answerKindOf(q) === "slots") {
+        ui.resultText = d.t("mobileSlotsDesktopOnly");
+        return;
+    }
     const batch = d.ui.setup.reveal === "after";
     record(d, q, "", false, batch);
     ui.graded = true;

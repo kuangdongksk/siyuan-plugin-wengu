@@ -295,6 +295,14 @@
     line-height: 1.85;
   }
 
+  /* 填空：单行输入（设计稿屏 ④ 注「填空题为单行输入」），字号 ≥16px
+     防 iOS 聚焦缩放；触控高度 ≥48px */
+  .wengu-md-input-line {
+    min-height: 48px;
+    height: 48px;
+    line-height: 1.4;
+  }
+
   .wengu-md-ftools {
     display: flex;
     align-items: center;

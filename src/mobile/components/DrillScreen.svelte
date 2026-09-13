@@ -3,9 +3,8 @@
     import { svgIcon } from "../../ui/FormHtml";
     import Button from "../../ui/Button.svelte";
     import { MOBILE_DRILL_CTX, type MobileDrill } from "../core/MobileCtx";
-    import { answeredPct, drawerCells, isMobileText, isMultiSelect, typeLabelKey } from "../core/MobileModel";
+    import { answerKindOf, answeredPct, drawerCells, isMultiSelect, typeLabelKey } from "../core/MobileModel";
     import { materialHtml, materialSummary } from "../core/MobileMaterials";
-    import { hasSteps, QuestionType } from "../../types";
     import NumDrawer from "./NumDrawer.svelte";
     import QuestionBody from "./QuestionBody.svelte";
 
@@ -39,20 +38,24 @@
     const material = $derived(q?.group ? drill.ui.materials.find((m) => m.id === q!.group) : undefined);
     const matBody = $derived(drill.ui.matOpen ? materialHtml(material) : "");
     const matSummary = $derived(materialSummary(material?.bodyMd));
-    /** 主操作：需显式确认的形态（多选 / 文本作答 / 多步）——单选与判断
-     *  点选即答，其余都要按一次「确认答案」（与设计稿屏 ②④ 一致）。 */
+    /** 作答形态（唯一判据，见 MobileModel.answerKindOf）。 */
+    const kind = $derived(q ? answerKindOf(q) : "plain");
+    /** 逐空题（完形/新题型）移动端暂无作答位：不出现「确认答案」，
+     *  也不给「跳过 / 不会」（作答单位是「空」，题级记账会错位）。 */
+    const unsupported = $derived(kind === "slots");
+    /** 主操作：需显式确认的形态（多选 / 文本作答 / 填空 / 无题型兜底）
+     *  ——单选与判断点选即答，其余都要按一次「确认答案」（设计稿屏 ②④）。 */
     const needConfirm = $derived(
         !!q &&
             !ui?.revealed &&
-            (isMultiSelect(q) || isMobileText(q) || (q.type !== QuestionType.Single && q.type !== QuestionType.Judge))
+            !unsupported &&
+            (kind === "text" || kind === "fill" || kind === "plain" || isMultiSelect(q))
     );
 
     function pick(letter: string): void {
         drill.pickLetter(letter);
-        const cur = drill.q;
-        // 单选 / 判断点选即答（设计稿屏 ③）
-        if (cur && cur.type === QuestionType.Judge) void drill.submit();
-        else if (cur && cur.type === QuestionType.Single && !isMultiSelect(cur)) void drill.submit();
+        // 单选 / 判断点选即答（设计稿屏 ②B③）；多选与文本/填空等按钮确认
+        if (kind === "judge" || (kind === "choice" && !isMultiSelect(q!))) void drill.submit();
     }
 </script>
 
@@ -103,6 +106,7 @@
         <QuestionBody
             {q}
             {ui}
+            {t}
             materialHtml={matBody}
             matOpen={drill.ui.matOpen}
             onPick={pick}
@@ -140,7 +144,7 @@
 </div>
 
 <footer class="wengu-md-dock">
-    {#if q}
+    {#if q && !unsupported}
         <div class="wengu-md-docksub">
             <button class="wengu-md-subtab" disabled={ui?.locked} onclick={() => drill.skip()}>
                 {@html svgIcon("iconRight")}{t("mobileSkip")}

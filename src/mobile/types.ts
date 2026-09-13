@@ -1,4 +1,4 @@
-import type { WenguMaterial, WenguQuestion, WenguRevealMode, WenguTimingMode } from "../types";
+import type { WenguRevealMode, WenguTimingMode } from "../types";
 
 /**
  * 移动端刷题域（Issue #59）的自有类型。
@@ -41,16 +41,6 @@ export interface MobileDeps {
     bank?: import("../bank/data/QuestionBank").QuestionBank;
     history?: import("../quiz/service/HistoryStore").HistoryStore;
     weakness?: import("../bank/data/WeaknessStore").WeaknessStore;
-    /** 刷题偏好持久（本次题数/判分模式，与桌面 prefs 同键）。 */
-    storage?: { load: () => Promise<unknown>; save: (v: unknown) => Promise<unknown> };
     /** 插件设置（判分模式/计时默认值 + AI 模型）。 */
     settings?: import("../ui/SettingsDialog").WenguSettingsShape;
-}
-
-/** 本轮装载结果（移动端自有装载链，不复用桌面 QuizView 的壳）。 */
-export interface MobileRoundData {
-    questions: WenguQuestion[];
-    materials: WenguMaterial[];
-    /** 源题集标题（题头 meta 行）。 */
-    setTitle: string;
 }

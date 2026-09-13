@@ -1,4 +1,4 @@
-import { baseQid, hasSteps, isBriefLike, LETTERS, QuestionType } from "../../types";
+import { baseQid, hasSlots, hasSteps, isBriefLike, LETTERS, QuestionType } from "../../types";
 import type { WenguQuestion } from "../../types";
 import type { WenguSession, WenguSessionResult } from "../../quiz/service/HistoryStore";
 import type { MobileCell, MobileCellState } from "../types";
@@ -32,12 +32,49 @@ export function typeLabelKey(q: WenguQuestion): string {
 }
 
 /**
+ * 移动端作答形态（设计稿屏 ②③④⑤⑥）：**渲染与提交共用的唯一判据**。
+ *
+ * - `choice`：有选项的选择题（单选/多选）——选项行多点齐亮；
+ * - `judge`：判断题——横排两项，点选即答；
+ * - `text`：文本作答（简答/作文/翻译，**以及多步引导题**——桌面
+ *   `StepsFlow` 的逐步作答/申诉链是重型交互，小屏上无落脚点，移动端按
+ *   **整题文本作答**处理，只改作答形态、不改记账：仍记在同一块 qid 上）；
+ * - `fill`：填空题（单行输入，`gradeQuestion` 自动判分，设计稿屏 ④ 注）；
+ * - `slots`：完形/新题型（逐空作答是桌面 `SlotFlow` 的重型交互，移动端
+ *   本轮**不给作答位**——整题文本作答会把它记成一道题的答案，与逐空记账
+ *   口径冲突；只渲染题干并明示需在桌面作答）；
+ * - `plain`：无题型/无答案的兜底题——揭示后走自评。
+ *
+ * ⚠️ 这个函数是**唯一判据**：作答位渲染（`QuestionBody`）与提交分流
+ * （`MobileAnswering.submit`）都取它。改造前两边各写一份派生判据，结果
+ * 填空题（无 optionMd）落进「都不是」的空档——既无输入区也无选项，**整题
+ * 不可作答**；配对题（题级候选池 optionMd）又被当成选择题渲染，点选的
+ * 「候选」与 `gradeQuestion` 期望的槽位字母对不上，静默判错。
+ */
+export type MobileAnswerKind = "choice" | "judge" | "text" | "fill" | "slots" | "plain";
+
+export function answerKindOf(q: WenguQuestion): MobileAnswerKind {
+    // 优先序有讲究，三条都不能挪：
+    // 1) 逐空题：题级 optionMd 是**候选池**（match）而非本题选项，落进
+    //    choice 分支会被当成「一题的选项」误判；
+    // 2) 多步题：桌面同款（hasSteps 先判，走 StepsFlow 而非选项行），
+    //    移动端走文本作答——若排在 choice 后，恰好带 optionMd 的 steps 题
+    //    会退化成选择题；
+    // 3) 判断题：选项横排两项，不走通用选项行。
+    if (hasSlots(q)) return "slots";
+    if (hasSteps(q)) return "text";
+    if (q.type === QuestionType.Judge) return "judge";
+    if ((q.optionMd?.length ?? 0) > 0 && (q.type === QuestionType.Single || q.type === QuestionType.Multiple))
+        return "choice";
+    if (isBriefLike(q)) return "text";
+    if (q.type === QuestionType.Fill) return "fill";
+    return "plain";
+}
+
+/**
  * 移动端「文本作答」形态（多行输入区 + AI 判分）：简答/作文/翻译，
- * **以及多步引导题**——桌面 StepsFlow 的逐步作答/申诉链是重型交互，
- * 小屏上无落脚点，移动端按**整题文本作答**处理（分成与桌面 steps 不同，
- * 但都记在同一块 qid 上，会话/题库口径不变）。
- * 该谓词是**唯一判据**：输入区渲染（QuestionBody）与提交分流
- * （MobileDrill.submit）都取它，禁各自再写一份。
+ * **以及多步引导题**。是否真的渲染文本区还要看 `answerKindOf`（逐空题
+ * 优先落 slots）——单独用它判渲染会与 slots 分支冲突。
  */
 export function isMobileText(q: WenguQuestion): boolean {
     return isBriefLike(q) || hasSteps(q);
@@ -45,7 +82,7 @@ export function isMobileText(q: WenguQuestion): boolean {
 
 /** 该题是否为多选（多选出现「确认答案」主按钮，设计稿屏 ②）。 */
 export function isMultiSelect(q: WenguQuestion): boolean {
-    return !q.group && !hasSteps(q) && q.type === QuestionType.Multiple && (q.optionMd?.length ?? 0) > 0;
+    return answerKindOf(q) === "choice" && q.type === QuestionType.Multiple;
 }
 
 /** 选项字母列表（chip 与选项行共用）。 */
@@ -233,4 +270,33 @@ export function countLabel(n: number, total: number, t: (k: string) => string): 
 export function answeredPct(answered: number, total: number): number {
     if (total <= 0) return 0;
     return Math.min(100, Math.round((answered / total) * 100));
+}
+
+/** 开刷面板题集分组（设计稿屏 ①：按**源文档**分组，组头显「N 个题集」）。
+ *  题集 id 即源文档 id（BankSets 口径），分组键取 hPath 的最后一段（文档
+ *  名），hPath 缺失时回落题集标题/id——**纯展示分组，不改任何装载口径**。 */
+export interface MobileSetGroup<T> {
+    key: string;
+    /** 组头文案（源文档名）。 */
+    title: string;
+    sets: T[];
+}
+
+export function groupSetsByDoc<T extends { id: string; title?: string; hPath?: string }>(
+    sets: T[]
+): MobileSetGroup<T>[] {
+    const groups = new Map<string, MobileSetGroup<T>>();
+    for (const s of sets) {
+        const segs = (s.hPath ?? "").split("/").filter(Boolean);
+        // 组键用**完整 hPath**（同名不同目录的源文档不能并成一组），
+        // 组头取最后一段（文件名）；无 hPath 时整卷并一组用兜底标题
+        const key = s.hPath || `#${s.id}`;
+        let g = groups.get(key);
+        if (!g) {
+            g = { key, title: segs[segs.length - 1] ?? s.title ?? s.id, sets: [] };
+            groups.set(key, g);
+        }
+        g.sets.push(s);
+    }
+    return [...groups.values()];
 }

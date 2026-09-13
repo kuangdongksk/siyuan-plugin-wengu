@@ -5,7 +5,7 @@
     import { QuestionType, hasSteps } from "../../types";
     import type { WenguQuestion } from "../../types";
     import type { MobileCardState } from "../core/MobileDrill";
-    import { isMobileText, lettersOf, stemSummary } from "../core/MobileModel";
+    import { answerKindOf, lettersOf, stemSummary } from "../core/MobileModel";
 
     /**
      * 题干 / 材料 / 作答位 / 揭示范（设计稿屏 ②③④⑤⑥）：
@@ -21,6 +21,7 @@
     let {
         q,
         ui,
+        t,
         materialHtml,
         matOpen,
         onPick,
@@ -29,6 +30,8 @@
     }: {
         q: WenguQuestion;
         ui: MobileCardState;
+        /** i18n 取词（由壳传入，本组件是纯展示件——不持控制器）。 */
+        t: (key: string) => string;
         /** 材料正文 HTML（组题展开时由编排层过装饰出口产出）。 */
         materialHtml: string;
         matOpen: boolean;
@@ -41,9 +44,14 @@
     const locked = $derived(ui.locked || ui.revealed);
     const options = $derived((q.optionMd ?? []).map((md, i) => ({ letter: letters[i], ...optionInline(md) })));
     const rightLetters = $derived((q.answer ?? "").toUpperCase());
-    const isJudge = $derived(q.type === QuestionType.Judge);
-    const isChoice = $derived(letters.length > 0 && !isJudge);
-    const isText = $derived(!isJudge && !isChoice && isMobileText(q));
+    // 作答形态唯一判据（MobileModel.answerKindOf）：填空/简答/逐空各走自己的
+    // 作答位——改造前按「有没有选项」就地派生，填空题落进空档没有任何作答位
+    const kind = $derived(answerKindOf(q));
+    const isJudge = $derived(kind === "judge");
+    const isChoice = $derived(kind === "choice");
+    const isText = $derived(kind === "text");
+    const isFill = $derived(kind === "fill");
+    const isSlots = $derived(kind === "slots");
     const judgeRight = $derived(rightLetters.includes("×") ? "×" : "√");
     const matSummary = $derived(stemSummary(q));
 
@@ -102,22 +110,16 @@
 
 {#if isJudge}
     <div class="wengu-md-opts duo{locked ? ' locked' : ''}">
-        <button class="wengu-md-opt{judgeCls('√')}" disabled={locked} onclick={() => onPick("√")}>
-            正确
-            {#if ui.revealed && judgeRight === "√"}
-                <span class="wengu-md-mark">{@html svgIcon("iconCheck")}答案</span>
-            {:else if ui.revealed && ui.judge === "√"}
-                <span class="wengu-md-mark">{@html svgIcon("iconClose")}你的选择</span>
-            {/if}
-        </button>
-        <button class="wengu-md-opt{judgeCls('×')}" disabled={locked} onclick={() => onPick("×")}>
-            错误
-            {#if ui.revealed && judgeRight === "×"}
-                <span class="wengu-md-mark">{@html svgIcon("iconCheck")}答案</span>
-            {:else if ui.revealed && ui.judge === "×"}
-                <span class="wengu-md-mark">{@html svgIcon("iconClose")}你的选择</span>
-            {/if}
-        </button>
+        {#each ["√", "×"] as v (v)}
+            <button class="wengu-md-opt{judgeCls(v)}" disabled={locked} onclick={() => onPick(v)}>
+                {v === "√" ? t("judgeYes") : t("judgeNo")}
+                {#if ui.revealed && judgeRight === v}
+                    <span class="wengu-md-mark">{@html svgIcon("iconCheck")}{t("mobileMarkAnswer")}</span>
+                {:else if ui.revealed && ui.judge === v}
+                    <span class="wengu-md-mark">{@html svgIcon("iconClose")}{t("mobileMarkMine")}</span>
+                {/if}
+            </button>
+        {/each}
     </div>
 {:else if isChoice}
     <div class="wengu-md-opts{locked ? ' locked' : ''}">
@@ -126,32 +128,47 @@
                 <span class="wengu-md-key">{o.letter}</span>
                 <span class="wengu-md-txt">{@html o.body}</span>
                 {#if ui.revealed && rightLetters.includes(o.letter)}
-                    <span class="wengu-md-mark">{@html svgIcon("iconCheck")}答案</span>
+                    <span class="wengu-md-mark">{@html svgIcon("iconCheck")}{t("mobileMarkAnswer")}</span>
                 {:else if ui.revealed && ui.letters.includes(o.letter)}
-                    <span class="wengu-md-mark">{@html svgIcon("iconClose")}你的选择</span>
+                    <span class="wengu-md-mark">{@html svgIcon("iconClose")}{t("mobileMarkMine")}</span>
                 {/if}
             </button>
         {/each}
     </div>
 {/if}
 
-{#if isText && !ui.revealed}
+<!-- 作答位：文本（简答/作文/翻译/多步）多行 + 公式工具条；
+     填空单行；逐空题（完形/新题型）移动端暂无作答位，只明示需回桌面 -->
+{#if !ui.revealed && (isText || isFill)}
     <div class="wengu-md-writer">
-        <textarea
-            class="wengu-md-input"
-            rows={q.type === QuestionType.Essay ? 10 : 4}
-            placeholder="输入你的答案…"
-            disabled={locked}
-            value={ui.mine}
-            oninput={(e) => onMine(e.currentTarget.value)}></textarea>
-        {#if q.type === QuestionType.Essay}
-            <div class="wengu-md-ftools">
-                {#each FT as s (s)}
-                    <button class="wengu-md-ftool" onclick={() => onMine(`${ui.mine}${s}`)}>{s}</button>
-                {/each}
-            </div>
+        {#if isText}
+            <textarea
+                class="wengu-md-input"
+                rows={q.type === QuestionType.Essay ? 10 : 4}
+                placeholder={t("inputPlaceholder")}
+                disabled={locked}
+                value={ui.mine}
+                oninput={(e) => onMine(e.currentTarget.value)}></textarea>
+            {#if q.type === QuestionType.Essay}
+                <div class="wengu-md-ftools">
+                    {#each FT as s (s)}
+                        <button class="wengu-md-ftool" onclick={() => onMine(`${ui.mine}${s}`)}>{s}</button>
+                    {/each}
+                </div>
+            {/if}
+        {:else}
+            <input
+                class="wengu-md-input wengu-md-input-line"
+                type="text"
+                placeholder={t("inputPlaceholder")}
+                disabled={locked}
+                value={ui.mine}
+                oninput={(e) => onMine(e.currentTarget.value)}
+            />
         {/if}
     </div>
+{:else if isSlots && !ui.revealed}
+    <div class="wengu-md-hintbar">{@html svgIcon("iconInfo")}{t("mobileSlotsDesktopOnly")}</div>
 {/if}
 
 {#if ui.revealed && (q.answer || q.solutionMd)}
@@ -159,15 +176,15 @@
         <div class="wengu-md-verdict-head">
             <span class="wengu-md-vbadge">
                 {@html ui.ok ? svgIcon("iconCheck") : svgIcon("iconClose")}
-                {ui.ok ? "答对" : "答错"}
+                {ui.ok ? t("mobileVerdictRight") : t("mobileVerdictWrong")}
             </span>
             {#if q.answer}
-                <span class="wengu-md-vans">答案 <b>{q.answer}</b></span>
+                <span class="wengu-md-vans">{t("answerLabel")}<b>{q.answer}</b></span>
             {/if}
         </div>
         {#if q.solutionMd}
             <details class="wengu-md-exp" open>
-                <summary>解析</summary>
+                <summary>{t("solution")}</summary>
                 <div class="wengu-md-expbody">{@html renderMdHtml(q.solutionMd)}</div>
             </details>
         {/if}
