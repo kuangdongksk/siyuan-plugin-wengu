@@ -1,5 +1,6 @@
 import type { WeakPointEntry } from "./WeaknessStore";
 import type { BankRecord } from "./QuestionBank";
+import { knKey } from "./KnowledgeNorm";
 
 /**
  * 相关题弹窗的纯数据层（Issue #44）：收集口径在 RelatedQids，这里放
@@ -29,12 +30,17 @@ export interface RelatedWeakLine {
 }
 
 /** 一条题库记录 → 分析用键（kpRefs 优先；缺则 knowledge 的 kn: / chapter
- *  的 ch:——与 WeaknessStore.weakKeys 同口径，只吃记录侧字段）。 */
+ *  的 ch:——与 WeaknessStore.weakKeys 同口径，只吃记录侧字段）。
+ *  ⚠️ kn 键必须走 knKey（输出已带 kn: 前缀，别再拼）：它做归一
+ *  （剥装饰/小写/剥命名性后缀）——题目记「洛必达法则」而薄弱表键
+ *  归一成「洛必达」时，原文直拼匹配不上 weakLinesOf → AI 分析的
+ *  薄弱段静默漏条目。纯装饰文本（归一词干为空）与 WeaknessStore
+ *  一致地不产键。 */
 export function recordKeysOf(r: BankRecord | undefined): { kpIds: string[]; weakKeys: string[] } {
     if (!r) return { kpIds: [], weakKeys: [] }; // 记录已删（列表与读库之间同步）：键按空收口
     const kpIds = r.kpRefs.map((k) => k.id);
     if (kpIds.length > 0) return { kpIds, weakKeys: kpIds.map((id) => `kp:${id}`) };
-    if (r.knowledge) return { kpIds, weakKeys: [`kn:${r.knowledge}`] };
+    if (r.knowledge && knKey(r.knowledge)) return { kpIds, weakKeys: [knKey(r.knowledge)] };
     if (r.chapter) return { kpIds, weakKeys: [`ch:${r.chapter}`] };
     return { kpIds, weakKeys: [] };
 }

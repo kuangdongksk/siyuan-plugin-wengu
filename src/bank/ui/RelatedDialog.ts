@@ -216,7 +216,7 @@ async function runAnalyze(ctx: RelatedCtx, btn: HTMLButtonElement, root: HTMLEle
     body.textContent = t("relatedAnalyzeLoading");
     btn.disabled = true;
     try {
-        const reply = await agentChatOnce(await analyzePromptOf(ctx), ctx.v.aiModelId(), AI_TIMEOUT.quick, undefined, {
+        const reply = await agentChatOnce(await analyzePromptOf(ctx), ctx.v.aiModelId(), AI_TIMEOUT.mid, undefined, {
             kind: "analyze",
             title: ctx.docTitle || t("relatedTitle"),
             group: { id: newAiGroupId(), title: t("relatedAnalyzeGroup") },

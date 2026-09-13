@@ -3,6 +3,8 @@ import { relatedQidsOf, relatedRecordsOf } from "./RelatedQids";
 import { hasAnswerData, kpIdsOf, qidSetOf, recordKeysOf, weakKeysOf, weakLinesOf } from "./RelatedData";
 import type { BankRecord } from "./QuestionBank";
 import type { WeakPointEntry } from "./WeaknessStore";
+import { weakKeys } from "./WeaknessStore";
+import type { WenguQuestion } from "../../types";
 
 /**
  * 相关题收集口径（Issue #44 验收 7）：related 活视图专题题单与弹窗列表
@@ -88,6 +90,18 @@ describe("RelatedData 分析材料纯函数", () => {
         expect(recordKeysOf(rec("q2", { knowledge: "洛必达" }))).toEqual({ kpIds: [], weakKeys: ["kn:洛必达"] });
         expect(recordKeysOf(rec("q3", { chapter: "极限" }))).toEqual({ kpIds: [], weakKeys: ["ch:极限"] });
         expect(recordKeysOf(rec("q4"))).toEqual({ kpIds: [], weakKeys: [] });
+    });
+
+    it("recordKeysOf：kn 键走 knKey 归一，与 WeaknessStore.weakKeys 逐字相等", () => {
+        // 回归（Issue #44 复审）：题目写「洛必达法则」、薄弱表键归一成「洛必达」，
+        // 原文直拼会匹配不上 → AI 分析的薄弱段静默漏条目。
+        const r = rec("q1", { knowledge: "洛必达法则" });
+        const q: WenguQuestion = { id: "q1", knowledge: "洛必达法则", attempts: 1, wrongCount: 1 };
+        expect(recordKeysOf(r).weakKeys).toEqual(weakKeys(q).map((k) => k.key));
+        expect(recordKeysOf(r).weakKeys).toEqual(["kn:洛必达"]);
+        // 纯装饰文本（归一后空串）与 WeaknessStore 一致地不产键。
+        expect(recordKeysOf(rec("q2", { knowledge: "《》" })).weakKeys).toEqual([]);
+        expect(weakKeys({ id: "q2", knowledge: "《》", attempts: 1, wrongCount: 0 })).toEqual([]);
     });
 
     it("hasAnswerData：attempts 全 0 = 尚无作答数据（AI 不得编造薄弱点）", () => {
