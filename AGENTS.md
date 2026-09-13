@@ -63,6 +63,9 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 - 开工基线：`git fetch cnb && git checkout -b <type>/<slug> cnb/dev`，
   分支名用 `feat/` `fix/` `refactor/` `docs/` `chore/` 前缀。
 - PR 的 base 一律 `dev`，描述里带 `Ref: #<Issue 编号>`。
+- **合并后清理闭环**（20260913 用户定）：PR 合并即**关关联 Issue**（先留一句
+  收口评论带 merge sha）、**删远端功能分支**——仓库常态只留 `dev` 与在办分支。
+  调度轮收尾必做，别攒账；在办（NPC 正在跑）的 Issue 不动。
 - 禁止直接向 `dev` / `main` 推送，一切改动走 PR。**唯一例外**：本地改「调度
   基础设施」（`.cnb/`、`.cnb.yml`、本节协作约定）时可直接推 `dev`，见上一节。
 - NPC 角色与硬约束写在 `.cnb/settings.yml`；Issue 模板在
