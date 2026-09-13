@@ -9,12 +9,21 @@ import { KernelQuery } from "../../../siyuan/query";
  * 递归），但**只取文档 id/标题，不碰标题块**——批量转换只关心「转哪几
  * 篇」，预览清单与队列标题都够用，零多余 SQL。
  *
- * 两处硬约束：
+ * 三处硬约束：
  *  - **SQL 无 LIMIT 静默截 64 行**（AGENTS.md 内核坑）：后代走
  *    `rowsAll` 分页，不能裸 rows 一把梭；
  *  - **顺序**：源的「文件树顺序」不是 `ORDER BY sort`（导入语料上
  *    sort/created 全退化，返回任意序）——这里按 **hpath 字典序**排，
  *    与文件树展示序一致且确定性（队列执行顺序可预期、可复现）。
+ *    ⚠️ **字典序=码点序（`<`/`>`），不是 `localeCompare`**（20260913
+ *    PR #43 复审阻断缺陷）：`localeCompare` 落在**系统默认 collation**
+ *    上，同一份数据会随机器 locale 漂移——CI 容器（LANG 缺失）按码点序
+ *    得「概率篇/线代篇/高数篇」，Windows zh-CN 按拼音序得
+ *    「概率篇/高数篇/线代篇」，队列执行顺序与题集插入顺序跟着变
+ *    （AGENTS.md 明写「数据在两台机器间流转」）。码点序机器无关，
+ *    这才是这里要的确定性；
+ *  - **判空口径**（Issue #42）：只有正文非空的块才算货（详见 isEmptyDoc），
+ *    且**空壳中间层不入队列**（详见 middleLayerIds）。
  */
 
 /** 一份待转换的源文档（批量队列的元素）。 */
@@ -54,15 +63,73 @@ async function docRow(docId: string): Promise<DocRow | null> {
     return null;
 }
 
-/** 根自身是否「空文档」：无标题、无正文内容（同级连根块都查不到）。 */
+/** 「有正文」探针 SQL（纯函数，导出仅为单测）：一次判整批候选文档。
+ *  **每篇一行**（DISTINCT 收口），调用方拿到的就是「有正文的文档 id 集合」。
+ *  候选为空返回 ""（调用方直接跳过查询）。
+ *
+ *  ⚠️ 两个真机/复审踩坑，形状别改：
+ *    - **必须是「按篇聚合」而不是「取一条命中」**：`LIMIT 1` 会让整批只回
+ *      一篇，多候选判定直接失真（复审 PR 首版即此病）；
+ *    - **极性靠命名锁死**：本函数回的是「有正文」集合，空壳 = 候选减去它
+ *      （见 shellIds）。反过来当「空壳集合」用会静默**删掉有货的中间层**
+ *      ——那是有真实内容被漏转的静默数据丢失，比不剔除更坏。
+ *
+ *  ⚠️ 无 LIMIT 的 64 行静默截断（AGENTS.md 内核坑）：消费点只对「hPath 是
+ *  别人前缀」的目录级候选发起，量级是 10^0~10^1，一次查询天然装得下。 */
+export function hasTextProbeSql(ids: string[]): string {
+    const uniq = Array.from(new Set(ids.filter((id) => !!id)));
+    if (uniq.length === 0) return "";
+    return `SELECT DISTINCT b.root_id AS docId FROM blocks b
+            WHERE b.root_id IN (${uniq.map((id) => `'${id}'`).join(",")})
+            AND b.type != 'd' AND ${HAS_TEXT_SQL}`;
+}
+
+/** 判空口径（Issue #42 真机踩坑）：**只有正文去空白后非空的块才算货**。
+ *
+ *  MinerU 等导入器产出的壳文档**全部带一个空段落块**（`content=''` 的 `p`），
+ *  旧判据「`root_id` 下有无任何非 doc 块」在真机上恒为「非空」→ 空壳判据永
+ *  不成立 → `buildBatchQueue` 的自动展开条件 `rootEmpty && children>0` 落空，
+ *  文件夹式文档永远走单篇流程报「文档内容为空」（Issue #37 的批量转换对嵌套
+ *  树全军覆没的根因）。
+ *
+ *  ⚠️ SQLite `TRIM(x)` **只去空格**，换行/制表符要显式处理——先用
+ *  REPLACE 把 `\n` `\t` `\r` 换成空格再 TRIM，否则「只含换行的段落」会被
+ *  误判成有正文。
+ *
+ *  从「有无块」放宽到「有无正文」是**保守方向**（更少文档被判空 → 更少自动
+ *  展开），故两个消费点（判空、中间层剔除）包一层 try：查询失败一律按
+ *  「非空」处置，不阻断流程、不乱提示。 */
+const HAS_TEXT_SQL = "TRIM(REPLACE(REPLACE(REPLACE(b.content, char(10), ' '), char(13), ' '), char(9), ' ')) != ''";
+
+/** 单点判空：文档是否「无正文内容」（空段落不算货）。查询失败按非空。 */
 async function isEmptyDoc(docId: string): Promise<boolean> {
+    const sql = hasTextProbeSql([docId]);
+    if (!sql) return true;
     try {
-        const rows = await KernelQuery.rowsMap(
-            `SELECT id FROM blocks WHERE root_id = '${docId}' AND type != 'd' LIMIT 1`
-        );
+        const rows = await KernelQuery.rowsMap(sql);
         return rows.length === 0;
     } catch (_) {
         return false; // 查询失败按非空（不乱提示「将转换子文档」）
+    }
+}
+
+/** 候选里去正文后仍为空的（纯函数，带单测）：入参必须是**有正文集合**。
+ *  查询失败按「都不空」= 返回空数组（保守：不剔除任何中间层）。 */
+export function shellIds(candidates: string[], withText: Iterable<string>): string[] {
+    const good = new Set(withText);
+    return candidates.filter((id) => !good.has(id));
+}
+
+/** 批量挑出空壳候选（中间层剔除用）：只对前缀命中的候选发起一次查询。 */
+async function shellsOf(ids: string[]): Promise<Set<string>> {
+    const sql = hasTextProbeSql(ids);
+    if (!sql) return new Set();
+    try {
+        const rows = await KernelQuery.rowsMap(sql);
+        const withText = rows.map((r) => r.get("docId")).filter((id) => !!id);
+        return new Set(shellIds(ids, withText));
+    } catch (_) {
+        return new Set(); // 失败按「都不空」（保守：不剔除任何中间层）
     }
 }
 
@@ -97,16 +164,65 @@ export async function planSubDocs(docIdRaw: string): Promise<SubDocPlan | undefi
             hPath: r.get("hpath") || undefined,
         }))
         .filter((c) => !!c.id)
-        .sort((a, b) => (a.hPath ?? a.title).localeCompare(b.hPath ?? b.title));
+        .sort((a, b) => {
+            // 码点序（非 locale 序）：机器无关，队列顺序可复现——见文件头注释
+            const ka = a.hPath ?? a.title;
+            const kb = b.hPath ?? b.title;
+            return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
+    const rootRef: SubDocRef = {
+        id: docId,
+        title: root.get("content") || root.get("hpath") || docId,
+        hPath: root.get("hpath") || undefined,
+    };
+    // 中间层（本身是目录、下头还有别的队列成员）先按标题路径确定性选出，
+    // 再只对这一小撮候选问一次 SQL：**空壳才剔除**，有真实内容的照常入队。
+    const middle = middleLayerIds([rootRef, ...children]);
+    const emptyMiddle = await shellsOf(middle);
     return {
-        root: {
-            id: docId,
-            title: root.get("content") || root.get("hpath") || docId,
-            hPath: root.get("hpath") || undefined,
-        },
-        children,
+        root: rootRef,
+        children: children.filter((c) => !emptyMiddle.has(c.id)),
         rootEmpty: children.length > 0 ? await isEmptyDoc(docId) : false,
     };
+}
+
+/** 去首尾斜杠（目录前缀与包含判定的公共归一）。 */
+function trimSlashes(s: string): string {
+    let out = s;
+    while (out.startsWith("/")) out = out.slice(1);
+    while (out.endsWith("/")) out = out.slice(0, -1);
+    return out;
+}
+
+/**
+ * 中间层候选（纯函数，带单测）：**hPath 是其他成员 hPath 的目录前缀**
+ * （`<被打平后的候选 hPath>/` 开头）的那些文档——扁平列表里它们是目录，
+ * 不是叶子源。返回**去重**后的 id 列表（判定只做一次）。
+ *
+ * 单调性：hPath 去尾斜杠后若比最长候选还长，绝不可能是别人的前缀 → 跳过。
+ * 只回候选，**剔不剔除由调用方按「是否空壳」定**（有真实内容的中间层
+ * 照常入队——比如「上篇」下既有正文也有子文档）。
+ */
+export function middleLayerIds(refs: SubDocRef[]): string[] {
+    const items = refs
+        .map((r) => ({
+            id: r.id,
+            key: trimSlashes(r.hPath ?? ""),
+        }))
+        .filter((it) => !!it.id);
+    let longest = 0;
+    for (const it of items) longest = Math.max(longest, it.key.length);
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const it of items) {
+        if (!it.key || it.key.length >= longest) continue;
+        const prefix = it.key + "/";
+        if (!items.some((o) => o !== it && o.key.startsWith(prefix))) continue;
+        if (seen.has(it.id)) continue;
+        seen.add(it.id);
+        out.push(it.id);
+    }
+    return out;
 }
 
 /**

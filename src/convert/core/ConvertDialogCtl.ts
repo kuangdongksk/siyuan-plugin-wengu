@@ -131,6 +131,8 @@ export class ConvertDialogCtl {
         }
         const plan = await planSubDocs(raw).catch((): undefined => undefined);
         if (seq !== this.subSeq || !this.alive) return;
+        // 中间层空壳已在 planSubDocs 里剔掉：清单即队列成员，弹窗展示的
+        // 子文档数与真跑队列逐一对得上（Issue #42 验收 1/3）。
         ui.subDocs = plan?.children ?? [];
         ui.docEmpty = plan?.rootEmpty ?? false;
     }
