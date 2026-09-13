@@ -14,7 +14,14 @@ import { KernelQuery } from "../../../siyuan/query";
  *    `rowsAll` 分页，不能裸 rows 一把梭；
  *  - **顺序**：源的「文件树顺序」不是 `ORDER BY sort`（导入语料上
  *    sort/created 全退化，返回任意序）——这里按 **hpath 字典序**排，
- *    与文件树展示序一致且确定性（队列执行顺序可预期、可复现）；
+ *    与文件树展示序一致且确定性（队列执行顺序可预期、可复现）。
+ *    ⚠️ **字典序=码点序（`<`/`>`），不是 `localeCompare`**（20260913
+ *    PR #43 复审阻断缺陷）：`localeCompare` 落在**系统默认 collation**
+ *    上，同一份数据会随机器 locale 漂移——CI 容器（LANG 缺失）按码点序
+ *    得「概率篇/线代篇/高数篇」，Windows zh-CN 按拼音序得
+ *    「概率篇/高数篇/线代篇」，队列执行顺序与题集插入顺序跟着变
+ *    （AGENTS.md 明写「数据在两台机器间流转」）。码点序机器无关，
+ *    这才是这里要的确定性；
  *  - **判空口径**（Issue #42）：只有正文非空的块才算货（详见 isEmptyDoc），
  *    且**空壳中间层不入队列**（详见 middleLayerIds）。
  */
@@ -157,7 +164,12 @@ export async function planSubDocs(docIdRaw: string): Promise<SubDocPlan | undefi
             hPath: r.get("hpath") || undefined,
         }))
         .filter((c) => !!c.id)
-        .sort((a, b) => (a.hPath ?? a.title).localeCompare(b.hPath ?? b.title));
+        .sort((a, b) => {
+            // 码点序（非 locale 序）：机器无关，队列顺序可复现——见文件头注释
+            const ka = a.hPath ?? a.title;
+            const kb = b.hPath ?? b.title;
+            return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
     const rootRef: SubDocRef = {
         id: docId,
         title: root.get("content") || root.get("hpath") || docId,

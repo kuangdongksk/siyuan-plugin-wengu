@@ -69,3 +69,26 @@ describe("planSubDocs → buildBatchQueue（660 真机结构，真 SQL）", () =
         expect(buildBatchQueue(plan, true)).toHaveLength(6);
     });
 });
+
+/**
+ * 排序的 **locale 无关性**（PR #43 复审阻断缺陷）：hpath 里带 CJK 时，
+ * `localeCompare` 会随机器 locale 给出不同顺序——CI 容器（无 LANG）按
+ * 码点序得「概率篇/线代篇/高数篇」，Windows zh-CN 按拼音序得
+ * 「概率篇/高数篇/线代篇」，队列执行顺序与题集插入顺序跟着漂移。
+ *
+ * 这里把**默认 collation 强改成拼音序**（进程启动时 `LANG` 已定，
+ * 运行时改环境变量不生效，故显式构造 zh 排序器来模拟 zh-CN 机器），
+ * 断言 planSubDocs 的顺序**不受影响**——「码点序」是本模块的硬约束，
+ * 本用例在拼音序环境下也会红，正是它该有的锁法。
+ */
+describe("planSubDocs 的排序与 locale 无关（码点序）", () => {
+    it("拼音序 collation 下顺序仍是码点序（概 < 线 < 高）", async () => {
+        const zh = "概率篇,高数篇,线代篇"; // 拼音序，与码点序（概/线/高）**不同**
+        const sample = ["概率篇", "线代篇", "高数篇"];
+        expect(sample.slice().sort((a, b) => a.localeCompare(b, "zh"))).toEqual(zh.split(",")); // 前提成立
+        const plan = (await planSubDocs("20260912000001-root00"))!;
+        // 叶子顺序：概率篇两章 → 线代篇两章 → 高数篇两章（码点序），
+        // 而不是拼音序的「概率篇/高数篇/线代篇」。
+        expect(plan.children.map((c) => c.title)).toEqual(["第1章", "第2章", "第3章", "第4章", "第5章", "第6章"]);
+    });
+});
