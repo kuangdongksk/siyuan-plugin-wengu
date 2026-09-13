@@ -244,13 +244,19 @@ export class ConvertDialogCtl {
         d.saveChoice(ui.modelId, ui.fillToChoice, ui.bigToSteps, ui.knowRoots);
         // 批量队列（Issue #37）：「连同子文档」勾选或源为空壳子文档文件夹时
         // 展开。**单篇**续跑记录（无 batch 键，如面板对单篇记录点「继续
-        // 生成」）仍不展开队列——只恢复那一篇，防意外转换别的篇；**带
-        // batch 的队列记录**照常展开队列、逐篇自查续跑（Issue #62，
-        // resume 不传：队列逐篇按 id 各自查记录）
+        // 生成」）不展开队列——只恢复那一篇，防意外转换别的篇；带 batch
+        // 的队列记录（面板已预填**队列根**）照常展开队列、逐篇自查续跑
         const queue = resumeRec && !resumeRec.batch ? [] : this.batchQueue();
         // 队列与「单篇=源自身」等价时才退化（判据见 isBatchQueue——空壳
         // 文件夹只有 1 个子文档时也必须走队列，否则转的是空壳源本身）
         const asQueue = isBatchQueue(queue, extractBlockId(target));
+        // 续跑游标只有**单篇流程**用得上：真起队列时逐篇按 id 自查记录
+        // （ConvertBatchQueue 的 resumeOf），cfg.resume 传了也是白传。
+        // ⚠️ 判据必须是 **asQueue**，不能写成「记录有没有 batch 键」——
+        // 存量队列记录（带 batch 但无 rootId）预填的是**该篇自己**，若那
+        // 一篇是叶子（无子文档）就会退化成单篇流程，此时不传 resume 就
+        // 丢了断点游标、整篇从头重烧（Issue #62 验收 5）。
+        const resume = !asQueue && resumeRec ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined;
         const batchTitle = this.batchTitle();
         const cfg: ConvertRunCfg = {
             srcDocId: target,
@@ -262,7 +268,7 @@ export class ConvertDialogCtl {
                 .split(/[\s,;，；]+/)
                 .map((s) => extractBlockId(s))
                 .filter((s) => /^\d{14}-[a-z0-9]+$/i.test(s)),
-            resume: resumeRec && !resumeRec.batch ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined,
+            resume,
             subDocs: asQueue ? queue : undefined,
             batchTitle: asQueue ? batchTitle : undefined,
             reconvertDone: ui.reconvertDone,

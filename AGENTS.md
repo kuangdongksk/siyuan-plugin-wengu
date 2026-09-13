@@ -603,7 +603,15 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       `ConvertDialogCtl.start` 的队列口径是
       `resumeRec && !resumeRec.batch ? [] : this.batchQueue()` ——只有
       **单篇**记录（无 batch 键）走单篇续跑不展开队列，带 batch 的记录
-      走队列且 `cfg.resume` 不传。
+      走队列。
+    - ⚠️ **`cfg.resume` 传不传看 `asQueue`，不是看「记录有没有 batch 键」**
+      （20260913 复审修复的真机级缺陷）：队列逐篇自查记录
+      （`ConvertBatchQueue.resumeOf`），起真队列时 `cfg.resume` 传了也是
+      白传；但**存量队列记录（带 batch 但无 rootId）面板只预填该篇自己**
+      ——那一篇若是叶子（无子文档）`isBatchQueue` 即假、退化回单篇流程，
+      此时不传 resume 就丢了断点游标、整篇从头重烧（验收 5 破）。
+      写成 `resumeRec && !resumeRec.batch ? {...} : undefined` 是这个坑的
+      原形：判据必须与「本跑到底起没起队列」同源。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
