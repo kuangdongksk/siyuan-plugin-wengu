@@ -258,23 +258,24 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       （`<u>` 包的就是原文本身，排除它会让「选段含联动词」整段定位失败）。
       `.wengu-gloss-sup`（序号上标）**不在 SKIP_SELECTOR 里**：它要参与匹配
       （选段 `toString` 含「N·记号」字符，两边对得上才匹配得上），只由
-      `applyClueMarks` 落格循环按 `SUP_SELECTOR` 挡「不许被包」——上标不包
-      mark，`<u>` 内的词本身照常出 mark。即 **mark 可进 `<u>`、词表永不包
-      mark**，嵌套只单向发生。
+      `applyClueMarks` 落格循环按 `SUP_SELECTOR` 挡「不许被包」——**落格
+      守卫只管「谁不许被包 mark」、不管匹配源**，上标不包 mark、`<u>` 内的
+      词本身照常出 mark。即 **mark 可进 `<u>`、词表永不包 mark**，嵌套只
+      单向发生。
     - ⚠️ **跳过口径直接决定匹配文本源**（Issue #51 真根因）：`SKIP_SELECTOR`
       多排除一个类 = 该类文本从匹配源消失——`textNodesOf` 的 haystack 少了
       那几个字，含它的选段子串匹配必败、静默降级只留 chip。本次缺陷即
       `.wengu-gloss-link` 混进跳表（`<u>` 包的就是原文本身）。偏移缺失只
-      发生在被排除处、之前的内容照常高亮=「缺一段」（与「同一原文占两遍、
-      偏移错位」的假说方向相反，**该假说已被证伪**，别照搬）。两侧
-      `textNodesOf` 的跳表都别顺手加类。
+      发生在被排除处、之前的内容照常高亮=「缺一段」（不是「多一段」）。
+      `SUP_SELECTOR` 是**落格守卫**：只挡「不许被包 mark」、不挡匹配，
+      两类判定别混用。两侧 `textNodesOf` 的跳表都别顺手加类。
     - ⚠️ **REJECT/SKIP 对 `SHOW_TEXT` 的文本节点等价**：`createTreeWalker`
       的 filter **只对通过 whatToShow 的节点调用**（SHOW_TEXT ⇒ 只有文本
       节点），而 REJECT 的「连子树一起拒」语义只对**元素**成立——文本节点
       没有子树，故与 SKIP 行为完全等价（jsdom 26 与 linkedom 0.18 双引擎
       实测节点表逐字节相同）。生产代码保留 REJECT 只是**防御性口径**：防未来
-      whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒；它从来不是
-      本条缺陷的成因，改它（REJECT→SKIP）是 no-op。
+      whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒；本条缺陷的成因
+      是跳表内容，改它（REJECT→SKIP）是 no-op。
     - 挂载顺序固定「词表 → 线索」（两处调用点同款）；两侧都幂等（先摘旧标记
       再重铺）。带词的 `applyGloss` 整段重铺会连带抹掉线上 mark，**靠既有
       「材料填充后 refreshClueMarks」时机重铺，别加新通道**。

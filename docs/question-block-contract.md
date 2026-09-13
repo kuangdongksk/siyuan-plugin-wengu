@@ -914,10 +914,14 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
       `<span class="wengu-gloss-link"><u>词</u><sup>序号</sup></span>`。
       判定纯函数在 `convert/service/gloss/GlossEntry`（单测覆盖），本处只做
       DOM 手术。
-    - **与 #29 线索 mark 互不嵌套**（接口约定）：GlossDom 不碰
-      `mark.wengu-clue-mark` 内的文本，ClueMarkDom 的跳过名单也含
-      `.wengu-gloss` / `.wengu-gloss-link`；两侧都幂等（先摘旧标记再重铺）。
-      挂载顺序固定为「词表后处理 → 线索高亮后处理」（两个调用点同款）。
+    - **与 #29 线索 mark 是「单向嵌套」**（Issue #51 改写 #33/#34 的「互不
+      嵌套」约定）：GlossDom 不碰 `mark.wengu-clue-mark` 内的文本；ClueMarkDom
+      的跳过名单**只含 `.wengu-gloss`（词表区，非原文）**——**不含**
+      `.wengu-gloss-link`（其 `<u>` 包的就是原文本身，排除它会让含联动词的
+      选段整段定位失败），序号上标 `.wengu-gloss-sup` 参与匹配、由落格守卫
+      `SUP_SELECTOR` 单独挡「不许被包 mark」。**跳表即匹配文本源**：多排除
+      一个类 = 该类文本从匹配源消失，可静默失败。两侧都幂等（先摘旧标记再
+      重铺），挂载顺序固定为「词表后处理 → 线索高亮后处理」（两个调用点同款）。
     - **`^{...}` 的数学/代码豁免**：`$...$`（含 `$$...$$`）、行内代码与
       围栏代码块里的 `^{...}` 是 LaTeX 指数/代码字面量，**既不采集也不剥除**
       （`protectedSpans` / `eachMark`，见 AGENTS.md convert 域踩坑 3）。

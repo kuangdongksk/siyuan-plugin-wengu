@@ -52,13 +52,12 @@ export const SUP_SELECTOR = ".wengu-gloss-sup";
 
 /** 收集某标记元素下的文本节点（跳过 SKIP_SELECTOR 子树）。
  *
- *  ⚠️ **真根因（Issue #51）：SKIP_SELECTOR 里的 `.wengu-gloss-link` 把
- *  联动词形整片排除出了匹配文本源**——`<u>` 包的就是原文本身，haystack
- *  里少了这几个字，含联动词的选段子串匹配必败（偏移缺失只发生在 link 处，
- *  故 link **之前**的线索仍能高亮=「缺一段」）。修法是把它移出
- *  SKIP_SELECTOR，**不是**改 walker 的 filter：曾经「REJECT 对文本节点仍
- *  进子树 ⇒ 同一原文占两遍、偏移错位」的说法不成立，在 SHOW_TEXT 下
- *  `acceptNode` 只会收到文本节点、文本节点没有子树，两者等价。
+ *  ⚠️ **跳过口径直接决定匹配文本源**（Issue #51 真根因）：SKIP_SELECTOR
+ *  命中即整片退出匹配文本源——多排除一个类 = 该类文本从 haystack 消失，
+ *  含它的选段子串匹配必败、静默降级只留 chip。本次缺陷即
+ *  `.wengu-gloss-link` 混进跳表（`<u>` 包的就是原文本身），故修法是把
+ *  它移出 SKIP_SELECTOR；`SUP_SELECTOR` 是**落格守卫**，只挡「不许被包
+ *  mark」、不挡匹配（见 applyClueMarks 的落格循环）。
  *
  *  REJECT→SKIP 的保留只是**防御性口径**：与 SKIP 语义等价（文本节点无
  *  子树），防未来 whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒。 */
