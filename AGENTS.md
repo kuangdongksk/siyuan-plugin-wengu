@@ -80,8 +80,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   所以 `quality-gate` 也配在 `$` 下与 NPC 事件共存。顶层另两个合法语义：分支 glob
   （按触发分支匹配）、角色名（与 `.cnb/settings.yml` 的 `npc.roles[].name` 逐字一致
   时才加载，与 `$` 合并、同名事件覆盖）。
-- **召唤青简必须写完整路径**：`@sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简)`。
-  裸 `@青简` 不会触发任何流水线（20260910 实测），系统内置的才写 `@CodeBuddy`。
+- **召唤青简必须写完整路径且顶格**：`@sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简)`。
+  裸 `@青简` 不会触发任何流水线（20260910 实测），系统内置的才写 `@CodeBuddy`；
+  提及**必须顶格**——放在引用块（行首 `> `）里的提及同样不触发（20260913 实测：
+  #59 首召落在引用块，零流水线零报错；顶格重发 1 秒内触发）。
 - 要让它真的写代码，评论时必须开 **「替我上班」**（API：`post-issue-comment --work-mode`）。
   不开只有读权限，`npc.work_mode` 会是 `false`。
 
