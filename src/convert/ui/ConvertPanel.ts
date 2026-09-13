@@ -23,8 +23,10 @@ export interface ConvertPanelDeps {
     listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[];
     /** 丢弃一条进度记录：清 prefs；rec 带 docId（转换新建的文档）时一并删除。 */
     discardProgress(srcDocId: string, rec: ConvertProgressRecord): void;
-    /** 继续生成：打开转换弹窗并预填该源文档（resume 提示接管）。 */
-    resumeProgress(srcDocId: string): void;
+    /** 继续生成：打开转换弹窗并预填该源文档（resume 提示接管）；
+     *  resumeQueue=true 表示传入的是**队列根**（Issue #62，记录带
+     *  batch.rootId），弹窗按队列恢复处理。 */
+    resumeProgress(srcDocId: string, resumeQueue?: boolean): void;
 }
 
 /** 单例（重复打开刷新旧面板）。 */

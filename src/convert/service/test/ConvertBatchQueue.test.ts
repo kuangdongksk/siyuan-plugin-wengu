@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BatchedResult, ConvertProgress } from "../run/ConvertBatch";
+import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "../run/ConvertBatch";
 
 /**
  * 批量转换串行队列（Issue #37）：跑通 ConvertBatchQueue 的编排层——
@@ -19,8 +19,24 @@ vi.mock("../run/ConvertBatch", async (importOriginal) => {
     return {
         ...orig,
         convertDocBatched: vi.fn(
-            async (docId: string, opts: { signal: AbortSignal; onProgress: (p: ConvertProgress) => void }) => {
+            async (
+                docId: string,
+                opts: {
+                    signal: AbortSignal;
+                    onProgress: (p: ConvertProgress) => void;
+                    onCheckpoint?: (rec: unknown) => void;
+                }
+            ) => {
                 calls.push(docId);
+                // 每批落库后的断点检查点（Issue #62，仅队列内接）
+                opts.onCheckpoint?.({
+                    setId: `set-${docId}`,
+                    title: docId,
+                    offset: 100,
+                    batches: 1,
+                    total: 0,
+                    count: 3,
+                });
                 opts.onProgress({
                     phase: "generating",
                     batch: 1,
@@ -70,6 +86,7 @@ import {
     stopConvertRun,
 } from "../run/ConvertRun";
 import { batchMetaOf } from "../run/ConvertRunState";
+import { classifyQueueItem } from "../run/ConvertBatchQueue";
 import type { ConvertRunCfg, ConvertRunEvents } from "../run/ConvertRun";
 
 /** onBatchItem 会推「running→终态」多次，测试只关心每篇的**最终**状态：
@@ -81,22 +98,33 @@ function events(): {
     finalStatus: (title: string) => string | undefined;
     progressSaved: string[];
     convFlags: boolean[];
+    checkpoints: { id: string; rec: unknown }[];
 } {
     const statuses: string[] = [];
     const latest = new Map<string, string>();
     const progressSaved: string[] = [];
     const convFlags: boolean[] = [];
+    const checkpoints: { id: string; rec: unknown }[] = [];
     const ev: ConvertRunEvents = {
         t: (k) => k,
-        bank: { flush: (): Promise<void> => Promise.resolve() } as never,
+        bank: {
+            flush: (): Promise<void> => Promise.resolve(),
+            // 跳过判定（Issue #62）起跑前一次 bank.all() 建 srcId→setId 映射
+            all: (): Promise<{ sets: Record<string, { srcId?: string }> }> => Promise.resolve({ sets }),
+        } as never,
         setConverting: (v) => convFlags.push(v),
         onStatus: (html) => statuses.push(html),
         onBatch: () => undefined,
         onStopChoice: () => undefined,
         onDone: () => undefined,
-        saveProgress: (id) => progressSaved.push(id),
+        saveProgress: (id, rec) => {
+            // progressSaved 只记**清记录**（settleDone 的 undefined）——
+            // 中断路写记录走 checkpoints / 各自的 saved 收集器
+            if (rec) checkpoints.push({ id, rec });
+            else progressSaved.push(id);
+        },
         onBatchItem: (item) => latest.set(item.title, item.status),
-        getProgress: () => undefined,
+        getProgress: (id) => records.get(id),
     };
     return {
         ev,
@@ -104,8 +132,14 @@ function events(): {
         finalStatus: (title: string): string | undefined => latest.get(title),
         progressSaved,
         convFlags,
+        checkpoints,
     };
 }
+
+/** 题库已有题集（跳过判定）：srcId → setId。 */
+let sets: Record<string, { srcId?: string }> = {};
+/** 既有续跑记录（逐篇自查）：docId → 记录。 */
+let records = new Map<string, ConvertProgressRecord>();
 
 const REFS = [
     { id: "20260828145730-aaaaaaaa", title: "01-马原-题解" },
@@ -125,6 +159,8 @@ const cfg: ConvertRunCfg = {
 beforeEach(async () => {
     calls.length = 0;
     plan.clear();
+    sets = {};
+    records = new Map();
     // 上一测试若终止在抉择态，落定它，避免 aborted 残留挡下一次 start
     if (convertRunSnapshot()?.pendingChoice) await keepConvertRun().catch((): void => undefined);
     discardConvertRun();
@@ -187,8 +223,9 @@ describe("ConvertBatchQueue", () => {
         plan.set(REFS[2].id, async (id) => done(id));
         const saved: { id: string; rec: unknown }[] = [];
         const { ev } = events();
+        // 只收**收口**记录（失败续跑）：中途检查点 total 恒 0，见 Issue #62
         ev.saveProgress = (id, rec) => {
-            if (rec) saved.push({ id, rec });
+            if (rec && rec.total > 0) saved.push({ id, rec });
         };
         startConvertRun({ ...cfg, subDocs: REFS, batchTitle: "队列" }, ev);
         await vi.waitFor(() => expect(convertRunActive()).toBe(false));
@@ -198,6 +235,7 @@ describe("ConvertBatchQueue", () => {
             index: 1,
             total: 3,
             groupTitle: "队列",
+            rootId: cfg.srcDocId, // Issue #62：面板「继续生成」据此恢复整个队列
         });
     });
 
@@ -250,8 +288,9 @@ describe("ConvertBatchQueue", () => {
         });
         const saved: { id: string; rec: unknown }[] = [];
         const { ev } = events();
+        // 同上：只收收口的保留记录（中途检查点由「断点检查点」用例覆盖）
         ev.saveProgress = (id, rec) => {
-            if (rec) saved.push({ id, rec });
+            if (rec && rec.total > 0) saved.push({ id, rec });
         };
         startConvertRun({ ...cfg, subDocs: REFS, batchTitle: "队列" }, ev);
         await vi.waitFor(() => expect(convertRunSnapshot()?.pendingChoice).toBe(true));
@@ -261,6 +300,7 @@ describe("ConvertBatchQueue", () => {
             index: 0,
             total: 3,
             groupTitle: "队列",
+            rootId: cfg.srcDocId,
         });
     });
 
@@ -272,7 +312,105 @@ describe("ConvertBatchQueue", () => {
             index: 2,
             total: 3,
             groupTitle: "队列",
+            rootId: cfg.srcDocId, // Issue #62：队列根（cfg.srcDocId）
         });
+    });
+
+    it("重发队列跳过题库已有题集的篇（零 AI），勾「重转已转换过的篇」则照跑", async () => {
+        // 三篇里第二篇题库里已有题集（=转换完成过），无续跑记录
+        sets = { "set-2": { srcId: REFS[1].id } };
+        for (const r of REFS) plan.set(r.id, async (id) => done(id));
+        const { ev, finalStatus, statuses } = events();
+        startConvertRun({ ...cfg, subDocs: REFS, batchTitle: "队列" }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(calls).toEqual([REFS[0].id, REFS[2].id]); // 第二篇零 AI 跳过
+        expect(REFS.map((r) => finalStatus(r.title))).toEqual(["done", "skipped", "done"]);
+        expect(statuses[statuses.length - 1]).toContain("convertBatchTailSkipped");
+    });
+
+    it("勾 reconvertDone 时即使题库已有题集也照常重转", async () => {
+        sets = { "set-1": { srcId: REFS[1].id } };
+        for (const r of REFS) plan.set(r.id, async (id) => done(id));
+        const { ev, finalStatus, statuses } = events();
+        startConvertRun({ ...cfg, subDocs: REFS, batchTitle: "队列", reconvertDone: true }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(calls).toEqual(REFS.map((r) => r.id));
+        expect(REFS.map((r) => finalStatus(r.title))).toEqual(["done", "done", "done"]);
+        expect(statuses[statuses.length - 1]).not.toContain("convertBatchTailSkipped");
+    });
+
+    it("有续跑记录的篇不受跳过影响（照旧从断点续跑）", async () => {
+        sets = { "set-2": { srcId: REFS[1].id } };
+        records = new Map([
+            [
+                REFS[1].id,
+                {
+                    setId: "set-2",
+                    title: "02",
+                    offset: 40,
+                    batches: 1,
+                    total: 1,
+                    count: 1,
+                },
+            ],
+        ]);
+        for (const r of REFS) plan.set(r.id, async (id) => done(id));
+        const { ev, finalStatus } = events();
+        startConvertRun({ ...cfg, subDocs: REFS }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(calls).toEqual(REFS.map((r) => r.id)); // 续跑优先于跳过
+        expect(REFS.map((r) => finalStatus(r.title))).toEqual(["done", "done", "done"]);
+    });
+
+    it("查库失败时全部按「无题集」处置：照常从头转（宁多烧不漏转）", async () => {
+        for (const r of REFS) plan.set(r.id, async (id) => done(id));
+        const { ev } = events();
+        (ev.bank as unknown as { all: () => Promise<never> }).all = () => Promise.reject(new Error("boom"));
+        startConvertRun({ ...cfg, subDocs: REFS.slice(0, 2) }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(calls).toEqual(REFS.slice(0, 2).map((r) => r.id));
+    });
+
+    it("队列全部完成后重发：全部跳过、零 AI（验收 3）", async () => {
+        sets = {
+            "set-1": { srcId: REFS[0].id },
+            "set-2": { srcId: REFS[1].id },
+            "set-3": { srcId: REFS[2].id },
+        };
+        for (const r of REFS) plan.set(r.id, async (id) => done(id));
+        const { ev, finalStatus, statuses } = events();
+        startConvertRun({ ...cfg, subDocs: REFS, batchTitle: "队列" }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(calls).toEqual([]); // 一次 AI 都没起
+        expect(REFS.map((r) => finalStatus(r.title))).toEqual(["skipped", "skipped", "skipped"]);
+        const tail = statuses[statuses.length - 1];
+        expect(tail).toContain("convertBatchTailSkipped");
+        expect(tail).not.toContain("convertBatchTailDone"); // 全跳过时不报「完成 0 篇」噪音
+    });
+
+    it("classifyQueueItem：有记录先续跑，其次看题集与重转开关", () => {
+        const rec = { offset: 10, setId: "s" };
+        expect(classifyQueueItem(rec, true, false)).toBe("resume");
+        expect(classifyQueueItem(rec, true, true)).toBe("resume"); // 记录优先于跳过
+        expect(classifyQueueItem(undefined, true, false)).toBe("skip");
+        expect(classifyQueueItem(undefined, true, true)).toBe("fresh"); // 勾了重转
+        expect(classifyQueueItem(undefined, false, false)).toBe("fresh");
+        expect(classifyQueueItem({ offset: 0 }, true, false)).toBe("resume");
+    });
+
+    it("队列内逐批落断点检查点（带本篇 id + 队列维度）", async () => {
+        for (const r of REFS) plan.set(r.id, async (id) => done(id));
+        const { ev, checkpoints } = events();
+        startConvertRun({ ...cfg, subDocs: REFS.slice(0, 2), batchTitle: "队列" }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(checkpoints.length).toBeGreaterThan(0);
+        for (const cp of checkpoints) {
+            const rec = cp.rec as { offset: number; batches: number; total: number; setId?: string };
+            expect(cp.id).not.toBe(cfg.srcDocId);
+            expect(rec.offset).toBe(100);
+            expect(rec.batches).toBe(1); // 已落库批数口径
+            expect(rec.total).toBe(0); // 中途未知（批数由 AI 的 @@TO 决定）
+        }
     });
 
     it("快照在队列运行中给出分篇进度行", async () => {

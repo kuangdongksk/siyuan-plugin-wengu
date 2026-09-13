@@ -22,16 +22,61 @@ import { notifyState, setActive, type ActiveRun } from "./ConvertRunState";
  *     「N 篇完成、M 篇失败：清单」走 Notify + 状态条。
  *  4. **「停止」= 整队列停**：当前篇若已有产物转保留/丢弃抉择（沿用单篇
  *     aborted 语义），剩余篇全部标 cancelled 并给汇总。
+ *  5. **重发跳过已完成篇**（Issue #62）：起跑前建一次 `srcId → setId` 映射，
+ *     无续跑记录、但题库里已有该源文档题集的篇=「转换完成过」→ 直接跳过
+ *     （零 AI）；勾了 `reconvertDone` 则照常跑。判定收口在 `classifyQueueItem`。
  */
 
-/** 队列汇总（终态通知/状态条）。四段之和 = 队列总篇数（不许有篇被漏计）。 */
+/** 队列汇总（终态通知/状态条）。**五段之和 = 队列总篇数**（不许有篇被
+ *  漏计）：done + skipped + stopped + failed.length + cancelled。 */
 interface QueueTail {
     done: number;
+    /** 起跑前即判定「已转换过」而跳过的篇（Issue #62，零 AI）。 */
+    skipped: number;
     /** 用户终止时**正在跑**的那篇（未跑完，也无产物可保留）。 */
     stopped: number;
     failed: string[];
     /** 因终止而**没跑**的剩余篇。 */
     cancelled: number;
+}
+
+/**
+ * 起跑前的逐篇判定（Issue #62，纯函数、带单测）：
+ *  1. 有续跑记录 → `resume`（照旧断点续跑）；
+ *  2. 无记录但题库已有该源文档的题集 → 视为**已完成**（`skip`，零 AI）；
+ *  3. 皆无 → 从头转（`fresh`）。
+ *
+ * 「已转换过」的判据是 `sets` 里存在 `srcId === 该篇 id` 的题集——题集由
+ * 转换产物派生（每批即落库），误判面已由 Issue 论证：保留/失败篇必有进度
+ * 记录（走分支 1）、丢弃与「删除此题集」会连题集一起删、崩溃时的进行中篇
+ * 由逐批检查点兜住（也有记录）——故「无记录 + 有题集」基本等价于
+ * 「转换完成过」，且**宁可不跳过**：任何一环查不到就按从头转（多烧一次
+ * AI 好过静默漏转）。
+ *
+ * @param hasSet 该篇源文档是否已有题集（由调用方一次性建好的映射回答）
+ */
+export function classifyQueueItem(
+    resume: { offset: number; setId?: string } | undefined,
+    hasSet: boolean,
+    reconvertDone: boolean
+): "resume" | "skip" | "fresh" {
+    if (resume) return "resume";
+    if (hasSet && !reconvertDone) return "skip";
+    return "fresh";
+}
+
+/** 建 `srcId → setId` 映射（**一次 `bank.all()`**，别逐篇 all()）。 */
+async function setIdsBySrc(run: ActiveRun): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    try {
+        const data = await run.ev.bank?.all();
+        for (const [id, set] of Object.entries(data?.sets ?? {})) {
+            if (set.srcId && !map.has(set.srcId)) map.set(set.srcId, id);
+        }
+    } catch (_) {
+        // 查库失败=全部按「无题集」处置（照常从头转，宁多烧不漏转）
+    }
+    return map;
 }
 
 /** items 缺失时的兜底元素（理论不可达，防御）。 */
@@ -62,8 +107,11 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
     const docs = cfg.subDocs ?? [];
     const failed: string[] = [];
     let done = 0;
+    let skipped = 0;
     /** 已标取消的篇数（循环 break 与停止两条路径都会累计）。 */
     let cancelled = 0;
+    /** 起跑前一次建好的 `srcId → setId` 映射（跳过判定用，零额外 SQL）。 */
+    const setBySrc = await setIdsBySrc(run);
     /** 最后一篇成功产物（队列收口时切到它——与单篇 onDone 同口径）。 */
     let last: BatchedResult | undefined;
 
@@ -87,6 +135,16 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             cancelled += cancelRest(i);
             break;
         }
+        // 各篇续跑记录按 id 各自查（队列里排队中的篇通常还没有记录）
+        const resume = resumeOf(ev, docs[i].id);
+        // 重发队列跳过已完成篇（Issue #62）：有记录照旧续跑；无记录但题库
+        // 已有该篇题集=转换完成过 → 零 AI 跳过（勾了「重转已转换过的篇」则照跑）
+        const kind = classifyQueueItem(resume, setBySrc.has(docs[i].id), cfg.reconvertDone === true);
+        if (kind === "skip") {
+            skipped++;
+            flip(run, i, { status: "skipped" });
+            continue;
+        }
         flip(run, i, { status: "running" });
         // 换篇：清掉上一篇的进度/标题，面板切到本篇；槽与「转换中」标记
         // **不**释放（内层单篇 failed 收口会清槽 + 复位该标记，这里占回来）
@@ -98,8 +156,6 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
         );
         setActive(run);
         notifyState();
-        // 各篇续跑记录按 id 各自查（队列里排队中的篇通常还没有记录）
-        const resume = resumeOf(ev, docs[i].id);
         const r = await runSingleDoc(run, signal, docs[i].id, resume, i, true);
         if (!r) {
             // 意外异常（runSingleDoc 已收口为 err 终态）：记失败继续下一篇
@@ -120,7 +176,7 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             cancelled += cancelRest(i + 1);
             if (!r.setId) {
                 // 首批前终止（该篇零产物）：无保留/丢弃可言 → 队列直接收口
-                await finishQueue(ev, t, { done, stopped: 1, failed, cancelled }, last);
+                await finishQueue(ev, t, { done, skipped, stopped: 1, failed, cancelled }, last);
                 return;
             }
             // 有产物：该篇转抉择态（runSingleDoc 已置 aborted，items 随之
@@ -130,14 +186,14 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             setActive(undefined);
             ev.setConverting(false);
             notifyState();
-            notifyQueueTail(ev, t, { done, stopped: 1, failed, cancelled });
+            notifyQueueTail(ev, t, { done, skipped, stopped: 1, failed, cancelled });
             return;
         }
         // 中途失败：有部分产物则记续跑进度（该篇可「继续生成」），继续下一篇
         failed.push(docs[i].title);
         flip(run, i, { status: "failed", message: r.message || t("convertNoQuestions"), count: r.count });
     }
-    await finishQueue(ev, t, { done, stopped: 0, failed, cancelled }, last);
+    await finishQueue(ev, t, { done, skipped, stopped: 0, failed, cancelled }, last);
 }
 
 /** 队列收口：释放槽 + 切到最后一篇产物（onDone）+ 汇总状态条/通知。
@@ -162,10 +218,14 @@ async function finishQueue(
 function notifyQueueTail(ev: ConvertRunEvents, t: (k: string) => string, tail: QueueTail): void {
     const parts: string[] = [];
     // 成功段在「一篇没成」且另有说法时省掉——「完成 0 篇 · 3 篇已取消」的
-    // 前半句是噪音，用户只关心后段
-    if (tail.done > 0 || (tail.failed.length === 0 && tail.cancelled === 0 && tail.stopped === 0)) {
+    // 前半句是噪音，用户只关心后段（跳过也算「另有说法」）
+    if (
+        tail.done > 0 ||
+        (tail.failed.length === 0 && tail.cancelled === 0 && tail.stopped === 0 && tail.skipped === 0)
+    ) {
         parts.push(fmt(t("convertBatchTailDone"), { n: String(tail.done) }));
     }
+    if (tail.skipped > 0) parts.push(fmt(t("convertBatchTailSkipped"), { n: String(tail.skipped) }));
     if (tail.stopped > 0) parts.push(fmt(t("convertBatchTailStopped"), { n: String(tail.stopped) }));
     if (tail.failed.length > 0) {
         parts.push(fmt(t("convertBatchTailFail"), { n: String(tail.failed.length), list: tail.failed.join("；") }));

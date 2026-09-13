@@ -86,9 +86,13 @@ export class ConvertPanelCtl {
         this.armState.disarm();
     }
 
-    /** 「继续生成」：关面板回转换弹窗预填该源文档。 */
+    /** 「继续生成」：关面板回转换弹窗预填该源文档。带队列维度（batch）的
+     *  记录（Issue #62）改预填**队列根**——弹窗照常展开队列，跑到目标篇时
+     *  逐篇自查续跑记录自然接上；存量记录无 rootId 时退化为单篇预填。 */
     resume(srcDocId: string): void {
+        const rec = this.deps?.listProgress().find((r) => r.srcDocId === srcDocId)?.rec;
         this.closeFn?.();
-        this.deps?.resumeProgress(srcDocId);
+        const root = rec?.batch?.rootId;
+        this.deps?.resumeProgress(root || srcDocId, !!root);
     }
 }

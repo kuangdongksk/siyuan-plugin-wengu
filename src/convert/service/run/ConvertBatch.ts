@@ -165,9 +165,11 @@ export interface ConvertProgressRecord {
     count: number;
     /** 批量转换（Issue #37）维度：本记录属于一个串行队列时才有值——索引
      *  0 起、总篇数、队列标题（=根文档标题，面板总行展示「第 x/N 篇 ·
-     *  队列名」）。**只加不改名**：单篇转换的记录不带此键，装载侧照旧
+     *  队列名」）、`rootId`（队列根文档 id，面板「继续生成」据此恢复
+     *  **整个队列**，Issue #62）。**只加不改名**：单篇转换的记录不带此键、
+     *  存量队列记录不带 rootId（「继续生成」退化为单篇续跑），装载侧照旧
      *  （数据演进守则：optional + 无 backfill，不 bump version）。 */
-    batch?: { index: number; total: number; groupTitle?: string };
+    batch?: { index: number; total: number; groupTitle?: string; rootId?: string };
 }
 
 /** 批式转换结果：done=全部完成；aborted=用户终止（已落库部分待抉择）。 */
@@ -216,6 +218,11 @@ export async function convertDocBatched(
         /** 动作分组（AI 会话面板树归并）：生成/路由挂同组；缺省=本流程
          *  自生成一组。 */
         trackGroup?: AiSessionGroup;
+        /** 每批落库后的断点检查点（Issue #62）：载荷即「此刻可续跑的进度
+         *  记录」，由批量队列逐篇持久化（单篇流程不接）。⚠️ 中途值
+         *  `batches` 只能是**已落库批数**（与收口记录的「AI 调用批数」
+         *  两个口径，中途无从得知后者）。 */
+        onCheckpoint?(rec: ConvertProgressRecord): void;
         onProgress(p: ConvertProgress): void;
     }
 ): Promise<BatchedResult> {
@@ -373,6 +380,17 @@ export async function convertDocBatched(
         flushedBatches++;
         flushedCursor = Math.max(flushedCursor, batch.end);
         await opts.bank.flush(); // 每批即落盘（崩溃安全，终止/丢弃语义建立在已落库上）
+        // 断点检查点（Issue #62）：本批已落库，此刻崩溃可从 flushedCursor 续跑
+        if (opts.onCheckpoint && setId) {
+            opts.onCheckpoint({
+                setId,
+                title: info.title,
+                offset: flushedCursor,
+                batches: flushedBatches, // 已落库批数（非「AI 调用批数」，见 opts 注释）
+                total: 0, // 中途未知
+                count,
+            });
+        }
         opts.onProgress({
             phase: flushedCursor >= kramdown.length ? "writing" : "generating",
             batch: flushedBatches,

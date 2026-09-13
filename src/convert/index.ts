@@ -37,6 +37,8 @@ export interface ConvertHostCtx {
     convertParallel?: number;
     /** 知识点根文档上次输入（prefs，原始串）。 */
     lastConvertKnow: string;
+    /** 本次打开来自「继续生成」的队列恢复（Issue #62）。 */
+    resumeQueue?: boolean;
     /** 弹窗内临时选择（记 prefs；knowRoots 为原始输入串）。 */
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean, knowRoots: string): void;
     /** 读取某源文档的未完成转换进度（无则 undefined）。 */
@@ -47,8 +49,10 @@ export interface ConvertHostCtx {
     listProgress(): { srcDocId: string; rec: ConvertProgressRecord }[];
     /** 丢弃一条进度记录（面板用：清 prefs + 删保留的渐进文档）。 */
     discardProgress(srcDocId: string, rec: ConvertProgressRecord): void;
-    /** 面板「继续生成」：重开转换弹窗并预填该源文档。 */
-    reopenWithDoc(srcDocId: string): void;
+    /** 面板「继续生成」：重开转换弹窗并预填该源文档；resumeQueue=true 时
+     *  该源文档是**队列根**（记录带 batch.rootId，Issue #62），弹窗要按
+     *  队列恢复处理（自动勾「连同子文档」）。 */
+    reopenWithDoc(srcDocId: string, resumeQueue?: boolean): void;
     /** 直接启动一次转换（弹窗「开始转换」的执行体，事件接线见
      *  convertRunEventsFor；返回 false=已有转换在跑）。 */
     startRun(cfg: ConvertRunCfg): boolean;
@@ -60,7 +64,7 @@ function openConvertPanelForView(ctx: ConvertHostCtx): void {
         t: ctx.t,
         listProgress: () => ctx.listProgress(),
         discardProgress: (srcDocId, rec) => ctx.discardProgress(srcDocId, rec),
-        resumeProgress: (srcDocId) => ctx.reopenWithDoc(srcDocId),
+        resumeProgress: (srcDocId, resumeQueue) => ctx.reopenWithDoc(srcDocId, resumeQueue),
     });
 }
 
@@ -74,6 +78,7 @@ export function openWenguConvert(ctx: ConvertHostCtx): void {
         initialBigToSteps: ctx.lastConvertSteps || ctx.settings?.bigToSteps === true,
         initialParallel: ctx.convertParallel ?? 1,
         initialKnowRoots: ctx.lastConvertKnow,
+        resumeQueue: ctx.resumeQueue,
         saveChoice: ctx.saveChoice,
         getProgress: ctx.getProgress,
         setConverting: ctx.setConverting,
@@ -167,8 +172,16 @@ export function startConvertForView(v: ConvertViewAccess, cfg: ConvertRunCfg): b
 /** 由视图能力组装 ConvertHostCtx 并打开弹窗（openConvert 的拆出体）。
  *  prefillDocId：预填的源文档 id（面板「继续生成」/知识面板「转习题」）。
  *  prefillKnow：预填的知识点根文档 id（知识面板「转习题」——源=根=该
- *  知识文档，生成时即挂自身小节反链；空=回落 prefs 上次输入）。 */
-export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string, prefillKnow?: string): void {
+ *  知识文档，生成时即挂自身小节反链；空=回落 prefs 上次输入）。
+ *  resumeQueue：prefillDocId 是**队列根**（面板对带 batch.rootId 的记录点
+ *  「继续生成」，Issue #62）——弹窗自动勾「连同子文档」，整个队列直接
+ *  展开、逐篇自查续跑。 */
+export function openConvertForView(
+    v: ConvertViewAccess,
+    prefillDocId?: string,
+    prefillKnow?: string,
+    resumeQueue = false
+): void {
     openWenguConvert({
         t: v.t,
         activeDocId: prefillDocId || v.activeDocIdOf(),
@@ -177,13 +190,16 @@ export function openConvertForView(v: ConvertViewAccess, prefillDocId?: string, 
         lastConvertFill: v.lastConvert().fill,
         lastConvertSteps: v.lastConvert().steps,
         lastConvertKnow: prefillKnow || v.lastConvert().know,
+        resumeQueue,
         convertParallel: v.convertParallelOf(),
         saveChoice: (modelId, fill, steps, know) => v.saveConvertChoice(modelId, fill, steps, know),
         getProgress: (srcDocId) => v.convertProgressOf(srcDocId),
         setConverting: (flag) => v.setConvertingState(flag),
         listProgress: () => v.listProgress(),
         discardProgress: (srcDocId, rec) => v.discardProgress(srcDocId, rec),
-        reopenWithDoc: (srcDocId) => openConvertForView(v, srcDocId),
+        /** 面板「继续生成」：带 batch.rootId 的记录走队列恢复（预填根 +
+         *  自动勾「连同子文档」）；单篇/存量记录沿用单篇预填。 */
+        reopenWithDoc: (srcDocId, resumeQueue) => openConvertForView(v, srcDocId, undefined, resumeQueue === true),
         startRun: (cfg) => startConvertForView(v, cfg),
     });
 }

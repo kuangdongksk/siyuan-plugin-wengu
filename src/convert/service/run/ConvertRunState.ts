@@ -44,6 +44,12 @@ export interface BatchMeta {
     index: number;
     total: number;
     groupTitle?: string;
+    /** 队列根文档 id（= `cfg.srcDocId`，Issue #62）：面板「继续生成」据此
+     *  预填**整个队列**（根 + 子文档照常展开、逐篇自查续跑），而不是只
+     *  恢复记录所属的那一篇。**只加不改名**：存量记录无此键时「继续生成」
+     *  退化为现状的单篇续跑（数据演进守则：optional + 无 backfill、
+     *  不 bump version）。 */
+    rootId?: string;
 }
 
 /** 某源文档在队列里的批量维度（纯函数）：不在队列里/队列为空 → undefined
@@ -54,7 +60,7 @@ export function batchMetaOf(cfg: ConvertRunCfg, docId: string): BatchMeta | unde
     if (!list || list.length === 0) return undefined;
     const index = list.findIndex((d) => d.id === docId);
     if (index < 0) return undefined;
-    return { index, total: list.length, groupTitle: cfg.batchTitle };
+    return { index, total: list.length, groupTitle: cfg.batchTitle, rootId: cfg.srcDocId };
 }
 
 let aborted: AbortedRun | undefined;

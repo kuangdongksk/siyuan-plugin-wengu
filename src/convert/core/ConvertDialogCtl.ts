@@ -21,6 +21,11 @@ export class ConvertDialogCtl {
     private echoSeq = 0;
     /** 子文档探查的竞态序号（与回显分开：探查只改 subDocs/docEmpty）。 */
     private subSeq = 0;
+    /** 本次打开是否来自「继续生成」的**队列恢复**（Issue #62）：由 deps
+     *  传入，子文档探查落定后自动勾上「连同子文档」，让弹窗直接展开整个
+     *  队列（否则源=根通常无进度记录，用户看不到任何 resume 提示，
+     *  一眼像是「继续生成」失灵）。 */
+    private resumeQueue = false;
 
     attach(ui: ConvertDialogUi, deps: ConvertDialogDeps, close: () => void): void {
         this.ui = ui;
@@ -28,6 +33,7 @@ export class ConvertDialogCtl {
         this.closeFn = close;
         this.alive = true;
         ui.docId = deps.activeDocId;
+        this.resumeQueue = deps.resumeQueue === true;
         ui.modelId = deps.initialModelId;
         ui.fillToChoice = deps.initialFillToChoice;
         ui.bigToSteps = deps.initialBigToSteps;
@@ -116,6 +122,11 @@ export class ConvertDialogCtl {
         if (this.ui) this.ui.includeSub = v;
     }
 
+    /** 「重转已转换过的篇」勾选（Issue #62，仅队列模式显示）。 */
+    setReconvert(v: boolean): void {
+        if (this.ui) this.ui.reconvertDone = v;
+    }
+
     /** 探查源文档的子文档清单（文件夹式文档提示与批量队列都靠它）。
      *  与回显共用竞态口径：序列号对不上/已卸载则丢弃结果。 */
     private async resolveSubDocs(): Promise<void> {
@@ -135,6 +146,9 @@ export class ConvertDialogCtl {
         // 子文档数与真跑队列逐一对得上（Issue #42 验收 1/3）。
         ui.subDocs = plan?.children ?? [];
         ui.docEmpty = plan?.rootEmpty ?? false;
+        // 队列恢复预勾（Issue #62）：有子文档才勾得上——空壳根本来就会自动
+        // 展开，两种形态殊途同归
+        if (this.resumeQueue && ui.subDocs.length > 0) ui.includeSub = true;
     }
 
     /** 队列标题（=根文档标题；回显为空时用 id 兜底）。 */
@@ -229,9 +243,11 @@ export class ConvertDialogCtl {
         }
         d.saveChoice(ui.modelId, ui.fillToChoice, ui.bigToSteps, ui.knowRoots);
         // 批量队列（Issue #37）：「连同子文档」勾选或源为空壳子文档文件夹时
-        // 展开；resume 只对单篇有意义（排队中的篇还没有续跑记录）——故有
-        // 续跑记录时不展开队列，让「继续生成」走单篇续跑语义
-        const queue = resumeRec ? [] : this.batchQueue();
+        // 展开。**单篇**续跑记录（无 batch 键，如面板对单篇记录点「继续
+        // 生成」）仍不展开队列——只恢复那一篇，防意外转换别的篇；**带
+        // batch 的队列记录**照常展开队列、逐篇自查续跑（Issue #62，
+        // resume 不传：队列逐篇按 id 各自查记录）
+        const queue = resumeRec && !resumeRec.batch ? [] : this.batchQueue();
         // 队列与「单篇=源自身」等价时才退化（判据见 isBatchQueue——空壳
         // 文件夹只有 1 个子文档时也必须走队列，否则转的是空壳源本身）
         const asQueue = isBatchQueue(queue, extractBlockId(target));
@@ -246,9 +262,10 @@ export class ConvertDialogCtl {
                 .split(/[\s,;，；]+/)
                 .map((s) => extractBlockId(s))
                 .filter((s) => /^\d{14}-[a-z0-9]+$/i.test(s)),
-            resume: resumeRec ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined,
+            resume: resumeRec && !resumeRec.batch ? { offset: resumeRec.offset, setId: resumeRec.setId } : undefined,
             subDocs: asQueue ? queue : undefined,
             batchTitle: asQueue ? batchTitle : undefined,
+            reconvertDone: ui.reconvertDone,
         };
         const started = d.startRun(cfg);
         this.closeFn?.();

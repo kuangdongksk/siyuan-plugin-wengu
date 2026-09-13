@@ -31,6 +31,10 @@ export interface ConvertDialogDeps {
     initialParallel: number;
     /** 知识点根文档预选（prefs 上次，多个 id 空格分隔的原始串）。 */
     initialKnowRoots: string;
+    /** 本次打开是「继续生成」的**队列恢复**（Issue #62）：带队列维度的
+     *  进度记录会预填队列根，此时弹窗在子文档探查落定后自动勾上「连同
+     *  子文档」，让整个队列直接展开（逐篇自查续跑）。 */
+    resumeQueue?: boolean;
     /** 用户本次的选择（记入 prefs；knowRoots 为原始输入串）。 */
     saveChoice(modelId: string, fillToChoice: boolean, bigToSteps: boolean, knowRoots: string): void;
     /** 读取某源文档的未完成转换进度（无则 undefined）。 */

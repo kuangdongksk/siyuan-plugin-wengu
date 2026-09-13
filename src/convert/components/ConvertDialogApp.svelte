@@ -103,6 +103,16 @@
                         onchange={(e) => ctl.setIncludeSub(e.currentTarget.checked)}
                     />
                 </FormRow>
+                {#if batchOpen}
+                    <FormRow label={t("convertReconvertDone")} desc={t("convertReconvertDoneHint")}>
+                        <input
+                            class="b3-switch fn__flex-center"
+                            type="checkbox"
+                            checked={ui.reconvertDone}
+                            onchange={(e) => ctl.setReconvert(e.currentTarget.checked)}
+                        />
+                    </FormRow>
+                {/if}
                 <FormRow label={t("convertKnowLabel")}>
                     <Button
                         variant="outline"

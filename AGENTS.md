@@ -577,6 +577,33 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
           真机结构（空壳根 + 3 个空壳中间篇 + 6 篇有正文叶子）跑整链，
           `SubDocs.test.ts` 直接跑探针 SQL 验极性与聚合——这两条纯函数
           断言验不出来，极性反了能全绿。
+- **批量转换中断后可继续**（Issue #62，20260913）：三块咬合，缺一块闭环就断。
+    - **逐批断点检查点**：`convertDocBatched` 的 `onCheckpoint` 在 `submit`
+      每批 `flush` 后回调，`runSingleDoc` **仅 `inQueue=true`** 时接它落进度
+      记录（单篇流程不接，记录时机逐字节不变）——批量跑到一半直接关思源，
+      正在跑的那篇也有断点可续跑（原先只有 failed /「保留」抉择才落）。
+      ⚠️ 中途值 `batches` 只能是**已落库批数**、`total` 恒 0：批数由 AI 的
+      `@@TO` 决定、事前未知——它是**中途值**，与收口记录的「AI 调用批数」
+      是两个口径（AGENTS.md「批数两种口径必须分账」不许破）。
+    - **重发队列跳过已完成篇**：`runBatchQueue` 起跑前**一次 `bank.all()`**
+      建 `srcId → setId` 映射（别逐篇 all()），逐篇判定收口在纯函数
+      `classifyQueueItem(resume, hasSet, reconvertDone)`：有续跑记录→续跑；
+      无记录但有题集→**视为已完成、零 AI 跳过**；皆无→从头转。勾
+      `cfg.reconvertDone`（弹窗「重转已转换过的篇」，**仅队列模式显示**）
+      则第 2 类照跑。查库失败一律按「无题集」处置（宁多烧不漏转）。
+      `QueueTail` 由四段改**五段**（done + **skipped** + stopped +
+      failed.length + cancelled，和恒 = 总篇数），新状态
+      `ConvertBatchItem.status="skipped"`（与 done 分开是为让面板说清
+      「这轮没跑」）。全跳过时无产物可切、不调 `onDone`（正常）。
+    - **面板「继续生成」恢复整个队列**：`BatchMeta` 加 optional
+      `rootId`（`batchMetaOf` 取 `cfg.srcDocId`），面板据此预填**队列根**并
+      标记 `resumeQueue`——弹窗在子文档探查落定后自动勾「连同子文档」，
+      整个队列展开、逐篇按 id 自查续跑（**不需要新恢复通道**）。存量记录
+      无 rootId → 退化为现状单篇预填（optional、无 backfill、不 bump）；
+      `ConvertDialogCtl.start` 的队列口径是
+      `resumeRec && !resumeRec.batch ? [] : this.batchQueue()` ——只有
+      **单篇**记录（无 batch 键）走单篇续跑不展开队列，带 batch 的记录
+      走队列且 `cfg.resume` 不传。
 - **20260903 存储收口：转换零落盘，产物直写题库**：`service/output/SetWriter.ts`——
   DraftUnit → renderUnit 出契约 kramdown → parseQuestionKramdown 反解 +
   questionHash 构造 BankRecord，与旧「落文档再回读入库」产物同构；材料正文进
