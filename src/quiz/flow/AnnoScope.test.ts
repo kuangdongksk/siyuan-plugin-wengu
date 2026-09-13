@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QuestionType } from "../../types";
-import { annoEnabled, isEnglishTypes, pickAnnobarButtons } from "./AnnoScope";
+import { annoEnabled, annoOwnerQid, isEnglishTypes, pickAnnobarButtons } from "./AnnoScope";
 
 /**
  * 标注浮条作用域纯逻辑（Issue #45）：模式闸（只做题模式放行）、卷级
@@ -82,5 +82,25 @@ describe("pickAnnobarButtons 按钮分流", () => {
             clue: false,
             word: false,
         });
+    });
+});
+
+describe("annoOwnerQid 归属题反查", () => {
+    it("普通题卡：取卡上的 data-qid", () => {
+        expect(annoOwnerQid({ cardQid: "q1" })).toBe("q1");
+    });
+
+    it("组题材料面板（无卡祖先）：回落组内可见卡（Issue #45 验收 5）", () => {
+        // 英语阅读/完形的正文在 .wengu-gmat（.wengu-gqs 的兄弟，不在卡里）
+        expect(annoOwnerQid({ groupQid: "q2" })).toBe("q2");
+    });
+
+    it("两处都在时以卡为准（组内题卡的题干区也命中卡祖先）", () => {
+        expect(annoOwnerQid({ cardQid: "q1", groupQid: "q2" })).toBe("q1");
+    });
+
+    it("都反查不到 ⇒ undefined（调用方按失败收口，宁缺勿错）", () => {
+        expect(annoOwnerQid({})).toBeUndefined();
+        expect(annoOwnerQid({ cardQid: "", groupQid: "" })).toBeUndefined();
     });
 });

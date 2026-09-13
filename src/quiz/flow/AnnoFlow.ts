@@ -5,7 +5,7 @@ import { seedWord } from "../../word/core/WordFsrs";
 import { notifyInfo } from "../../ui/Notify";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc } from "../../ui/shared";
-import { pickAnnobarButtons, type BarPicks, type ViewMode } from "./AnnoScope";
+import { annoEnabled, pickAnnobarButtons, type BarPicks, type ViewMode } from "./AnnoScope";
 
 /**
  * 材料标注层（M5 线索标注 + E4 生词标记共用）：材料/题干文本里选中
@@ -37,9 +37,11 @@ import { pickAnnobarButtons, type BarPicks, type ViewMode } from "./AnnoScope";
  * 零浮条；切模式由 QuizView.hideAnnobar 立即收条，见下 `annoEnabled`）；
  * ② 标生词——生词本是英语功能，按**卷级**判（该卷题型并集含英语四类
  * 任一，见 isEnglishTypes）：「英语阅读也是 single、数学单选也是 single」
- * 题级判不开，只能看卷；聚合/专题混合刷时按**选区起点所在卡**反查源卷
- * （反查失败宁可不出现——宁缺勿错）。卷级判定结果缓存在 add/doc，由
- * QuizView 在装载/切题集时清理（selectionchange 高频回调里不查库）。
+ * 题级判不开，只能看卷；归属按**选区起点所在卡**反查源卷——组题的材料
+ * 面板不在任何 `.wengu-card` 里，按组内可见卡反查（annoOwnerQid，英语
+ * 阅读/完形的正文就在那片区域）；反查失败宁可不出现（宁缺勿错）。卷级
+ * 判定结果按题集缓存在 service/AnnoScopeCtl，由 QuizView 在装载/切题集/
+ * 切模式时清理（selectionchange 高频回调里不 await 查库）。
  * 两钮都不出 ⇒ 浮条整体不出现（不出空条）。
  */
 
@@ -106,6 +108,12 @@ export function isCluableNode(node: Node | null | undefined): boolean {
 }
 
 function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
+    // 模式闸**首查**（Issue #45）：标注是做题功能——预览/复习/学习下选段
+    // 一律不出条，连选区都不必读（宿主里那些模式下根本没有可标内容）。
+    if (!annoEnabled(cb.mode())) {
+        hideBar();
+        return;
+    }
     const sel = document.getSelection();
     const text = sel?.toString().trim() ?? "";
     if (
@@ -130,7 +138,7 @@ function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
     // 按起点所在卡反查（聚合混合刷各卡按各自源卷）
     const anchorEl = sel.anchorNode instanceof HTMLElement ? sel.anchorNode : (sel.anchorNode?.parentElement ?? null);
     const picks = pickAnnobarButtons({
-        mode: cb.mode(), // Issue #45 模式闸：非 quiz 直接收条
+        mode: cb.mode(), // 上面已首查，这里带上让判定保持唯一出口（单测锁死）
         isCluable: isCluableNode(sel.anchorNode),
         english: cb.isEnglishDoc(anchorEl),
     });

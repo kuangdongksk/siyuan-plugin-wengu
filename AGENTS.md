@@ -321,10 +321,17 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
           selectionchange 事件来重判，不显式收条会留着已开的条）。
         - **标生词卷级判定**：生词本是英语功能——该卷题型并集含
           cloze/match/essay/trans 任一才出。「英语阅读也是 single、数学单选
-          也是 single」**题级判不开，只能看卷**；反查链 = 选区起点所在卡
+          也是 single」**题级判不开，只能看卷**；反查链 = 选段所在卡
           `data-qid` → 该题 `rootId`（=源题集 id）→ `BankSets` 题型并集。
           聚合/专题混合刷按各卡各自源卷判。**任一环反查不到即 false**
           （宁缺勿错）。
+            - ⚠️ **组题材料面板必须按组内卡反查**（`annoOwnerQid`）：
+              `.wengu-gmat`（`[data-mprotyle]`）是 `.wengu-gqs` 的**兄弟**、
+              不在任何 `.wengu-card` 里，而英语阅读/完形的正文正好落在那
+              片区域——只认 `closest(".wengu-card")` 会让整片正文区判不出
+              英语卷、「标生词」在那里整体消失（验收 4/5 破）。回落取组内
+              **可见卡**（`.wengu-card:not([hidden])`，DOM 未落定再退组内
+              首卡——同组单元必同源题集，卷级结论一致）。
         - 判定按题集缓存（`quiz/service/AnnoScopeCtl`，自 QuizView 拆出压
           500 行红线）：选段回调是高频**同步**路径，走
           `BankSets.peekSetTypeUnion` 窥视已装载数据（`bank.peek()`），

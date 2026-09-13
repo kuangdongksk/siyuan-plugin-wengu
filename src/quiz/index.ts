@@ -548,6 +548,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
     readonly applyQuizList = (list: WenguQuestion[], materials?: WenguMaterial[]): void => {
         this.list = this.fullList = list;
+        this.invalidateAnnoScope(); // Issue #45：题表换掉（渐进呈现逐批）旧判定作废
         if (materials) this.materials = materials;
         this.renderList();
     };

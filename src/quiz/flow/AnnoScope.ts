@@ -76,3 +76,27 @@ export function pickAnnobarButtons(p: BarPick): BarPicks {
     const word = p.english;
     return { show: clue || word, clue, word };
 }
+
+/* ── 选段归属题反查（卷级判定的输入） ── */
+
+/** 选段归属反查的 DOM 观测（AnnoFlow 读出，纯判定在本模块）。 */
+export interface AnnoOwnerPick {
+    /** 最近的 `.wengu-card` 上的 `data-qid`（普通题卡/组内题卡都有）。 */
+    cardQid?: string;
+    /** 所在材料组单元内**当前显示**的那张卡的 qid（组题材料面板用）。 */
+    groupQid?: string;
+}
+
+/**
+ * 选段归属题的 qid（Issue #45 卷级判定的第一步；与 ClueMark 的
+ * `clueOwnerQid` 同款「DOM 观测 → 纯判定」分工）。
+ *
+ * **组题的材料面板必须按组内卡反查**：`.wengu-gmat`（`[data-mprotyle]`）
+ * 是 `.wengu-gqs` 的**兄弟节点**、不在任何 `.wengu-card` 里——英语阅读/
+ * 完形的正文正好落在这里，只认 `cardQid` 会让整片正文区判不出英语卷
+ * （「标生词」消失，验收 4/5 破）。两处都不命中 ⇒ undefined，调用方按
+ * 「反查失败」收口（宁缺勿错）。
+ */
+export function annoOwnerQid(p: AnnoOwnerPick): string | undefined {
+    return p.cardQid || p.groupQid || undefined;
+}
