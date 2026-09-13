@@ -63,10 +63,6 @@ export interface AnswerHost {
      *  三处时机由题卡与组单元组件直调，实现收口在 ClueFlow
      *  （ClueHost 适配，禁复制第二份）。可选——测试/预览壳不实现即跳过。 */
     refreshClueMarks?(q: WenguQuestion): void;
-    /** 该题线索的存储锚点（文本 + 权威坐标，Issue #52）：材料装饰出口
-     *  在挂载时一次性把坐标喂进去（有坐标走坐标施工、无则文本匹配降级）。
-     *  可选——测试/预览壳不实现即只按文本锚点施工。 */
-    clueAnchors?(q: WenguQuestion): { text: string; range?: { s: number; e: number } }[];
 }
 
 /** 字母 chip 点选：单选互斥（重选保持选中），多选可增删（序保持升序）。

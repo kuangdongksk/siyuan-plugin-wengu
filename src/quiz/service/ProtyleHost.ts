@@ -53,10 +53,7 @@ export class ProtyleHost {
                 const card = node.closest<HTMLElement>(".wengu-card");
                 const q = list.find((x) => x.id === card?.dataset.qid);
                 if (!q) continue;
-                const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
-                node.innerHTML =
-                    fallbackQuestionHtml(q) +
-                    (sol ? `<div class="wengu-static-sol" data-static-sol>${renderMdHtml(sol)}</div>` : "");
+                node.innerHTML = fallbackQuestionHtml(q) + solutionHtml(q);
             }
             this.mountedStatic.add(node);
             renderMathWhenVisible(node);
@@ -100,13 +97,27 @@ export function optionRowHtml(i: number, md: string, rowClass = "wengu-option-fa
     return `<div class="${cls}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span><div class="wengu-opt-body">${body}</div></div>`;
 }
 
+/** 选项行 HTML（选项容器 `.wengu-opts` 是多列排布挂点；无选项返回空串）。
+ *  Issue #52 二期起题卡题干走装饰出口，选项/解析**不是原文**（非权威区），
+ *  由调用侧作为尾部件拼在同一容器里——故拆成独立入口供两处复用。 */
+export function optionsHtml(q: WenguQuestion): string {
+    const rows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md)).join("");
+    return rows ? `<div class="wengu-opts">${rows}</div>` : "";
+}
+
+/** 答案解析区 HTML（揭示前由 CSS 随 `wengu-revealed` 显隐，Issue #12；
+ *  无答案/解析返回空串）。与选项同属**非权威区**，同样在装饰出口之外。 */
+export function solutionHtml(q: WenguQuestion): string {
+    const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
+    return sol ? `<div class="wengu-static-sol" data-static-sol>${renderMdHtml(sol)}</div>` : "";
+}
+
 /** 静态渲染：题干 + 选项行。选项行包进 .wengu-opts 容器（flex-wrap
  *  多列排布的挂点）。 */
 export function fallbackQuestionHtml(q: WenguQuestion): string {
     const parts: string[] = [];
     if (q.stemMd) parts.push(renderMdHtml(q.stemMd));
-    const rows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md)).join("");
-    parts.push(rows ? `<div class="wengu-opts">${rows}</div>` : "");
+    parts.push(optionsHtml(q));
     return parts.join("");
 }
 

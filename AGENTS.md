@@ -395,10 +395,30 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       optional、不 bump version、渲染**不回写**、**惰性升格**=仅用户再次
       操作该题线索才持久化坐标）。chips 文本 = **权威切片**（上标噪音天然
       不含）；`.wengu-gloss-sup` 加 `user-select:none`。
-    - ⚠️ 两处选择器口径别混：`NON_CANON_SELECTOR`（= 权威文本源口径，多写
-      一个类 = 那几个字从权威串消失、存储坐标校验失配）vs
-      `NO_WRAP_SELECTOR`（落格守卫，只管「谁不许被包」）。
-      `.wengu-gloss-link` **不入**非权威表（`<u>` 包的就是原文本身）。
+    - ⚠️ **三套名单别混**（本条复审补记；三者全是「多写/漏写一个类 = 静默
+      失效」的重灾区）：
+        - `NON_CANON_SELECTOR` = **权威文本源**口径，多写一个类 = 那几个字
+          从权威串消失、存储坐标校验失配。**必须含** `.wengu-gloss-sup`
+          （上标是原文没有的合成字符、且插在正文节点之间；漏剔即权威串
+          失真）而 **必须不含** `mark.wengu-clue-mark`（mark 是既有正文的
+          透明包装，剔了就「被标过的字从权威串消失」⇒ 存量坐标校验全量
+          失配 + 坐标映射错位）；`.wengu-gloss-link` 同样**不入**（`<u>` 包
+          的就是原文本身，#51）。
+        - `NO_WRAP_SELECTOR` = **落格守卫**，只管「谁不许被包 mark」。
+        - `ClueMarkDom.SKIP_SELECTOR` = **fallback 匹配源**（#51 修复版
+          口径）：上标要参与匹配、只在落格时挡。
+    - **CanonMap 不许跨操作复用**（`canonMapOf` 每次现场重算）：mark 施工会
+      `splitText` + 插节点，任何「装饰时算好存起来」的表其 `nodeIndex` 在
+      下一次操作时都已失效（表现为第二条线索坐标求错/求不出）。
+    - **嵌套抬升**（D4）：坐标**完整覆盖**某个联动词形 `<u>` 时 mark 包
+      **`<u>` 元素**（`LIFT_SELECTOR`），上标是 `<u>` 的兄弟且属非权威区 ⇒
+      「mark 包住联动词、上标不包 mark」结构上同时成立。`clearClueMarks`
+      因此**必须按子节点原样搬出**、不能 `textContent` 重建（重建会把 `<u>`
+      拍平成纯文本、词形标记永久丢失）。
+    - **惰性升格**（D3）写在 `ClueFlow.upgradeClueRanges`：仅「用户显式操作该题
+      线索」（新增/删除）时把 `refreshClueMarkFor` 返回的逐位坐标持久化
+      （`resolved` 与 `anchorsOf` **逐位对齐**，跳过的位占空）；渲染路径只读
+      不写。该题从未升格则不建表。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 

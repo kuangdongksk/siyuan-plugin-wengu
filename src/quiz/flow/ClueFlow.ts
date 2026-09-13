@@ -4,7 +4,7 @@ import { getGroupQi, renderClueRow } from "./MaterialFlow";
 import { clueOwnerQid, isGroupCurrentPick } from "./ClueMark";
 import { clickChipForDelete, disarmClueChip } from "./ClueMarkDom";
 import { canonSlice, pushClueRange, removeClueRange, type CanonRange } from "../service/ClueCanon";
-import { canonMapOf, redecorateClues, type ClueAnchor } from "../service/MaterialDecorate";
+import { canonMapOf, redecorateClues, type ClueAnchor, type ClueResolved } from "../service/MaterialDecorate";
 import type { WenguSession } from "../service/HistoryStore";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
@@ -132,13 +132,40 @@ export function anchorsOf(session: ClueStore | undefined, qid: string): ClueAnch
  * 材料填充后 / 题干挂载后 / 会话恢复后。幂等——高亮先摘旧 mark 再重铺
  * （按坐标施工，失败降级文本匹配），chips 整行重渲染。
  */
-export function refreshClueMarkFor(host: ClueHost, q: WenguQuestion): void {
-    if (!isGroupCurrent(host, q)) return;
+export function refreshClueMarkFor(host: ClueHost, q: WenguQuestion): ClueResolved[] {
+    if (!isGroupCurrent(host, q)) return [];
     const s = host.currentSession();
     const clues = cluesOf(host, q);
-    redecorateClues(markRootOf(host, q), anchorsOf(s, q.id));
+    const resolved = redecorateClues(markRootOf(host, q), anchorsOf(s, q.id));
     const slot = clueSlotOf(host, q);
     if (slot) renderClueRow(slot, host.t, clues);
+    return resolved;
+}
+
+/**
+ * **惰性升格**（D3）：把该题「本帧解析出的坐标」持久化进 `clueRanges`。
+ *
+ * 只在**用户显式操作该题线索**（新增/删除）时调用——渲染是高频只读路径，
+ * **渲染自身不回写**坐标（否则每次重铺都写盘）。因此：
+ * - 该题从未升格（无 `clueRanges[qid]`）⇒ 不建（继续全走文本匹配降级）；
+ * - 已升格 ⇒ 把仍是 `undefined` 的位补齐（`clues` 与 `clueRanges` 下标
+ *   严格对齐，**不许重排**）；
+ * - `resolved` 与 `anchorsOf` **逐位对齐**（`planClueMarks` 保证跳过的位
+ *   占空），长度不符即整体放弃（宁缺勿错）。
+ */
+function upgradeClueRanges(host: ClueHost, q: WenguQuestion, resolved: ClueResolved[]): boolean {
+    const s = host.currentSession();
+    const ranges = s?.clueRanges?.[q.id];
+    const clues = s?.clues?.[q.id] ?? [];
+    if (!s || !ranges || resolved.length !== clues.length) return false;
+    let changed = false;
+    for (let i = 0; i < clues.length; i++) {
+        const r = resolved[i]?.range;
+        if (!r || ranges[i]) continue;
+        ranges[i] = { s: r.s, e: r.e };
+        changed = true;
+    }
+    return changed;
 }
 
 /** 整壳重渲染/材料填充后的全量补齐：逐题刷（题量在单卷内可控，
@@ -175,8 +202,11 @@ export function addClue(host: ClueHost, text: string, anchorEl?: HTMLElement | n
     if (range && !s.clueRanges?.[q.id]) (s.clueRanges ?? (s.clueRanges = {}))[q.id] = [];
     const ranges = s.clueRanges?.[q.id];
     pushClueRange(clues, ranges, finalText, range);
+    // 本次操作即「再次操作该题线索」⇒ 顺手把存量线索本帧解析出的坐标补进去
+    // （本次坐标施工、解析必成，故存量位一次补齐）。从未升格的题不建表。
+    const resolved = refreshClueMarkFor(host, q);
+    upgradeClueRanges(host, q, resolved);
     host.persist();
-    refreshClueMarkFor(host, q);
 }
 
 /** 权威切片（chips 显示文本）；无 CanonMap/切片为空回空串（调用侧退回文本）。 */
@@ -203,8 +233,10 @@ function removeClueAt(host: ClueHost, q: WenguQuestion, i: number): void {
         delete s.clues[q.id];
         if (s.clueRanges) delete s.clueRanges[q.id];
     }
+    // 删除同为「用户显式操作该题线索」⇒ 剩余线索同样惰性升格（仅升过格的题）
+    const resolved = refreshClueMarkFor(host, q);
+    upgradeClueRanges(host, q, resolved);
     host.persist();
-    refreshClueMarkFor(host, q);
 }
 
 /** 绑定线索交互（事件委托挂视图根，重渲染不失效）：

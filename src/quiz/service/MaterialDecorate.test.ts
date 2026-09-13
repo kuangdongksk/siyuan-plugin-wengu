@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NON_CANON_SELECTOR, NO_WRAP_SELECTOR, planClueMarks } from "./MaterialDecorate";
+import { NO_WRAP_SELECTOR, NON_CANON_SELECTOR, isLiftSpan, pickNodeIndexes, planClueMarks } from "./MaterialDecorate";
 import { buildCanonMap, remapCanon } from "./ClueCanon";
 import { markSlots } from "../flow/ClueMark";
 
@@ -67,10 +67,49 @@ describe("planClueMarks：降级链三分支（D6）", () => {
         expect(resolved[0].range).toEqual({ s: 11, e: 18 });
     });
 
-    it("重复文本只算一次（与 planMarks 同口径）", () => {
+    it("重复文本只算一次（与 planMarks 同口径），但 resolved 仍逐位对齐", () => {
         const { map, texts } = canonAfterGloss();
-        const { plan } = planClueMarks(map, texts, [{ text: "here." }, { text: "here." }]);
+        const { plan, resolved } = planClueMarks(map, texts, [{ text: "here." }, { text: "here." }]);
         expect(plan.length).toBe(1);
+        // 下标对齐是惰性升格的前提：错位即把坐标写到别的线索上
+        expect(resolved.length).toBe(2);
+        expect(resolved[1]).toEqual({ text: "here." });
+    });
+});
+
+describe("fallback 匹配源（D6）：与权威表不是一套口径", () => {
+    it("上标属非权威（不进权威表）但**参与**匹配——两边各按各的名单", () => {
+        // 节点表 [正文, 上标, 正文]；上标非权威。
+        // 权威表：[0]abc [1]def（上标在后，权威串 "abcdef"）
+        const base = buildCanonMap(["abc", "def"], [0, 2]);
+        const texts = ["abc", "1·n.", "def"];
+        const map = remapCanon(base, texts, [true, false, true]);
+        // 匹配源名单（ClueMarkDom.SKIP_SELECTOR）里**没有**上标 ⇒ 全部节点都是源
+        const srcIndexes = pickNodeIndexes([true, true, true]);
+        // 文本匹配求得的坐标要按权威表算——上标那一段映射不出坐标
+        const { resolved } = planClueMarks(map, texts, [{ text: "c1·n.d" }], srcIndexes);
+        // 命中横跨上标（非权威）⇒ 端点落在权威表里才换得出坐标：
+        // 权威串 "abcdef"，起点 = abc 内的 c(2)、终点 = def 内的 d(3)+1
+        expect(resolved[0].range).toEqual({ s: 2, e: 4 });
+    });
+
+    it("非源节点（词表区/解析区）整片退出匹配源", () => {
+        const isSrc = [true, false, false, true];
+        expect(pickNodeIndexes(isSrc)).toEqual([0, 3]);
+    });
+
+    it("fallback 命中换回**全局**下标（构造施工与坐标回算共用一份）", () => {
+        const base = buildCanonMap(["正文原文", "更多正文"], [0, 3]);
+        const texts = ["正文原文", "词表条目", "1·n.", "更多正文"];
+        const map = remapCanon(base, texts, [true, false, false, true]);
+        const srcIndexes = pickNodeIndexes([true, false, false, true]);
+        const { plan } = planClueMarks(map, texts, [{ text: "更多" }], srcIndexes);
+        expect(plan[0].hits).toEqual([{ node: 3, start: 0, end: 2 }]);
+    });
+
+    it("未传 srcIndexes ⇒ 视为全部节点都是源（兼容旧调用）", () => {
+        const { map, texts } = canonAfterGloss();
+        expect(planClueMarks(map, texts, [{ text: "here." }]).plan[0].hits.length).toBeGreaterThan(0);
     });
 });
 
@@ -114,14 +153,23 @@ describe("嵌套顺序矩阵：mark × gloss 词（二期验收 1/6）", () => {
         const slots = markSlots(plan);
         expect(slots.map((s) => s.start)).toEqual([11, 0]);
     });
+
+    it("抬升判定：坐标完整覆盖联动词形 <u> 时才包元素（否则包文本节点）", () => {
+        // 完整覆盖 + 目标是联动词 ⇒ 抬升（mark 在外层，上标留外面）
+        expect(isLiftSpan(true, true)).toBe(true);
+        // 只覆盖词的一部分 ⇒ 只能包文本节点（不足以包住整个词形）
+        expect(isLiftSpan(false, true)).toBe(false);
+        // 覆盖整个节点但它不是联动词形 ⇒ 普通文本落格
+        expect(isLiftSpan(true, false)).toBe(false);
+    });
 });
 
 describe("选择器口径（多写一个类 = 权威串被挖掉几个字）", () => {
     it("非权威区含词表区/上标/选项区/解析区/公式占位与控件", () => {
         for (const cls of [
             ".wengu-gloss",
+            ".wengu-gloss-sup",
             "button",
-            "mark",
             ".wengu-static-sol",
             ".wengu-opts",
             ".wengu-option-fallback",
@@ -135,6 +183,12 @@ describe("选择器口径（多写一个类 = 权威串被挖掉几个字）", (
     it("联动词形 .wengu-gloss-link **不在**非权威表（<u> 包的就是原文本身）", () => {
         // 回归 Issue #51：排除它 ⇒ 含联动词的选段整段锚点失败
         expect(NON_CANON_SELECTOR).not.toContain(".wengu-gloss-link");
+    });
+
+    it("线索 mark **不在**非权威表（它是既有正文的透明包装，见文件头）", () => {
+        // 回归本案：mark 入非权威表 ⇒ 被标过的字符从权威串消失 ⇒ 存量坐标
+        // 校验必然失配（静默全量降级）+ 坐标→节点映射整体错位（亮错位置）
+        expect(NON_CANON_SELECTOR).not.toMatch(/(^|,\s*)mark(\s*,|$)/);
     });
 
     it("落格守卫只挡『不许被包』：上标与词表区（不进匹配源口径）", () => {

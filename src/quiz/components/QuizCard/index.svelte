@@ -8,9 +8,8 @@
     import { buildCardInit, chipMarkOf, resultRowHtml, type CardInitCtx } from "../../render/CardState";
     import { CardCtl } from "../../render/CardCtl";
     import { registerCard, unregisterCard } from "../../render/CardRegistry";
-    import { optionInline, renderMathWhenVisible } from "../../service/ProtyleHost";
+    import { optionInline, optionsHtml, renderMathWhenVisible, solutionHtml } from "../../service/ProtyleHost";
     import { decorateMaterial } from "../../service/MaterialDecorate";
-    import { renderMdHtml } from "../../../ui/MdRender";
     import Button from "../../../ui/Button.svelte";
     import { markNumRailAnswered } from "../../render/NumRail";
     import { hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../../../types";
@@ -87,17 +86,12 @@
         // 题干静态填充（旧 ProtyleHost.mountStatic 单节点语义）+ 解析区
         // （CSS 随 wengu-revealed 揭示闸显隐，Issue #12）；KaTeX 惰性到接近视口
         if (protoEl) {
-            // Issue #52 二期：题干装饰走**唯一出口**——基础渲染 + 权威节点表
-            // （题干无词表，故不铺词表区）；答案/解析区在表外（非权威）。
-            // 线索 mark 由下方统一后处理按坐标施工（同一条施工链）
+            // Issue #52 二期：题干装饰走**唯一出口**（基础渲染 → 权威节点表；
+            // 题干无词表，故不铺词表区）。选项行与答案解析区**不是原文**
+            // （非权威区），在装饰之外拼进同一容器——顺序与改造前逐字一致
+            // （题干 → 选项行 → 解析区）
             decorateMaterial(protoEl, { md: q.stemMd ?? "", gloss: false });
-            const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
-            if (sol) {
-                protoEl.insertAdjacentHTML(
-                    "beforeend",
-                    `<div class="wengu-static-sol" data-static-sol>${renderMdHtml(sol)}</div>`
-                );
-            }
+            protoEl.insertAdjacentHTML("beforeend", optionsHtml(q) + solutionHtml(q));
             if (rootEl) renderMathWhenVisible(rootEl);
         }
         // Issue #28：题干挂载后过统一的高亮后处理（会话恢复/重开页签
