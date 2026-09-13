@@ -110,6 +110,29 @@
   visibility: hidden;
 }
 
+/* 卡头「标记为错题」（Issue #46）：两态——已标记=警示色高亮，未标记=
+   与 regen 钮同款的中性图标钮（.wengu-side-iconbtn 提供基底）。
+   高亮选择器抬到复合（类+类 0,2,0）并显式补 hover：base.scss 的
+   `.wengu-side-iconbtn:hover` 同为 0,2,0，不补会在悬停时被它盖回中性色。
+   底色用 color-mix 与卡片其余警示态同源（theme 无 error-surface 变量）。 */
+.wengu-side-iconbtn.wengu-badmark-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.wengu-badmark-btn.wengu-badmark-on,
+.wengu-badmark-btn.wengu-badmark-on:hover {
+  color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 14%, transparent);
+}
+
+/* 头部「重转错题(N)」（Issue #46）：预览模式且有标记才渲染，N=0 不出钮 */
+.wengu-regen-bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* 轻提示浮层（复制结果，右下角自散） */
 .wengu-pv-toast {
   position: fixed;

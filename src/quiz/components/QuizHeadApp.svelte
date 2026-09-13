@@ -22,6 +22,8 @@
         onAct,
         endRoundLabel,
         showFinishHint,
+        showRegenBad = false,
+        badMarkCount = 0,
     }: {
         t(key: string): string;
         sideCollapsed: boolean;
@@ -29,13 +31,17 @@
         subheadHtml: string;
         /** 做题中（可结束本轮）。 */
         canEndRound: boolean;
-        /** 按钮（act 名同 data-act：side-toggle/end-round）。 */
+        /** 按钮（act 名同 data-act：side-toggle/end-round/regen-bad）。 */
         onAct(act: string): void;
         /** after 模式按钮文案（结束本次 / 交卷并查看答案）。
          *  由编排侧按 revealMode 算好传入。 */
         endRoundLabel: string;
         /** after 模式提示「做完后统一判卷」（同类按钮旁常显，Issue #12 B3） */
         showFinishHint: boolean;
+        /** 预览模式且有标记题才出「批量重转标记的错题」钮（Issue #46）。 */
+        showRegenBad?: boolean;
+        /** 标记题数（跨卷全局；徽标文案用，0 时钮不显示）。 */
+        badMarkCount?: number;
     } = $props();
 </script>
 
@@ -58,6 +64,20 @@
 {/if}
 {#if showFinishHint}
     <span class="wengu-finish-hint" data-finish-hint>{t("endRoundAfterHint")}</span>
+{/if}
+<!-- 批量重转「标记为错题」（Issue #46）：预览模式专属，N=0 时整个钮不显示；
+     点击即进后台流（单飞闸/进度与停止在 AI 会话面板，终态走通知） -->
+{#if showRegenBad}
+    <Button
+        variant="outline"
+        class="wengu-regen-bad"
+        data-act="regen-bad"
+        title={t("regenBadMarkedTitle")}
+        onclick={() => onAct("regen-bad")}
+    >
+        {@html svgIcon("iconRefresh")}
+        {t("regenBadMarkedBtn")}({badMarkCount})
+    </Button>
 {/if}
 <span class="wengu-timer" data-timer title={t("totalTimeHint")}
     >{@html svgIcon("iconClock", "wengu-timer-icon")}<span data-timer-text>0:00</span></span

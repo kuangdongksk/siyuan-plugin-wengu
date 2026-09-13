@@ -6,6 +6,7 @@ import { notifyQuizAnswer, notifyRoundDone } from "../companion";
 import { filterReviewDocFor } from "../review";
 import { collectThoughts, lockAllCards as lockAllCardsState } from "./render/CardRegistry";
 import { reimportDocFrom, unregisterSetAsQuiz } from "./service/DocOps";
+import { badMarkAccess } from "./service/BadMarkRegen";
 import { resetPreviewSearch } from "./flow/PreviewFlow";
 import { enterPreviewFor, enterReviewFor } from "./flow/ModeOps";
 import { normalizeWorkspace, type WenguWorkspace } from "./render/RailMount";
@@ -561,6 +562,10 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 带预填打开转换弹窗（知识面板「转习题」：源/知识点根=该文档）。 */
     readonly openConvertPrefilled = (docId: string, know: string) =>
         openConvertForView(this.convertAccess, docId, know);
+
+    /** 「标记为错题」/批量重转访问器（Issue #46；实现体 service/BadMarkRegen
+     *  ——预览闸 / 徽标数 / 顶栏批量重转三合一，保 index.ts 不再净增）。 */
+    readonly badMark = badMarkAccess(this);
 
     /** 侧栏/头部按钮统一出口（6-5 Svelte 化后 SidePanelApp/QuizHeadApp
      *  经 SideMount 的 onAct 汇到这里，act 名同 data-act；实现体在

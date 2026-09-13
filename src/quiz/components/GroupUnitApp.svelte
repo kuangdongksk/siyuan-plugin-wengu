@@ -36,6 +36,7 @@
         ctx,
         host,
         onActive,
+        badMarks = new Set<string>(),
     }: {
         qs: GroupUnitQ[];
         mid: string;
@@ -46,6 +47,8 @@
         host: AnswerHost;
         /** 切题后同步 activeQIdx/逐题计时（QuizView.onActiveQ）。 */
         onActive(idx: number): void;
+        /** 已标记为错题的 qid 集合（Issue #46；组内卡逐张回灌标记态）。 */
+        badMarks?: Set<string>;
     } = $props();
 
     let qi = $state(clampGroupQi(getGroupQi(mid) ?? 0, qs.length));
@@ -124,7 +127,7 @@
     </div>
     <div class="wengu-gqs">
         {#each qs as gq, i (gq.q.id)}
-            <QuizCardApp q={gq.q} idx={gq.idx} {m} {ctx} {host} hidden={i !== qi} />
+            <QuizCardApp q={gq.q} idx={gq.idx} {m} {ctx} {host} hidden={i !== qi} badMarked={badMarks.has(gq.q.id)} />
         {/each}
     </div>
     <div class="wengu-gclues" data-clues hidden></div>

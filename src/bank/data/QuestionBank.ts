@@ -51,6 +51,11 @@ export interface BankRecord {
     srcHash?: string;
     /** 源已更新但用户保留旧题的标记（增量重转换「保留」动作）。 */
     srcStale?: "1";
+    /** 预览模式「标记为错题」（Issue #46）：语义=题目本身出错/生成质量差，
+     *  待批量重转——**不是**错题本的「作答错误」。字段口径照抄 srcStale
+     *  （只加不改名、不 bump version、不写 kramdown、不动 questionHash）；
+     *  缺省 undefined=未标记，存量记录装载零影响。 */
+    badMark?: "1";
 }
 
 /** 一个题集（20260903 起转换不再落文档，题集是题库内一等实体）：有序

@@ -14,6 +14,7 @@ import { focusQuestion } from "../flow/MaterialFlow";
 import { refreshAllClueMarks } from "../flow/ClueFlow";
 import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
+import { badMarkedSet } from "../../bank/data/BadMark";
 import { detachRoundReport } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { detachRail, mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
@@ -48,7 +49,12 @@ export function renderListFor(v: QuizView): void {
 
 /** renderListInner 主体（QuizView.renderList 调；错误兜底留在视图）。
  *  静态路径（题库/长卷）返回「题卡全部就绪」的 Promise——预览装饰等
- *  收尾须等它；其余路径同步完成返回 undefined。 */
+ *  收尾须等它；其余路径同步完成返回 undefined。
+ *  ⚠️ 本函数必须**保持同步签名**（Issue #46 审查）：渲染期任何 await 都会把
+ *  「壳落 + 头部/侧栏挂载」推后到微任务，renderList 的一众同步调用方
+ *  （applySettings/switchMode/switchWorkspace/load…）会读到半成品壳；同步段
+ *  抛错还会变成 rejected Promise，使 renderListFor 的 try/catch 失效。标记
+ *  清单故走同步快照 `badMarkedSet(bank.peek())`（AnnoScopeCtl/SideMount 同款）。 */
 export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     v.protyleHost.destroyAll(v.el);
     destroyStatsPanel(); // innerHTML 覆盖前先 dispose 图表实例防泄漏
@@ -95,7 +101,13 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         showAttempts: v.settings?.showAttempts !== false,
         // 预览不透历史对错（题号/徽标/描色全中性，保密）
         showWrongBadge: !pv && v.settings?.showWrong !== false && v.revealMode !== "after",
+        // 「标记为错题」钮只在预览模式渲染（Issue #46；做题模式不加）
+        preview: pv,
     };
+    // 已标记为错题的 qid 集合（Issue #46；卡头标记钮初态回灌；非预览不查——
+    // 做题模式没有这个钮）。**同步读题库快照**（peek）：渲染路径不 await 查库
+    // （见本函数头注）；未装载时为空集=全部未标记。
+    const badMarks = pv ? badMarkedSet(v.bankStore()?.peek()) : new Set<string>();
     // 渲染路径：全量静态（20260830 起内嵌 Protyle 轨退役）——无内核
     // 请求、无 N 个 Protyle 实例。静态路径「视口优先」：壳先落（题卡
     // 列表空）、单元逐片插入+绑定+填充，消灭整壳一次性解析的冻结；
@@ -144,7 +156,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     mountSideFor(sideQuizAccess(v), "drill");
     mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv, v.revealMode === "after");
     v.timerBinder.updateLabel();
-    const task = renderStaticChunked(v, cardModel, setGroups);
+    const task = renderStaticChunked(v, cardModel, setGroups, badMarks);
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
     // 卡）；stale 放弃的批次不装饰——新批次自己会装饰，旧批次补挂会
     // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
@@ -168,7 +180,13 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
  * 分片以 locked=true 初始态直锁。代数变更（整壳重建）或中途异常
  * resolve false，收尾方据此跳过预览装饰等后续。setGroups 非单段时
  * 在每段首单元前插题集标题行（多集合刷的正文分组）。 */
-async function renderStaticChunked(v: QuizView, m: CardHtmlModel, setGroups: SetGroup[]): Promise<boolean> {
+async function renderStaticChunked(
+    v: QuizView,
+    m: CardHtmlModel,
+    setGroups: SetGroup[],
+    /** 已标记为错题的 qid 集合（Issue #46；非预览恒空集）。 */
+    badMarks: Set<string> = new Set()
+): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
     if (!container) return false;
     const showHeads = setGroups.length > 1;
@@ -212,7 +230,7 @@ async function renderStaticChunked(v: QuizView, m: CardHtmlModel, setGroups: Set
                 const g = start >= 0 ? headAt.get(start) : undefined;
                 if (g) container.insertAdjacentHTML("beforeend", setHeadHtml(g, v.t));
             }
-            mountDrillUnit(container, u, m, ctx, v); // 组件根追加到容器尾（恢复/作答态随挂载就位）
+            mountDrillUnit(container, u, m, ctx, v, badMarks); // 组件根追加到容器尾（恢复/作答态随挂载就位）
             done += nodesOf(u);
             if (counter) counter.textContent = `${done}/${total}`;
         }
@@ -260,6 +278,9 @@ function sideQuizAccess(v: QuizView): import("../flow/SideMount").SideViewAccess
     return {
         el: v.el,
         t: v.t,
+        // 预览头部「批量重转标记的错题(N)」闸与徽标（Issue #46；非预览恒
+        // false/0=不出钮）——视图访问器一处分派，此处只转发
+        badMark: v.badMark,
         docsOf: () => v.docs,
         docIdOf: () => v.docId,
         sideCollapsedOf: () => v.sideCollapsed,
