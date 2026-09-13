@@ -251,10 +251,25 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `ProtyleHost.mountStatic` 都过它）——`@@G` 行渲染为 `ul.wengu-gloss`
   （词条下划线/音标弱化/释义常规），正文里与词表词形精确匹配的**首次**出现
   包 `span.wengu-gloss-link > u + sup`。样式在 `scss/english.scss`。
-    - **与 #29 线索 mark 两条后处理互不嵌套**（接口约定，别只改一侧）：
-      GlossDom 的匹配跳过 `mark.wengu-clue-mark`；`ClueMarkDom` 的
-      `SKIP_SELECTOR` 也已加 `.wengu-gloss` / `.wengu-gloss-link`。挂载顺序
-      固定「词表 → 线索」（两处调用点同款）；两侧都幂等（先摘旧标记再重铺）。
+    - **与 #29 线索 mark 是「单向嵌套」**（Issue #51 改写 #33/#34 的「互不
+      嵌套」条目，接口约定别只改一侧）：`GlossDom` 的匹配跳过
+      `mark.wengu-clue-mark`；`ClueMarkDom` 的 `SKIP_SELECTOR` **只跳
+      `.wengu-gloss`（词表区，非原文）**——`.wengu-gloss-link` **必须移除**
+      （`<u>` 包的就是原文本身，排除它会让「选段含联动词」整段定位失败）。
+      `.wengu-gloss-sup`（序号上标）**不在 SKIP_SELECTOR 里**：它要参与匹配
+      （选段 `toString` 含「N·记号」字符，两边对得上才匹配得上），只由
+      `applyClueMarks` 落格循环按 `SUP_SELECTOR` 挡「不许被包」——上标不包
+      mark，`<u>` 内的词本身照常出 mark。即 **mark 可进 `<u>`、词表永不包
+      mark**，嵌套只单向发生。
+    - ⚠️ **两个 `textNodesOf` 的 `FILTER_REJECT` 不必改**（Issue #51 实测
+      澄清）：`SHOW_TEXT` 下 `acceptNode` 只会收到文本节点，而 REJECT 的
+      「连子树一起拒」语义只对**元素**成立、对非元素节点与 SKIP 同义——
+      jsdom 26 与 linkedom 0.18 双引擎实测两者产出的节点表**逐字节相同**
+      （含「跳过容器内既有直接文本节点、又有嵌套元素」的判别场景）。
+      别照搬「REJECT 会漏进子树导致偏移双计」的说法，它不是本条缺陷的成因。
+    - 挂载顺序固定「词表 → 线索」（两处调用点同款）；两侧都幂等（先摘旧标记
+      再重铺）。带词的 `applyGloss` 整段重铺会连带抹掉线上 mark，**靠既有
+      「材料填充后 refreshClueMarks」时机重铺，别加新通道**。
     - `^{...}` 渲染兜底在 `ui/MdRender` 的 `wengu_kram_sup` inline 规则
       （tokenizer 级，代码围栏内不受影响）——漏网的 `^{补}` 出 `<sup>` 不出
       字面文本。
@@ -340,10 +355,11 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
           切题集/切模式时清缓存。
         - **两钮都不出 = 浮条整体不出现**：非英语卷在非可标区域（解析区/
           选项区）选段即此情形——改造前会浮出一条只剩「标生词」的空条。
-    - ⚠️ **`SKIP_SELECTOR` 与词表区 `.wengu-gloss`/`.wengu-gloss-link` 的
-      互不嵌套约定不许破坏**（#33/#34 定的接口）：`GlossDom` 跳
-      `mark.wengu-clue-mark`，`ClueMarkDom` 跳词表区，两侧幂等，挂载顺序
-      固定「词表 → 线索」。
+    - ⚠️ **`SKIP_SELECTOR` 与词表区的嵌套约定是「单向」的**（Issue #51 改写
+      #33/#34 接口）：`GlossDom` 跳 `mark.wengu-clue-mark`；`ClueMarkDom`
+      **只跳词表区 `.wengu-gloss`、不跳 `.wengu-gloss-link`**（其 `<u>` 内
+      文本参与匹配、允许被包 mark），上标另由 `SUP_SELECTOR` 在落格时挡
+      「不许被包」。两侧幂等，挂载顺序固定「词表 → 线索」。
 
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
