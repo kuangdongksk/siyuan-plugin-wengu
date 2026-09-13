@@ -12,9 +12,10 @@ import type { GlossEntry, GlossHit } from "../../convert/service/gloss/GlossEntr
  *   包一层 <u> + 序号上标（判定在 GlossEntry.planGlossLinks，本文件只做
  *   DOM 手术）。
  *
- * **与 #29 的线索 mark 后处理互不嵌套**（验收要求）：本层先摘掉自己的
- * 旧标记再重铺，且**不碰 `<mark class="wengu-clue-mark">` 内的文本**
- * ——线索高亮的文本不参与词形匹配，防嵌套手术。
+ * **与 #29 的线索 mark 后处理是单向嵌套**（Issue #51 改写验收要求）：本层
+ * 先摘掉自己的旧标记再重铺，且**不碰 `<mark class="wengu-clue-mark">` 内的
+ * 文本**——线索高亮的文本不参与词形匹配，防嵌套手术；反向不成立，线索侧
+ * **允许**在我方的 `<u>`（原文本身）内落 mark。
  */
 
 /** 词形联动标记的元素类（幂等重铺先摘）。 */

@@ -4,9 +4,11 @@ import { SKIP_SELECTOR, SUP_SELECTOR } from "./ClueMarkDom";
 /**
  * 线索高亮与词形联动的**接口契约**（Issue #51）。
  *
- * 这两条 selector 是「匹配源」与「不许被包」的分工，真机表现为
- * 「英语材料选段含联动词时标线索不出任何高亮」（静默降级，不报错）。
- * 纯字符串断言即可锁死回退：DOM 级行为在 CI 里没有 jsdom 环境，
+ * 这两条 selector 是「匹配源」与「不许被包」的分工：SKIP_SELECTOR 命中即
+ * 该类文本**整片退出匹配源**（haystack 少了那几个字，含它的选段子串匹配
+ * 必败、静默降级只留 chip），SUP_SELECTOR 只管「谁不许被包 mark」、不管
+ * 匹配。真机表现为「英语材料选段含联动词时标线索不出任何高亮」（静默降级，
+ * 不报错）。纯字符串断言即可锁死回退：DOM 级行为在 CI 里没有 jsdom 环境，
  * 但把 `.wengu-gloss-link` 放回 SKIP_SELECTOR 一定会复现该缺陷。
  */
 describe("SKIP_SELECTOR：谁是线索匹配的文本源", () => {
