@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
-    import { applyGloss } from "../service/GlossDom";
+    import { decorateMaterial } from "../service/MaterialDecorate";
     import { renderMathWhenVisible } from "../service/ProtyleHost";
     import Button from "../../ui/Button.svelte";
     import type { CardHtmlModel } from "../render/CardParts";
@@ -73,8 +73,10 @@
         registerGroup(mid, { focusIdx, unitEl: () => rootEl });
         // 材料静态填充（旧 mountStatic 的 [data-mprotyle] 单节点语义）
         if (matEl && material?.bodyMd) {
-            // 词表区 + 正文词形联动（Issue #30；无词表时渲染产物与改造前一致）
-            applyGloss(matEl, material.bodyMd);
+            // Issue #52 二期：材料装饰走**唯一出口**（基础渲染 → 权威节点表
+            // → 词形联动 → 轮间重算映射）；线索 mark 由紧随其后的统一后处理
+            // 按坐标施工（同一条施工链，禁复制第二份）
+            decorateMaterial(matEl, { md: material.bodyMd });
             const top = getGroupScroll(mid);
             if (top !== undefined) matEl.scrollTop = top;
             if (rootEl) renderMathWhenVisible(rootEl);

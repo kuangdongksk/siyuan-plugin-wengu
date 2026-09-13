@@ -6,9 +6,15 @@ import { CLUE_ARM_MS, clickClueChip, markSlots, newClueDeleteState, planMarks, t
  * 但**不持有跨渲染状态**，删除态挂在 chips 行元素上（行随 chips 槽
  * 重建，态自然复位）。
  *
- * 高亮后处理 `applyClueMarks` 是**唯一**写 mark 的入口（材料填充后 /
- * 题干挂载后 / 会话恢复后三处都过它，禁复制第二份）；幂等：先摘旧
- * mark 再按当前线索重铺，重复调用零副作用。
+ * ⚠️ **Issue #52 二期起，写 mark 的常规入口是 `MaterialDecorate`**：
+ * 装饰出口在做完基础渲染/词形联动后按**权威坐标**施工（有坐标优先，
+ * 无坐标/校验失败才落到本文件的文本匹配口径）；线索的**文本匹配**
+ * 判定（`ClueMark.planMarks`/`markSlots`）与两条选择器口径原样保留，
+ * 它们是「坐标缺失/漂移」时的**降级地基**（#51 的修复正是它的正确性
+ * 基础，**不得删除**）。
+ *
+ * 因此本文件的 `applyClueMarks` 退居**遗留根**的兜底入口（尚无权威
+ * 坐标系的根——如外部挂载的旧壳），新挂载点一律走 `decorateMaterial`。
  *
  * 与词形联动（GlossDom）的**单向嵌套**口径（Issue #51，改写 #33/#34 的
  * 「互不嵌套」条目）：
@@ -102,6 +108,9 @@ function wrapRange(node: Text, start: number, end: number): void {
  * 高亮后处理（唯一入口，幂等）：先摘旧 mark，再把每条线索按
  * 「全部文本节点原文拼接 + 归一匹配」定位并包装。定位不到的线索只留
  * chip，不报错（归一匹配不上按降级策略处理，见 ClueMark.locateAcrossNodes）。
+ *
+ * ⚠️ **遗留兜底入口**（无权威坐标系时的文本匹配施工；新挂载点走
+ * `MaterialDecorate.decorateMaterial`）。
  *
  * ⚠️ **落格映射一次性算好，施工按 `markSlots` 的全局序**（与
  * GlossDom.assignHitsToNodes 同款口径，Issue #36）：偏移是**全部文本节点

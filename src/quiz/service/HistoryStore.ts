@@ -47,6 +47,16 @@ export interface WenguSession {
     thoughts?: Record<string, string>;
     /** 各题线索标注（qid→选段文本数组，M5 定位能力训练；纯会话数据不写块）。 */
     clues?: Record<string, string[]>;
+    /**
+     * 各题线索的**权威坐标**（Issue #52 D3：`clues` 的平行字段，下标与
+     * `clues[qid]` 严格对齐；某位 `undefined` = 该条线索只有文本锚点）。
+     *
+     * 权威坐标 = 装饰注入前渲染产物可见文本的字符偏移 `[s,e)`（见
+     * quiz/service/ClueCanon 文件头）。旧会话没有此键 ⇒ undefined ⇒ 渲染
+     * 时全走文本匹配 fallback（**惰性升格**：仅用户再次操作该题线索时才
+     * 持久化坐标）。数据演进守则：optional、不改名、不 bump version。
+     */
+    clueRanges?: Record<string, ({ s: number; e: number } | undefined)[]>;
 }
 
 /** 插件存储（saveData("history")）里的会话历史。 */

@@ -49,8 +49,11 @@ import { annoEnabled, pickAnnobarButtons, type BarPicks, type ViewMode } from ".
 export interface AnnoCallbacks {
     t: (k: string) => string;
     /** 选段标为线索；anchorEl=选段起点所在元素（长卷全卡常驻，归属题
-     *  要按它反查所在卡，不能按视图「当前题」猜——滚动跟踪有延迟）。 */
-    onMarkClue(text: string, anchorEl?: HTMLElement | null): void;
+     *  要按它反查所在卡，不能按视图「当前题」猜——滚动跟踪有延迟）。
+     *  `range`=**按下那一刻**的选区 Range（Issue #52 D2：锚点在此一次
+     *  求取，晚一步 Range 已被宿主清掉）；`root`=该 Range 所在的可标根
+     *  （材料面板 / 题干区），用它的 CanonMap 换算权威坐标。 */
+    onMarkClue(text: string, anchorEl?: HTMLElement | null, range?: Range, root?: HTMLElement | null): void;
     /** 收一个生词（检索命中即入本；查无此词只通知，见 markWord）。 */
     wordStore?: { get(): Promise<WenguWordProgress>; save(p: WenguWordProgress): Promise<unknown> };
     /** 视图模式（Issue #45 模式闸：只有 "quiz" 放行），拉取式取当前值。 */
@@ -105,6 +108,13 @@ export function isCluableNode(node: Node | null | undefined): boolean {
     const stem = el.closest(".wengu-qprotyle");
     if (!stem) return false;
     return !stem.closest(".wengu-gunit");
+}
+
+/** 选段起点所在的可标根（材料面板 / 题干区）——Range→权威坐标的坐标系
+ *  载体（Issue #52：每处挂载根各有一份 CanonMap）。 */
+export function cluableRootOf(anchorEl: HTMLElement | null | undefined): HTMLElement | null {
+    if (!anchorEl) return null;
+    return anchorEl.closest<HTMLElement>("[data-mprotyle]") ?? anchorEl.closest<HTMLElement>(".wengu-qprotyle");
 }
 
 function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
@@ -183,8 +193,11 @@ function barChildren(cb: AnnoCallbacks, picks: BarPicks): HTMLElement[] {
             const text = pickText();
             const anchorNode = sel?.anchorNode ?? null;
             const anchorEl = anchorNode instanceof HTMLElement ? anchorNode : (anchorNode?.parentElement ?? null);
+            // Issue #52 D2：锚点在这一刻一次求取——Range 还活着（hideBar
+            // 之后宿主可能已清选区，那时再求就没有 Range 了）
+            const range = sel && !sel.isCollapsed && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : undefined;
             hideBar();
-            if (text) cb.onMarkClue(text, anchorEl);
+            if (text) cb.onMarkClue(text, anchorEl, range, cluableRootOf(anchorEl));
         });
         buttons.push(clue);
     }

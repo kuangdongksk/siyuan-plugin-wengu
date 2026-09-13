@@ -4,7 +4,9 @@ import { livingSourceOf } from "../service/DocOps";
 import { bindAnnotationLayer, type AnnoCallbacks } from "./AnnoFlow";
 import { addClue, bindClueJudge } from "./ClueFlow";
 import { toggleBadMark } from "./BadMarkFlow";
+import { resolveRangeAnchor } from "../service/MaterialDecorate";
 import type { QuizView } from "../index";
+import type { CanonRange } from "../service/ClueCanon";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 
 /**
@@ -16,6 +18,16 @@ import type { QuestionBank } from "../../bank/data/QuestionBank";
  * 导入/删除/变式）仍需 DOM 委托（组件右键语义弱于原生 contextmenu，
  * 且带 async livingSourceOf 门控），保留在本文件。
  */
+
+/**
+ * 浮条按下时的锚点换算（Issue #52 D2）：Range 还活着 → 经该根（材料面板 /
+ * 题干区）的 CanonMap 求权威坐标。无 root（选区在控件里）或求不出
+ * （无表/钳不出）返回 undefined ⇒ 该条线索只存文本（降级链，渲染时按
+ * 文本匹配当场求坐标）。
+ */
+function anchorOf(root: HTMLElement | null | undefined, range: Range | undefined): CanonRange | undefined {
+    return range ? resolveRangeAnchor(root, range) : undefined;
+}
 
 /** 构造器一次性事件委托（自 QuizView 拆出压 500 行红线）：块引用跳转
  *  + 题卡「重新生成」+ 标注层（线索/生词）与「AI 复核线索」委托。
@@ -37,7 +49,9 @@ export function bindViewFrameFor(
     });
     const cleanup = bindAnnotationLayer(v.el, {
         t: v.t,
-        onMarkClue: (text, anchorEl) => addClue(v, text, anchorEl),
+        // Issue #52 D2：浮条 pointerdown 时把「那一刻」的 Range 一并传进来，
+        // 由 ClueFlow 经 CanonMap 求权威坐标（求不到只存文本，走降级链）
+        onMarkClue: (text, anchorEl, range, root) => addClue(v, text, anchorEl, anchorOf(root, range)),
         wordStore,
         // Issue #45：模式闸（只有做题模式出条）+ 卷级英语判定（标生词
         // 只对英语卷出；按选区起点所在卡反查源卷，聚合混合刷各卡各判）
