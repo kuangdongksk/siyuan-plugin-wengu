@@ -9,6 +9,17 @@ import { CLUE_ARM_MS, clickClueChip, markSlots, newClueDeleteState, planMarks, t
  * 高亮后处理 `applyClueMarks` 是**唯一**写 mark 的入口（材料填充后 /
  * 题干挂载后 / 会话恢复后三处都过它，禁复制第二份）；幂等：先摘旧
  * mark 再按当前线索重铺，重复调用零副作用。
+ *
+ * 与词形联动（GlossDom）的**单向嵌套**口径（Issue #51，改写 #33/#34 的
+ * 「互不嵌套」条目）：
+ * - 联动词形标记 `.wengu-gloss-link` 里的 `<u>` **包的就是原文本身**，
+ *   其文本**参与**线索匹配、允许被包 mark（跳过它会让「选段含联动词」
+ *   整段定位失败）；
+ * - 词表区 `.wengu-gloss`（词条/音标/释义）**不是原文**，整片跳过；
+ * - 序号上标 `.wengu-gloss-sup` **要参与匹配**（用户拖选得到的选段带
+ *   「N·记号」字符，两边对得上才匹配得上）却**不许被包**——它在词表区
+ *   内时已被整片排除，词表区之外的同类上标由落格守卫单独挡。
+ * 即 **mark 可以进 `<u>`、词表永不包 mark**，嵌套只单向发生。
  */
 
 /** chips 行里 chip 的选中类（待确认高亮警示，scss 里配红边框）。 */
@@ -20,13 +31,37 @@ export const CLUE_ARM_CLASS = "wengu-clue-chip-armed";
  *  同容器；解析在揭示前不可见，把 mark 埋进去会在收卷后显出一段莫名的
  *  高亮，且解析文本本就不是「原文」）。
  *
- *  **词表区与词形联动标记也跳过**（Issue #30）：词表行不是原文正文、
- *  联动标记里的文本已由 GlossDom 包过一层（再包 mark 就是嵌套手术，
- *  且会打乱序号上标）——两条后处理互不嵌套（#29/#30 的接口约定）。 */
-const SKIP_SELECTOR =
-    "script, style, mark, button, .wengu-clue-chip, .wengu-gclues, .wengu-annobar, .wengu-opt-letter, .wengu-static-sol, .wengu-opts, .wengu-gloss, .wengu-gloss-link";
+ *  **词表区**（`.wengu-gloss`）跳过：词表行是插件按 `@@G` 行渲染出来的
+ *  展示件，不是原文正文。
+ *
+ *  词形联动的两类标记**必须分开处置**（Issue #51）：
+ *  - `.wengu-gloss-link`（正文里的联动词形，内容 `<u>词</u><sup>序号</sup>`）
+ *    **不跳过**——`<u>` 包的就是原文本身，把它排除在匹配文本源之外，
+ *    「选段含联动词」就整段定位失败（真机即此现象），故它的文本参与
+ *    匹配、允许被包 mark；
+ *  - `.wengu-gloss-sup`（序号上标）**也不进**本表：它要参与匹配，只在
+ *    落格时挡（见 SUP_SELECTOR）。 */
+export const SKIP_SELECTOR =
+    "script, style, mark, button, .wengu-clue-chip, .wengu-gclues, .wengu-annobar, .wengu-opt-letter, .wengu-static-sol, .wengu-opts, .wengu-gloss";
 
-/** 收集某标记元素下的文本节点（跳过 SKIP_SELECTOR 子树）。 */
+/** 落格守卫：序号上标 `.wengu-gloss-sup`——**参与匹配但不许被包**。
+ *  与 SKIP_SELECTOR 分开是因为两者管的事不同：前者决定「谁是匹配文本
+ *  源」，后者只决定「谁不许被包 mark」。词表区内的上标已由 SKIP_SELECTOR
+ *  整片排除，这里管的是词表区之外的同名上标（宁缺勿错）。 */
+export const SUP_SELECTOR = ".wengu-gloss-sup";
+
+/** 收集某标记元素下的文本节点（跳过 SKIP_SELECTOR 子树）。
+ *
+ *  ⚠️ **真根因（Issue #51）：SKIP_SELECTOR 里的 `.wengu-gloss-link` 把
+ *  联动词形整片排除出了匹配文本源**——`<u>` 包的就是原文本身，haystack
+ *  里少了这几个字，含联动词的选段子串匹配必败（偏移缺失只发生在 link 处，
+ *  故 link **之前**的线索仍能高亮=「缺一段」）。修法是把它移出
+ *  SKIP_SELECTOR，**不是**改 walker 的 filter：曾经「REJECT 对文本节点仍
+ *  进子树 ⇒ 同一原文占两遍、偏移错位」的说法不成立，在 SHOW_TEXT 下
+ *  `acceptNode` 只会收到文本节点、文本节点没有子树，两者等价。
+ *
+ *  REJECT→SKIP 的保留只是**防御性口径**：与 SKIP 语义等价（文本节点无
+ *  子树），防未来 whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒。 */
 function textNodesOf(root: HTMLElement): Text[] {
     const out: Text[] = [];
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -91,6 +126,10 @@ export function applyClueMarks(root: HTMLElement | undefined | null, clues: stri
     for (const slot of markSlots(plan)) {
         const node = nodes[slot.node];
         if (!node?.isConnected) continue;
+        // 落格守卫（Issue #51）：序号上标参与匹配但**不许被包**——mark 套在
+        // 上标上只会让高亮里冒出一个莫名的数字；上标命中的那一段跳过，
+        // 词本身（<u> 内的文本节点）照常出 mark。
+        if (node.parentElement?.closest(SUP_SELECTOR)) continue;
         wrapRange(node, slot.start, slot.end);
     }
 }
