@@ -51,6 +51,10 @@ export interface ConvertRunCfg {
     subDocs?: SubDocRef[];
     /** 队列标题（=根文档标题，面板总行展示「第 x/N 篇 · 队列名」）。 */
     batchTitle?: string;
+    /** 重发队列时**重转已转换过的篇**（Issue #62，仅队列模式有意义）：
+     *  默认不勾=「无续跑记录但题库已有该源文档的题集」的篇视为已完成、
+     *  直接跳过（零 AI）；勾上则照常从头/从断点跑。只加不改名、optional。 */
+    reconvertDone?: boolean;
 }
 
 /** 页面侧事件（ConvertHost 组装：页内转换条 + 渐进呈现 + 收尾）。 */
@@ -85,8 +89,9 @@ export interface ConvertBatchItem {
     title: string;
     /** queued=排队中；running=进行中；done/failed=终态；stopped=用户在中途
      *  终止的**那一篇**（已生成部分待「保留/丢弃」抉择）；cancelled=因终止
-     *  而**未被跑**的剩余篇。 */
-    status: "queued" | "running" | "done" | "failed" | "stopped" | "cancelled";
+     *  而**未被跑**的剩余篇；skipped=重发队列时判定「已转换过」而跳过的篇
+     *  （Issue #62，零 AI——与 done 分开是为了让面板说清「这轮没跑」）。 */
+    status: "queued" | "running" | "done" | "failed" | "stopped" | "cancelled" | "skipped";
     /** 该篇已落库题数（done/failed 时有意义）。 */
     count: number;
     /** 该篇最近一次进度（running 时）。 */
@@ -174,6 +179,8 @@ export function batchItemStatusText(t: (k: string) => string, item: ConvertBatch
             return esc(fmt(t("convertBatchFailed"), { msg: item.message || t("convertNoQuestions") }));
         case "done":
             return esc(fmt(t("convertBatchDoneItem"), { c: String(item.count) }));
+        case "skipped":
+            return esc(t("convertBatchSkippedItem"));
         default:
             return item.progress ? progressStatusText(t, item.progress) : esc(t("converting"));
     }
@@ -256,6 +263,16 @@ export async function runSingleDoc(
             resume,
             knowRoots: cfg.knowRoots,
             bank: ev.bank,
+            // 逐批断点检查点（Issue #62）：**仅队列内**接（inQueue）——批量
+            // 队列中途被关思源/崩溃时，正在跑的那篇也得有可续跑的进度记录
+            // （原先只有 failed/「保留」抉择才落记录）。单篇流程不接，进度
+            // 记录时机逐字节不变（验收 6）。
+            onCheckpoint: inQueue
+                ? (rec) => {
+                      const meta = batchMetaOf(cfg, docId);
+                      ev.saveProgress(docId, { ...rec, ...(meta ? { batch: meta } : {}) });
+                  }
+                : undefined,
             onProgress: (p) => {
                 if (getActive() === run) {
                     run.progress = p;

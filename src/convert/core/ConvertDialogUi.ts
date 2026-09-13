@@ -23,6 +23,10 @@ export interface ConvertDialogUi {
      *  成题集）；未勾选时若源是**空文档且有子文档**（文件夹式文档），
      *  弹窗自动提示「将转换 N 个子文档」并展开（见 batchHint）。 */
     includeSub: boolean;
+    /** 「重转已转换过的篇」勾选（默认关，Issue #62）：仅**队列模式**显示
+     *  （勾了「连同子文档」或源为空壳文件夹时）。不勾时重发队列会跳过
+     *  「无续跑记录但题库已有该源文档题集」的篇（零 AI）。 */
+    reconvertDone: boolean;
     /* 回显（getDocInfo 解析的标题路径；空=占位「选择…」） */
     docEcho: string;
     knowEcho: string;
@@ -55,6 +59,7 @@ export function initialConvertDialogUi(): ConvertDialogUi {
         parallel: 1,
         knowRoots: "",
         includeSub: false,
+        reconvertDone: false,
         docEcho: "",
         knowEcho: "",
         running: false,
