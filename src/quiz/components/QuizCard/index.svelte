@@ -130,13 +130,11 @@
              标记态由视图刷新回灌） -->
         {#if m.preview}
             <Button
-                variant="outline"
                 class="wengu-side-iconbtn wengu-badmark-btn{badMarked ? ' wengu-badmark-on' : ''}"
                 data-act="badmark"
-                data-marked={badMarked ? "1" : undefined}
                 title={badMarked ? t("badMarkCancelTitle") : t("badMarkTitle")}
             >
-                {@html svgIcon("iconExclamation")}
+                {@html svgIcon("iconBug")}
             </Button>
         {/if}
     </div>

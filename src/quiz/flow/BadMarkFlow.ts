@@ -11,8 +11,9 @@ import { notifyInfo } from "../../ui/Notify";
  * bindCardActions 的委托挂视图根、跨整壳重建常驻，视图切回做题后旧 DOM
  * 的 mousedown 竞态理论上仍可命中（宁缺勿错）。
  *
- * 标记态由**视图重渲染回灌**（badMarks 经 QuizShell 查库喂组件初态），
- * 组件自己不持标记状态——落盘后重渲染即所见即所得。
+ * 标记态由**视图重渲染回灌**（QuizShell 同步读题库快照喂组件初态，渲染期
+ * 不 await 查库），组件自己不持标记状态——落盘后重渲染即所见即所得。
+ * 这里只换标记、不动题目内容，故重渲染（renderQuizList）足矣，无需整卷重载。
  */
 export async function toggleBadMark(v: QuizView, qid: string): Promise<void> {
     if (v.mode !== "preview" || !qid) return;

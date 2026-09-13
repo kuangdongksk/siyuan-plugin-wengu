@@ -1,5 +1,5 @@
 import type { QuizView } from "../index";
-import type { BankData } from "../../bank/data/QuestionBank";
+import { badMarkCount } from "../../bank/data/BadMark";
 import { launchAiFlow } from "../../ai/flow";
 import { regenBadMarkedRecords } from "../../bank/ui/RegenDialog";
 
@@ -13,35 +13,36 @@ import { regenBadMarkedRecords } from "../../bank/ui/RegenDialog";
  * `bank/ui/RegenDialog.regenBadMarkedRecords`（复用 regenRecords，零新账）。
  */
 
-/** 已标记题数（纯函数，单测覆盖）：题库未装载/未初始化返回 0=不显示。 */
-export function countBadMarked(data: BankData | undefined): number {
-    if (!data) return 0;
-    let n = 0;
-    for (const r of Object.values(data.records)) if (r.badMark === "1") n++;
-    return n;
-}
-
-/** 起步批量重转（视图入口：QuizView.regenBadMarked）。 */
+/** 起步批量重转（视图入口：QuizView.badMark.regen()）。
+ *
+ *  ⚠️ 刷新走**整卷重载**（reloadView）而非仅重渲染：题表是装载期解析出
+ *  的快照（setQuestions 产 ParsedQuestion），重转只换了题库记录的 kramdown
+ *  ——不重载就还是旧题干（Issue #46 验收 5）。单题「重新生成」的 onDone
+ *  也走同一条整卷重载（ViewBindings 的 reload），口径一致。 */
 export function regenBadMarkedFor(v: QuizView): void {
     const bank = v.bankStore();
     if (!bank) return;
     launchAiFlow(async (stop) => {
-        await regenBadMarkedRecords({ t: v.t, bank, modelId: v.aiModelId(), onDone: () => v.renderQuizList() }, stop);
+        await regenBadMarkedRecords({ t: v.t, bank, modelId: v.aiModelId(), onDone: () => void v.reloadView() }, stop);
     });
 }
 
-/** 视图访问三元组（QuizView 三个箭头属性一处分派，实现体留在本模块）。 */
+/** 「标记为错题」视图访问器（QuizView 持一份，渲染闸/徽标/批量重转三合一
+ *  ——集中一处分派保 index.ts 不再净增）。 */
 export interface BadMarkViewAccess {
-    previewingOf(): boolean;
-    badMarkCountOf(): number;
-    regenBadMarked(): void;
+    /** 预览模式（顶部批量重转钮的渲染闸；做题模式不出此钮）。 */
+    previewing(): boolean;
+    /** 跨卷全局标记数（同步读题库快照；0=不出钮）。 */
+    count(): number;
+    /** 批量重转全部标记题（点击即关/后台流，终态走通知）。 */
+    regen(): void;
 }
 
-/** 构造 QuizView 的三个「标记为错题」访问器（渲染闸/徽标/批量重转）。 */
+/** 构造 QuizView 的「标记为错题」访问器。 */
 export function badMarkAccess(v: QuizView): BadMarkViewAccess {
     return {
-        previewingOf: () => v.mode === "preview",
-        badMarkCountOf: () => countBadMarked(v.bankStore()?.peek()),
-        regenBadMarked: () => regenBadMarkedFor(v),
+        previewing: () => v.mode === "preview",
+        count: () => badMarkCount(v.bankStore()?.peek()),
+        regen: () => regenBadMarkedFor(v),
     };
 }

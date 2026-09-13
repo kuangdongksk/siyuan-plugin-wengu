@@ -1,4 +1,4 @@
-import type { BankRecord, QuestionBank } from "./QuestionBank";
+import type { BankData, BankRecord, QuestionBank } from "./QuestionBank";
 
 /**
  * 「标记为错题」（Issue #46）——预览模式浏览 AI 题卷时把生成质量差的题
@@ -10,6 +10,11 @@ import type { BankRecord, QuestionBank } from "./QuestionBank";
  * backfill = undefined 即未标记，对无新字段的存量记录零影响。
  * `replaceRecordKramdown`（重转原题位回写）不动此字段——qid 不变，
  * 标记天然跟随。
+ *
+ * **两条读取通道分开**：渲染期（卡头初态/头部徽标）走同步快照
+ * `badMarkedSet(peek())`——渲染路径不许 await 查库（与 AnnoScopeCtl
+ * 同款口径，SideMount 也是同步读快照）；批量重转的收集走异步
+ * `badMarkedQids(bank)`（跨卷全库，落库前后一致性由它保证）。
  */
 
 /** 标记一题（幂等；落盘走 markDirty 防抖）。 */
@@ -26,6 +31,15 @@ export async function markBad(bank: QuestionBank, qid: string, on = true): Promi
 /** 取消标记（等价 markBad(bank, qid, false)）。 */
 export function unmarkBad(bank: QuestionBank, qid: string): Promise<boolean> {
     return markBad(bank, qid, false);
+}
+
+/** 批量取消标记（**只对清单里的 qid 生效**）：批量重转后仅清「真正重转
+ *  成功」的那批——失败的/被中止的/防重入跳过的一律保留，用户可再转。
+ *  返回真清掉的条数。 */
+export async function unmarkMany(bank: QuestionBank, qids: string[]): Promise<number> {
+    let n = 0;
+    for (const qid of qids) if (await unmarkBad(bank, qid)) n++;
+    return n;
 }
 
 /** 单题是否已标记。 */
@@ -45,11 +59,18 @@ export async function badMarkedQids(bank: QuestionBank): Promise<string[]> {
         .map((r) => r.qid);
 }
 
-/** 标记总数（头部徽标用；未装载题库返回 0=不显示）。 */
-export async function badMarkCount(bank: QuestionBank | undefined): Promise<number> {
-    if (!bank) return 0;
-    const data = await bank.all();
-    return Object.values(data.records).filter((r) => r.badMark === "1").length;
+/** 标记题 qid 集合（**同步快照读**，入参 `bank.peek()`）：渲染期给卡头
+ *  标记钮回灌初态用。未装载（peek=undefined）返回空集=全部未标记。 */
+export function badMarkedSet(data: BankData | undefined): Set<string> {
+    const out = new Set<string>();
+    if (!data) return out;
+    for (const r of Object.values(data.records)) if (r.badMark === "1") out.add(r.qid);
+    return out;
+}
+
+/** 标记总数（**同步快照读**；头部徽标用，0=不出钮）。 */
+export function badMarkCount(data: BankData | undefined): number {
+    return badMarkedSet(data).size;
 }
 
 /** 取记录（无则 undefined；不落缓存副作用）。 */

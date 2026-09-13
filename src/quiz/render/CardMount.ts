@@ -34,14 +34,14 @@ export function detachCardApps(): void {
 
 /** 挂载一个渲染单元到容器尾（静态分片管线逐片调用）。
  *  单元渲染失败给占位卡，不拖垮整个列表（旧 tryCard 同策）。
- *  badMarks（Issue #46）= 已标记为错题的 qid 清单，逐卡回灌标记钮初态。 */
+ *  badMarks（Issue #46）= 已标记为错题的 qid 集合，逐卡回灌标记钮初态。 */
 export function mountDrillUnit(
     container: HTMLElement,
     u: DrillUnit,
     m: CardHtmlModel,
     ctx: CardInitCtx,
     host: AnswerHost,
-    badMarks: string[] = []
+    badMarks: Set<string> = new Set()
 ): void {
     try {
         if (u.kind === "single") {
@@ -52,7 +52,7 @@ export function mountDrillUnit(
                     m,
                     ctx,
                     host,
-                    badMarked: badMarks.includes(u.q!.id),
+                    badMarked: badMarks.has(u.q!.id),
                 })
             );
         } else {

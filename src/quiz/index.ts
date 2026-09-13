@@ -563,14 +563,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly openConvertPrefilled = (docId: string, know: string) =>
         openConvertForView(this.convertAccess, docId, know);
 
-    /* ── 「标记为错题」/批量重转（Issue #46；访问器实现体外移 service/BadMarkRegen） ── */
-
-    /** 预览模式（头部批量重转钮的渲染闸）。 */
-    readonly previewingOf = badMarkAccess(this).previewingOf;
-    /** 已标记题数（跨卷全局，渲染期同步读快照；0=不出钮）。 */
-    readonly badMarkCountOf = badMarkAccess(this).badMarkCountOf;
-    /** 预览头部「批量重转标记的错题」（点击即关/后台流，终态走通知）。 */
-    readonly regenBadMarked = badMarkAccess(this).regenBadMarked;
+    /** 「标记为错题」/批量重转访问器（Issue #46；实现体 service/BadMarkRegen
+     *  ——预览闸 / 徽标数 / 顶栏批量重转三合一，保 index.ts 不再净增）。 */
+    readonly badMark = badMarkAccess(this);
 
     /** 侧栏/头部按钮统一出口（6-5 Svelte 化后 SidePanelApp/QuizHeadApp
      *  经 SideMount 的 onAct 汇到这里，act 名同 data-act；实现体在

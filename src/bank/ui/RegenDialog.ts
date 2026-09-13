@@ -13,7 +13,7 @@ import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
 import { parseQuestionKramdown } from "../data/BankParse";
 import { recordOf, replaceRecordKramdown } from "../data/BankRegen";
-import { badMarkedQids, markBad } from "../data/BadMark";
+import { badMarkedQids, unmarkMany } from "../data/BadMark";
 import type { WenguQuestion } from "../../types";
 import { esc } from "../../ui/shared";
 import { KernelBlock } from "../../siyuan/block";
@@ -211,15 +211,32 @@ async function regenViewOf(bank: QuestionBank, qid: string): Promise<WenguQuesti
 
 /** 批量重生成（题库体检「结构损坏」直修）：逐题复用单题重出（quiet：不
  *  逐题通知/刷新，失败逐题已通知、不计成功数），终态统一通知并刷新。
- *  返回成功数；供 RepairDialog 经 launchAiFlow 调起。 */
-export async function regenRecords(deps: RegenDeps, qids: string[], stop: AiAbort): Promise<number> {
+ *  返回成功数；供 RepairDialog 经 launchAiFlow 调起。
+ *
+ *  `onResult`（可选）逐题回报成败——批量重转据此**只清真正重转成功**的
+ *  标记（失败/被中止/防重入跳过的一律保留）；返回值只有总数，区分不出
+ *  是哪几题，故必须逐题回传，别在调用侧按清单整体清（Issue #46 验收 4）。 */
+export async function regenRecords(
+    deps: RegenDeps,
+    qids: string[],
+    stop: AiAbort,
+    onResult?: (qid: string, ok: boolean) => void
+): Promise<number> {
     let ok = 0;
     for (const qid of qids) {
         if (stop.signal.aborted) break;
-        if (regenInFlight.has(qid)) continue; // 题卡单题重出在飞：跳过防并发写冲突
+        if (regenInFlight.has(qid)) {
+            onResult?.(qid, false); // 题卡单题重出在飞：跳过防并发写冲突
+            continue;
+        }
         const q = await regenViewOf(deps.bank, qid);
-        if (!q) continue;
-        if (await runRegen(deps, q, "", "", stop, { quiet: true })) ok++;
+        if (!q) {
+            onResult?.(qid, false);
+            continue;
+        }
+        const done = await runRegen(deps, q, "", "", stop, { quiet: true });
+        if (done) ok++;
+        onResult?.(qid, done);
     }
     notifyInfo({ key: "regenBatchDone", vars: { n: String(ok) } });
     deps.onDone();
@@ -229,16 +246,16 @@ export async function regenRecords(deps: RegenDeps, qids: string[], stop: AiAbor
 /**
  * 批量重转「标记为错题」（Issue #46，预览模式顶部入口）：跨卷全局收集标记
  * 题 → 复用 regenRecords 逐题串行重出（单飞闸/进度与停止/失败通知全在既有
- * 通道，零新账）→ **成功重转的题自动清标记**（失败的保留，用户可再转）。
- * 返回成功数；供预览头钮经 launchAiFlow 调起。
+ * 通道，零新账）→ **只有真正重转成功的题自动清标记**，失败/被中止/防重入
+ * 跳过的一律保留（用户可再转）。返回成功数；供预览头钮经 launchAiFlow 调起。
  *
  * 与单题「重新生成」弹窗并发靠 regenRecords 内既有 regenInFlight 防重入
- * （在飞的题被跳过，标记保留——不会「没重转却清了标记」）。
+ * （在飞的题被跳过，**标记保留**——不会「没重转却清了标记」）。
  *
- * ⚠️ 两次刷新的次序有意为之：regenRecords 尾调 deps.onDone 时标记**尚未
- * 清**——若视图那时自行 flush（渲染前落盘），会把「已重转但仍带标记」的
- * 记录写下去（重开页签标记复活）。故本函数在它之后再清标记 + 显式 flush，
- * **flush 完成后**才发最终刷新：新内容与已清标记一起可见。
+ * ⚠️ 刷新只发一次（末尾那发）：regenRecords 内部还会调一次 deps.onDone，
+ * 那时标记尚未清——让视图在那时重渲染就会出现「内容已换、标记还在」的
+ * 中间态闪一下（重开页签标记复活同理）。故本函数把内部那发换成空动作，
+ * 清标记 + 显式 flush 落盘后才发最终刷新：新内容与已清标记一起可见。
  */
 export async function regenBadMarkedRecords(deps: RegenDeps, stop: AiAbort): Promise<number> {
     const qids = await badMarkedQids(deps.bank);
@@ -246,14 +263,11 @@ export async function regenBadMarkedRecords(deps: RegenDeps, stop: AiAbort): Pro
         notifyInfo({ key: "regenBadNone" });
         return 0;
     }
-    const ok = await regenRecords(deps, qids, stop);
-    // 清标记：成功重转过的（含被驳回的题）——重出已换掉内容，标记不再适用；
-    // 被 regenInFlight 跳过或被中止的保留标记，待下一轮
-    let cleared = 0;
-    for (const qid of qids) {
-        if (stop.signal.aborted) break;
-        if (await markBad(deps.bank, qid, false)) cleared++;
-    }
+    const succeeded: string[] = [];
+    const ok = await regenRecords({ ...deps, onDone: () => undefined }, qids, stop, (qid, one) => {
+        if (one) succeeded.push(qid);
+    });
+    const cleared = await unmarkMany(deps.bank, succeeded); // 仅成功那批
     if (cleared > 0) await deps.bank.flush(); // 标记落盘先于刷新（防旧态被读回）
     deps.onDone(); // 最终刷新：新内容 + 已清标记一起可见
     return ok;

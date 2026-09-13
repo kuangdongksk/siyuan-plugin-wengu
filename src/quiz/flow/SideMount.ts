@@ -5,6 +5,7 @@ import QuizHeadApp from "../components/QuizHeadApp.svelte";
 import type { CollectionFlow } from "../../bank";
 import { updateConvertBtn } from "../../convert";
 import type { WenguWorkspace } from "../render/RailMount";
+import type { BadMarkViewAccess } from "../service/BadMarkRegen";
 
 /** 侧栏/头部按钮统一出口（act 名同 data-act）：SidePanelApp/QuizHeadApp
  *  的 onAct 回调经 SideViewAccess.sideAct 汇到这里分派——原来是
@@ -19,8 +20,9 @@ export interface SideActAccess {
     colFlowOf(): CollectionFlow;
     setSideCollapsed(collapsed: boolean): void;
     endRound(): void;
-    /** 预览头部「批量重转标记的错题」（Issue #46）。 */
-    regenBadMarked(): void;
+    /** 「标记为错题」访问器（Issue #46；预览闸/徽标数/批量重转三合一，
+     *  实现体见 service/BadMarkRegen）。 */
+    badMark: BadMarkViewAccess;
 }
 
 /** sideAct 工厂（QuizView.sideAct 的实现体，拆出压 index.ts 行数）。 */
@@ -49,7 +51,7 @@ export function sideActFor(v: SideActAccess): (act: string) => void {
                 v.endRound();
                 break;
             case "regen-bad":
-                v.regenBadMarked();
+                v.badMark.regen();
                 break;
         }
     };
@@ -71,10 +73,9 @@ export function sideActFor(v: SideActAccess): (act: string) => void {
 
 export interface SideViewAccess {
     readonly el: HTMLElement;
-    /** 预览模式（头部「批量重转标记的错题」钮的渲染闸）。 */
-    previewingOf(): boolean;
-    /** 已标记为错题的题数（跨卷全局；0=不显示该钮）。 */
-    badMarkCountOf(): number;
+    /** 「标记为错题」访问器（Issue #46）：预览闸 + 跨卷标记数，头部
+     *  「批量重转标记的错题(N)」的渲染闸与徽标都取它（N=0 不出钮）。 */
+    badMark: BadMarkViewAccess;
     t(key: string): string;
     docsOf(): WenguDoc[];
     docIdOf(): string;
@@ -154,8 +155,8 @@ export function mountHeadFor(
         endRoundLabel: afterMode ? "endRoundRevealBtn" : "endRoundBtn",
         showFinishHint: canEndRound && afterMode,
         // 预览头部「批量重转标记的错题(N)」（Issue #46；N=0 不显示）
-        showRegenBad: v.previewingOf() && v.badMarkCountOf() > 0,
-        badMarkCount: v.badMarkCountOf(),
+        showRegenBad: v.badMark.previewing() && v.badMark.count() > 0,
+        badMarkCount: v.badMark.count(),
         onAct: (act: string) => v.sideAct(act),
     });
 }
