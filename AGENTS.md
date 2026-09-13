@@ -311,6 +311,28 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       阶段** `mousedown` → `stopPropagation`（隔离宿主全局监听）、按钮监听
       改 `pointerdown`（更早快照选区）、`lastSelText` 选区快照兜底（选区在
       某层被清也能标上；`hideBar` 一并清掉，别标到陈旧选段）。
+    - **浮条作用域闸**（Issue #45，20260913）：判定纯逻辑在
+      `quiz/flow/AnnoScope.ts`（`annoEnabled` / `isEnglishTypes` /
+      `pickAnnobarButtons`，带单测），DOM 侧 `AnnoFlow.positionBar` 只读观测
+      再照判定施工。
+        - **模式闸**：`AnnoCallbacks.mode()` 拉取视图模式，**只有 `quiz`
+          放行**——预览/复习/学习零浮条；`QuizView.switchMode` 里
+          `hideBar()` 显式收条（判定是拉取式的，切模式那一刻没有
+          selectionchange 事件来重判，不显式收条会留着已开的条）。
+        - **标生词卷级判定**：生词本是英语功能——该卷题型并集含
+          cloze/match/essay/trans 任一才出。「英语阅读也是 single、数学单选
+          也是 single」**题级判不开，只能看卷**；反查链 = 选区起点所在卡
+          `data-qid` → 该题 `rootId`（=源题集 id）→ `BankSets` 题型并集。
+          聚合/专题混合刷按各卡各自源卷判。**任一环反查不到即 false**
+          （宁缺勿错）。
+        - 判定按题集缓存（`quiz/service/AnnoScopeCtl`，自 QuizView 拆出压
+          500 行红线）：选段回调是高频**同步**路径，走
+          `BankSets.peekSetTypeUnion` 窥视已装载数据（`bank.peek()`），
+          未装载先按否收口 + 异步 `setTypeUnion` 补正——**不许在
+          selectionchange 里 await 查库**；`invalidateAnnoScope` 在换卷/
+          切题集/切模式时清缓存。
+        - **两钮都不出 = 浮条整体不出现**：非英语卷在非可标区域（解析区/
+          选项区）选段即此情形——改造前会浮出一条只剩「标生词」的空条。
     - ⚠️ **`SKIP_SELECTOR` 与词表区 `.wengu-gloss`/`.wengu-gloss-link` 的
       互不嵌套约定不许破坏**（#33/#34 定的接口）：`GlossDom` 跳
       `mark.wengu-clue-mark`，`ClueMarkDom` 跳词表区，两侧幂等，挂载顺序

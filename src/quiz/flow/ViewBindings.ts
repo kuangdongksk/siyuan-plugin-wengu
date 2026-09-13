@@ -36,6 +36,10 @@ export function bindViewFrameFor(
         t: v.t,
         onMarkClue: (text, anchorEl) => addClue(v, text, anchorEl),
         wordStore,
+        // Issue #45：模式闸（只有做题模式出条）+ 卷级英语判定（标生词
+        // 只对英语卷出；按选区起点所在卡反查源卷，聚合混合刷各卡各判）
+        mode: () => v.mode,
+        isEnglishDoc: (anchorEl) => v.isEnglishQuestionAt(anchorEl),
     });
     bindClueJudge(v);
     bindDocContextMenu(v);

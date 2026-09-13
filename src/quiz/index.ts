@@ -18,10 +18,11 @@ import { mirrorAnswer, mirrorOverride, mirrorRepeatAnswer, mirrorResult } from "
 import type { BankMirrorDetail } from "./service/AnswerMirror";
 import { genTagsAction, variantDrillAction, type DocActionCtx } from "./service/DocActions";
 import { teardownView } from "./flow/Teardown";
+import { AnnoScopeCtl } from "./service/AnnoScopeCtl";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
-import type { AnnoCallbacks } from "./flow/AnnoFlow";
+import { hideBar as hideAnnoBar, type AnnoCallbacks } from "./flow/AnnoFlow";
 import { refreshClueMarkFor, refreshClueRow } from "./flow/ClueFlow";
 import type { DrillUnit } from "./render/DrillUnits";
 import { ProgressivePreview } from "./service/ProgressivePreview";
@@ -83,6 +84,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 标注层解绑与背单词存储（生词→复习队列，index.ts 注入共享单例）。 */
     private annoCleanup?: () => void;
     private wordStore?: AnnoCallbacks["wordStore"];
+    /** 卷级英语判定（Issue #45 标生词闸；实现与缓存见 service/AnnoScopeCtl）。 */
+    private readonly annoScope: AnnoScopeCtl;
     loading = false;
     loadError = "";
     private docTotalSec = 0;
@@ -130,6 +133,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.openSettings = openSettings;
         this.wordStore = wordStore;
         this.protyleHost = new ProtyleHost();
+        this.annoScope = new AnnoScopeCtl(this);
         this.convertAccess = new ConvertAccess(this);
         this.timerBinder = new TimerBinder(timerHostFor(this));
         this.colFlow = new CollectionFlow({
@@ -278,7 +282,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly switchMode = (mode: "quiz" | "review" | "preview"): void => {
         if (this.mode === mode) return;
         if (this.mode === "preview") resetPreviewSearch(); // 搜题词是模块级，离开预览清零防下卷误过滤
+        hideAnnoBar(); // Issue #45：切模式立即收条（判定是拉取式的，无事件重判）
         this.mode = mode;
+        this.invalidateAnnoScope();
         this.renderList(); // 落幕统一恢复已答锁定（见 renderList 尾注）
     };
 
@@ -360,6 +366,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
 
     private async load(): Promise<void> {
         this.finishSession(); // 切文档/刷新/重开都视为上一轮结束
+        this.invalidateAnnoScope(); // Issue #45：换卷旧判定作废（题表即将重建）
         this.loading = true;
         this.loadError = "";
         this.renderList();
@@ -511,6 +518,13 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.allAnsweredNotified = false;
         renderListFor(this);
     }
+
+    /** 卷级英语判定作废（Issue #45）：题表/题集变更后旧判定作废（换卷/
+     *  切题集/切模式时调用；缓存与反查链见 service/AnnoScopeCtl）。 */
+    readonly invalidateAnnoScope = (): void => this.annoScope.invalidate();
+
+    /** 选区起点所在卷是否英语卷（Issue #45 卷级判定，AnnoCallbacks 实现）。 */
+    readonly isEnglishQuestionAt = (anchorEl: HTMLElement | null): boolean => this.annoScope.englishAt(anchorEl);
 
     /** 打开统计面板（tab 直落；下钻后 load 完成时也走这里重开）。 */
     readonly openStatsPanelAt = (tab: "overview" | "doc"): void => openStatsPanelFor(this, tab);

@@ -66,6 +66,22 @@ export async function setTypeUnion(bank: QuestionBank, setId: string): Promise<Q
     return out;
 }
 
+/** 卷级题型并集的**同步窥视版**（Issue #45 标生词的卷级英语判定用）：
+ *  判定是选段回调里的高频同步路径（浮条要当场决定出不出现），不能
+ *  await——只看已装载缓存（`bank.peek()`），题目未装载时返回空集=
+ *  调用方按「非英语」收口（宁缺勿错），随后走 setTypeUnion 异步补正。
+ *  与 setTypeUnion 同一套过滤（normalizeType + 去重），口径不分叉。 */
+export function peekSetTypeUnion(bank: QuestionBank, setId: string): QuestionType[] {
+    const data = bank.peek();
+    if (!data || !setId) return [];
+    const out: QuestionType[] = [];
+    for (const qid of data.sets?.[setId]?.qids ?? []) {
+        const t = normalizeType(data.records[qid]?.type);
+        if (t && !out.includes(t)) out.push(t);
+    }
+    return out;
+}
+
 /** 全部题集聚合题目（聚合专题刷题列表；空题集自然无贡献）。 */
 export async function allSetQuestions(bank: QuestionBank): Promise<ParsedQuestion[]> {
     const out: ParsedQuestion[] = [];
