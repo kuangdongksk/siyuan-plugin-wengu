@@ -168,8 +168,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly currentQuestion = (): WenguQuestion | undefined => this.list[this.activeQIdx];
     readonly materialOf = (q: WenguQuestion): WenguMaterial | undefined => this.materials.find((m) => m.id === q.group);
     readonly questionById = (qid: string): WenguQuestion | undefined => this.list.find((q) => q.id === qid);
-    /** AnswerHost 结构匹配（Issue #28）：三处挂载时机直调，实现收口在 ClueFlow。 */
-    readonly refreshClueMarks = (q: WenguQuestion): void => refreshClueMarkFor(this, q);
+    /** AnswerHost 结构匹配（Issue #28/#52）：题干挂载/材料填充后直调，实现收口在 ClueFlow。 */
+    readonly refreshClueMarks = (q: WenguQuestion): void => void refreshClueMarkFor(this, q);
     readonly persist = (): void => {
         const s = this.session ?? this.finished;
         if (s) void this.history?.upsert(s);
@@ -198,9 +198,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
 
     /** after 模式答满（未收卷）：一次性提示「可检查修改，结束后统一判卷」
-     *  （Issue #12 B3）。题卡内 answeredPending 行负责细粒度告知，
-     *  这里只在**首次**答满时补一条浮层——不重复打扰。全卷重渲染/换题集
-     *  会重置标记（renderList 里清），新一轮答满能再提示一次。 */
+     *  （Issue #12 B3；去重标记由 renderList 复位）。详见 renderList 注。 */
     private allAnsweredNotified = false;
     readonly onAllAnswered = (): void => {
         if (this.allAnsweredNotified) return;

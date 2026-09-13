@@ -2,7 +2,7 @@ import { ProtyleMethod } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { optionDisplayMd, estimateOptWidth, LETTERS } from "../../types";
 import { renderMdHtml } from "../../ui/MdRender";
-import { applyGloss } from "./GlossDom";
+import { decorateMaterial } from "./MaterialDecorate";
 import { yieldToBrowser } from "../../ui/shared";
 
 /**
@@ -44,16 +44,16 @@ export class ProtyleHost {
             if (node.hasAttribute("data-mprotyle")) {
                 const mat = materials.find((x) => x.id === this.nodeBlockId(node));
                 if (!mat?.bodyMd) continue;
-                // 词表区 + 正文词形联动（Issue #30；无词表时产物与改造前一致）
-                applyGloss(node, mat.bodyMd);
+                // Issue #52 二期：材料装饰走**唯一出口**（基础渲染 → 权威
+                // 节点表 → 词形联动 → 轮间重算映射 → 线索 mark 坐标施工）。
+                // 线索锚点由调用侧（视图/组单元）在挂载后过统一后处理施工，
+                // 这里不带线索（保持本通道只读材料正文）。
+                decorateMaterial(node, { md: mat.bodyMd });
             } else {
                 const card = node.closest<HTMLElement>(".wengu-card");
                 const q = list.find((x) => x.id === card?.dataset.qid);
                 if (!q) continue;
-                const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
-                node.innerHTML =
-                    fallbackQuestionHtml(q) +
-                    (sol ? `<div class="wengu-static-sol" data-static-sol>${renderMdHtml(sol)}</div>` : "");
+                node.innerHTML = fallbackQuestionHtml(q) + solutionHtml(q);
             }
             this.mountedStatic.add(node);
             renderMathWhenVisible(node);
@@ -97,13 +97,27 @@ export function optionRowHtml(i: number, md: string, rowClass = "wengu-option-fa
     return `<div class="${cls}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span><div class="wengu-opt-body">${body}</div></div>`;
 }
 
+/** 选项行 HTML（选项容器 `.wengu-opts` 是多列排布挂点；无选项返回空串）。
+ *  Issue #52 二期起题卡题干走装饰出口，选项/解析**不是原文**（非权威区），
+ *  由调用侧作为尾部件拼在同一容器里——故拆成独立入口供两处复用。 */
+export function optionsHtml(q: WenguQuestion): string {
+    const rows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md)).join("");
+    return rows ? `<div class="wengu-opts">${rows}</div>` : "";
+}
+
+/** 答案解析区 HTML（揭示前由 CSS 随 `wengu-revealed` 显隐，Issue #12；
+ *  无答案/解析返回空串）。与选项同属**非权威区**，同样在装饰出口之外。 */
+export function solutionHtml(q: WenguQuestion): string {
+    const sol = [q.answer, q.solutionMd].filter(Boolean).join("\n\n");
+    return sol ? `<div class="wengu-static-sol" data-static-sol>${renderMdHtml(sol)}</div>` : "";
+}
+
 /** 静态渲染：题干 + 选项行。选项行包进 .wengu-opts 容器（flex-wrap
  *  多列排布的挂点）。 */
 export function fallbackQuestionHtml(q: WenguQuestion): string {
     const parts: string[] = [];
     if (q.stemMd) parts.push(renderMdHtml(q.stemMd));
-    const rows = (q.optionMd ?? []).map((md, i) => optionRowHtml(i, md)).join("");
-    parts.push(rows ? `<div class="wengu-opts">${rows}</div>` : "");
+    parts.push(optionsHtml(q));
     return parts.join("");
 }
 
