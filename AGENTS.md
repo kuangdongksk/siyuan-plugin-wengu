@@ -425,6 +425,60 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       （`resolved` 与 `anchorsOf` **逐位对齐**，跳过的位占空）；渲染路径只读
       不写。该题从未升格则不建表。
 
+### src/mobile/ —— 移动端刷题（Issue #59，`index.ts`=dock 挂载编排）
+
+移动端「**仅刷题**」：dock 面板内完成 选卷/开刷 → 作答 → 判分揭示 →
+轮次报告。管理类功能（转换 / rail 工作区 / 统计 / 词书）不进移动端。
+设计稿 `design/wengu-mobile-drill.html`（九屏 390×844）。
+
+- **挂载通道 = dock**：思源移动端 `openTab` 是空桩（AGENTS.md 移动端
+  约定），dock 是插件面板唯一通道。`index.ts` 在 `isMobileUi()` 为真时
+  注册 `wengu-mobile-drill` dock（**桌面不注册**——桌面已由页签承担，
+  重复注册会在桌面 dock 多出一个面板 = 桌面回归）；顶栏入口在移动端仍
+  走 `notifyInfo` 提示（dock 无程序化打开 API）。
+- **与 QuizView 零耦合，但记账通道逐字复用**：移动端不复用桌面壳的
+  整壳 innerHTML 管线（那是页签尺寸的布局），`MobileDrill` 自己持响应态、
+  组件直渲染。**终态语义与桌面同口径**：
+    - 即时判分（instant）= `setGraded` 一把置 graded+locked+revealed；
+    - 收卷统一（after）= 提交只置 graded + 「已答」（`locked`/`revealed`
+      都留到交卷 `endRound`）；
+    - 「未完成轮」判据**只看 `session.endedAt`**（答满但未交卷仍算未完成）；
+    - 记账全走既有通道：`HistoryStore.pushSessionAnswer`（upsert 幂等）、
+      `AnswerMirror`（首答 attempts+1 / 重复提交只覆写 / 收卷模式交卷时
+      补 batch 镜像）、判分 `gradeQuestion`/`judgeBrief`。
+- **多步题（steps）在移动端按「整题文本作答」处理**：桌面 `StepsFlow` 的
+  逐步作答/申诉链属重型交互，小屏无落脚点。只改作答形态，**不改记账**
+  （仍记在同一块 qid 上）。判据唯一：`MobileModel.isMobileText`
+  （= brief 同族 ∪ steps），输入区渲染与提交分流都取它，禁各写一份。
+- **分文件口径**（单文件 ≤500 红线，两个文件都走过拆）：
+  `MobileDrill.ts` = 装载/开刷/导航/收卷/报告编排；
+  `MobileAnswering.ts` = 作答流程（函数式友元，接 drill 实例读写
+  `d.ui`，同 BankRegen/AnswerMirror 口径）——点选/提交/AI 判分/自评/
+  「不会」/跳过 + 记账与判分呈现。**揭示态与锁定态的写入只在
+  MobileAnswering**，`MobileDrill` 只转发，别在两处各写一份。
+- **响应态必须是 `$state` 深代理**：`MobileUi` 在 `MobileApp.svelte` 里
+  `$state(initialMobileUi())` 创建后注入控制器（同 word 域 WordApp 先例）。
+  **控制器若把状态摊成自己的普通字段，Svelte 5 不追踪、界面全程不刷新**
+  ——这是本域最易踩的坑（word 域踩过同款）。
+- **纯逻辑在 `core/MobileModel.ts`（带单测）**：题头题型标签、题号抽屉
+  格子、报告统计、错题清单、题数候选。两条关键口径：
+    - **抽屉格子按材料组整组连成一格**（设计稿屏 ⑨「15–19 阅读 · 组题」），
+      组格状态取组内**最差**（错 > 已答 > 未答 > 对）——点进去就是那道错的；
+    - **会话结果必须先按块 id 归并**（多步/逐空题记的是 `qid#k`）——不归并
+      会把一道多步题算成 N 道，统计与格子全错位。
+- **样式一律挂 `.wengu-mobile` 后代选择器**（`scss/mobile-{home,drill,
+answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi` 打。
+  **桌面不带标记 ⇒ 一条不生效**（实测桌面 CSS 前缀逐字节不变，移动端块
+  只是插在 words-mobile 与 companion 之间）。**禁 media query**（桌面
+  浏览器窄窗口会误伤）。色值全走 b3 主题令牌，明/暗主题自适应。
+  口径：触控目标 ≥44px、交互不依赖 hover、正文 ≥15px、输入框 ≥16px。
+- ⚠️ **材料面板只在展开时渲染正文**（收起只留摘要行）：正文经
+  `MobileMaterials.materialHtml` 过 `MaterialDecorate.decorateMaterial`
+  这个**唯一装饰出口**（词表/线索与桌面同链）——直接拼 markdown 字符串
+  会绕过装饰，词形联动与线索 mark 全丢。
+- 移动端 `isMobileUi()` 是桌面/移动分流的唯一判据（`ui/shared`），
+  `markMobileUi` 打标记类；别用 `getFrontend`（types 1.2.4 里没有）。
+
 ### src/convert/ —— AI 转换（`index.ts`=转换编排）
 
 - **逐段自推进**（20260910 起整卷转换**不再预切块**）：从「`structuralChunks`
@@ -862,7 +916,8 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 width:100% }`。修复：复合选择器 `.b3-label.wengu-formrow { ... !important }`
   把特异性抬到 0,2,0。工作区面板（`.wengu-ws-page`）没有 `.config__items` 父容器作
   兜底，所有 formRow 都需要这条复合规则。
-- **移动端适配约定**（Issue #10，20260910）：
+- **移动端适配约定**（Issue #10，20260910；移动端**刷题**见
+  `src/mobile/` 一节，Issue #59）：
     - **openTab 在移动端是空桩**（思源 `app/src/plugin/API.ts` 的
       `/// #if MOBILE` 分支 `openTab = () => { /* TODO: Mobile */ }`），
       自定义页签打不开——顶栏入口必须分流（现走 `notifyInfo` 提示，
