@@ -953,8 +953,10 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
   ——组题在组单元底部 `[data-clues]`，非组题在卡内题干与作答区之间的
   `.wengu-cclues[data-clues]`，**同一份 renderClueRow 渲染**。
   **主题多色**（Issue #57）：浮条主钮旁的小色块角标开**竖排色板**
-  （独立积木 `ui/ColorMenu.svelte`，色值走思源 `--b3-card-*` 卡片色 +
-  `-color` 前景，明暗与第三方主题实时适配）。主钮**一步标默认黄**不变
+  （独立积木 `ui/ColorMenu.svelte`，色值走思源卡片色变量**全名**
+  `--b3-card-<kind>-background` + `--b3-card-<kind>-color`——裸
+  `--b3-card-<kind>` 不存在，写了高亮整片透明；明暗与第三方主题实时
+  适配）。主钮**一步标默认黄**不变
   （选色路径 = 开色板 + 点色块，两击）；色号存会话
   `clueColors[qid]: number[]`（**与 clues 下标严格对齐**的第三个平行
   数组：`-1`=默认黄、`0..3`=四色序，旧会话无此键 ⇒ 全默认黄，存量零
