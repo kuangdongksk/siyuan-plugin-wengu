@@ -51,6 +51,11 @@ export interface AiSessionRecord {
     /** 分组标题（随每条记录冗余落盘，组节点标题取最新成员的；组员同批
      *  必同值，LRU 淘汰部分成员也不丢标题）。 */
     groupTitle?: string;
+    /** 排队中（Issue #76，optional、不 bump version、不改名）：该调用已
+     *  登记但**尚未取到全局 AI 槽位**——面板详情显示「等待空闲通道…」。
+     *  status 仍是 running（用户看到的是「已安排」）；取到槽后由
+     *  {@link AiSessionStore.dequeued} 清掉。 */
+    queued?: boolean;
 }
 
 /** 动作分组（agentChatOnce 的 track 可选参数）：id 由动作入口生成
@@ -195,6 +200,13 @@ export class AiSessionStore {
                         r.endedAt = Date.now();
                         changed = true;
                     }
+                    // 排队标记是**瞬时展示态**（Issue #76）：进程内不落盘语义，
+                    // 重载后 running 已改判「已中断」，留着标记会显示「已中断 ·
+                    // 等待空闲通道…」这种自相矛盾的组合
+                    if (r.queued) {
+                        delete r.queued;
+                        changed = true;
+                    }
                 }
                 this.items.sort((a, b) => b.createdAt - a.createdAt);
                 if (this.trim()) changed = true;
@@ -251,6 +263,23 @@ export class AiSessionStore {
         r.error = message || "error";
         r.endedAt = Date.now();
         this.schedule();
+        this.notify();
+    }
+
+    /** 标记「排队等槽中」（Issue #76）：记录已登记、尚未取到全局 AI 槽位。
+     *  仅 running 态有意义；取到槽后 {@link dequeued} 清标记。 */
+    queued(id: string): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || r.status !== "running" || r.queued) return;
+        r.queued = true;
+        this.notify();
+    }
+
+    /** 取到槽 / 收口：清排队标记（幂等，未标记时零动作、不触发落盘）。 */
+    dequeued(id: string): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || !r.queued) return;
+        delete r.queued;
         this.notify();
     }
 

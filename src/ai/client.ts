@@ -6,6 +6,7 @@ import { resolveModelId, listAiModels } from "./models";
 import { aiSessions, type AiTurn, type AiTrack } from "./data/AiSessions";
 import { notifyInfo } from "../ui/Notify";
 import { mintTsId } from "../types";
+import { acquireAiSlot, aiSlotUsage } from "./queue";
 
 /** 会话登记元数据（agentChatOnce 可选参数）：定义在 data/AiSessions
  *  （数据层持有形状，client 只是通道），此处转发导出保调用方 import 路径。 */
@@ -217,6 +218,34 @@ function titleOf(message: string): string {
     return message.replace(/\s+/g, " ").trim().slice(0, 24) || "温故";
 }
 
+/**
+ * 全局在途闸的取槽（Issue #76）：**每条对外通道在发请求前取槽**，
+ * 容量默认 4、由 index.ts onload 按设置里的转换并行度注入——转换 4
+ * 并发跑动中再点面板「重试」时重试排队等槽，而不是直发第 5 笔。
+ *
+ * 三条口径：
+ *  - **abort 感知**：排队期间 signal 中止 → 立刻出队抛 AbortError
+ *    （语义与「已终止不设防会白建会话」那条一致，调用方的 Error 分支
+ *    照常认；不得出现「点了停止还挂在队里等槽」）；
+ *  - **超时从取到槽后才起算**：排队时间不计入 AI_TIMEOUT 的 SSE 空闲
+ *    超时（排队等一小时也不该被判超时）；
+ *  - **槽在调用收口（成功/失败/中止）释放**：返回的释放函数幂等，
+ *    finally 里调一次即可。
+ */
+async function slotGate(sid: string | undefined, signal?: AbortSignal): Promise<() => void> {
+    // 满载（无空闲槽）⇒ 这一笔要排队：先标「排队中」（面板详情显示
+    // 「等待空闲通道…」，status 仍是 running），取到槽立刻清掉。
+    // 判据必须是**满载**而不是「已有等待者」——本次调用此刻还没入队，
+    // 拿等待者数判会漏标第一笔排队者（就变成「第五笔才显示」）。
+    const { used, capacity } = aiSlotUsage();
+    if (sid && used >= capacity) aiSessions()?.queued(sid);
+    try {
+        return await acquireAiSlot(signal);
+    } finally {
+        if (sid) aiSessions()?.dequeued(sid);
+    }
+}
+
 /** 动作分组 id：动作入口（转换/匹配/批量关联等）在一次动作开始时生成，
  *  该动作触发的所有 agentChatOnce 调用共用（面板树归并的键；格式无内核
  *  约束，仅登记簿内唯一即可，形如 g{时间戳}-{随机}）。 */
@@ -287,8 +316,12 @@ export async function agentChatOnce(
         sessions.begin(sid, track.kind, track.title ?? titleOf(message), modelId, message, track.group);
         track.onSid?.(sid); // 生命周期由下方 finally 统一注销
     }
+    // 全局在途闸（Issue #76）：先取槽再发请求（**在登记之后**——排队中
+    // 的记录也该在面板可见，语义仍是 running；超时从取到槽后才起算）
+    let release: (() => void) | undefined;
     try {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError"); // 已终止不设防会白建会话
+        release = await slotGate(sid, signal);
         await seedSession(sid, titleOf(message), [{ id: "u1", type: "user", content: message }], signal);
         const reply = await agentChat(message, modelId, timeoutMs, signal, sid);
         if (sessions && track) sessions.succeed(sid, reply);
@@ -297,6 +330,7 @@ export async function agentChatOnce(
         if (sessions && track) sessions.fail(sid, errText(e));
         throw e;
     } finally {
+        release?.(); // 槽在收口（成功/失败/中止）释放，排队者按 FIFO 补位
         if (track) stopBySid.delete(sid);
         removeSession(sid);
     }
@@ -328,11 +362,16 @@ export async function agentChatContinued(
         content: t.role === "user" ? sanitizeAiImages(t.text) : t.text,
     }));
     entries.push({ id: "u1", type: "user", content: message });
+    // 全局在途闸（Issue #76）：重试与判分/转换/伴学竞争**同一组**槽位，
+    // 满载时排队等槽（面板「重试」在转换 4 并发跑动中不再是第 5 笔直发）
+    let release: (() => void) | undefined;
     try {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+        release = await slotGate(sid, signal);
         await seedSession(sid, titleOf(first), entries, signal);
         return await agentChat(message, modelId, timeoutMs, signal, sid);
     } finally {
+        release?.();
         removeSession(sid);
     }
 }

@@ -658,6 +658,7 @@
   "aiRoleUser": "Q",
   "aiRoleAi": "A",
   "aiSending": "Thinking…",
+  "aiWaitingSlot": "Waiting for a free channel…",
   "aiRetry": "Retry",
   "aiDelete": "Delete",
   "aiClear": "Clear",
