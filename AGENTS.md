@@ -161,10 +161,20 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   再点失败记录「重试」，重试排队等槽而不是直发第 5 笔。容量默认
   `AI_SLOTS_DEFAULT=4`，**由 index.ts onload 用设置里的转换并行度注入**
   （1~4；设置页改并行度经 onSettingsChange → `WenguPlugin.applyAiSlots`
-  重注入），未注入默认 4。
+  重注入）。⚠️ **未设置回落默认 4、不是 1**（`aiSlotCapacityOf` 纯函数带
+  单测）：`convertParallel` 在用户没动过设置页时是 `undefined`，直接
+  `?? 1` 会把**全仓** AI 在途数默认压成 1——判分/伴学等单笔调用在转换跑
+  动期间全排队，与设计口径相反；用户**显式**选 1 才真按 1 收窄。
     - **接线点在 `client.ts` 两条通道**（slotGate → acquireAiSlot）：判分/
-      标签/路由/伴学等调用点**零改动**自动被闸覆盖；`agentChatOnce` 的槽在
-      `finally` 释放（成功/失败/中止同路），`agentChatContinued` 同理。
+      标签/路由/伴学等调用点**零改动**自动被闸覆盖；两条通道的槽都在
+      `finally` 释放（成功/失败/中止同路）。
+    - ⚠️ **验收 2「排队中的重试可被停止」的入口随 #77 改了口径**：Issue #76
+      写下时停止钮在**记录详情**（`abortAiSession(rec.id)`）；#77 起记录级
+      停止钮整体删除、停止入口**唯一**在流级横幅（`FlowRegistry`），而重试
+      属**单调用流**（无横幅、无有效停止面，见 FlowOwnership 的 none 分支）
+      ——故本闸只保证「排队中的**流内调用**可被该流的总闸中止」：转换族等
+      经 `aiStopHandle` 接线，其 signal 一中止，排队等待立刻出队（口径 1），
+      不再为记录级停止另挂句柄（那会是永不触发的死接线）。
     - **超时从取到槽后才起算**：AI_TIMEOUT 的 SSE 空闲口径不含排队时间
       （排队等一小时不该被判超时）——取槽在 `agentChat` 之前，其内部才
       armTimer。
@@ -176,6 +186,15 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
           ——吞一次异常 = 后续排队者永久挂起（同落盘链的面吞错惯例）。
     - **FIFO 靠 Promise 微任务序**（`then` 回调按注册序执行 ⇒ 唤醒序 =
       入队序）：**不许**给等待链加去抖/宏任务延迟换「稳」，那会让 FIFO 失序。
+    - ⚠️ **释放的槽必须「转交」队首，不许当成空闲松开**（复审补记，防饿死）：
+      唤醒只是把 resolve 排进微任务，被唤醒者要等**下一个**微任务才回来占
+      槽；若此刻把槽算成空闲，同一同步栈里新来的调用（`acquireAiSlot` 的
+      同步段直接 `takeSlot`）就能抢走 ⇒ 队首被推回队尾，持续有新来的就
+      **永远轮不到它**（真机形态：转换一批收口、紧接着起下一批，把排队中
+      的重试饿死）。故 `drain` 保持 `used` 不变（槽原地过户）并把释放句柄
+      一并交给队首，`acquireAiSlot` 收下句柄**不回头重抢**；唤醒真的抛错时
+      槽退回池里、循环接着唤醒下一位（不 break 也不塞回队首）。回归测试：
+      释放的同一同步栈里插一笔新调用，断言队首先拿到。
     - **缩容不打断在途、只拦新来的**：容量降到在途数以下时，多出来的在途
       笔数挂「存量债」（`debt`）逐笔偿还，抵完才真正腾出准入位——不挂债
       会自锁（在途恰好等于新容量时释放把 `used` 降到 capacity，`drain` 的
@@ -184,8 +203,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       version**，与 clues 同款惰性口径），`status` 仍是 running（「已安排
       重试」语义不变，面板 retrying/succeed/fail 链一字未动）——详情页那行
       显示「等待空闲通道…」（`aiWaitingSlot`），头部状态标签补同一词。
-      ⚠️ 取槽前先判 `aiSlotUsage().waiting > 0` 才标 queued，取到槽立即
-      `dequeued` 清掉（标记表只服务展示，不参与任何判据）。
+      ⚠️ 判据必须是**满载**（`used >= capacity`）而不是「已有等待者」——
+      本次调用此刻还没入队，拿 `waiting > 0` 判会漏标第一笔排队者（表现
+      成「第五笔才显示」）。取到槽立即 `dequeued` 清掉（标记表只服务展示、
+      不参与任何判据）。
     - **与另两道闸正交、互不替代**：`aiFlowBegin` 单飞闸管「六个批流
       同时只放一条」，转换 worker 池管转换内部的片流水线数，本闸是**所有**
       调用的总在途上限（前两者发的每一笔都过它）。转换 worker 数 ≤ 容量，

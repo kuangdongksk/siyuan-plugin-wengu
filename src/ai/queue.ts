@@ -38,8 +38,9 @@ let used = 0;
  * 新容量时，释放把 used 降到 capacity，drain 的 `used < capacity` 不成立，
  * 队首永远等不到唤醒（这正是队列被「存量在途」堵死的形态）。 */
 let debt = 0;
-/** FIFO 等待队列（队首 = 最早入队的等待者）。 */
-const waiters: (() => void)[] = [];
+/** FIFO 等待队列（队首 = 最早入队的等待者）。等待者收的是**转交的槽
+ *  句柄**（不是「轮到你了」的信号）——见 drain 的槽转交口径。 */
+const waiters: ((release: () => void) => void)[] = [];
 
 /** 注入/更新容量（index.ts onload 与设置页改转换并行度时调用）。
  *  非法值（非有限数/<1）按默认 {@link AI_SLOTS_DEFAULT}。
@@ -53,6 +54,20 @@ export function setAiSlotCapacity(n: number): void {
     drain();
 }
 
+/**
+ * 设置值 → 容量（index.ts onload 注入用；纯函数便于单测）。
+ * **未设置/非法值一律回落默认 4**：设置里的 `convertParallel` 在用户没动过
+ * 设置页时是 `undefined`（转换弹窗的「1 = 串行」是它自己的默认口径），
+ * 若拿它当容量就会把**全仓** AI 在途数默认压成 1——判分/伴学等单笔调用
+ * 在转换跑动期间全排在后面，与「未注入默认 4」的设计口径相反。
+ * 用户**显式**选 1（设置页写入了 1）时才真的按 1 收窄。
+ */
+export function aiSlotCapacityOf(setting: unknown): number {
+    return typeof setting === "number" && Number.isFinite(setting) && setting >= 1
+        ? Math.floor(setting)
+        : AI_SLOTS_DEFAULT;
+}
+
 /** 当前容量（测试与诊断用）。 */
 export function aiSlotCapacity(): number {
     return capacity;
@@ -63,17 +78,28 @@ export function aiSlotUsage(): { used: number; waiting: number; capacity: number
     return { used, waiting: waiters.length, capacity };
 }
 
-/** 槽空闲则按 FIFO 依次唤醒：**先出队再唤醒**（被唤醒者紧接着占槽，
- *  不会与后面的等待者抢）。唤醒链的异常一律面吞——单笔唤醒出问题不许
- *  连累后面排队的人（口径 2）。 */
+/** 槽空闲则按 FIFO 依次唤醒：**先出队、再把槽转交给它**（口径 2）。
+ *
+ *  ⚠️ **转交而不是「自由释放 + 让它回头再抢」**：唤醒只是把 resolve 排进
+ *  微任务，被唤醒者要等下一个微任务才回来占槽；若此刻把槽算成「空闲」，
+ *  同一微任务里新来的调用（`acquireAiSlot` 的同步段就会 `takeSlot`）能
+ *  直接抢走——队首被推回队尾，持续有新来的就**永远轮不到它**（真机形态：
+ *  转换收口紧接着起下一批时把排队中的重试饿死）。故这里保持 `used` 不变
+ *  （槽原地过户给队首）并把释放句柄一并交给它。
+ *
+ *  唤醒链的异常一律面吞——单笔唤醒出问题不许连累后面排队的人（口径 2）。 */
 function drain(): void {
     while (used - debt < capacity && waiters.length > 0) {
         const wake = waiters.shift();
         if (!wake) break;
+        used++; // 槽转交：腾出的槽直接过户给队首，不给新来的插队窗口
         try {
-            wake();
+            wake(releaser());
         } catch (_) {
-            // 唤醒链绝不因单笔异常断裂（口径 2）：继续唤醒下一位
+            // 唤醒链绝不因单笔异常断裂（口径 2）：**槽退回池里、循环接着
+            // 唤醒下一位**——不许 break（后面的人会白等一次释放），也不许
+            // 把已出队者塞回队首（重入会把它唤醒两次、槽账算花）。
+            used = Math.max(0, used - 1);
         }
     }
 }
@@ -120,13 +146,15 @@ export async function acquireAiSlot(signal?: AbortSignal): Promise<() => void> {
     for (;;) {
         const free = takeSlot();
         if (free) return free;
-        await new Promise<void>((resolve, reject) => {
+        const handed = await new Promise<(() => void) | undefined>((resolve, reject) => {
             let done = false;
-            const wake = (): void => {
+            /** 被唤醒（口径 2）：收下转交来的槽句柄——**不回头重抢**，
+             *  否则队首会被同一微任务里新来的调用挤回队尾。 */
+            const wake = (release: () => void): void => {
                 if (done) return;
                 done = true;
                 signal?.removeEventListener("abort", onAbort);
-                resolve();
+                resolve(release);
             };
             /** 中止（口径 1）：出队 + 抛——队列里不留残影，也不会等下一个槽。 */
             const onAbort = (): void => {
@@ -142,5 +170,6 @@ export async function acquireAiSlot(signal?: AbortSignal): Promise<() => void> {
             // 看不到我们（还没入队）——补一次 drain 兜住这个窗口
             drain();
         });
+        if (handed) return handed;
     }
 }

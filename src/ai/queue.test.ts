@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acquireAiSlot, aiSlotUsage, setAiSlotCapacity, AI_SLOTS_DEFAULT } from "./queue";
+import { acquireAiSlot, aiSlotCapacityOf, aiSlotUsage, setAiSlotCapacity, AI_SLOTS_DEFAULT } from "./queue";
 
 /** 微任务冲刷：Promise 回调按注册序执行，故用固定次数 await 即可推平
  *  唤醒链——不引 setTimeout，避免把 FIFO 语义验成「定时器序」。 */
@@ -205,6 +205,46 @@ describe("转换 4 worker + 1 重试（Issue #76 场景模拟）", () => {
         await Promise.all([...workers, retry]);
         expect(trace).toEqual(["+w1", "+w2", "+w3", "+w4", "+retry"]);
         expect(peak).toBeLessThanOrEqual(4); // 全程在途数 ≤ 容量
+        expect(aiSlotUsage()).toMatchObject({ used: 0, waiting: 0 });
+    });
+});
+
+describe("容量注入与 FIFO 饥饿（Issue #76 复审）", () => {
+    it("aiSlotCapacityOf：未设置/非法值回落默认 4，显式 1~4 照收", () => {
+        expect(aiSlotCapacityOf(undefined)).toBe(AI_SLOTS_DEFAULT);
+        expect(aiSlotCapacityOf(null)).toBe(AI_SLOTS_DEFAULT);
+        expect(aiSlotCapacityOf("2")).toBe(AI_SLOTS_DEFAULT);
+        expect(aiSlotCapacityOf(NaN)).toBe(AI_SLOTS_DEFAULT);
+        expect(aiSlotCapacityOf(0)).toBe(AI_SLOTS_DEFAULT);
+        expect(aiSlotCapacityOf(1)).toBe(1);
+        expect(aiSlotCapacityOf(4)).toBe(4);
+    });
+
+    it("释放的槽转交队首：新来的不得插队（否则队首会被无限推后饿死）", async () => {
+        setAiSlotCapacity(1);
+        const held = await acquireAiSlot();
+        const order: string[] = [];
+        const queued = acquireAiSlot().then((rel) => {
+            order.push("queued");
+            return rel;
+        });
+        await tick();
+        expect(aiSlotUsage()).toMatchObject({ used: 1, waiting: 1 });
+        // 释放旧槽的**同一同步栈**里立刻来一笔新的——若槽被当成「空闲」
+        // 松开，新来的会在 takeSlot 里直接抢走，队首永远轮不到
+        held();
+        const barge = acquireAiSlot().then((rel) => {
+            order.push("barge");
+            return rel;
+        });
+        await tick();
+        expect(order).toEqual(["queued"]);
+        expect(aiSlotUsage()).toMatchObject({ used: 1, waiting: 1 });
+        (await queued)();
+        await tick();
+        expect(order).toEqual(["queued", "barge"]);
+        (await barge)();
+        await tick();
         expect(aiSlotUsage()).toMatchObject({ used: 0, waiting: 0 });
     });
 });
