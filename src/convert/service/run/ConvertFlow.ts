@@ -99,6 +99,9 @@ function noteOf(t: (k: string) => string, item: ConvertBatchItem): string {
     if (item.status === "queued") return t("aiFlowRowNoteQueued");
     if (item.status === "skipped") return t("aiFlowRowNoteSkipped");
     if (item.status === "done") return t("aiFlowRowNoteDone");
+    // 失败行：设计稿备注是「已重试 2 次 · 不阻塞后续篇」——我们没有重试计数
+    //（批次失败即翻牌），只落真实成立的那半（宁缺勿错，不编造次数）
+    if (item.status === "failed") return t("aiFlowRowNoteFailed");
     return "";
 }
 
@@ -147,13 +150,25 @@ function statsOf(
         const head = snap.pendingChoice ? t("aiFlowStatStoppedAt") : t("aiFlowStatAt");
         out.push({ hint: head, value: String(queue.current ?? 0), tail: `/${queue.total} ${t("aiFlowUnitItem")}` });
     }
+    // ⚠️ 停止态快照**不带 progress**（aborted 槽只留 pending + items），直接读
+    // snap.progress 会让停止屏只剩「停在第 i/N 篇」一段——设计稿的停止屏是
+    // 四段（停在第 i/N 篇 · 本篇已读 % · 累计 c 题 · 已生成 b 批）。故停止态
+    // 从「被停的那一篇」（state=stopped）与 pending 取数，口径与跑动态同源。
+    const stoppedItem = snap.pendingChoice ? snap.batch?.items.find((x) => x.status === "stopped") : undefined;
     const p = snap.progress;
-    if (p?.readPct !== undefined) out.push({ hint: t("aiFlowStatRead"), value: `${p.readPct}%` });
-    if (p?.count !== undefined)
-        out.push({ hint: t("aiFlowStatTotal"), value: String(p.count), tail: t("aiFlowUnitQ") });
+    const readPct = p?.readPct ?? stoppedItem?.progress?.readPct;
+    if (readPct !== undefined) out.push({ hint: t("aiFlowStatRead"), value: `${readPct}%` });
+    // 「累计 c 题」在队列屏是**队列累计**（各篇已落库题数之和，设计稿 148 =
+    // 9 篇完成 + 46 + 32 + …），不是当前篇的数——直接拿 p.count 会把「累计」
+    // 写成一篇的量。单篇流（无 queue）的 p.count 本就是该文档累计，照旧。
+    const cum = queue
+        ? ((snap.pendingChoice ? snap.pending?.count : undefined) ??
+          (snap.batch?.items ?? []).reduce((n, x) => n + x.count, 0))
+        : p?.count;
+    if (cum !== undefined) out.push({ hint: t("aiFlowStatTotal"), value: String(cum), tail: ` ${t("aiFlowUnitQ")}` });
     const batches = snap.pendingChoice ? snap.pending?.batches : p?.batch;
     if (batches !== undefined && batches > 0) {
-        out.push({ hint: t("aiFlowStatBatches"), value: String(batches), tail: t("aiFlowUnitBatch") });
+        out.push({ hint: t("aiFlowStatBatches"), value: String(batches), tail: ` ${t("aiFlowUnitBatch")}` });
     }
     return out;
 }
@@ -183,11 +198,13 @@ function progressOf(t: (k: string) => string, snap: ConvertRunSnapshot): string 
 }
 
 /** 副标题（设计稿 fb-title 的第二行）：批量队列「批量队列 ·《卷名》」、
- *  单流「单篇 ·《卷名》」。卷名取不到时只出前段（不留孤零零的分隔符）。 */
+ *  单流「单篇 ·《卷名》」。分隔符与书名号是**语言相关写法**，整串归 i18n
+ *  模板（代码里拼会把中英两套写法各钉死一次）；卷名取不到时只出前段
+ *  （不留孤零零的分隔符）。 */
 function subtitleOf(t: (k: string) => string, snap: ConvertRunSnapshot): string {
     const head = snap.batch ? t("aiFlowSubBatch") : t("aiFlowSubSingle");
     const title = snap.batch?.title || snap.title || "";
-    return title ? `${head} · ${title}` : head;
+    return title ? fmt(t("aiFlowSub"), { head, title }) : head;
 }
 
 /** 待抉择态的保留/丢弃接线（与页内转换条同一条导出函数，零新通道）。 */

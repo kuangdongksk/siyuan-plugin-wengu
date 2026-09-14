@@ -33,14 +33,16 @@ const TEMPLATES: Record<string, string> = {
     // 副标题/统计/分篇行的取词（Issue #85）
     aiFlowSubBatch: "批量队列",
     aiFlowSubSingle: "单篇",
+    aiFlowSub: "{head} ·《{title}》",
     aiFlowStatAt: "第",
-    aiFlowStatStoppedAt: "停在",
+    aiFlowStatStoppedAt: "停在第",
     aiFlowStatRead: "本篇已读",
     aiFlowStatTotal: "累计",
     aiFlowStatBatches: "已生成",
     aiFlowChipDone: "完成",
     aiFlowChipQueued: "排队",
     aiFlowRowNoteRead: "本篇已读 {p}%",
+    aiFlowRowNoteFailed: "不阻塞后续篇",
     aiFlowRowNoteDone: "已写入题集",
     aiFlowRowNoteBatch: "累计 {c} 题",
     aiFlowRowMetricCount: "{c} 题",
@@ -102,16 +104,17 @@ describe("转换流的流级横幅", () => {
         expect(snap).toMatchObject({
             id: CONVERT_FLOW_ID,
             title: "aiFlowTitleRunning",
-            subtitle: "单篇 · 卷名",
+            subtitle: "单篇 ·《卷名》",
             phase: "running",
         });
         // 文案走页内**同一条**函数与同一份模板（口径一致，不是两套数字）
         expect(snap?.progress).toContain("已读 30%");
         expect(snap?.progress).toContain("累计 7 题");
-        // 富统计：数字单独拎出来给渲染侧强调（设计稿 fb-stats）
+        // 富统计：数字单独拎出来给渲染侧强调（设计稿 fb-stats）；单位词后缀
+        // 自带前导空格（照稿「累计 148 题」），而「/24 篇」是斜杠紧贴数字
         expect(snap?.stats?.fields).toEqual([
             { hint: "本篇已读", value: "30%" },
-            { hint: "累计", value: "7", tail: "题" },
+            { hint: "累计", value: "7", tail: " 题" },
         ]);
         // 单流态进度条（无队列维度时走 bar 而不是 seg）
         expect(snap?.bar).toMatchObject({ pct: 30 });
@@ -141,7 +144,7 @@ describe("转换流的流级横幅", () => {
         notifyState();
         const snap = aiFlowSnapshot();
         expect(snap?.progress).toContain("第 2/2 篇 · 队列"); // 队列总行（当前=进行中那篇）
-        expect(snap?.subtitle).toBe("批量队列 · 队列");
+        expect(snap?.subtitle).toBe("批量队列 ·《队列》");
         // 队列维度：通用形态（不含任何 convert 类型），六态计数**含 queued**
         expect(snap?.queue).toMatchObject({
             title: "队列",
@@ -161,6 +164,10 @@ describe("转换流的流级横幅", () => {
             },
         ]);
         expect(snap?.bar).toBeUndefined(); // 有队列维度 ⇒ 不出单流条
+        // 「累计 c 题」在队列屏 = **队列累计**（各篇之和 3+1=4），不是当前篇的
+        // 1 题——设计稿队列屏写 148 = 9 篇完成 + 46 + 32 + …，直接拿快照
+        // progress.count 会把「累计」写成一篇的量。
+        expect(snap?.stats?.fields).toContainEqual({ hint: "累计", value: "4", tail: " 题" });
     });
 
     it("停止钮范围词随粒度（批量「停止整批转换」/ 单篇「停止转换」）", () => {
@@ -198,7 +205,15 @@ describe("转换流的流级横幅", () => {
             cfg: CFG,
             ev: EV,
             items: [
-                { index: 0, total: 2, docId: "a", title: "A", status: "stopped", count: 5 },
+                {
+                    index: 0,
+                    total: 2,
+                    docId: "a",
+                    title: "A",
+                    status: "stopped",
+                    count: 5,
+                    progress: { phase: "generating", batch: 1, total: 0, count: 5, lastBatch: 5, readPct: 42 },
+                },
                 { index: 1, total: 2, docId: "b", title: "B", status: "cancelled", count: 0 },
             ],
         });
@@ -210,7 +225,17 @@ describe("转换流的流级横幅", () => {
             current: 1,
             counts: { stopped: 1, cancelled: 1, queued: 0 },
         });
-        expect(snap?.stats?.fields?.[0]).toEqual({ hint: "停在", value: "1", tail: "/2 篇" });
+        expect(snap?.stats?.fields?.[0]).toEqual({ hint: "停在第", value: "1", tail: "/2 篇" });
+        // ⚠️ 停止态快照**不带 progress**（aborted 槽只留 pending + items）——
+        // 富统计必须从「被停的那篇」与 pending 取数，否则停止屏只剩首段
+        //（设计稿的停止屏是四段：停在第 i/N 篇 · 本篇已读 % · 累计 c 题 ·
+        // 已生成 b 批）。回归锁：这里逐段断言四段齐。
+        expect(snap?.stats?.fields).toEqual([
+            { hint: "停在第", value: "1", tail: "/2 篇" },
+            { hint: "本篇已读", value: "42%" }, // 取被停那篇的 readPct
+            { hint: "累计", value: "5", tail: " 题" }, // pending.count
+            { hint: "已生成", value: "2", tail: " 批" }, // pending.batches
+        ]);
     });
 
     it("待抉择：转 choice 态、停止钮撤下、保留/丢弃按钮接既有导出函数", () => {

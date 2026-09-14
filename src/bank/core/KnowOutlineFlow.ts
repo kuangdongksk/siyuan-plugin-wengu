@@ -1,5 +1,6 @@
 import { fmt } from "../../ui/shared";
 import { beginAiFlow, endAiFlow, progressAiFlow } from "../../ai/core/FlowRegistry";
+import { flowBar } from "../../ai/core/FlowBannerUi";
 
 /**
  * AI 索引（归纳大纲）的流级横幅接线（Issue #77）：索引不由 ConvertRun 起
@@ -13,7 +14,31 @@ import { beginAiFlow, endAiFlow, progressAiFlow } from "../../ai/core/FlowRegist
 /** 索引流的横幅 id（同时只跑一份，固定 id）。 */
 export const OUTLINE_FLOW_ID = "outline";
 
-/** 起流（batch=篇数>1 时进度按「已索引 i/n 篇」呈现）。 */
+/** 单流态载荷（bar + 富统计「已索引 i 之 n 篇」；多篇才有，单篇索引
+ *  无可呈现的推进量——设计稿「单流态 = bar + stats + 停止钮」）。 */
+function payloadOf(
+    t: (k: string) => string,
+    done: number,
+    total: number
+): { stats: { fields: { hint: string; value: string; tail: string }[] }; bar: ReturnType<typeof flowBar> } | undefined {
+    if (total <= 1) return undefined;
+    const label = fmt(t("aiFlowOutlineProgress"), { i: String(done), n: String(total) });
+    return {
+        stats: {
+            fields: [
+                {
+                    hint: t("aiFlowStatIndexed"),
+                    value: String(done),
+                    tail: `/${total} ${t("aiFlowUnitItem")}`,
+                },
+            ],
+        },
+        bar: flowBar((done / total) * 100, label),
+    };
+}
+
+/** 起流（batch=篇数>1 时进度按「已索引 i/n 篇」呈现；单篇索引只剩流名 +
+ *  停止钮——它本就是一次调用，无推进量可报）。 */
 export function beginOutlineFlow(t: (k: string) => string, total: number, stop: () => void): void {
     beginAiFlow({
         id: OUTLINE_FLOW_ID,
@@ -21,12 +46,19 @@ export function beginOutlineFlow(t: (k: string) => string, total: number, stop: 
         progress: total > 1 ? fmt(t("aiFlowOutlineProgress"), { i: "0", n: String(total) }) : undefined,
         stop,
     });
+    progressOutlineFlow(t, 0, total);
 }
 
 /** 推进「已索引 i/n 篇」（单篇索引无此摘要，静默）。 */
 export function progressOutlineFlow(t: (k: string) => string, done: number, total: number): void {
-    if (total <= 1) return;
-    progressAiFlow(OUTLINE_FLOW_ID, fmt(t("aiFlowOutlineProgress"), { i: String(done), n: String(total) }));
+    const payload = payloadOf(t, done, total);
+    if (!payload) return;
+    progressAiFlow(
+        OUTLINE_FLOW_ID,
+        fmt(t("aiFlowOutlineProgress"), { i: String(done), n: String(total) }),
+        undefined,
+        payload
+    );
 }
 
 /** 收口（收尾段必达；不在途的 id 静默忽略——幂等）。 */

@@ -1218,6 +1218,21 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   构成条分段（`flowSegs` 篇数→flex 权重）、六态 chips（`flowChips`，零值
   `isZero` 压暗）、清单窗口（`listWindowOf`，当前行落窗口第 4 位=设计稿
   「第 9–14 篇」）。**分段/计数/窗口全在这里判**，组件只按 vm 渲染。
+- ⚠️ **构成条的段序与 chips 的序不是同一个**（照稿）：`SEG_ORDER` 走设计稿的
+  **DOM 视觉序** `done → skip → fail → run/stop → cancel → queued`（红段在
+  主题段**之前**）；`CHIP_ORDER` 走 `done/skip/run/stop/fail/cancel/queued`。
+  拿 chips 的序排条会让红段位置与稿不符——稿的停止屏 aria 跟**条**走。
+- ⚠️ **富统计的「累计」在队列屏是队列累计**（各篇 `item.count` 之和；设计稿
+  148 = 9 篇完成 + 46 + 32 + …）：`snap.progress.count` 只是**当前篇**的量，
+  直接拿它会把「累计」写成一篇的数。单篇流（无 queue）的 `progress.count`
+  本就是该文档累计，照旧。
+- ⚠️ **停止屏取数不能只读 `snap.progress`**（aborted 槽只留 `pending` +
+  `items`，**不带 progress**）：照设计稿的停止屏是四段（停在第 i/N 篇 ·
+  本篇已读 % · 累计 c 题 · 已生成 b 批），只读写进停止屏就只剩首段。故
+  readPct 取「被停的那篇」（`state="stopped"`）、count/batches 取 `pending`。
+- ⚠️ **统计后缀的间距由 `tail` 自带**（`AiFlowStatField.tail`）：稿里
+  「/24 篇」的斜杠紧贴数字、「 题」「 批」前有空格——两种间距不一致，
+  渲染侧统一补空格必然做错其中一种。
 - ⚠️ **注册表是通用形态，不许泄漏 convert 类型**：`AiFlowQueue.items` 是
   `{index,name,state,reason?,note?,metric?}`、计数是六个数字、统计是
   `{hint,value,tail?}`。业务域（`ConvertFlow`）负责把 ConvertRun 快照
@@ -1226,6 +1241,11 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   最该看到的一态）。计数取值 `countsOf` 在 `ConvertFlow`；**停止态把
   `stopped` 单列**（running 段扣掉被停的那篇，两者不同色），`flowSegs`/
   `flowChips` 都按这个口径。
+- ⚠️ **两屏各 6 个 chip，不是 7**（首版踩坑）：**进行中与停止共用一格**
+  （同位置、同主题色，语义互斥）——跑动屏列「完成/跳过/进行中/失败/取消/
+  排队」（取消零值照常列、`is-zero` 压暗），停止屏列「完成/跳过/停止/失败/
+  取消/排队」而**不再列零值「进行中」**。判据只看 `stopped > 0`，别用
+  「有没有 queue 维度」猜。
 - ⚠️ **`progressAiFlow` 只覆盖本次传了的键**（undefined 一律保留原值）：
   某次推进漏传一个键就整块擦掉构成条/统计（六批流的纯文本 progress 调用
   与结构化 payload 混跑，这条是刚需）。
@@ -1236,8 +1256,22 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
 - **两行标题**：`title`（主，随阶段换「转换运行中」/「转换已停止 · 等待
   抉择」）+ `subtitle`（副，「批量队列 ·《卷名》」/「单篇 ·《卷名》」）。
   六批流不带 `stopKey`/`subtitle` 旧口径照常（副标题可缺省）。
+  ⚠️ **副标题整串归一个 i18n 模板**（`aiFlowSub`，`{head} ·《{title}》`）：
+  分隔符与书名号是**语言相关写法**，在代码里 `${head} · ${title}` 拼会把
+  中英两套写法各钉死一次（英文用弯引号不用书名号）。
 - **单流态 = 无 `queue`**：只出 `.wengu-aiflow-bar` + stats + 停止钮，
   **不出** seg/counts/展开入口（`redesign-single-running` 屏）。
+  **索引流也要走这套**（`KnowOutlineFlow.progressOutlineFlow` 推 `bar` +
+  `stats`「已索引 i 之 n 篇」）：只推纯文本 progress 的话横幅只剩一行流名，
+  与设计稿单流屏不符。单篇索引（`total <= 1`）无可报推进量，只剩流名 +
+  停止钮（**不硬凑 i/n**）。
+- ⚠️ **停止态左边线仍是主题色**（设计稿 `flow-banner--stop` 只换底换线色是
+  误读）：3px 主题线跑动/停止**两态同色**，停止只叠低透暖底 + badge。
+  换线色会让「停了」看起来是另一条流。
+- ⚠️ **脉冲只属于顶部那一个点**（设计稿 `.dot` 基形无动画、`.spin` 才转）：
+  分篇清单/计数行有十余个色点，基础形带 `animation` 就是满屏闪
+  （首版即此，已收进 `.wengu-aiflow-id` 前缀；停止点用 0,2,0 特异性压掉脉冲）。
+  计数 chip 内色点 6px、分篇行内 8px（设计稿两处尺寸），故尺寸规则分写。
 - **停止态不回退 #77 行为**：横幅上「保留已生成 / 全部丢弃」两钮**保留**
   （抉择入口一处是页内条，横幅是第二入口）；另加 badge `stopped` 与
   「前往页内转换条抉择」文字链（`ConvertAccess.revealConvertBar` 滚条 +

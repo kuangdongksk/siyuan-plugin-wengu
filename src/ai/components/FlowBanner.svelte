@@ -25,6 +25,7 @@
     import { onMount } from "svelte";
     import { Armed } from "../../ui/shared";
     import Button from "../../ui/Button.svelte";
+    import { svgIcon } from "../../ui/FormHtml";
     import { aiFlowSnapshot, stopAiFlow, subscribeAiFlow, type AiFlowSnapshot } from "../core/FlowRegistry";
     import { bannerViewOf, type AiFlowBannerView } from "../core/FlowBannerUi";
 
@@ -131,14 +132,26 @@
             </div>
             <div class="wengu-aiflow-btns">
                 {#if view.expandable}
-                    <Button type="button" variant="text" onclick={toggleList}>
+                    <!-- 折叠指示用思源 SVG 图标（设计稿的 ▴/▾ 三角形是**符号
+                         字符**，被 §〇「图标一律用内置 SVG symbol」禁掉；
+                         `is-open` 靠 CSS 转 180° 复用同一个 iconDown） -->
+                    <Button
+                        type="button"
+                        variant="text"
+                        class={`wengu-aiflow-toggle${view.expanded ? " is-open" : ""}`}
+                        onclick={toggleList}
+                    >
                         {view.expanded ? t("aiFlowCollapseList") : t("aiFlowExpandList")}
+                        {@html svgIcon("iconDown")}
                     </Button>
                 {/if}
                 {#if view.stopping}
                     <Button type="button" variant="cancel" onclick={clickStop}>{t(view.stopKey)}</Button>
                 {:else if view.choosing}
-                    <span class="wengu-aiflow-badge is-stopped">stopped</span>
+                    <!-- 徽标文案走 i18n（设计稿写的是 mock 里的英文小写
+                         "stopped"，直接抄进组件即硬编码——复用 counts 那一格
+                         的「停止」/"Stopped"，语义同源、零新增键） -->
+                    <span class="wengu-aiflow-badge is-stopped">{t("aiFlowChipStopped")}</span>
                     <Button type="button" variant="text" onclick={gotoDecide}>{t("aiFlowGotoDecide")}</Button>
                     <!-- 抉择落定后由**状态机**收口横幅（keep/discard 同步清快照 →
                          订阅 sync 里 end），组件不抢着 end——否则横幅先消失、
@@ -155,7 +168,7 @@
 
         {#if view.total > 0}
             <div class="wengu-aiflow-counts">
-                <span class="wengu-aiflow-lead">{t("aiFlowTotal")} {view.total}</span>
+                <span class="wengu-aiflow-lead">{view.totalLabel}</span>
                 {#each view.chips as c (c.key)}
                     <span class={chipCls(c.key)} class:is-zero={c.isZero}>
                         <i class={chipDotCls(c.key)}></i>
@@ -172,7 +185,12 @@
                     {#if view.listWindow}<span class="ln">{view.listWindow.label}</span>{/if}
                 </div>
                 {#each view.rows as r (r.idx)}
-                    <div class="wengu-aiflow-row-item" class:is-current={r.current} class:is-cancel={r.cancelled}>
+                    <div
+                        class="wengu-aiflow-row-item"
+                        class:is-current={r.current}
+                        class:is-cancel={r.cancelled}
+                        class:is-queued={r.queued}
+                    >
                         <span class="dr-idx">{r.idx}</span>
                         <span class="dr-name">{r.name}</span>
                         <span class={`dr-state ${r.stateCls}`}>

@@ -12,6 +12,37 @@ const t = (k: string): string => k;
 beforeEach(() => resetAiFlow());
 
 describe("AI 索引的流级横幅", () => {
+    it("单流态载体：bar + 富统计「已索引 i/n 篇」随进度推进（设计稿单流屏）", async () => {
+        const ctrl = new AbortController();
+        const { subscribeAiFlow } = await import("../../ai/core/FlowRegistry");
+        const seen: { bar?: number; fields?: unknown }[] = [];
+        const off = subscribeAiFlow(() => {
+            const s = aiFlowSnapshot();
+            if (s?.id === OUTLINE_FLOW_ID) seen.push({ bar: s.bar?.pct, fields: s.stats?.fields });
+        });
+        await runOutlineFlow(t, ["a", "b"], ctrl, async () => 1);
+        off();
+        // 起流（begin 那次只带 title）后立刻推 bar=0，逐篇推进到 50（i/n）
+        expect(seen.some((x) => x.bar === 0)).toBe(true);
+        expect(seen.some((x) => x.bar === 50)).toBe(true);
+        const first = seen.find((x) => x.bar === 0);
+        expect(first?.fields).toEqual([{ hint: "aiFlowStatIndexed", value: "0", tail: "/2 aiFlowUnitItem" }]);
+        expect(aiFlowSnapshot()).toBeUndefined();
+    });
+
+    it("单篇索引不硬凑推进量（无可报的 i/n，只剩流名 + 停止钮）", async () => {
+        const ctrl = new AbortController();
+        let withBar = false;
+        const { subscribeAiFlow } = await import("../../ai/core/FlowRegistry");
+        const off = subscribeAiFlow(() => {
+            const s = aiFlowSnapshot();
+            if (s?.id === OUTLINE_FLOW_ID && s.bar) withBar = true;
+        });
+        await runOutlineFlow(t, ["a"], ctrl, async () => 1);
+        off();
+        expect(withBar).toBe(false);
+    });
+
     it("跑动中在场，收口后清空（end 必达）", async () => {
         const ctrl = new AbortController();
         let seenDuring = false;

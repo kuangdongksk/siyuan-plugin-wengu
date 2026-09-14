@@ -24,12 +24,12 @@
   overflow: hidden;
 }
 
-/* 停止后抉择态：低透暖底（设计稿 --accent-solid/0.14 的令牌化落点）；
-   左侧 3px 主题线两态都在（跑动/停止同一条） */
+/* 停止后抉择态：低透暖底（设计稿 --accent-solid/0.14 的令牌化落点）。
+   左侧 3px 线**两态同色**（设计稿 flow-banner--stop 仍是 accent 线，
+   只换底）——换线色会让「停止」与「重跑」看起来是两条不同的流。 */
 .wengu-aiflow.is-choice,
 .wengu-aiflow.is-stopped {
   background: var(--b3-card-warning-background);
-  border-left-color: var(--b3-card-warning-color);
 }
 
 /* ── ① 主行 ── */
@@ -47,62 +47,69 @@
   min-width: 0;
 }
 
+/* 色点基形（计数 chip 内 6px / 分篇行内 8px，同设计稿两处尺寸）。
+   基础形**不脉冲**——脉冲只属于顶部「流在跑」那一个点。 */
 .wengu-aiflow-dot {
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--b3-theme-primary);
+}
+
+/* 顶部「流在跑」点：光晕 + 脉冲（设计稿 dot--run） */
+.wengu-aiflow-id .wengu-aiflow-dot {
   box-shadow: 0 0 0 3px var(--b3-theme-primary-light);
   animation: wengu-ai-pulse 1.4s ease-in-out infinite;
 }
 
-/* 停止态的点：静止描边（不脉冲）——设计稿 dot--stop */
-.wengu-aiflow-dot.is-stopped {
+/* 计数 chip 内的色点 6px（设计稿 .chip i） */
+.wengu-aiflow-chip .wengu-aiflow-dot {
+  width: 6px;
+  height: 6px;
+}
+
+/* 停止态顶部点：静止描边（**不脉冲**）——设计稿 dot--stop。用 id 前缀把
+   特异性抬到 0,2,0，压过上面那条脉冲规则（停止的流不该还在闪）。 */
+.wengu-aiflow-id .wengu-aiflow-dot.is-stopped {
   background: transparent;
   border: 1.5px solid var(--b3-theme-primary);
+  box-shadow: none;
   animation: none;
 }
 
-/* 六态色点（counts chip / 分篇行共用一族） */
+/* 六态色点（counts chip / 分篇行共用一族；实心=有结果，描边=没结果，
+   虚线=还没轮到——设计稿 dot--* 的编码方式） */
+.wengu-aiflow-dot.is-run {
+  background: var(--b3-theme-primary);
+}
+
 .wengu-aiflow-dot.is-done {
   background: var(--b3-card-success-color);
-  box-shadow: none;
-  animation: none;
 }
 
 .wengu-aiflow-dot.is-skip {
   background: transparent;
   border: 1.5px solid var(--b3-card-success-color);
-  box-shadow: none;
-  animation: none;
 }
 
 .wengu-aiflow-dot.is-fail {
   background: var(--b3-card-error-color);
-  box-shadow: none;
-  animation: none;
 }
 
 .wengu-aiflow-dot.is-stop {
   background: transparent;
   border: 1.5px solid var(--b3-theme-primary);
-  box-shadow: none;
-  animation: none;
 }
 
 .wengu-aiflow-dot.is-queued {
   background: transparent;
-  border: 1.5px dashed var(--b3-theme-on-surface-light);
-  box-shadow: none;
-  animation: none;
+  border: 1.5px dashed color-mix(in srgb, var(--b3-theme-on-surface) 42%, transparent);
 }
 
 .wengu-aiflow-dot.is-cancel {
   background: transparent;
-  border: 1.5px solid var(--b3-border-color);
-  box-shadow: none;
-  animation: none;
+  border: 1.5px solid color-mix(in srgb, var(--b3-theme-on-surface) 30%, transparent);
 }
 
 .wengu-aiflow-title {
@@ -142,7 +149,7 @@
   border-radius: 999px;
   overflow: hidden;
   gap: 2px;
-  background: var(--b3-theme-background);
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent);
 }
 
 .wengu-aiflow-seg i {
@@ -156,7 +163,7 @@
 }
 
 .wengu-aiflow-seg .s-skip {
-  background: var(--b3-card-success-background);
+  background: color-mix(in srgb, var(--b3-card-success-color) 42%, transparent);
 }
 
 .wengu-aiflow-seg .s-run,
@@ -169,18 +176,18 @@
 }
 
 .wengu-aiflow-seg .s-cancel {
-  background: var(--b3-border-color);
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 26%, transparent);
 }
 
 .wengu-aiflow-seg .s-queued {
-  background: var(--b3-theme-background);
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 14%, transparent);
 }
 
 /* 单流态：普通进度条 */
 .wengu-aiflow-bar {
   height: 6px;
   border-radius: 999px;
-  background: var(--b3-theme-background);
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent);
   overflow: hidden;
 }
 
@@ -248,8 +255,20 @@
 }
 
 .wengu-aiflow-badge.is-stopped {
-  color: var(--b3-card-warning-color);
-  border-color: var(--b3-card-warning-color);
+  color: var(--b3-theme-primary);
+  border-color: var(--b3-theme-primary);
+}
+
+/* 「展开/收起分篇」的折叠箭头：默认朝下，展开时转 180°（同一个 iconDown）。 */
+.wengu-aiflow-toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  transition: transform 0.15s ease;
+}
+
+.wengu-aiflow-toggle.is-open svg {
+  transform: rotate(180deg);
 }
 
 /* ── ④ counts 计数行（六态 chip；零值压暗） ── */
@@ -314,7 +333,7 @@
 /* ── ⑤ 分篇清单（表头 + 五列 grid） ── */
 .wengu-aiflow-list {
   border-top: 1px solid var(--b3-border-color);
-  background: var(--b3-theme-background);
+  background: color-mix(in srgb, var(--b3-theme-background) 55%, transparent);
 }
 
 .wengu-aiflow-list-head {
@@ -365,6 +384,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 排队行篇名压暗（设计稿 doc-row.is-queued：还没跑的字比跑过的浅） */
+.wengu-aiflow-row-item.is-queued .dr-name {
+  color: var(--b3-theme-on-surface-light);
 }
 
 /* 取消行篇名删除线 */

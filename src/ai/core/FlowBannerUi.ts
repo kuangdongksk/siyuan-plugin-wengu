@@ -9,8 +9,13 @@
  *  - `flow-banner--run`  批量队列跑动中 → seg + counts + 分篇清单
  *  - `flow-banner--stop` 停止后抉择态   → 左线 + badge + 「前往页内转换条抉择」
  *  - `redesign-single-running` 单流态   → bar + stats，无 seg/counts/清单
+ *
+ * ⚠️ **两屏各 6 个 chip**（不是 7）：设计稿跑动屏列「完成/跳过/进行中/失败/
+ * 取消/排队」、停止屏列「完成/跳过/停止/失败/取消/排队」——**进行中与停止
+ * 共用一格**（同位置、同主题色，语义上互斥）。多列一条零值 chip 即与稿不符。
  */
 
+import { fmt } from "../../ui/shared";
 import type {
     AiFlowBar,
     AiFlowCounts,
@@ -54,6 +59,8 @@ export interface AiFlowRow {
     current: boolean;
     /** 取消行（篇名删除线）。 */
     cancelled: boolean;
+    /** 排队行（篇名压弱化色——「还没跑」与「跑过了」在行上要分得开）。 */
+    queued: boolean;
 }
 
 /** 分篇清单的展示窗口（表头右侧「第 a–b 篇 · 共 N 篇」标注用）。 */
@@ -85,7 +92,10 @@ export interface AiFlowBannerView {
     segLabel: string;
     /** 总篇数（counts 的 lead「共 N 篇」）。 */
     total: number;
-    /** 六态 chips（有 queue 时；顺序固定 done/skip/run/stop/fail/cancel/queued）。 */
+    /** counts 的 lead 成品文案（「共 24 篇」；i18n 模板，含计量单位）。 */
+    totalLabel: string;
+    /** 六态 chips（有 queue 时；顺序固定，**进行中与停止共用一格**——
+     *  设计稿两屏各 6 chip，跑动屏出「进行中」、停止屏出「停止」）。 */
     chips: AiFlowChip[];
     /** 分篇清单行（展开且非空时；收起时为空数组）。 */
     rows: AiFlowRow[];
@@ -131,13 +141,17 @@ const ROW_STATE: Record<AiFlowItemState, { cls: string; dot: string; key: string
     queued: { cls: "", dot: "queued", key: "aiFlowChipQueued" },
 };
 
-/** 构成条分段的顺序（done → skip → run → stop → fail → cancel → queued）。 */
+/** 构成条分段的顺序 = **设计稿的 DOM 视觉序**（done → skip → fail →
+ *  run/stop → cancel → queued）：稿里跑动屏是 s-done/s-skip/s-fail/s-run/
+ *  s-queued，停止屏是 …/s-fail/s-stop/s-cancel —— 红段在主题段**之前**。
+ *  ⚠️ 别拿 chips 的顺序来排条：chips 是 done/skip/run/stop/fail/cancel/
+ *  queued，两处口径本就不同（稿的停止屏 aria 跟**条**走、chips 另排）。 */
 const SEG_ORDER: { key: AiFlowItemState; cls: string }[] = [
     { key: "done", cls: "done" },
     { key: "skipped", cls: "skip" },
+    { key: "failed", cls: "fail" },
     { key: "running", cls: "run" },
     { key: "stopped", cls: "stop" },
-    { key: "failed", cls: "fail" },
     { key: "cancelled", cls: "cancel" },
     { key: "queued", cls: "queued" },
 ];
@@ -170,8 +184,11 @@ export function flowSegs(queue: AiFlowQueue | undefined): AiFlowSeg[] {
 export function flowSegLabel(t: T, queue: AiFlowQueue | undefined): string {
     if (!queue || queue.total <= 0) return "";
     const n = segCounts(queue.counts);
-    const parts = SEG_ORDER.filter((s) => n[s.key] > 0).map((s) => `${t(rowKeyOf(s.key))} ${n[s.key]}`);
-    return `${t("aiFlowSegLabel")}${parts.join("、")}，${t("aiFlowSegTotal")} ${queue.total}`;
+    const unit = t("aiFlowUnitItem");
+    const parts = SEG_ORDER.filter((s) => n[s.key] > 0).map((s) => `${t(rowKeyOf(s.key))} ${n[s.key]} ${unit}`);
+    // 顿号/逗号是**语言相关标点**（英文用 ", "），故连接符与前后缀一起归
+    // i18n 模板——旧 aiFlowBatchCounts 也是整串模板的口径。
+    return fmt(t("aiFlowSegLabel"), { parts: parts.join(t("aiFlowSegJoin")), n: String(queue.total) });
 }
 
 /** 段/行共用的状态词键（构成条的 aria-label 与 counts 行同一组词）。 */
@@ -203,12 +220,13 @@ export function flowChips(counts: AiFlowCounts): AiFlowChip[] {
         cancel: n.cancelled,
         queued: n.queued,
     };
-    const out = CHIP_ORDER.map((c) => ({ key: c.key, n: pick[c.cls] ?? 0, isZero: (pick[c.cls] ?? 0) === 0 }));
-    // 停止态才出「停止」chip；跑动中该位恒 0 会多一条零值 chip（设计稿只
-    // 在停止态列它）——同理取消位在跑动期照常列（设计稿跑动屏的 is-zero
-    // 示例正是「取消 0」），故只对 stopped 做在场判定。
-    const stopIdx = out.findIndex((c) => c.key === "aiFlowChipStopped");
-    if (stopIdx >= 0 && pick.stop === 0) out.splice(stopIdx, 1);
+    // **进行中与停止共用一格**（设计稿两屏各 6 chip）：跑动屏出「进行中」
+    //（取消 0 照常列、is-zero 压暗），停止屏出「停止」而**不再列零值
+    //「进行中」**——两态各留一条零值 chip 是设计稿的明示口径（跑动屏的
+    // is-zero 示例正是「取消 0」），多列一条即与稿不符（7 chip）。
+    const out = CHIP_ORDER.filter(
+        (c) => !(c.cls === "stop" && pick.stop === 0) && !(c.cls === "run" && pick.stop > 0)
+    ).map((c) => ({ key: c.key, n: pick[c.cls] ?? 0, isZero: (pick[c.cls] ?? 0) === 0 }));
     return out;
 }
 
@@ -226,6 +244,7 @@ function rowOf(t: T, item: AiFlowEntryItem, currentIndex: number): AiFlowRow {
         metric: item.metric ?? "",
         current: currentIndex > 0 && item.index === currentIndex,
         cancelled: item.state === "cancelled",
+        queued: item.state === "queued",
     };
 }
 
@@ -277,6 +296,7 @@ export function bannerViewOf(
         segs: flowSegs(queue),
         segLabel: flowSegLabel(t, queue),
         total: hasQueue ? queue.total : 0,
+        totalLabel: hasQueue ? fmt(t("aiFlowTotal"), { n: String(queue.total) }) : "",
         chips: hasQueue ? flowChips(queue.counts) : [],
         rows,
         listWindow:
@@ -285,7 +305,11 @@ export function bannerViewOf(
                       from: win.from,
                       to: win.to,
                       total: queue.total,
-                      label: `${t("aiFlowListRange")} ${win.from}–${win.to} / ${queue.total}`,
+                      label: fmt(t("aiFlowListRange"), {
+                          a: String(win.from),
+                          b: String(win.to),
+                          n: String(queue.total),
+                      }),
                   }
                 : undefined,
         expandable: hasQueue,
@@ -311,11 +335,6 @@ function stopKeyOf(snap: AiFlowSnapshot, armed: boolean): string {
 function sliceRows(t: T, queue: AiFlowQueue, win: { from: number; to: number }): AiFlowRow[] {
     const cur = queue.current ?? 0;
     return queue.items.slice(win.from - 1, win.to).map((item) => rowOf(t, item, cur));
-}
-
-/** 停止/保留两态共用的「bar 或 seg」位置文案标签（组件 aria 用）。 */
-export function barAriaOf(view: AiFlowBannerView): string {
-    return view.segLabel || view.barLabel;
 }
 
 /** 单流态构造帮手（转换族/索引流用；纯函数便于单测）。 */

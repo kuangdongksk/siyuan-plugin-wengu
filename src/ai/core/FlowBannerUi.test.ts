@@ -34,6 +34,16 @@ function items(n: number, pick: (i: number) => AiFlowQueue["items"][number]["sta
     return Array.from({ length: n }, (_, i) => ({ index: i + 1, name: `T${i + 1}`, state: pick(i) }));
 }
 
+/** 取词替身（本套断言落在**结构**上，模板只需有占位符可填）。 */
+const tpl = (k: string): string =>
+    ({
+        aiFlowSegLabel: "队列构成：{parts}，共 {n} 篇",
+        aiFlowSegJoin: "、",
+        aiFlowUnitItem: "篇",
+        aiFlowChipDone: "完成",
+        aiFlowChipQueued: "排队",
+    })[k] ?? k;
+
 describe("构成条分段（篇数 → flex 权重）", () => {
     it("按篇数分段、零篇的段不出（出零权重会挤出 2px 缝）", () => {
         const segs = flowSegs(queue({ counts: counts({ done: 9, skipped: 1, failed: 1, queued: 12 }) }));
@@ -45,13 +55,14 @@ describe("构成条分段（篇数 → flex 权重）", () => {
         ]);
     });
 
-    it("段序固定 done→skip→run→stop→fail→cancel→queued", () => {
+    it("段序照稿：done→skip→fail→run/stop→cancel→queued（红段在主题段之前）", () => {
         const segs = flowSegs(
             queue({
                 counts: counts({ done: 1, cancelled: 1, failed: 1, queued: 1, running: 1, skipped: 1 }),
             })
         );
-        expect(segs.map((s) => s.cls)).toEqual(["done", "skip", "run", "fail", "cancel", "queued"]);
+        // 设计稿跑动屏 DOM：s-done / s-skip / s-fail / s-run / s-queued
+        expect(segs.map((s) => s.cls)).toEqual(["done", "skip", "fail", "run", "cancel", "queued"]);
     });
 
     it("停止态：stopped 单列一段（run 段扣掉被停的那篇）+ 取消段", () => {
@@ -60,12 +71,13 @@ describe("构成条分段（篇数 → flex 权重）", () => {
                 counts: counts({ done: 9, skipped: 1, running: 1, stopped: 1, failed: 1, cancelled: 12 }),
             })
         );
-        // running=1 且 stopped=1 ⇒ 跑动段为 0（被停的那篇归 stop 段）
+        // running=1 且 stopped=1 ⇒ 跑动段为 0（被停的那篇归 stop 段）；
+        // 段序同为设计稿的 DOM 序（停止屏：…/s-fail/s-stop/s-cancel）
         expect(segs).toEqual([
             { cls: "done", weight: 9 },
             { cls: "skip", weight: 1 },
-            { cls: "stop", weight: 1 },
             { cls: "fail", weight: 1 },
+            { cls: "stop", weight: 1 },
             { cls: "cancel", weight: 12 },
         ]);
     });
@@ -75,10 +87,10 @@ describe("构成条分段（篇数 → flex 权重）", () => {
         expect(flowSegs(queue({ total: 0 }))).toEqual([]);
     });
 
-    it("aria-label：逐态「词 + 数」+ 总数（role=img 的可读替代）", () => {
+    it("aria-label：逐态「词 + 数 篇」+ 末尾「共 N 篇」（role=img 的可读替代）", () => {
         const q = queue({ counts: counts({ done: 9, queued: 15 }) });
-        expect(flowSegLabel(t, q)).toBe("aiFlowSegLabelaiFlowChipDone 9、aiFlowChipQueued 15，aiFlowSegTotal 24");
-        expect(flowSegLabel(t, undefined)).toBe("");
+        expect(flowSegLabel(tpl, q)).toBe("队列构成：完成 9 篇、排队 15 篇，共 24 篇"); // 照稿成品串
+        expect(flowSegLabel(tpl, undefined)).toBe("");
     });
 });
 
@@ -96,16 +108,27 @@ describe("六态计数 chips（零值压暗）", () => {
         ]);
     });
 
-    it("停止态：stopped>0 才出「停止」chip，排队归零压暗", () => {
+    it("停止态：出「停止」而**不列零值「进行中」**——两屏各 6 chip（设计稿逐屏计数）", () => {
         const chips = flowChips(counts({ done: 9, skipped: 1, stopped: 1, failed: 1, cancelled: 12 }));
         expect(chips.map((c) => [c.key, c.n, c.isZero])).toEqual([
             ["aiFlowChipDone", 9, false],
             ["aiFlowChipSkipped", 1, false],
-            ["aiFlowChipRunning", 0, true],
             ["aiFlowChipStopped", 1, false],
             ["aiFlowChipFailed", 1, false],
             ["aiFlowChipCancelled", 12, false],
             ["aiFlowChipQueued", 0, true],
+        ]);
+    });
+
+    it("跑动态：出「进行中」（取消零值照常列、压暗）——同为 6 chip", () => {
+        const chips = flowChips(counts({ done: 9, skipped: 1, running: 1, failed: 1, queued: 12 }));
+        expect(chips.map((c) => c.key)).toEqual([
+            "aiFlowChipDone",
+            "aiFlowChipSkipped",
+            "aiFlowChipRunning",
+            "aiFlowChipFailed",
+            "aiFlowChipCancelled",
+            "aiFlowChipQueued",
         ]);
     });
 
