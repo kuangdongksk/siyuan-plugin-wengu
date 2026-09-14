@@ -25,8 +25,8 @@ import { clueColorStyle } from "./ClueColor";
  * 因此本文件的 `applyClueMarks` 退居**遗留根**的兜底入口（尚无权威
  * 坐标系的根——如外部挂载的旧壳），新挂载点一律走 `MaterialDecorate.decorateMaterialEntry`。
  *
- * 与词形联动（GlossDom）的**单向嵌套**口径（Issue #51，改写 #33/#34 的
- * 「互不嵌套」条目）：
+ * 与词形联动的**单向嵌套**口径（Issue #51 定语义、Issue #53 三期起由装饰
+ * 出口 `MaterialDecorate` 一次施工保证，本文件只留 fallback 侧名单）：
  * - 联动词形标记 `.wengu-gloss-link` 里的 `<u>` **包的就是原文本身**，
  *   其文本**参与**线索匹配、允许被包 mark（跳过它会让「选段含联动词」
  *   整段定位失败）；
@@ -123,7 +123,8 @@ function wrapRange(node: Text, start: number, end: number, style?: string): void
  * `MaterialDecorate` 的装饰出口）。
  *
  * ⚠️ **落格映射一次性算好，施工按 `markSlots` 的全局序**（与
- * GlossDom.assignHitsToNodes 同款口径，Issue #36）：偏移是**全部文本节点
+ * CanonDom 词形联动的 assignHitsToNodes（装饰出口 ③）同款口径，Issue #36）：
+ * 偏移是**全部文本节点
  * 原文的拼接**口径，而 `splitText` 会截短节点——同一节点内的段必须
  * **自后向前**切。故先按**未改动**的节点表算出全部计划（`planMarks`），
  * 再由 `markSlots` 统一排序施工（节点升序 + 节点内起点降序）。

@@ -18,7 +18,7 @@ import {
  * 权威坐标系（Issue #52 二期验收 6）：Range→权威坐标换算、切片校验、
  * 轮间重算映射、clueRanges 对齐维护（删/增）、装载 backfill 口径。
  *
- * 全部纯函数（DOM 观测在 MaterialDecorate）——与 GlossDom.test 同款：
+ * 全部纯函数（DOM 观测在 CanonDom）——与 MaterialDecorate.gloss.test 同款：
  * 单测不启 jsdom，坐标口径在这里锁死。
  */
 

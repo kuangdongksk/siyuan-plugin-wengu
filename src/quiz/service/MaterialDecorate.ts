@@ -1,6 +1,6 @@
 import { renderMdHtml } from "../../ui/MdRender";
 import { collectGlossMarks, planGlossLinks, splitGlossBlock } from "../../convert/service/gloss/GlossEntry";
-import type { GlossEntry, GlossHit, GlossSplit } from "../../convert/service/gloss/GlossEntry";
+import type { GlossEntry, GlossHit } from "../../convert/service/gloss/GlossEntry";
 import { DEFAULT_CLUE_COLOR } from "../flow/ClueColor";
 import { applyClueMarks } from "../flow/ClueMarkDom";
 import { allTextNodes, buildCanon, canonMapOf, isCanonNode } from "./CanonDom";
@@ -17,7 +17,6 @@ export type { ClueAnchor, ClueResolved } from "./ClueDecorate";
 export {
     allTextNodes,
     canonMapOf,
-    ensureCanonMap,
     LIFT_SELECTOR,
     NON_CANON_SELECTOR,
     NO_WRAP_SELECTOR,
@@ -46,28 +45,16 @@ export {
  * 把它误放进非权威表 ⇒ 被标过的字符从权威串消失 ⇒ 存量坐标校验必然失配
  * （静默全量降级）且坐标→节点映射整体错位（亮错位置）。
  *
- * **三期收拢产物（Issue #53）**：本文件只剩
- * ① 一次基础渲染（`renderMdHtml(body)` + 词表区 HTML，两道渲染合成**一次**
- * `innerHTML`）、②③④⑤ 四步装饰施工。词表区的**数据**（`@@G` 行 → 词条）
- * 仍在 `convert/service/gloss/GlossEntry`，其**DOM 契约**（`ul.wengu-gloss`）
- * 在 `quiz/service/GlossDom`（`dataGlossTableHtml`/`splitGloss`）——本文件
- * 不再自带词表解析与 HTML 生成，只按契约编排。
+ * **三期收拢产物（Issue #53）**：本文件只剩 ① 一次基础渲染（词表区 HTML
+ * 与正文合成同一次 `innerHTML`）与 ②③④⑤ 四步施工。词表区的**数据**
+ * （`@@G` 行 → 词条）在 `convert/service/gloss/GlossEntry`、**DOM 契约**
+ * 在 `quiz/service/GlossDom`——本文件不再自带词表解析与 HTML 生成。
  */
 
 /** 词形联动标记的元素类（幂等重铺先摘）。 */
 const LINK_CLASS = "wengu-gloss-link";
 
 /* ── 词表区渲染与正文词形联动（自 GlossDom 迁入，二期收口） ── */
-
-/** 摘掉旧联动标记（还原纯文本节点）。 */
-export function clearGlossLinks(root: HTMLElement): void {
-    for (const span of Array.from(root.querySelectorAll<HTMLElement>(`.${LINK_CLASS}`))) {
-        const parent = span.parentNode;
-        if (!parent) continue;
-        parent.replaceChild(document.createTextNode(span.textContent ?? ""), span);
-        parent.normalize();
-    }
-}
 
 /** 把一处命中的词形包进联动标记。 */
 export function wrapHit(node: Text, from: number, to: number, hit: GlossHit): void {
@@ -153,8 +140,8 @@ export function assignHitsToNodes(nodeTexts: string[], nodeStarts: number[], hit
  *
  * 入参口径（三期收敛）：
  * - `md` 是**材料正文原文**（含尾部 `@@G` 词表行）——本出口自己按契约拆
- *   正文/词表（`splitGloss`）、自己渲染词表区（`dataGlossTableHtml`），
- *   消费侧不再需要先铺一遍词表区（两段调用已成一段）；
+ *   正文/词表、自己渲染词表区（`dataGlossTableHtml`），消费侧不再需要
+ *   先铺一遍词表区（两段调用已成一段）；
  * - `gloss: false` = 题干通道（正文不含词表，也**不做**词形联动）；
  * - `clues`（存储锚点：文本 + 可选权威坐标）**一次性走完 ⑤**——组题材料
  *   面板的「重开页签/组内切题回来」据此一步到位。
@@ -169,7 +156,7 @@ export function decorate(
     data: { md?: string; gloss?: boolean; clues?: ClueAnchor[] }
 ): ClueResolved[] {
     if (!root) return [];
-    const { body, entries } = splitGloss(data.md ?? "");
+    const { body, entries } = splitGlossBlock(data.md ?? "");
     const withGloss = entries.length > 0 && data.gloss !== false;
     // ① 基础渲染（现状 renderMdHtml 同款）+ 词表区（非权威，不进权威表）
     //    ——词表区与正文合成**一次** innerHTML，产物与「先渲染正文、再补
@@ -259,10 +246,4 @@ export function decorateMaterialEntry(
 /** 只重铺高亮（不改材料正文）的数据层入口：chips 删除/新增线索后调用。 */
 export function redecorateClues(root: HTMLElement | undefined | null, anchors: ClueAnchor[]): ClueResolved[] {
     return redecorateCluesPath(root, anchors);
-}
-
-/** 材料正文 → 正文/词表区拆分（**转出** `GlossDom` 的解析契约，业务侧
- *  不再直接 import convert 域的词表解析）。 */
-export function splitGloss(bodyMd: string | undefined): GlossSplit {
-    return splitGlossBlock(bodyMd);
 }

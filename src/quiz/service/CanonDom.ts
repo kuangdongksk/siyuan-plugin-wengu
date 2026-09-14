@@ -91,8 +91,3 @@ export function buildCanon(root: HTMLElement): CanonMap {
 export function canonMapOf(root: HTMLElement | undefined | null): CanonMap | undefined {
     return root ? buildCanon(root) : undefined;
 }
-
-/** 兼容别名（旧调用点语义同 canonMapOf：取该根的权威坐标系）。 */
-export function ensureCanonMap(root: HTMLElement | undefined | null): CanonMap | undefined {
-    return canonMapOf(root);
-}
