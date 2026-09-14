@@ -127,7 +127,7 @@ export function planClueMarks(
  * 词形联动标记永久丢失。
  *
  * **选色（Issue #57）**：每个 slot 按 `clue` 线索引查 `colors` 拿到色号，
- * 写**内联** `style="background-color:var(--b3-card-*);color:var(--b3-card-*-color)"`
+ * 写**内联** `style="background-color:var(--b3-card-*-background);color:var(--b3-card-*-color)"`
  * ——色值一律走主题变量，明暗/第三方主题实时适配。段无归属索引（缺省
  * `-1`）或色号越界 ⇒ 默认黄；合并段已由 `mergeMarkSlots` 取「最长那条」
  * 的索引，故颜色与 chips 视觉主从一致。

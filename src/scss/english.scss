@@ -366,12 +366,13 @@
 
 /* 原文持久高亮（Issue #28）：线索段在材料/题干里的视觉锚点。
    色分两路（Issue #57）：常态由渲染侧写**内联** style（主题卡片色
-   `--b3-card-*` + `-color` 前景，四色可选）；主题变量解不出时内联样式
-   缺省，落回本段的**默认黄**兜底——故这里的兜底色与「未选色」同观
-   （`--b3-card-warning` 系），不再是主题主色。字色保持 `inherit`
+   `--b3-card-*` 令牌基名 + `-background` 背景 / `-color` 前景两个全名，
+   四色可选）；主题变量解不出时内联样式缺省，落回本段的**默认黄**兜底
+   ——故这里的兜底色与「未选色」同观（`--b3-card-warning-background`
+   系），不再是主题主色。字色保持 `inherit`
    （内联色只在选过色的路径写），材料正文在暗色主题下照样可读。 */
 mark.wengu-clue-mark {
-  background: color-mix(in srgb, var(--b3-card-warning) 45%, transparent);
+  background: color-mix(in srgb, var(--b3-card-warning-background) 45%, transparent);
   color: inherit;
   border-radius: 3px;
   padding: 0 1px;
@@ -435,7 +436,7 @@ mark.wengu-clue-mark {
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  background: var(--b3-card-warning);
+  background: var(--b3-card-warning-background);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-background) 20%, transparent);
 }
 

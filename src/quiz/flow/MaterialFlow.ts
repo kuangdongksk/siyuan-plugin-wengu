@@ -96,11 +96,12 @@ export function syncGroupReveal(root: HTMLElement, list: { id: string; group?: s
 
 /** chip 上的色点（呼应正文 mark 的颜色，Issue #57）：点它切换该条线索的
  *  色号（「再点一次」在该 chip 的色板里循环，见 ClueFlow 的色点委托）。
- *  色点色值走主题变量，明暗/第三方主题实时适配。 */
+ *  色点色值走主题变量（`cssVar` = 令牌基名，背景要加 `-background`
+ *  全名——裸名解不出 ⇒ 透明），明暗/第三方主题实时适配。 */
 function colorDotHtml(color: number): string {
     const def = clueColorDef(color);
     const cssVar = def?.cssVar ?? "--b3-card-warning";
-    return `<i class="wengu-clue-dot${def ? "" : " wengu-clue-dot-default"}" style="background-color:var(${cssVar})"></i>`;
+    return `<i class="wengu-clue-dot${def ? "" : " wengu-clue-dot-default"}" style="background-color:var(${cssVar}-background)"></i>`;
 }
 
 /** 线索 chips 行（M5 线索标注，ClueFlow 渲染/刷新）——**组题材料槽与

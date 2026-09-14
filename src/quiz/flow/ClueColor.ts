@@ -7,24 +7,30 @@
  * - `clueColors[qid]?: number[]` 是 `clues[qid]` 的**平行字段**，下标严格
  *   对齐；某位缺失/越界 = 默认黄（存量线索零迁移、渲染不回写）；
  * - 值域：`-1`=默认黄，`0..3`=四主题色序（`CLUE_COLORS` 下标）；
- * - 色值一律走**思源主题 CSS 变量**（`--b3-card-*` 卡片色 +
- *   `-color` 前景色），零配置读取 ⇒ 明暗主题与第三方主题实时适配；
+ * - 色值一律走**思源主题 CSS 变量**（`--b3-card-*` 令牌基名 +
+ *   `-background` 背景 / `-color` 前景**全名**），零配置读取 ⇒
+ *   明暗主题与第三方主题实时适配；
  * - 异常/未来值域（越界、非整数）一律**落回默认黄**（宁缺勿错）。
  */
 
 /** 一格色板：`key` 落库值、`cssVar` 主题变量名、`labelKey` i18n 词条。 */
 export interface ClueColorDef {
     key: number;
-    /** 主题卡片色变量名（背景）。前景色 = `${cssVar}-color`。 */
+    /**
+     * 主题卡片色**令牌基名**（如 `--b3-card-info`）——思源主题只定义
+     * `-background` 背景与 `-color` 前景两个全名，**裸名不存在**。
+     * 背景 = `${cssVar}-background`，前景 = `${cssVar}-color`。
+     */
     cssVar: string;
     /** 色名的 i18n 键。 */
     labelKey: string;
 }
 
 /**
- * 四主题卡片色（顺序即落库值 `0..3`）。变量名取自思源主题令牌：
- * `--b3-card-info` / `-success` / `-warning` / `-error`，各自另有
- * `-color` 前景色（见 `clueColorStyle`）。
+ * 四主题卡片色（顺序即落库值 `0..3`）。`cssVar` 是思源主题令牌的
+ * **基名**：`--b3-card-info` / `-success` / `-warning` / `-error`，
+ * 背景/前景各加 `-background` / `-color` 后缀取全名
+ * （思源主题只定义这两个全名，裸名解不出 ⇒ 全透明）。
  */
 export const CLUE_COLORS: readonly ClueColorDef[] = [
     { key: 0, cssVar: "--b3-card-info", labelKey: "clueColorInfo" },
@@ -41,7 +47,7 @@ export const DEFAULT_CLUE_COLOR = -1;
  *
  * 只认 `CLUE_COLORS` 的四个 key；`DEFAULT_CLUE_COLOR` 与任何越界/
  * 非整数一律回**默认黄**（宁缺勿错：值域异常取默认色，比写错色好；
- * 默认黄取 `--b3-card-warning`，与同题未选色的 mark 观感一致）。
+ * 默认黄取 `--b3-card-warning-background`，与同题未选色的 mark 观感一致）。
  *
  * **主题变量取不到时返回空串**（不写 style，落回 scss 的
  * `mark.wengu-clue-mark` 默认观感）——写一个解不出的 `var()` 会让
@@ -52,17 +58,17 @@ export function clueColorStyle(key: number | undefined): string {
     const def = clueColorDef(key);
     const cssVar = def ? def.cssVar : "--b3-card-warning";
     if (!themeVarsUsable()) return "";
-    return `background-color:var(${cssVar});color:var(${cssVar}-color)`;
+    return `background-color:var(${cssVar}-background);color:var(${cssVar}-color)`;
 }
 
 /** 主题变量可用性缓存的探测结果（进程内一次，主题变量名固定不变）。 */
 let varsUsable: boolean | undefined;
 
 /**
- * 当前环境能否解析 `--b3-card-warning`（探测一次并缓存）。
+ * 当前环境能否解析 `--b3-card-warning-background`（探测一次并缓存）。
  *
- * 极简/魔改主题可能不定义 `--b3-card-*`——值域内四色的**变量本身**恒在
- * 我们的样式串里，探测取其一即代表整组。
+ * 极简/魔改主题可能不定义 `--b3-card-*-background`——值域内四色的
+ * **全名变量**恒在我们的样式串里，探测取其一即代表整组。
  *
  * 判定口径是「**自定义属性本身有没有值**」（`getPropertyValue` 读的是
  * 声明值，未定义即空串），不是「元素算出的背景色有没有值」——后者在
@@ -77,7 +83,7 @@ export function themeVarsUsable(): boolean {
     probe.style.position = "absolute";
     probe.style.visibility = "hidden";
     document.body.appendChild(probe);
-    const resolved = getComputedStyle(probe).getPropertyValue("--b3-card-warning").trim();
+    const resolved = getComputedStyle(probe).getPropertyValue("--b3-card-warning-background").trim();
     probe.remove();
     return (varsUsable = resolved !== "");
 }
