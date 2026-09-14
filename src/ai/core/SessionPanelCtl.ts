@@ -67,9 +67,11 @@ export class SessionPanelCtl {
         this.ui.selId = undefined;
     }
 
-    /** 停止在途记录：经 client 的中止登记簿断掉所属后台流（在途 fetch
-     *  断流 + 流循环逐项检查 signal 退出，产物保留已落部分）。未接线的
-     *  流（转换自带页内停止面）登记簿查无此 id，静默无操作。 */
+    /** 停止在途记录：经 client 的中止登记簿停掉所属后台流——句柄两形态
+     *  （AbortController / 停止回调）都只是「调一下」，自断在途 fetch 还是
+     *  收整条流由流自己定（转换族=总闸，语义等价页内停止；见 client.ts
+     *  aiStopHandle 与 AGENTS.md「AI 会话面板的中止接线」）。产物保留已落
+     *  部分；未接线的流/已收口的记录登记簿查无此 id，静默无操作。 */
     stop(rec: AiSessionRecord): void {
         if (rec.status !== "running") return;
         abortAiSession(rec.id);

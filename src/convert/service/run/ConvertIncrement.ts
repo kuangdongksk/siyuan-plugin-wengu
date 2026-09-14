@@ -9,7 +9,7 @@ import { SetWriter } from "../output/SetWriter";
 import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/BankSets";
 import { knowTreesOf } from "../../../bank/data/KnowTrees";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
-import { newAiGroupId, type AiSessionGroup } from "../../../ai/client";
+import { aiStopHandle, newAiGroupId, type AiSessionGroup } from "../../../ai/client";
 import { KernelBlock } from "../../../siyuan/block";
 import type { KnowSection, KnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { QuestionType } from "../../../types";
@@ -113,18 +113,33 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     // 前置检测，这比全量省规则；空集=全量兜底）
     const priorTypes = await setTypeUnion(run.bank, run.setId);
     const genTypes: QuestionType[] | undefined = priorTypes.length > 0 ? priorTypes : undefined;
+    // 本流程的中止总闸（Issue #72）：面板「停止」与外部 run.signal 都汇到
+    // 它——增量的停止必须**等价于页内停止**（停整条补生成、逐块与块间都
+    // 退出、已入库部分保留、重跑分类自愈），不是只断当前这一块 AI。
+    // 自建 controller 的原因：增量不由 ConvertRun 起（DocOps 的「重新导入」
+    // 直接调它），拿不到 startExclusiveConvertRun 的 controller 内部句柄。
+    // run.signal 仍按原样转接（有 deps 在构造后才接线/中途触发的情形）。
+    const stopCtrl = new AbortController();
+    const relayStop = (): void => stopCtrl.abort();
+    if (run.signal?.aborted) relayStop();
+    else run.signal?.addEventListener("abort", relayStop);
     const callAi = makeKnowAwareAi({
         modelId: run.modelId,
-        signal: run.signal ?? new AbortController().signal,
+        signal: stopCtrl.signal,
         knowIndex,
         label,
         group,
+        // 面板「停止」接线（Issue #72）：面板点停 = 停下整条增量补生成
+        //（逐块与块间都退出、已入库部分保留、重跑分类自愈），不是只断
+        // 当前这一块 AI。
+        abort: aiStopHandle(stopCtrl.signal, relayStop),
         buildPrompt: (source, rule, list) =>
             buildPrompt(source, run.fillToChoice, run.bigToSteps, rule, list, genTypes),
     });
     const writer = new SetWriter(run.bank);
     for (let i = 0; i < run.chunks.length; i++) {
-        if (run.signal?.aborted) {
+        // 逐块与块间都认本流程的中止源（面板「停止」与页内停止走同一处）
+        if (stopCtrl.signal.aborted) {
             out.aborted = true;
             break;
         }
@@ -139,7 +154,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         try {
             gen = await callAi(chunk.text);
         } catch (e) {
-            if (run.signal?.aborted) {
+            if (stopCtrl.signal.aborted) {
                 out.aborted = true;
                 break;
             }

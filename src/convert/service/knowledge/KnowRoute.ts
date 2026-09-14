@@ -1,4 +1,4 @@
-import { agentChatOnce, type AiSessionGroup } from "../../../ai/client";
+import { agentChatOnce, type AiAbort, type AiSessionGroup } from "../../../ai/client";
 import { AI_TIMEOUT } from "../../../ai/timeouts";
 import {
     batchChapterPrompt,
@@ -334,6 +334,11 @@ export function makeKnowAwareAi(opts: {
     label?: string;
     /** 动作分组（AI 会话面板树归并）：路由+生成与同批检测挂同一组。 */
     group?: AiSessionGroup;
+    /** 面板「停止」的接线（Issue #72）：每笔调用的 track 都带上它——转换
+     *  族的停止语义是「等价于页内停止」整条流收口，句柄由 aiStopHandle
+     *  造（signal=本轮断流、stop=流总闸）。缺省=不接线（老行为，面板点停
+     *  查无此 id 静默无效）。 */
+    abort?: AiAbort;
     buildPrompt: (source: string, knowRuleBlock: string, knowListBlock: string) => string;
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     const call = (message: string): Promise<string> =>
@@ -341,12 +346,14 @@ export function makeKnowAwareAi(opts: {
             kind: "route",
             title: opts.label ? `路由 · ${opts.label}` : undefined,
             group: opts.group,
+            ...(opts.abort ? { onSid: opts.abort.onSid } : {}),
         });
     const generate = (prompt: string): Promise<string> =>
         agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.batch, opts.signal, {
             kind: "convert",
             title: opts.label ? `转换 · ${opts.label}` : undefined,
             group: opts.group,
+            ...(opts.abort ? { onSid: opts.abort.onSid } : {}),
         });
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }

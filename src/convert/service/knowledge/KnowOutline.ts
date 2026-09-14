@@ -1,4 +1,4 @@
-import { agentChatOnce } from "../../../ai/client";
+import { agentChatOnce, type AiAbort } from "../../../ai/client";
 import { AI_TIMEOUT } from "../../../ai/timeouts";
 import { buildOutlinePrompt } from "../../../ai/prompts/convert";
 import { KernelQuery } from "../../../siyuan/query";
@@ -154,7 +154,11 @@ export async function generateKnowledgeOutline(
     docId: string,
     modelId: string,
     signal: AbortSignal,
-    bank: QuestionBank
+    bank: QuestionBank,
+    /** 面板「停止」接线（Issue #72）：AI 索引同属「转换/AI 重活无停止面」
+     *  一类，接上登记簿后面板对 running 的索引记录点停 = 中止整批（批量
+     *  索引逐篇检查 signal 退出）。缺省=老行为（只是面板点停无效）。 */
+    abort?: AiAbort
 ): Promise<{ count: number }> {
     const root = (
         await KernelQuery.rowsMap(`SELECT box, hpath, content FROM blocks WHERE id = '${docId}' AND type = 'd' LIMIT 1`)
@@ -172,6 +176,7 @@ export async function generateKnowledgeOutline(
     const reply = await agentChatOnce(buildOutlinePrompt(content), modelId, AI_TIMEOUT.long, signal, {
         kind: "outline",
         title: `索引 · ${title}`,
+        ...(abort ? { onSid: abort.onSid } : {}),
     });
     const md = extractOutlineMd(reply);
     // 头部章节名回声剔除（AI 常把章节名写成首个 h1 包住全树，prompt 禁不住）
