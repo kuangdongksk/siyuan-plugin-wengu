@@ -184,14 +184,88 @@ export interface MarkSlot extends NodeRange {
  * 为「同一段原文里只高亮第一条线索，其余静默不出」。
  *
  * 故排序为 **节点升序 + 节点内起点降序**：节点之间各持引用、互不
- * 干扰（不必整体倒序），同节点内自后向前。区间**重叠**时后切的那段
- * 会越界跳过——与改造前一致地降级（只留 chip），宁缺勿错。
+ * 干扰（不必整体倒序），同节点内自后向前。
+ *
+ * ⚠️ **排序只解决「不重叠的段」的先后**（Issue #36）；**重叠区间必须先过
+ * `mergeMarkSlots` 合并**（Issue #56），否则同起点/相交的两条里必有一条
+ * 越界被保护性跳过——静默不落格。两条链（装饰出口的坐标路径与
+ * `ClueMarkDom` 的 fallback 路径）都在本函数**之前**过合并，见该函数注释。
  */
 export function markSlots(plan: MarkPlan[]): MarkSlot[] {
     const out: MarkSlot[] = [];
     for (const item of plan) {
         for (const hit of item.hits) out.push({ node: hit.node, start: hit.start, end: hit.end, text: item.text });
     }
+    return out.sort((a, b) => a.node - b.node || b.start - a.start);
+}
+
+/**
+ * 合并**同节点内重叠或相接**的区间，取并集（Issue #56）。
+ *
+ * 为什么必须有这一步：`planMarks` 逐条独立匹配（线索之间不做避让），
+ * 而施工用的 `splitText` 会截短节点——两条线索落在**同一节点**且区间
+ * 相交时，先落格那条切完节点、后那条的 `end` 就越界，被保护性守卫
+ * （`wrapRange` 的 `end > text.length`）静默跳过，真机表现「chips 三条
+ * 都在、正文只出一条」。用户「在同一段文字上反复微调标注」必然踩中。
+ *
+ * 语义（与用户预期「长覆盖短」一致）：
+ * - **包含**（长包短）⇒ 合成一段 = 长的那条（短的不再单独出 mark）；
+ * - **部分重叠** ⇒ 合成连续一大段（覆盖两段并集）；
+ * - **相接**（前一条 `end` = 后一条 `start`）⇒ 同样合成一段（视觉上本就
+ *   连成一片，不合成会在切分处留下一个零宽 seam）；
+ * - **不相交** ⇒ 两两不受影响，逐字保持原区间；
+ * - **跨节点** ⇒ 各节点独立合并（跨节点线索本就逐节点出段，节点之间
+ *   各持自己的引用、互不干扰）。
+ *
+ * 副作用（预期行为，别当 bug 修）：chips 与 mark 从此**不再 1:1**——
+ * 被覆盖的线索 chip 照常展示、照常两击删除，删掉后重渲染按剩余线索重新
+ * 合并。`text` 取**区间最长的那条**线索原文（施工排查用；同长取先出现
+ * 的那条，与入参顺序稳定），仅为 #B 多色预留归属，本 Issue 不做颜色。
+ *
+ * 合并后区间两两不相交 ⇒ 施工永不再触发保护性跳过；`wrapRange` 的守卫
+ * 保留作**防御**（节点表与计划不同源时的最后一道闸）。
+ */
+export function mergeMarkSlots(slots: MarkSlot[]): MarkSlot[] {
+    const out: MarkSlot[] = [];
+    // 先按节点分组：跨节点不合并（各节点独立）
+    const byNode = new Map<number, MarkSlot[]>();
+    for (const s of slots) {
+        const list = byNode.get(s.node);
+        if (list) list.push(s);
+        else byNode.set(s.node, [s]);
+    }
+    for (const [, list] of byNode) {
+        // 起点升序扫描；起点相同则取区间更长的那条在前（它天然是并集，
+        // 短的随即被并进去——「长覆盖短」的归属由此落到长的身上）
+        list.sort((a, b) => a.start - b.start || b.end - a.end);
+        let cur: MarkSlot | undefined;
+        // 归属线索原文 = 迄今参与本段的**最长**那条（同长取先出现的那条，
+        // 与入参顺序稳定）。长度必须另记：`cur.end` 在并集里已被拉长，
+        // 拿它比长度会让「先并进来的一段」永远显得最长（真机表现：
+        // 归属落到不相干的那条上）。
+        let curLen = 0;
+        for (const s of list) {
+            if (!cur) {
+                cur = { ...s };
+                curLen = s.end - s.start;
+                continue;
+            }
+            // 重叠或相接（`<=`）：并成一段，end 取 max
+            if (s.start <= cur.end) {
+                const len = s.end - s.start;
+                const text = len > curLen ? s.text : cur.text;
+                cur = { node: cur.node, start: cur.start, end: Math.max(cur.end, s.end), text };
+                curLen = Math.max(curLen, len);
+                continue;
+            }
+            out.push(cur);
+            cur = { ...s };
+            curLen = s.end - s.start;
+        }
+        if (cur) out.push(cur);
+    }
+    // 出参口径与 markSlots 一致（节点升序 + 节点内起点降序）：合并后区间
+    // 互不相交，这个序就是唯一的施工序
     return out.sort((a, b) => a.node - b.node || b.start - a.start);
 }
 
