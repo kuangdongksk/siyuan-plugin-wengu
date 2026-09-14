@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
     import { decorate } from "../service/MaterialDecorate";
     import { renderMathWhenVisible } from "../service/ProtyleHost";
@@ -16,6 +16,7 @@
         setGroupScroll,
         unregisterGroup,
     } from "../flow/MaterialFlow";
+    import { fadeVisible, materialScrollCap } from "../flow/MaterialScroll";
     import type { GroupUnitQ } from "../render/DrillUnits";
     import type { WenguMaterial } from "../../types";
     import QuizCardApp from "./QuizCard/index.svelte";
@@ -65,7 +66,14 @@
     let collapsed = $state(false);
     let rootEl = $state<HTMLElement | undefined>(undefined);
     let matEl = $state<HTMLElement | undefined>(undefined);
-
+    /** 材料区限高内滚（Issue #87）：长材料下材料区占满整屏、题目被挤出
+     *  视口，故材料区限高（`--wengu-mat-cap`，视口比例）+ 内部滚动。
+     *  判定走纯函数 `MaterialScroll.materialScrollCap`——**溢出才限高**，
+     *  短材料不挂属性 ⇒ 自然展开、无滚动条无渐隐，逐字节同现状（验收 2）。 */
+    let cap = $state<0 | 1>(0);
+    /** 渐隐分界线可见（Issue #87 验收 1/2）：**只有「下方还有内容」才显示**，
+     *  滚到底即消（判定 `MaterialScroll.fadeVisible`）。 */
+    let fading = $state(false);
     /** 组内上一题/下一题（滚到新卡）。 */
     const step = (dir: number): void => {
         const next = clampGroupQi(qi + dir, qs.length);
@@ -77,6 +85,29 @@
             block: "nearest",
             behavior: "smooth",
         });
+    };
+
+    /** 量算材料区滚动能力（挂载后一次 + resize/折叠展开 + 每次滚动）：
+     *  cap 只在「溢出」时置 1，fading 只在「还能往下滚」时置真。 */
+    const syncMatScroll = (): void => {
+        if (!matEl) return;
+        cap = materialScrollCap(matEl);
+        fading = fadeVisible(matEl);
+        setGroupScroll(mid, matEl.scrollTop); // 滚动记忆（挂载期恢复后不再回写）
+    };
+
+    /** 材料区滚动：渐隐随「还能往下滚」实时翻牌 + 记忆滚动位置。 */
+    const onMatScroll = (e: Event & { currentTarget: HTMLElement }): void => {
+        fading = fadeVisible(e.currentTarget);
+        setGroupScroll(mid, e.currentTarget.scrollTop);
+    };
+
+    /** 折叠切换：收起时 `.wengu-gmat` 被 `display:none`（量算全 0），展开
+     *  后必须**重量一次**——否则收起再展开会残留「不限高/无渐隐」，长材料
+     *  又回到「题目被挤出视口」（验收 3 的展开腿）。 */
+    const toggleCollapsed = (): void => {
+        collapsed = !collapsed;
+        if (!collapsed) void tick().then(syncMatScroll);
     };
 
     onMount(() => {
@@ -92,13 +123,22 @@
             const top = getGroupScroll(mid);
             if (top !== undefined) matEl.scrollTop = top;
             if (rootEl) renderMathWhenVisible(rootEl);
+            // 限高内滚的首次量算：属性落定 → 布局 → 量算（装饰链已铺完，
+            // scrollHeight 此时才是最终值）。`await tick()` 让首帧先见内容。
+            void tick().then(syncMatScroll);
         }
         // Issue #28：材料填充后过统一高亮后处理——装饰出口那次施工已把高亮
         // 与线索一并铺好，本调用在这里是**幂等**的 chips 行兜底（材料缺失/
         // 无正文时不走上面的出口，chips 仍需刷）。
         host.refreshClueMarks?.(qs[qi].q);
         onActive(qs[qi].idx); // 首帧同步当前题（旧 bindOneGroupUnit 首调）
-        return () => unregisterGroup(mid);
+        // 窗口/字体变化会改行数（=改 scrollHeight）但不触发滚动事件，
+        // 不重量算就会留下「该滚的没滚、读完的还挂着渐隐」。
+        window.addEventListener("resize", syncMatScroll);
+        return () => {
+            window.removeEventListener("resize", syncMatScroll);
+            unregisterGroup(mid);
+        };
     });
 
     /** 题号导航定位：idx 属本组则切到该题（不触发 onActive 回环）。 */
@@ -115,12 +155,7 @@
 
 <div class="wengu-gunit wengu-reading" data-mid={mid} data-collapsed={collapsed ? "" : undefined} bind:this={rootEl}>
     <div class="wengu-ghead">
-        <Button
-            class="wengu-gmat-fold"
-            data-act="gmat-fold"
-            title={t("materialToggle")}
-            onclick={() => (collapsed = !collapsed)}
-        >
+        <Button class="wengu-gmat-fold" data-act="gmat-fold" title={t("materialToggle")} onclick={toggleCollapsed}>
             {@html svgIcon("iconRight")}<span>{t("materialTitle")}</span>
         </Button>
         <span class="wengu-gnav">
@@ -133,13 +168,10 @@
             </Button>
         </span>
     </div>
-    <div
-        class="wengu-gmat"
-        data-mprotyle
-        bind:this={matEl}
-        onscroll={(e) => setGroupScroll(mid, e.currentTarget.scrollTop)}
-    >
-        <span class="wengu-muted">…</span>
+    <div class="wengu-gmat-host" data-scroll-cap={cap || undefined} data-scroll-fade={fading ? "" : undefined}>
+        <div class="wengu-gmat" data-mprotyle bind:this={matEl} onscroll={onMatScroll}>
+            <span class="wengu-muted">…</span>
+        </div>
     </div>
     <div class="wengu-gqs">
         {#each qs as gq, i (gq.q.id)}
