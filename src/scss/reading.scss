@@ -19,13 +19,80 @@
   --wengu-well: color-mix(in srgb, var(--b3-theme-background) 62%, var(--b3-theme-on-background) 5%);
 }
 
-/* ── 材料区：凹槽 + 阅读栏 + 渐隐分界 ── */
+/* ── 材料区：凹槽 + 阅读栏 + 内部滚动（限高）+ 渐隐分界 ── */
+
+/* 滚动槽：`.wengu-gmat` 的**包裹层**，限高与渐隐覆盖层都落在这里。
+   为什么要多这一层（而不是把覆盖层挂在 `.wengu-gmat` 上、靠 padding 让位）：
+   覆盖层若挂滚动容器自身，就成了滚动内容的一部分（跟着滚走）；绝对定位
+   相对它又会被裁掉。父壳不受 `overflow` 裁剪，覆盖层才能「钉」在下缘。
+   短材料：JS 判「不溢出」⇒ 本层**不挂** `[data-scroll-cap]` ⇒ 限高与覆盖层
+   一条都不生效（自然展开、无滚动条无渐隐，逐字节同现状，验收 2）。
+   本层无边框无底（底在 `.wengu-gmat` 上）⇒ 视觉与改造前逐字节同形。 */
+.wengu-reading .wengu-gmat-host {
+  display: block;
+}
+
+/* 限高＝视口比例（不是固定像素）：52vh 让材料区最多占半屏多一点，
+   与题卡区（卡头 16 + 题干 + 选项 4 行 + 作答位 ≈ 300px）合起来落在
+   一个 1080p 视口的首屏内——「题卡不再被材料挤出视口」正是本单的验收 1；
+   再低（40vh 档）英语阅读会只剩两三行，读起来要不停滚。 */
+.wengu-reading .wengu-gmat-host[data-scroll-cap] {
+  --wengu-mat-cap: 52vh;
+  position: relative;
+}
+
+.wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat {
+  /* 旧口径的 46vh 内滚被 #81 阅读面取消（正文切成两段滚动区），本单按
+     真机反馈**按比例**收回：限高走变量，判定与量算共用同一处口径。 */
+  max-height: var(--wengu-mat-cap);
+  overflow-y: auto;
+  /* 触屏惯性滚动（移动端触屏口径）——桌面无副作用（滚轮不走这条） */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 滚动条：不自造轮子，直接给思源内核同款细滚动条形态——`:hover` 才显形，
+   静止时隐去（材料区最忌常驻一条粗滚动条压着正文右缘）。 */
+.wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 3px;
+}
+
+.wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat:hover::-webkit-scrollbar-thumb {
+  background-color: var(--b3-scroll-color, var(--b3-border-color));
+}
+
+/* 渐隐分界线（验收 1/2）：悬于材料区下缘，向**上**渐隐——上缘透明、
+   贴着内容的那一端才是实色，读起来就是「下面还有」。显隐由 JS 判定
+   （`MaterialScroll.fadeVisible`：只有还能往下滚才挂 `[data-scroll-fade]`），
+   这里的过渡只负责翻牌不硬闪。
+   `pointer-events: none`：它是提示层不是控件，不得挡住材料区最后几行
+   （选段/点词形/滚动都要穿过去）。 */
+.wengu-reading .wengu-gmat-host[data-scroll-cap]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  background: linear-gradient(to top, var(--wengu-well) 8%, transparent 100%);
+}
+
+.wengu-reading .wengu-gmat-host[data-scroll-fade]::after {
+  opacity: 1;
+}
+
+/* 材料区：凹槽 + 阅读栏（限高/内滚见上面 host 两条；本层只管外观）——
+   左右内边距给到 32px：既留出 ¶ 序号的左留白（-1.6rem ≈ 26px），
+   也不让正文栏贴到凹槽边（窄窗下 68ch 铺满时的最后一道净空）。
+   滚动时把内滚条的空间留出来（右 32px 已够 6px 细条，不必再让）。 */
 .wengu-reading .wengu-gmat {
-  /* 改阅读面：不再内滚（旧的 46vh 内滚把正文切成两段滚动区）。
-     左右内边距给到 32px：既留出 ¶ 序号的左留白（-1.6rem ≈ 26px），
-     也不让正文栏贴到凹槽边（窄窗下 68ch 铺满时的最后一道净空）。 */
-  max-height: none;
-  overflow: visible;
   padding: 22px 32px 24px;
   background: var(--wengu-well);
   /* 1px dashed 紧贴 → 1px 渐隐细线（两端透明、中段 26%）：视线不再被
@@ -72,7 +139,9 @@
 }
 
 /* 折叠态：整片收起（`[data-collapsed]` 由 GroupUnitApp 写在组单元上），
-   内边距一并归零，不让空凹槽留白 */
+   内边距一并归零，不让空凹槽留白。折叠只改行盒（`display: none` 在
+   english.scss）——展开后由组件重量一次滚动能力（`syncMatScroll`），
+   收起态残留的「不限高/无渐隐」不会留到展开后（Issue #87 验收 3）。 */
 .wengu-reading .wengu-gunit[data-collapsed] .wengu-gmat {
   padding: 0;
 }
@@ -265,4 +334,13 @@
 .wengu-reading .wengu-card-num,
 .wengu-reading .wengu-opt-letter {
   color: color-mix(in srgb, var(--b3-theme-primary) 74%, var(--b3-theme-background));
+}
+
+/* ── 移动端（Issue #87 验收 4；只挂 `body.wengu-mobile`，桌面无标记 ⇒
+   本段一条不生效，禁 media query——口径见 scss/words-mobile.scss 首注）──
+   小屏上 52vh 只剩七八行，读长材料要不停滚，「限高」在这里会变成「不可读」；
+   故移动端**抬到 64vh**（仍留出题卡首屏可见的量，只是让材料多读几行），
+   并维持内滚。判定/属性不变（JS 侧与视口比例无关），只是换了个比例。 */
+body.wengu-mobile .wengu-reading .wengu-gmat-host[data-scroll-cap] {
+  --wengu-mat-cap: 64vh;
 }

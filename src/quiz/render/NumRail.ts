@@ -39,9 +39,28 @@ export function isChasingActive(scroller: HTMLElement): boolean {
     return chases.has(scroller);
 }
 
+/** 元素自身可纵向滚动的判定（Issue #87）：`overflow-y` 计算值为 auto/
+ *  scroll 且内容确实溢出（scrollHeight > clientHeight）。材料区限高内滚
+ *  后，组内题卡落在**内部滚动容器**里——只让外层 `.wengu-main` 滚是滚不
+ *  到（外层 scrollTop 已到底、元素仍在材料区之下）。
+ *  `overflow-y: visible` 在计算值上不是 auto/scroll，故不做「祖先链遍历
+ *  逐级求交」的复杂解——首个可滚祖先即离元素最近的那一层。 */
+export function scrollHostOf(el: HTMLElement): HTMLElement | undefined {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+        if (p.scrollHeight - p.clientHeight < 1) continue;
+        const oy = getComputedStyle(p).overflowY;
+        if (oy === "auto" || oy === "scroll") return p;
+    }
+    return undefined;
+}
+
 /** 追赶滚动到目标元素。block 语义对齐 scrollIntoView：start=顶对齐
- *  （+scroll-margin-top，实测不猜值），center=居中。 */
+ *  （+scroll-margin-top，实测不猜值），center=居中。
+ *  `scroller` 是**外层滚动容器**（`.wengu-main`）；目标落在内部滚动容器
+ *  （材料区，Issue #87）时改滚那一层——几何公式两轴通用，只是换了个
+ *  基准元素（`Math.abs` 那行同理：滚动容器 scrollTop 恒 ≥0，故负值让路）。 */
 export function chaseScrollIntoView(scroller: HTMLElement, card: HTMLElement, block: "start" | "center"): void {
+    scroller = scrollHostOf(card) ?? scroller;
     chases.get(scroller)?.stop();
     const ac = new AbortController();
     const state: Chase = {

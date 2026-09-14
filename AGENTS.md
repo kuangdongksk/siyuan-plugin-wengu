@@ -567,6 +567,28 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
           已改），漏一处就是「预览搜题过滤漏掉整段」。
         - `unitStartIdx` 由 QuizShell 迁入本模块（标题行落位与包装计划共用
           同一份段下标 `segOf`，别各写一份）。
+    - **长材料限高内滚（`.wengu-gmat-host`，Issue #87）**：阅读面在长材料
+      下把题目挤出视口（英语真题一篇阅读占满整屏，做题来回滚整页），故材料
+      区**限高 + 内部滚动**、下缘一条渐隐分界线。
+        - **判定的唯一入口** `quiz/flow/MaterialScroll.ts`（纯函数带单测）：
+          `materialScrollCap`（溢出才限高，短材料 0=不限高）与
+          `fadeVisible`（**只有「还能往下滚」才显渐隐**，滚到底即消）。限高值
+          走 CSS `--wengu-mat-cap`（视口比例 52vh / 移动端 64vh），JS **不
+          重复算像素**——量算读的正是限高生效后的布局尺寸，改比例判定自动跟随。
+        - **壳层多一层 `.wengu-gmat-host` 只是为了落渐隐**：覆盖层若挂滚动
+          容器自身会跟着滚走、绝对定位相对它又会被 `overflow` 裁掉；父壳不受
+          裁剪才能把覆盖层「钉」在下缘。**短材料不挂 `[data-scroll-cap]`**
+          ⇒ 限高/覆盖层/滚动条一条都不生效（逐字节同现状，验收 2）。
+        - ⚠️ **折叠展开必须重量一次滚动能力**（`toggleCollapsed`）：
+          `[data-collapsed]` 走 `display: none`，收起态量算是全 0 ⇒ 落成
+          「不限高/无渐隐」，展开后不重量就再也回不来（长材料的题又被挤下去）。
+          `resize` 同理（改行数却不触发滚动事件）。
+        - ⚠️ **内滚会改「谁滚」**：题卡/题号导航原先只滚外层 `.wengu-main`，
+          材料区内滚后组内题卡落在内部滚动容器里，外层滚到底是**够不着**的。
+          故 `NumRail.chaseScrollIntoView` 起手用 `scrollHostOf(target)` 认
+          「最近的可滚祖先」（挡在它前面的 `.wengu-gmat` 自己就是）——几何
+          公式两轴通用，只是换了基准元素；`.wengu-main` 当状态 key 照旧。
+          新增任何「滚到某元素」的通道都要过这层。
     - ⚠️ **`SKIP_SELECTOR` 与词表区的嵌套约定是「单向」的**（Issue #51 改写
       #33/#34 接口；Issue #53 起**只剩一份**协调名单）：`ClueMarkDom` 的
       `SKIP_SELECTOR`（fallback 匹配源）**只跳词表区 `.wengu-gloss`、不跳
