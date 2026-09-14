@@ -209,4 +209,36 @@ describe("叶子行视图（Issue #88：状态点 + 任务名 + 状态徽标）"
         expect(groupRowName("convert", "高等数学", zhLabel)).toBe("转换 · 高等数学");
         expect(groupRowName("convert", undefined, zhLabel)).toBe("转换");
     });
+
+    it("状态词与色名是**两套词表**，组行不得拿状态词拼色类（Issue #92 踩坑）", () => {
+        // 组行的聚合状态是**状态词**（running/done/error）——组件若照它拼
+        // `is-{status}` 会得到 is-running/is-error 这类**无规则死类**
+        // （样式族只认色名 run/done/fail），留下 8px 透明空位把 A1 的正文
+        // 起点 14/27px 顶到 29/42px。故组行**不渲染色点**（设计稿 tg1/tg2
+        // 也只有「caret + 名字」）。此例锁死两套词表互不相交这件事本身：
+        // 一旦有人把色名改成状态词（或反过来），下面第一/二条会先炸。
+        const d = buildSessionTree(
+            [
+                rec("r1", "convert", 30, { action: "转换", status: "running" }),
+                rec("r2", "convert", 20, { action: "转换", status: "done" }),
+                rec("r3", "convert", 10, { action: "转换", status: "error" }),
+            ],
+            "",
+            zhLabel
+        );
+        const statusWords = new Set(["running", "done", "error"]);
+        const colorNames = new Set(["run", "done", "fail", "skip", "stop", "queued", "cancel"]);
+        // ① 分支视图给的是状态词（供文案/聚合判定用）
+        const branchStatus = d.branchByKey.get("k:convert")!.status;
+        expect(statusWords.has(branchStatus)).toBe(true);
+        // ② 叶子视图给的是色名（可直接进 class）
+        for (const key of ["r1", "r2", "r3"]) {
+            const lv = d.leafViewByKey.get(key)!;
+            expect(colorNames.has(lv.dotCls)).toBe(true);
+            expect(colorNames.has(lv.badgeCls)).toBe(true);
+        }
+        // ③ 两套词表只在 done 上重叠——正是「拿状态词拼色类」看起来能过、
+        //    实际只有 done 命中、running/error 静默失效的原因
+        expect([...statusWords].filter((w) => colorNames.has(w))).toEqual(["done"]);
+    });
 });
