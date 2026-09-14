@@ -14,7 +14,7 @@ import { CLUE_ARM_MS, clickClueChip, markSlots, newClueDeleteState, planMarks, t
  * 基础，**不得删除**）。
  *
  * 因此本文件的 `applyClueMarks` 退居**遗留根**的兜底入口（尚无权威
- * 坐标系的根——如外部挂载的旧壳），新挂载点一律走 `decorateMaterial`。
+ * 坐标系的根——如外部挂载的旧壳），新挂载点一律走 `MaterialDecorate.decorateMaterialEntry`。
  *
  * 与词形联动（GlossDom）的**单向嵌套**口径（Issue #51，改写 #33/#34 的
  * 「互不嵌套」条目）：
@@ -110,7 +110,7 @@ function wrapRange(node: Text, start: number, end: number): void {
  * chip，不报错（归一匹配不上按降级策略处理，见 ClueMark.locateAcrossNodes）。
  *
  * ⚠️ **遗留兜底入口**（无权威坐标系时的文本匹配施工；新挂载点走
- * `MaterialDecorate.decorateMaterial`）。
+ * `MaterialDecorate` 的装饰出口）。
  *
  * ⚠️ **落格映射一次性算好，施工按 `markSlots` 的全局序**（与
  * GlossDom.assignHitsToNodes 同款口径，Issue #36）：偏移是**全部文本节点

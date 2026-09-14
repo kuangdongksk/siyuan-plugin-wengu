@@ -255,22 +255,29 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       此口径：**没答过的步不挂申诉钮**（复核「你选的这一步」无意义）。
       反悔改正常作答后题级空串账就地覆写（`recordAnswer` + `bankOverride`，
       走「覆写」口径不动 attempts），否则收卷报告按「曾认输」计错。
-- **词表区与正文词形联动**（Issue #30 渲染侧）：`quiz/service/GlossDom.applyGloss`
-  是材料填充的**唯一**词表后处理入口（两个挂载点 `GroupUnitApp` 与
-  `ProtyleHost.mountStatic` 都过它）——`@@G` 行渲染为 `ul.wengu-gloss`
-  （词条下划线/音标弱化/释义常规），正文里与词表词形精确匹配的**首次**出现
-  包 `span.wengu-gloss-link > u + sup`。样式在 `scss/english.scss`。
+- **词表区与正文词形联动**（Issue #30 渲染侧；Issue #53 三期收拢）：
+  **装饰出口** `quiz/service/MaterialDecorate.decorateMaterialEntry` 是材料/
+  题干挂载的**唯一**出口——材料正文（含尾部 `@@G` 行）进去，模块内部按
+  「① 基础渲染 + 词表区 → ② 权威节点表 → ③ 词形联动 → ④ 轮间重算映射 →
+  ⑤ 线索 mark 坐标施工」编排；消费侧**只喂数据**（`md` / `gloss` / `clues`），
+  不再自己拼调用步骤。词表区分工两块：**数据与 DOM 契约**在
+  `quiz/service/GlossDom`（`splitGloss` 拆正文/词表、`dataGlossTableHtml`
+  出 `ul.wengu-gloss`——词条下划线/音标弱化/释义常规），**施工**在装饰层
+  （正文里与词表词形精确匹配的**首次**出现包 `span.wengu-gloss-link > u +
+sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
+  `NON_CANON_SELECTOR`/`NO_WRAP_SELECTOR`（`ul.wengu-gloss` 是契约）。
+    - **挂载顺序是「实现保证」不是「调用约定」**（Issue #53 验收 4）：词表
+      区与词形联动必在 ② 之后、⑤ 之前，由出口内部固定；`GroupUnitApp` 的
+      「材料填充 + 线索刷新」两段调用已合成**一次** `decorate`（连线索锚点
+      一起铺），`ProtyleHost.mountStatic` / `QuizCard` 走
+      `decorateMaterialEntry`。`refreshClueMarks` 仍保留为**幂等**的 chips
+      兜底（材料缺失/无题干通道不进出口）。
     - **与 #29 线索 mark 是「单向嵌套」**（Issue #51 改写 #33/#34 的「互不
-      嵌套」条目，接口约定别只改一侧）：`GlossDom` 的匹配跳过
-      `mark.wengu-clue-mark`；`ClueMarkDom` 的 `SKIP_SELECTOR` **只跳
-      `.wengu-gloss`（词表区，非原文）**——`.wengu-gloss-link` **必须移除**
-      （`<u>` 包的就是原文本身，排除它会让「选段含联动词」整段定位失败）。
-      `.wengu-gloss-sup`（序号上标）**不在 SKIP_SELECTOR 里**：它要参与匹配
-      （选段 `toString` 含「N·记号」字符，两边对得上才匹配得上），只由
-      `applyClueMarks` 落格循环按 `SUP_SELECTOR` 挡「不许被包」——**落格
-      守卫只管「谁不许被包 mark」、不管匹配源**，上标不包 mark、`<u>` 内的
-      词本身照常出 mark。即 **mark 可进 `<u>`、词表永不包 mark**，嵌套只
-      单向发生。
+      嵌套」条目）：嵌套由装饰层**一次施工**保证——词形 `<u>` 内的文本是
+      权威（`<u>` 包的就是原文本身），上标是非权威（`NON_CANON_SELECTOR`
+      剔出、落格时再由 `NO_WRAP_SELECTOR` 挡「不许被包」）；`ClueMarkDom`
+      的 `SKIP_SELECTOR` 只是 fallback 文本匹配的源名单，**不是**施工名单。
+      即 **mark 可进 `<u>`、词表永不包 mark**，嵌套只单向发生。
     - ⚠️ **跳过口径直接决定匹配文本源**（Issue #51 真根因）：`SKIP_SELECTOR`
       多排除一个类 = 该类文本从匹配源消失——`textNodesOf` 的 haystack 少了
       那几个字，含它的选段子串匹配必败、静默降级只留 chip。本次缺陷即
@@ -285,9 +292,10 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       实测节点表逐字节相同）。生产代码保留 REJECT 只是**防御性口径**：防未来
       whatToShow 放宽或对元素判定时误用 REJECT 连子树一起拒；本条缺陷的成因
       是跳表内容，改它（REJECT→SKIP）是 no-op。
-    - 挂载顺序固定「词表 → 线索」（两处调用点同款）；两侧都幂等（先摘旧标记
-      再重铺）。带词的 `applyGloss` 整段重铺会连带抹掉线上 mark，**靠既有
-      「材料填充后 refreshClueMarks」时机重铺，别加新通道**。
+    - **幂等与重铺**：装饰出口整段重铺（先摘旧 mark / 旧联动标记再铺），
+      带词材料重铺会连带抹掉线上 mark，靠同一次出口施工**一步到位**（词表
+      ③ → 线索 ⑤），别再加第二通道。`redecorateClues` 是「只重铺高亮、不
+      动正文」的入口（chips 增删后调用）。
     - `^{...}` 渲染兜底在 `ui/MdRender` 的 `wengu_kram_sup` inline 规则
       （tokenizer 级，代码围栏内不受影响）——漏网的 `^{补}` 出 `<sup>` 不出
       字面文本。
@@ -306,10 +314,13 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   `pointer-events:none` 名单）、预览的 DOM 手术清单——漏一处就是
   永久不可用的死钮。
 - **滑选标注（Issue #28）**：可标区域两态——组题=材料面板，非组题=
-  题干区 `.wengu-qprotyle`（浮条按钮按选择位置分流）；高亮与 chips
-  只有一个入口 `ClueFlow.refreshClueMarkFor`（材料填充后/题干挂载后/
-  会话恢复后三处都过它，幂等），选段定位与 chip 两击删除状态机的纯
-  判定在 `flow/ClueMark.ts`（带单测）、DOM 手术在 `flow/ClueMarkDom.ts`。
+  题干区 `.wengu-qprotyle`（浮条按钮按选择位置分流）；**高亮施工**收口在
+  装饰出口（`MaterialDecorate.decorate`/`redecorateClues`，Issue #53），
+  `ClueFlow.refreshClueMarkFor` 是它的调用侧（题干挂载后/会话恢复后；
+  组题材料面板由 `GroupUnitApp` 在 `decorate` 里一次走完）+ chips 行渲染，
+  幂等；选段定位与 chip 两击删除状态机的纯判定在 `flow/ClueMark.ts`
+  （带单测）、DOM 手术在 `flow/ClueMarkDom.ts`（`applyClueMarks` 退居
+  无权威坐标系的遗留根兜底）。
   **线索归属题按卡反查**（`clueOwnerQid`）：长卷全卡常驻，非当前题卡的
   chip 删除与「AI 复核」都用 `closest(".wengu-card").dataset.qid` 经 host
   `questionById` 取题；组题行无卡 qid 时回落 `currentQuestion()`——写死
@@ -334,7 +345,7 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       `applyClueMarks` 先对**未改动**节点表算全部计划（`planMarks`），再由
       `ClueMark.markSlots` 拍平成**节点升序 + 节点内起点降序**的施工序
       ——同一节点里靠后的段必须先切，否则前段 `splitText` 把节点截短、
-      后段区间越界被跳过（与 `GlossDom.assignHitsToNodes` 同款口径）。
+      后段区间越界被跳过（与 `MaterialDecorate.assignHitsToNodes` 同款口径）。
       ⚠️ **按线索逐条施工是错的**（PR #38 首版即此，已修）：同一节点里的
       **第二条线索**区间越界静默不落格，真机表现「一段话里只高亮第一条」。
       匹配不上仍降级（只 chips 不高亮，宁缺勿错）。
@@ -374,10 +385,14 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
         - **两钮都不出 = 浮条整体不出现**：非英语卷在非可标区域（解析区/
           选项区）选段即此情形——改造前会浮出一条只剩「标生词」的空条。
     - ⚠️ **`SKIP_SELECTOR` 与词表区的嵌套约定是「单向」的**（Issue #51 改写
-      #33/#34 接口）：`GlossDom` 跳 `mark.wengu-clue-mark`；`ClueMarkDom`
-      **只跳词表区 `.wengu-gloss`、不跳 `.wengu-gloss-link`**（其 `<u>` 内
-      文本参与匹配、允许被包 mark），上标另由 `SUP_SELECTOR` 在落格时挡
-      「不许被包」。两侧幂等，挂载顺序固定「词表 → 线索」。
+      #33/#34 接口；Issue #53 起**只剩一份**协调名单）：`ClueMarkDom` 的
+      `SKIP_SELECTOR`（fallback 匹配源）**只跳词表区 `.wengu-gloss`、不跳
+      `.wengu-gloss-link`**（其 `<u>` 内文本参与匹配、允许被包 mark），上标
+      另由 `SUP_SELECTOR` 在落格时挡「不许被包」。装饰层那侧的名单位于
+      `MaterialDecorate`（`NON_CANON_SELECTOR` 权威源 / `NO_WRAP_SELECTOR`
+      落格守卫），**与 `SKIP_SELECTOR` 是两套口径、各管各的事**（见二期段）。
+      词表拆解逻辑 `GlossDom` 侧不再有第二份跳表（同步删 `mark` 的旧约定，
+      改由权威坐标系天然覆盖）。
 
     **线索锚点二期：权威坐标系 + 统一装饰层**（Issue #52，20260913）：
     - 新域 `quiz/service/ClueCanon.ts`（纯函数，带单测）= **权威坐标系**：
@@ -385,13 +400,16 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       偏移）；非权威区（词表区/上标/按钮/选项/解析/公式占位）剔除。
       关键性质：**装饰只改变节点边界、不改权威文本** ⇒ 权威串跨装饰恒定，
       坐标可用权威切片校验。
-    - 新域 `quiz/service/MaterialDecorate.ts` = 材料/题干挂载的**唯一装饰
-      出口**（`decorateMaterial`）：① 基础渲染 → ② 权威节点表 → ③ 词形
-      联动（自 GlossDom 就地迁入）→ ④ **轮间重算映射**（`remapCanon`，
-      以权威坐标为中介重建节点表 ⇒ mark 可跨 `<u>`/跨段，二期即支持嵌套）
-      → ⑤ 线索 mark **按坐标施工**。挂载点 `GroupUnitApp` / `QuizCard`
-      题干 / `ProtyleHost.mountStatic` 全换该出口；`GlossDom` 只剩兼容转出
-      （三期删）。
+    - `quiz/service/MaterialDecorate.ts` = 材料/题干挂载的**唯一装饰出口**：
+      ① 基础渲染（正文 + 词表区合成**一次** `innerHTML`）→ ② 权威节点表 →
+      ③ 词形联动（Issue #53 三期自 GlossDom 就地迁入施工代码）→ ④ **轮间
+      重算映射**（`remapCanon`，以权威坐标为中介重建节点表 ⇒ mark 可跨
+      `<u>`/跨段，二期即支持嵌套）→ ⑤ 线索 mark **按坐标施工**。挂载点
+      `GroupUnitApp`（**一次** `decorate` 连线索一起铺）/ `QuizCard` 题干 /
+      `ProtyleHost.mountStatic` 全走该出口；对外门面是
+      `decorateMaterialEntry`（喂数据）与 `redecorateClues`（只重铺高亮）；
+      `GlossDom` 只留词表区的**解析与渲染契约**（`splitGloss` /
+      `dataGlossTableHtml`，零装饰层依赖）。
     - **降级链四层**（宁缺勿错，`ClueMark.locateAcrossNodes` 的文本匹配是
       fallback 地基、**不得删除**）：坐标 + 切片校验（`权威切片===text`）
       → 文本匹配当次求坐标（#51 修复版）→ 只出 chip。校验拦下即「自愈降级」：

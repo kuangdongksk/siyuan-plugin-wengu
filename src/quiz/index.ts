@@ -24,7 +24,8 @@ import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
 import { pushSessionAnswer } from "./service/HistoryStore";
 import { hideBar as hideAnnoBar, type AnnoCallbacks } from "./flow/AnnoFlow";
-import { refreshClueMarkFor, refreshClueRow } from "./flow/ClueFlow";
+import { clueAnchorsFor, refreshClueMarkFor, refreshClueRow } from "./flow/ClueFlow";
+import type { ClueAnchor } from "./service/MaterialDecorate";
 import type { DrillUnit } from "./render/DrillUnits";
 import { ProgressivePreview } from "./service/ProgressivePreview";
 import { ProtyleHost } from "./service/ProtyleHost";
@@ -170,6 +171,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly questionById = (qid: string): WenguQuestion | undefined => this.list.find((q) => q.id === qid);
     /** AnswerHost 结构匹配（Issue #28/#52）：题干挂载/材料填充后直调，实现收口在 ClueFlow。 */
     readonly refreshClueMarks = (q: WenguQuestion): void => void refreshClueMarkFor(this, q);
+
+    /** 组单元材料面板的一次施工要连线索一起铺（装饰出口入参）。 */
+    readonly clueAnchorsOf = (q: WenguQuestion): ClueAnchor[] => clueAnchorsFor(this, q);
     readonly persist = (): void => {
         const s = this.session ?? this.finished;
         if (s) void this.history?.upsert(s);

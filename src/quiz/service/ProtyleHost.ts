@@ -2,7 +2,7 @@ import { ProtyleMethod } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
 import { optionDisplayMd, estimateOptWidth, LETTERS } from "../../types";
 import { renderMdHtml } from "../../ui/MdRender";
-import { decorateMaterial } from "./MaterialDecorate";
+import { decorateMaterialEntry } from "./MaterialDecorate";
 import { yieldToBrowser } from "../../ui/shared";
 
 /**
@@ -44,11 +44,13 @@ export class ProtyleHost {
             if (node.hasAttribute("data-mprotyle")) {
                 const mat = materials.find((x) => x.id === this.nodeBlockId(node));
                 if (!mat?.bodyMd) continue;
-                // Issue #52 二期：材料装饰走**唯一出口**（基础渲染 → 权威
-                // 节点表 → 词形联动 → 轮间重算映射 → 线索 mark 坐标施工）。
-                // 线索锚点由调用侧（视图/组单元）在挂载后过统一后处理施工，
-                // 这里不带线索（保持本通道只读材料正文）。
-                decorateMaterial(node, { md: mat.bodyMd });
+                // Issue #53 三期：材料装饰走**唯一出口**（数据层入口）——
+                // 基础渲染 → 权威节点表 → 词形联动 → 轮间重算映射 →
+                // 线索 mark 坐标施工五步全在出口内（挂载顺序是实现保证，
+                // 不再是「词表 → 线索」的调用侧约定）。线索锚点由调用侧
+                // （视图/组单元）在挂载后过统一后处理施工，这里不带线索
+                // （保持本通道只读材料正文）。
+                decorateMaterialEntry(node, { md: mat.bodyMd });
             } else {
                 const card = node.closest<HTMLElement>(".wengu-card");
                 const q = list.find((x) => x.id === card?.dataset.qid);

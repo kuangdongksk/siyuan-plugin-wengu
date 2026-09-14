@@ -51,6 +51,9 @@ export interface ClueHost {
     materialOf(q: WenguQuestion): WenguMaterial | undefined;
     /** 会话变更落库。 */
     persist(): void;
+    /** 该题的装饰锚点（材料面板一次施工时连线索一起铺；与 AnswerHost 的
+     *  同名可选方法同源结构）。 */
+    clueAnchorsOf?(q: WenguQuestion): ClueAnchor[];
     /** AI 复核使用的模型 id（可选：缺省取空=智能体默认）。 */
     aiModelId?(): string;
 }
@@ -140,6 +143,17 @@ export function refreshClueMarkFor(host: ClueHost, q: WenguQuestion): ClueResolv
     const slot = clueSlotOf(host, q);
     if (slot) renderClueRow(slot, host.t, clues);
     return resolved;
+}
+
+/**
+ * 某题的**装饰锚点**（文本 + 可选权威坐标，下标与 `clues` 严格对齐）——
+ * 供装饰出口在**一次施工**里连线索一起铺（材料面板挂载点：`GroupUnitApp`
+ * 在 `decorate` 里带上它，省掉「材料填充后再来一遍线索后处理」的第二趟
+ * DOM 手术）。语义与渲染只读口径一致：不写盘、不升格（升格仍只发生在
+ * 用户显式操作该题线索时）。
+ */
+export function clueAnchorsFor(host: ClueHost, q: WenguQuestion): ClueAnchor[] {
+    return anchorsOf(host.currentSession(), q.id);
 }
 
 /**
