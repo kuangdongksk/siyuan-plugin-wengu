@@ -446,6 +446,22 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
     - 记账全走既有通道：`HistoryStore.pushSessionAnswer`（upsert 幂等）、
       `AnswerMirror`（首答 attempts+1 / 重复提交只覆写 / 收卷模式交卷时
       补 batch 镜像）、判分 `gradeQuestion`/`judgeBrief`。
+    - ⚠️ **after 模式 brief「终局判分晚于交卷」必须覆写题库**（Issue #61
+      复审必修）：收卷模式的镜像**整体推迟**到 `endRound` 的
+      `flushBatchMirror`，AI 判分完成时若该轮**已收卷**（`s.endedAt` 已置
+      ⇒ flush 已跑过、占位 `false` 已入账），迟到的 verdict 必须走
+      `mirrorRepeatAnswer`（覆写，attempts 已由 flush 计过、**不再 +1**）。
+      不这么做题库永远停在占位「错」——薄弱画像/错题本按错处理，且会话
+      与题库互相矛盾。桌面 `judgeBriefAnswer` 判完即 `recordAnswer`，
+      无此窗口；改 `reRecord` 的 batch 早退分支时别把这条删回去
+      （回归测试锁在 `MobileDrill.test.ts`「终局判分晚于交卷」）。
+    - ⚠️ **instant 模式 brief 判完必须 `checkAllDone`**：桌面
+      `judgeBriefAnswer` 的**成功**路径两态都调，末题是 brief 才会自动出
+      报告；漏掉就只能靠用户点自评或手动交卷，与客观题「答满即出报告」
+      不一致。判据取 `ui.graded`（成功路径唯一写入点）——`ui.selfOn` 在
+      **成功与失败两路都置**（那是「改判」钮），拿它分流会把成功路也挡住。
+      判分失败回落自评时**不调**（等 `selfAssess` 收口，与桌面 catch
+      分支同款）。
 - **多步题（steps）在移动端按「整题文本作答」处理**：桌面 `StepsFlow` 的
   逐步作答/申诉链属重型交互，小屏无落脚点。只改作答形态，**不改记账**
   （仍记在同一块 qid 上）。`MobileModel.isMobileText`（= brief 同族 ∪

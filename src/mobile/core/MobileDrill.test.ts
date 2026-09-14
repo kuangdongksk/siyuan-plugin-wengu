@@ -1,9 +1,50 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initialMobileUi, MobileDrill, type MobileUi } from "./MobileDrill";
 import { QuestionType } from "../../types";
 import type { WenguQuestion } from "../../types";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import type { MobileDeps } from "../types";
+import { QuestionBank, type BankData } from "../../bank/data/QuestionBank";
+
+/** node 测试环境无 window（vitest 不启 jsdom），QuestionBank.markDirty 的
+ *  防抖定时器需要它——挂全局自指即可（BankRecording.test 同款）。 */
+(globalThis as { window?: unknown }).window ??= globalThis;
+
+/** 受控 AI 判分闸：测试自己决定 verdict 何时到场——复现「用户交卷先于
+ *  AI 返回」的竞态（终局判分晚于交卷，题库镜像必须被覆写）。
+ *  未开闸时**透传真实现**（既有「AI 判分失败回落自评」用例走真链路抛错）。
+ *  vi.mock 被提升到 import 之上，故闸与放行器走 vi.hoisted。 */
+const judgeGate = vi.hoisted(() => {
+    let release: ((v: { verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }) => void) | undefined;
+    let gate: Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> | undefined;
+    return {
+        arm(): Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> {
+            gate = new Promise((res) => {
+                release = res;
+            });
+            return gate;
+        },
+        open(v: { verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }): void {
+            release?.(v);
+        },
+        pending(): Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> | undefined {
+            return gate;
+        },
+        reset(): void {
+            gate = undefined;
+            release = undefined;
+        },
+    };
+});
+afterEach(() => judgeGate.reset());
+
+vi.mock("../../quiz/service/AiJudge", async (orig) => {
+    const real = await orig<{ judgeBrief: (...args: unknown[]) => unknown }>();
+    return {
+        ...real,
+        judgeBrief: (...args: unknown[]): unknown => judgeGate.pending() ?? real.judgeBrief(...args),
+    };
+});
 
 /**
  * 移动端刷题编排的关键口径（Issue #59 验收 5）：记账通道全部走既有
@@ -333,5 +374,146 @@ describe("AI 判分失败回落自评", () => {
         expect(drill.ui.cards[0].selfOn).toBe(true);
         expect(drill.ui.cards[0].resultText).toContain("aiJudgeFailed");
         expect(drill.ui.cards[0].busy).toBe(false);
+    });
+});
+
+/** 让在途的 fire-and-forget 记账（recordAnswer/mirrorRepeatAnswer 都是
+ *  `void` 调用）跑完：题库 flush 不会等这些 promise，只排空微任务即可。 */
+async function drain(): Promise<void> {
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+}
+
+describe("after 模式 brief 终局判分晚于交卷（复审必修）", () => {
+    /** 真 QuestionBank + 内存数据：attempts 是审计口径，必须直接观测
+     *  （recordVerifyResult 是函数式友元、读 bank.all().records，假 bank
+     *  记调用看不到 attempts 是否只 +1）。 */
+    function realBank() {
+        const data: BankData = {
+            version: 1,
+            records: {
+                e: {
+                    qid: "e",
+                    kramdown: "",
+                    type: "essay",
+                    kpRefs: [],
+                    sourceDocId: "set1",
+                    hash: "h",
+                    stats: { attempts: 0, wrongCount: 0, updatedAt: 0 },
+                },
+            },
+            collections: [],
+            migratedDocs: [],
+            hashed: {},
+            knowRoots: [],
+            folders: [],
+            knowHidden: [],
+            docStats: {},
+        };
+        return {
+            data,
+            bank: new QuestionBank(
+                async () => data,
+                async () => undefined
+            ),
+        };
+    }
+
+    function armedAfter(bank: QuestionBank) {
+        const ui: MobileUi = initialMobileUi();
+        const deps: MobileDeps = {
+            i18n: {},
+            bank: bank as never,
+            history: {
+                upsert: async (): Promise<void> => undefined,
+                docSessions: async (): Promise<WenguSession[]> => [],
+                preload: async (): Promise<void> => undefined,
+            } as never,
+            settings: { showNums: true },
+        };
+        const drill = new MobileDrill(ui, deps);
+        drill.ui.home = { loading: false, error: "", sets: [], activeSetId: "set1", activeSetTitle: "卷一" };
+        drill.ui.fullList = [q("e", { type: QuestionType.Essay, answer: "略" })];
+        drill.ui.setup.reveal = "after";
+        drill.start("fresh");
+        return drill;
+    }
+
+    it("迟到 verdict 覆写题库镜像，attempts 只 +1（不再停在占位「错」）", async () => {
+        judgeGate.arm();
+        const { data, bank } = realBank();
+        const drill = armedAfter(bank);
+        drill.setMine("我的推导");
+        const inflight = drill.submit(); // AI 在途（受 judgeGate 控制）
+        await Promise.resolve();
+        // 用户此刻交卷：flush 以占位 false 落账（attempts+1）
+        drill.endRound();
+        expect(drill.ui.session?.endedAt).toBeTruthy();
+        await drain();
+        expect(data.records.e.stats.attempts).toBe(1);
+        expect(data.records.e.stats.right).toBe("0"); // 占位「错」
+
+        // AI 迟到返回「答对」
+        judgeGate.open({ verdict: "right", ok: true, comment: "不错" });
+        await inflight.catch((): void => undefined);
+        await drain();
+
+        const stats = data.records.e.stats;
+        expect(stats.right).toBe("1"); // 题库被覆写为对
+        expect(stats.attempts).toBe(1); // 不再 +1（覆写口径）
+        expect(stats.lastAnswer).toBe("我的推导");
+        // 会话与题库一致（不再互相矛盾）
+        expect(drill.ui.session?.results[0]).toMatchObject({ qid: "e", ok: true, verdict: "right" });
+    });
+
+    it("未收卷时迟到 verdict 照旧不碰题库（交卷时才补镜像）", async () => {
+        judgeGate.arm();
+        const { data, bank } = realBank();
+        const drill = armedAfter(bank);
+        drill.setMine("我的推导");
+        const inflight = drill.submit();
+        await Promise.resolve();
+        // 不交卷：只改会话，题库此刻零变化
+        judgeGate.open({ verdict: "right", ok: true, comment: "不错" });
+        await inflight.catch((): void => undefined);
+        await drain();
+        expect(data.records.e.stats.attempts).toBe(0);
+        expect(data.records.e.stats.right).toBeUndefined();
+        expect(drill.ui.session?.results[0]).toMatchObject({ ok: true });
+    });
+});
+
+describe("instant 模式 brief 判完即收口（复审评估项）", () => {
+    it("末题是 brief：AI 判完自动出报告（与客观题答满即收口一致）", async () => {
+        judgeGate.arm();
+        const { drill } = armed({ questions: [q("e", { type: QuestionType.Essay, answer: "略" })] });
+        drill.setMine("我的推导");
+        const inflight = drill.submit();
+        await Promise.resolve();
+        // 判分在途：题已置 graded、尚未收卷
+        expect(drill.ui.screen).toBe("drill");
+        expect(drill.ui.session?.endedAt).toBeUndefined();
+        judgeGate.open({ verdict: "right", ok: true, comment: "不错" });
+        await inflight.catch((): void => undefined);
+        // 判完 → checkAllDone → 即时模式自动收卷进报告
+        expect(drill.ui.session?.endedAt).toBeTruthy();
+        expect(drill.ui.screen).toBe("report");
+        expect(drill.ui.cards[0]).toMatchObject({ graded: true, revealed: true, locked: true, ok: true });
+    });
+
+    it("判分失败回落自评时不自动收卷（等 selfAssess 收口，与桌面 catch 分支同款）", async () => {
+        // 不 arm 闸 → 透传真实现 → 内核 stub 抛错
+        const brief = q("e", { type: QuestionType.Essay, answer: "略" });
+        const { drill } = armed({ questions: [brief] });
+        drill.setMine("我的推导");
+        const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        await drill.submit();
+        spy.mockRestore();
+        expect(drill.ui.cards[0].selfOn).toBe(true);
+        expect(drill.ui.session?.endedAt).toBeUndefined();
+        expect(drill.ui.screen).toBe("drill");
+        // 自评后收口
+        drill.selfAssess(true);
+        expect(drill.ui.session?.endedAt).toBeTruthy();
+        expect(drill.ui.screen).toBe("report");
     });
 });

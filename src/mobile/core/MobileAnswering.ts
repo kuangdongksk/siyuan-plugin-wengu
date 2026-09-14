@@ -137,6 +137,13 @@ export async function submit(d: MobileDrill): Promise<void> {
             return;
         }
         await judgeBriefCard(d, q, ui, submitted, false);
+        // 即时模式判完即收口（桌面 judgeBriefAnswer 成功路径同款）：末题若
+        // 是 brief，不在此调 checkAllDone 就不会自动出报告，只能靠用户点
+        // 自评或手动交卷——与客观题「答满即出报告」不一致。
+        // ⚠️ 判据只能取 `ui.graded`（成功路径唯一写入点）；`selfOn` 在成功
+        // 与失败两路都置（那是「改判」钮），拿它分流会把成功路也挡住。
+        // 判分失败回落自评时不调（等 selfAssess 收口，与桌面 catch 分支同款）。
+        if (ui.graded) checkAllDone(d);
         return;
     }
     // 无题型/无答案的兜底题：与桌面 submitQuestion 同款——**先不记账**
@@ -307,7 +314,16 @@ function reRecord(
     void d.deps.history?.upsert(s);
     // 题库镜像：首答 attempts+1，重复提交只覆写 lastAnswer/right（不动 attempts）；
     // 即时模式判分即纳入，收卷模式交卷时才补记（batched 记账在 endRound）
-    if (batch) return;
+    if (batch) {
+        // ⚠️ **交卷先于 AI 返回的窗口**（复审必修）：收卷模式的镜像整体推迟
+        // 到 endRound 的 flushBatchMirror，AI 判分完成时若该轮**已收卷**
+        // （endedAt 已置 ⇒ flush 已跑过、占位 false 已入账），迟到的 verdict
+        // 必须**覆写**题库——否则题库永远停在占位「错」，薄弱画像/错题本按错
+        // 处理，且会话与题库互相矛盾（桌面 judgeBriefAnswer 判完即 recordAnswer，
+        // 无此窗口）。走 mirrorRepeatAnswer（attempts 已由 flush 计过，不再 +1）。
+        if (s.endedAt) mirrorRepeatAnswer(d.deps.bank, q.id, submitted, ok);
+        return;
+    }
     if (former) mirrorRepeatAnswer(d.deps.bank, q.id, submitted, ok);
     else mirrorAnswer(d.deps.bank, q.id, submitted, ok);
 }
