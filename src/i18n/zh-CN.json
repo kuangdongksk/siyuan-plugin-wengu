@@ -828,5 +828,21 @@
   "mobileSelfHint": "本题无自动判分，请自评",
   "mobileSlotsDesktopOnly": "完形/新题型需在桌面端逐空作答",
   "mobileSetGroupCount": "{n} 个题集",
-  "mobileSetActive": "当前"
+  "mobileSetActive": "当前",
+  "aiFlowStop": "停止",
+  "aiFlowStopConfirm": "再击确认停止",
+  "aiFlowKeep": "保留已生成",
+  "aiFlowDiscard": "全部丢弃",
+  "aiFlowOwningBatch": "本记录属于「{flow}」，单笔 AI 调用不可单独中止；要停止请在上方横幅操作。",
+  "aiFlowBatchCounts": "完成 {d} · 跳过 {k} · 中断 {s} · 失败 {f} · 取消 {c}",
+  "aiFlowTitleMatch": "匹配知识文档",
+  "aiFlowTitleBatchLink": "批量关联知识点",
+  "aiFlowTitleTag": "生成标签",
+  "aiFlowTitleVariant": "变式重练",
+  "aiFlowTitleWeak": "薄弱加练",
+  "aiFlowTitleCollect": "收集补题",
+  "aiFlowTitleRegen": "批量重生成",
+  "convertStoppedHint": "本记录属于整卷转换，单笔 AI 调用不可单独中止；要停止请在上方横幅操作。",
+  "aiFlowTitleOutline": "AI 索引",
+  "aiFlowOutlineProgress": "已索引 {i}/{n} 篇"
 }

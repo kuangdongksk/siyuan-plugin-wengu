@@ -1087,6 +1087,46 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   停止还继续出题」）。
 - **页面已可见的反馈不重复通知**（判题/词书导入/学伴 AI 等），新增后台流照此口径接。
 
+### 流级横幅：多调用流的停止入口（Issue #77，20260914）
+
+- **横幅是 ai 域通用注册表，不是转换专属**：`ai/core/FlowRegistry`（纯逻辑、
+  带单测）只认 `begin(id,title,progress?,stop?)/progress/choose/end` 五个动作，
+  任何多调用流登记即可——**不许为某个业务域开特例分支**。
+    - **同时只有一条**（单条横幅约束）：转换有 active 单例、六批流有
+      aiFlowBegin 单飞，天然不叠加；真叠了则**后来者不覆盖**（先到先得，
+      防把在跑的流的停止钮顶掉）。
+    - **end 必达**（finally 语义）：收口段一律把 end 放 finally——漏一次
+      横幅就永久挂着、停止钮指向已结束的流。转换族靠**快照收敛**天然满足
+      （无快照即无横幅），索引流靠 `runOutlineFlow` 的 finally。
+    - **停止句柄复用既有中止通道**（`aiAbort().stop()` / `aiStopHandle(s,stop)`
+      的 `stop` 字段），不新造第二套。`AiAbort.stop` 是 Issue #77 加的**可选**
+      字段：横幅只负责「调一下」。
+- **记录详情一律不再渲染停止钮**（`SessionPanelApp`）：多调用流的停止入口
+  **唯一**在横幅；原位置换**归属说明行**（`ai/core/FlowOwnership`，纯函数
+  带单测，`kind × 状态` 矩阵锁死）——转换族出通用口径、六批流带流名，
+  **单调用流（判分/伴学/ask/analyze）不出任何停止 UI**（本就没有有效停止面）。
+  `SessionPanelCtl.stop` 因此整体删除。
+- **待抉择态**：转换流停止后**不立刻消失**，转 `choice` 相位、横幅上直接给
+  「保留已生成 / 全部丢弃」（接 ConvertRun 已有的 `keepConvertRun`/
+  `discardConvertRun` 导出函数），抉择落定**由状态机收口**（`ConvertFlow`
+  的订阅 sync 里 end）——组件不抢着 end，否则横幅先消失、页内进度条还留着，
+  两处口径分叉。
+- **转换族接线零侵入**（与在途 #74 的 ConvertBatch 接线保持一行调用薄面）：
+  `convert/service/run/ConvertFlow.ts` **订阅既有的 `subscribeConvertRun`**
+  单向同步，`ConvertBatch`/`ConvertBatchQueue` **一行都不用改**；进度摘要
+  复用页内同一条文案函数（`progressStatusText`/`batchHeadText`）⇒ 不会出现
+  两套进度数字；批量队列附六态计数（done/skipped/stopped/failed/cancelled 的
+  计数，running 单列）。挂接点在 `convertRunEventsFor`（四条转换入口共用）。
+  接进 ConvertBatch 的是**一行 `aiStopHandle`**（#72/#74 已接线），横幅不碰它。
+- **AI 索引自起一条流**（`bank/core/KnowOutlineFlow.ts`）：索引不由 ConvertRun
+  起，故 begin/end 由 `runOutlineFlow` 包围——顺带把「逐篇串行循环」从
+  KnowPanelCtl 搬进该模块（该文件原先 511 行、现已回到 494 行，红线不破）。
+- **两击确认统一口径**：横幅停止钮与**页内转换条的停止钮**都走 `Armed`
+  （首击变「再击确认停止」，3s 复位，不上模态框）。
+- **颜色一律 `var(--b3-*)` 全名**，禁用写死色值与令牌裸名（#70 事故口径）：
+  样式在 `scss/aiflow.scss`（`.wengu-aiflow-*`，**单开一片**——rail.scss
+  已 420 行，塞进去会逼近 500 红线），`index.scss` 里 `@use`。
+
 ### 通用横切约束
 
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：模式样板/暗雷清单/

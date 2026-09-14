@@ -1,12 +1,13 @@
 import { Armed, errText } from "./../../ui/shared";
 import { AI_TIMEOUT } from "../timeouts";
-import { abortAiSession, agentChatContinued } from "../client";
+import { agentChatContinued } from "../client";
 import { aiSessions, type AiSessionRecord } from "../data/AiSessions";
 import type { SessionPanelUi } from "./SessionPanelUi";
 
 /**
  * AI 会话面板控制器（四件套之一）：装载（订阅登记簿变更 → 快照进
- * ui.recs）、两栏选择（selId 驱动右栏明细）、失败记录重试
+ * ui.recs）（停止入口在流级横幅，见 ai/core/FlowRegistry）、两栏选择
+ * （selId 驱动右栏明细）、失败记录重试
  * （agentChatContinued 历史回放播种新会话重跑末次调用，成功原地翻案，
  * 20260905 起取代原自由追问）、删除/清空两击确认（3s 复位，同 bank
  * 面板口径）。卸载退订 + 清定时器。
@@ -65,16 +66,6 @@ export class SessionPanelCtl {
 
     back(): void {
         this.ui.selId = undefined;
-    }
-
-    /** 停止在途记录：经 client 的中止登记簿停掉所属后台流——句柄两形态
-     *  （AbortController / 停止回调）都只是「调一下」，自断在途 fetch 还是
-     *  收整条流由流自己定（转换族=总闸，语义等价页内停止；见 client.ts
-     *  aiStopHandle 与 AGENTS.md「AI 会话面板的中止接线」）。产物保留已落
-     *  部分；未接线的流/已收口的记录登记簿查无此 id，静默无操作。 */
-    stop(rec: AiSessionRecord): void {
-        if (rec.status !== "running") return;
-        abortAiSession(rec.id);
     }
 
     /** 重试失败记录：回放已有轮次 + 重发末条 user 消息进新会话（error

@@ -30,15 +30,19 @@ type StopHandle = AbortController | (() => void);
  *  流循环逐项检查 signal / 自身 aborted 标记退出。调用收口时自动注销。 */
 const stopBySid = new Map<string, StopHandle>();
 
-/** 后台流的中止句柄：signal 传给每个 agentChatOnce，onSid 传进 track。 */
+/** 后台流的中止句柄：signal 传给每个 agentChatOnce，onSid 传进 track，
+ *  stop（可选）是**整条流的停止动作**——Issue #77 的流级横幅挂在它上面
+ *  （`stop()` 与面板记录点停 `abortAiSession` 走的是同一个 controller，
+ *  两条入口等价）；`aiStopHandle` 形态下它即调用方给的业务总闸。 */
 export interface AiAbort {
     signal: AbortSignal;
     onSid(sid: string): void;
+    stop?(): void;
 }
 
 export function aiAbort(): AiAbort {
     const ctrl = new AbortController();
-    return { signal: ctrl.signal, onSid: (sid) => stopBySid.set(sid, ctrl) };
+    return { signal: ctrl.signal, onSid: (sid) => stopBySid.set(sid, ctrl), stop: () => ctrl.abort() };
 }
 
 /**
@@ -52,7 +56,7 @@ export function aiAbort(): AiAbort {
  * 传 onSid，面板点停因此查无此 id、静默无效（Issue #72 根因）。
  */
 export function aiStopHandle(signal: AbortSignal, stop: () => void): AiAbort {
-    return { signal, onSid: (sid) => stopBySid.set(sid, stop) };
+    return { signal, onSid: (sid) => stopBySid.set(sid, stop), stop };
 }
 
 /** 中止一条在途调用所属的流（面板「停止」入口）；未接线/已收口返 false。 */

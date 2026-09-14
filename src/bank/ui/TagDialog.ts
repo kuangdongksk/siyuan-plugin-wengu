@@ -65,7 +65,7 @@ export async function openTagDialog(deps: TagDeps): Promise<void> {
         }
         const gen = root.querySelector<HTMLInputElement>("[data-act='tag-gen']")?.checked ?? true;
         dialog.destroy(); // 点击即关窗：后台流，终态走通知
-        launchAiFlow((stop) => runTag(deps, gen, stop));
+        launchAiFlow({ title: deps.t("aiFlowTitleTag") }, (stop) => runTag(deps, gen, stop));
     });
 }
 

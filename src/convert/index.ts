@@ -10,12 +10,13 @@ import {
     type ConvertRunCfg,
     type ConvertRunEvents,
 } from "./service/run/ConvertRun";
+import { attachConvertFlow } from "./service/run/ConvertFlow";
 import type { ProgressivePreview } from "../quiz/service/ProgressivePreview";
 import { showBatchPreview } from "../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguMaterial, WenguQuestion } from "../types";
-import { esc, fmt, htmlToText, copyText } from "../ui/shared";
+import { Armed, esc, fmt, htmlToText, copyText } from "../ui/shared";
 import { svgIcon } from "../ui/FormHtml";
 
 /**
@@ -126,6 +127,10 @@ export interface ConvertViewAccess {
 /** 页内转换事件组（弹窗「开始转换」与右键「重新导入」共用的接线：
  *  状态条渲染/渐进呈现/终止抉择/收尾清条）。 */
 export function convertRunEventsFor(v: ConvertViewAccess): ConvertRunEvents {
+    // 流级横幅接线（Issue #77）：整卷/批量/增量/ad-hoc（「重新导入」）四条
+    // 入口都从这里取事件组——横幅订阅 ConvertRun 的既有状态机单向同步，
+    // 幂等，多调无害。
+    attachConvertFlow(v.t);
     return {
         t: v.t,
         bank: v.bankOf?.(),
@@ -271,7 +276,7 @@ export function renderConvertBar(
             : "";
     const stopBtn =
         mode === "running"
-            ? `<button class="b3-button b3-button--outline" data-act="convert-stop">${esc(t("convertStop"))}</button>`
+            ? `<button class="b3-button b3-button--outline" data-act="convert-stop">${esc(t("aiFlowStop"))}</button>`
             : "";
     const choice =
         mode === "choice"
@@ -295,7 +300,17 @@ export function renderConvertBar(
             }, 1200);
         });
     });
-    slot.querySelector<HTMLButtonElement>("[data-act='convert-stop']")?.addEventListener("click", stopConvertRun);
+    // 停止钮两击确认（Issue #77）：与流级横幅**同一口径**（3s 复位、
+    // 不上模态框）——首击变「再击确认停止」，二次击才真停。
+    slot.querySelector<HTMLButtonElement>("[data-act='convert-stop']")?.addEventListener("click", (ev) => {
+        const btn = ev.currentTarget as HTMLButtonElement;
+        if (btn.dataset.armed === "1") {
+            stopArm.disarm();
+            stopConvertRun();
+            return;
+        }
+        stopArm.arm(btn);
+    });
     slot.querySelector<HTMLButtonElement>("[data-act='convert-keep']")?.addEventListener("click", () => {
         clearConvertBar();
         void keepConvertRun();
@@ -305,6 +320,14 @@ export function renderConvertBar(
         discardConvertRun();
     });
 }
+
+/** 页内转换条「停止」的两击确认位（行内按钮；3s 自动复位）。
+ *  持的是按钮元素——条会被整段重建，重建后旧元素自然失效，无需清理。 */
+const stopArm = new Armed<HTMLButtonElement>((btn) => {
+    if (!btn) return;
+    btn.dataset.armed = "1";
+    btn.textContent = lastBar?.t("aiFlowStopConfirm") ?? btn.textContent;
+});
 
 /** 页签重渲染（每批渐进应用）后重放转换条；false=当前无可放内容。 */
 export function replayConvertBar(el: HTMLElement): boolean {

@@ -1,0 +1,89 @@
+/* 流级横幅（Issue #77）：AI 会话面板顶部的「运行中的 AI 流」条——流名 +
+   进度摘要 + 停止钮（两击确认）；转换流停下后转待抉择态（保留/丢弃）。
+   数据源是 ai 域通用注册表 ai/core/FlowRegistry（R 面板组件
+   ai/components/FlowBanner.svelte）。色值**一律 var(--b3-*) 全名**，
+   禁用任何写死色值与令牌裸名（#70 事故口径）。 */
+/* ── 流级横幅（Issue #77；注册表见 ai/core/FlowRegistry） ──
+   面板顶部的「运行中的 AI 流」条：流名 + 进度摘要 + 停止钮（两击确认），
+   转换流停下后转待抉择态（保留/丢弃）。色值**一律 var(--b3-*) 全名**，
+   禁用令牌裸名（#70 事故口径）。 */
+.wengu-aiflow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border-radius: var(--b3-border-radius);
+  border: 1px solid var(--b3-theme-primary);
+  border-left-width: 3px;
+  background: var(--b3-theme-surface);
+}
+
+/* 待抉择态：换语义色，别再像「还在跑」 */
+.wengu-aiflow.is-choice {
+  border-color: var(--b3-card-warning-color);
+  background: var(--b3-card-warning-background);
+}
+
+.wengu-aiflow-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--b3-theme-primary);
+  animation: wengu-ai-pulse 1.4s ease-in-out infinite;
+}
+
+.wengu-aiflow.is-choice .wengu-aiflow-dot {
+  background: var(--b3-card-warning-color);
+  animation: none;
+}
+
+@keyframes wengu-ai-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.wengu-aiflow-name {
+  flex: none;
+  font-weight: 600;
+}
+
+.wengu-aiflow-text {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 附加统计（批量队列六态计数）：紧跟进度摘要、同字号的弱化色 */
+.wengu-aiflow-extra {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aiflow-btns {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* 记录详情的「流归属说明行」（Issue #77）：记录级停止钮退役后，改为一行
+   说明指向横幅。弱化色 + 细字，不与轮次正文抢注意力。 */
+.wengu-ai-owning {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--b3-theme-on-surface-light);
+  border-left: 2px solid var(--b3-theme-primary);
+  padding-left: 8px;
+}
