@@ -7,7 +7,7 @@ import { markSlots } from "../flow/ClueMark";
  * 装饰出口的**判定链**（Issue #52 二期验收 4/5/6）：坐标优先 → 文本匹配
  * 降级 → 只出 chip 的三分支，以及「mark 包住联动 <u>」的嵌套顺序矩阵。
  *
- * 纯逻辑层可测（DOM 观测/施工在 decorateMaterial）：本文件不启 jsdom，
+ * 纯逻辑层可测（DOM 观测/施工在 `decorate`）：本文件不启 jsdom，
  * 喂的是与施工后节点表同形的文本数组。选择器口径（非权威区/落格守卫）
  * 用字符串断言锁死——多写一个类就等于把那几个字从权威串里挖掉。
  */
@@ -19,7 +19,7 @@ function glossedNodes(): string[] {
     return ["Fund", "1·补", "ing is crucial", "here."];
 }
 
-/** 权威表（装饰前）→ 装饰后重算（与 decorateMaterial 第 ④ 步同口径）。 */
+/** 权威表（装饰前）→ 装饰后重算（与 `decorate` 第 ④ 步同口径）。 */
 function canonAfterGloss() {
     const base = buildCanonMap(["Funding is crucial", "here."], [0, 1]);
     const texts = glossedNodes();
@@ -194,5 +194,81 @@ describe("选择器口径（多写一个类 = 权威串被挖掉几个字）", (
     it("落格守卫只挡『不许被包』：上标与词表区（不进匹配源口径）", () => {
         expect(NO_WRAP_SELECTOR).toContain(".wengu-gloss-sup");
         expect(NO_WRAP_SELECTOR).toContain(".wengu-gloss");
+    });
+});
+
+describe("mark × gloss 交叉顺序矩阵（Issue #53 验收 1：施工序在出口内固定）", () => {
+    /**
+     * 装饰出口的施工序是**实现保证**（词表施工 ③ → 轮间重算映射 ④ →
+     * 线索 mark 施工 ⑤），不再是「材料填充后」「词表后处理 → 线索后处理」
+     * 的调用侧约定。故三种到达顺序（先标线索后出词表 / 先有词表后标线索
+     * / 同节点内多线索 × 多联动词并存）在出口里归一到**同一条链**，本组
+     * 用例按节点表口径锁死每种情形的施工计划。
+     */
+
+    /** 英语材料装饰后的节点表：`Funding`（联动词）+ 上标 + 其余正文。
+     *  [0]"Fund"（<u> 内，权威） [1]"1·补"（上标，非权威）
+     *  [2]"ing is crucial"（权威） [3]"here."（权威） */
+    const texts = ["Fund", "1·补", "ing is crucial", "here."];
+    const isCanon = [true, false, true, true];
+    const base = () => buildCanonMap(["Funding is crucial", "here."], [0, 1]);
+    const map = () => remapCanon(base(), texts, isCanon);
+
+    it("先有词表后标线索：跨『联动词 + 上标 + 后半词』的选段落在两段权威文本上", () => {
+        // 「Funding is」= <u>内的 "Fund" + 跳过的上标 + "ing is"
+        const { plan } = planClueMarks(map(), texts, [{ text: "Funding is", range: { s: 0, e: 10 } }]);
+        expect(plan[0].hits).toEqual([
+            { node: 0, start: 0, end: 4 },
+            { node: 2, start: 0, end: 6 },
+        ]);
+        expect(plan[0].hits.some((h) => h.node === 1)).toBe(false); // 上标不包 mark
+    });
+
+    it("同节点内多条线索 × 多联动词并存：施工序自后向前（节点升序 + 起点降序）", () => {
+        const many = ["Fund", "1·补", "ing is crucial here."];
+        const m = remapCanon(buildCanonMap(["Funding is crucial here."], [0]), many, [true, false, true]);
+        const { plan } = planClueMarks(m, many, [
+            { text: "Funding", range: { s: 0, e: 7 } },
+            { text: "here.", range: { s: 18, e: 23 } },
+        ]);
+        // 节点升序 + 节点内起点降序：节点 2 里的两段靠后的先切
+        // （"here." 在节点 2 内偏移 15，"ing is" 在 0）
+        const slots = markSlots(plan);
+        expect(slots.map((s) => s.node)).toEqual([0, 2, 2]);
+        expect(slots[1].start).toBeGreaterThan(slots[2].start);
+    });
+
+    it("先标线索后出词表：线索坐标按权威串算，与词表施工无关（口径同源）", () => {
+        const m = map();
+        // 坐标来自装饰前的权威串（"Funding is crucial"+"here."），词表施工
+        // 只是改了节点边界——同一坐标在装饰后照常落格（验收 3 的纯逻辑面）
+        const { plan, resolved } = planClueMarks(m, texts, [{ text: "crucial", range: { s: 11, e: 18 } }]);
+        expect(plan[0].hits).toEqual([{ node: 2, start: 7, end: 14 }]);
+        expect(resolved[0]).toEqual({ text: "crucial", range: { s: 11, e: 18 } });
+    });
+
+    it("嵌套抬升：坐标完整覆盖联动词形时包 <u>（mark 外层、上标留外面）", () => {
+        // "Funding"（权威 0..7）恰好完整覆盖 <u> 内的 "Fund"
+        const m = map();
+        const { plan } = planClueMarks(m, texts, [{ text: "Funding", range: { s: 0, e: 7 } }]);
+        // 命中仍在权威节点上（抬升是落格期行为，由 isLiftSpan 判定）
+        expect(plan[0].hits).toEqual([
+            { node: 0, start: 0, end: 4 },
+            { node: 2, start: 0, end: 3 },
+        ]);
+        expect(isLiftSpan(plan[0].hits[0].start === 0, true)).toBe(true);
+    });
+});
+
+describe("三期收拢：名单与依赖方向（Issue #53 验收 4/5）", () => {
+    it("装饰层不再自带词表解析/HTML 生成（词表区契约在 GlossDom）", async () => {
+        const mod = await import("./MaterialDecorate");
+        // 词表区 HTML 只从 GlossDom 转出，装饰层不再有第二份实现
+        expect("glossTableHtml" in mod).toBe(false);
+        const gloss = await import("./GlossDom");
+        expect(typeof gloss.dataGlossTableHtml).toBe("function");
+        // 词形施工（wrap）只剩装饰层一处
+        expect(typeof mod.applyGlossLinks).toBe("function");
+        expect("applyGloss" in gloss).toBe(false);
     });
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
-    import { decorateMaterial } from "../service/MaterialDecorate";
+    import { decorate } from "../service/MaterialDecorate";
     import { renderMathWhenVisible } from "../service/ProtyleHost";
     import Button from "../../ui/Button.svelte";
     import type { CardHtmlModel } from "../render/CardParts";
@@ -73,15 +73,19 @@
         registerGroup(mid, { focusIdx, unitEl: () => rootEl });
         // 材料静态填充（旧 mountStatic 的 [data-mprotyle] 单节点语义）
         if (matEl && material?.bodyMd) {
-            // Issue #52 二期：材料装饰走**唯一出口**（基础渲染 → 权威节点表
-            // → 词形联动 → 轮间重算映射）；线索 mark 由紧随其后的统一后处理
-            // 按坐标施工（同一条施工链，禁复制第二份）
-            decorateMaterial(matEl, { md: material.bodyMd });
+            // Issue #53 三期：材料装饰走**唯一出口**，且**一次走完**——
+            // 基础渲染 → 权威节点表 → 词形联动 → 轮间重算映射 → 线索 mark
+            // 坐标施工（原「材料填充 + 紧随其后的线索后处理」两段调用已
+            // 合一段；词表与线索的施工顺序由出口内部固定，不再靠调用顺序
+            // 约定）。线索输入=本组当前题的会话锚点（组内共享材料面板）。
+            decorate(matEl, { md: material.bodyMd, clues: host.clueAnchorsOf?.(qs[qi].q) ?? [] });
             const top = getGroupScroll(mid);
             if (top !== undefined) matEl.scrollTop = top;
             if (rootEl) renderMathWhenVisible(rootEl);
         }
-        // Issue #28：材料填充后过统一高亮后处理（组题线索高亮落在材料面板）
+        // Issue #28：材料填充后过统一高亮后处理——装饰出口那次施工已把高亮
+        // 与线索一并铺好，本调用在这里是**幂等**的 chips 行兜底（材料缺失/
+        // 无正文时不走上面的出口，chips 仍需刷）。
         host.refreshClueMarks?.(qs[qi].q);
         onActive(qs[qi].idx); // 首帧同步当前题（旧 bindOneGroupUnit 首调）
         return () => unregisterGroup(mid);

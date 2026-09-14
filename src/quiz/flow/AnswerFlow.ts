@@ -11,6 +11,7 @@ import { markNumRailAnswered } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
 import type { CardCtl } from "../render/CardCtl";
 import type { WenguQuestion } from "../../types";
+import type { ClueAnchor } from "../service/MaterialDecorate";
 import { hasSteps, isBriefLike, QuestionType } from "../../types";
 import { esc, fmt, mmss } from "../../ui/shared";
 
@@ -63,6 +64,9 @@ export interface AnswerHost {
      *  三处时机由题卡与组单元组件直调，实现收口在 ClueFlow
      *  （ClueHost 适配，禁复制第二份）。可选——测试/预览壳不实现即跳过。 */
     refreshClueMarks?(q: WenguQuestion): void;
+    /** 该题的装饰锚点（材料面板一次施工时连线索一起铺；见 ClueFlow.clueAnchorsFor）。
+     *  AnswerHost 与 ClueHost 同源结构，见 ClueFlow 的宿主能力清单。 */
+    clueAnchorsOf?(q: WenguQuestion): ClueAnchor[];
 }
 
 /** 字母 chip 点选：单选互斥（重选保持选中），多选可增删（序保持升序）。

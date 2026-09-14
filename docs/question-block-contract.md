@@ -906,22 +906,26 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
           补入的条目还须过**置信判据** `isConfidentEntry`（带音标或词性标签），
           数学习题里 `a^{n} 表示 n 次幂` 这类与词条行同形态的行不会变成伪词表）。
           `^{...}` 残渣在落库前一律剥净——**数学/代码区间内的除外**（见下）。
-    - **渲染侧**（`quiz/service/GlossDom.applyGloss`，材料填充的**唯一**词表
-      后处理入口，两个挂载点 GroupUnitApp / ProtyleHost 都过它）：`@@G` 行
-      渲染为 `ul.wengu-gloss`（词条下划线/加粗、音标弱化色、释义常规）；
-      正文里与词表词形**精确匹配**（大小写不敏感、词边界对齐、含 possessive
-      `'s`，**不做词干还原**——屈折变形一律不高亮）的**首次**出现包
-      `<span class="wengu-gloss-link"><u>词</u><sup>序号</sup></span>`。
-      判定纯函数在 `convert/service/gloss/GlossEntry`（单测覆盖），本处只做
-      DOM 手术。
+    - **渲染侧**（`quiz/service/MaterialDecorate` 的**统一装饰出口**，材料/
+      题干挂载的唯一入口；Issue #53 三期起词表区与词形联动的施工也收口在
+      这里，词表区的**解析/渲染契约**留在 `quiz/service/GlossDom`）：
+      `@@G` 行渲染为 `ul.wengu-gloss`（词条下划线/加粗、音标弱化色、释义
+      常规）；正文里与词表词形**精确匹配**（大小写不敏感、词边界对齐、含
+      possessive `'s`，**不做词干还原**——屈折变形一律不高亮）的**首次**
+      出现包 `<span class="wengu-gloss-link"><u>词</u><sup>序号</sup></span>`。
+      判定纯函数在 `convert/service/gloss/GlossEntry`（单测覆盖），装饰层
+      只做 DOM 手术（施工步序：基础渲染 → 权威节点表 → 词形联动 → 线索
+      mark 坐标施工，见 AGENTS.md quiz 域三期段）。
     - **与 #29 线索 mark 是「单向嵌套」**（Issue #51 改写 #33/#34 的「互不
-      嵌套」约定）：GlossDom 不碰 `mark.wengu-clue-mark` 内的文本；ClueMarkDom
-      的跳过名单**只含 `.wengu-gloss`（词表区，非原文）**——**不含**
-      `.wengu-gloss-link`（其 `<u>` 包的就是原文本身，排除它会让含联动词的
-      选段整段定位失败），序号上标 `.wengu-gloss-sup` 参与匹配、由落格守卫
-      `SUP_SELECTOR` 单独挡「不许被包 mark」。**跳表即匹配文本源**：多排除
-      一个类 = 该类文本从匹配源消失，可静默失败。两侧都幂等（先摘旧标记再
-      重铺），挂载顺序固定为「词表后处理 → 线索高亮后处理」（两个调用点同款）。
+      嵌套」约定；Issue #53 起只在装饰出口**一次施工**内保证）：词形 `<u>`
+      内的文本属**权威**（`<u>` 包的就是原文本身，允许被包 mark），序号上标
+      `.wengu-gloss-sup` 属**非权威**（`NON_CANON_SELECTOR` 剔出、落格时再由
+      `NO_WRAP_SELECTOR` 挡「不许被包 mark」）。`ClueMarkDom.SKIP_SELECTOR`
+      是 fallback 文本匹配的**源名单**（只含词表区 `.wengu-gloss`，**不含**
+      `.wengu-gloss-link`——排除它会让含联动词的选段整段定位失败），**不是**
+      施工名单。**跳表即匹配文本源**：多排除一个类 = 该类文本从匹配源消失，
+      可静默失败。装饰出口幂等（先摘旧标记再重铺），「词表 → 线索」的顺序
+      由出口内部固定（不再是两个调用点的挂载约定）。
     - **`^{...}` 的数学/代码豁免**：`$...$`（含 `$$...$$`）、行内代码与
       围栏代码块里的 `^{...}` 是 LaTeX 指数/代码字面量，**既不采集也不剥除**
       （`protectedSpans` / `eachMark`，见 AGENTS.md convert 域踩坑 3）。
@@ -930,8 +934,8 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
       （路线对齐自产 `wengu_math_inline`，tokenizer 级、代码围栏内不受影响），
       漏网的 `^{补}` 渲染成 `<sup>补</sup>` 而非字面文本。
     - **存量材料（无词表区）渲染零变化、零迁移**：`splitGlossBlock` 无 `@@G`
-      行时正文逐字节原样，`applyGloss` 走 `root.innerHTML = renderMdHtml(md)`
-      同一条老路。
+      行时正文逐字节原样，装饰出口走 `root.innerHTML = renderMdHtml(md)`
+      同一条老路（词表区 HTML 为空串时与改造前逐字节一致）。
 
 - **材料组渲染（E1 分栏壳）**：DrillUnits 把列表组装成「独立题 /
   材料组」单元——组单元=上栏材料（独立滚动、可折叠、滚动位置按组
