@@ -1,59 +1,222 @@
-/* 流级横幅（Issue #77）：AI 会话面板顶部的「运行中的 AI 流」条——流名 +
-   进度摘要 + 停止钮（两击确认）；转换流停下后转待抉择态（保留/丢弃）。
-   数据源是 ai 域通用注册表 ai/core/FlowRegistry（R 面板组件
-   ai/components/FlowBanner.svelte）。色值**一律 var(--b3-*) 全名**，
-   禁用任何写死色值与令牌裸名（#70 事故口径）。 */
-/* ── 流级横幅（Issue #77；注册表见 ai/core/FlowRegistry） ──
-   面板顶部的「运行中的 AI 流」条：流名 + 进度摘要 + 停止钮（两击确认），
-   转换流停下后转待抉择态（保留/丢弃）。色值**一律 var(--b3-*) 全名**，
-   禁用令牌裸名（#70 事故口径）。 */
+/* 流级横幅（Issue #77 落地、**Issue #85 按设计稿还原**）：AI 会话面板顶部
+   的「运行中的 AI 流」条。视觉规格照 design/convert-stop-redesign.html
+   的三屏（flow-banner--run / flow-banner--stop / 单流态），**不自行发明**：
+
+     ① 两行标题（主 13.5px strong + 副 11.5px 弱化）
+     ② 分段构成条 .wengu-aiflow-seg（6px 胶囊、按篇 flex 分段、六态实心分色；
+        单流态换普通进度条 .wengu-aiflow-bar）
+     ③ 富统计 .wengu-aiflow-stats（数字 mono 加粗、分隔点弱化）
+     ④ counts 计数行（六态 chip + 色点 + 零值压暗）
+     ⑤ 分篇清单 .wengu-aiflow-list（五列 grid；当前行主题色高亮、取消行
+        篇名删除线、失败行出原因）
+
+   色值**一律 var(--b3-*) 全名**，禁止写死色值与令牌裸名（#70 事故口径）。
+   令牌权威在 docs/theme-tokens-neo.md（下称「令牌表」）；component-group
+   令牌在本仓不存在时的兜底写在各条注释里。 */
+
 .wengu-aiflow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
   margin-bottom: 10px;
-  padding: 6px 10px;
   border-radius: var(--b3-border-radius);
-  border: 1px solid var(--b3-theme-primary);
+  border: 1px solid var(--b3-border-color);
   border-left-width: 3px;
+  border-left-color: var(--b3-theme-primary);
   background: var(--b3-theme-surface);
+  overflow: hidden;
 }
 
-/* 待抉择态：换语义色，别再像「还在跑」 */
-.wengu-aiflow.is-choice {
-  border-color: var(--b3-card-warning-color);
+/* 停止后抉择态：低透暖底（设计稿 --accent-solid/0.14 的令牌化落点）。
+   左侧 3px 线**两态同色**（设计稿 flow-banner--stop 仍是 accent 线，
+   只换底）——换线色会让「停止」与「重跑」看起来是两条不同的流。 */
+.wengu-aiflow.is-choice,
+.wengu-aiflow.is-stopped {
   background: var(--b3-card-warning-background);
 }
 
+/* ── ① 主行 ── */
+.wengu-aiflow-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+}
+
+.wengu-aiflow-id {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+/* 色点基形（计数 chip 内 6px / 分篇行内 8px，同设计稿两处尺寸）。
+   基础形**不脉冲**——脉冲只属于顶部「流在跑」那一个点。 */
 .wengu-aiflow-dot {
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--b3-theme-primary);
+}
+
+/* 顶部「流在跑」点：光晕 + 脉冲（设计稿 dot--run） */
+.wengu-aiflow-id .wengu-aiflow-dot {
+  box-shadow: 0 0 0 3px var(--b3-theme-primary-light);
   animation: wengu-ai-pulse 1.4s ease-in-out infinite;
 }
 
-.wengu-aiflow.is-choice .wengu-aiflow-dot {
-  background: var(--b3-card-warning-color);
+/* 计数 chip 内的色点 6px（设计稿 .chip i） */
+.wengu-aiflow-chip .wengu-aiflow-dot {
+  width: 6px;
+  height: 6px;
+}
+
+/* 停止态顶部点：静止描边（**不脉冲**）——设计稿 dot--stop。用 id 前缀把
+   特异性抬到 0,2,0，压过上面那条脉冲规则（停止的流不该还在闪）。 */
+.wengu-aiflow-id .wengu-aiflow-dot.is-stopped {
+  background: transparent;
+  border: 1.5px solid var(--b3-theme-primary);
+  box-shadow: none;
   animation: none;
 }
 
-@keyframes wengu-ai-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
-  }
+/* 六态色点（counts chip / 分篇行共用一族；实心=有结果，描边=没结果，
+   虚线=还没轮到——设计稿 dot--* 的编码方式） */
+.wengu-aiflow-dot.is-run {
+  background: var(--b3-theme-primary);
 }
 
-.wengu-aiflow-name {
-  flex: none;
+.wengu-aiflow-dot.is-done {
+  background: var(--b3-card-success-color);
+}
+
+.wengu-aiflow-dot.is-skip {
+  background: transparent;
+  border: 1.5px solid var(--b3-card-success-color);
+}
+
+.wengu-aiflow-dot.is-fail {
+  background: var(--b3-card-error-color);
+}
+
+.wengu-aiflow-dot.is-stop {
+  background: transparent;
+  border: 1.5px solid var(--b3-theme-primary);
+}
+
+.wengu-aiflow-dot.is-queued {
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--b3-theme-on-surface) 42%, transparent);
+}
+
+.wengu-aiflow-dot.is-cancel {
+  background: transparent;
+  border: 1.5px solid color-mix(in srgb, var(--b3-theme-on-surface) 30%, transparent);
+}
+
+.wengu-aiflow-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wengu-aiflow-title strong {
+  font-size: 13.5px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.wengu-aiflow-title span {
+  font-size: 11.5px;
+  color: var(--b3-theme-on-surface-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── ②③ 中段（条 + 富统计） ── */
+.wengu-aiflow-prog {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 180px;
+  max-width: 420px;
+}
+
+.wengu-aiflow-seg {
+  display: flex;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 2px;
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent);
+}
+
+.wengu-aiflow-seg i {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.wengu-aiflow-seg .s-done {
+  background: var(--b3-card-success-color);
+}
+
+.wengu-aiflow-seg .s-skip {
+  background: color-mix(in srgb, var(--b3-card-success-color) 42%, transparent);
+}
+
+.wengu-aiflow-seg .s-run,
+.wengu-aiflow-seg .s-stop {
+  background: var(--b3-theme-primary);
+}
+
+.wengu-aiflow-seg .s-fail {
+  background: var(--b3-card-error-color);
+}
+
+.wengu-aiflow-seg .s-cancel {
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 26%, transparent);
+}
+
+.wengu-aiflow-seg .s-queued {
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 14%, transparent);
+}
+
+/* 单流态：普通进度条 */
+.wengu-aiflow-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent);
+  overflow: hidden;
+}
+
+.wengu-aiflow-bar i {
+  display: block;
+  height: 100%;
+  background: var(--b3-theme-primary);
+}
+
+/* 富统计：数字 mono 加粗强调、分隔点弱化 */
+.wengu-aiflow-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aiflow-stats b {
+  font-family: var(--b3-font-family-code);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-aiflow-sep {
+  color: var(--b3-theme-on-surface-light);
+  opacity: 0.7;
 }
 
 .wengu-aiflow-text {
@@ -65,17 +228,224 @@
   white-space: nowrap;
 }
 
-/* 附加统计（批量队列六态计数）：紧跟进度摘要、同字号的弱化色 */
+/* 附加统计（六批流的纯文本；批量流转走 stats） */
 .wengu-aiflow-extra {
   font-size: 12px;
   color: var(--b3-theme-on-surface-light);
 }
 
+/* ── 动作区 ── */
 .wengu-aiflow-btns {
   flex: none;
   margin-left: auto;
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wengu-aiflow-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+  border: 1px solid transparent;
+}
+
+.wengu-aiflow-badge.is-stopped {
+  color: var(--b3-theme-primary);
+  border-color: var(--b3-theme-primary);
+}
+
+/* 「展开/收起分篇」的折叠箭头：默认朝下，展开时转 180°（同一个 iconDown）。 */
+.wengu-aiflow-toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  transition: transform 0.15s ease;
+}
+
+.wengu-aiflow-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
+/* ── ④ counts 计数行（六态 chip；零值压暗） ── */
+.wengu-aiflow-counts {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 14px 10px;
+}
+
+.wengu-aiflow-lead {
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  color: var(--b3-theme-on-surface-light);
+  margin-right: 2px;
+}
+
+.wengu-aiflow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--b3-border-color);
+  font-size: 11.5px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aiflow-chip b {
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--b3-theme-on-surface);
+}
+
+/* 六态词色/数字色（设计稿 chip--* 一族的令牌化落点） */
+.wengu-aiflow-chip.is-done b,
+.wengu-aiflow-chip.is-skip b {
+  color: var(--b3-card-success-color);
+}
+
+.wengu-aiflow-chip.is-run b,
+.wengu-aiflow-chip.is-stop b {
+  color: var(--b3-theme-primary);
+}
+
+.wengu-aiflow-chip.is-fail b {
+  color: var(--b3-card-error-color);
+}
+
+/* 零值压暗（设计稿 chip.is-zero）：数字回到弱化色 */
+.wengu-aiflow-chip.is-zero {
+  opacity: 0.62;
+}
+
+.wengu-aiflow-chip.is-zero b {
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* ── ⑤ 分篇清单（表头 + 五列 grid） ── */
+.wengu-aiflow-list {
+  border-top: 1px solid var(--b3-border-color);
+  background: color-mix(in srgb, var(--b3-theme-background) 55%, transparent);
+}
+
+.wengu-aiflow-list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--b3-theme-on-surface-light);
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.wengu-aiflow-list-head .ln {
+  margin-left: auto;
+  letter-spacing: 0;
+}
+
+/* 五列：序号 22px mono / 篇名 172px / 状态 188px 带色点 / 备注 1fr / 题数 108px */
+.wengu-aiflow-row-item {
+  display: grid;
+  grid-template-columns: 22px 172px 188px minmax(0, 1fr) 108px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--b3-border-color);
+  font-size: 12.5px;
+}
+
+.wengu-aiflow-row-item:last-child {
+  border-bottom: 0;
+}
+
+/* 当前行主题色高亮 */
+.wengu-aiflow-row-item.is-current {
+  background: var(--b3-theme-primary-light);
+}
+
+.wengu-aiflow-row-item .dr-idx {
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aiflow-row-item .dr-name {
+  color: var(--b3-theme-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 排队行篇名压暗（设计稿 doc-row.is-queued：还没跑的字比跑过的浅） */
+.wengu-aiflow-row-item.is-queued .dr-name {
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 取消行篇名删除线 */
+.wengu-aiflow-row-item.is-cancel .dr-name {
+  color: var(--b3-theme-on-surface-light);
+  text-decoration: line-through;
+}
+
+.wengu-aiflow-row-item .dr-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wengu-aiflow-row-item .dr-state.st-done {
+  color: var(--b3-card-success-color);
+}
+
+.wengu-aiflow-row-item .dr-state.st-run {
+  color: var(--b3-theme-primary);
+  font-weight: 500;
+}
+
+.wengu-aiflow-row-item .dr-state.st-fail {
+  color: var(--b3-card-error-color);
+}
+
+.wengu-aiflow-row-item .dr-note {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wengu-aiflow-row-item .dr-metric {
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  color: var(--b3-theme-on-surface-light);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@keyframes wengu-ai-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* 记录详情的「流归属说明行」（Issue #77）：记录级停止钮退役后，改为一行

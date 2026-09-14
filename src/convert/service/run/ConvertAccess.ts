@@ -172,6 +172,18 @@ export class ConvertAccess implements ConvertViewAccess {
         this.progress = r.convertProgress ?? {};
     }
 
+    /** 面板横幅「前往页内转换条抉择」（Issue #85）：把页内转换条滚进视野
+     *  并给一次聚焦反馈——横幅与页内条是同一动作的两个位置，抉择入口
+     *  仍在页内（横幅上的保留/丢弃钮是同一组导出函数的第二入口）。
+     *  找不到条时零动作（页签未渲染转换条=没有可抉择的东西）。 */
+    revealConvertBar(): void {
+        const bar = this.host.el.querySelector<HTMLElement>("[data-status].wengu-convert-bar");
+        if (!bar || bar.hasAttribute("hidden")) return;
+        bar.scrollIntoView({ behavior: "smooth", block: "center" });
+        bar.classList.add("is-flash");
+        setTimeout(() => bar.classList.remove("is-flash"), 1200);
+    }
+
     /** persistPrefs 快照（savePrefs 的转换组字段）。 */
     prefsSnapshot(): {
         lastConvertModelId: string;

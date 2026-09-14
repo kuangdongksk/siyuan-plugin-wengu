@@ -3,6 +3,7 @@ import { openConvertDialog } from "./ui/ConvertDialog";
 import { openConvertPanel } from "./ui/ConvertPanel";
 import {
     convertRunActive,
+    convertRunSnapshot,
     discardConvertRun,
     keepConvertRun,
     startConvertRun,
@@ -122,6 +123,9 @@ export interface ConvertViewAccess {
     reloadView(): void;
     /** 转换完成收尾（pendingDoc/选中/刷新/状态条）。 */
     onConvertDone(r: { setId: string; title: string; count: number; message?: string }): void;
+    /** 把页内转换条滚进视野（面板横幅「前往页内转换条抉择」链；
+     *  Issue #85——横幅与页内条是同一动作的两个位置）。 */
+    revealConvertBar(): void;
 }
 
 /** 页内转换事件组（弹窗「开始转换」与右键「重新导入」共用的接线：
@@ -274,9 +278,12 @@ export function renderConvertBar(
                   t("convertCopyErr")
               )}">${svgIcon("iconCopy")}</button>`
             : "";
+    // 停止钮**范围词随粒度**（Issue #85，设计稿 Q4「动作名即范围」）：
+    // 与面板横幅同一组词——批量「停止整批转换」/ 单篇「停止转换」。
+    const stopLabel = convertRunSnapshot()?.batch ? t("aiFlowStopBatch") : t("aiFlowStopSingle");
     const stopBtn =
         mode === "running"
-            ? `<button class="b3-button b3-button--outline" data-act="convert-stop">${esc(t("aiFlowStop"))}</button>`
+            ? `<button class="b3-button b3-button--cancel" data-act="convert-stop">${esc(stopLabel)}</button>`
             : "";
     const choice =
         mode === "choice"

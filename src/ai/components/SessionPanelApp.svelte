@@ -118,8 +118,8 @@
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("aiPanelHint")}</div>
 
-        <!-- 流级横幅（Issue #77）：多调用流的停止唯一入口；无在途流时整条不渲染 -->
-        <FlowBanner {t} />
+        <!-- 流级横幅（Issue #77 / #85）：多调用流的停止唯一入口；无在途流时整条不渲染 -->
+        <FlowBanner {t} onDecide={() => v.convertAccess.revealConvertBar()} />
 
         <div class="wengu-ai-kinds">
             <Button type="button" variant={ui.filter === "" ? "main" : "outline"} onclick={() => ctl.setFilter("")}
