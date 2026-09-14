@@ -19,7 +19,7 @@ import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 import { initKnowSynonyms } from "./bank/data/KnowSynonyms";
 import { initKnowIndex } from "./bank/data/KnowIndex";
-import { setAiSlotCapacity } from "./ai/queue";
+import { aiSlotCapacityOf, setAiSlotCapacity } from "./ai/queue";
 import { knowJumpTarget, knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
@@ -178,8 +178,9 @@ export default class WenguPlugin extends Plugin {
             save: (v) => this.saveData("ai-sessions", v),
         });
         // 全局 AI 在途并发闸（Issue #76）：容量 = 设置里的转换并行度
-        // （1~4；未设置按 1 = 串行，与转换弹窗默认口径一致）。设置页改
-        // 并行度时经 applySettings 重新注入（见下）
+        // （1~4）。**未设置回落默认 4**（见 aiSlotCapacityOf——不能拿转换
+        // 弹窗的「1 = 串行」当默认，那会把全仓 AI 在途数默认压成 1）。
+        // 设置页改并行度时经 onSettingsChange 重新注入（见下）
         this.applyAiSlots();
         // 知识小节内容哈希基线（自托管三期）：面板 stale 徽标 + 路由
         // 缓存代数指纹的小节内容维度
@@ -487,10 +488,11 @@ export default class WenguPlugin extends Plugin {
     }
 
     /** 全局 AI 在途闸容量注入（Issue #76）：设置里的转换并行度即容量
-     *  （1~4，未设置按 1）。运行期可更新——缩容不打断在途，只拦新来的。
-     *  设置页改并行度后经 onSettingsChange → applySettings 重注入。 */
+     *  （1~4）；**未设置/非法值回落默认 4**（aiSlotCapacityOf，纯函数带
+     *  单测）。运行期可更新——缩容不打断在途，只拦新来的。设置页改并行度
+     *  后经 onSettingsChange 重注入。 */
     applyAiSlots(): void {
-        setAiSlotCapacity(this.settings.convertParallel ?? 1);
+        setAiSlotCapacity(aiSlotCapacityOf(this.settings.convertParallel));
     }
 
     /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */
