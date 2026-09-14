@@ -1,7 +1,7 @@
 import { renderMdHtml } from "../../ui/MdRender";
 import { collectGlossMarks, planGlossLinks, splitGlossBlock } from "../../convert/service/gloss/GlossEntry";
 import type { GlossEntry, GlossHit, GlossSplit } from "../../convert/service/gloss/GlossEntry";
-import { markSlots, planMarks, type MarkPlan, type MarkSlot, type NodeRange } from "../flow/ClueMark";
+import { markSlots, mergeMarkSlots, planMarks, type MarkPlan, type MarkSlot, type NodeRange } from "../flow/ClueMark";
 import { SKIP_SELECTOR as MATCH_SKIP_SELECTOR, applyClueMarks } from "../flow/ClueMarkDom";
 import {
     buildCanonMap,
@@ -115,7 +115,6 @@ function buildCanon(root: HTMLElement): CanonMap {
 }
 
 /** 从**当前** DOM 现场重算权威坐标系（口径与 decorate 第 ②/④ 步一致）。
- *
  *  **必须每次重算、不许缓存复用**：线索 mark 施工会 `splitText` 并插入
  *  新节点，任何「施工前算好存起来」的表，其 `nodeIndex` 在下一次操作时
  *  都已失效（表现为第二条线索坐标求错/求不出，静默降级）。重算是
@@ -304,7 +303,8 @@ export function planClueMarks(
 }
 
 /**
- * 落格（施工序由 markSlots 给出：节点升序 + 节点内起点降序）。
+ * 落格（施工序由 `markSlots` 给出：节点升序 + 节点内起点降序；排序前过
+ * `mergeMarkSlots` 合并重叠区间，Issue #56）。
  *
  * **嵌套抬升**（D4 显式定义）：当一处坐标**恰好完整覆盖**某个联动词形的
  * `<u>` 时，mark 包 **`<u>` 元素本身**（mark=用户语义层在外、`<u>`=内容层
@@ -395,7 +395,7 @@ function applyClues(root: HTMLElement, map: CanonMap, anchors: ClueAnchor[]): Cl
     const { all, srcIndexes, texts } = observe(root);
     if (anchors.length === 0) return [];
     const { plan, resolved } = planClueMarks(map, texts, anchors, srcIndexes);
-    applySlots(all, markSlots(plan));
+    applySlots(all, mergeMarkSlots(markSlots(plan)));
     return resolved;
 }
 

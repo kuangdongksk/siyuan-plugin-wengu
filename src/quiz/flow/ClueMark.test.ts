@@ -8,6 +8,7 @@ import {
     findInText,
     locateAcrossNodes,
     markSlots,
+    mergeMarkSlots,
     newClueDeleteState,
     normForMatch,
     planMarks,
@@ -218,6 +219,87 @@ describe("markSlots（施工序列，Issue #36 复审）", () => {
     it("空计划零动作", () => {
         expect(markSlots([])).toEqual([]);
         expect(markSlots([{ text: "找不到", hits: [] }])).toEqual([]);
+    });
+});
+
+describe("mergeMarkSlots（重叠区间合并取并集，Issue #56）", () => {
+    // 回归：用户同段文字反复微调标注 ⇒ 同起点两条（`proposal` 与
+    // `proposal might be regarded`），排序只按节点/起点 ⇒ 插入序谁先谁
+    // 落格，后一条 splitText 后越界被守卫静默跳过（chips 三条、mark 只一个）。
+    const slot = (node: number, start: number, end: number, text: string) => ({ node, start, end, text });
+
+    it("包含（长包短）：同起点只出一条，覆盖长的区间、text 归长的那条", () => {
+        const merged = mergeMarkSlots([slot(0, 10, 18, "proposal"), slot(0, 10, 35, "proposal might be regarded")]);
+        expect(merged).toEqual([slot(0, 10, 35, "proposal might be regarded")]);
+    });
+
+    it("包含但短的先入参：合并结果与顺序无关（长的那条胜出）", () => {
+        const merged = mergeMarkSlots([slot(0, 10, 35, "proposal might be regarded"), slot(0, 10, 18, "proposal")]);
+        expect(merged).toEqual([slot(0, 10, 35, "proposal might be regarded")]);
+    });
+
+    it("部分重叠（起点不同）：合并为连续一大段（并集）", () => {
+        // 归属取区间更长的那条（同长取先出现的那条，与入参顺序稳定）
+        const merged = mergeMarkSlots([slot(0, 0, 6, "abcd"), slot(0, 4, 16, "efghijklmnop")]);
+        expect(merged).toEqual([slot(0, 0, 16, "efghijklmnop")]);
+    });
+
+    it("相接（前一条 end = 后一条 start）：合成一段，不留零宽 seam", () => {
+        const merged = mergeMarkSlots([slot(0, 0, 5, "甲甲甲甲甲"), slot(0, 5, 9, "乙丙丁戊")]);
+        expect(merged).toEqual([slot(0, 0, 9, "甲甲甲甲甲")]);
+    });
+
+    it("不相交：逐字保持原区间，且按节点升序 + 节点内起点降序出参", () => {
+        const merged = mergeMarkSlots([slot(0, 4, 15, "quick brown"), slot(0, 35, 43, "lazy dog")]);
+        expect(merged).toEqual([slot(0, 35, 43, "lazy dog"), slot(0, 4, 15, "quick brown")]);
+    });
+
+    it("跨节点各节点独立合并（同一线索逐节点出段，互不干扰）", () => {
+        const merged = mergeMarkSlots([slot(0, 0, 4, "甲乙"), slot(1, 0, 2, "甲乙"), slot(0, 2, 8, "甲乙")]);
+        // 节点 0 的两段相交合成 [0,8)；节点 1 保持原样
+        expect(merged).toEqual([slot(0, 0, 8, "甲乙"), slot(1, 0, 2, "甲乙")]);
+    });
+
+    it("三链相交时一次并成一段（传递合并）", () => {
+        const merged = mergeMarkSlots([slot(0, 0, 6, "a"), slot(0, 4, 12, "bb"), slot(0, 10, 20, "cccccccc")]);
+        expect(merged).toEqual([slot(0, 0, 20, "cccccccc")]);
+    });
+
+    it("合并后同节点内区间两两不相交（施工序即唯一序）", () => {
+        const merged = mergeMarkSlots([slot(0, 0, 6, "a"), slot(0, 4, 12, "bb"), slot(0, 20, 24, "dd")]);
+        // 出参沿用 markSlots 口径：节点升序 + **节点内起点降序**
+        expect(merged.map((s) => s.start)).toEqual([20, 0]);
+        for (let i = 1; i < merged.length; i++) expect(merged[i - 1].start).toBeGreaterThanOrEqual(merged[i].end);
+    });
+
+    it("空集零动作；单段原样透传", () => {
+        expect(mergeMarkSlots([])).toEqual([]);
+        expect(mergeMarkSlots([slot(0, 3, 7, "单")])).toEqual([slot(0, 3, 7, "单")]);
+    });
+
+    it("施工不再触发 wrapRange 守卫：合并后逐段都能落格", () => {
+        // 本例复刻（Issue #56 现象）：同一题干三条线索，其中两条同起点
+        // ——「proposal」（短）与「proposal might be regarded」（长）。
+        const text = "the proposal might be regarded as feasible";
+        const raw = [slot(0, 4, 12, "proposal"), slot(0, 4, 30, "proposal might be regarded")];
+        // 守卫判据 = wrapRange 的 `start < 0 || end > text.length || start >= end`。
+        const guarded = (s: { start: number; end: number }, len: number): boolean =>
+            s.start < 0 || s.end > len || s.start >= s.end;
+        // 模拟「未合并 + markSlots 施工序」：同起点以插入序稳定排序 ⇒ 短的那条
+        // 先切；`splitText` 后节点变短，长的那条随即越界被静默跳过。
+        let len = text.length;
+        const applied: string[] = [];
+        for (const s of [...raw].sort((a, b) => a.node - b.node || b.start - a.start)) {
+            if (guarded(s, len)) continue; // 静默跳过（真实缺陷）
+            applied.push(text.slice(s.start, s.end));
+            len = s.start; // splitText 只保留切点之前的前缀
+        }
+        expect(applied).toEqual(["proposal"]); // 长的那条静默丢了（回归现象）
+        // 合并后只剩一段、覆盖完整的长区间 ⇒ 施工恒不触发守卫
+        const merged = mergeMarkSlots(raw);
+        expect(merged).toHaveLength(1);
+        expect(merged.every((s) => !guarded(s, text.length))).toBe(true);
+        expect(text.slice(merged[0].start, merged[0].end)).toBe("proposal might be regarded");
     });
 });
 
