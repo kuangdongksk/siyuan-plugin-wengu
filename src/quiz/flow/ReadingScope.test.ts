@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DrillUnit } from "../render/DrillUnits";
 import { QuestionType, type WenguQuestion, type WenguMaterial } from "../../types";
-import { isReadingUnit, readingShellScope, scopedUnits, unitStartIdx } from "./ReadingScope";
+import { isReadingUnit, readingShellScope, unitStartIdx, wrapPlanOf } from "./ReadingScope";
 
 /**
  * 阅读面作用域判定（Issue #81，Issue #83 **改结构判据**）——阅读面（凹槽
@@ -86,26 +86,52 @@ describe("readingShellScope 整壳类名口径（Issue #83 验收 1/2/3）", () 
     });
 });
 
-describe("scopedUnits 逐个包装口径（Issue #83 验收 3/4）", () => {
-    it("整壳已覆盖 ⇒ 零包装（默认渲染产物逐字节不变）", () => {
-        expect(scopedUnits([group("m1", [0, 1])])).toEqual([]);
-        expect(scopedUnits([group("m1", [0]), group("m2", [1])])).toEqual([]);
+describe("wrapPlanOf 包装计划（Issue #83 验收 3/4；渲染层施工唯一依据）", () => {
+    const plan = (units: DrillUnit[], segOf: number[]) => wrapPlanOf(units, segOf);
+
+    it("整壳已覆盖（全材料组）⇒ 全 -1（零包装，产物与改造前同形）", () => {
+        expect(plan([group("m1", [0, 1])], [0])).toEqual([-1]);
+        expect(plan([group("m1", [0]), group("m2", [1])], [0, 0])).toEqual([-1, -1]);
     });
 
-    it("验收 4：混合刷只包材料组单元（独立题单元既不挂类也不多套 DOM）", () => {
+    it("验收 4：只给材料组单元开包装（独立题单元一律 -1，零装饰）", () => {
         // 数学段（独立题）在前、阅读段（材料组）在后
-        expect(scopedUnits([single(0), single(1), group("m1", [2, 3])])).toEqual([2]);
+        expect(plan([single(0), single(1), group("m1", [2, 3])], [0, 0, 1])).toEqual([-1, -1, 0]);
         // 阅读段在前、数学段在后
-        expect(scopedUnits([group("m1", [0, 1]), single(2), single(3)])).toEqual([0]);
-        // 交错：每个材料组单元各包各的（包装按连续阅读单元复用，见 QuizShell）
-        expect(scopedUnits([single(0), group("m1", [1]), single(2), group("m2", [3])])).toEqual([1, 3]);
+        expect(plan([group("m1", [0, 1]), single(2), single(3)], [0, 0, 1, 1])).toEqual([0, -1, -1]);
+        // 交错：中间插了独立题 ⇒ 每个材料组各起一个包装（序号单调）
+        expect(plan([single(0), group("m1", [1]), single(2), group("m2", [3])], [0, 0, 1, 1])).toEqual([-1, 0, -1, 1]);
     });
 
-    it("验收 3：纯独立题卷 ⇒ 零包装（非材料卷零装饰）", () => {
-        expect(scopedUnits([single(0), single(1)])).toEqual([]);
+    it("连续同段的材料组单元**共用**一个包装（少插 DOM）", () => {
+        // 混一道独立题才不进「整壳覆盖」分支（全材料 ⇒ 全 -1，见上条）
+        expect(plan([single(9), group("m1", [0]), group("m2", [1]), group("m3", [2])], [0, 0, 0, 0])).toEqual([
+            -1, 0, 0, 0,
+        ]);
     });
 
-    it("空单元表 ⇒ 零包装", () => {
-        expect(scopedUnits([])).toEqual([]);
+    it("⚠️ 跨题集段必须**断链**（否则该段首题跑到自己那行题集标题上面）", () => {
+        // 题集标题行插在包装**外**，复用同一包装会让第二段的标题行落在
+        // 包装之后、而首题被追加进包装（在标题行前）
+        expect(plan([single(9), group("m1", [0]), group("m2", [1])], [0, 0, 1])).toEqual([-1, 0, 1]);
+        // 段内继续复用、跨段断链（同一份表里两种情形都在）
+        expect(plan([single(9), group("a", [0]), group("b", [1]), group("c", [2])], [0, 0, 0, 1])).toEqual([
+            -1, 0, 0, 1,
+        ]);
+    });
+
+    it("整壳已覆盖（全材料组）时跨段也不开包装（产物同形，标题行落外层）", () => {
+        expect(plan([group("m1", [0]), group("m2", [1])], [0, 1])).toEqual([-1, -1]);
+        expect(plan([group("a", [0]), group("b", [1]), group("c", [2])], [0, 0, 1])).toEqual([-1, -1, -1]);
+    });
+
+    it("验收 3：纯独立题卷 ⇒ 全 -1（非材料卷零装饰、逐字节不变）", () => {
+        expect(plan([single(0), single(1)], [0, 0])).toEqual([-1, -1]);
+    });
+
+    it("空单元表 ⇒ 空计划；段表缺省/越界按 -1 段兜底（同段复用）", () => {
+        expect(plan([], [])).toEqual([]);
+        expect(plan([single(9), group("m1", [0])], [0])).toEqual([-1, 0]);
+        expect(plan([single(9), group("m1", [0]), group("m2", [1])], [])).toEqual([-1, 0, 0]);
     });
 });

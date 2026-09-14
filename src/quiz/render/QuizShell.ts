@@ -8,7 +8,7 @@ import { setFallbackTitle } from "../../bank/data/BankSets";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, buildSetGroups, type DrillUnit, type SetGroup } from "./DrillUnits";
-import { readingShellScope, scopedUnits, unitStartIdx } from "../flow/ReadingScope";
+import { readingShellScope, unitStartIdx, wrapPlanOf } from "../flow/ReadingScope";
 import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { restoreContextFor, type CardInitCtx } from "./CardState";
 import { focusQuestion } from "../flow/MaterialFlow";
@@ -104,10 +104,11 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     //   · 组单元自身无条件挂 `.wengu-reading`（GroupUnitApp 自判）；
     //   · 整壳题卡列表只在**全部单元都是材料组**时挂（纯材料/一题多问
     //     卷 ⇒ 产物与改造前同形、零包装）；混合（聚合「全部习题」/跨学科
-    //     专题，或同卷既有独立题又一题多问）下改由 scopedUnits 逐个包装
+    //     专题，或同卷既有独立题又一题多问）下改由 wrapPlanOf 逐个包装
     //     材料组单元——**独立题卡始终零装饰**（不再按首题一判到底）。
     //     判据按**单元**而不是按段整包：同段既有独立题又一题多问时整段
-    //     包装会把独立题卡也染上阅读面（违反 #83 验收 3）。
+    //     包装会把独立题卡也染上阅读面（违反 #83 验收 3）。包装/复用规则
+    //     收口在纯函数 wrapPlanOf（带单测）——含「跨题集段必须断链」一条。
     // ⚠️ 别再拿英语判别（isEnglishScope）当阅读面判据：那让「判别不出
     // 英语」的材料组连美化一起丢（#83 根因）；英语判别只服务「标生词」。
     const reading = readingShellScope(v.units);
@@ -172,7 +173,14 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     mountSideFor(sideQuizAccess(v), "drill");
     mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv, v.revealMode === "after");
     v.timerBinder.updateLabel();
-    const task = renderStaticChunked(v, cardModel, setGroups, badMarks, scopedUnits(v.units));
+    // 包装计划（纯判定在 ReadingScope.wrapPlanOf）：逐单元给出包装序号，
+    // 段下标按 buildSetGroups 的 start 现算（与标题行落位同一口径）
+    const segOfUnit = v.units.map((u) => {
+        const idx = unitStartIdx(u);
+        for (let i = setGroups.length - 1; i >= 0; i--) if (idx >= setGroups[i].start) return i;
+        return -1;
+    });
+    const task = renderStaticChunked(v, cardModel, setGroups, badMarks, wrapPlanOf(v.units, segOfUnit), segOfUnit);
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
     // 卡）；stale 放弃的批次不装饰——新批次自己会装饰，旧批次补挂会
     // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
@@ -202,23 +210,22 @@ async function renderStaticChunked(
     setGroups: SetGroup[],
     /** 已标记为错题的 qid 集合（Issue #46；非预览恒空集）。 */
     badMarks: Set<string> = new Set(),
-    /** 需逐个包装的**材料组单元**下标（Issue #83，纯判定在 scopedUnits）：
-     *  整壳已带类名（整卷都是材料组单元）时为空表 ⇒ 本层零改动。 */
-    scopedUnitIdxs: readonly number[] = []
+    /** 逐单元的**包装序号**（Issue #83，纯判定在 ReadingScope.wrapPlanOf）：
+     *  -1=落在外层（整壳已带类名 / 独立题单元），>=0=落进第 n 个包装。
+     *  ⚠️ 复用规则（连续**且同段**才共用包装）也在纯函数里，本层只施工。 */
+    wrapPlan: readonly number[] = [],
+    /** 逐单元的题集段下标（与 wrapPlan 同一份来源，标题行落位用）。 */
+    segOf: readonly number[] = []
 ): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
     if (!container) return false;
     const showHeads = setGroups.length > 1;
-    // 单元级阅读面包装（Issue #83）：为 scopedUnitIdxs 列出的**材料组单元**套一层
-    // `.wengu-set-seg.wengu-reading`——整卷都是材料组时整壳已挂类名、该表为
-    // 空（默认渲染产物逐字节不变）；独立题单元落在外层（零装饰）。
+    // 单元级阅读面包装（Issue #83）：按 wrapPlan 把材料组单元套进
+    // `.wengu-set-seg.wengu-reading` 包装——整卷都是材料组时整壳已挂类名、
+    // 计划全 -1（默认渲染产物逐字节不变）；独立题单元落在外层（零装饰）。
     // 标题行留在包装**外**：`.wengu-set-head:first-child` 的首/续段间距口径
     // 不变（包装会让每段标题都成 first-child，白改外观）。
-    //
-    // ⚠️ 包装按「**连续**阅读单元」复用：同段相邻的材料组单元共用一个包装
-    // （少插 DOM），中间插了独立题单元就另起一个——复用同一个会让后插的
-    // 材料组回到先前的包装里、跑到已落盘的独立题**之前**（顺序乱）。
-    const scopedIdx = new Set(scopedUnitIdxs);
+    // 复用规则（连续**且同段**才共用包装）见 ReadingScope.wrapPlanOf。
     v.el.querySelector(".wengu-main > .wengu-head")?.insertAdjacentHTML("afterend", renderingPillHtml(v.t));
     // 胶囊持元素引用摘除：选择器会把重渲染后新批次的胶囊误摘
     const pill = v.el.querySelector<HTMLElement>("[data-rendering]") ?? undefined;
@@ -244,21 +251,16 @@ async function renderStaticChunked(
     const total = v.units.reduce((n, u) => n + nodesOf(u), 0);
     let done = 0;
     let deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
-    // 段下标：单元段首题的整卷下标（独立题=idx，材料组=组内首题）落在
-    // 哪一段（buildSetGroups 的段是连续区间，二分/线性都行，段数很小）
-    const segIndexOf = (u: DrillUnit): number => {
-        const idx = unitStartIdx(u);
-        for (let i = setGroups.length - 1; i >= 0; i--) if (idx >= setGroups[i].start) return i;
-        return -1;
-    };
-    // 单元级阅读面包装（懒建 + **连续阅读单元内复用**）：当前包装仍可用就复用，
-    // 非阅读单元一过即失效（下一次要包装时另起）——顺序与单元序严格一致。
-    let openWrap: HTMLElement | undefined;
-    const wrapAt = (): HTMLElement => {
-        if (openWrap) return openWrap;
+    // 包装元素按序号懒建一次（计划保证同一序号只在连续同段内出现，故
+    // 复用即正确顺序；序号单调递增 ⇒ 建序 = 落位序）。
+    const wraps = new Map<number, HTMLElement>();
+    const wrapOf = (ordinal: number): HTMLElement => {
+        const hit = wraps.get(ordinal);
+        if (hit) return hit;
         container.insertAdjacentHTML("beforeend", '<div class="wengu-set-seg wengu-reading"></div>');
-        openWrap = container.lastElementChild as HTMLElement;
-        return openWrap;
+        const el = container.lastElementChild as HTMLElement;
+        wraps.set(ordinal, el);
+        return el;
     };
     try {
         for (let unitIdx = 0; unitIdx < v.units.length; unitIdx++) {
@@ -269,16 +271,16 @@ async function renderStaticChunked(
                 if (stale()) return false;
                 deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
-            // 单元所属题集段与「是否段首单元」（段首插标题行）
-            const segIdx = segIndexOf(u);
+            // 单元所属题集段与「是否段首单元」（段首插标题行）——段下标由
+            // 调用方一次算好传入，与包装计划同源
+            const segIdx = segOf[unitIdx] ?? -1;
             const atSegStart = segIdx >= 0 && setGroups[segIdx].start === unitStartIdx(u);
             // 标题行**先**落在外层（包装后插，标题就不会成包装的首子结点，
             // .wengu-set-head 的 first-child 间距口径逐字不变）
             if (showHeads && atSegStart) container.insertAdjacentHTML("beforeend", setHeadHtml(setGroups[segIdx], v.t));
-            // 材料组单元的阅读面包装（懒建：进材料组单元时才插）
-            const scoped = scopedIdx.has(unitIdx);
-            if (!scoped) openWrap = undefined; // 非阅读单元：包装断链，下个材料组另起
-            const target = scoped ? wrapAt() : container;
+            // 材料组单元的阅读面包装（计划值为 -1 即落外层）
+            const ordinal = wrapPlan[unitIdx] ?? -1;
+            const target = ordinal >= 0 ? wrapOf(ordinal) : container;
             mountDrillUnit(target, u, m, ctx, v, badMarks); // 组件根追加到目标容器尾（恢复/作答态随挂载就位）
             done += nodesOf(u);
             if (counter) counter.textContent = `${done}/${total}`;

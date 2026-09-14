@@ -4,9 +4,9 @@ import type { MainShellModel } from "./CardHtml";
 
 /**
  * 主壳渲染（Issue #81，Issue #83 改结构判据）：`.wengu-reading` 是
- * **阅读面作用域**类名——判定结果（整卷每段都有材料组）由调用方
- * （QuizShell）经 readingSegmentsOf/readingShellScope 传入，本层只做
- * 「有/无类名」的字符串契约（不挂时渲染产物与改造前逐字节一致）。
+ * **阅读面作用域**类名——判定结果（整卷都是材料组单元）由调用方
+ * （QuizShell）经 readingShellScope 传入，本层只做「有/无类名」的字符串
+ * 契约（不挂时渲染产物与改造前逐字节一致）。
  */
 
 const t = (k: string): string => k;
