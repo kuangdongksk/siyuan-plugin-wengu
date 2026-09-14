@@ -2,6 +2,8 @@ import { esc, fmt } from "../../../ui/shared";
 import { notifyError, notifyInfo } from "../../../ui/Notify";
 import type { BatchedResult } from "../run/ConvertBatch";
 import { runSingleDoc, type ConvertBatchItem, type ConvertRunEvents } from "./ConvertRun";
+import { hashContent } from "../source/SetSegments";
+import { KernelBlock } from "../../../siyuan/block";
 import { notifyState, setActive, type ActiveRun } from "./ConvertRunState";
 
 /**
@@ -79,6 +81,26 @@ async function setIdsBySrc(run: ActiveRun): Promise<Map<string, string>> {
     return map;
 }
 
+/** 建 `srcId → { setId, hash }` 映射（与 `setIdsBySrc` 同一次装载口径，
+ *  Issue #74）：队列续跑篇起跑前要拿题集记着的整篇哈希与**当前源**比对
+ *  ——批量队列逐篇自查记录续跑，路上用户可能已改过源文档，沿用旧哈希会
+ *  让下一次重导误判「未变更」而零动作（漏掉已改内容）。哈希重算发生在
+ *  refreshSetHash（续跑篇）与 ConvertBatch 的每批写入点（跑完的篇）。 */
+async function srcHashesBySrc(run: ActiveRun): Promise<Map<string, { setId: string; hash: string }>> {
+    const map = new Map<string, { setId: string; hash: string }>();
+    try {
+        const data = await run.ev.bank?.all();
+        for (const [setId, set] of Object.entries(data?.sets ?? {})) {
+            if (set.srcId && set.srcContentHash && !map.has(set.srcId)) {
+                map.set(set.srcId, { setId, hash: set.srcContentHash });
+            }
+        }
+    } catch (_) {
+        // 查库失败=无凭据（照旧整卷/按既有段表判定，宁多烧不漏转）
+    }
+    return map;
+}
+
 /** items 缺失时的兜底元素（理论不可达，防御）。 */
 function itemOf(run: ActiveRun, i: number): ConvertBatchItem {
     const doc = run.cfg.subDocs?.[i];
@@ -112,6 +134,9 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
     let cancelled = 0;
     /** 起跑前一次建好的 `srcId → setId` 映射（跳过判定用，零额外 SQL）。 */
     const setBySrc = await setIdsBySrc(run);
+    /** `srcId → 题集整篇源哈希`（Issue #74）：续跑篇起跑前比对当前源，
+     *  变了就清掉旧凭据——源已改时留着旧哈希，下一次重导会误判「未变更」。 */
+    const hashBySrc = await srcHashesBySrc(run);
     /** 最后一篇成功产物（队列收口时切到它——与单篇 onDone 同口径）。 */
     let last: BatchedResult | undefined;
 
@@ -137,6 +162,9 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
         }
         // 各篇续跑记录按 id 各自查（队列里排队中的篇通常还没有记录）
         const resume = resumeOf(ev, docs[i].id);
+        // 续跑篇：题集哈希以**续跑时的源**为准覆写（源没改则保持原值；
+        // 改了则清凭据——段表仍可逐段比对，绝不会误判「未变更」）
+        if (resume?.setId) await refreshSetHash(run, resume.setId, docs[i].id, hashBySrc);
         // 重发队列跳过已完成篇（Issue #62）：有记录照旧续跑；无记录但题库
         // 已有该篇题集=转换完成过 → 零 AI 跳过（勾了「重转已转换过的篇」则照跑）
         const kind = classifyQueueItem(resume, setBySrc.has(docs[i].id), cfg.reconvertDone === true);
@@ -235,6 +263,38 @@ function notifyQueueTail(ev: ConvertRunEvents, t: (k: string) => string, tail: Q
     ev.onStatus(esc(msg), tail.failed.length > 0 ? "err" : "ok", true);
     if (tail.failed.length > 0) notifyError({ key: "notifyConvertFail", vars: { msg } });
     else notifyInfo(msg);
+}
+
+/**
+ * 续跑篇起跑前的源凭据校正（Issue #74）：读**当前**源 kramdown（与转换
+ * 入口同一条字符串——剥掉块 id IAL 行），与题集记着的整篇哈希比对：
+ * 相同则原样保留（零动作）；不同则把两者都按现状覆写/清掉——
+ * `srcContentHash` 清成 undefined（哈希已不代表盘上内容），`segs` 保留
+ * （逐段比对仍能定位第一条失配段）。读取失败按「无凭据」处置（清哈希），
+ * 宁多烧不漏转。
+ */
+async function refreshSetHash(
+    run: ActiveRun,
+    setId: string,
+    docId: string,
+    hashBySrc: Map<string, { setId: string; hash: string }>
+): Promise<void> {
+    const before = hashBySrc.get(docId);
+    const set = run.ev.bank?.peek?.()?.sets?.[setId];
+    if (!set || !before || before.setId !== setId) return;
+    let now: string;
+    try {
+        const kd = await KernelBlock.kramdown(docId);
+        now = hashContent(
+            String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
+                /^\s*(?:>\s*)?\{:([^}\n]*)\bid="[^"]*"[^\n]*$/gm,
+                ""
+            )
+        );
+    } catch (_) {
+        now = ""; // 读不到源=无凭据（清哈希，宁多烧不漏转）
+    }
+    if (now !== before.hash) delete set.srcContentHash;
 }
 
 /** 某篇的续跑记录（事件里透传的 getProgress；无则该篇从头转）。 */

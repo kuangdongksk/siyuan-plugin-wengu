@@ -5,6 +5,7 @@ import type { QuestionPreview } from "../draft/ConvertDetect";
 import { extractBlockId, getDocInfo } from "../core/ConvertService";
 import { buildNormIndex } from "../source/CursorWindow";
 import { planShards } from "../source/ShardPlan";
+import { advanceSegs, hashContent } from "../source/SetSegments";
 import { applyKnowDrafts } from "../draft/QuestionDraft";
 import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { KnowledgeIndex } from "../knowledge/KnowledgeLink";
@@ -386,6 +387,18 @@ export async function convertDocBatched(
         count += nq;
         flushedBatches++;
         flushedCursor = Math.max(flushedCursor, batch.end);
+        // 源级哈希 + 分段边界表（Issue #74）：每批落库后记一段
+        // `{s, e, h}`（e=**本批实际落库游标**，段首尾相接、连续覆盖
+        // [0, flushedCursor]），并把整篇哈希写进题集——重导据此判「源未
+        // 变更」（零动作）与「第 k 段起变更」（从该段起重转）。续跑时在
+        // 既有段表上**继续追加**、整篇哈希以续跑时的源为准覆写。
+        // 放在 flush 前后都安全（同一份内存数据），取 flush 前写入以便
+        // 与记录同批落盘。
+        const segSet = opts.bank.peek()?.sets?.[setId];
+        if (segSet) {
+            segSet.segs = advanceSegs(segSet.segs, batch.start, flushedCursor, kramdown);
+            segSet.srcContentHash = hashContent(kramdown);
+        }
         await opts.bank.flush(); // 每批即落盘（崩溃安全，终止/丢弃语义建立在已落库上）
         // 断点检查点（Issue #62）：本批已落库，此刻崩溃可从 flushedCursor 续跑
         if (opts.onCheckpoint && setId) {

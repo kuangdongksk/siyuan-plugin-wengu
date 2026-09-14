@@ -2,10 +2,12 @@ import { errText } from "./../../ui/shared";
 import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
 import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/run/ConvertRun";
 import { extractBlockId, getDocInfo } from "../../convert/service/core/ConvertService";
+import { KernelBlock } from "../../siyuan/block";
 import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/source/SrcChunk";
 import { convertIncremental, sourceChunksOf } from "../../convert/service/run/ConvertIncrement";
 import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
-import { readRecordSrcGroups } from "../../bank/data/BankSets";
+import { readRecordSrcGroups, removeRecords } from "../../bank/data/BankSets";
+import { planReimportBySegs, qidsFromOffset, segViewOf } from "../../convert/service/source/SetSegments";
 import { esc, fmt } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
 import type { QuizView } from "../index";
@@ -142,15 +144,60 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
     // 不可复现，增量三态分类失去确定性依据 → 不走增量，整卷重转
     // （有续跑记录仍接着断点续写同一题集，无记录则清旧题集重转）
     const byCursor = groups.some((g) => g.key.startsWith("A:"));
-    if (byCursor) notifyInfo({ key: "notifyReimportCursor" });
     // 增量分支（二期）：带确定性结构块指纹的题集按哈希检测续做（优先于断点）
     if (groups.length > 0 && !byCursor) {
         if (rec?.setId === setId) v.convertAccess.saveConvertProgress(srcId, undefined);
         await runIncrementalReimport(v, setId, srcId, groups);
         return;
     }
-    // 续跑：保留同一题集接着写；全量重转：先清旧题集侧数据
+    // 续跑：保留同一题集接着写（优先级 1，Issue #74——有记录=上次没跑完，
+    // 不做「源未变更」短路、不做段比对）；全量重转：先清旧题集侧数据
     const resume = reimportResume(rec);
+    if (byCursor && resume) {
+        notifyInfo({ key: "notifyReimportCursor" });
+        await startReimport(v, srcId, setId, resume);
+        return;
+    }
+    // 逐段题集的源级判定（Issue #74）：整篇哈希命中=零动作；段表在=逐段
+    // 比对从第一条失配段起重转；两者皆无（存量）=现状行为（整卷重转）
+    if (byCursor) {
+        const set = (await bank.all()).sets?.[setId];
+        const src = await srcTextOf(srcId);
+        const plan = planReimportBySegs(src, segViewOf(set));
+        if (plan.kind === "unchanged") {
+            // 优先级 2：源没改过 → 零动作（不删、不烧 AI），题集/统计/专题原样
+            showStatus(v.el, v.t("notifyReimportUnchanged"), "ok");
+            return;
+        }
+        if (plan.kind === "partial") {
+            // 优先级 3：删失配段起的记录（含 hashed/专题引用），从该段续转
+            const qids = qidsFromOffset(await bank.all(), setId, plan.deleteFrom);
+            if (qids.length > 0) {
+                await removeRecords(bank, qids);
+                await bank.flush();
+            }
+            showStatus(v.el, fmt(v.t("notifyReimportPartial"), { n: String(plan.keptSegs) }), "muted");
+            await startReimport(v, srcId, setId, { offset: plan.from, setId });
+            return;
+        }
+        // 存量题集：无凭据 → 现状行为（提示 + 整卷重转）
+        notifyInfo({ key: "notifyReimportCursor" });
+    }
+    await startReimport(v, srcId, setId, undefined);
+}
+
+/**
+ * 启动一次重新导入（转换参数组装 + 视图重载 + 起跑）。`resume` 为空时
+ * 先清旧题集侧数据（记录/材料/影子专题 + 会话历史），再从头重转新题集。
+ */
+async function startReimport(
+    v: QuizView,
+    srcId: string,
+    setId: string,
+    resume: { offset: number; setId?: string } | undefined
+): Promise<void> {
+    const bank = v.bankStore();
+    if (!bank) return;
     if (!resume) {
         await bank.removeDocData(setId);
         await bank.flush();
@@ -163,6 +210,25 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
         reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf(), resume)
     );
     if (!started) showStatus(v.el, v.t("convertBusy"), "err"); // reload 间隙被抢跑的兜底
+}
+
+/**
+ * 源文档的 kramdown 读成**与转换入口同一条字符串**（剥掉块 id IAL 行，
+ * 含引用前缀变体，20260910 起 ConvertBatch 的 `A:` 偏移口径就是它）——
+ * 重导的整篇/逐段哈希必须与转换期写下的哈希同源，否则永远判不出「未
+ * 变更」。读取失败归空串（哈希必不命中 → 落到段比对/整卷重转，宁多烧
+ * 不漏转）。
+ */
+async function srcTextOf(srcId: string): Promise<string> {
+    try {
+        const kd = await KernelBlock.kramdown(extractBlockId(srcId));
+        return String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
+            /^\s*(?:>\s*)?\{:([^}\n]*)\bid="[^"]*"[^\n]*$/gm,
+            ""
+        );
+    } catch (_) {
+        return "";
+    }
 }
 
 /**
