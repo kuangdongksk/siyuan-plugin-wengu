@@ -52,10 +52,16 @@
     } = $props();
 
     let qi = $state(clampGroupQi(getGroupQi(mid) ?? 0, qs.length));
-    /** 阅读面作用域（Issue #81）：本组所在卷是英语卷才挂 .wengu-reading。
-     *  判定唯一点在壳层（QuizShell 的 readingScopeOf），这里只消费——
-     *  两条渲染链同源，非英语卷不带类名（逐字节一致）。 */
-    const reading = m.reading === true;
+    /** 阅读面（Issue #83 **改结构判据**）：本组件**就是**材料组单元
+     *  （材料块 + 依附小题 = 一题多问），故 `.wengu-reading`（凹槽阅读栏
+     *  + 衬线正文 + ¶ 段落序号 + 题卡间距阶梯）**无条件**挂——全学科一致
+     *  美化（英语阅读/完形、语文文言文、政治材料分析、工科一题多问都是
+     *  材料组），零学科依赖、零壳层传值。
+     *
+     *  ⚠️ 旧口径（#81/#82）是「本组所在卷是英语卷才挂」，由壳层经
+     *  `m.reading` 传入——英语判别不出来时材料组结构还在、美化却没了
+     *  （#83 根因）。别再退回按 m.reading 判。 */
+    const reading = true;
     let collapsed = $state(false);
     let rootEl = $state<HTMLElement | undefined>(undefined);
     let matEl = $state<HTMLElement | undefined>(undefined);

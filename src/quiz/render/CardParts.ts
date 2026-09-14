@@ -17,8 +17,4 @@ export interface CardHtmlModel {
     /** 预览模式（Issue #46）：卡头「标记为错题」钮只在预览下渲染
      *  （做题模式不加）。缺省 undefined=非预览。 */
     preview?: boolean;
-    /** 阅读面作用域（Issue #81）：本卷是英语卷时，题卡列表与材料组单元
-     *  都挂 .wengu-reading（阅读面 + 间距阶梯）。判定唯一由 QuizShell
-     *  经 readingScopeOf 给出，组件只消费（缺省/非英语卷=不带类名）。 */
-    reading?: boolean;
 }

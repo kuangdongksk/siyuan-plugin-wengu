@@ -292,8 +292,8 @@ function applySearch(root: HTMLElement, list: WenguQuestion[], t: (k: string) =>
     const term = searchTerm.trim();
     const hits = matchIndices(list, searchTerm);
     const hitIds = new Set(hits.map((i) => list[i].id));
-    // 后代式（非子选择器）：Issue #83 起混合刷的英语段题卡落在
-    // `.wengu-set-seg` 段作用域包装里，子选择器会漏掉整段英语卡
+    // 后代式（非子选择器）：Issue #83 起混合刷的**材料组段**题卡落在
+    // `.wengu-set-seg` 段作用域包装里，子选择器会漏掉整段卡
     for (const card of Array.from(root.querySelectorAll<HTMLElement>(".wengu-card-list .wengu-card"))) {
         if (card.dataset.idx === undefined) continue; // 渲染失败占位卡不参与过滤
         card.classList.toggle("wengu-pv-hide", term !== "" && !hitIds.has(card.dataset.qid ?? ""));

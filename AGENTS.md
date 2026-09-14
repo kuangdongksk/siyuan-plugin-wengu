@@ -490,15 +490,19 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
           `rootId`（=源题集 id）→ 该卷是否英语卷。
           聚合/专题混合刷按各卡各自源卷判。**任一环反查不到即 false**
           （宁缺勿错）。
-            - ⚠️ **判据是两级口径、不是题型并集单独一条腿**（Issue #83，
-              与阅读面 `readingScopeOfSet` 同源）：`isEnglishScope(subject,
-types)` = **有学科以学科为准**（`BankSet.subject` 归一后是
-              「英语/英文/english」）、**无学科才回退题型并集**（含
-              cloze/match/essay/trans 任一）。理由：题型是**作答形态**不是
-              学科——纯阅读英语训练卷全是 single（代理判不出，漏给阅读面与
-              标生词），语文卷的作文 essay 与文言文翻译 trans 又把它误判成
-              英语卷（中文词收进英文生词本）。形态代理**两个方向都会错**。
-              存量题集无 `subject` 字段 ⇒ 回退腿，逐字节不回归。
+            - ⚠️ **判据是两级口径、不是题型并集单独一条腿**（Issue #83）：
+              `isEnglishScope(subject, types)` = **有学科以学科为准**
+              （`BankSet.subject` 归一后是「英语/英文/english」）、**无学科
+              才回退题型并集**（含 cloze/match/essay/trans 任一）。理由：
+              题型是**作答形态**不是学科——纯阅读英语训练卷全是 single
+              （代理判不出，标生词整体不出），语文卷的作文 essay 与文言文
+              翻译 trans 又把它误判成英语卷（中文词收进英文生词本）。形态
+              代理**两个方向都会错**。存量题集无 `subject` 字段 ⇒ 回退腿，
+              逐字节不回归。
+            - ⚠️ **这条判据只服务「标生词」**：阅读面/题卡间距阶梯是
+              **材料组结构**判据、与学科零关系（见下文「阅读面作用域」）。
+              #81/#82 把阅读面接到这条英语判别上是修错方向（#83 根因）——
+              判别不出英语时材料组结构还在、美化却没了。
             - **学科归一只去装饰、不做模糊匹配**（学科是开放集：历史/政治/
               自控原理…，猜错比不猜更坏）：`BankSets.normalizeSubject` 取
               首个学科名（「英语（阅读理解）」→「英语」），占位（无/未知/
@@ -519,23 +523,39 @@ types)` = **有学科以学科为准**（`BankSet.subject` 归一后是
         - **两钮都不出 = 浮条整体不出现**：非英语卷在非可标区域（解析区/
           选项区）选段即此情形——改造前会浮出一条只剩「标生词」的空条。
     - **阅读面作用域（`.wengu-reading`，Issue #81 / #83）**：材料区改
-      阅读面（衬线正文/68ch 栏/段落序号/间距阶梯）是**英语卷专属**视觉
-      （`scss/reading.scss`），判定唯一入口 `quiz/flow/ReadingScope.ts`：
-        - `readingScopeOfSet(setId, bank)` = 单卷判定，与浮条「标生词」闸
-          **同一条两级口径**（`isEnglishScope`，见上）；同步窥视
-          （`bank.peek()`）——壳渲染是同步路径，未装载/反查不到一律 false
-          （宁窄勿宽：非英语卷逐字节不变）。
-        - **混合刷按题集段各判各段**：`readingSegmentsOf(groups, bank)` 逐段
-          出判定，`readingShellScope(segs)` 定整壳类名（**全段皆英语才挂**，
-          单段 ⇒ 逐字等价改造前的首题判定），`scopedSegments(segs)` 定需
-          逐段包装的段下标（`QuizShell` 为这些段套一层
-          `.wengu-set-seg.wengu-reading`，**标题行留在包装外**——
-          `.wengu-set-head:first-child` 的首/续段间距口径不变）。
-        - ⚠️ 混合刷的英语段题卡落在包装里 ⇒ 凡是按 `.wengu-card-list >
+      阅读面（衬线正文/68ch 栏/段落序号/间距阶梯，`scss/reading.scss`）
+      的判据是**材料组结构**，**与学科/题型零关系**（#81/#82 绑英语判别是
+      修错方向，#83 已纠正）：材料组（材料块 + 依附小题 = 一题多问）是
+      **全学科通用结构**——英语阅读/完形、语文文言文、政治材料分析、工科
+      大题都产出材料组，都该美化。纯逻辑唯一入口
+      `quiz/flow/ReadingScope.ts`（带单测，**不吃任何学科/题型输入**）：
+        - **组单元无条件美化**：`GroupUnitApp` 自己**就是**材料组 ⇒ 一律挂
+          `.wengu-reading`（判据写死 true，**不再消费 `m.reading`**；壳层
+          也不再按英语传值）。`CardHtmlModel` 已删 `reading` 键。
+        - **判据落在单元上，段（题集）只是边界**：`isReadingUnit(u)` =
+          `u.kind === "group"`（唯一真判据）。
+          `readingShellScope(units)` 定整壳类名（**全部单元都是材料组才挂**；
+          纯材料/一题多问卷 ⇒ 产物与改造前同形、零包装），
+          `scopedUnits(units)` 定需逐个包装的**材料组单元**下标
+          （`QuizShell` 为这些单元套一层 `.wengu-set-seg.wengu-reading`，
+          **标题行留在包装外**——`.wengu-set-head:first-child` 的首/续段间距
+          口径不变）。
+          ⚠️ **按单元而不是按段整包**：同段既有独立题又一题多问时（工科
+          大题卷），整段包装会把独立题卡也染上阅读面（衬线正文/间距阶梯），
+          违反验收 3「独立题卡不挂」。故 `wengu-reading` 的样式全是**后代
+          选择器**，类挂在哪个祖先决定作用域——独立题单元落在外层、祖先链
+          上没有该类。
+          ⚠️ 包装**按「连续阅读单元」复用**（`QuizShell` 的 `openWrap`）：
+          中间插了独立题单元就另起一个，复用同一个会让后插的材料组回到
+          先前包装里、跑到已落盘的独立题**之前**（顺序乱）。
+        - **零回归**：纯独立题卷 ⇒ 不挂整壳、零包装（渲染产物逐字节不变，
+          包括数学/政治等非材料卷）；纯材料卷 ⇒ 挂整壳、零包装（与 #82
+          的英文卷产物同形）。
+        - ⚠️ 混合刷的材料组单元落在包装里 ⇒ 凡是按 `.wengu-card-list >
 .wengu-card` 子选择器扫卡的地方都要后代式（`PreviewFlow.applySearch`
-          已改），漏一处就是「预览搜题过滤漏掉整个英语段」。
-        - 题卡列表的整壳类名与组单元自己的类名**同源**（`CardHtmlModel.reading`，
-          组单元经 `m.reading` 消费）；单卡组件不读它（只吃祖先作用域）。
+          已改），漏一处就是「预览搜题过滤漏掉整段」。
+        - `unitStartIdx` 由 QuizShell 迁入本模块（标题行落位与包装 `data-set`
+          共用，别各写一份）。
     - ⚠️ **`SKIP_SELECTOR` 与词表区的嵌套约定是「单向」的**（Issue #51 改写
       #33/#34 接口；Issue #53 起**只剩一份**协调名单）：`ClueMarkDom` 的
       `SKIP_SELECTOR`（fallback 匹配源）**只跳词表区 `.wengu-gloss`、不跳
@@ -1141,9 +1161,12 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   MaterialService 整体退役）。
     - **`subject` 真实学科**（Issue #83，20260914）：转换首批判定行报出
       （见 convert 域「首批第四行」），`BankSets.normalizeSubject` 归一键 +
-      `peekSetSubject` 同步窥视；英语卷判别以它为准、无它才回退题型并集
-      （`quiz/flow/AnnoScope.isEnglishScope`）。optional、只加不改名、
-      不 bump version、存量题集零迁移（ensureSets 推导的存量集无此字段）。
+      `peekSetSubject` 同步窥视；**唯一消费点 = 标生词的语言闸**
+      （`quiz/flow/AnnoScope.isEnglishScope`：有学科以学科为准、无学科回退
+      题型并集）。⚠️ **不接任何视觉/结构判定**——阅读面是材料组结构判据、
+      与学科无关（`quiz/flow/ReadingScope`；把阅读面绑英语判别即 #83 根因）。
+      optional、只加不改名、不 bump version、存量题集零迁移（ensureSets
+      推导的存量集无此字段）。
     - **聚合视图「全部习题」**（20260903）：保留 id `all`（BankSets.AGGREGATE_ID，
       **不落 collections**、不进专题管理，仅流程层认它）——CollectionFlow.questions/
       restore/activeTitle 与 colLoadContext 各自分流，题目=allSetQuestions、材料=

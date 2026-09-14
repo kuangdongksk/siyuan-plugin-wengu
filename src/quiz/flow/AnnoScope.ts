@@ -41,7 +41,11 @@ export function annoEnabled(mode: ViewMode): boolean {
  * 英语学科的字面归一判定（Issue #83）：`subject` 是转换首批判定行报出的
  * **真实学科**，取值开放（英语/数学/语文/历史/政治/自控原理…）。这里只认
  * 三个同义写法（英语 / 英文 / english，大小写与空白不敏感），**不做模糊
- * 匹配**——学科猜错比不认更坏（英语卷判别被假学科锁死）。
+ * 匹配**——学科猜错比不认更坏（语言闸被假学科锁死）。
+ *
+ * ⚠️ 只服务「标生词」（语言专属功能）。**不许拿它判阅读面**：阅读面是
+ * 材料组结构判据、与学科零关系（见 flow/ReadingScope，#83 根因即
+ * 「#81 把阅读面绑在英语判别上」）。
  */
 export function isEnglishSubject(subject?: string | null): boolean {
     const s = (subject ?? "").trim().toLowerCase().replace(/\s+/g, "");
@@ -49,7 +53,7 @@ export function isEnglishSubject(subject?: string | null): boolean {
 }
 
 /**
- * 卷级英语判定的**两级口径**（Issue #83，唯一判定点）：
+ * 卷级英语判定的**两级口径**（Issue #83，唯一判定点；**仅服务「标生词」**）：
  *
  * - **有学科以学科为准**：`subject` 在场即 **只看它**——不管题型并集里
  *   有没有英语四类。理由：题型是**作答形态**不是学科，「语文卷含作文
@@ -61,6 +65,10 @@ export function isEnglishSubject(subject?: string | null): boolean {
  *
  * 空学科（题集不存在/未报/占位「无」「未知」，由 BankSets.normalizeSubject
  * 归 undefined）走回退分支——与「存量无字段」同一路。
+ *
+ * ⚠️ **本判据只决定「标生词」出不出现**（生词本是英语/语言功能）：阅读面
+ * 与题卡间距阶梯看**材料组结构**、全学科一致（`flow/ReadingScope`）——
+ * 两者曾经同源是 #81 修错方向的产物（#83 已切分）。
  */
 export function isEnglishScope(
     subject: string | undefined | null,

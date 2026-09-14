@@ -1,88 +1,75 @@
-import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { peekSetSubject, peekSetTypeUnion } from "../../bank/data/BankSets";
-import { isEnglishScope } from "./AnnoScope";
-import type { WenguQuestion } from "../../types";
+import type { DrillUnit } from "../render/DrillUnits";
 
 /**
- * 阅读面作用域判定（Issue #81 纯逻辑层，单测覆盖）——「材料区改阅读面
- * + 题卡间距阶梯」是**英语卷专属**视觉：`.wengu-reading` 只许挂在英语卷
- * 的渲染产物上，数学卷/政治卷的组题若被误挂会得到衬线正文与英语阅读的
- * 间距阶梯（外观回归）。
+ * 阅读面作用域判定（Issue #81 纯逻辑层，Issue #83 **改结构判据**，单测覆盖）。
  *
- * 判定口径与 Issue #45 的「标生词」卷级判定**同源**（`AnnoScope.isEnglishScope`
- * 的两级口径，Issue #83）：**有学科以学科为准、无学科回退题型并集**。
- * 题级判不开（英语阅读的 single 与数学单选都是 single），只能看**卷**。
+ * 阅读面（材料区改凹槽阅读栏 + 衬线正文 + ¶ 段落序号 + 题卡间距阶梯）
+ * 的判据是**材料组结构**，与学科/题型**零关系**——材料组（阅读组单元 =
+ * 材料块 + 依附小题，即「一题多问」）是**全学科通用结构**：英语（阅读
+ * 理解/完形）、语文（文言文阅读）、政治（材料分析）、历史（史料阅读）、
+ * 工科/数学（题干带背景材料的大题）都产出材料组。
  *
- * 本模块是**唯一判定点**：两条渲染链（字符串壳 `CardHtml.renderMainShell`
- * 与 Svelte 组单元 `GroupUnitApp`）都只消费它的返回值，不许各写一份。
- * 混合刷按 `buildSetGroups` 的**连续题集段**逐段判（readingSegmentsOf）。
+ * ⚠️ **#81/#82 把阅读面绑在「英语卷判别」上是修错方向**（#83 根因）：
+ * 题型是**作答形态**不是学科，拿它当学科代理任何方向都判不准——「英语
+ * 阅读训练卷全是 single」漏判、「语文卷的作文 essay + 文言文翻译 trans」
+ * 误判；更要命的是**判别不出英语时材料组结构还在，美化却没了**。英语
+ * 判别（`AnnoScope.isEnglishScope`）从此**只服务「标生词」**这一语言
+ * 专属功能，不再决定任何视觉。
+ *
+ * **唯一真判据 = 单元是不是材料组单元**（`isReadingUnit`）：
+ * - **组单元**（`GroupUnitApp`）：自身就是材料组 ⇒ **无条件**挂
+ *   `.wengu-reading`（组件内写死 true，不消费壳层传值、零学科依赖）；
+ * - **整壳题卡列表**（`.wengu-card-list.wengu-reading`）：**全部单元都是
+ *   材料组单元**时才挂（纯材料/一题多问卷 ⇒ 产物与改造前同形、零包装）；
+ *   混合（聚合「全部习题」/跨学科专题、或同卷既有独立题又一题多问）下
+ *   不挂整壳，改由 `scopedUnits` 逐个包装材料组单元——**独立题卡始终
+ *   零装饰**（`wengu-reading` 的样式全是后代选择器，类挂在哪个祖先决定
+ *   作用域，故独立题卡所在的祖先链上没有它）。
+ *
+ * 段（题集）只是**边界**：`buildSetGroups` 的连续题集段是「一题集一域」，
+ * 段内单元归属同一题集，故「该段/该题集含材料组」在落点上就等价于
+ * 「该段的材料组单元挂类」——本模块按单元判定即同时满足两者，且比按段
+ * 整段包装更精确（不会把同段的独立题卡一起染上阅读面）。
  */
 
 /**
- * 单卷英语判定（阅读面作用域判定的**唯一计算体**，Issue #83 两级口径）：
- * 有学科以学科为准（`peekSetSubject`）、无学科回退题型并集
- * （`peekSetTypeUnion`），见 AnnoScope.isEnglishScope。
- *
- * 取用**同步窥视**（`bank.peek()`）——壳渲染是同步路径（Issue #46 审查：
- * 渲染期任何 await 会把壳落推后到微任务、破坏一众同步调用方），不能查库。
- * 题库已装载即当场判定；未装载/反查不到题集 ⇒ **false**（宁窄勿宽：
- * 「非英语卷逐字节不变」比「英语卷早一帧出阅读面」重要得多）。
+ * 单元级阅读面判定（**唯一真判据**）：材料组单元（`kind === "group"`，
+ * 即带材料块 + 依附小题的「一题多问」）判真，独立题（数学单选/填空）
+ * 判假。**不吃任何学科/题型输入**——正是 #83「零学科依赖」的回归锁。
  */
-export function readingScopeOfSet(setId: string | undefined, bank?: QuestionBank): boolean {
-    if (!setId || !bank) return false;
-    if (!bank.peek()) return false;
-    return isEnglishScope(peekSetSubject(bank, setId), peekSetTypeUnion(bank, setId));
+export function isReadingUnit(u: DrillUnit): boolean {
+    return u.kind === "group";
 }
 
 /**
- * 给定题列表所在卷是否英语卷（**单卷口径**）：取**首题**所在卷
- * （`q.rootId` = 源题集 id，`setQuestions` 落解析时已归位）。
- *
- * ⚠️ 多集合刷（聚合「全部习题」/跨学科专题）下这只是「首题那一段」的
- * 判定，**不能**拿来当整壳的作用域（Issue #83 的作用域级缺陷即此）——
- * 混合刷一律走 readingSegmentsOf 按段判。
+ * 单元的**整卷题下标**（独立题=`idx`，材料组=组内首题；空单元 -1）——
+ * 与 `buildSetGroups` 的 `start` 同口径（题集标题行落位也用它）。
  */
-export function readingScopeOf(list: readonly WenguQuestion[], bank?: QuestionBank): boolean {
-    return readingScopeOfSet(list[0]?.rootId, bank);
-}
-
-/**
- * **段级**英语判定（Issue #83）：按 `buildSetGroups` 的连续题集段逐段各判
- * 各的卷（数组与 groups 等长、同序）。聚合/跨学科专题混合刷下英语段挂
- * 阅读面、数学段不挂，两段各自正确。
- *
- * 调用侧两条口径：
- * - 整壳作用域 = 段判定**全为真**才把 `.wengu-reading` 挂到题卡列表上
- *   （单段时逐字等价于 readingScopeOf；混合刷下数学段不被英语段的类名
- *   波及）；
- * - 组单元/单卡段的作用域由本数组逐段给出（组单元挂自己那段，见
- *   GroupUnitApp 的 m.reading）。
- */
-export function readingSegmentsOf(groups: readonly { setId: string }[], bank?: QuestionBank): boolean[] {
-    return groups.map((g) => readingScopeOfSet(g.setId, bank));
+export function unitStartIdx(u: DrillUnit): number {
+    return u.kind === "group" ? (u.qs?.[0]?.idx ?? -1) : (u.idx ?? -1);
 }
 
 /**
  * **整壳类名**口径（Issue #83）：题卡列表挂 `.wengu-reading` 的条件 =
- * 段判定**全为真且非空**。
+ * **全部单元都是材料组单元且非空**。
  *
- * 单题集（一段）⇒ 逐字等价于改造前的「首题所在卷判定」；混合刷下英语段
- * 与数学段并存 ⇒ 不挂整壳类名（否则数学段被英语段的类名波及），改由
- * scopedSegments 逐段包装各挂各的；全段皆英语的混合刷 ⇒ 直接挂整壳，
- * 省掉一层包装。
+ * 满足时整卷每一处都是材料组 ⇒ 直接挂整壳、一个包装都不加（渲染产物
+ * 与改造前同形，`.wengu-card-list.wengu-reading`）；不满足（含独立题
+ * 单元）时**不挂**——挂上去会让独立题卡也吃到阅读面（衬线正文/间距
+ * 阶梯），故改由 `scopedUnits` 逐个包装。
  */
-export function readingShellScope(segs: readonly boolean[]): boolean {
-    return segs.length > 0 && segs.every(Boolean);
+export function readingShellScope(units: readonly DrillUnit[]): boolean {
+    return units.length > 0 && units.every(isReadingUnit);
 }
 
 /**
- * **需逐段包装**的段下标（Issue #83）：整壳类名已覆盖全部段时为空（单段
- * 与「全段皆英语」两种情形，一个包装都不加 ⇒ 默认渲染产物逐字节不变）；
- * 否则只列英语段——非英语段既不带类名也不多套一层 DOM。
+ * **需逐个包装**的单元下标（Issue #83）：整壳类名已覆盖全部单元时为空
+ * （零包装 ⇒ 默认渲染产物逐字节不变）；否则只列材料组单元——独立题单元
+ * 既不带类名也不多套一层 DOM。
  */
-export function scopedSegments(segs: readonly boolean[]): number[] {
-    if (readingShellScope(segs)) return [];
+export function scopedUnits(units: readonly DrillUnit[]): number[] {
+    if (readingShellScope(units)) return [];
     const out: number[] = [];
-    for (let i = 0; i < segs.length; i++) if (segs[i]) out.push(i);
+    for (let i = 0; i < units.length; i++) if (isReadingUnit(units[i])) out.push(i);
     return out;
 }

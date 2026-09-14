@@ -1,29 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { QuestionType, type WenguQuestion } from "../../types";
-import type { BankData, BankRecord, QuestionBank } from "../../bank/data/QuestionBank";
-import { QuestionBank as Bank } from "../../bank/data/QuestionBank";
-import { renderUnit } from "../../convert/service/draft/QuestionDraft";
-import {
-    readingScopeOf,
-    readingScopeOfSet,
-    readingSegmentsOf,
-    readingShellScope,
-    scopedSegments,
-} from "./ReadingScope";
-
-// node 测试环境无 window（vitest 不启 jsdom）；QuestionBank 的落盘防抖用
-// window.setTimeout（同 BankSets.test）
-(globalThis as { window?: unknown }).window ??= globalThis;
+import type { DrillUnit } from "../render/DrillUnits";
+import { QuestionType, type WenguQuestion, type WenguMaterial } from "../../types";
+import { isReadingUnit, readingShellScope, scopedUnits, unitStartIdx } from "./ReadingScope";
 
 /**
- * 阅读面作用域判定（Issue #81，Issue #83 改两级口径）：`.wengu-reading`
- * 只挂英语卷——**有学科以学科为准**（`BankSet.subject === "英语"` 一族）、
- * **无学科回退题型并集**（含英语四类 cloze/match/essay/trans 任一）。
+ * 阅读面作用域判定（Issue #81，Issue #83 **改结构判据**）——阅读面（凹槽
+ * 阅读栏 + 衬线正文 + ¶ 段落序号 + 题卡间距阶梯）的判据是**材料组结构**
+ * （材料块 + 依附小题 = 一题多问），与学科/题型**零关系**：英语阅读/完形、
+ * 语文文言文、政治材料分析、工科一题多问都产出材料组，都该美化；独立题
+ * （数学单选/填空）不挂。
  *
- * 下面第一段锁的是**回退腿**（存量题集/未报学科，逐字节不回归）；第二段
- * 锁 Issue #83 的验收 1/2/4/5（纯阅读英语卷、语文卷、存量、混合刷分段）。
+ * ⚠️ #81/#82 的「英语卷判别」是修错方向（#83 根因）：英语判别只服务
+ * 「标生词」（见 AnnoScope.test）。本文件**不引入任何学科/题型输入**，
+ * 正是这条「零学科依赖」的回归锁。
  */
 
+/** 最小题（单元组装只读 id/group/type）。 */
 const q = (id: string, extra: Partial<WenguQuestion> = {}): WenguQuestion => ({
     id,
     attempts: 0,
@@ -31,258 +23,89 @@ const q = (id: string, extra: Partial<WenguQuestion> = {}): WenguQuestion => ({
     ...extra,
 });
 
-const rec = (qid: string, setId: string, type: string): BankRecord => ({
-    qid,
-    // renderUnit 只做 kramdown 契约渲染；type 属性决定 records[].type
-    kramdown: renderUnit({ material: false, attrs: { type }, parts: [] }),
-    type,
-    kpRefs: [],
-    sourceDocId: setId,
-    hash: `h-${qid}`,
-    stats: { attempts: 0, wrongCount: 0, updatedAt: 0 },
+const mat = (id: string): WenguMaterial => ({ id, bodyMd: "正文" });
+
+/** 组单元（材料组 = 材料块 + 依附小题，「一题多问」）。 */
+const group = (mid: string, idxs: number[]): DrillUnit => ({
+    kind: "group",
+    mid,
+    material: mat(mid),
+    qs: idxs.map((idx) => ({ q: q(`g${idx}`, { group: mid }), idx })),
 });
 
-function newBank(seed: Partial<BankData> = {}): QuestionBank {
-    let cache: BankData | undefined;
-    return new Bank(
-        async () =>
-            (cache ??= {
-                version: 1,
-                records: {},
-                collections: [],
-                migratedDocs: [],
-                hashed: {},
-                knowRoots: [],
-                folders: [],
-                knowHidden: [],
-                docStats: {},
-                sets: {},
-                materials: {},
-                ...seed,
-            } as BankData),
-        async (v) => {
-            cache = v;
-        }
-    );
-}
+/** 独立题单元。 */
+const single = (idx: number, type: QuestionType = QuestionType.Single): DrillUnit => ({
+    kind: "single",
+    q: q(`s${idx}`, { type }),
+    idx,
+});
 
-/** 英语卷（cloze + single 混排）与数学卷（single + fill）。 */
-const englishBank = () =>
-    newBank({
-        records: {
-            e1: rec("e1", "set-en", "cloze"),
-            e2: rec("e2", "set-en", "single"),
-            m1: rec("m1", "set-math", "single"),
-            m2: rec("m2", "set-math", "fill"),
-        },
-        sets: {
-            "set-en": { id: "set-en", title: "英一阅读", qids: ["e1", "e2"], createdAt: 0 },
-            "set-math": { id: "set-math", title: "高数", qids: ["m1", "m2"], createdAt: 0 },
-        },
-    });
-
-describe("readingScopeOf 卷级英语判定（Decision matrix）", () => {
-    it("英语卷（题型并集含英语四类任一）⇒ 挂 .wengu-reading", async () => {
-        const bank = englishBank();
-        await bank.preload();
-        expect(readingScopeOf([q("e2", { rootId: "set-en" })], bank)).toBe(true);
-    });
-
-    it("数学卷（并集全非英语）⇒ 不挂（逐字节不变）", async () => {
-        const bank = englishBank();
-        await bank.preload();
-        expect(readingScopeOf([q("m1", { rootId: "set-math" })], bank)).toBe(false);
-    });
-
-    it("英语阅读的 single 题靠同卷英语题型认出来（题级判不开）", async () => {
-        const bank = englishBank();
-        await bank.preload();
-        // 同 id 的题：挂英语卷 ⇒ true；挂数学卷 ⇒ false——判的是卷不是题
-        expect(readingScopeOf([q("x", { rootId: "set-en" })], bank)).toBe(true);
-        expect(readingScopeOf([q("x", { rootId: "set-math" })], bank)).toBe(false);
-    });
-
-    it("取卷内首题的 rootId（整卷一次判定的口径）", async () => {
-        const bank = englishBank();
-        await bank.preload();
-        // 先后混排时按首题所在卷（壳层整卷一处作用域，组单元各判各段）
-        expect(readingScopeOf([q("e2", { rootId: "set-en" }), q("m1", { rootId: "set-math" })], bank)).toBe(true);
-        expect(readingScopeOf([q("m1", { rootId: "set-math" }), q("e2", { rootId: "set-en" })], bank)).toBe(false);
-    });
-
-    it("空并集/题集不存在 ⇒ 否（反查不出证据宁窄勿宽）", async () => {
-        const bank = englishBank();
-        await bank.preload();
-        expect(readingScopeOf([q("x", { rootId: "set-nope" })], bank)).toBe(false);
-        expect(readingScopeOf([q("x", { rootId: "" })], bank)).toBe(false);
-        expect(readingScopeOf([q("x")], bank)).toBe(false);
-    });
-
-    it("空列表 ⇒ 否", () => {
-        expect(readingScopeOf([], englishBank())).toBe(false);
-    });
-
-    it("题库未装载（peek 空）⇒ 否（同步窥视，不 await 查库）", () => {
-        const bank = englishBank(); // 未 preload
-        expect(bank.peek()).toBeUndefined();
-        expect(readingScopeOf([q("e2", { rootId: "set-en" })], bank)).toBe(false);
-    });
-
-    it("无题库 ⇒ 否（测试/预览壳）", () => {
-        expect(readingScopeOf([q("e2", { rootId: "set-en" })])).toBe(false);
-        expect(readingScopeOf([q("e2", { rootId: "set-en" })], undefined)).toBe(false);
-    });
-
-    it("四类英语题型任一都认（cloze/match/essay/trans）", async () => {
-        for (const [i, t] of [
-            QuestionType.Cloze,
-            QuestionType.Match,
-            QuestionType.Essay,
-            QuestionType.Trans,
-        ].entries()) {
-            const setId = `set-${i}`;
-            const bank = newBank({
-                records: { [`q${i}`]: rec(`q${i}`, setId, t) },
-                sets: { [setId]: { id: setId, title: "卷", qids: [`q${i}`], createdAt: 0 } },
-            });
-            await bank.preload();
-            expect(readingScopeOf([q(`q${i}`, { rootId: setId })], bank), `${t}`).toBe(true);
-        }
+describe("unitStartIdx：单元段首整卷下标（与 buildSetGroups.start 同口径）", () => {
+    it("独立题取 idx、材料组取组内首题、空单元 -1", () => {
+        expect(unitStartIdx(single(7))).toBe(7);
+        expect(unitStartIdx(group("m1", [3, 4]))).toBe(3);
+        expect(unitStartIdx({ kind: "group", mid: "m2", qs: [] })).toBe(-1);
+        expect(unitStartIdx({ kind: "single" })).toBe(-1);
     });
 });
 
-/* ── Issue #83：学科两级口径 ── */
-
-/** 带学科的题集（题型故意与学科「错位」，正是形态代理判不开的两类）。 */
-const subjectBank = (subject: string, types: string[]) =>
-    newBank({
-        records: {
-            s1: rec("s1", "set-s", types[0]),
-            ...(types[1] ? { s2: rec("s2", "set-s", types[1]) } : {}),
-        },
-        sets: {
-            "set-s": {
-                id: "set-s",
-                title: "卷",
-                qids: types.map((_, i) => `s${i + 1}`),
-                createdAt: 0,
-                subject,
-            },
-        },
+describe("isReadingUnit 唯一真判据：材料组结构（Issue #83 验收 3）", () => {
+    it("材料组单元判真、独立题单元判假", () => {
+        expect(isReadingUnit(group("m1", [0, 1]))).toBe(true);
+        expect(isReadingUnit(single(0))).toBe(false);
     });
 
-describe("ReadingScope：有学科以学科为准（Issue #83 验收 1/2）", () => {
-    it("纯阅读英语训练卷（题型并集只有 single）有 subject=英语 ⇒ 挂阅读面", async () => {
-        // 验收 1：改造前判非英语（题型并集无英语四类）——假阴
-        const bank = subjectBank("英语", ["single"]);
-        await bank.preload();
-        expect(readingScopeOfSet("set-s", bank)).toBe(true);
-        expect(readingScopeOf([q("s1", { rootId: "set-s" })], bank)).toBe(true);
-    });
-
-    it("语文卷（essay/trans 在场）有 subject=语文 ⇒ 不挂（形态代理的假阳被纠正）", async () => {
-        // 验收 2：essay/trans 是合法语文题型，改造前被当成英语卷
-        const bank = subjectBank("语文", ["essay", "trans"]);
-        await bank.preload();
-        expect(readingScopeOfSet("set-s", bank)).toBe(false);
-        // 反证：同一份题型并集若无学科，仍按改造前口径判英语（回退腿）
-        const legacy = subjectBank("无", ["essay", "trans"]);
-        await legacy.preload();
-        expect(readingScopeOfSet("set-s", legacy)).toBe(true);
-    });
-
-    it("学科写法容错：English/英文 认，其它学科（数学/自控原理）不认", async () => {
-        for (const ok of ["英语", " English ", "英文"]) {
-            const bank = subjectBank(ok, ["single"]);
-            await bank.preload();
-            expect(readingScopeOfSet("set-s", bank), ok).toBe(true);
-        }
-        for (const no of ["数学", "语文", "自控原理", "English literature"]) {
-            const bank = subjectBank(no, ["cloze"]);
-            await bank.preload();
-            expect(readingScopeOfSet("set-s", bank), no).toBe(false);
-        }
-    });
-
-    it("学科在场即**只看学科**：英语卷含语文形态也不动摇", async () => {
-        const bank = subjectBank("英语（阅读理解）", ["single", "trans"]);
-        await bank.preload();
-        expect(readingScopeOfSet("set-s", bank)).toBe(true);
-    });
-
-    it("存量题集（无 subject 字段）回退题型并集（验收 4，逐字节不回归）", async () => {
-        const bank = englishBank(); // sets 无 subject 键
-        await bank.preload();
-        expect(readingScopeOfSet("set-en", bank)).toBe(true);
-        expect(readingScopeOfSet("set-math", bank)).toBe(false);
-    });
-
-    it("学科占位/空串 ⇒ 走回退腿（不算「有学科」）", async () => {
-        for (const placeholder of ["无", "未知", " ", "-"]) {
-            const bank = subjectBank(placeholder, ["single"]);
-            await bank.preload();
-            // 回退题型并集：只有 single ⇒ false（而不是被假学科锁死）
-            expect(readingScopeOfSet("set-s", bank), placeholder).toBe(false);
-            const cb = subjectBank(placeholder, ["cloze"]);
-            await cb.preload();
-            expect(readingScopeOfSet("set-s", cb), placeholder).toBe(true);
-        }
+    it("零依赖：判定不吃学科/题型（同结构不同题型 ⇒ 同结果）", () => {
+        // 语文作文/翻译题（essay/trans）与英语单选在旧口径下会互判相反——
+        // 现在两者都是「独立题单元」⇒ 一律判假，与题型无关
+        expect(isReadingUnit(single(0, QuestionType.Single))).toBe(false);
+        expect(isReadingUnit(single(1, QuestionType.Essay))).toBe(false);
+        expect(isReadingUnit(single(2, QuestionType.Trans))).toBe(false);
+        // 材料组同理：里面的题不管什么题型，单元判据只看结构
+        expect(isReadingUnit(group("m1", [0]))).toBe(true);
     });
 });
 
-describe("readingSegmentsOf：混合刷按题集段各判各段（Issue #83 验收 5）", () => {
-    it("英语段 true、数学段 false（段序与 groups 同序等长）", async () => {
-        const bank = newBank({
-            records: {
-                e1: rec("e1", "set-en", "single"), // 纯阅读英语卷：无英语形态
-                m1: rec("m1", "set-math", "single"),
-            },
-            sets: {
-                "set-en": { id: "set-en", title: "英一阅读", qids: ["e1"], createdAt: 0, subject: "英语" },
-                "set-math": { id: "set-math", title: "高数", qids: ["m1"], createdAt: 0, subject: "数学" },
-            },
-        });
-        await bank.preload();
-        expect(readingSegmentsOf([{ setId: "set-en" }, { setId: "set-math" }], bank)).toEqual([true, false]);
-        expect(readingSegmentsOf([{ setId: "set-math" }, { setId: "set-en" }], bank)).toEqual([false, true]);
+describe("readingShellScope 整壳类名口径（Issue #83 验收 1/2/3）", () => {
+    it("验收 1/2：整卷都是材料组（英语阅读与语文文言文同形）⇒ 挂整壳", () => {
+        expect(readingShellScope([group("m1", [0, 1])])).toBe(true);
+        expect(readingShellScope([group("m1", [0, 1]), group("m2", [2])])).toBe(true);
     });
 
-    it("段级与单卷判定同源（逐段等价 readingScopeOfSet）", async () => {
-        const bank = englishBank();
-        await bank.preload();
-        const segs = readingSegmentsOf([{ setId: "set-en" }, { setId: "set-nope" }, { setId: "" }], bank);
-        expect(segs).toEqual([true, false, false]);
+    it("验收 3：纯独立题卷（数学单选/填空）⇒ 不挂整壳（产物逐字节不变）", () => {
+        expect(readingShellScope([single(0), single(1)])).toBe(false);
     });
 
-    it("空段表/无题库/未装载 ⇒ 全 false（宁窄勿宽）", async () => {
-        const bank = englishBank(); // 未 preload
-        expect(readingSegmentsOf([{ setId: "set-en" }], bank)).toEqual([false]);
-        expect(readingSegmentsOf([{ setId: "set-en" }])).toEqual([false]);
-        expect(readingSegmentsOf([], englishBank())).toEqual([]);
-    });
-});
-
-describe("readingShellScope / scopedSegments（Issue #83 整壳与逐段作用域）", () => {
-    it("单段：整壳类名=该段判定（逐字等价改造前的首题判定）", () => {
-        expect(readingShellScope([true])).toBe(true);
-        expect(readingShellScope([false])).toBe(false);
-        expect(scopedSegments([true])).toEqual([]); // 单段不包任何包装
-        expect(scopedSegments([false])).toEqual([]); // 非英语段也不包
+    it("验收 3：同卷「独立题 + 一题多问」⇒ 不挂整壳（避免独立题卡被染上阅读面）", () => {
+        expect(readingShellScope([single(0), group("m1", [1, 2])])).toBe(false);
+        expect(readingShellScope([group("m1", [0, 1]), single(2)])).toBe(false);
     });
 
-    it("全段皆英语：整壳挂类名、零包装（省一层 DOM）", () => {
-        expect(readingShellScope([true, true, true])).toBe(true);
-        expect(scopedSegments([true, true])).toEqual([]);
-    });
-
-    it("混合刷：不挂整壳，只给英语段包装（数学段既不挂类也不多包）", () => {
-        expect(readingShellScope([true, false])).toBe(false);
-        expect(scopedSegments([true, false, true, false])).toEqual([0, 2]);
-        expect(scopedSegments([false, false])).toEqual([]); // 全非英语：整壳不挂、无处要包
-    });
-
-    it("空段表（无题）⇒ 不挂整壳、零包装", () => {
+    it("空单元表 ⇒ 不挂（无题/未开刷）", () => {
         expect(readingShellScope([])).toBe(false);
-        expect(scopedSegments([])).toEqual([]);
+    });
+});
+
+describe("scopedUnits 逐个包装口径（Issue #83 验收 3/4）", () => {
+    it("整壳已覆盖 ⇒ 零包装（默认渲染产物逐字节不变）", () => {
+        expect(scopedUnits([group("m1", [0, 1])])).toEqual([]);
+        expect(scopedUnits([group("m1", [0]), group("m2", [1])])).toEqual([]);
+    });
+
+    it("验收 4：混合刷只包材料组单元（独立题单元既不挂类也不多套 DOM）", () => {
+        // 数学段（独立题）在前、阅读段（材料组）在后
+        expect(scopedUnits([single(0), single(1), group("m1", [2, 3])])).toEqual([2]);
+        // 阅读段在前、数学段在后
+        expect(scopedUnits([group("m1", [0, 1]), single(2), single(3)])).toEqual([0]);
+        // 交错：每个材料组单元各包各的（包装按连续阅读单元复用，见 QuizShell）
+        expect(scopedUnits([single(0), group("m1", [1]), single(2), group("m2", [3])])).toEqual([1, 3]);
+    });
+
+    it("验收 3：纯独立题卷 ⇒ 零包装（非材料卷零装饰）", () => {
+        expect(scopedUnits([single(0), single(1)])).toEqual([]);
+    });
+
+    it("空单元表 ⇒ 零包装", () => {
+        expect(scopedUnits([])).toEqual([]);
     });
 });
