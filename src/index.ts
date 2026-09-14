@@ -12,6 +12,7 @@ import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
 import { initNotify, notifyInfo } from "./ui/Notify";
+import { mountMobileDrill } from "./mobile";
 import { debounce, isMobileUi } from "./ui/shared";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
@@ -26,8 +27,14 @@ const TAB_RESULT = "wengu-tab";
 /** 单词复习页签 type（Dock 面板与兜底页签共用）。 */
 const TAB_WORDS = "wengu-words";
 
+/** 移动端刷题 dock 面板 type（Issue #59 起挂 dock；桌面不注册）。 */
+const TAB_MOBILE_DRILL = "wengu-mobile-drill";
+
 /** 单词面板的 Svelte 卸载函数（Dock 单例，模块级传递给 destroy 回调）。 */
 let wordUnmount: (() => void) | undefined;
+
+/** 移动端刷题面板的卸载函数（同 dock 单例口径）。 */
+let drillUnmount: (() => void) | undefined;
 
 /** 3.8.0 运行时的插件 Dock 注册入参（类型包 1.2.x 未收录，按运行时形状声明）。 */
 interface WordDockConfig {
@@ -225,6 +232,8 @@ export default class WenguPlugin extends Plugin {
                 // 是空桩（/\* TODO: Mobile \*/），点击原本**静默无反应**。
                 // 移动端唯一可用的插件面板通道是 dock（addDock 被包装为
                 // mobileModel 挂移动侧栏），且无程序化打开 API——只提示。
+                // 移动端刷题面板挂在 dock（下面按 isMobileUi 注册），
+                // 没有程序化打开 API——只提示用户去侧栏 dock 取。
                 if (isMobileUi()) {
                     notifyInfo({ key: "notifyMobileQuizOnly" });
                     return;
@@ -266,6 +275,28 @@ export default class WenguPlugin extends Plugin {
                 destroy: () => {
                     wordUnmount?.();
                     wordUnmount = undefined;
+                },
+            });
+        }
+
+        // 移动端刷题 dock（Issue #59）：思源移动端 openTab 是空桩，dock 是
+        // 插件面板唯一通道。**只在移动端注册**——桌面已由页签承担刷题，
+        // 重复注册会在桌面 dock 里多出一个面板（桌面零回归验收）。
+        if (isMobileUi() && dockHost.addDock) {
+            dockHost.addDock({
+                type: TAB_MOBILE_DRILL,
+                config: {
+                    title: this.i18n.pluginName || "温故",
+                    icon: "iconWengu",
+                    index: 999,
+                    hotkey: "",
+                    position: "RightBottom",
+                    size: { width: 0, height: 0 },
+                },
+                init: (custom) => this.mountMobileDrillView(custom),
+                destroy: () => {
+                    drillUnmount?.();
+                    drillUnmount = undefined;
                 },
             });
         }
@@ -430,6 +461,21 @@ export default class WenguPlugin extends Plugin {
         const m = mountWordView(el, this.i18n ?? {}, this.getWordStore());
         (custom as unknown as { wenguWordView?: WordView }).wenguWordView = m.view;
         wordUnmount = m.unmount;
+    }
+
+    /** 移动端刷题面板挂载（dock init；与单词面板同位次）。 */
+    private mountMobileDrillView(custom: { element?: Element }): void {
+        const el = custom.element as HTMLElement | undefined;
+        if (!el || !WenguPlugin.instance) return;
+        drillUnmount?.(); // dock init 重入（布局恢复竞态）先卸旧实例，防计时器泄漏
+        const mounted = mountMobileDrill(el, {
+            i18n: this.i18n ?? {},
+            bank: this.bank(),
+            history: this.history(),
+            weakness: this.weakness(),
+            settings: this.settings,
+        });
+        drillUnmount = mounted.unmount;
     }
 
     /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */
