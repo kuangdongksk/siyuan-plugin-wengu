@@ -359,11 +359,48 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
       不变；**跨节点不合并**（各节点独立）。合并后区间两两不相交 ⇒ 施工
       永不再触发保护性跳过（`wrapRange` 的守卫保留作防御）。副作用是
       **chips 与 mark 不再 1:1**（被覆盖的 chip 照常展示/两击删除，删后
-      按剩余线索重新合并），`MarkSlot.text` 取区间最长的那条（多色预留）。
+      按剩余线索重新合并），`MarkSlot.text` / `MarkSlot.clue` 取区间最长
+      的那条（多色归属即此，见下）。
       ⚠️ **两条链都要接线**（Issue #56）：装饰出口的**坐标主路径**
-      （`MaterialDecorate.applyClues`）与 `ClueMarkDom.applyClueMarks`
+      （`ClueDecorate.applyClues`）与 `ClueMarkDom.applyClueMarks`
       （fallback 兜底）在 `markSlots` 之后各自过一次合并——只修 fallback
       等于用户主路径带病。
+    - **主题多色（Issue #57）**：色板定义与平行数组在
+      `quiz/flow/ClueColor.ts`（纯逻辑带单测）：`clueColors[qid]: number[]`
+      是 `clues` 的**第三个平行数组**（`-1`=默认黄、`0..3`=
+      `--b3-card-info/success/warning/error` 四序）。三条硬口径：
+        - **归属取「最长那条」的色**：`MarkSlot.clue` 与 `text` **同源**在
+          `mergeMarkSlots` 里取最长（分开判会「颜色来自这条、文本来自那
+          条」）；`colorMapOf` 把线索引映射成色号，`applySlots` 据此写
+          **内联** style。
+        - **色号一律走主题变量**，且**变量取不到就不写 style**（落回 scss
+          默认黄）——写一个解不出的 `var()` 会让 `background-color` 整条
+          失效（高亮直接透明，比「色不对」更糟）。判定是
+          `clueColorStyle`→`themeVarsUsable` 的**自定义属性可读性**探测
+          （缓存在进程内）：拿 `getComputedStyle().backgroundColor` 当判据
+          恒为可用（未解析时是 `rgba(0,0,0,0)`，真值），等于没判。
+        - **下标对齐维护**（增/删/改）与 `clueRanges` 同款「有表才推进、无表
+          不建表」——存量线索零迁移；删除时同下标同步删（`removeClueColor`）。
+        - `anchorsOf` 的 `color` **只在显式选过色时带上**：无色的题锚点形态
+          与改造前逐字相同（下游按 key 判在场，无噪音键）。
+        - 选色入口两处，**同一份 `ui/ColorMenu.svelte`**（禁复制第二份）：
+          ① `AnnoFlow` 浮条——主钮**一步标默认黄**（零回归），紧邻的小
+          色块角标开竖排色板；色板是浮层 ⇒ 打开它会动选区，故**锚点/文本/
+          Range 在按下触发钮那一刻一次快照**（`snapshotClue`），点色块时
+          直接用快照；② `ClueFlow` chips——点 chip 上的**色点**给那条
+          线索**改色**（`current` 传该条色号，色板里打勾）。
+          ⚠️ **色点分支必须判在 chip 分支之前**（`bindClueJudge`）：色点在
+          chip 内，落到 chip 分支就成了「删除待确认」——用户想改色却把线索
+          删了。`hideBar()` 连带收浮条色板；chips 重铺（`refreshClueMarkFor`）
+          与删除都先收 chips 色板（浮层锚点已随行重建）。
+        - `ColorMenu` 的外部点击监听有**就绪闸**（延到下一个宏任务）：打开
+          色板的那次 pointerdown 可能仍在派发，当场判「点了外部」会开了又关
+          （肉眼「点了没反应」）。
+    - **模块拆分**（Issue #57 压 500 行红线）：`MaterialDecorate`（270）只剩
+      装饰编排 ①~⑤；线索施工移入 `ClueDecorate`（计划/落格/摘 mark），
+      DOM 观测（三套选择器 + 文本节点表 + 建权威坐标系）移入 `CanonDom`
+      ——两边都从 `CanonDom` 取观测，**不再互相 import**（防循环依赖）；
+      对外门面由 `MaterialDecorate` 转出，调用侧零改动。
     - **空白必须全丢而不是折叠**：DOM 里 `</p><p>`、`<strong>` 边界之间是
       **零空白**，用户拖选得到的是换行——只折叠不丢，跨块边界永远匹配不上。
     - 桌面客户端「点按钮无反应」防御三件套（Web 端复现不了）：浮条根**捕获
@@ -415,7 +452,9 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
       偏移）；非权威区（词表区/上标/按钮/选项/解析/公式占位）剔除。
       关键性质：**装饰只改变节点边界、不改权威文本** ⇒ 权威串跨装饰恒定，
       坐标可用权威切片校验。
-    - `quiz/service/MaterialDecorate.ts` = 材料/题干挂载的**唯一装饰出口**：
+    - `quiz/service/MaterialDecorate.ts` = 材料/题干挂载的**唯一装饰出口**
+      （Issue #57 起只留编排：施工在 `ClueDecorate`、DOM 观测在 `CanonDom`，
+      见上文「模块拆分」）：
       ① 基础渲染（正文 + 词表区合成**一次** `innerHTML`）→ ② 权威节点表 →
       ③ 词形联动（Issue #53 三期自 GlossDom 就地迁入施工代码）→ ④ **轮间
       重算映射**（`remapCanon`，以权威坐标为中介重建节点表 ⇒ mark 可跨

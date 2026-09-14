@@ -272,6 +272,36 @@ describe("mergeMarkSlots（重叠区间合并取并集，Issue #56）", () => {
         for (let i = 1; i < merged.length; i++) expect(merged[i - 1].start).toBeGreaterThanOrEqual(merged[i].end);
     });
 
+    // Issue #57：合并归属不止 `text`——`clue`（线索引）必须**同源**取
+    // 「最长那条」，选色才能与 chips/正文观感一致。
+    it("合并归属的线索引与文本同源（取最长那条，Issue #57）", () => {
+        const long = { node: 0, start: 10, end: 35, text: "proposal might be regarded", clue: 2 };
+        const short = { node: 0, start: 10, end: 18, text: "proposal", clue: 5 };
+        for (const input of [
+            [short, long],
+            [long, short],
+        ]) {
+            const merged = mergeMarkSlots(input);
+            expect(merged).toEqual([long]);
+        }
+    });
+
+    it("部分重叠：归属（text + clue）一并取最长那条", () => {
+        const merged = mergeMarkSlots([
+            { node: 0, start: 0, end: 6, text: "abcd", clue: 0 },
+            { node: 0, start: 4, end: 16, text: "efghijklmnop", clue: 1 },
+        ]);
+        expect(merged).toEqual([{ node: 0, start: 0, end: 16, text: "efghijklmnop", clue: 1 }]);
+    });
+
+    it("同长取先出现的那条（入参顺序稳定）：clue 与 text 同源", () => {
+        const merged = mergeMarkSlots([
+            { node: 0, start: 0, end: 4, text: "甲乙", clue: 3 },
+            { node: 0, start: 2, end: 6, text: "丙丁", clue: 7 },
+        ]);
+        expect(merged).toEqual([{ node: 0, start: 0, end: 6, text: "甲乙", clue: 3 }]);
+    });
+
     it("空集零动作；单段原样透传", () => {
         expect(mergeMarkSlots([])).toEqual([]);
         expect(mergeMarkSlots([slot(0, 3, 7, "单")])).toEqual([slot(0, 3, 7, "单")]);

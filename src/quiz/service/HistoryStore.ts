@@ -57,6 +57,17 @@ export interface WenguSession {
      * 持久化坐标）。数据演进守则：optional、不改名、不 bump version。
      */
     clueRanges?: Record<string, ({ s: number; e: number } | undefined)[]>;
+    /**
+     * 各题线索的**色号**（Issue #57：`clues` 的又一个平行字段，下标与
+     * `clues[qid]` 严格对齐）。
+     *
+     * 值域：`-1` = 默认黄，`0..3` = 四主题卡片色序（见
+     * `quiz/flow/ClueColor` 的 `CLUE_COLORS`）。旧会话没有此键 ⇒ 全部
+     * 默认黄（**存量线索零迁移**）；某位缺失/越界同样落回默认黄。
+     * 数据演进守则：optional、不改名、不 bump version、渲染不回写
+     * （只有用户显式选色才落库）、删除线索时同下标同步删。
+     */
+    clueColors?: Record<string, number[]>;
 }
 
 /** 插件存储（saveData("history")）里的会话历史。 */

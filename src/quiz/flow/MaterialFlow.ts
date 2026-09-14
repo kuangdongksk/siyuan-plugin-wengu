@@ -1,6 +1,7 @@
 import { chaseScrollIntoView } from "../render/NumRail";
 import { esc, fmt } from "../../ui/shared";
 import { syncChipArmState } from "./ClueMarkDom";
+import { clueColorAt, clueColorDef } from "./ClueColor";
 
 /**
  * 材料组交互（E1，6-4b 状态化）：组内导航/材料折叠/滚动记忆已收进
@@ -93,11 +94,29 @@ export function syncGroupReveal(root: HTMLElement, list: { id: string; group?: s
     }
 }
 
+/** chip 上的色点（呼应正文 mark 的颜色，Issue #57）：点它切换该条线索的
+ *  色号（「再点一次」在该 chip 的色板里循环，见 ClueFlow 的色点委托）。
+ *  色点色值走主题变量，明暗/第三方主题实时适配。 */
+function colorDotHtml(color: number): string {
+    const def = clueColorDef(color);
+    const cssVar = def?.cssVar ?? "--b3-card-warning";
+    return `<i class="wengu-clue-dot${def ? "" : " wengu-clue-dot-default"}" style="background-color:var(${cssVar})"></i>`;
+}
+
 /** 线索 chips 行（M5 线索标注，ClueFlow 渲染/刷新）——**组题材料槽与
  *  非组题题干槽共用同一份渲染**（Issue #28；槽位由 [data-clues] 定位，
  *  禁复制第二份）。chip 两击删除：首击加警示类（3s 复位，状态机在
- *  ClueMarkDom），再击由 ClueFlow 的委托收口删线索；title 带删除提示。 */
-export function renderClueRow(row: HTMLElement, t: (k: string) => string, clues: string[]): void {
+ *  ClueMarkDom），再击由 ClueFlow 的委托收口删线索；title 带删除提示。
+ *
+ *  Issue #57：每条 chip 前缀一个**同色圆点**（`colors` 与 `clues` 同下标；
+ *  缺省/越界=默认黄）——颜色与正文 mark 视觉呼应。`colors` 缺省（题从未
+ *  选色）时逐条走默认黄，观感与改造前一致（只多一个圆点）。 */
+export function renderClueRow(
+    row: HTMLElement,
+    t: (k: string) => string,
+    clues: string[],
+    colors?: readonly number[]
+): void {
     if (!row) return;
     if (clues.length === 0) {
         row.setAttribute("hidden", "");
@@ -110,7 +129,7 @@ export function renderClueRow(row: HTMLElement, t: (k: string) => string, clues:
         clues
             .map(
                 (c, i) =>
-                    `<span class="wengu-clue-chip" data-clue="${i}" title="${esc(fmt(t("clueChipTitle"), { c, h: t("clueChipDeleteHint") }))}">${esc(c.slice(0, 40))}…</span>`
+                    `<span class="wengu-clue-chip" data-clue="${i}" title="${esc(fmt(t("clueChipTitle"), { c, h: t("clueChipDeleteHint") }))}">${colorDotHtml(clueColorAt(colors, i))}${esc(c.slice(0, 40))}…</span>`
             )
             .join("") +
         `<button class="wengu-btn" data-act="clue-judge">${esc(t("clueJudge"))}</button>`;

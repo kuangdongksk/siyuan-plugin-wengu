@@ -263,6 +263,9 @@
 }
 
 .wengu-clue-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -272,6 +275,16 @@
   background: color-mix(in srgb, var(--b3-theme-primary) 15%, transparent);
   font-size: 81.25%;
   cursor: pointer;
+}
+
+/* chip 上的同色圆点（Issue #57）：呼应正文 mark 的颜色，色值由渲染侧
+   以 style 内联喂入（走主题变量，明暗/第三方主题实时适配）。 */
+.wengu-clue-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-background) 25%, transparent);
 }
 
 /* 两击删除的待确认态（Issue #28）：第一击给红框警示，3s 复位。
@@ -351,10 +364,14 @@
   line-height: 0;
 }
 
-/* 原文持久高亮（Issue #28）：线索段在材料/题干里的视觉锚点，色随主题。
-   高亮只做背景/下划线，不改字色——材料正文在暗色主题下也保持可读。 */
+/* 原文持久高亮（Issue #28）：线索段在材料/题干里的视觉锚点。
+   色分两路（Issue #57）：常态由渲染侧写**内联** style（主题卡片色
+   `--b3-card-*` + `-color` 前景，四色可选）；主题变量解不出时内联样式
+   缺省，落回本段的**默认黄**兜底——故这里的兜底色与「未选色」同观
+   （`--b3-card-warning` 系），不再是主题主色。字色保持 `inherit`
+   （内联色只在选过色的路径写），材料正文在暗色主题下照样可读。 */
 mark.wengu-clue-mark {
-  background: color-mix(in srgb, var(--b3-theme-primary) 32%, transparent);
+  background: color-mix(in srgb, var(--b3-card-warning) 45%, transparent);
   color: inherit;
   border-radius: 3px;
   padding: 0 1px;
@@ -404,6 +421,80 @@ mark.wengu-clue-mark {
 
 .wengu-annobar-btn:hover {
   background: var(--b3-list-hover);
+}
+
+/* 选色入口（Issue #57）：主钮「标为线索」旁的小色块角标——点它开竖排
+   色板。与主钮同款 hover，但视觉上先秀「默认黄」的色块，暗示这里有颜色。 */
+.wengu-annobar-color {
+  gap: 3px;
+  padding: 4px 6px 4px 4px;
+  border-left: 1px solid var(--b3-border-color);
+}
+
+.wengu-annobar-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--b3-card-warning);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-background) 20%, transparent);
+}
+
+.wengu-annobar-color svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── 竖排色板（Issue #57，独立可复用积木 ui/ColorMenu.svelte）──
+   宿主挂 body 的 fixed 浮层（与 annobar 同款定位口径）；色块色值由
+   组件内联喂入主题变量，本段只管布局与观感。 */
+.wengu-colormenu-host {
+  position: fixed;
+  z-index: 1001;
+}
+
+.wengu-colormenu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: var(--b3-border-radius-b);
+  background: var(--b3-theme-surface);
+  box-shadow: var(--b3-dialog-shadow);
+  user-select: none;
+}
+
+.wengu-colormenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--b3-theme-on-background);
+  font-size: 87.5%;
+  text-align: left;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--b3-border-radius);
+}
+
+.wengu-colormenu-item:hover {
+  background: var(--b3-list-hover);
+}
+
+.wengu-colormenu-item-on {
+  background: color-mix(in srgb, var(--b3-theme-primary) 15%, transparent);
+}
+
+.wengu-colormenu-swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--b3-border-radius);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-background) 20%, transparent);
+}
+
+.wengu-colormenu-label {
+  flex: 1;
 }
 
 /* ── 作文词数（E3）── */

@@ -146,6 +146,9 @@ export interface MarkPlan {
     text: string;
     /** 命中区间列表（按节点序）；空=定位不到（只留 chip，不高亮）。 */
     hits: NodeRange[];
+    /** 该条线索在 `clues` 里的下标（Issue #57 选色归属；缺省/`-1` =
+     *  未知 ⇒ 取默认色）。`planMarks` 从下标 0 起按入参数顺序给值。 */
+    clue?: number;
 }
 
 /**
@@ -160,11 +163,14 @@ export interface MarkPlan {
 export function planMarks(nodes: string[], clues: string[]): MarkPlan[] {
     const seen = new Set<string>();
     const out: MarkPlan[] = [];
-    for (const raw of clues) {
-        const text = raw.trim();
+    for (let i = 0; i < clues.length; i++) {
+        const text = clues[i].trim();
         if (!text || seen.has(text)) continue;
         seen.add(text);
-        out.push({ text, hits: locateAcrossNodes(nodes, text) });
+        // `clue` 记**原文数组里的下标**（去重后取首次出现的位）——选色
+        // 归属要按下标查 `clueColors`，不能按 `text` 反查（同一文本可能
+        // 在数组里出现多次，`indexOf` 会拿到错的位）
+        out.push({ text, hits: locateAcrossNodes(nodes, text), clue: i });
     }
     return out;
 }
@@ -173,6 +179,9 @@ export function planMarks(nodes: string[], clues: string[]): MarkPlan[] {
 export interface MarkSlot extends NodeRange {
     /** 该段归属的线索原文（施工与排查用；chips 侧另有同一份）。 */
     text: string;
+    /** 该段归属的线索在 `clues` 里的下标（Issue #57 选色用；缺省/`-1` =
+     *  未知 ⇒ 取默认色）。合并时与 `text` 同源取「最长那条」。 */
+    clue?: number;
 }
 
 /**
@@ -194,7 +203,9 @@ export interface MarkSlot extends NodeRange {
 export function markSlots(plan: MarkPlan[]): MarkSlot[] {
     const out: MarkSlot[] = [];
     for (const item of plan) {
-        for (const hit of item.hits) out.push({ node: hit.node, start: hit.start, end: hit.end, text: item.text });
+        for (const hit of item.hits) {
+            out.push({ node: hit.node, start: hit.start, end: hit.end, text: item.text, clue: item.clue });
+        }
     }
     return out.sort((a, b) => a.node - b.node || b.start - a.start);
 }
@@ -219,8 +230,9 @@ export function markSlots(plan: MarkPlan[]): MarkSlot[] {
  *
  * 副作用（预期行为，别当 bug 修）：chips 与 mark 从此**不再 1:1**——
  * 被覆盖的线索 chip 照常展示、照常两击删除，删掉后重渲染按剩余线索重新
- * 合并。`text` 取**区间最长的那条**线索原文（施工排查用；同长取先出现
- * 的那条，与入参顺序稳定），仅为 #B 多色预留归属，本 Issue 不做颜色。
+ * 合并。`text` 与 `clue`（线索引）都取**区间最长的那条**（同长取先出现
+ * 的那条，与入参顺序稳定）——`clue` 即 Issue #57 的选色归属口径：
+ * 重叠合并后的 mark 取最长那条线索的选色，与 chips 视觉主从一致。
  *
  * 合并后区间两两不相交 ⇒ 施工永不再触发保护性跳过；`wrapRange` 的守卫
  * 保留作**防御**（节点表与计划不同源时的最后一道闸）。
@@ -253,8 +265,16 @@ export function mergeMarkSlots(slots: MarkSlot[]): MarkSlot[] {
             // 重叠或相接（`<=`）：并成一段，end 取 max
             if (s.start <= cur.end) {
                 const len = s.end - s.start;
-                const text = len > curLen ? s.text : cur.text;
-                cur = { node: cur.node, start: cur.start, end: Math.max(cur.end, s.end), text };
+                // 归属（原文 + 线索引）必须**同源**取最长那条——两者分开
+                // 判会让「颜色来自这条、文本来自那条」，排查与观感都错位
+                const win = len > curLen ? s : cur;
+                cur = {
+                    node: cur.node,
+                    start: cur.start,
+                    end: Math.max(cur.end, s.end),
+                    text: win.text,
+                    clue: win.clue,
+                };
                 curLen = Math.max(curLen, len);
                 continue;
             }
