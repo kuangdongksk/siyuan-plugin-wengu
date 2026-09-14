@@ -21,13 +21,18 @@ vi.mock("../../service/source/SubDocs", async (importOriginal) => {
     const orig = await importOriginal<typeof import("../../service/source/SubDocs")>();
     return {
         ...orig,
-        planSubDocs: vi.fn(async () => ({
-            root: { id: "20260828145729-00000000", title: "卷" },
-            children: [
-                { id: "20260828145730-aaaaaaaa", title: "01" },
-                { id: "20260828145731-bbbbbbbb", title: "02" },
-            ],
-            rootEmpty: true,
+        // 按 docId 分流：ROOT 是文件夹式文档（空壳 + 子文档），其余是叶子
+        // ——叶子那一路用来验「存量 batch 记录退化为单篇流程时续跑游标仍在」。
+        planSubDocs: vi.fn(async (docId: string) => ({
+            root: { id: docId, title: docId === "20260828145729-00000000" ? "卷" : "02" },
+            children:
+                docId === "20260828145729-00000000"
+                    ? [
+                          { id: "20260828145730-aaaaaaaa", title: "01" },
+                          { id: "20260828145731-bbbbbbbb", title: "02" },
+                      ]
+                    : [],
+            rootEmpty: docId === "20260828145729-00000000",
         })),
         // 生产实现会把「根空壳」展开成全部子文档——这里保留真实实现即可，
         // 只把探查结果换成可复现的固定清单
@@ -148,6 +153,25 @@ describe("ConvertDialogCtl.start 队列口径（Issue #62）", () => {
         ctl.setDocId(ROOT);
         await settle();
         ctl.start(rec());
+        ctl.detach();
+        expect(started.length).toBe(1);
+        expect(started[0].subDocs).toBeUndefined();
+        expect(started[0].resume).toEqual({ offset: 100, setId: "set-1" });
+    });
+
+    it("存量 batch 记录（无 rootId）预填该篇是叶子时，仍走单篇并照传 resume（验收 5）", async () => {
+        // 面板对无 rootId 的存量队列记录只预填**记录所属那一篇**；该篇若是
+        // 叶子（无子文档），队列退化回单篇流程——此时 cfg.resume 必须照传，
+        // 否则断点游标丢失、整篇从头重烧（本轮修复的回归点）。
+        const piece = "20260828145731-bbbbbbbb";
+        const legacy = rec({ index: 1, total: 3, groupTitle: "队列" }); // 无 rootId
+        const { deps, started } = dialogDeps({ [piece]: legacy });
+        const ctl = new ConvertDialogCtl();
+        const ui = initialConvertDialogUi();
+        ctl.attach(ui, deps, () => undefined);
+        ctl.setDocId(piece);
+        await settle();
+        ctl.resume();
         ctl.detach();
         expect(started.length).toBe(1);
         expect(started[0].subDocs).toBeUndefined();
