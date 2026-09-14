@@ -208,7 +208,7 @@ export interface CanonSlot {
  *
  * `map` 必须是**当前 DOM 节点表**口径的权威表（装饰完成后由 remapCanon
  * 重建），施工前算好全部计划、再由 markSlots 排序统一落格——`splitText`
- * 会截短节点，同一节点内靠后的段必须先切（与 GlossDom.assignHitsToNodes
+ * 会截短节点，同一节点内靠后的段必须先切（与 MaterialDecorate.assignHitsToNodes
  * 同款口径，Issue #36）。
  *
  * 一条坐标段**跨多个节点**时逐节点取交集展开成多段（表内节点均属权威，

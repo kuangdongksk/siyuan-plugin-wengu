@@ -343,4 +343,14 @@ describe("三期收拢：名单与依赖方向（Issue #53 验收 4/5）", () =>
         expect(typeof mod.applyGlossLinks).toBe("function");
         expect("applyGloss" in gloss).toBe(false);
     });
+
+    it("GlossDom 旧 wrap 路径的残留导出已删净（clearGlossLinks / 兼容别名）", async () => {
+        // 收拢不留兼容壳：整段重铺（decorate）已覆盖幂等，摘标记的独立入口
+        // 与 ensureCanonMap 别名都没有调用点——留着就是「两套口径」的种子。
+        const mod = await import("./MaterialDecorate");
+        expect("clearGlossLinks" in mod).toBe(false);
+        expect("ensureCanonMap" in mod).toBe(false);
+        // 装饰层也不再转出 splitGloss（解析契约在 GlossDom 一处）
+        expect("splitGloss" in mod).toBe(false);
+    });
 });
