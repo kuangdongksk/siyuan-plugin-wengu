@@ -252,7 +252,7 @@ export function openCollectionDialog(deps: CollectionDialogDeps): void {
             t("collectDefaultTitle");
         const keys = [...selected];
         dialog.destroy(); // 参数收齐即关窗：收集索引在后台查
-        launchAiFlow((stop) =>
+        launchAiFlow({ title: t("aiFlowTitleCollect") }, (stop) =>
             bank
                 .knowledgeIndex()
                 .then((idx): { key: string; title: string }[] => [

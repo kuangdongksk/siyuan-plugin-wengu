@@ -829,5 +829,21 @@
   "mobileSelfHint": "No auto grading for this question — self-assess",
   "mobileSlotsDesktopOnly": "Cloze/matching needs per-blank answering on desktop",
   "mobileSetGroupCount": "{n} sets",
-  "mobileSetActive": "Current"
+  "mobileSetActive": "Current",
+  "aiFlowStop": "Stop",
+  "aiFlowStopConfirm": "Click again to stop",
+  "aiFlowKeep": "Keep generated",
+  "aiFlowDiscard": "Discard all",
+  "aiFlowOwningBatch": "This record belongs to “{flow}”; a single AI call can't be stopped on its own — use the banner above.",
+  "aiFlowBatchCounts": "done {d} · skipped {k} · stopped {s} · failed {f} · cancelled {c}",
+  "aiFlowTitleMatch": "Match knowledge doc",
+  "aiFlowTitleBatchLink": "Batch link knowledge",
+  "aiFlowTitleTag": "Generate tags",
+  "aiFlowTitleVariant": "Variant drills",
+  "aiFlowTitleWeak": "Weak-point drills",
+  "aiFlowTitleCollect": "Collect & add questions",
+  "aiFlowTitleRegen": "Batch regenerate",
+  "convertStoppedHint": "This record belongs to a full-document conversion; a single AI call can't be stopped on its own — use the banner above.",
+  "aiFlowTitleOutline": "AI indexing",
+  "aiFlowOutlineProgress": "Indexed {i}/{n} docs"
 }

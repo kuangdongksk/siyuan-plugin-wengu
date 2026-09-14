@@ -65,7 +65,9 @@ export function openVariantDrillDialog(deps: VariantDrillDeps, docId: string, do
                 VARIANT_MAX_PER_RUN
         );
         dialog.destroy(); // 点击即关窗：后台流，终态走通知
-        launchAiFlow((stop) => runVariantDrill(deps, docId, docTitle, range, count, stop));
+        launchAiFlow({ title: deps.t("aiFlowTitleVariant") }, (stop) =>
+            runVariantDrill(deps, docId, docTitle, range, count, stop)
+        );
     });
 }
 

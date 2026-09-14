@@ -90,7 +90,7 @@ export function openWeakDrill(deps: WeakDrillDeps, rows: WeakTopRow[]): void {
             Number(root.querySelector<HTMLSelectElement>("[data-act='drill-count']")?.value ?? 3) || 3
         );
         dialog.destroy(); // 点击即关窗：后台流，终态走通知
-        launchAiFlow((stop) => runDrill(deps, picked, mode, count, stop));
+        launchAiFlow({ title: deps.t("aiFlowTitleWeak") }, (stop) => runDrill(deps, picked, mode, count, stop));
     });
 }
 

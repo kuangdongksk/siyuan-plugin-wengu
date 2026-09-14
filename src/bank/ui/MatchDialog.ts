@@ -122,7 +122,7 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
         if (!src) return;
         const skip = root.querySelector<HTMLInputElement>("[data-act='match-skip']")?.checked ?? true;
         dialog.destroy(); // 点击即关窗：后台流，终态走通知
-        launchAiFlow((stop) => runMatch(deps, src, skip, stop));
+        launchAiFlow({ title: deps.t("aiFlowTitleMatch") }, (stop) => runMatch(deps, src, skip, stop));
     });
 }
 

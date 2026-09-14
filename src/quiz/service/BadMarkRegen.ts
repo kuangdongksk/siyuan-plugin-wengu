@@ -22,7 +22,7 @@ import { regenBadMarkedRecords } from "../../bank/ui/RegenDialog";
 export function regenBadMarkedFor(v: QuizView): void {
     const bank = v.bankStore();
     if (!bank) return;
-    launchAiFlow(async (stop) => {
+    launchAiFlow({ title: v.t("aiFlowTitleRegen") }, async (stop) => {
         await regenBadMarkedRecords({ t: v.t, bank, modelId: v.aiModelId(), onDone: () => void v.reloadView() }, stop);
     });
 }

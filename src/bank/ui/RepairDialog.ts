@@ -175,7 +175,7 @@ export async function openHealthDialog(deps: RepairDeps): Promise<void> {
             return;
         }
         dialog.destroy(); // 点击即关窗：批量 AI 后台跑，进度在 AI 会话面板，终态走通知
-        launchAiFlow(async (stop) => {
+        launchAiFlow({ title: t("aiFlowTitleRegen") }, async (stop) => {
             await regenRecords(
                 { t, bank, modelId: deps.modelId(), onDone: deps.onDone },
                 picked.map((r) => r.qid),

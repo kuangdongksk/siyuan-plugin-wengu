@@ -67,7 +67,7 @@ export async function openBatchLinkDialog(deps: BatchDeps): Promise<void> {
         const syn = root.querySelector<HTMLInputElement>("[data-act='batch-syn']")?.checked ?? true;
         const skip = root.querySelector<HTMLInputElement>("[data-act='batch-skip']")?.checked ?? true;
         dialog.destroy(); // 点击即关窗：后台流，终态走通知
-        launchAiFlow((stop) => runBatch(deps, ai, syn, skip, stop));
+        launchAiFlow({ title: deps.t("aiFlowTitleBatchLink") }, (stop) => runBatch(deps, ai, syn, skip, stop));
     });
 }
 

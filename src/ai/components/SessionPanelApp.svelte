@@ -5,7 +5,9 @@
     import { SessionPanelCtl } from "../core/SessionPanelCtl";
     import { AI_INTERRUPTED, type AiSessionRecord } from "../data/AiSessions";
     import { buildSessionTree } from "../core/SessionTree";
+    import { flowOwnershipOf, ownershipTextOf } from "../core/FlowOwnership";
     import { listAiModels } from "../models";
+    import FlowBanner from "./FlowBanner.svelte";
     import TreeList from "../../ui/TreeList.svelte";
     import type { TreeListNode } from "../../ui/TreeListTypes";
     import { svgIcon } from "../../ui/FormHtml";
@@ -115,6 +117,9 @@
             </span>
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("aiPanelHint")}</div>
+
+        <!-- 流级横幅（Issue #77）：多调用流的停止唯一入口；无在途流时整条不渲染 -->
+        <FlowBanner {t} />
 
         <div class="wengu-ai-kinds">
             <Button type="button" variant={ui.filter === "" ? "main" : "outline"} onclick={() => ctl.setFilter("")}
@@ -233,12 +238,14 @@
                                 </div>
                             {/if}
                         </div>
+                        <!-- 记录详情**不再渲染停止钮**（Issue #77）：整批停止的唯一
+                             入口是上方流级横幅。多调用流给一行归属说明；单调用流
+                             （判分/伴学…）本来就没有有效停止面，不出任何停止 UI。 -->
                         {#if sel.status === "running"}
-                            <div class="wengu-ai-composer">
-                                <Button type="button" variant="outline" onclick={() => ctl.stop(sel)}
-                                    >{t("aiStop")}</Button
-                                >
-                            </div>
+                            {@const own = ownershipTextOf(t, flowOwnershipOf(sel))}
+                            {#if own}
+                                <div class="wengu-ai-owning">{own}</div>
+                            {/if}
                         {:else if sel.status === "error"}
                             <div class="wengu-ai-composer">
                                 <Button type="button" variant="main" onclick={() => void ctl.retry(sel)}
