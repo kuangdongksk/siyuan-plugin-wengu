@@ -2153,7 +2153,7 @@
             <!-- ==================== 06 施工规格 · AI 会话面板（追加节，不动上方任何原内容） ==================== -->
             <section class="sec" id="spec" data-od-id="section-spec">
                 <style>
-                    /* 06 节专用样式（前缀 sp-，不与原类冲突；原 <style> 一字未动） */
+                    /* 06 节专用样式（前缀 sp-，不与原类冲突；原 style 块一字未动） */
                     #spec .sp-note {
                         margin-top: 14px;
                         color: var(--muted);
@@ -2310,52 +2310,215 @@
                     <span class="sec-sub">实现逐字对齐 · 禁止自由发挥</span>
                 </div>
                 <p class="sec-note">
-                    本节是 02 节三屏的<b>施工图</b>：6.1 给出设计稿 oklch 令牌到思源 <b>var(--b3-*)</b> 的唯一落点（色值必须走
-                    b3 变量，#70 事故口径）；6.2 是 `.ai-panel` 全部元素的 CSS
-                    规格总表（逐条从本稿 `<style>` 提取，<b>值不改</b>——实现时按表抄写，凑不出的令牌按 6.1 映射落
+                    本节是 02 节三屏的<b>施工图</b>：6.1 给出设计稿 oklch 令牌到思源
+                    <b>var(--b3-*)</b> 的唯一落点（色值必须走 b3 变量，#70 事故口径）；6.2 是 `.ai-panel` 全部元素的 CSS
+                    规格总表（逐条从本稿 style 块提取，<b>值不改</b>——实现时按表抄写，凑不出的令牌按 6.1 映射落
                     b3，其余尺寸/字距/字重照字面值）；6.3 交代<b>存量记录的回退形态</b>（旧数据叶子行只有「转换」二字 +
                     时间 + 三态徽标，不是稿里 mock 的「生成第 N 批 · M 题」，对不上稿时按 6.3 认、不要自由发挥）；6.4
-                    是新数据形态与轮次日志三行的逐行对照（哪些可施工、哪些是稿 mock 专属）。
-                    差距清单见配套 `gap-list.md`。
+                    是新数据形态与轮次日志三行的逐行对照（哪些可施工、哪些是稿 mock 专属）。 差距清单见配套
+                    `gap-list.md`。
                 </p>
 
                 <!-- ==================== 6.1 令牌映射 ==================== -->
                 <h3 class="sp-h3"><span class="sp-h3n">6.1</span>令牌 → 思源 b3 落点（唯一授权映射）</h3>
                 <p class="sp-sub">
-                    「b3 落点」列即实现色值的最终形态；表中 color-mix 一律 `color-mix(in srgb, … , transparent)`。尺寸令牌
-                   （--r 6px / --r-b 12px）与 mono 字族直接写字面值 / `var(--b3-font-family-code)`。
+                    「b3 落点」列即实现色值的最终形态；表中 color-mix 一律 `color-mix(in srgb, … ,
+                    transparent)`。尺寸令牌 （--r 6px / --r-b 12px）与 mono 字族直接写字面值 /
+                    `var(--b3-font-family-code)`。
                 </p>
                 <div class="sp-tblwrap">
                     <table class="sp-tbl">
                         <thead>
-                            <tr><th>稿令牌</th><th>稿值（oklch）</th><th>b3 落点（实现写这个）</th><th>用途</th></tr>
+                            <tr>
+                                <th>稿令牌</th>
+                                <th>稿值（oklch）</th>
+                                <th>b3 落点（实现写这个）</th>
+                                <th>用途</th>
+                            </tr>
                         </thead>
                         <tbody>
-                            <tr><td class="sel">--surface</td><td class="dec">0.3904 0.0284 232.7</td><td class="b3"><code>var(--b3-theme-surface)</code></td><td class="b3">卡面 / 详情底</td></tr>
-                            <tr><td class="sel">--surface-2</td><td class="dec">0.4344 0.0284 232.7</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-surface) 90%, var(--b3-theme-on-surface) 10%)</code>（或退回同 surface，靠 3px 左线分层）</td><td class="b3">横幅 run 底</td></tr>
-                            <tr><td class="sel">--surface-3</td><td class="dec">0.3404 0.0242 234.5</td><td class="b3"><code>var(--b3-theme-background)</code></td><td class="b3">树凹槽底 / fb-list、detail-foot 底的基色</td></tr>
-                            <tr><td class="sel">--fg</td><td class="dec">0.8404 0.0315 88.4</td><td class="b3"><code>var(--b3-theme-on-surface)</code></td><td class="b3">正文 / 叶行名 / em / b</td></tr>
-                            <tr><td class="sel">--muted</td><td class="dec">0.76 0.0295 88.4</td><td class="b3"><code>var(--b3-theme-on-surface-light)</code></td><td class="b3">弱化正文 / 组行 / chip 词</td></tr>
-                            <tr><td class="sel">--faint</td><td class="dec">0.76 … / 0.55</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface-light) 55%, transparent)</code></td><td class="b3">第三档：log-label / 时间戳 / dr-idx / dr-note / caret</td></tr>
-                            <tr><td class="sel">--border</td><td class="dec">0.8891 … / 0.2</td><td class="b3"><code>var(--b3-border-color)</code></td><td class="b3">常规边线</td></tr>
-                            <tr><td class="sel">--border-2</td><td class="dec">0.8891 … / 0.34</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface) 34%, transparent)</code></td><td class="b3">own-note 虚线 / 普通钮描边</td></tr>
-                            <tr><td class="sel">--hover</td><td class="dec">0.8891 … / 0.08</td><td class="b3"><code>var(--b3-list-hover)</code></td><td class="b3">行 hover / 钮 hover</td></tr>
-                            <tr><td class="sel">--accent</td><td class="dec">0.677 0.0876 44.8</td><td class="b3"><code>var(--b3-theme-primary)</code></td><td class="b3">主题陶土橙（线 / 实心 / 描边）</td></tr>
-                            <tr><td class="sel">--accent-solid</td><td class="dec">0.56 0.095 44.8</td><td class="b3"><code>var(--b3-theme-primary)</code>（主钮底=思源主钮体系）</td><td class="b3">主按钮底</td></tr>
-                            <tr><td class="sel">--accent-text</td><td class="dec">0.82 0.075 44.8</td><td class="b3"><code>var(--b3-theme-primary)</code>（b3 无亮档变量，直接主色，<b>不自行混白</b>）</td><td class="b3">run/stop 徽标与 chip 词色</td></tr>
-                            <tr><td class="sel">--accent-dim</td><td class="dec">0.677 … / 0.18</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-primary) 18%, transparent)</code></td><td class="b3">选中底 / 徽标底 / run·stop 点 3px 光晕 / spin 环底</td></tr>
-                            <tr><td class="sel">--accent-hi</td><td class="dec">0.732 0.0876 44.8</td><td class="b3">—（本稿未使用，勿落）</td><td class="b3">无</td></tr>
-                            <tr><td class="sel">--ok / --ok-solid</td><td class="dec">0.8 / 0.68 0.12 155</td><td class="b3"><code>var(--b3-card-success-color)</code></td><td class="b3">完成（词色与实心同源）</td></tr>
-                            <tr><td class="sel">--ok-dim</td><td class="dec">0.68 … / 0.18</td><td class="b3"><code>color-mix(in srgb, var(--b3-card-success-color) 18%, transparent)</code></td><td class="b3">done 徽标底</td></tr>
-                            <tr><td class="sel">--fail / --fail-solid</td><td class="dec">0.8 / 0.62 0.16 28</td><td class="b3"><code>var(--b3-card-error-color)</code></td><td class="b3">失败</td></tr>
-                            <tr><td class="sel">--fail-dim</td><td class="dec">0.62 … / 0.18</td><td class="b3"><code>color-mix(in srgb, var(--b3-card-error-color) 18%, transparent)</code></td><td class="b3">fail 徽标底 / cancel 钮 hover 底</td></tr>
-                            <tr><td class="sel">--queued</td><td class="dec">0.76 … / 0.42</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface) 42%, transparent)</code></td><td class="b3">排队虚线点 / chip</td></tr>
-                            <tr><td class="sel">--queued-fill</td><td class="dec">0.76 … / 0.16</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent)</code></td><td class="b3">seg / bar 轨道底</td></tr>
-                            <tr><td class="sel">--on-accent</td><td class="dec">0.99 0.01 44.8</td><td class="b3">沿用宿主主钮文字色</td><td class="b3">主钮 / mk 上的字</td></tr>
-                            <tr><td class="sel">--r / --r-b</td><td class="dec">6px / 12px</td><td class="b3">字面量 <code>6px</code> / <code>12px</code>（own-note 圆角建议写死 6px，防主题变量漂移）</td><td class="b3">小圆角 / 卡圆角</td></tr>
-                            <tr><td class="sel">--mono</td><td class="dec">ui-monospace, …</td><td class="b3"><code>var(--b3-font-family-code)</code></td><td class="b3">所有数字 / 时间戳 / 小标签</td></tr>
-                            <tr><td class="sel">--sans</td><td class="dec">PingFang SC, …</td><td class="b3">正文继承宿主 <code>var(--b3-font-family)</code></td><td class="b3">—</td></tr>
-                            <tr><td class="sel">行内裸 oklch</td><td class="dec">s-skip .42 / s-cancel .26 / s-queued .14 / dr-line .1 / log-line .08 / stop 底 .14 / cancel 描边 .3·.5</td><td class="b3">依次 <code>success 42%</code> / <code>on-surface 26%</code> / <code>on-surface 14%</code> / <code>on-surface 10%</code> / <code>on-surface 8%</code> / <code>primary 14%</code> / <code>on-surface 30%·50%</code> 的 color-mix</td><td class="b3">见 6.2 各行备注</td></tr>
+                            <tr>
+                                <td class="sel">--surface</td>
+                                <td class="dec">0.3904 0.0284 232.7</td>
+                                <td class="b3"><code>var(--b3-theme-surface)</code></td>
+                                <td class="b3">卡面 / 详情底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--surface-2</td>
+                                <td class="dec">0.4344 0.0284 232.7</td>
+                                <td class="b3">
+                                    <code
+                                        >color-mix(in srgb, var(--b3-theme-surface) 90%, var(--b3-theme-on-surface)
+                                        10%)</code
+                                    >（或退回同 surface，靠 3px 左线分层）
+                                </td>
+                                <td class="b3">横幅 run 底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--surface-3</td>
+                                <td class="dec">0.3404 0.0242 234.5</td>
+                                <td class="b3"><code>var(--b3-theme-background)</code></td>
+                                <td class="b3">树凹槽底 / fb-list、detail-foot 底的基色</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--fg</td>
+                                <td class="dec">0.8404 0.0315 88.4</td>
+                                <td class="b3"><code>var(--b3-theme-on-surface)</code></td>
+                                <td class="b3">正文 / 叶行名 / em / b</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--muted</td>
+                                <td class="dec">0.76 0.0295 88.4</td>
+                                <td class="b3"><code>var(--b3-theme-on-surface-light)</code></td>
+                                <td class="b3">弱化正文 / 组行 / chip 词</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--faint</td>
+                                <td class="dec">0.76 … / 0.55</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-theme-on-surface-light) 55%, transparent)</code>
+                                </td>
+                                <td class="b3">第三档：log-label / 时间戳 / dr-idx / dr-note / caret</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--border</td>
+                                <td class="dec">0.8891 … / 0.2</td>
+                                <td class="b3"><code>var(--b3-border-color)</code></td>
+                                <td class="b3">常规边线</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--border-2</td>
+                                <td class="dec">0.8891 … / 0.34</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-theme-on-surface) 34%, transparent)</code>
+                                </td>
+                                <td class="b3">own-note 虚线 / 普通钮描边</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--hover</td>
+                                <td class="dec">0.8891 … / 0.08</td>
+                                <td class="b3"><code>var(--b3-list-hover)</code></td>
+                                <td class="b3">行 hover / 钮 hover</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--accent</td>
+                                <td class="dec">0.677 0.0876 44.8</td>
+                                <td class="b3"><code>var(--b3-theme-primary)</code></td>
+                                <td class="b3">主题陶土橙（线 / 实心 / 描边）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--accent-solid</td>
+                                <td class="dec">0.56 0.095 44.8</td>
+                                <td class="b3"><code>var(--b3-theme-primary)</code>（主钮底=思源主钮体系）</td>
+                                <td class="b3">主按钮底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--accent-text</td>
+                                <td class="dec">0.82 0.075 44.8</td>
+                                <td class="b3">
+                                    <code>var(--b3-theme-primary)</code>（b3 无亮档变量，直接主色，<b>不自行混白</b>）
+                                </td>
+                                <td class="b3">run/stop 徽标与 chip 词色</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--accent-dim</td>
+                                <td class="dec">0.677 … / 0.18</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-theme-primary) 18%, transparent)</code>
+                                </td>
+                                <td class="b3">选中底 / 徽标底 / run·stop 点 3px 光晕 / spin 环底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--accent-hi</td>
+                                <td class="dec">0.732 0.0876 44.8</td>
+                                <td class="b3">—（本稿未使用，勿落）</td>
+                                <td class="b3">无</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--ok / --ok-solid</td>
+                                <td class="dec">0.8 / 0.68 0.12 155</td>
+                                <td class="b3"><code>var(--b3-card-success-color)</code></td>
+                                <td class="b3">完成（词色与实心同源）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--ok-dim</td>
+                                <td class="dec">0.68 … / 0.18</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-card-success-color) 18%, transparent)</code>
+                                </td>
+                                <td class="b3">done 徽标底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--fail / --fail-solid</td>
+                                <td class="dec">0.8 / 0.62 0.16 28</td>
+                                <td class="b3"><code>var(--b3-card-error-color)</code></td>
+                                <td class="b3">失败</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--fail-dim</td>
+                                <td class="dec">0.62 … / 0.18</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-card-error-color) 18%, transparent)</code>
+                                </td>
+                                <td class="b3">fail 徽标底 / cancel 钮 hover 底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--queued</td>
+                                <td class="dec">0.76 … / 0.42</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-theme-on-surface) 42%, transparent)</code>
+                                </td>
+                                <td class="b3">排队虚线点 / chip</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--queued-fill</td>
+                                <td class="dec">0.76 … / 0.16</td>
+                                <td class="b3">
+                                    <code>color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent)</code>
+                                </td>
+                                <td class="b3">seg / bar 轨道底</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--on-accent</td>
+                                <td class="dec">0.99 0.01 44.8</td>
+                                <td class="b3">沿用宿主主钮文字色</td>
+                                <td class="b3">主钮 / mk 上的字</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--r / --r-b</td>
+                                <td class="dec">6px / 12px</td>
+                                <td class="b3">
+                                    字面量 <code>6px</code> / <code>12px</code>（own-note 圆角建议写死
+                                    6px，防主题变量漂移）
+                                </td>
+                                <td class="b3">小圆角 / 卡圆角</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--mono</td>
+                                <td class="dec">ui-monospace, …</td>
+                                <td class="b3"><code>var(--b3-font-family-code)</code></td>
+                                <td class="b3">所有数字 / 时间戳 / 小标签</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">--sans</td>
+                                <td class="dec">PingFang SC, …</td>
+                                <td class="b3">正文继承宿主 <code>var(--b3-font-family)</code></td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">行内裸 oklch</td>
+                                <td class="dec">
+                                    s-skip .42 / s-cancel .26 / s-queued .14 / dr-line .1 / log-line .08 / stop 底 .14 /
+                                    cancel 描边 .3·.5
+                                </td>
+                                <td class="b3">
+                                    依次 <code>success 42%</code> / <code>on-surface 26%</code> /
+                                    <code>on-surface 14%</code> / <code>on-surface 10%</code> /
+                                    <code>on-surface 8%</code> / <code>primary 14%</code> /
+                                    <code>on-surface 30%·50%</code> 的 color-mix
+                                </td>
+                                <td class="b3">见 6.2 各行备注</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -2363,141 +2526,748 @@
                 <!-- ==================== 6.2 CSS 规格总表 ==================== -->
                 <h3 class="sp-h3"><span class="sp-h3n">6.2</span>CSS 规格总表（`.ai-panel` 全部元素）</h3>
                 <p class="sp-sub">
-                    逐条从本稿 `<style>` 提取，<b>属性与值一字不改</b>。实现逐字对齐，禁止自由发挥：声明串里能直接读 b3
+                    逐条从本稿 style 块提取，<b>属性与值一字不改</b>。实现逐字对齐，禁止自由发挥：声明串里能直接读 b3
                     落点的按 6.1 换写，其余（尺寸、字重、字距、grid 模板）照抄字面值。「备注」列只标色令牌与易错点。
                 </p>
 
                 <div class="sp-tblwrap">
                     <table class="sp-tbl">
                         <thead>
-                            <tr><th>选择器</th><th>声明（属性: 值; …）</th><th>备注（b3 落点 / 易错点）</th></tr>
+                            <tr>
+                                <th>选择器</th>
+                                <th>声明（属性: 值; …）</th>
+                                <th>备注（b3 落点 / 易错点）</th>
+                            </tr>
                         </thead>
                         <tbody>
-                            <tr><td class="sel">.ai-panel</td><td class="dec">display: grid; grid-template-columns: 292px minmax(0, 1fr); grid-template-areas: "banner banner" "tree detail"; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-b); overflow: hidden;</td><td class="b3">surface→<code>--b3-theme-surface</code>；border→<code>--b3-border-color</code>；圆角 12px。整卡一体是结构前提，<b>横幅在卡内</b></td></tr>
-                            <tr><td class="sel">.ai-panel.is-plain</td><td class="dec">grid-template-areas: "tree detail";</td><td class="b3">无横幅态（现状实现根本没有这张卡——结构差距 S1/S2）</td></tr>
-                            <tr><td class="sel">@media (max-width: 1000px) .ai-panel</td><td class="dec">grid-template-columns: 1fr; grid-template-areas: "banner" "tree" "detail";</td><td class="b3">单列折行</td></tr>
-                            <tr><td class="sel">@media … .ai-panel.is-plain</td><td class="dec">grid-template-areas: "tree" "detail";</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">@media … .ai-tree</td><td class="dec">border-right: 0; border-bottom: 1px solid var(--border);</td><td class="b3">窄屏分隔线换到底边</td></tr>
+                            <tr>
+                                <td class="sel">.ai-panel</td>
+                                <td class="dec">
+                                    display: grid; grid-template-columns: 292px minmax(0, 1fr); grid-template-areas:
+                                    "banner banner" "tree detail"; background: var(--surface); border: 1px solid
+                                    var(--border); border-radius: var(--r-b); overflow: hidden;
+                                </td>
+                                <td class="b3">
+                                    surface→<code>--b3-theme-surface</code>；border→<code>--b3-border-color</code>；圆角
+                                    12px。整卡一体是结构前提，<b>横幅在卡内</b>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.ai-panel.is-plain</td>
+                                <td class="dec">grid-template-areas: "tree detail";</td>
+                                <td class="b3">无横幅态（现状实现根本没有这张卡——结构差距 S1/S2）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@media (max-width: 1000px) .ai-panel</td>
+                                <td class="dec">
+                                    grid-template-columns: 1fr; grid-template-areas: "banner" "tree" "detail";
+                                </td>
+                                <td class="b3">单列折行</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@media … .ai-panel.is-plain</td>
+                                <td class="dec">grid-template-areas: "tree" "detail";</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@media … .ai-tree</td>
+                                <td class="dec">border-right: 0; border-bottom: 1px solid var(--border);</td>
+                                <td class="b3">窄屏分隔线换到底边</td>
+                            </tr>
 
-                            <tr><td class="sel">.flow-banner</td><td class="dec">grid-area: banner; border-bottom: 1px solid var(--border); background: var(--surface-2);</td><td class="b3">surface-2 落点见 6.1；<b>无自身圆角 / 外边距 / 外围边框</b></td></tr>
-                            <tr><td class="sel">.flow-banner--run</td><td class="dec">border-left: 3px solid var(--accent);</td><td class="b3">accent→<code>--b3-theme-primary</code></td></tr>
-                            <tr><td class="sel">.flow-banner--stop</td><td class="dec">border-left: 3px solid var(--accent); background: oklch(0.56 0.095 44.8 / 0.14);</td><td class="b3">底→<code>color-mix(primary 14%)</code>；左线与 run <b>同色</b>（换色会被读成两条流）</td></tr>
-                            <tr><td class="sel">.fb-row</td><td class="dec">display: flex; align-items: center; gap: 14px; padding: 11px 14px;</td><td class="b3">尺寸照抄</td></tr>
-                            <tr><td class="sel">.fb-id</td><td class="dec">display: flex; align-items: center; gap: 9px; min-width: 0;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.fb-title</td><td class="dec">display: flex; flex-direction: column; gap: 2px; min-width: 0;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.fb-title strong</td><td class="dec">font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap;</td><td class="b3">易漏 letter-spacing -0.005em</td></tr>
-                            <tr><td class="sel">.fb-title span</td><td class="dec">font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;</td><td class="b3">muted→<code>--b3-theme-on-surface-light</code></td></tr>
-                            <tr><td class="sel">.fb-prog</td><td class="dec">display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 180px; max-width: 420px;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.fb-stats</td><td class="dec">display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.fb-stats b</td><td class="dec">font: 500 12px/1 var(--mono); color: var(--fg);</td><td class="b3">mono→<code>--b3-font-family-code</code></td></tr>
-                            <tr><td class="sel">.fb-actions</td><td class="dec">margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto;</td><td class="b3">—</td></tr>
+                            <tr>
+                                <td class="sel">.flow-banner</td>
+                                <td class="dec">
+                                    grid-area: banner; border-bottom: 1px solid var(--border); background:
+                                    var(--surface-2);
+                                </td>
+                                <td class="b3">surface-2 落点见 6.1；<b>无自身圆角 / 外边距 / 外围边框</b></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.flow-banner--run</td>
+                                <td class="dec">border-left: 3px solid var(--accent);</td>
+                                <td class="b3">accent→<code>--b3-theme-primary</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.flow-banner--stop</td>
+                                <td class="dec">
+                                    border-left: 3px solid var(--accent); background: oklch(0.56 0.095 44.8 / 0.14);
+                                </td>
+                                <td class="b3">
+                                    底→<code>color-mix(primary 14%)</code>；左线与 run <b>同色</b>（换色会被读成两条流）
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-row</td>
+                                <td class="dec">display: flex; align-items: center; gap: 14px; padding: 11px 14px;</td>
+                                <td class="b3">尺寸照抄</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-id</td>
+                                <td class="dec">display: flex; align-items: center; gap: 9px; min-width: 0;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-title</td>
+                                <td class="dec">display: flex; flex-direction: column; gap: 2px; min-width: 0;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-title strong</td>
+                                <td class="dec">
+                                    font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap;
+                                </td>
+                                <td class="b3">易漏 letter-spacing -0.005em</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-title span</td>
+                                <td class="dec">
+                                    font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden;
+                                    text-overflow: ellipsis;
+                                </td>
+                                <td class="b3">muted→<code>--b3-theme-on-surface-light</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-prog</td>
+                                <td class="dec">
+                                    display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 180px;
+                                    max-width: 420px;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-stats</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-stats b</td>
+                                <td class="dec">font: 500 12px/1 var(--mono); color: var(--fg);</td>
+                                <td class="b3">mono→<code>--b3-font-family-code</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-actions</td>
+                                <td class="dec">
+                                    margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
 
-                            <tr><td class="sel">.seg</td><td class="dec">display: flex; height: 6px; border-radius: 999px; overflow: hidden; gap: 2px; background: var(--queued-fill);</td><td class="b3">queued-fill→<code>on-surface 16%</code></td></tr>
-                            <tr><td class="sel">.seg i</td><td class="dec">display: block; height: 100%; border-radius: 1px;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.seg .s-done</td><td class="dec">background: var(--ok-solid);</td><td class="b3">→<code>--b3-card-success-color</code></td></tr>
-                            <tr><td class="sel">.seg .s-skip</td><td class="dec">background: oklch(0.68 0.12 155 / 0.42);</td><td class="b3">→<code>success 42%</code></td></tr>
-                            <tr><td class="sel">.seg .s-run, .seg .s-stop</td><td class="dec">background: var(--accent);</td><td class="b3">→<code>--b3-theme-primary</code></td></tr>
-                            <tr><td class="sel">.seg .s-fail</td><td class="dec">background: var(--fail-solid);</td><td class="b3">→<code>--b3-card-error-color</code></td></tr>
-                            <tr><td class="sel">.seg .s-cancel</td><td class="dec">background: oklch(0.76 0.0295 88.4 / 0.26);</td><td class="b3">→<code>on-surface 26%</code></td></tr>
-                            <tr><td class="sel">.seg .s-queued</td><td class="dec">background: oklch(0.76 0.0295 88.4 / 0.14);</td><td class="b3">→<code>on-surface 14%</code></td></tr>
-                            <tr><td class="sel">.bar</td><td class="dec">height: 6px; border-radius: 999px; background: var(--queued-fill); overflow: hidden;</td><td class="b3">单流态进度条</td></tr>
-                            <tr><td class="sel">.bar i</td><td class="dec">display: block; height: 100%; background: var(--accent);</td><td class="b3">—</td></tr>
+                            <tr>
+                                <td class="sel">.seg</td>
+                                <td class="dec">
+                                    display: flex; height: 6px; border-radius: 999px; overflow: hidden; gap: 2px;
+                                    background: var(--queued-fill);
+                                </td>
+                                <td class="b3">queued-fill→<code>on-surface 16%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg i</td>
+                                <td class="dec">display: block; height: 100%; border-radius: 1px;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg .s-done</td>
+                                <td class="dec">background: var(--ok-solid);</td>
+                                <td class="b3">→<code>--b3-card-success-color</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg .s-skip</td>
+                                <td class="dec">background: oklch(0.68 0.12 155 / 0.42);</td>
+                                <td class="b3">→<code>success 42%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg .s-run, .seg .s-stop</td>
+                                <td class="dec">background: var(--accent);</td>
+                                <td class="b3">→<code>--b3-theme-primary</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg .s-fail</td>
+                                <td class="dec">background: var(--fail-solid);</td>
+                                <td class="b3">→<code>--b3-card-error-color</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg .s-cancel</td>
+                                <td class="dec">background: oklch(0.76 0.0295 88.4 / 0.26);</td>
+                                <td class="b3">→<code>on-surface 26%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.seg .s-queued</td>
+                                <td class="dec">background: oklch(0.76 0.0295 88.4 / 0.14);</td>
+                                <td class="b3">→<code>on-surface 14%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.bar</td>
+                                <td class="dec">
+                                    height: 6px; border-radius: 999px; background: var(--queued-fill); overflow: hidden;
+                                </td>
+                                <td class="b3">单流态进度条</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.bar i</td>
+                                <td class="dec">display: block; height: 100%; background: var(--accent);</td>
+                                <td class="b3">—</td>
+                            </tr>
 
-                            <tr><td class="sel">.counts</td><td class="dec">display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.counts .lead</td><td class="dec">font-size: 11.5px; color: var(--faint); font-family: var(--mono); letter-spacing: 0.04em; margin-right: 2px;</td><td class="b3">faint 档 + 字距 0.04em（两处都易漏）</td></tr>
-                            <tr><td class="sel">.chip</td><td class="dec">display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 11.5px; color: var(--muted);</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.chip b</td><td class="dec">font: 500 11.5px/1 var(--mono); color: var(--fg);</td><td class="b3">默认数字色，按态覆写</td></tr>
-                            <tr><td class="sel">.chip i</td><td class="dec">width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;</td><td class="b3">chip 内点 6px（比行内点小 2px）</td></tr>
-                            <tr><td class="sel">.chip--done i / b</td><td class="dec">background: var(--ok-solid) / color: var(--ok)</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.chip--skip i / b</td><td class="dec">border: 1.5px solid var(--ok-solid) / color: var(--ok)</td><td class="b3">描边=没结果</td></tr>
-                            <tr><td class="sel">.chip--run i / b</td><td class="dec">background: var(--accent) / color: var(--accent-text)</td><td class="b3">b→<code>--b3-theme-primary</code></td></tr>
-                            <tr><td class="sel">.chip--stop i / b</td><td class="dec">border: 1.5px solid var(--accent) / color: var(--accent-text)</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.chip--fail i / b</td><td class="dec">background: var(--fail-solid) / color: var(--fail)</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.chip--cancel i</td><td class="dec">border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3);</td><td class="b3">→<code>on-surface 30%</code></td></tr>
-                            <tr><td class="sel">.chip--queued i</td><td class="dec">border: 1.5px dashed var(--queued);</td><td class="b3">虚线=还没轮到</td></tr>
-                            <tr><td class="sel">.chip.is-zero / .is-zero b</td><td class="dec">opacity: 0.62 / color: var(--muted)</td><td class="b3">零值压暗</td></tr>
+                            <tr>
+                                <td class="sel">.counts</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.counts .lead</td>
+                                <td class="dec">
+                                    font-size: 11.5px; color: var(--faint); font-family: var(--mono); letter-spacing:
+                                    0.04em; margin-right: 2px;
+                                </td>
+                                <td class="b3">faint 档 + 字距 0.04em（两处都易漏）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip</td>
+                                <td class="dec">
+                                    display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
+                                    border-radius: 4px; border: 1px solid var(--border); font-size: 11.5px; color:
+                                    var(--muted);
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip b</td>
+                                <td class="dec">font: 500 11.5px/1 var(--mono); color: var(--fg);</td>
+                                <td class="b3">默认数字色，按态覆写</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip i</td>
+                                <td class="dec">width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;</td>
+                                <td class="b3">chip 内点 6px（比行内点小 2px）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--done i / b</td>
+                                <td class="dec">background: var(--ok-solid) / color: var(--ok)</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--skip i / b</td>
+                                <td class="dec">border: 1.5px solid var(--ok-solid) / color: var(--ok)</td>
+                                <td class="b3">描边=没结果</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--run i / b</td>
+                                <td class="dec">background: var(--accent) / color: var(--accent-text)</td>
+                                <td class="b3">b→<code>--b3-theme-primary</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--stop i / b</td>
+                                <td class="dec">border: 1.5px solid var(--accent) / color: var(--accent-text)</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--fail i / b</td>
+                                <td class="dec">background: var(--fail-solid) / color: var(--fail)</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--cancel i</td>
+                                <td class="dec">border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3);</td>
+                                <td class="b3">→<code>on-surface 30%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip--queued i</td>
+                                <td class="dec">border: 1.5px dashed var(--queued);</td>
+                                <td class="b3">虚线=还没轮到</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.chip.is-zero / .is-zero b</td>
+                                <td class="dec">opacity: 0.62 / color: var(--muted)</td>
+                                <td class="b3">零值压暗</td>
+                            </tr>
 
-                            <tr><td class="sel">.fb-list</td><td class="dec">border-top: 1px solid var(--border); background: oklch(0.3404 0.0242 234.5 / 0.55);</td><td class="b3">底→<code>color-mix(--b3-theme-background 55%, transparent)</code></td></tr>
-                            <tr><td class="sel">.fb-list-head</td><td class="dec">display: flex; align-items: center; gap: 8px; padding: 7px 14px; font: 500 11px/1 var(--mono); letter-spacing: 0.08em; color: var(--faint); border-bottom: 1px solid var(--border);</td><td class="b3">faint 档</td></tr>
-                            <tr><td class="sel">.fb-list-head .ln</td><td class="dec">margin-left: auto; letter-spacing: 0;</td><td class="b3">右注记撤字距</td></tr>
-                            <tr><td class="sel">.doc-row</td><td class="dec">display: grid; grid-template-columns: 22px 172px 188px minmax(0, 1fr) 108px; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.1); font-size: 12.5px;</td><td class="b3">行分割线→<code>on-surface 10%</code>（<b>不是</b>实色 border-color）</td></tr>
-                            <tr><td class="sel">.doc-row:last-child</td><td class="dec">border-bottom: 0;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.doc-row.is-current</td><td class="dec">background: var(--accent-dim);</td><td class="b3">→<code>primary 18%</code>（现状用 --b3-theme-primary-light，偏浓）</td></tr>
-                            <tr><td class="sel">.doc-row .dr-idx</td><td class="dec">font: 500 11.5px/1 var(--mono); color: var(--faint);</td><td class="b3">faint 档</td></tr>
-                            <tr><td class="sel">.doc-row .dr-name</td><td class="dec">color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.doc-row.is-queued .dr-name</td><td class="dec">color: var(--muted);</td><td class="b3">没跑的字浅一档</td></tr>
-                            <tr><td class="sel">.doc-row.is-cancel .dr-name</td><td class="dec">color: var(--muted); text-decoration: line-through; text-decoration-color: oklch(0.76 0.0295 88.4 / 0.5);</td><td class="b3">删除线装饰色→<code>on-surface 50%</code></td></tr>
-                            <tr><td class="sel">.doc-row .dr-state</td><td class="dec">display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted);</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.doc-row .dr-note</td><td class="dec">color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;</td><td class="b3">faint 档</td></tr>
-                            <tr><td class="sel">.doc-row .dr-metric</td><td class="dec">font: 400 11.5px/1 var(--mono); color: var(--muted); text-align: right; white-space: nowrap;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.doc-row .st-done / .st-run / .st-fail</td><td class="dec">color: var(--ok) / color: var(--accent-text); font-weight: 500 / color: var(--fail)</td><td class="b3">st-run 带 500</td></tr>
-                            <tr><td class="sel">.fb-list-foot</td><td class="dec">padding: 7px 14px; font-size: 11.5px; color: var(--faint); background: oklch(0.3404 0.0242 234.5 / 0.35);</td><td class="b3">底→<code>background 35%</code>；<b>现状未实现此行</b></td></tr>
-                            <tr><td class="sel">@media … .fb-row / .fb-prog</td><td class="dec">flex-wrap: wrap / min-width: 100%; order: 3; max-width: none</td><td class="b3">窄屏换行</td></tr>
-                            <tr><td class="sel">@media … .doc-row / .dr-note</td><td class="dec">grid-template-columns: 22px 96px minmax(0, 1fr) 104px / display: none</td><td class="b3">窄屏四列、隐藏备注列</td></tr>
+                            <tr>
+                                <td class="sel">.fb-list</td>
+                                <td class="dec">
+                                    border-top: 1px solid var(--border); background: oklch(0.3404 0.0242 234.5 / 0.55);
+                                </td>
+                                <td class="b3">底→<code>color-mix(--b3-theme-background 55%, transparent)</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-list-head</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 8px; padding: 7px 14px; font: 500 11px/1
+                                    var(--mono); letter-spacing: 0.08em; color: var(--faint); border-bottom: 1px solid
+                                    var(--border);
+                                </td>
+                                <td class="b3">faint 档</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-list-head .ln</td>
+                                <td class="dec">margin-left: auto; letter-spacing: 0;</td>
+                                <td class="b3">右注记撤字距</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row</td>
+                                <td class="dec">
+                                    display: grid; grid-template-columns: 22px 172px 188px minmax(0, 1fr) 108px;
+                                    align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid
+                                    oklch(0.8891 0.0295 89.6 / 0.1); font-size: 12.5px;
+                                </td>
+                                <td class="b3">行分割线→<code>on-surface 10%</code>（<b>不是</b>实色 border-color）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row:last-child</td>
+                                <td class="dec">border-bottom: 0;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row.is-current</td>
+                                <td class="dec">background: var(--accent-dim);</td>
+                                <td class="b3">→<code>primary 18%</code>（现状用 --b3-theme-primary-light，偏浓）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row .dr-idx</td>
+                                <td class="dec">font: 500 11.5px/1 var(--mono); color: var(--faint);</td>
+                                <td class="b3">faint 档</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row .dr-name</td>
+                                <td class="dec">
+                                    color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row.is-queued .dr-name</td>
+                                <td class="dec">color: var(--muted);</td>
+                                <td class="b3">没跑的字浅一档</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row.is-cancel .dr-name</td>
+                                <td class="dec">
+                                    color: var(--muted); text-decoration: line-through; text-decoration-color:
+                                    oklch(0.76 0.0295 88.4 / 0.5);
+                                </td>
+                                <td class="b3">删除线装饰色→<code>on-surface 50%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row .dr-state</td>
+                                <td class="dec">
+                                    display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color:
+                                    var(--muted);
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row .dr-note</td>
+                                <td class="dec">
+                                    color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden;
+                                    text-overflow: ellipsis;
+                                </td>
+                                <td class="b3">faint 档</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row .dr-metric</td>
+                                <td class="dec">
+                                    font: 400 11.5px/1 var(--mono); color: var(--muted); text-align: right; white-space:
+                                    nowrap;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.doc-row .st-done / .st-run / .st-fail</td>
+                                <td class="dec">
+                                    color: var(--ok) / color: var(--accent-text); font-weight: 500 / color: var(--fail)
+                                </td>
+                                <td class="b3">st-run 带 500</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.fb-list-foot</td>
+                                <td class="dec">
+                                    padding: 7px 14px; font-size: 11.5px; color: var(--faint); background: oklch(0.3404
+                                    0.0242 234.5 / 0.35);
+                                </td>
+                                <td class="b3">底→<code>background 35%</code>；<b>现状未实现此行</b></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@media … .fb-row / .fb-prog</td>
+                                <td class="dec">flex-wrap: wrap / min-width: 100%; order: 3; max-width: none</td>
+                                <td class="b3">窄屏换行</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@media … .doc-row / .dr-note</td>
+                                <td class="dec">
+                                    grid-template-columns: 22px 96px minmax(0, 1fr) 104px / display: none
+                                </td>
+                                <td class="b3">窄屏四列、隐藏备注列</td>
+                            </tr>
 
-                            <tr><td class="sel">.ai-tree</td><td class="dec">grid-area: tree; background: var(--surface-3); border-right: 1px solid var(--border); padding: 8px 0 12px; min-width: 0;</td><td class="b3">surface-3→<code>--b3-theme-background</code>；<b>无</b>横向滚动窗 / max-height</td></tr>
-                            <tr><td class="sel">.ai-tree-head</td><td class="dec">display: flex; align-items: center; gap: 8px; padding: 4px 14px 9px; font-size: 13px; font-weight: 600;</td><td class="b3">树头；实现并入宿主标题栏是既定取舍（gap-list S9）</td></tr>
-                            <tr><td class="sel">.ai-tree-head .badge</td><td class="dec">margin-left: auto;</td><td class="b3">组数徽标贴右</td></tr>
-                            <tr><td class="sel">.tg1</td><td class="dec">display: flex; align-items: center; gap: 7px; padding: 3px 14px; font-size: 12px; color: var(--muted); letter-spacing: 0.02em;</td><td class="b3">种类行（一级）；缩进 14px 是<b>正文起点</b></td></tr>
-                            <tr><td class="sel">.tg1 .caret</td><td class="dec">color: var(--faint); font-size: 10px; width: 9px;</td><td class="b3">箭头列 9px</td></tr>
-                            <tr><td class="sel">.tg2</td><td class="dec">display: flex; align-items: center; gap: 7px; padding: 5px 14px 5px 27px; font-size: 12.5px; color: var(--muted);</td><td class="b3">主题组行（二级）；缩进 27px</td></tr>
-                            <tr><td class="sel">.leaf</td><td class="dec">display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 42px; font-size: 12.5px; color: var(--fg); cursor: default;</td><td class="b3">叶行（三级）；缩进 42px；gap 8px = 点/名/徽标统一间距</td></tr>
-                            <tr><td class="sel">.leaf:hover</td><td class="dec">background: var(--hover);</td><td class="b3">→<code>--b3-list-hover</code></td></tr>
-                            <tr><td class="sel">.leaf.is-selected</td><td class="dec">background: var(--accent-dim); box-shadow: inset 2px 0 0 var(--accent);</td><td class="b3">18% 底 + inset 2px 竖线</td></tr>
-                            <tr><td class="sel">.leaf .leaf-name</td><td class="dec">min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.leaf .badge</td><td class="dec">margin-left: auto;</td><td class="b3"><b>徽标贴右</b>（现状 margin-left:6px 跟名字走）</td></tr>
-                            <tr><td class="sel">.leaf .kind</td><td class="dec">font: 400 11px/1 var(--mono); color: var(--faint);</td><td class="b3">叶行内 mono 弱注记位（存量回退形态的时间戳即落此位，见 6.3）</td></tr>
+                            <tr>
+                                <td class="sel">.ai-tree</td>
+                                <td class="dec">
+                                    grid-area: tree; background: var(--surface-3); border-right: 1px solid
+                                    var(--border); padding: 8px 0 12px; min-width: 0;
+                                </td>
+                                <td class="b3">
+                                    surface-3→<code>--b3-theme-background</code>；<b>无</b>横向滚动窗 / max-height
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.ai-tree-head</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 8px; padding: 4px 14px 9px; font-size:
+                                    13px; font-weight: 600;
+                                </td>
+                                <td class="b3">树头；实现并入宿主标题栏是既定取舍（gap-list S9）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.ai-tree-head .badge</td>
+                                <td class="dec">margin-left: auto;</td>
+                                <td class="b3">组数徽标贴右</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.tg1</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 7px; padding: 3px 14px; font-size: 12px;
+                                    color: var(--muted); letter-spacing: 0.02em;
+                                </td>
+                                <td class="b3">种类行（一级）；缩进 14px 是<b>正文起点</b></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.tg1 .caret</td>
+                                <td class="dec">color: var(--faint); font-size: 10px; width: 9px;</td>
+                                <td class="b3">箭头列 9px</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.tg2</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 7px; padding: 5px 14px 5px 27px; font-size:
+                                    12.5px; color: var(--muted);
+                                </td>
+                                <td class="b3">主题组行（二级）；缩进 27px</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.leaf</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 42px; font-size:
+                                    12.5px; color: var(--fg); cursor: default;
+                                </td>
+                                <td class="b3">叶行（三级）；缩进 42px；gap 8px = 点/名/徽标统一间距</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.leaf:hover</td>
+                                <td class="dec">background: var(--hover);</td>
+                                <td class="b3">→<code>--b3-list-hover</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.leaf.is-selected</td>
+                                <td class="dec">
+                                    background: var(--accent-dim); box-shadow: inset 2px 0 0 var(--accent);
+                                </td>
+                                <td class="b3">18% 底 + inset 2px 竖线</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.leaf .leaf-name</td>
+                                <td class="dec">
+                                    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.leaf .badge</td>
+                                <td class="dec">margin-left: auto;</td>
+                                <td class="b3"><b>徽标贴右</b>（现状 margin-left:6px 跟名字走）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.leaf .kind</td>
+                                <td class="dec">font: 400 11px/1 var(--mono); color: var(--faint);</td>
+                                <td class="b3">叶行内 mono 弱注记位（存量回退形态的时间戳即落此位，见 6.3）</td>
+                            </tr>
 
-                            <tr><td class="sel">.ai-detail</td><td class="dec">grid-area: detail; display: flex; flex-direction: column; min-width: 0; background: var(--surface);</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.detail-head</td><td class="dec">display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.detail-head h3</td><td class="dec">font-size: 14px; font-weight: 600; letter-spacing: -0.005em;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.detail-head .badge</td><td class="dec">margin-left: auto;</td><td class="b3">状态徽标贴右（稿内无「时间·模型」meta 串，见 gap-list S7）</td></tr>
-                            <tr><td class="sel">.detail-body</td><td class="dec">padding: 13px 16px; flex: 1 1 auto; min-height: 120px;</td><td class="b3"><b>无</b> max-height / overflow-y（滚动归整卡）</td></tr>
-                            <tr><td class="sel">.log-label</td><td class="dec">font: 500 11px/1 var(--mono); letter-spacing: 0.08em; color: var(--faint); margin-bottom: 9px;</td><td class="b3">500 + faint 两处易漏</td></tr>
-                            <tr><td class="sel">.log</td><td class="dec">display: flex; flex-direction: column; gap: 1px;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.log li</td><td class="dec">display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 12px; padding: 6px 0; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.08);</td><td class="b3">分割线→<code>on-surface 8%</code></td></tr>
-                            <tr><td class="sel">.log li:last-child</td><td class="dec">border-bottom: 0;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.log .t</td><td class="dec">font: 400 11.5px/1.6 var(--mono); color: var(--faint);</td><td class="b3">时间戳列 faint 档</td></tr>
-                            <tr><td class="sel">.log em</td><td class="dec">font-style: normal; color: var(--fg);</td><td class="b3">强调数字回正文色</td></tr>
-                            <tr><td class="sel">.detail-foot</td><td class="dec">display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-top: 1px solid var(--border); background: oklch(0.3404 0.0242 234.5 / 0.35); flex-wrap: wrap;</td><td class="b3">底→<code>background 35%</code></td></tr>
-                            <tr><td class="sel">.detail-foot .hint</td><td class="dec">font-size: 12px; color: var(--muted); line-height: 1.5;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.own-note</td><td class="dec">display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color: var(--muted); line-height: 1.6; border: 1px dashed var(--border-2); border-radius: var(--r); padding: 9px 11px;</td><td class="b3">虚线用 <b>border-2（34% 档）</b>非普通边线；圆角 6px 写死</td></tr>
-                            <tr><td class="sel">.own-note .dot</td><td class="dec">margin-top: 5px;</td><td class="b3">点对齐首行</td></tr>
-                            <tr><td class="sel">.own-note b</td><td class="dec">color: var(--fg); font-weight: 600;</td><td class="b3">首句加粗（文案须分段供给，见 gap-list A7）</td></tr>
+                            <tr>
+                                <td class="sel">.ai-detail</td>
+                                <td class="dec">
+                                    grid-area: detail; display: flex; flex-direction: column; min-width: 0; background:
+                                    var(--surface);
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.detail-head</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px
+                                    solid var(--border); flex-wrap: wrap;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.detail-head h3</td>
+                                <td class="dec">font-size: 14px; font-weight: 600; letter-spacing: -0.005em;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.detail-head .badge</td>
+                                <td class="dec">margin-left: auto;</td>
+                                <td class="b3">状态徽标贴右（稿内无「时间·模型」meta 串，见 gap-list S7）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.detail-body</td>
+                                <td class="dec">padding: 13px 16px; flex: 1 1 auto; min-height: 120px;</td>
+                                <td class="b3"><b>无</b> max-height / overflow-y（滚动归整卡）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.log-label</td>
+                                <td class="dec">
+                                    font: 500 11px/1 var(--mono); letter-spacing: 0.08em; color: var(--faint);
+                                    margin-bottom: 9px;
+                                </td>
+                                <td class="b3">500 + faint 两处易漏</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.log</td>
+                                <td class="dec">display: flex; flex-direction: column; gap: 1px;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.log li</td>
+                                <td class="dec">
+                                    display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 12px; padding: 6px
+                                    0; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid oklch(0.8891
+                                    0.0295 89.6 / 0.08);
+                                </td>
+                                <td class="b3">分割线→<code>on-surface 8%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.log li:last-child</td>
+                                <td class="dec">border-bottom: 0;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.log .t</td>
+                                <td class="dec">font: 400 11.5px/1.6 var(--mono); color: var(--faint);</td>
+                                <td class="b3">时间戳列 faint 档</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.log em</td>
+                                <td class="dec">font-style: normal; color: var(--fg);</td>
+                                <td class="b3">强调数字回正文色</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.detail-foot</td>
+                                <td class="dec">
+                                    display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-top: 1px
+                                    solid var(--border); background: oklch(0.3404 0.0242 234.5 / 0.35); flex-wrap: wrap;
+                                </td>
+                                <td class="b3">底→<code>background 35%</code></td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.detail-foot .hint</td>
+                                <td class="dec">font-size: 12px; color: var(--muted); line-height: 1.5;</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.own-note</td>
+                                <td class="dec">
+                                    display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color:
+                                    var(--muted); line-height: 1.6; border: 1px dashed var(--border-2); border-radius:
+                                    var(--r); padding: 9px 11px;
+                                </td>
+                                <td class="b3">虚线用 <b>border-2（34% 档）</b>非普通边线；圆角 6px 写死</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.own-note .dot</td>
+                                <td class="dec">margin-top: 5px;</td>
+                                <td class="b3">点对齐首行</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.own-note b</td>
+                                <td class="dec">color: var(--fg); font-weight: 600;</td>
+                                <td class="b3">首句加粗（文案须分段供给，见 gap-list A7）</td>
+                            </tr>
 
-                            <tr><td class="sel">.dot</td><td class="dec">width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;</td><td class="b3">行内点 8px（chip 内另有 6px 覆写）</td></tr>
-                            <tr><td class="sel">.dot--done / --fail</td><td class="dec">background: var(--ok-solid) / var(--fail-solid)</td><td class="b3">实心=有结果</td></tr>
-                            <tr><td class="sel">.dot--skip</td><td class="dec">border: 1.5px solid var(--ok-solid); background: transparent;</td><td class="b3">描边=没结果</td></tr>
-                            <tr><td class="sel">.dot--run</td><td class="dec">background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);</td><td class="b3">光晕 18% 档（现状 24% 偏浓）</td></tr>
-                            <tr><td class="sel">.dot--stop</td><td class="dec">background: transparent; border: 1.5px solid var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.dot--queued</td><td class="dec">border: 1.5px dashed var(--queued); background: transparent;</td><td class="b3">虚线=还没轮到</td></tr>
-                            <tr><td class="sel">.dot--cancel</td><td class="dec">border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3); background: transparent;</td><td class="b3">→<code>on-surface 30%</code></td></tr>
+                            <tr>
+                                <td class="sel">.dot</td>
+                                <td class="dec">width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;</td>
+                                <td class="b3">行内点 8px（chip 内另有 6px 覆写）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.dot--done / --fail</td>
+                                <td class="dec">background: var(--ok-solid) / var(--fail-solid)</td>
+                                <td class="b3">实心=有结果</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.dot--skip</td>
+                                <td class="dec">border: 1.5px solid var(--ok-solid); background: transparent;</td>
+                                <td class="b3">描边=没结果</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.dot--run</td>
+                                <td class="dec">background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);</td>
+                                <td class="b3">光晕 18% 档（现状 24% 偏浓）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.dot--stop</td>
+                                <td class="dec">
+                                    background: transparent; border: 1.5px solid var(--accent); box-shadow: 0 0 0 3px
+                                    var(--accent-dim);
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.dot--queued</td>
+                                <td class="dec">border: 1.5px dashed var(--queued); background: transparent;</td>
+                                <td class="b3">虚线=还没轮到</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.dot--cancel</td>
+                                <td class="dec">
+                                    border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3); background: transparent;
+                                </td>
+                                <td class="b3">→<code>on-surface 30%</code></td>
+                            </tr>
 
-                            <tr><td class="sel">.badge</td><td class="dec">display: inline-flex; align-items: center; gap: 5px; height: 19px; padding: 0 7px; border-radius: 4px; font: 500 11px/1 var(--mono); letter-spacing: 0.02em; border: 1px solid transparent;</td><td class="b3"><b>500 字重易漏</b>（现状 400）</td></tr>
-                            <tr><td class="sel">.badge--run</td><td class="dec">color: var(--accent-text); border-color: oklch(0.677 0.0876 44.8 / 0.45); background: var(--accent-dim);</td><td class="b3">边 45% / 底 18%</td></tr>
-                            <tr><td class="sel">.badge--done</td><td class="dec">color: var(--ok); border-color: oklch(0.68 0.12 155 / 0.4); background: var(--ok-dim);</td><td class="b3">边 40% / 底 18%（现状底 14% 偏淡）</td></tr>
-                            <tr><td class="sel">.badge--fail</td><td class="dec">color: var(--fail); border-color: oklch(0.62 0.16 28 / 0.45); background: var(--fail-dim);</td><td class="b3">边 45% / 底 18%</td></tr>
-                            <tr><td class="sel">.badge--stop</td><td class="dec">color: var(--accent-text); border-color: oklch(0.677 0.0876 44.8 / 0.45);</td><td class="b3"><b>无底色</b>；边 45%（现状 100% 实边偏硬）</td></tr>
-                            <tr><td class="sel">.badge--idle / --plain</td><td class="dec">color: var(--muted); border-color: var(--border);</td><td class="b3">—</td></tr>
+                            <tr>
+                                <td class="sel">.badge</td>
+                                <td class="dec">
+                                    display: inline-flex; align-items: center; gap: 5px; height: 19px; padding: 0 7px;
+                                    border-radius: 4px; font: 500 11px/1 var(--mono); letter-spacing: 0.02em; border:
+                                    1px solid transparent;
+                                </td>
+                                <td class="b3"><b>500 字重易漏</b>（现状 400）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.badge--run</td>
+                                <td class="dec">
+                                    color: var(--accent-text); border-color: oklch(0.677 0.0876 44.8 / 0.45);
+                                    background: var(--accent-dim);
+                                </td>
+                                <td class="b3">边 45% / 底 18%</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.badge--done</td>
+                                <td class="dec">
+                                    color: var(--ok); border-color: oklch(0.68 0.12 155 / 0.4); background:
+                                    var(--ok-dim);
+                                </td>
+                                <td class="b3">边 40% / 底 18%（现状底 14% 偏淡）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.badge--fail</td>
+                                <td class="dec">
+                                    color: var(--fail); border-color: oklch(0.62 0.16 28 / 0.45); background:
+                                    var(--fail-dim);
+                                </td>
+                                <td class="b3">边 45% / 底 18%</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.badge--stop</td>
+                                <td class="dec">
+                                    color: var(--accent-text); border-color: oklch(0.677 0.0876 44.8 / 0.45);
+                                </td>
+                                <td class="b3"><b>无底色</b>；边 45%（现状 100% 实边偏硬）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.badge--idle / --plain</td>
+                                <td class="dec">color: var(--muted); border-color: var(--border);</td>
+                                <td class="b3">—</td>
+                            </tr>
 
-                            <tr><td class="sel">.spin</td><td class="dec">width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; border: 1.6px solid var(--accent-dim); border-top-color: var(--accent); animation: spin 0.9s linear infinite;</td><td class="b3">12px（现状 11px）；环底 18% 档</td></tr>
-                            <tr><td class="sel">@keyframes spin</td><td class="dec">to { transform: rotate(360deg) }</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">@keyframes pulse</td><td class="dec">50% { opacity: 0.45 }</td><td class="b3">仅定义；本稿未挂到任何元素——run 点<b>不脉冲</b>（实现自行加的 1.4s 脉冲是稿外发挥，gap-list B 类）</td></tr>
-                            <tr><td class="sel">prefers-reduced-motion</td><td class="dec">.spin { animation: none; border-top-color: var(--accent) } .dot--run { animation: none }</td><td class="b3">—</td></tr>
+                            <tr>
+                                <td class="sel">.spin</td>
+                                <td class="dec">
+                                    width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; border: 1.6px solid
+                                    var(--accent-dim); border-top-color: var(--accent); animation: spin 0.9s linear
+                                    infinite;
+                                </td>
+                                <td class="b3">12px（现状 11px）；环底 18% 档</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@keyframes spin</td>
+                                <td class="dec">to { transform: rotate(360deg) }</td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">@keyframes pulse</td>
+                                <td class="dec">50% { opacity: 0.45 }</td>
+                                <td class="b3">
+                                    仅定义；本稿未挂到任何元素——run 点<b>不脉冲</b>（实现自行加的 1.4s
+                                    脉冲是稿外发挥，gap-list B 类）
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="sel">prefers-reduced-motion</td>
+                                <td class="dec">
+                                    .spin { animation: none; border-top-color: var(--accent) } .dot--run { animation:
+                                    none }
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
 
-                            <tr><td class="sel">.b3-button</td><td class="dec">display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r); background: transparent; border: 1px solid var(--border-2); color: var(--fg); font-size: 13px; transition: background 0.12s, border-color 0.12s, color 0.12s; white-space: nowrap;</td><td class="b3">面板内动作钮；实现走思源 Button 体系等价映射</td></tr>
-                            <tr><td class="sel">.b3-button:hover / :focus-visible</td><td class="dec">background: var(--hover) / outline: 2px solid var(--accent); outline-offset: 2px;</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.b3-button--small</td><td class="dec">height: 24px; padding: 0 9px; font-size: 12px; border-color: var(--border);</td><td class="b3">—</td></tr>
-                            <tr><td class="sel">.b3-button--text / :hover</td><td class="dec">border-color: transparent; padding: 0 7px; color: var(--muted) / background: var(--hover); color: var(--fg);</td><td class="b3">「收起分篇」「前往抉择」用</td></tr>
-                            <tr><td class="sel">.b3-button--cancel / :hover</td><td class="dec">border-color: oklch(0.62 0.16 28 / 0.62); color: var(--fail) / background: var(--fail-dim); border-color: var(--fail); color: var(--fail);</td><td class="b3">「停止整批转换」红描边族</td></tr>
-                            <tr><td class="sel">.b3-button--primary / :hover</td><td class="dec">background: var(--accent-solid); border-color: transparent; color: var(--on-accent); font-weight: 500 / background: oklch(0.62 0.095 44.8);</td><td class="b3">「保留已生成」主钮</td></tr>
-                            <tr><td class="sel">.b3-button[disabled] / :hover</td><td class="dec">color: var(--faint); border-color: var(--border); cursor: default / background: transparent;</td><td class="b3">—</td></tr>
+                            <tr>
+                                <td class="sel">.b3-button</td>
+                                <td class="dec">
+                                    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+                                    height: 30px; padding: 0 12px; border-radius: var(--r); background: transparent;
+                                    border: 1px solid var(--border-2); color: var(--fg); font-size: 13px; transition:
+                                    background 0.12s, border-color 0.12s, color 0.12s; white-space: nowrap;
+                                </td>
+                                <td class="b3">面板内动作钮；实现走思源 Button 体系等价映射</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.b3-button:hover / :focus-visible</td>
+                                <td class="dec">
+                                    background: var(--hover) / outline: 2px solid var(--accent); outline-offset: 2px;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.b3-button--small</td>
+                                <td class="dec">
+                                    height: 24px; padding: 0 9px; font-size: 12px; border-color: var(--border);
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.b3-button--text / :hover</td>
+                                <td class="dec">
+                                    border-color: transparent; padding: 0 7px; color: var(--muted) / background:
+                                    var(--hover); color: var(--fg);
+                                </td>
+                                <td class="b3">「收起分篇」「前往抉择」用</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.b3-button--cancel / :hover</td>
+                                <td class="dec">
+                                    border-color: oklch(0.62 0.16 28 / 0.62); color: var(--fail) / background:
+                                    var(--fail-dim); border-color: var(--fail); color: var(--fail);
+                                </td>
+                                <td class="b3">「停止整批转换」红描边族</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.b3-button--primary / :hover</td>
+                                <td class="dec">
+                                    background: var(--accent-solid); border-color: transparent; color: var(--on-accent);
+                                    font-weight: 500 / background: oklch(0.62 0.095 44.8);
+                                </td>
+                                <td class="b3">「保留已生成」主钮</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">.b3-button[disabled] / :hover</td>
+                                <td class="dec">
+                                    color: var(--faint); border-color: var(--border); cursor: default / background:
+                                    transparent;
+                                </td>
+                                <td class="b3">—</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <!-- ==================== 6.3 存量记录回退形态 ==================== -->
-                <h3 class="sp-h3"><span class="sp-h3n">6.3</span>存量记录回退形态（旧数据长这样——对不上稿时按这里认）</h3>
+                <h3 class="sp-h3">
+                    <span class="sp-h3n">6.3</span>存量记录回退形态（旧数据长这样——对不上稿时按这里认）
+                </h3>
                 <p class="sp-sub">
                     02 屏树里 mock 的「生成第 12 批 · 8 题」是<b>新数据形态</b>；登记簿现存记录的 title 是「转换 ·
                     高等数学」这类组式标题，树化后叶子行名被剥成只剩<b>「转换」二字</b>（组标题「 ·
@@ -2536,9 +3306,19 @@
                             </div>
                         </div>
                         <div class="sp-demo-notes">
-                            <span>· 叶行名只剩「转换」二字 —— 组式 title「转换 · 高等数学」的主题已上提为 tg2 节点，行名剥尾随「 · 主题」；</span>
-                            <span>· 行尾三件 = <b>状态点 + 行名 + 时间戳（mono 弱注记位）+ 状态徽标贴右</b>；徽标词只有三态 running / done / error（登记簿只有这三种 status）；</span>
-                            <span>· 单条种类不设层（判分仅 1 条 → 上提为叶行），行名<b>保留全名</b>「判分 · 13/21」（剥了就丢信息）；单条主题同理保留全名。</span>
+                            <span
+                                >· 叶行名只剩「转换」二字 —— 组式 title「转换 · 高等数学」的主题已上提为 tg2
+                                节点，行名剥尾随「 · 主题」；</span
+                            >
+                            <span
+                                >· 行尾三件 =
+                                <b>状态点 + 行名 + 时间戳（mono 弱注记位）+ 状态徽标贴右</b>；徽标词只有三态 running /
+                                done / error（登记簿只有这三种 status）；</span
+                            >
+                            <span
+                                >· 单条种类不设层（判分仅 1 条 → 上提为叶行），行名<b>保留全名</b>「判分 ·
+                                13/21」（剥了就丢信息）；单条主题同理保留全名。</span
+                            >
                         </div>
                     </div>
                     <div>
@@ -2569,9 +3349,18 @@
                             </div>
                         </div>
                         <div class="sp-demo-notes">
-                            <span>· 叶行名自带信息量：「<b>生成第 N 批 · M 题</b>」「路由 · 送去「…」」，无需行尾时间戳补上下文 —— 稿内叶行<b>没有</b>时间戳；</span>
-                            <span>· 徽标六态全量（run / done / skip / stop / fail / queued / cancel），run 带 12px 转圈；</span>
-                            <span>· 两棵树的<b>结构、缩进、字号、点/徽标规格完全相同</b>——差别的只是数据，不是样式。</span>
+                            <span
+                                >· 叶行名自带信息量：「<b>生成第 N 批 · M 题</b>」「路由 ·
+                                送去「…」」，无需行尾时间戳补上下文 —— 稿内叶行<b>没有</b>时间戳；</span
+                            >
+                            <span
+                                >· 徽标六态全量（run / done / skip / stop / fail / queued / cancel），run 带 12px
+                                转圈；</span
+                            >
+                            <span
+                                >·
+                                两棵树的<b>结构、缩进、字号、点/徽标规格完全相同</b>——差别的只是数据，不是样式。</span
+                            >
                         </div>
                     </div>
                 </div>
@@ -2587,20 +3376,34 @@
                 <!-- ==================== 6.4 新数据形态与轮次日志对照 ==================== -->
                 <h3 class="sp-h3"><span class="sp-h3n">6.4</span>轮次日志三行对照（02 屏 mock vs 可施工文案）</h3>
                 <p class="sp-sub">
-                    02 屏日志是「一行=一轮、时间逐轮推进」的 mock；登记簿只存 prompt 与回复全文。下表逐行钉死哪些可施工、
-                    哪些是 mock 专属——<b>可施工的照抄形态，不可施工的宁缺勿编</b>。
+                    02 屏日志是「一行=一轮、时间逐轮推进」的 mock；登记簿只存 prompt
+                    与回复全文。下表逐行钉死哪些可施工、 哪些是 mock 专属——<b>可施工的照抄形态，不可施工的宁缺勿编</b>。
                 </p>
                 <div class="sp-tblwrap">
                     <table class="sp-tbl">
                         <thead>
-                            <tr><th>#</th><th>02 屏 mock（batch-running / stopped 屏）</th><th>可施工形态</th><th>依据 / 边界</th></tr>
+                            <tr>
+                                <th>#</th>
+                                <th>02 屏 mock（batch-running / stopped 屏）</th>
+                                <th>可施工形态</th>
+                                <th>依据 / 边界</th>
+                            </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td class="sel">行 1</td>
-                                <td class="dec">14:22:07 · 轮次 1 · 输入 &lt;em&gt;3,240 字&lt;/em&gt; → 输出 &lt;em&gt;8 题&lt;/em&gt;</td>
-                                <td class="dec">轮次 {n} · 输入 &lt;em&gt;{x} 字&lt;/em&gt; → 输出 &lt;em&gt;{q} 题&lt;/em&gt;（一轮一行：user+assistant 合并；x=prompt 字符数恒可数；q 由 @@Q 标记行或行首编号数出，<b>数不出只报字数不编题数</b>）</td>
-                                <td class="b3">turns 有序可编号；字数=字符串长度（确定性）；题数 questionCountOf 口径</td>
+                                <td class="dec">
+                                    14:22:07 · 轮次 1 · 输入 &lt;em&gt;3,240 字&lt;/em&gt; → 输出 &lt;em&gt;8
+                                    题&lt;/em&gt;
+                                </td>
+                                <td class="dec">
+                                    轮次 {n} · 输入 &lt;em&gt;{x} 字&lt;/em&gt; → 输出 &lt;em&gt;{q}
+                                    题&lt;/em&gt;（一轮一行：user+assistant 合并；x=prompt 字符数恒可数；q 由 @@Q
+                                    标记行或行首编号数出，<b>数不出只报字数不编题数</b>）
+                                </td>
+                                <td class="b3">
+                                    turns 有序可编号；字数=字符串长度（确定性）；题数 questionCountOf 口径
+                                </td>
                             </tr>
                             <tr>
                                 <td class="sel">行 2</td>
@@ -2617,18 +3420,27 @@
                             <tr>
                                 <td class="sel">时间戳列</td>
                                 <td class="dec">14:22:07 → 14:22:31 → 14:22:48（逐轮递增）</td>
-                                <td class="dec">全行同一记录级锚 clockOf(rec.createdAt)（HH:MM:SS mono 11.5px faint）</td>
+                                <td class="dec">
+                                    全行同一记录级锚 clockOf(rec.createdAt)（HH:MM:SS mono 11.5px faint）
+                                </td>
                                 <td class="b3">AiTurn 未存逐轮时间；<b>禁止伪造递增时间戳</b>（已知偏差，如实呈现）</td>
                             </tr>
                             <tr>
                                 <td class="sel">停止屏第 4 行</td>
-                                <td class="dec">14:23:05 · &lt;em&gt;收到整批停止指令&lt;/em&gt; · 本批已产出保留待抉择</td>
-                                <td class="dec">中断行整行入日志（aiInterrupted 词）；error 态正文行红字（is-error），全文可展开</td>
+                                <td class="dec">
+                                    14:23:05 · &lt;em&gt;收到整批停止指令&lt;/em&gt; · 本批已产出保留待抉择
+                                </td>
+                                <td class="dec">
+                                    中断行整行入日志（aiInterrupted 词）；error 态正文行红字（is-error），全文可展开
+                                </td>
                                 <td class="b3">已实现（错误/中断随日志走），形态与本行一致</td>
                             </tr>
                             <tr>
                                 <td class="sel">单篇屏（2 行版）</td>
-                                <td class="dec">14:31:12 · 轮次 1 · 输入 2,880 字 → 输出 7 题 / 14:31:40 · 轮次 2 · 校验 7 题，全部通过</td>
+                                <td class="dec">
+                                    14:31:12 · 轮次 1 · 输入 2,880 字 → 输出 7 题 / 14:31:40 · 轮次 2 · 校验 7
+                                    题，全部通过
+                                </td>
                                 <td class="dec">同上口径（行 1 可出、行 2 不出）</td>
                                 <td class="b3">—</td>
                             </tr>
@@ -2637,10 +3449,11 @@
                 </div>
 
                 <div class="sp-callout" data-od-id="spec-newdata-callout">
-                    <b>新数据形态的登记前提</b>：「生成第 N 批 · M 题」的批号与题数需要写入侧在登记时带上（现登记簿无此字段）；
-                    在字段补齐前，树/详情按 6.3 回退形态呈现即为正确实现。own-note 文案按 02 屏三段结构供给：
-                    <b>首句加粗</b>（归属）+ 正文 + 入口词 <span class="at">「停止整批转换」</span>（主色强调）——
-                    现实现的纯文本整串无层次，属 A 级差距（gap-list A7），修法是文案分段而非样式硬凑。
+                    <b>新数据形态的登记前提</b>：「生成第 N 批 · M
+                    题」的批号与题数需要写入侧在登记时带上（现登记簿无此字段）； 在字段补齐前，树/详情按 6.3
+                    回退形态呈现即为正确实现。own-note 文案按 02 屏三段结构供给： <b>首句加粗</b>（归属）+ 正文 + 入口词
+                    <span class="at">「停止整批转换」</span>（主色强调）—— 现实现的纯文本整串无层次，属 A
+                    级差距（gap-list A7），修法是文案分段而非样式硬凑。
                 </div>
             </section>
         </main>
