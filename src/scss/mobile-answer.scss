@@ -1,0 +1,281 @@
+/* 移动端刷题（Issue #59）：**全部规则挂在 `.wengu-mobile` 标记类之下**——
+   标记由挂载层（src/mobile/index.ts → ui/shared.markMobileUi，按
+   window.siyuan.mobile 判定）打在 dock 面板根元素与 document.body 上；
+   桌面不带标记 ⇒ 本文件一条都不生效，桌面渲染逐字节不变（验收 3）。
+   为什么不用 media query：桌面浏览器窄窗口会误伤，触屏适配只该按**环境**
+   而不是按视口宽度分流（与 words-mobile.scss 同口径）。
+   口径（设计稿标注）：触控目标 ≥44px、交互不依赖 hover、正文 ≥15px、
+   输入框字号 ≥16px（iOS 聚焦不缩放）。色值一律走 b3 主题令牌——明/暗
+   主题自适应，不写死黑白（设计稿的浅色值只作间距/字号参照）。 */
+
+.wengu-mobile .wengu-md {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+
+  /* 选项行（屏 ②⑥）：≥52px 触控、可多点齐亮、可反悔 */
+  .wengu-md-opts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+    padding-bottom: 8px;
+
+    &.duo {
+      flex-direction: row;
+
+      .wengu-md-opt {
+        flex: 1;
+        justify-content: center;
+        text-align: center;
+        font-weight: 600;
+      }
+    }
+
+    &.locked .wengu-md-opt {
+      cursor: default;
+    }
+  }
+
+  .wengu-md-opt {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-height: 52px;
+    padding: 11px 13px;
+    border: 1.5px solid var(--b3-border-color);
+    border-radius: var(--b3-border-radius-b);
+    background: var(--b3-theme-background);
+    color: inherit;
+    font-family: inherit;
+    font-size: 15.5px;
+    line-height: 1.55;
+    text-align: left;
+
+    .wengu-md-key {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border: 1.5px solid var(--b3-border-color);
+      border-radius: 50%;
+      background: var(--b3-theme-background);
+      color: var(--b3-theme-on-surface-light);
+      font-size: 13.5px;
+      font-weight: 700;
+    }
+
+    .wengu-md-txt {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .wengu-md-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex: 0 0 auto;
+      font-size: 11px;
+      font-weight: 700;
+
+      svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+      }
+    }
+
+    &.on {
+      border-color: var(--b3-theme-primary);
+      background: var(--b3-theme-primary-lightest);
+
+      .wengu-md-key {
+        border-color: var(--b3-theme-primary);
+        background: var(--b3-theme-primary);
+        color: var(--b3-theme-on-primary);
+      }
+    }
+
+    &.right {
+      border-color: var(--b3-theme-success);
+      background: color-mix(in srgb, var(--b3-theme-success) 10%, transparent);
+
+      .wengu-md-key {
+        border-color: var(--b3-theme-success);
+        background: var(--b3-theme-success);
+        color: var(--b3-theme-on-primary);
+      }
+
+      .wengu-md-mark {
+        color: var(--b3-theme-success);
+      }
+    }
+
+    &.wrong-pick {
+      border-color: var(--b3-theme-error);
+      background: color-mix(in srgb, var(--b3-theme-error) 10%, transparent);
+
+      .wengu-md-key {
+        border-color: var(--b3-theme-error);
+        background: var(--b3-theme-error);
+        color: var(--b3-theme-on-primary);
+      }
+
+      .wengu-md-mark {
+        color: var(--b3-theme-error);
+      }
+    }
+
+    &.dim {
+      opacity: 0.55;
+    }
+  }
+
+  /* 结果行 / 提示行 / 评语 / 自评 */
+  .wengu-md-result {
+    margin-top: 10px;
+    font-size: 15px;
+    font-weight: 600;
+
+    &.right {
+      color: var(--b3-theme-success);
+    }
+
+    &.wrong {
+      color: var(--b3-theme-error);
+    }
+
+    &.warn {
+      color: var(--b3-theme-on-surface-light);
+      font-weight: 500;
+    }
+  }
+
+  .wengu-md-comment {
+    margin-top: 6px;
+    padding-left: 8px;
+    border-left: 3px solid var(--b3-theme-primary-light);
+    font-size: 14px;
+  }
+
+  .wengu-md-self {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 13.5px;
+    color: var(--b3-theme-on-surface-light);
+  }
+
+  .wengu-md-hintbar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 2px;
+    font-size: 12.5px;
+    color: var(--b3-theme-on-surface-light);
+
+    svg {
+      width: 14px;
+      height: 14px;
+      flex: none;
+      fill: currentColor;
+    }
+  }
+
+  /* 揭示范（屏 ⑤）：对错徽标 + 答案 + 可折叠解析 */
+  .wengu-md-verdict {
+    margin-top: 14px;
+    border: 1px solid var(--b3-theme-error);
+    border-radius: var(--b3-border-radius-b);
+    overflow: hidden;
+
+    &.good {
+      border-color: var(--b3-theme-success);
+    }
+  }
+
+  .wengu-md-verdict-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: color-mix(in srgb, var(--b3-theme-error) 10%, transparent);
+  }
+
+  .wengu-md-verdict.good .wengu-md-verdict-head {
+    background: color-mix(in srgb, var(--b3-theme-success) 10%, transparent);
+  }
+
+  .wengu-md-vbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 11px;
+    border-radius: 15px;
+    background: var(--b3-theme-error);
+    color: var(--b3-theme-on-primary);
+    font-size: 13.5px;
+    font-weight: 700;
+
+    svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+  }
+
+  .wengu-md-verdict.good .wengu-md-vbadge {
+    background: var(--b3-theme-success);
+  }
+
+  .wengu-md-vans {
+    margin-left: auto;
+    font-size: 12.5px;
+    color: var(--b3-theme-on-surface-light);
+
+    b {
+      font-size: 13px;
+      color: var(--b3-theme-on-background);
+    }
+  }
+
+  .wengu-md-exp {
+    border-top: 1px solid var(--b3-border-color);
+
+    summary {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      padding: 6px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      list-style: none;
+      cursor: pointer;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  .wengu-md-expbody {
+    padding: 2px 14px 14px;
+    font-size: 15px;
+    line-height: 1.75;
+
+    :where(.p) {
+      margin: 4px 0;
+    }
+  }
+}
