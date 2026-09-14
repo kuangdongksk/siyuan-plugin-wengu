@@ -283,6 +283,27 @@ export class AiSessionStore {
         this.notify();
     }
 
+    /**
+     * 改名：把记录 title 换成更贴切的任务名（Issue #88）。
+     * **转换批记录**的批号/题数在**批落库时**才知道，而 `begin` 在调用前
+     * ——登记起点只能给类别名（「转换 · 窗口」），落库后由调用方补上
+     * 「生成第 N 批 · M 题」这样真读得懂的行名。
+     *
+     * 三条口径：
+     *  - **只改 title，不碰其它字段**（含 turns/status/组字段）——纯命名通道；
+     *  - **不设状态闸**：running（落库先于收口，正常路径）与已收口
+     *    （收口快一步的极端时序）都该改名，否则那条记录永远停在类别名；
+     *  - **同值零动作**（幂等、不触发 notify/落盘）——面板订阅者不该被
+     *    无变化的改名刷一帧。
+     */
+    retitle(id: string, title: string): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || !title || r.title === title) return;
+        r.title = title;
+        this.schedule();
+        this.notify();
+    }
+
     /** 重试在途：error→running（面板重试入口；重放轮次走新会话，收口
      *  复用 succeed/fail——成功追加 ai 轮原地翻案、失败记新错误消息）。
      *  仅 error 态可转：done 无「未完成调用」可重跑，running 防重入。 */

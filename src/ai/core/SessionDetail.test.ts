@@ -1,0 +1,150 @@
+import { describe, expect, it } from "vitest";
+import type { AiSessionRecord } from "../data/AiSessions";
+import { AI_INTERRUPTED } from "../data/AiSessions";
+import { clockOf, detailViewOf, questionCountOf } from "./SessionDetail";
+
+/**
+ * 详情三段视图（Issue #88）：详情头（任务名 + kind 徽标 + 状态徽标）、
+ * 轮次日志（时间戳 + 摘要，数字走 `<em>` 段）、归属备注 / 重试钮。
+ * 断言落在**渲染侧真吃的字段**上。
+ */
+
+/** 取词替身：给出带占位符的真实模板（键名直出的话 fmt 无从填空，
+ *  断言只能落在键名上、锁不住「填的是这几个数」）。 */
+const TEMPLATES: Record<string, string> = {
+    aiStatusRunning: "running",
+    aiStatusDone: "done",
+    aiStatusError: "error",
+    aiLogInput: "输入 {n} 字",
+    aiLogOutput: "输出 {n} 字",
+    aiLogOutputQ: "输出 {n} 字 · 含 {q} 题",
+    aiLogLabel: "轮次日志",
+    aiInterrupted: "已中断（插件重载）",
+    aiSending: "思考中…",
+    aiWaitingSlot: "等待空闲通道…",
+    aiWaitingSlotX: "",
+};
+const t = (k: string): string => TEMPLATES[k] ?? k;
+
+function rec(over: Partial<AiSessionRecord> = {}): AiSessionRecord {
+    return {
+        id: "s1",
+        kind: "convert",
+        title: "转换 · 卷名",
+        model: "m1",
+        createdAt: new Date(2026, 8, 14, 14, 22, 7).getTime(),
+        status: "running",
+        turns: [{ role: "user", text: "abc" }],
+        ...over,
+    };
+}
+
+const base = { t, kindText: "转换", title: "生成第 12 批 · 8 题", modelText: "默认模型", ownNote: "" };
+
+describe("详情头", () => {
+    it("任务名（树里那份行名）+ kind 徽标 + 状态徽标（与树叶子行同一份判定）", () => {
+        const v = detailViewOf(rec(), base)!;
+        expect(v.head.title).toBe("生成第 12 批 · 8 题");
+        expect(v.head.kindText).toBe("转换");
+        expect(v.head.status).toMatchObject({ dotCls: "run", badgeText: "running", spin: true });
+        expect(v.head.meta).toBe("14:22:07 · 默认模型");
+    });
+
+    it("任务名缺位时回落记录 title（存量记录/直连调用不留空标题）", () => {
+        const v = detailViewOf(rec(), { ...base, title: "" })!;
+        expect(v.head.title).toBe("转换 · 卷名");
+    });
+
+    it("无选中记录 → undefined（右栏出空态提示）", () => {
+        expect(detailViewOf(undefined, base)).toBeUndefined();
+    });
+});
+
+describe("轮次日志", () => {
+    it("user/ai 轮都出摘要行：字数走 `{n}` 强调位，题数只出数得出来的", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "abcd" },
+                    { role: "ai", text: "@@Q 一\n@@Q 二\n" },
+                ],
+            }),
+            base
+        )!;
+        expect(v.rows[0].parts).toEqual([
+            { text: "输入 ", em: false },
+            { text: "4", em: true },
+            { text: " 字", em: false },
+        ]);
+        expect(v.rows[1].parts).toEqual([
+            { text: "输出 ", em: false },
+            { text: "12", em: true },
+            { text: " 字 · 含 ", em: false },
+            { text: "2", em: true },
+            { text: " 题", em: false },
+        ]);
+    });
+
+    it("数不出题数只报字数（设计稿那串数字是 mock，硬凑会写错的数）", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "q" },
+                    { role: "ai", text: "随便一段话" },
+                ],
+            }),
+            base
+        )!;
+        expect(v.rows[1].parts).toEqual([
+            { text: "输出 ", em: false },
+            { text: "5", em: true },
+            { text: " 字", em: false },
+        ]);
+    });
+
+    it("每行带回全文（设计稿日志是摘要，面板的核心用途是回看产出）", () => {
+        const v = detailViewOf(rec({ turns: [{ role: "user", text: "abcdef" }] }), base)!;
+        expect(v.rows[0].full).toBe("abcdef");
+    });
+
+    it("error 态把错误正文也摆进日志（日志是过程记录）；done 态不出进行态行", () => {
+        const v = detailViewOf(rec({ status: "error", error: "超时", turns: [{ role: "user", text: "q" }] }), base)!;
+        expect(v.rows.at(-1)).toMatchObject({ isError: true, parts: [{ text: "超时", em: false }] });
+        expect(v.pending).toBe("");
+        expect(v.retryable).toBe(true);
+    });
+
+    it("重载中断：不进日志红行、不出重试正文（那是预期收口，不是失败）", () => {
+        const v = detailViewOf(
+            rec({ status: "error", error: AI_INTERRUPTED, turns: [{ role: "user", text: "q" }] }),
+            base
+        )!;
+        expect(v.rows.at(-1)).toMatchObject({ isError: false, parts: [{ text: "已中断（插件重载）", em: false }] });
+        expect(v.errorText).toBe("");
+    });
+});
+
+describe("三段收口（归属备注 / 进行态 / 重试）", () => {
+    it("running：等槽态出「等待空闲通道」，否则出「思考中」", () => {
+        expect(detailViewOf(rec(), base)!.pending).toBe("思考中…");
+        expect(detailViewOf(rec({ queued: true } as never), base)!.pending).toBe("等待空闲通道…");
+    });
+
+    it("归属备注只在 running 出（宿主给的成品串，本模块不算归属）", () => {
+        expect(detailViewOf(rec(), { ...base, ownNote: "本记录属于整批转换…" })!.ownNote).toBe("本记录属于整批转换…");
+        expect(detailViewOf(rec({ status: "done" }), { ...base, ownNote: "x" })!.ownNote).toBe("");
+    });
+});
+
+describe("纯函数：时间与题数", () => {
+    it("clockOf 补零到 HH:MM:SS", () => {
+        expect(clockOf(new Date(2026, 0, 2, 3, 4, 5).getTime())).toBe("03:04:05");
+    });
+
+    it("questionCountOf 只认行首标记（@@Q 与 N./N、编号）；数不出返回 0", () => {
+        expect(questionCountOf("@@Q 题干\n@@Q 题干2\n")).toBe(2);
+        expect(questionCountOf("1. 甲\n2. 乙\n3、丙\n")).toBe(3);
+        expect(questionCountOf("这句话里出现 1. 但不是行首编号")).toBe(0);
+        expect(questionCountOf("")).toBe(0);
+    });
+});

@@ -339,6 +339,11 @@ export function makeKnowAwareAi(opts: {
      *  造（signal=本轮断流、stop=流总闸）。缺省=不接线（老行为，面板点停
      *  查无此 id 静默无效）。 */
     abort?: AiAbort;
+    /** 生成调用的**登记 id 回传**（Issue #88）：`generate` 的 track.onSid
+     *  把它自己的记录 id 交给调用方（与 `abort.onSid` **两条链都要接**——
+     *  前者供改名、后者供停止，缺一即有一半能力失效）。转换批据此在
+     *  **批落库后**把 title 改成「生成第 N 批 · M 题」。 */
+    onGenerateSid?: (sid: string) => void;
     buildPrompt: (source: string, knowRuleBlock: string, knowListBlock: string) => string;
 }): (chunkText: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }> {
     const call = (message: string): Promise<string> =>
@@ -353,7 +358,13 @@ export function makeKnowAwareAi(opts: {
             kind: "convert",
             title: opts.label ? `转换 · ${opts.label}` : undefined,
             group: opts.group,
-            ...(opts.abort ? { onSid: opts.abort.onSid } : {}),
+            // ⚠️ 两条 onSid 链并存：`abort` 那条接停止（Issue #72），
+            // `onGenerateSid` 那条接改名（Issue #88）——写成 `??` 二选一会
+            // 静默丢掉其中一半（面板点停无效，或行名永远停在类别名）。
+            onSid: (sid) => {
+                opts.abort?.onSid(sid);
+                opts.onGenerateSid?.(sid);
+            },
         });
     return (chunkText) => knowAwareCall(chunkText, opts.knowIndex, { call, generate }, opts.buildPrompt);
 }

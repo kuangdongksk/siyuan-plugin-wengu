@@ -1384,6 +1384,67 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   `convertRunSnapshot()?.batch` 判批量/单篇），与横幅同一组词、同一
   cancel 语义样式——两处口径分叉正是设计稿点名的「粒度错位」。
 
+### AI 会话面板的视觉还原（Issue #88，20260914；设计稿
+
+`design/convert-stop-redesign.html` 的 `ai-panel-batch-running` /
+`ai-panel-single-running` / `ai-panel-stopped` 三屏 + `legacy-ai-panel`
+对照屏 → 照稿施工勿发明视觉）
+
+- **树（左栏）**：头部「AI 会话」+ 组数徽标（`badge--plain`）；二级组行 =
+  **「类别 · 文档名」组合行**（`SessionTree.groupRowName`，种类级只出类别名）；
+  叶子行 = **状态点 + 任务名 + 状态徽标**（`SessionTree.leafViewOf`，纯函数
+  带单测）——旧行只有类别章 + 标题 + 时间，状态藏在图标色里，40 条记录看不出
+  哪批失败哪批成功。
+    - **视图形态由纯逻辑给**（`leafViewByKey`：`dotCls`/`badgeCls`/`badgeText`/
+      `spin`/`name`/`queuedNote`），`SessionPanelApp` 的 main 片段只按字段渲染。
+      状态点与徽标是**两套命名但同一组色名**（run/done/fail/skip/stop/queued），
+      新增色名要两处同步。
+    - ⚠️ **`queuedNote` 只对 running 出**：排队等槽是瞬时展示态（#76），挂在
+      done/error 上就是「已完成 · 等待空闲通道」这种自相矛盾的组合。
+    - ⚠️ **共享组件 `ui/TreeList.svelte` 本体不动**：新形态全靠 ai 面板根上的
+      作用域类（`.wengu-ai-list .b3-list-item .wengu-aipanel-*`）与 main/trailing
+      片段表达——知识面板/侧栏树两棵树零回归（改 TreeList 会同时改三棵树）。
+- **详情（右栏）三段**（`ai/components/SessionDetail.svelte`，视图模型在
+  `ai/core/SessionDetail.ts`，纯逻辑带单测）：
+    - `head`：h3 任务名 + `kind=xxx` 徽标 + 状态徽标（**与树叶子行同一份判定**
+      ——两处不会各写一套状态词）；
+    - `body`：`log-label`「轮次日志」+ `ul.log`（**时间戳 + 摘要**两列 grid，
+      数字走 `<em>` 强调位）；
+    - `foot`：归属备注（`own-note`，复用 #77 的 `FlowOwnership`）或错误态重试钮。
+    - ⚠️ **摘要行由纯逻辑切成 `parts` 段**（`{text, em}`），组件零字符串解析
+      ——拆串拼 HTML 有注入面，分段数组没有。取词模板里的 `{n}` 即强调位：
+      中英两套模板的强调位置各由自己的模板表达，代码不猜哪几个字符是数字。
+    - ⚠️ **题数只出数得出来的**（`questionCountOf`：`@@Q` 标记行或行首编号）：
+      设计稿那串「输出 8 题」是 mock，硬猜会把错的数写进日志。数不出只报字数。
+    - ⚠️ **全文不能丢**：设计稿的日志行是摘要形态，而面板的核心用途是**回看
+      产出**——每行带回 `full`、点行展开（默认收起=设计稿形态）。换记录靠
+      `{#key sel.id}` 重挂 ⇒ 展开态自然复位。
+- **记录 title 的任务名化（数据层配套）**：
+    - `AiSessionStore.retitle(id, title)`（**新增通道**，optional 只加不改名、
+      存量记录不回填）：转换批记录的批号/题数在**批落库时**才知道，而
+      `begin` 在调用前，只能给类别名——落库后补成「生成第 N 批 · M 题」。
+      **只改 title 不碰其它字段**、**不设状态闸**（收口快一步的极端时序也该
+      改名）、**同值零动作**（不触发 notify/落盘）。
+    - 接线：`ConvertSegment` 把本批生成的**登记 id** 经 `makeCall` 的 `onSid`
+      回传 → 进 `SegmentBatch.sid` → `ConvertBatch` 在 submit 落库后
+      `aiSessions()?.retitle(...)`。**批号取片内序**（`batchNo`）而非跨片累加
+      ——片是并行单元，跨片序不确定；片内序即用户读到的「第几批」。
+    - ⚠️ **`makeKnowAwareAi` 的 `onSid` 是两条链并存**：`abort.onSid`（停止，
+      #72）与 `onGenerateSid`（改名，#88）。写成 `??` 二选一会静默丢掉其中
+      一半（面板点停无效，或行名永远停在类别名）——实现期即此处分叉，两个
+      用例分别锁死。
+    - **其它域的 title 语义不动**：本单只改转换批的命名与渲染，判题/路由/
+      标签等照旧。存量记录（title=「转换」）渲染回退现状形态，不悬空。
+- **样式在 `scss/aipanel.scss`（`.wengu-aipanel-*`，单开一片——rail.scss 与
+  aiflow.scss 都接近红线）**，`index.scss` 里 `@use`；`@keyframes wengu-ai-spin`
+  仍留在 rail.scss 供两片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
+  设计稿的 `--ok-solid`/`--fail-solid`/`--accent-dim` 等语义令牌落成 b3 令牌 +
+  `color-mix` 组合（同 aiflow.scss 口径）。
+- **单流态横幅 bar 复核**：`ConvertFlow.barOf` 有 `readPct` 即出条，
+  `bannerViewOf` 按「无 queue 才出 bar」分流——已被 `FlowBannerUi.test` 锁死，
+  本单只复核、未改。
+- **范围外**：六个批流的进度摘要上报（#79 遗留 B）仍不做。
+
 ### 通用横切约束
 
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：模式样板/暗雷清单/

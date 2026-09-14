@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AiSessionRecord } from "../data/AiSessions";
-import { buildSessionTree, subjectOf } from "./SessionTree";
+import { buildSessionTree, groupRowName, subjectOf } from "./SessionTree";
 
 /** 贴真格式的记录构造：组标题/标题=「{动作} · {主题}」（ConvertBatch
  *  同款）；opts.fullGroup 模拟检测类真实形态——组标题=文档、自身标题
@@ -142,5 +142,56 @@ describe("buildSessionTree 种类优先树（20260903 改版）", () => {
         expect(d.nodes.map((n) => n.key)).toEqual(["k:detect"]);
         expect(d.nodes[0].children[0].children.map((c) => c.key)).toEqual(["d1", "d2"]);
         expect(buildSessionTree(recs, "regen").nodes).toHaveLength(0);
+    });
+});
+
+describe("叶子行视图（Issue #88：状态点 + 任务名 + 状态徽标）", () => {
+    it("三态各给一套点色/徽标色/词：running 带转圈，done/error 不带", () => {
+        const d = buildSessionTree(
+            [
+                rec("r1", "convert", 30, { action: "转换", status: "running" }),
+                rec("d1", "convert", 20, { action: "转换", status: "done" }),
+                rec("e1", "convert", 10, { action: "转换", status: "error" }),
+            ],
+            "",
+            zhLabel,
+            (k) => ({ aiStatusRunning: "running", aiStatusDone: "done", aiStatusError: "error" })[k] ?? k
+        );
+        const conv = d.branchByKey.get("k:convert")!.recs.map((r) => r.id);
+        expect(conv).toEqual(["r1", "d1", "e1"]);
+        expect(d.leafViewByKey.get("r1")).toMatchObject({
+            dotCls: "run",
+            badgeCls: "run",
+            badgeText: "running",
+            spin: true,
+        });
+        expect(d.leafViewByKey.get("d1")).toMatchObject({ dotCls: "done", badgeCls: "done", spin: false });
+        expect(d.leafViewByKey.get("e1")).toMatchObject({ dotCls: "fail", badgeCls: "fail", spin: false });
+        // 行名=树里那份（剥过尾随主题），不会与 n.name 漂移
+        const leafNode = d.nodes[0].children[0].children.find((n) => n.key === "r1")!;
+        expect(d.leafViewByKey.get("r1")?.name).toBe(leafNode.name);
+    });
+
+    it("队列等槽后缀只在 running 上出（done/error 挂「等待空闲通道」自相矛盾）", () => {
+        const t2 = (k: string): string => k;
+        const run = buildSessionTree(
+            [{ ...rec("q", "judge", 1, { status: "running" }), queued: true } as never],
+            "",
+            zhLabel,
+            t2
+        );
+        expect(run.leafViewByKey.get("q")?.queuedNote).toBe("aiWaitingSlot");
+        const done = buildSessionTree(
+            [{ ...rec("q2", "judge", 1, { status: "done" }), queued: true } as never],
+            "",
+            zhLabel,
+            t2
+        );
+        expect(done.leafViewByKey.get("q2")?.queuedNote).toBe("");
+    });
+
+    it("二级组行名=「类别 · 文档名」组合；种类级（无主题）只出类别名", () => {
+        expect(groupRowName("convert", "高等数学", zhLabel)).toBe("转换 · 高等数学");
+        expect(groupRowName("convert", undefined, zhLabel)).toBe("转换");
     });
 });

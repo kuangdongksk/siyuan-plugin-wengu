@@ -889,5 +889,11 @@
   "aiFlowStatIndexed": "已索引",
   "aiFlowRowNoteFailed": "不阻塞后续篇",
   "aiFlowSub": "{head} ·《{title}》",
-  "aiFlowSegJoin": "、"
+  "aiFlowSegJoin": "、",
+  "aiPanelGroups": "{n} 组",
+  "aiRecordConvertBatch": "生成第 {i} 批 · {n} 题",
+  "aiLogLabel": "轮次日志",
+  "aiLogInput": "输入 {n} 字",
+  "aiLogOutput": "输出 {n} 字",
+  "aiLogOutputQ": "输出 {n} 字 · 含 {q} 题"
 }

@@ -45,6 +45,10 @@ export interface SegmentBatch {
     end: number;
     /** 本片内第几批（从 1 起，展示用）。 */
     batchNo: number;
+    /** 本批那次生成调用的**登记 id**（Issue #88）：编排层落库后据此把
+     *  AI 会话面板的行名改成「生成第 N 批 · M 题」（批号/题数此刻才知道）。
+     *  缺省=未登记（测试替身/未接线），改名腿自然跳过。 */
+    sid?: string;
 }
 
 /** 片执行依赖（编排层提供）。 */
@@ -53,9 +57,13 @@ export interface SegmentDeps {
     kramdown: string;
     /** 归一化索引（长文档只建一次，跨片共享）。 */
     normIndex: NormIndex;
-    /** 生成通道工厂：step 动态求值（首批带判定、报出题型后喂后续批次）。 */
+    /** 生成通道工厂：step 动态求值（首批带判定、报出题型后喂后续批次）。
+     *  `onSid` 把本批那次生成的**登记 id** 回传给执行器（Issue #88）——
+     *  批号与题数在解析完才知道，落库后按它改名（见 SegmentBatch 的
+     *  `sid`）。 */
     makeCall(
-        step: () => StepContext | undefined
+        step: () => StepContext | undefined,
+        onSid: (sid: string) => void
     ): (text: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }>;
     /** 某片首批报出的题型（编排层归类并集，供后开批次用）。 */
     reportTypes(types: QuestionType[]): void;
@@ -104,7 +112,12 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
     };
     let cursor = seg.start;
     let stepCtx: StepContext | undefined;
-    const callAi = deps.makeCall(() => stepCtx);
+    /** 当前这笔生成调用的登记 id（每次调用前清空、由 onSid 回填）。 */
+    let curSid: string | undefined;
+    const callAi = deps.makeCall(
+        () => stepCtx,
+        (sid) => (curSid = sid)
+    );
     while (!deps.signal.aborted && cursor < seg.end) {
         const win = stepWindow(deps.kramdown, cursor, undefined, seg.end);
         if (win.end <= cursor) break; // 已到片尾（防御）
@@ -117,6 +130,7 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         }
         res.batches++;
         stepCtx = { batch: res.batches, first: res.batches === 1 };
+        curSid = undefined;
         let gen: { reply: string; byAlias?: Map<string, KnowSection> };
         try {
             gen = await callAi(win.text);
@@ -168,6 +182,7 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
                     start: cursor,
                     end,
                     batchNo: res.batches,
+                    sid: curSid,
                 });
             } catch (e) {
                 if (deps.signal.aborted) return res;
