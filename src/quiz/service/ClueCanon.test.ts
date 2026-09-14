@@ -18,7 +18,7 @@ import {
  * 权威坐标系（Issue #52 二期验收 6）：Range→权威坐标换算、切片校验、
  * 轮间重算映射、clueRanges 对齐维护（删/增）、装载 backfill 口径。
  *
- * 全部纯函数（DOM 观测在 MaterialDecorate）——与 MaterialDecorate.gloss.test 同款：
+ * 全部纯函数（DOM 观测在 CanonDom）——与 MaterialDecorate.gloss.test 同款：
  * 单测不启 jsdom，坐标口径在这里锁死。
  */
 
@@ -244,6 +244,26 @@ describe("clueRanges 对齐维护（D3：下标与 clues 严格对齐）", () =>
         // 即「全走 fallback」（不设 backfill 动作——测的是形态契约）
         expect(session.clueRanges).toBeUndefined();
         expect(anchorsOf(session, "q1")).toEqual([{ text: "甲" }, { text: "乙" }]);
+    });
+
+    it("锚点拼装：色号平行数组（Issue #57）按下标配对；默认黄不建键", () => {
+        const session: {
+            clues: Record<string, string[]>;
+            clueColors?: Record<string, number[]>;
+        } = {
+            clues: { q1: ["甲", "乙", "丙"] },
+            // 只有第一条显式选过色（第二条缺位 = 默认黄）
+            clueColors: { q1: [2, -1, 3] },
+        };
+        expect(anchorsOf(session, "q1")).toEqual([{ text: "甲", color: 2 }, { text: "乙" }, { text: "丙", color: 3 }]);
+    });
+
+    it("旧会话无色号表 = undefined：锚点形态与改造前逐字相同（存量零迁移）", () => {
+        const session: { clues: Record<string, string[]>; clueColors?: Record<string, number[]> } = {
+            clues: { q1: ["甲"] },
+        };
+        expect(session.clueColors).toBeUndefined();
+        expect(anchorsOf(session, "q1")).toEqual([{ text: "甲" }]);
     });
 
     it("锚点拼装：坐标数组与文本数组按下标配对（缺位=只有文本锚点）", () => {

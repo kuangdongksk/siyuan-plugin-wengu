@@ -51,7 +51,8 @@ export function bindViewFrameFor(
         t: v.t,
         // Issue #52 D2：浮条 pointerdown 时把「那一刻」的 Range 一并传进来，
         // 由 ClueFlow 经 CanonMap 求权威坐标（求不到只存文本，走降级链）
-        onMarkClue: (text, anchorEl, range, root) => addClue(v, text, anchorEl, anchorOf(root, range)),
+        // Issue #57：`color` 只有浮条色板路径给值（缺省 = 主路径默认黄）
+        onMarkClue: (text, anchorEl, range, root, color) => addClue(v, text, anchorEl, anchorOf(root, range), color),
         wordStore,
         // Issue #45：模式闸（只有做题模式出条）+ 卷级英语判定（标生词
         // 只对英语卷出；按选区起点所在卡反查源卷，聚合混合刷各卡各判）

@@ -1,6 +1,7 @@
 /**
  * 线索锚点二期的**权威坐标系**（Issue #52 附录 D1/D3/D5）：纯逻辑层，
- * 无内核 IO、无 DOM 副作用——文本节点表与 Range 由调用侧（MaterialDecorate）
+ * 无内核 IO、无 DOM 副作用——文本节点表与 Range 由调用侧（`CanonDom` 观测、
+ * `MaterialDecorate`/`ClueDecorate` 施工）
  * 观测后喂进来，本文件只做判定与换算，全部带单测。
  *
  * 核心口径（设计稿附录逐字）：
@@ -31,7 +32,7 @@ export interface CanonNode {
 }
 
 /** 权威坐标系：权威串 + 节点表。节点表下标与观测侧传入的数组严格对齐
- *  （`nodeIndex` 由调用方在收集时赋好，见 MaterialDecorate）。 */
+ *  （`nodeIndex` 由调用方在收集时赋好，见 `CanonDom`）。 */
 export interface CanonMap {
     /** 权威原文（装饰注入前的可见文本拼接）。 */
     text: string;
@@ -208,7 +209,7 @@ export interface CanonSlot {
  *
  * `map` 必须是**当前 DOM 节点表**口径的权威表（装饰完成后由 remapCanon
  * 重建），施工前算好全部计划、再由 markSlots 排序统一落格——`splitText`
- * 会截短节点，同一节点内靠后的段必须先切（与 MaterialDecorate.assignHitsToNodes
+ * 会截短节点，同一节点内靠后的段必须先切（与词形联动的 assignHitsToNodes
  * 同款口径，Issue #36）。
  *
  * 一条坐标段**跨多个节点**时逐节点取交集展开成多段（表内节点均属权威，

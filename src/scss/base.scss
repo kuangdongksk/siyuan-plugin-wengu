@@ -117,7 +117,11 @@
    左键会起新选区、Lute 侧 `host.contains(anchorNode)` 落空 → 浮条自灭
    （点空落=按不动）。 */
 .wengu-annobar,
-.wengu-annobar * {
+.wengu-annobar *,
+/* 竖排色板（Issue #57）也是「选区上的常驻层」：浮层文字若可选，在其上
+   按下左键会起新选区、把待标的选段冲掉（与浮条同源）。 */
+.wengu-colormenu-host,
+.wengu-colormenu-host * {
   user-select: none;
 }
 

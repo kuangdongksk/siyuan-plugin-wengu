@@ -5,7 +5,10 @@ import { seedWord } from "../../word/core/WordFsrs";
 import { notifyInfo } from "../../ui/Notify";
 import { svgIcon } from "../../ui/FormHtml";
 import { esc } from "../../ui/shared";
+import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
+import ColorMenu from "../../ui/ColorMenu.svelte";
 import { annoEnabled, pickAnnobarButtons, type BarPicks, type ViewMode } from "./AnnoScope";
+import { CLUE_COLORS } from "./ClueColor";
 
 /**
  * 材料标注层（M5 线索标注 + E4 生词标记共用）：材料/题干文本里选中
@@ -45,6 +48,15 @@ import { annoEnabled, pickAnnobarButtons, type BarPicks, type ViewMode } from ".
  * 两钮都不出 ⇒ 浮条整体不出现（不出空条）。
  */
 
+/** 浮条色板选中的上下文（按下色板触发钮那一刻一次快照，Issue #57）：
+ *  色板是浮层、开菜单本身会动选区，故锚点/文本/Range 必须先存下来，
+ *  等用户点色块时再用——**不能**在点色块那一刻再去读选区。 */
+interface PendingClue {
+    text: string;
+    anchorEl: HTMLElement | null;
+    range?: Range;
+}
+
 /** 标注层回调（QuizView 组装：线索进会话，生词进背单词）。 */
 export interface AnnoCallbacks {
     t: (k: string) => string;
@@ -53,7 +65,13 @@ export interface AnnoCallbacks {
      *  `range`=**按下那一刻**的选区 Range（Issue #52 D2：锚点在此一次
      *  求取，晚一步 Range 已被宿主清掉）；`root`=该 Range 所在的可标根
      *  （材料面板 / 题干区），用它的 CanonMap 换算权威坐标。 */
-    onMarkClue(text: string, anchorEl?: HTMLElement | null, range?: Range, root?: HTMLElement | null): void;
+    onMarkClue(
+        text: string,
+        anchorEl?: HTMLElement | null,
+        range?: Range,
+        root?: HTMLElement | null,
+        color?: number
+    ): void;
     /** 收一个生词（检索命中即入本；查无此词只通知，见 markWord）。 */
     wordStore?: { get(): Promise<WenguWordProgress>; save(p: WenguWordProgress): Promise<unknown> };
     /** 视图模式（Issue #45 模式闸：只有 "quiz" 放行），拉取式取当前值。 */
@@ -64,6 +82,9 @@ export interface AnnoCallbacks {
 }
 
 let bar: HTMLElement | undefined;
+
+/** 色板浮层实例（同一时刻至多一个：再点开新的先把旧的卸掉）。 */
+let colorMenu: { app: MountedSvelteApp; host: HTMLElement } | undefined = undefined;
 
 /** 选段长度上限（Issue #36）：防整页全选的极端，其余一律允许标注。 */
 export const SELECT_MAX = 1000;
@@ -124,6 +145,11 @@ function positionBar(host: HTMLElement, cb: AnnoCallbacks): void {
         hideBar();
         return;
     }
+    // 色板开着时**不因选区变化收条**（Issue #57）：开色板的那一刻选区可能
+    // 被清（宿主/浏览器行为），随之而来的 selectionchange 会把浮条与色板
+    // 一起收掉——用户只看到「点开一闪就没了」。色板自身的关闭走它自己的
+    // 路径（点外部/Esc/选色），此时才由 hideBar 一并向收。
+    if (colorMenu) return;
     const sel = document.getSelection();
     const text = sel?.toString().trim() ?? "";
     if (
@@ -189,17 +215,31 @@ function barChildren(cb: AnnoCallbacks, picks: BarPicks): HTMLElement[] {
         // 清选区，我们已经在它之前把文本取走了（#4）
         clue.addEventListener("pointerdown", (ev) => {
             ev.preventDefault(); // 不清选区
-            const sel = document.getSelection();
-            const text = pickText();
-            const anchorNode = sel?.anchorNode ?? null;
-            const anchorEl = anchorNode instanceof HTMLElement ? anchorNode : (anchorNode?.parentElement ?? null);
-            // Issue #52 D2：锚点在这一刻一次求取——Range 还活着（hideBar
-            // 之后宿主可能已清选区，那时再求就没有 Range 了）
-            const range = sel && !sel.isCollapsed && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : undefined;
+            const p = snapshotClue(pickText);
             hideBar();
-            if (text) cb.onMarkClue(text, anchorEl, range, cluableRootOf(anchorEl));
+            // 主路径：不开菜单 = **默认黄**，一步标完（Issue #57 验收 2，
+            // 交互与改造前逐字一致）
+            if (p.text) cb.onMarkClue(p.text, p.anchorEl, p.range, cluableRootOf(p.anchorEl));
         });
         buttons.push(clue);
+        // 选色入口（Issue #57）：紧邻主钮的**小色块角标**钮——点它开竖排
+        // 色板，点色块即以该色标线索（选色路径共 2 击：开色板 + 点色）。
+        // 主钮一步标默认黄的既有交互因此零回归（两条路径分钮、互不遮挡）。
+        const colors = document.createElement("button");
+        colors.className = "wengu-annobar-btn wengu-annobar-color";
+        colors.type = "button";
+        colors.title = cb.t("clueColorPick");
+        colors.innerHTML = `<i class="wengu-annobar-swatch"></i>${svgIcon("iconDown")}`;
+        colors.addEventListener("pointerdown", (ev) => {
+            ev.preventDefault(); // 不清选区
+            const p = snapshotClue(pickText);
+            if (!p.text) {
+                hideBar();
+                return;
+            }
+            openColorMenu(ev, cb, p);
+        });
+        buttons.push(colors);
     }
     if (picks.word) {
         const word = document.createElement("button");
@@ -216,10 +256,66 @@ function barChildren(cb: AnnoCallbacks, picks: BarPicks): HTMLElement[] {
     return buttons;
 }
 
+/**
+ * 按下那一刻的选段快照（Issue #57 色板路径复用）：文本 + 起点元素 +
+ * **还活着**的 Range——色板是浮层，开菜单本身会动选区，等到点色块再读
+ * 就什么都没有了。
+ */
+function snapshotClue(pickText: () => string): PendingClue {
+    const sel = document.getSelection();
+    const anchorNode = sel?.anchorNode ?? null;
+    const anchorEl = anchorNode instanceof HTMLElement ? anchorNode : (anchorNode?.parentElement ?? null);
+    return {
+        text: pickText(),
+        anchorEl,
+        range: sel && !sel.isCollapsed && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : undefined,
+    };
+}
+
+function closeColorMenu(): void {
+    colorMenu?.app.unmount();
+    colorMenu?.host.remove();
+    colorMenu = undefined;
+}
+
+/**
+ * 打开竖排色板（Issue #57）：宿主 div 挂 body（浮层不受面板 z 圈限制），
+ * 定位在触发钮下沿——与浮条同款「fixed 定位」口径。
+ *
+ * 选色即标：`onMarkClue` 带色号回调出去，宿主按「该题首次带色号才建
+ * `clueColors` 表」的口径落库（见 ClueFlow.addClue）。
+ */
+function openColorMenu(ev: PointerEvent, cb: AnnoCallbacks, p: PendingClue): void {
+    closeColorMenu();
+    const host = document.createElement("div");
+    host.className = "wengu-colormenu-host";
+    const anchor = ev.currentTarget as HTMLElement | null;
+    const rect = anchor?.getBoundingClientRect();
+    if (rect) {
+        host.style.left = `${Math.max(8, Math.min(window.innerWidth - 160, rect.left))}px`;
+        host.style.top = `${rect.bottom + 4}px`;
+    }
+    document.body.appendChild(host);
+    const app = mountSvelteApp(ColorMenu, host, {
+        colors: CLUE_COLORS.map((c) => ({ key: c.key, cssVar: c.cssVar, label: cb.t(c.labelKey) })),
+        onPick: (key: number) => {
+            // 先收起浮条与色板（浮条在色板开着时已 hideBar，这里再兜一次）
+            closeColorMenu();
+            hideBar();
+            cb.onMarkClue(p.text, p.anchorEl, p.range, cluableRootOf(p.anchorEl), key);
+        },
+        onClose: closeColorMenu,
+    });
+    colorMenu = { app, host };
+}
+
 export function hideBar(): void {
     bar?.remove();
     bar = undefined;
     lastSelText = ""; // 快照只对「当前这条浮条」有效，别标到陈旧选段
+    // 色板是浮条的二级层：浮条收起时一并收（否则切题/滚动后色板孤零零
+    // 留着，点下去会按已失效的锚点标线索）
+    closeColorMenu();
 }
 
 /* ── 词形归一 + 词书检索（标生词用） ── */

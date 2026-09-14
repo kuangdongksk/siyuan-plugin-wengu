@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { NO_WRAP_SELECTOR, NON_CANON_SELECTOR, isLiftSpan, pickNodeIndexes, planClueMarks } from "./MaterialDecorate";
+import {
+    colorMapOf,
+    NO_WRAP_SELECTOR,
+    NON_CANON_SELECTOR,
+    isLiftSpan,
+    pickNodeIndexes,
+    planClueMarks,
+} from "./MaterialDecorate";
 import { buildCanonMap, remapCanon } from "./ClueCanon";
 import { markSlots, mergeMarkSlots } from "../flow/ClueMark";
 
@@ -329,6 +336,55 @@ describe("施工前合并重叠区间（Issue #56：主路径不许静默丢 mar
         const merged = mergeMarkSlots(markSlots(plan));
         // 节点 1 的两段合并成 [0,6)；节点 0 保持独立（跨节点不合并）
         expect(merged).toEqual([slot(0, 0, 4, "Funding"), slot(1, 0, 6, "ing is")]);
+    });
+});
+
+describe("选色归属（Issue #57：合并取最长那条的色，与 chips 主从一致）", () => {
+    it("色号按下标进计划（坐标路径与降级路径都带 clue）", () => {
+        const { map, texts } = canonAfterGloss();
+        const anchors = [
+            { text: "Funding", range: { s: 0, e: 7 }, color: 0 },
+            { text: "crucial", color: 3 }, // 降级路径（无坐标）
+        ];
+        const { plan } = planClueMarks(map, texts, anchors);
+        expect(plan.map((p) => p.clue)).toEqual([0, 1]);
+        expect(colorMapOf(plan).get(0)).toBe(0);
+        expect(colorMapOf(plan).get(1)).toBe(3);
+    });
+
+    it("重叠合并后 mark 的颜色 = 区间最长那条线索的选色（验收 5）", () => {
+        // 同起点：短的选蓝（0）、长的选红（3）——合并成一段后必须取红
+        const plan = [
+            { text: "proposal", hits: [{ node: 0, start: 4, end: 12 }], clue: 0, color: 0 },
+            { text: "proposal might be regarded", hits: [{ node: 0, start: 4, end: 30 }], clue: 1, color: 3 },
+        ];
+        const colors = colorMapOf(plan);
+        const merged = mergeMarkSlots(markSlots(plan));
+        expect(merged).toHaveLength(1);
+        expect(merged[0].clue).toBe(1);
+        expect(colors.get(merged[0].clue!)).toBe(3);
+    });
+
+    it("最长那条没选色（默认黄）时，合并段回默认黄——不是捡短的色", () => {
+        const plan = [
+            { text: "proposal", hits: [{ node: 0, start: 4, end: 12 }], clue: 0, color: 2 },
+            { text: "proposal might be regarded", hits: [{ node: 0, start: 4, end: 30 }], clue: 1 },
+        ];
+        const colors = colorMapOf(plan);
+        const merged = mergeMarkSlots(markSlots(plan));
+        expect(merged[0].clue).toBe(1);
+        // colorMapOf 只收「显式带色」的位（缺省=不建键 ⇒ 调用侧落默认黄）
+        expect(colors.has(1)).toBe(true);
+        expect(colors.get(1)).toBe(-1);
+    });
+
+    it("去重跳过重复文本时，clue 指向首次出现的锚点下标（不许按 text 反查）", () => {
+        const { map, texts } = canonAfterGloss();
+        const anchors = [{ text: "crucial" }, { text: "crucial", color: 3 }];
+        const { plan } = planClueMarks(map, texts, anchors);
+        // 第二条与第一条同文本 ⇒ 只施工一次，归属取首次出现的下标 0
+        expect(plan).toHaveLength(1);
+        expect(plan[0].clue).toBe(0);
     });
 });
 

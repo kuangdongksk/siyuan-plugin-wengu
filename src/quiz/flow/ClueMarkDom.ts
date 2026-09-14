@@ -7,6 +7,7 @@ import {
     planMarks,
     type ClueDeleteState,
 } from "./ClueMark";
+import { clueColorStyle } from "./ClueColor";
 
 /**
  * 线索标注的 DOM 手术层（Issue #28）：原文高亮包装（mark 元素）与
@@ -101,13 +102,14 @@ export function clearClueMarks(root: HTMLElement): void {
 }
 
 /** 把一段文本节点区间包进 mark（自后向前切分，避免偏移失效）。 */
-function wrapRange(node: Text, start: number, end: number): void {
+function wrapRange(node: Text, start: number, end: number, style?: string): void {
     const text = node.nodeValue ?? "";
     if (start < 0 || end > text.length || start >= end) return;
     const target = node.splitText(start);
     target.splitText(end - start);
     const mark = document.createElement("mark");
     mark.className = "wengu-clue-mark";
+    if (style) mark.setAttribute("style", style);
     target.parentNode?.replaceChild(mark, target);
     mark.appendChild(target);
 }
@@ -121,7 +123,8 @@ function wrapRange(node: Text, start: number, end: number): void {
  * `MaterialDecorate` 的装饰出口）。
  *
  * ⚠️ **落格映射一次性算好，施工按 `markSlots` 的全局序**（与
- * MaterialDecorate.assignHitsToNodes 同款口径，Issue #36）：偏移是**全部文本节点
+ * CanonDom 词形联动的 assignHitsToNodes（装饰出口 ③）同款口径，Issue #36）：
+ * 偏移是**全部文本节点
  * 原文的拼接**口径，而 `splitText` 会截短节点——同一节点内的段必须
  * **自后向前**切。故先按**未改动**的节点表算出全部计划（`planMarks`），
  * 再由 `markSlots` 统一排序施工（节点升序 + 节点内起点降序）。
@@ -134,7 +137,11 @@ function wrapRange(node: Text, start: number, end: number): void {
  * 互不相交 ⇒ 施工不再触发守卫。**装饰出口的坐标路径同样过这一步**——
  * 两条链都不许静默丢 mark，只修 fallback 等于用户主路径带病。
  */
-export function applyClueMarks(root: HTMLElement | undefined | null, clues: string[]): void {
+export function applyClueMarks(
+    root: HTMLElement | undefined | null,
+    clues: string[],
+    colors?: readonly number[]
+): void {
     if (!root) return;
     clearClueMarks(root);
     if (clues.length === 0) return;
@@ -155,7 +162,10 @@ export function applyClueMarks(root: HTMLElement | undefined | null, clues: stri
         // 上标上只会让高亮里冒出一个莫名的数字；上标命中的那一段跳过，
         // 词本身（<u> 内的文本节点）照常出 mark。
         if (node.parentElement?.closest(SUP_SELECTOR)) continue;
-        wrapRange(node, slot.start, slot.end);
+        // 选色（Issue #57）：按 slot 的线索引（合并后 = 最长那条）查色号，
+        // 无索引/越界 ⇒ 默认黄（与装饰出口同口径）
+        const style = clueColorStyle(slot.clue === undefined ? undefined : colors?.[slot.clue]);
+        wrapRange(node, slot.start, slot.end, style);
     }
 }
 
