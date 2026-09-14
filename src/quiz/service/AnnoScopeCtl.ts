@@ -1,6 +1,6 @@
 import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { peekSetTypeUnion, setTypeUnion } from "../../bank/data/BankSets";
-import { annoOwnerQid, isEnglishTypes } from "../flow/AnnoScope";
+import { peekSetSubject, peekSetTypeUnion, setTypeUnion } from "../../bank/data/BankSets";
+import { annoOwnerQid, isEnglishScope } from "../flow/AnnoScope";
 import type { WenguQuestion } from "../../types";
 
 /**
@@ -10,9 +10,10 @@ import type { WenguQuestion } from "../../types";
  * 题集题型并集。
  *
  * 反查链：选段所在卡（`data-qid`；组题材料面板按组内卡，见 annoOwnerQid）
- * → 该题 rootId（= 源题集 id）→ 该卷题型并集含英语四类任一。**任何一环
- * 反查不到即 false**（宁缺勿错：放行标生词比误出更坏）。聚合「全部习题」
- * 混合刷天然按各卡各判。
+ * → 该题 rootId（= 源题集 id）→ 该卷是否英语卷（Issue #83 两级口径
+ * `isEnglishScope`：**有学科以学科为准、无学科回退题型并集**）。**任何
+ * 一环反查不到即 false**（宁缺勿错：放行标生词比误出更坏）。聚合「全部
+ * 习题」混合刷天然按各卡各判（本控制器按 setId 缓存即为此）。
  */
 
 /** 判定宿主（QuizView 以自身实现：题表 + 题库）。 */
@@ -75,13 +76,17 @@ export class AnnoScopeCtl {
         // 异步补正——下一次 selectionchange 就有正确结果（题表装载通常
         // 先于用户选段，这条只为时序死角）
         if (bank.peek()) {
-            const english = isEnglishTypes(peekSetTypeUnion(bank, setId));
+            const english = isEnglishScope(peekSetSubject(bank, setId), peekSetTypeUnion(bank, setId));
             this.cache.set(setId, english);
             return english;
         }
         const gen = this.gen;
+        // 异步补正（题库整体未装载的时序死角）：题型并集要 await 查库，
+        // 学科则先窥视一次（peek 为空即 undefined，按「无学科」走回退腿）
+        const subject = peekSetSubject(bank, setId);
         void setTypeUnion(bank, setId).then((types) => {
-            if (gen === this.gen) this.cache.set(setId, isEnglishTypes(types)); // 已换卷/切模式的旧世代结果丢弃
+            // 已换卷/切模式的旧世代结果丢弃
+            if (gen === this.gen) this.cache.set(setId, isEnglishScope(subject, types));
         });
         return false;
     }

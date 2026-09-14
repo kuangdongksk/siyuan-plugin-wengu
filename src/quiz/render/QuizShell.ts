@@ -8,7 +8,7 @@ import { setFallbackTitle } from "../../bank/data/BankSets";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, buildSetGroups, type DrillUnit, type SetGroup } from "./DrillUnits";
-import { readingScopeOf } from "../flow/ReadingScope";
+import { readingSegmentsOf, readingShellScope, scopedSegments } from "../flow/ReadingScope";
 import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { restoreContextFor, type CardInitCtx } from "./CardState";
 import { focusQuestion } from "../flow/MaterialFlow";
@@ -97,11 +97,15 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     // 题集分组（多集合刷：题号栏横线 + 正文标题行；单题集一段=零装饰）。
     // 分组只切分视图——列表顺序是题集先后 × 集内原序，绝不重排。
     const setGroups = buildSetGroups(v.list, (id) => v.docs.find((d) => d.id === id)?.title || setFallbackTitle(id));
-    // 阅读面作用域（Issue #81）：英语卷才挂 .wengu-reading（阅读面 +
-    // 间距阶梯）。**唯一判定点**（两条渲染链同源）：壳层传给题卡列表，
-    // 组单元经 cardModel.reading 消费。同步窥视题库（渲染路径不 await，
-    // 见本函数头注），非英语卷/未装载一律 false ⇒ 渲染产物逐字节不变。
-    const reading = readingScopeOf(v.list, v.bankStore());
+    // 阅读面作用域（Issue #81，Issue #83 改按题集段判）：英语卷才挂
+    // .wengu-reading（阅读面 + 间距阶梯）。**唯一判定点**（两条渲染链
+    // 同源，见 ReadingScope）：逐段各判各的卷（有学科以学科为准、无学科
+    // 回退题型并集），整壳那份只在**全段皆英语**时挂到题卡列表上——
+    // 单题集（一段）逐字等价于改造前的首题判定，混合刷下数学段不再被
+    // 英语段的类名波及。同步窥视题库（渲染路径不 await，见本函数头注），
+    // 非英语卷/未装载一律 false ⇒ 渲染产物逐字节不变。
+    const readingSegs = readingSegmentsOf(setGroups, v.bankStore());
+    const reading = readingShellScope(readingSegs);
     const cardModel: CardHtmlModel = {
         t: v.t,
         reading,
@@ -164,7 +168,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     mountSideFor(sideQuizAccess(v), "drill");
     mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv, v.revealMode === "after");
     v.timerBinder.updateLabel();
-    const task = renderStaticChunked(v, cardModel, setGroups, badMarks);
+    const task = renderStaticChunked(v, cardModel, setGroups, badMarks, scopedSegments(readingSegs));
     // 预览装饰等题卡全部插入后再做（此前同步跑在空列表上会漏掉全部
     // 卡）；stale 放弃的批次不装饰——新批次自己会装饰，旧批次补挂会
     // 错挂新壳/对同 DOM 翻倍追加（装饰全是非幂等 insertAdjacentHTML）
@@ -193,12 +197,20 @@ async function renderStaticChunked(
     m: CardHtmlModel,
     setGroups: SetGroup[],
     /** 已标记为错题的 qid 集合（Issue #46；非预览恒空集）。 */
-    badMarks: Set<string> = new Set()
+    badMarks: Set<string> = new Set(),
+    /** 需逐段包装的英语段下标（Issue #83，纯判定在 scopedSegments）：
+     *  整壳已带类名（单段/全段皆英语）时为空表 ⇒ 本层零改动。 */
+    scopedSegs: readonly number[] = []
 ): Promise<boolean> {
     const container = v.el.querySelector<HTMLElement>(".wengu-card-list");
     if (!container) return false;
     const showHeads = setGroups.length > 1;
-    const headAt = new Map(setGroups.map((g) => [g.start, g] as const));
+    // 段级阅读面作用域（Issue #83）：为 scopedSegs 列出的英语段套一层
+    // `.wengu-set-seg.wengu-reading`——单题集（一段）与「全段皆英语」两种
+    // 情形整壳已挂类名、该表为空（默认渲染产物逐字节不变）。
+    // 包装只装题卡、标题行留在包装**外**：`.wengu-set-head:first-child` 的
+    // 首/续段间距口径不变（包装会让每段标题都成 first-child，白改外观）。
+    const scopedSet = new Set(scopedSegs);
     v.el.querySelector(".wengu-main > .wengu-head")?.insertAdjacentHTML("afterend", renderingPillHtml(v.t));
     // 胶囊持元素引用摘除：选择器会把重渲染后新批次的胶囊误摘
     const pill = v.el.querySelector<HTMLElement>("[data-rendering]") ?? undefined;
@@ -224,6 +236,26 @@ async function renderStaticChunked(
     const total = v.units.reduce((n, u) => n + nodesOf(u), 0);
     let done = 0;
     let deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
+    // 段下标：单元段首题的整卷下标（独立题=idx，材料组=组内首题）落在
+    // 哪一段（buildSetGroups 的段是连续区间，二分/线性都行，段数很小）
+    const segIndexOf = (u: DrillUnit): number => {
+        const idx = unitStartIdx(u);
+        for (let i = setGroups.length - 1; i >= 0; i--) if (idx >= setGroups[i].start) return i;
+        return -1;
+    };
+    // 段作用域包装（懒建 + 复用同一段：单元顺序=段顺序，同段只建一次）
+    const wraps = new Map<number, HTMLElement>();
+    const segWrapOf = (segIdx: number): HTMLElement => {
+        const hit = wraps.get(segIdx);
+        if (hit) return hit;
+        container.insertAdjacentHTML(
+            "beforeend",
+            `<div class="wengu-set-seg wengu-reading" data-set="${esc(setGroups[segIdx]?.setId ?? "")}"></div>`
+        );
+        const el = container.lastElementChild as HTMLElement;
+        wraps.set(segIdx, el);
+        return el;
+    };
     try {
         for (const u of v.units) {
             if (stale()) return false; // 整壳已重建，放弃本轮
@@ -232,13 +264,17 @@ async function renderStaticChunked(
                 if (stale()) return false;
                 deadline = performance.now() + STATIC_FRAME_BUDGET_MS;
             }
-            if (showHeads) {
-                // 单元段首题的整卷下标（独立题=idx，材料组=组内首题）
-                const start = u.kind === "group" ? (u.qs?.[0]?.idx ?? -1) : (u.idx ?? -1);
-                const g = start >= 0 ? headAt.get(start) : undefined;
-                if (g) container.insertAdjacentHTML("beforeend", setHeadHtml(g, v.t));
-            }
-            mountDrillUnit(container, u, m, ctx, v, badMarks); // 组件根追加到容器尾（恢复/作答态随挂载就位）
+            // 单元所属题集段与「是否段首单元」（段首插标题行）
+            const segIdx = segIndexOf(u);
+            const atSegStart = segIdx >= 0 && setGroups[segIdx].start === unitStartIdx(u);
+            // 标题行**先**落在外层（包装后插，标题就不会成包装的首子结点，
+            // .wengu-set-head 的 first-child 间距口径逐字不变）
+            if (showHeads && atSegStart) container.insertAdjacentHTML("beforeend", setHeadHtml(setGroups[segIdx], v.t));
+            // 英语段的段作用域包装（懒建：进段时才插）
+            const scoped = scopedSet.has(segIdx);
+            const target = scoped ? segWrapOf(segIdx) : container;
+            const model = scoped ? { ...m, reading: true } : m;
+            mountDrillUnit(target, u, model, ctx, v, badMarks); // 组件根追加到段容器尾（恢复/作答态随挂载就位）
             done += nodesOf(u);
             if (counter) counter.textContent = `${done}/${total}`;
         }
@@ -249,6 +285,12 @@ async function renderStaticChunked(
         pill?.remove();
     }
     return true;
+}
+
+/** 单元段首题的**整卷下标**（独立题=idx，材料组=组内首题；空单元 -1）：
+ *  题集段判定与标题行落位都按它对齐（buildSetGroups 的 start 同口径）。 */
+function unitStartIdx(u: DrillUnit): number {
+    return u.kind === "group" ? (u.qs?.[0]?.idx ?? -1) : (u.idx ?? -1);
 }
 
 /** 静态渲染进度胶囊：转圈图标 + 文案 + n/m 计数（mountStatic 逐卡回调）。 */

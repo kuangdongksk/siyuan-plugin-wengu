@@ -68,6 +68,14 @@ export interface BankSet {
     hPath?: string;
     /** 源讲义文档 id（「重新导入」按它重切源块）。 */
     srcId?: string;
+    /** 真实学科（Issue #83）：转换**首批判定行**顺带报出（`SUBJECT:` 行，
+     *  如「英语」「数学」「语文」），落库后按 `BankSets` 的 subject 归一链
+     *  解析。题型是**作答形态**、不是学科——「英语阅读的 single 与数学单选
+     *  都是 single」「语文的 essay/trans 也在英语四类形态里」，故英语卷判别
+     *  必须以本字段为准（无本字段的存量题集才回退题型并集，见
+     *  quiz/flow/AnnoScope 的 isEnglishScope）。
+     *  optional、只加不改名、不 bump version、存量零迁移（缺省=无学科）。 */
+    subject?: string;
     /** 题目 id 的有序集合（转换写入序=原卷题序）。 */
     qids: string[];
     createdAt: number;

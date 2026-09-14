@@ -269,7 +269,7 @@ export async function convertDocBatched(
                 title: info.title,
                 srcId: docId,
                 hPath: info.hPath,
-            });
+            }); // 学科在 openSet 后补（首批报出时题集已在）
             cursor = Math.max(0, opts.resume.offset);
         }
     }
@@ -307,6 +307,10 @@ export async function convertDocBatched(
         const prior = await setTypeUnion(opts.bank, setId);
         genTypes = prior.length > 0 ? prior : undefined;
     }
+    /** 学科（Issue #83）：各片首批判定行顺带报出，**首个非空**即该卷学科
+     *  （判不出写「无」→ 归 undefined，整篇无学科即不落字段、判别回退题型
+     *  并集）。落库走 SetWriter.openSet 的「只填不改」（见 submit）。 */
+    let genSubject: string | undefined;
 
     /** 归一化索引（@@TO 片段定位用，长文档只建一次，跨片共享）。 */
     const normIndex = buildNormIndex(kramdown);
@@ -324,6 +328,8 @@ export async function convertDocBatched(
     let anchorMiss = 0; // @@TO 缺失/定位失败的批数（兜底推进，可能漏窗口末尾残题）
     let refused = ""; // 首片首批判定「不能出题」的原因（零产物收口时用）
     let firstError = "";
+    /** 学科是否已落库（Issue #83；首批报出后写一次，后续批次不再重复调） */
+    let subjectWritten = false;
     let userAborted = false;
     let flushedCursor = baseFrom; // 已落库的连续前缀末尾（续跑断点）
     const internal = new AbortController();
@@ -364,8 +370,18 @@ export async function convertDocBatched(
         if (internal.signal.aborted) return 0;
         const linked = batch.byAlias ? applyKnowDrafts(batch.drafts, batch.byAlias) : 0;
         knowLinked += linked;
-        if (!setId) {
-            setId = await writer.openSet({ title: info.title, srcId: docId, hPath: info.hPath });
+        // 题集不存在即建（本次首个 submit），存在则续挂；两路都带
+        // `subject`（**只填不改**：新建落首批报出的学科，续跑的存量题集
+        // 首次补上、已带学科的不被覆写）。既有题集只在首批报出后补一次。
+        if (!setId || (genSubject && !subjectWritten)) {
+            setId = await writer.openSet({
+                setId,
+                title: info.title,
+                srcId: docId,
+                hPath: info.hPath,
+                subject: genSubject,
+            });
+            if (genSubject) subjectWritten = true;
         }
         const out = await writer.append(
             setId,
@@ -438,6 +454,10 @@ export async function convertDocBatched(
             const merged = new Set<QuestionType>(genTypes ?? []);
             for (const x of types) merged.add(x);
             genTypes = [...merged];
+        },
+        reportSubject: (subject) => {
+            // 首个非空即该卷学科（同卷各片一致，后续片只是不同意措辞）
+            if (subject && !genSubject) genSubject = subject;
         },
         makeCall: (step: () => StepContext | undefined) =>
             makeKnowAwareAi({

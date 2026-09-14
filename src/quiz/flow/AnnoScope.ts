@@ -7,9 +7,10 @@ import { QuestionType } from "../../types";
  *
  * ① **模式闸**：标注是**做题功能**，只读浏览（预览）/错题复查（复习）
  *    下滑选文本不该出条。视图 mode 是唯一权威（QuizView.mode）。
- * ② **标生词的条件闸**：生词本是英语功能，非英语卷（数学等）选中公式/
- *    文字出「标生词」无意义——按**卷级**判定（该卷题型并集含英语四类
- *    任一），题级判不开（英语阅读 single 与数学单选都是 single）。
+ * ② **标生词的条件闸**：生词本是英语功能，非英语卷（数学/语文等）选中
+ *    公式/文字出「标生词」无意义——按**卷级**判定（`isEnglishScope`：
+ *    有学科以学科为准、无学科回退题型并集），题级判不开（英语阅读 single
+ *    与数学单选都是 single）。
  *
  * 分流结果 `BarPicks` = 出哪几个钮；**一个都不出 = 浮条整体不出现**
  * （非英语卷在非可标区域选段，出了就是一条空浮条）。
@@ -37,9 +38,46 @@ export function annoEnabled(mode: ViewMode): boolean {
 }
 
 /**
- * 卷级英语判定：该卷题型并集里含英语四类任一即英语卷。空并集（题集
- * 尚无记录/题型全不可识别）判**否**——反查不出证据时不放行标生词，
- * 宁缺勿错。
+ * 英语学科的字面归一判定（Issue #83）：`subject` 是转换首批判定行报出的
+ * **真实学科**，取值开放（英语/数学/语文/历史/政治/自控原理…）。这里只认
+ * 三个同义写法（英语 / 英文 / english，大小写与空白不敏感），**不做模糊
+ * 匹配**——学科猜错比不认更坏（英语卷判别被假学科锁死）。
+ */
+export function isEnglishSubject(subject?: string | null): boolean {
+    const s = (subject ?? "").trim().toLowerCase().replace(/\s+/g, "");
+    return s === "英语" || s === "英文" || s === "english";
+}
+
+/**
+ * 卷级英语判定的**两级口径**（Issue #83，唯一判定点）：
+ *
+ * - **有学科以学科为准**：`subject` 在场即 **只看它**——不管题型并集里
+ *   有没有英语四类。理由：题型是**作答形态**不是学科，「语文卷含作文
+ *   （essay）与文言文翻译（trans）」在题型并集上与英语卷无从区分；反过来
+ *   「纯英语阅读训练卷」全是 single，题型并集里一个英语形态都没有。形态
+ *   代理两个方向都会判错，有真实学科时必须以它为准。
+ * - **无学科回退题型并集**（存量题集零迁移，逐字节保持改造前口径）：
+ *   见 isEnglishTypes。
+ *
+ * 空学科（题集不存在/未报/占位「无」「未知」，由 BankSets.normalizeSubject
+ * 归 undefined）走回退分支——与「存量无字段」同一路。
+ */
+export function isEnglishScope(
+    subject: string | undefined | null,
+    types: readonly QuestionType[] | undefined | null
+): boolean {
+    const s = (subject ?? "").trim();
+    if (s) return isEnglishSubject(s);
+    return isEnglishTypes(types);
+}
+
+/**
+ * 卷级英语判定（**回退腿**）：该卷题型并集里含英语四类任一即英语卷。空
+ * 并集（题集尚无记录/题型全不可识别）判**否**——反查不出证据时不放行标
+ * 生词，宁缺勿错。
+ *
+ * ⚠️ 这是**无学科时**的口径（存量题集/学科未报）。带学科的题集一律走
+ * `isEnglishScope`，别在消费点直接用它（Issue #83 的假阴/假阳即此）。
  */
 export function isEnglishTypes(types: readonly QuestionType[] | undefined | null): boolean {
     return !!types?.some((t) => ENGLISH_TYPES.includes(t));

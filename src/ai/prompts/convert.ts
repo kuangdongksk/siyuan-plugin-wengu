@@ -75,14 +75,15 @@ function stepRulesOf(step: StepContext): string {
 它表示「本批已处理到该片段所在的那一行为止」。片段取**本批处理完的最后一道题的最后一行**里的连续 10~20 个字，必须与原文**完全一致**（不得改写、省略、补全公式、翻译），不要加引号或任何说明。若本片段里的内容已全部处理完（末尾那道题也是完整的），输出 @@TO: END`;
 }
 
-/** 判定行措辞（逐段首批报三行、后续批次免报；旧模式两行与改造前一致）。 */
+/** 判定行措辞（逐段首批报四行、后续批次免报；旧模式两行与改造前一致）。 */
 function verdictOf(step?: StepContext): string {
     const verdict = `CAN_CONVERT: yes 或 no
 REASON: 一句话说明（不能转换时说明原因，能转换时概括题目覆盖范围）`;
     if (!step) return verdict;
-    if (!step.first) return "（本批不需要输出 CAN_CONVERT / REASON / TYPES 判定行，直接输出题目）";
+    if (!step.first) return "（本批不需要输出 CAN_CONVERT / REASON / TYPES / SUBJECT 判定行，直接输出题目）";
     return `${verdict}
-TYPES: 本片段的题型，逗号分隔（从 single/multiple/judge/fill/brief/steps/cloze/match/essay/trans 里挑，写中文也可以，如 单选/多选/判断/填空/简答/多步/完形/新题型/作文/翻译）；本片段没有现成题目时留空`;
+TYPES: 本片段的题型，逗号分隔（从 single/multiple/judge/fill/brief/steps/cloze/match/essay/trans 里挑，写中文也可以，如 单选/多选/判断/填空/简答/多步/完形/新题型/作文/翻译）；本片段没有现成题目时留空
+SUBJECT: 本片段所属**学科**，只写一个词（如 英语/数学/语文/物理/化学/历史/政治/地理/生物，或专业课名如 自控原理/信号与系统）；**学科与题型是两件事**——语文卷的作文题（essay）与翻译题（trans）也是语文，英语阅读训练卷的单选题（single）也是英语，必须按内容判断；实在判断不出写「无」`;
 }
 
 /** 出题 prompt（20260902 起输出走行协议，kramdown 由代码渲染——格式
