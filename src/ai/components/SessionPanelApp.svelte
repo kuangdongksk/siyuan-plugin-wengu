@@ -63,8 +63,14 @@
         done: "iconCheck",
         error: "iconClose",
     };
+    /** 状态标签：排队等槽也仍是 running（Issue #76，「已安排」语义不变，
+     *  排队额外标出「等待空闲通道」——详情页一行更细，这里只做状态词）。 */
     const statusLabel = (r: AiSessionRecord): string =>
-        r.status === "running" ? t("aiStatusRunning") : r.status === "done" ? t("aiStatusDone") : t("aiStatusError");
+        r.status === "running"
+            ? `${t("aiStatusRunning")}${r.queued ? ` · ${t("aiWaitingSlot")}` : ""}`
+            : r.status === "done"
+              ? t("aiStatusDone")
+              : t("aiStatusError");
     const errText = (r: AiSessionRecord): string => (r.error === AI_INTERRUPTED ? t("aiInterrupted") : (r.error ?? ""));
 
     /** 快照 → 树（种类→文档→调用两级分支；类别过滤与 i18n 种类名注入，
@@ -221,7 +227,9 @@
                             {#if sel.status === "running"}
                                 <div class="wengu-ai-turn is-ai">
                                     <div class="wengu-ai-trole">{t("aiRoleAi")}</div>
-                                    <div class="wengu-ai-ttext wengu-muted">{t("aiSending")}</div>
+                                    <div class="wengu-ai-ttext wengu-muted">
+                                        {sel.queued ? t("aiWaitingSlot") : t("aiSending")}
+                                    </div>
                                 </div>
                             {/if}
                         </div>

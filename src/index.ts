@@ -19,6 +19,7 @@ import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
 import { initKnowHash, knowHash } from "./bank/data/KnowHash";
 import { initKnowSynonyms } from "./bank/data/KnowSynonyms";
 import { initKnowIndex } from "./bank/data/KnowIndex";
+import { setAiSlotCapacity } from "./ai/queue";
 import { knowJumpTarget, knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
@@ -77,6 +78,9 @@ interface WenguSettings {
     bigToSteps?: boolean;
     /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块。 */
     convertKeepOld?: boolean;
+    /** 转换并行度（1~4，1=串行）：转换分片流水线数，同时是**全局 AI
+     *  在途并发闸**的容量（Issue #76，index.ts applyAiSlots 注入）。 */
+    convertParallel?: number;
     /** 看板娘学伴：全局开关/兜底台词人设/AI 台词与对话/多套学伴配置。 */
     companionEnabled?: boolean;
     companionPersona?: string;
@@ -173,6 +177,10 @@ export default class WenguPlugin extends Plugin {
             load: () => this.loadData("ai-sessions"),
             save: (v) => this.saveData("ai-sessions", v),
         });
+        // 全局 AI 在途并发闸（Issue #76）：容量 = 设置里的转换并行度
+        // （1~4；未设置按 1 = 串行，与转换弹窗默认口径一致）。设置页改
+        // 并行度时经 applySettings 重新注入（见下）
+        this.applyAiSlots();
         // 知识小节内容哈希基线（自托管三期）：面板 stale 徽标 + 路由
         // 缓存代数指纹的小节内容维度
         initKnowHash({
@@ -478,6 +486,13 @@ export default class WenguPlugin extends Plugin {
         drillUnmount = mounted.unmount;
     }
 
+    /** 全局 AI 在途闸容量注入（Issue #76）：设置里的转换并行度即容量
+     *  （1~4，未设置按 1）。运行期可更新——缩容不打断在途，只拦新来的。
+     *  设置页改并行度后经 onSettingsChange → applySettings 重注入。 */
+    applyAiSlots(): void {
+        setAiSlotCapacity(this.settings.convertParallel ?? 1);
+    }
+
     /** 设置 → 插件 → 温故：仿思源原生设置外观（左导航 + 分组条目）。 */
     openSetting() {
         openWenguSetting({
@@ -486,6 +501,7 @@ export default class WenguPlugin extends Plugin {
             version: (this as unknown as { manifest?: { version?: string } }).manifest?.version ?? "0.1.1",
             settings: this.settings,
             onSettingsChange: () => {
+                this.applyAiSlots(); // 改转换并行度即改全局 AI 在途容量（Issue #76）
                 this.activeView?.applySettings();
                 companionCtl()?.syncEnabled(); // 学伴总开关对全局悬浮层即时生效（20260828 审查：原只写 settings 不刷 ui.enabled）
             },

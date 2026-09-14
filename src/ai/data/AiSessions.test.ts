@@ -265,3 +265,39 @@ describe("AiSessionStore 登记簿", () => {
         expect(list.some((r) => r.id === "stored")).toBe(true);
     });
 });
+
+describe("排队标记（Issue #76：全局在途闸的排队可见性）", () => {
+    it("queued/dequeued：仅 running 态可标，标后 list 可见，清掉幂等", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "convert", "转换 · 文档", "m1", "prompt");
+        s.queued("s1");
+        expect(s.list()[0].queued).toBe(true);
+        s.queued("s1"); // 重入零动作（不重复通知）
+        s.dequeued("s1");
+        expect(s.list()[0].queued).toBeUndefined();
+        s.dequeued("s1"); // 幂等
+        expect(s.list()[0].queued).toBeUndefined();
+    });
+
+    it("非 running 态不标（done/error 无「排队」可言），未知 id 静默", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "judge", "判题", "m1", "prompt");
+        s.succeed("s1", "reply");
+        s.queued("s1");
+        expect(s.list()[0].queued).toBeUndefined();
+        s.queued("nope");
+        expect(s.list()).toHaveLength(1);
+    });
+
+    it("重载：queued 是瞬时展示态，hydrate 连同 running→error 一起清掉", async () => {
+        const mem = memStore({
+            items: [{ ...rec("s1", "judge", 1, "running"), queued: true }],
+        });
+        const s = new AiSessionStore(mem.loadRaw, mem.saveRaw);
+        await s.ready();
+        const r = s.list()[0];
+        expect(r.status).toBe("error");
+        expect(r.error).toBe(AI_INTERRUPTED);
+        expect(r.queued).toBeUndefined(); // 不留「已中断 · 等待空闲通道…」矛盾组合
+    });
+});

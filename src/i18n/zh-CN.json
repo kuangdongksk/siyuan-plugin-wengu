@@ -658,6 +658,7 @@
   "aiRoleUser": "问",
   "aiRoleAi": "答",
   "aiSending": "思考中…",
+  "aiWaitingSlot": "等待空闲通道…",
   "aiRetry": "重试",
   "aiDelete": "删除",
   "aiClear": "清空",

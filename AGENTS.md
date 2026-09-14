@@ -125,6 +125,8 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       整体退役。
     - **agentChatContinued**（面板重试失败记录）：历史轮次以 user/assistant
       条目回放播种新会话、重发末条 user 消息。
+    - **两条通道发请求前都过全局在途闸**（Issue #76，见本节末「全局 AI
+      在途并发闸」）。
 - `models.ts`：模型清单与默认。`timeouts.ts`：AI_TIMEOUT 档位（调用点禁
   自造超时数字；超时统一按 SSE 空闲计）。`agentPanel.ts`：智能体面板
   DOM 自动化 + 「面板优先、页内降级」按钮帮手。
@@ -153,6 +155,42 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
       数据层，渲染不再按组）。
     - 判题/转换/检测/标签/路由/出题/单词复盘等带 track 的调用自动登记，面板
       回看完整轮次与产出，失败可重试。
+- **全局 AI 在途并发闸**（Issue #76，20260914；`ai/queue.ts` 纯逻辑带单测）：
+  全仓 AI 调用（judgeBrief 判分 / 面板重试 / 伴学聊天 / 转换 / 标签 / 路由 /
+  出题…）**统一**在发出前取槽，在途笔数不得超过容量——转换 4 并发跑动中
+  再点失败记录「重试」，重试排队等槽而不是直发第 5 笔。容量默认
+  `AI_SLOTS_DEFAULT=4`，**由 index.ts onload 用设置里的转换并行度注入**
+  （1~4；设置页改并行度经 onSettingsChange → `WenguPlugin.applyAiSlots`
+  重注入），未注入默认 4。
+    - **接线点在 `client.ts` 两条通道**（slotGate → acquireAiSlot）：判分/
+      标签/路由/伴学等调用点**零改动**自动被闸覆盖；`agentChatOnce` 的槽在
+      `finally` 释放（成功/失败/中止同路），`agentChatContinued` 同理。
+    - **超时从取到槽后才起算**：AI_TIMEOUT 的 SSE 空闲口径不含排队时间
+      （排队等一小时不该被判超时）——取槽在 `agentChat` 之前，其内部才
+      armTimer。
+    - **两条硬口径都是防自锁**（20260914 用户定夺，回归测试锁死）：
+        - **abort 感知**：排队等待期间 signal 中止 ⇒ 立刻出队 + 抛 AbortError
+          （队列里不留残影、不会等下一个槽）；已中止的 signal 根本不进队。
+        - **槽释放 FIFO 唤醒链不吞异常**：释放后按 FIFO 唤醒队首；唤醒链
+          自身（队首后续逻辑、整条 `drain`）任何异常都面吞继续唤醒下一位
+          ——吞一次异常 = 后续排队者永久挂起（同落盘链的面吞错惯例）。
+    - **FIFO 靠 Promise 微任务序**（`then` 回调按注册序执行 ⇒ 唤醒序 =
+      入队序）：**不许**给等待链加去抖/宏任务延迟换「稳」，那会让 FIFO 失序。
+    - **缩容不打断在途、只拦新来的**：容量降到在途数以下时，多出来的在途
+      笔数挂「存量债」（`debt`）逐笔偿还，抵完才真正腾出准入位——不挂债
+      会自锁（在途恰好等于新容量时释放把 `used` 降到 capacity，`drain` 的
+      `used < capacity` 不成立，队首永远等不到唤醒）。
+    - **排队可见性**：登记簿记录加 optional `queued?`（**只加不改名不 bump
+      version**，与 clues 同款惰性口径），`status` 仍是 running（「已安排
+      重试」语义不变，面板 retrying/succeed/fail 链一字未动）——详情页那行
+      显示「等待空闲通道…」（`aiWaitingSlot`），头部状态标签补同一词。
+      ⚠️ 取槽前先判 `aiSlotUsage().waiting > 0` 才标 queued，取到槽立即
+      `dequeued` 清掉（标记表只服务展示，不参与任何判据）。
+    - **与另两道闸正交、互不替代**：`aiFlowBegin` 单飞闸管「六个批流
+      同时只放一条」，转换 worker 池管转换内部的片流水线数，本闸是**所有**
+      调用的总在途上限（前两者发的每一笔都过它）。转换 worker 数 ≤ 容量，
+      天然不会自己堵自己。
+
 - **prompts/ 子域**（20260910 起全仓 prompt 集中收口，八文件按场景家族分域）：
     - common：逐字共用片段。protocol：行协议 + **题型注册表**（`protocolSpec(types?)`
       / `typeRulesFor` / `materialRulesFor`；types=undefined 走全量兜底与改造前
