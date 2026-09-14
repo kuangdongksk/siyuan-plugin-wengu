@@ -26,13 +26,16 @@ describe("色板定义（主题 CSS 变量，零配置）", () => {
         expect(CLUE_COLORS.map((c) => c.key)).toEqual([0, 1, 2, 3]);
     });
 
-    it("每格走思源卡片色变量（info/success/warning/error）", () => {
+    it("每格走思源卡片色**令牌基名**（info/success/warning/error）", () => {
+        // 基名不是可用的 CSS 变量——背景/前景要各加 `-background` / `-color`
+        // 后缀取全名（思源主题只定义这两个全名，裸名解不出 ⇒ 全透明，Issue #70）。
         expect(CLUE_COLORS.map((c) => c.cssVar)).toEqual([
             "--b3-card-info",
             "--b3-card-success",
             "--b3-card-warning",
             "--b3-card-error",
         ]);
+        for (const c of CLUE_COLORS) expect(c.cssVar.endsWith("-background")).toBe(false);
     });
 
     it("每格有色名 i18n 键（缺词条会露出原始键名）", () => {
@@ -178,18 +181,22 @@ describe("clueColorStyle（内联样式，主题变量）", () => {
             createElement: () => ({ style: {}, remove(): void {} }),
         };
         g.getComputedStyle = () => ({
-            getPropertyValue: (n: string) => (n === "--b3-card-warning" ? " #f5f5f5 " : ""),
+            getPropertyValue: (n: string) => (n === "--b3-card-warning-background" ? " #f5f5f5 " : ""),
         });
         resetThemeVarsProbe();
         try {
-            expect(clueColorStyle(0)).toBe("background-color:var(--b3-card-info);color:var(--b3-card-info-color)");
-            expect(clueColorStyle(3)).toBe("background-color:var(--b3-card-error);color:var(--b3-card-error-color)");
+            expect(clueColorStyle(0)).toBe(
+                "background-color:var(--b3-card-info-background);color:var(--b3-card-info-color)"
+            );
+            expect(clueColorStyle(3)).toBe(
+                "background-color:var(--b3-card-error-background);color:var(--b3-card-error-color)"
+            );
             // 默认色/越界 ⇒ 默认黄（不是空串：主题可用时默认也要显式落黄）
             expect(clueColorStyle(DEFAULT_CLUE_COLOR)).toBe(
-                "background-color:var(--b3-card-warning);color:var(--b3-card-warning-color)"
+                "background-color:var(--b3-card-warning-background);color:var(--b3-card-warning-color)"
             );
             expect(clueColorStyle(99)).toBe(
-                "background-color:var(--b3-card-warning);color:var(--b3-card-warning-color)"
+                "background-color:var(--b3-card-warning-background);color:var(--b3-card-warning-color)"
             );
         } finally {
             resetThemeVarsProbe();
@@ -259,8 +266,8 @@ describe("renderClueRow 圆点契约（Issue #57）", () => {
         renderClueRow(el, t, ["甲", "乙"], [2, 3]);
         const out = html();
         expect(out).toContain("wengu-clue-dot");
-        expect(out).toContain("background-color:var(--b3-card-warning)");
-        expect(out).toContain("background-color:var(--b3-card-error)");
+        expect(out).toContain("background-color:var(--b3-card-warning-background)");
+        expect(out).toContain("background-color:var(--b3-card-error-background)");
         // 圆点仍是原 chip 壳（两击删除的 data-clue 契约不变）
         expect(out).toContain('data-clue="0"');
         expect(out).toContain('data-clue="1"');
@@ -269,15 +276,15 @@ describe("renderClueRow 圆点契约（Issue #57）", () => {
     it("colors 缺省（题从未选色）时逐条默认黄 —— 观感与改造前一致", () => {
         const { el, html } = rowStub();
         renderClueRow(el, t, ["甲"]);
-        expect(html()).toContain("background-color:var(--b3-card-warning)");
+        expect(html()).toContain("background-color:var(--b3-card-warning-background)");
     });
 
     it("colors 短于 clues 时缺位回默认黄（不越界、不出空 style）", () => {
         const { el, html } = rowStub();
         renderClueRow(el, t, ["甲", "乙"], [1]);
         const out = html();
-        expect(out).toContain("background-color:var(--b3-card-success)");
-        expect(out).toContain("background-color:var(--b3-card-warning)");
+        expect(out).toContain("background-color:var(--b3-card-success-background)");
+        expect(out).toContain("background-color:var(--b3-card-warning-background)");
         expect(out).not.toContain("var(undefined)");
     });
 

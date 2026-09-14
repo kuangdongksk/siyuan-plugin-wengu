@@ -8,15 +8,20 @@
      * 都能直接复用它。样式走全局 scss（`.wengu-colormenu*`），组件零
      * `<style>`（Svelte 迁移约定）。
      *
-     * 色块渲染：调用侧给的 `cssVar` 直接进 `background-color:var(...)`
-     * ——明暗主题与第三方主题（Neo）实时适配，组件不内置任何色值。
+     * 色块渲染：调用侧给的 `cssVar`（令牌**基名**）加 `-background`
+     * 后缀进 `background-color:var(...)`——思源主题只定义
+     * `--b3-card-*-background` / `-color` 两个全名，裸名解不出一律透明；
+     * 明暗主题与第三方主题（Neo）实时适配，组件不内置任何色值。
      */
     import { onMount } from "svelte";
 
     /** 一格色板：`key` 回传值、`cssVar` 主题变量名、`label` 显示名。 */
     export interface ColorMenuColor {
         key: number;
-        /** 主题 CSS 变量名（如 `--b3-card-info`）；前景取 `${cssVar}-color`。 */
+        /**
+         * 主题 CSS 变量**基名**（如 `--b3-card-info`）；背景取
+         * `${cssVar}-background`、前景取 `${cssVar}-color`（裸名不存在）。
+         */
         cssVar: string;
         /** 色名（调用侧已取词）。 */
         label: string;
@@ -86,7 +91,7 @@
                 onPick(c.key);
             }}
         >
-            <i class="wengu-colormenu-swatch" style={`background-color:var(${c.cssVar})`}></i>
+            <i class="wengu-colormenu-swatch" style={`background-color:var(${c.cssVar}-background)`}></i>
             <span class="wengu-colormenu-label">{c.label}</span>
         </button>
     {/each}

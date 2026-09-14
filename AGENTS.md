@@ -367,8 +367,15 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
       等于用户主路径带病。
     - **主题多色（Issue #57）**：色板定义与平行数组在
       `quiz/flow/ClueColor.ts`（纯逻辑带单测）：`clueColors[qid]: number[]`
-      是 `clues` 的**第三个平行数组**（`-1`=默认黄、`0..3`=
-      `--b3-card-info/success/warning/error` 四序）。三条硬口径：
+      是 `clues` 的**第三个平行数组**（`-1`=默认黄、`0..3` 四序）。
+      ⚠️ **令牌写全名**（Issue #57 首版踩坑，Issue #70 修复）：思源主题只
+      定义 `--b3-card-{info,success,warning,error}-background`（背景）与
+      `-color`（前景）八个全名，**裸名 `--b3-card-info` 不存在**——写成
+      裸名解不出，整条 `background-color` 在计算值阶段失效（四处全透明：
+      色板/浮条角标/chips 色点/正文 mark，含 scss 默认黄兜底）。
+      `CLUE_COLORS[].cssVar` 存的是**令牌基名**（`--b3-card-info`），
+      背景一律 `${cssVar}-background`、前景一律 `${cssVar}-color`。
+      三条硬口径：
         - **归属取「最长那条」的色**：`MarkSlot.clue` 与 `text` **同源**在
           `mergeMarkSlots` 里取最长（分开判会「颜色来自这条、文本来自那
           条」）；`colorMapOf` 把线索引映射成色号，`applySlots` 据此写
@@ -378,7 +385,10 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
           失效（高亮直接透明，比「色不对」更糟）。判定是
           `clueColorStyle`→`themeVarsUsable` 的**自定义属性可读性**探测
           （缓存在进程内）：拿 `getComputedStyle().backgroundColor` 当判据
-          恒为可用（未解析时是 `rgba(0,0,0,0)`，真值），等于没判。
+          恒为可用（未解析时是 `rgba(0,0,0,0)`，真值），等于没判；
+          探测变量同样必须是**全名** `--b3-card-warning-background`——
+          探测裸名恒为空串 ⇒ 恒判不可用 ⇒ 内联样式永不写（fail-closed
+          设计把「色不对」挡成了「全透明」）。
         - **下标对齐维护**（增/删/改）与 `clueRanges` 同款「有表才推进、无表
           不建表」——存量线索零迁移；删除时同下标同步删（`removeClueColor`）。
         - `anchorsOf` 的 `color` **只在显式选过色时带上**：无色的题锚点形态
