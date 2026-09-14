@@ -1,901 +1,2068 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=1408">
-<title>温故 · 英语阅读「材料组单元」视觉重设计稿</title>
-<style>
-/* ══════════════════════════════════════════════════════════════════════════
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=1408" />
+        <title>温故 · 英语阅读「材料组单元」视觉重设计稿</title>
+        <style>
+            /* ══════════════════════════════════════════════════════════════════════════
    温故 · 桌面端刷题 · 英语阅读「材料组单元」视觉重设计稿
    画布 = 主区 1100px ｜ 右侧 224px 为标注栏（spec chrome，非产品 UI）
    颜色全部走令牌；令牌取自运行中 Neo+ 深色暖调主题实测值（2026-09-13）
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* ── 1. 主题令牌 ───────────────────────────────────────────────────────── */
-:root{
-  /* 实测原值（不可改） */
-  --bg:#272e33;                    /* --b3-theme-background  深蓝灰 页面底 */
-  --surface:#364852;               /* --b3-theme-surface     青灰 卡面 */
-  --fg:#d3cab4;                    /* --b3-theme-on-surface  暖米正文（非纯白） */
-  --primary:#c5866a;               /* --b3-theme-primary     陶土橙 */
-  /* oklch 派生（oklch(from …), 见设计说明） */
-  --surface-inset:#1d2e37;         /* surface L-0.10 → 材料阅读凹槽 */
-  --surface-card:#303e46;          /* bg@38% over surface → 题卡面 */
-  --fg-2:#bab3a1;                  /* on-surface L-0.13 → 次要文字 4.56:1 on surface */
-  --fg-3:#9a9484;                  /* on-surface L-0.22 → 三级文字，仅用于凹槽/底 */
-  --primary-text:#e1a990;          /* primary L+0.10 → 小字橙（4.66:1 on surface） */
-  --primary-strong:#8c5237;        /* primary L-0.18 → 主按钮填充，暖白字 6.00:1 */
-  --primary-strong-hover:#77432a;  /* 悬停再压深 → 7.73:1（只升不降） */
-  --on-primary:#fffaf6;            /* oklch(from #c5866a .99 .01 h) */
-  --ok:#9ad4b4;                    /* 语义·答对 5.64:1 on surface */
-  --danger:#f19f94;                /* 语义·答错/病灶 4.59:1 on surface */
-  --border:rgba(226,218,197,.20);  /* --b3-border-color */
-  --border-soft:rgba(226,218,197,.12);
-  --border-strong:rgba(226,218,197,.32);
-  --border-fade:rgba(226,218,197,.26);
-  --hover:rgba(226,218,197,.06);
-  --deepen:rgba(29,46,55,.52);     /* 悬停压深：背景变暗 → 对比只升不降 */
-  --opt-bg:rgba(226,218,197,.045);
-  --primary-soft:rgba(197,134,106,.16);
-  --ok-soft:rgba(154,212,180,.13);
-  --danger-soft:rgba(241,159,148,.12);
-  /* 字体：系统栈；衬线限 Georgia/Times 系 */
-  --font-ui:"PingFang SC","Hiragino Sans GB","Source Han Sans SC","Microsoft Yahei",sans-serif;
-  --font-read:Georgia,"Times New Roman","Songti SC","Source Han Serif SC",serif;
-  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  /* 间距阶梯 8/12/16/20 + 块级 24/32 */
-  --sp2:8px; --sp3:12px; --sp4:16px; --sp5:20px; --sp6:24px; --sp7:32px;
-  --r1:6px; --r2:8px; --r3:12px;
-  /* 版面 */
-  --w-canvas:1100px; --w-gap:28px; --w-rail:224px;
-  --page-bg:#1c2328;               /* bg L-0.045 → 稿纸底 */
-}
+            /* ── 1. 主题令牌 ───────────────────────────────────────────────────────── */
+            :root {
+                /* 实测原值（不可改） */
+                --bg: #272e33; /* --b3-theme-background  深蓝灰 页面底 */
+                --surface: #364852; /* --b3-theme-surface     青灰 卡面 */
+                --fg: #d3cab4; /* --b3-theme-on-surface  暖米正文（非纯白） */
+                --primary: #c5866a; /* --b3-theme-primary     陶土橙 */
+                /* oklch 派生（oklch(from …), 见设计说明） */
+                --surface-inset: #1d2e37; /* surface L-0.10 → 材料阅读凹槽 */
+                --surface-card: #303e46; /* bg@38% over surface → 题卡面 */
+                --fg-2: #bab3a1; /* on-surface L-0.13 → 次要文字 4.56:1 on surface */
+                --fg-3: #9a9484; /* on-surface L-0.22 → 三级文字，仅用于凹槽/底 */
+                --primary-text: #e1a990; /* primary L+0.10 → 小字橙（4.66:1 on surface） */
+                --primary-strong: #8c5237; /* primary L-0.18 → 主按钮填充，暖白字 6.00:1 */
+                --primary-strong-hover: #77432a; /* 悬停再压深 → 7.73:1（只升不降） */
+                --on-primary: #fffaf6; /* oklch(from #c5866a .99 .01 h) */
+                --ok: #9ad4b4; /* 语义·答对 5.64:1 on surface */
+                --danger: #f19f94; /* 语义·答错/病灶 4.59:1 on surface */
+                --border: rgba(226, 218, 197, 0.2); /* --b3-border-color */
+                --border-soft: rgba(226, 218, 197, 0.12);
+                --border-strong: rgba(226, 218, 197, 0.32);
+                --border-fade: rgba(226, 218, 197, 0.26);
+                --hover: rgba(226, 218, 197, 0.06);
+                --deepen: rgba(29, 46, 55, 0.52); /* 悬停压深：背景变暗 → 对比只升不降 */
+                --opt-bg: rgba(226, 218, 197, 0.045);
+                --primary-soft: rgba(197, 134, 106, 0.16);
+                --ok-soft: rgba(154, 212, 180, 0.13);
+                --danger-soft: rgba(241, 159, 148, 0.12);
+                /* 字体：系统栈；衬线限 Georgia/Times 系 */
+                --font-ui: "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Microsoft Yahei", sans-serif;
+                --font-read: Georgia, "Times New Roman", "Songti SC", "Source Han Serif SC", serif;
+                --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                /* 间距阶梯 8/12/16/20 + 块级 24/32 */
+                --sp2: 8px;
+                --sp3: 12px;
+                --sp4: 16px;
+                --sp5: 20px;
+                --sp6: 24px;
+                --sp7: 32px;
+                --r1: 6px;
+                --r2: 8px;
+                --r3: 12px;
+                /* 版面 */
+                --w-canvas: 1100px;
+                --w-gap: 28px;
+                --w-rail: 224px;
+                --page-bg: #1c2328; /* bg L-0.045 → 稿纸底 */
+            }
 
-/* ── 2. 基底 ───────────────────────────────────────────────────────────── */
-*,*::before,*::after{box-sizing:border-box}
-[hidden]{display:none !important}
-html{-webkit-text-size-adjust:100%}
-body{
-  margin:0; background:var(--page-bg); color:var(--fg);
-  font:400 14px/1.6 var(--font-ui);
-  -webkit-font-smoothing:antialiased;
-  padding:28px 0 72px;
-}
-h1,h2,h3,p,ul,ol,li,blockquote,figure{margin:0}
-ul,ol{padding:0;list-style:none}
-button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
-:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:var(--r1)}
-.sheet{width:calc(var(--w-canvas) + var(--w-gap) + var(--w-rail));margin:0 auto}
+            /* ── 2. 基底 ───────────────────────────────────────────────────────────── */
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            [hidden] {
+                display: none !important;
+            }
+            html {
+                -webkit-text-size-adjust: 100%;
+            }
+            body {
+                margin: 0;
+                background: var(--page-bg);
+                color: var(--fg);
+                font: 400 14px/1.6 var(--font-ui);
+                -webkit-font-smoothing: antialiased;
+                padding: 28px 0 72px;
+            }
+            h1,
+            h2,
+            h3,
+            p,
+            ul,
+            ol,
+            li,
+            blockquote,
+            figure {
+                margin: 0;
+            }
+            ul,
+            ol {
+                padding: 0;
+                list-style: none;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: none;
+                border: 0;
+                padding: 0;
+                cursor: pointer;
+            }
+            :focus-visible {
+                outline: 2px solid var(--primary);
+                outline-offset: 2px;
+                border-radius: var(--r1);
+            }
+            .sheet {
+                width: calc(var(--w-canvas) + var(--w-gap) + var(--w-rail));
+                margin: 0 auto;
+            }
 
-/* ── 3. 稿纸 chrome（非产品 UI） ────────────────────────────────────────── */
-.sheet-head{padding:0 0 30px;max-width:calc(var(--w-canvas) + var(--w-gap))}
-.sheet-eyebrow{
-  font:500 11px/1 var(--font-mono);letter-spacing:.16em;text-transform:uppercase;
-  color:var(--fg-3);display:flex;align-items:center;gap:10px}
-.sheet-eyebrow::after{content:"";flex:1;height:1px;background:var(--border-soft)}
-.sheet-head h1{
-  margin:14px 0 0;font:600 25px/1.3 var(--font-ui);letter-spacing:.01em;color:var(--fg)}
-.sheet-head .lede{
-  margin:10px 0 0;max-width:74ch;font-size:13px;line-height:1.75;color:var(--fg-2)}
-.legend{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
-.legend span{
-  display:inline-flex;align-items:center;gap:7px;padding:5px 10px;
-  border:1px solid var(--border-soft);border-radius:999px;
-  font:400 11.5px/1 var(--font-ui);color:var(--fg-2)}
-.legend i{width:8px;height:8px;border-radius:50%;background:var(--fg-3)}
-.legend .l-bad i{background:var(--danger)}
-.legend .l-new i{background:var(--primary)}
-.legend .l-ok i{background:var(--ok)}
+            /* ── 3. 稿纸 chrome（非产品 UI） ────────────────────────────────────────── */
+            .sheet-head {
+                padding: 0 0 30px;
+                max-width: calc(var(--w-canvas) + var(--w-gap));
+            }
+            .sheet-eyebrow {
+                font: 500 11px/1 var(--font-mono);
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--fg-3);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .sheet-eyebrow::after {
+                content: "";
+                flex: 1;
+                height: 1px;
+                background: var(--border-soft);
+            }
+            .sheet-head h1 {
+                margin: 14px 0 0;
+                font: 600 25px/1.3 var(--font-ui);
+                letter-spacing: 0.01em;
+                color: var(--fg);
+            }
+            .sheet-head .lede {
+                margin: 10px 0 0;
+                max-width: 74ch;
+                font-size: 13px;
+                line-height: 1.75;
+                color: var(--fg-2);
+            }
+            .legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 18px 0 0;
+            }
+            .legend span {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                padding: 5px 10px;
+                border: 1px solid var(--border-soft);
+                border-radius: 999px;
+                font: 400 11.5px/1 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .legend i {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--fg-3);
+            }
+            .legend .l-bad i {
+                background: var(--danger);
+            }
+            .legend .l-new i {
+                background: var(--primary);
+            }
+            .legend .l-ok i {
+                background: var(--ok);
+            }
 
-.sheet-body{display:grid;grid-template-columns:var(--w-canvas) var(--w-rail);column-gap:var(--w-gap)}
-.canvas{grid-column:1}.rail{grid-column:2}
-.canvas{min-width:0}
-.rail{border-left:1px solid var(--border-soft);padding:0 0 0 18px}
-.rail-head b{
-  display:block;font:500 11px/1 var(--font-mono);letter-spacing:.16em;
-  text-transform:uppercase;color:var(--fg-3)}
-.rail-head p{margin:9px 0 0;font-size:11.5px;line-height:1.7;color:var(--fg-3)}
+            .sheet-body {
+                display: grid;
+                grid-template-columns: var(--w-canvas) var(--w-rail);
+                column-gap: var(--w-gap);
+            }
+            .canvas {
+                grid-column: 1;
+            }
+            .rail {
+                grid-column: 2;
+            }
+            .canvas {
+                min-width: 0;
+            }
+            .rail {
+                border-left: 1px solid var(--border-soft);
+                padding: 0 0 0 18px;
+            }
+            .rail-head b {
+                display: block;
+                font: 500 11px/1 var(--font-mono);
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--fg-3);
+            }
+            .rail-head p {
+                margin: 9px 0 0;
+                font-size: 11.5px;
+                line-height: 1.7;
+                color: var(--fg-3);
+            }
 
-.band{padding:0 0 44px}
-.band-head{
-  display:flex;align-items:flex-end;gap:14px;
-  border-top:1px solid var(--border-soft);padding:16px 0 0;margin:0 0 24px}
-.band-head .idx{
-  font:500 11px/1 var(--font-mono);color:var(--fg-3);letter-spacing:.1em;
-  padding-bottom:3px}
-.band-head h2{font:600 15.5px/1.3 var(--font-ui);color:var(--fg)}
-.band-head .band-lead{margin-left:auto;max-width:52ch;text-align:right;
-  font-size:11.5px;line-height:1.65;color:var(--fg-3)}
+            .band {
+                padding: 0 0 44px;
+            }
+            .band-head {
+                display: flex;
+                align-items: flex-end;
+                gap: 14px;
+                border-top: 1px solid var(--border-soft);
+                padding: 16px 0 0;
+                margin: 0 0 24px;
+            }
+            .band-head .idx {
+                font: 500 11px/1 var(--font-mono);
+                color: var(--fg-3);
+                letter-spacing: 0.1em;
+                padding-bottom: 3px;
+            }
+            .band-head h2 {
+                font: 600 15.5px/1.3 var(--font-ui);
+                color: var(--fg);
+            }
+            .band-head .band-lead {
+                margin-left: auto;
+                max-width: 52ch;
+                text-align: right;
+                font-size: 11.5px;
+                line-height: 1.65;
+                color: var(--fg-3);
+            }
 
-/* 状态开关（仅本稿用于切换演示态） */
-.state-switch{display:flex;align-items:center;gap:0;margin-left:auto;
-  border:1px solid var(--border-soft);border-radius:999px;padding:2px;
-  background:var(--hover)}
-.state-switch>span{font:400 11px/1 var(--font-ui);color:var(--fg-3);padding:0 10px 0 6px}
-.state-switch button{
-  border-radius:999px;padding:5px 12px;font:500 11.5px/1 var(--font-ui);color:var(--fg-2)}
-.state-switch button:hover{background:var(--deepen);color:var(--fg)}
-.state-switch button[aria-pressed="true"]{
-  background:var(--hover);color:var(--fg);box-shadow:inset 0 0 0 1px var(--border-strong)}
+            /* 状态开关（仅本稿用于切换演示态） */
+            .state-switch {
+                display: flex;
+                align-items: center;
+                gap: 0;
+                margin-left: auto;
+                border: 1px solid var(--border-soft);
+                border-radius: 999px;
+                padding: 2px;
+                background: var(--hover);
+            }
+            .state-switch > span {
+                font: 400 11px/1 var(--font-ui);
+                color: var(--fg-3);
+                padding: 0 10px 0 6px;
+            }
+            .state-switch button {
+                border-radius: 999px;
+                padding: 5px 12px;
+                font: 500 11.5px/1 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .state-switch button:hover {
+                background: var(--deepen);
+                color: var(--fg);
+            }
+            .state-switch button[aria-pressed="true"] {
+                background: var(--hover);
+                color: var(--fg);
+                box-shadow: inset 0 0 0 1px var(--border-strong);
+            }
 
-/* 标注小字 */
-.taglist{margin:14px 0 0;display:flex;flex-direction:column;gap:6px}
-.taglist li{
-  display:grid;grid-template-columns:15px 1fr;gap:8px;
-  font:400 11.5px/1.6 var(--font-ui);color:var(--fg-3)}
-.taglist li::before{content:"•";color:var(--fg-3);opacity:.5;line-height:1.6}
-.taglist b{font:600 11.5px/1.6 var(--font-mono);font-weight:600;letter-spacing:-.01em}
-.taglist .bad{color:var(--danger)}
-.taglist .good{color:var(--fg)}
-.taglist .dim{color:var(--fg-3)}
-.taglist em{font-style:normal;font-family:var(--font-mono);font-size:11px;
-  color:var(--fg-3);letter-spacing:-.01em}
+            /* 标注小字 */
+            .taglist {
+                margin: 14px 0 0;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .taglist li {
+                display: grid;
+                grid-template-columns: 15px 1fr;
+                gap: 8px;
+                font: 400 11.5px/1.6 var(--font-ui);
+                color: var(--fg-3);
+            }
+            .taglist li::before {
+                content: "•";
+                color: var(--fg-3);
+                opacity: 0.5;
+                line-height: 1.6;
+            }
+            .taglist b {
+                font: 600 11.5px/1.6 var(--font-mono);
+                font-weight: 600;
+                letter-spacing: -0.01em;
+            }
+            .taglist .bad {
+                color: var(--danger);
+            }
+            .taglist .good {
+                color: var(--fg);
+            }
+            .taglist .dim {
+                color: var(--fg-3);
+            }
+            .taglist em {
+                font-style: normal;
+                font-family: var(--font-mono);
+                font-size: 11px;
+                color: var(--fg-3);
+                letter-spacing: -0.01em;
+            }
 
-/* ── 4. 产品：组题单元 ─────────────────────────────────────────────────── */
-.wengu-gunit{
-  margin:0;border:1px solid var(--border);border-radius:var(--r3);
-  background:var(--surface);overflow:visible}
+            /* ── 4. 产品：组题单元 ─────────────────────────────────────────────────── */
+            .wengu-gunit {
+                margin: 0;
+                border: 1px solid var(--border);
+                border-radius: var(--r3);
+                background: var(--surface);
+                overflow: visible;
+            }
 
-/* 4.1 工具条：上下 7px */
-.wengu-ghead{
-  display:flex;align-items:center;gap:10px;
-  padding:7px 12px;background:var(--bg);
-  border-bottom:1px solid var(--border-soft);
-  border-radius:calc(var(--r3) - 1px) calc(var(--r3) - 1px) 0 0}
-.wengu-ghead .wengu-gmat-fold{
-  display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;
-  border-radius:var(--r1);font:400 12.5px/1 var(--font-ui);color:var(--fg-2);
-  border:1px solid transparent}
-.wengu-ghead .wengu-gmat-fold:hover{background:var(--deepen);color:var(--fg);
-  border-color:var(--border-soft)}
-.wengu-ghead .wengu-gmat-fold svg{transition:transform .18s ease;flex:none}
-.wengu-gunit.is-folded .wengu-gmat-fold svg{transform:rotate(-90deg)}
-.wengu-gnav{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
-.wengu-gnav-btn{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:28px;height:28px;border-radius:var(--r1);color:var(--fg-2);
-  border:1px solid transparent}
-.wengu-gnav-btn:hover{background:var(--deepen);color:var(--fg);border-color:var(--border-soft)}
-.wengu-gnav-btn:disabled{color:var(--fg-3);opacity:.45;cursor:not-allowed;background:none}
-.wengu-gq-label{
-  min-width:42px;text-align:center;font:500 12px/1 var(--font-mono);
-  color:var(--fg-2);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+            /* 4.1 工具条：上下 7px */
+            .wengu-ghead {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 7px 12px;
+                background: var(--bg);
+                border-bottom: 1px solid var(--border-soft);
+                border-radius: calc(var(--r3) - 1px) calc(var(--r3) - 1px) 0 0;
+            }
+            .wengu-ghead .wengu-gmat-fold {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                height: 28px;
+                padding: 0 10px;
+                border-radius: var(--r1);
+                font: 400 12.5px/1 var(--font-ui);
+                color: var(--fg-2);
+                border: 1px solid transparent;
+            }
+            .wengu-ghead .wengu-gmat-fold:hover {
+                background: var(--deepen);
+                color: var(--fg);
+                border-color: var(--border-soft);
+            }
+            .wengu-ghead .wengu-gmat-fold svg {
+                transition: transform 0.18s ease;
+                flex: none;
+            }
+            .wengu-gunit.is-folded .wengu-gmat-fold svg {
+                transform: rotate(-90deg);
+            }
+            .wengu-gnav {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                margin-left: auto;
+            }
+            .wengu-gnav-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 28px;
+                height: 28px;
+                border-radius: var(--r1);
+                color: var(--fg-2);
+                border: 1px solid transparent;
+            }
+            .wengu-gnav-btn:hover {
+                background: var(--deepen);
+                color: var(--fg);
+                border-color: var(--border-soft);
+            }
+            .wengu-gnav-btn:disabled {
+                color: var(--fg-3);
+                opacity: 0.45;
+                cursor: not-allowed;
+                background: none;
+            }
+            .wengu-gq-label {
+                min-width: 42px;
+                text-align: center;
+                font: 500 12px/1 var(--font-mono);
+                color: var(--fg-2);
+                letter-spacing: 0.02em;
+                font-variant-numeric: tabular-nums;
+            }
 
-/* 4.2 共享材料：凹槽 + 阅读栏 */
-.wengu-gmat{
-  position:relative;
-  padding:22px 24px 24px;
-  background-color:var(--surface-inset);
-  border-bottom:1px solid transparent;
-  border-image:linear-gradient(90deg,transparent 0%,
-    var(--border-fade) 16%,var(--border-fade) 84%,transparent 100%) 1;
-  counter-reset:mat-p}
-.wengu-gmat>.p{
-  position:relative;max-width:68ch;margin:0 auto 1.05em;
-  font:400 16px/1.75 var(--font-read);color:var(--fg);
-  text-wrap:pretty;hyphens:none}
-.wengu-gmat>.p:last-child{margin-bottom:0}
-.wengu-gmat>.p:first-child{margin-top:0}
+            /* 4.2 共享材料：凹槽 + 阅读栏 */
+            .wengu-gmat {
+                position: relative;
+                padding: 22px 24px 24px;
+                background-color: var(--surface-inset);
+                border-bottom: 1px solid transparent;
+                border-image: linear-gradient(
+                        90deg,
+                        transparent 0%,
+                        var(--border-fade) 16%,
+                        var(--border-fade) 84%,
+                        transparent 100%
+                    )
+                    1;
+                counter-reset: mat-p;
+            }
+            .wengu-gmat > .p {
+                position: relative;
+                max-width: 68ch;
+                margin: 0 auto 1.05em;
+                font: 400 16px/1.75 var(--font-read);
+                color: var(--fg);
+                text-wrap: pretty;
+                hyphens: none;
+            }
+            .wengu-gmat > .p:last-child {
+                margin-bottom: 0;
+            }
+            .wengu-gmat > .p:first-child {
+                margin-top: 0;
+            }
 
-/* 4.3 题卡区 */
-.wengu-gqs{padding:var(--sp6)}
-.wengu-card{
-  background:var(--surface-card);border:1px solid var(--border-soft);
-  border-radius:var(--r2);padding:var(--sp5)}
+            /* 4.3 题卡区 */
+            .wengu-gqs {
+                padding: var(--sp6);
+            }
+            .wengu-card {
+                background: var(--surface-card);
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r2);
+                padding: var(--sp5);
+            }
 
-/* 卡头 → 题干 16 */
-.wengu-card-head{display:flex;align-items:center;gap:10px;margin-bottom:var(--sp4)}
-/* 当前题号：陶土橙的小字态（--primary-text，卡面上 5.40:1） */
-.wengu-card-num{
-  font:600 14px/1 var(--font-mono);color:var(--primary-text);
-  font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.wengu-badge{
-  display:inline-flex;align-items:center;height:19px;padding:0 7px;
-  border:1px solid var(--border-soft);border-radius:4px;
-  background:var(--hover);font:400 11.5px/1 var(--font-ui);color:var(--fg-2)}
-.wengu-card-title{font:500 14px/1.2 var(--font-ui);color:var(--fg)}
-.wengu-side-iconbtn{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:28px;height:28px;margin-left:auto;border-radius:var(--r1);
-  color:var(--fg-2);border:1px solid transparent}
-.wengu-side-iconbtn:hover{background:var(--deepen);color:var(--fg);border-color:var(--border-soft)}
-.wengu-regen-btn svg{transition:transform .45s cubic-bezier(.4,0,.2,1)}
-.wengu-regen-btn.is-spin svg{transform:rotate(180deg)}
+            /* 卡头 → 题干 16 */
+            .wengu-card-head {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: var(--sp4);
+            }
+            /* 当前题号：陶土橙的小字态（--primary-text，卡面上 5.40:1） */
+            .wengu-card-num {
+                font: 600 14px/1 var(--font-mono);
+                color: var(--primary-text);
+                font-variant-numeric: tabular-nums;
+                letter-spacing: -0.01em;
+            }
+            .wengu-badge {
+                display: inline-flex;
+                align-items: center;
+                height: 19px;
+                padding: 0 7px;
+                border: 1px solid var(--border-soft);
+                border-radius: 4px;
+                background: var(--hover);
+                font: 400 11.5px/1 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .wengu-card-title {
+                font: 500 14px/1.2 var(--font-ui);
+                color: var(--fg);
+            }
+            .wengu-side-iconbtn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 28px;
+                height: 28px;
+                margin-left: auto;
+                border-radius: var(--r1);
+                color: var(--fg-2);
+                border: 1px solid transparent;
+            }
+            .wengu-side-iconbtn:hover {
+                background: var(--deepen);
+                color: var(--fg);
+                border-color: var(--border-soft);
+            }
+            .wengu-regen-btn svg {
+                transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .wengu-regen-btn.is-spin svg {
+                transform: rotate(180deg);
+            }
 
-/* 题干 → 选项 16 ｜ 选项 → chips 20 */
-.wengu-qprotyle{margin-bottom:var(--sp5)}
-.wengu-qprotyle>.p{
-  margin:0 0 var(--sp4);font:400 15px/1.7 var(--font-ui);color:var(--fg);
-  text-wrap:pretty}
+            /* 题干 → 选项 16 ｜ 选项 → chips 20 */
+            .wengu-qprotyle {
+                margin-bottom: var(--sp5);
+            }
+            .wengu-qprotyle > .p {
+                margin: 0 0 var(--sp4);
+                font: 400 15px/1.7 var(--font-ui);
+                color: var(--fg);
+                text-wrap: pretty;
+            }
 
-/* 选项：行高 44px，行距 8，字母与正文基线对齐 */
-.wengu-opts{display:flex;flex-direction:column;gap:var(--sp2)}
-.wengu-option-fallback{
-  display:grid;grid-template-columns:26px 1fr;align-items:baseline;
-  gap:var(--sp3);min-height:44px;padding:8px 14px;
-  border:1px solid var(--border-soft);border-radius:var(--r1);
-  background:var(--opt-bg);color:var(--fg);cursor:pointer;
-  transition:background .12s ease,border-color .12s ease}
-.wengu-option-fallback:hover{background:var(--deepen);border-color:var(--border-strong)}
-.wengu-opt-letter{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:26px;border-radius:50%;
-  border:1px solid var(--border-strong);background:var(--bg);
-  font:600 12px/1 var(--font-ui);color:var(--fg-2)}
-.wengu-opt-body{
-  font:400 15px/1.55 var(--font-ui);color:var(--fg)}
-.wengu-option-fallback.is-picked{border-color:var(--primary);background:var(--primary-soft)}
-.wengu-option-fallback.is-picked .wengu-opt-letter{
-  background:var(--primary);border-color:var(--primary);color:var(--bg)}
-.wengu-option-fallback.is-correct{border-color:var(--ok);background:var(--ok-soft)}
-.wengu-option-fallback.is-correct .wengu-opt-letter{
-  border-color:var(--ok);color:var(--ok)}
-.wengu-option-fallback.is-wrong{border-color:var(--danger);background:var(--danger-soft)}
-.wengu-option-fallback.is-wrong .wengu-opt-letter{
-  border-color:var(--danger);color:var(--danger)}
+            /* 选项：行高 44px，行距 8，字母与正文基线对齐 */
+            .wengu-opts {
+                display: flex;
+                flex-direction: column;
+                gap: var(--sp2);
+            }
+            .wengu-option-fallback {
+                display: grid;
+                grid-template-columns: 26px 1fr;
+                align-items: baseline;
+                gap: var(--sp3);
+                min-height: 44px;
+                padding: 8px 14px;
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r1);
+                background: var(--opt-bg);
+                color: var(--fg);
+                cursor: pointer;
+                transition:
+                    background 0.12s ease,
+                    border-color 0.12s ease;
+            }
+            .wengu-option-fallback:hover {
+                background: var(--deepen);
+                border-color: var(--border-strong);
+            }
+            .wengu-opt-letter {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 26px;
+                height: 26px;
+                border-radius: 50%;
+                border: 1px solid var(--border-strong);
+                background: var(--bg);
+                font: 600 12px/1 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .wengu-opt-body {
+                font: 400 15px/1.55 var(--font-ui);
+                color: var(--fg);
+            }
+            .wengu-option-fallback.is-picked {
+                border-color: var(--primary);
+                background: var(--primary-soft);
+            }
+            .wengu-option-fallback.is-picked .wengu-opt-letter {
+                background: var(--primary);
+                border-color: var(--primary);
+                color: var(--bg);
+            }
+            .wengu-option-fallback.is-correct {
+                border-color: var(--ok);
+                background: var(--ok-soft);
+            }
+            .wengu-option-fallback.is-correct .wengu-opt-letter {
+                border-color: var(--ok);
+                color: var(--ok);
+            }
+            .wengu-option-fallback.is-wrong {
+                border-color: var(--danger);
+                background: var(--danger-soft);
+            }
+            .wengu-option-fallback.is-wrong .wengu-opt-letter {
+                border-color: var(--danger);
+                color: var(--danger);
+            }
 
-/* chips（快捷作答）→ 思路 12 */
-.wengu-chips{display:flex;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp3)}
-.wengu-chip{
-  display:inline-flex;align-items:center;justify-content:center;
-  min-width:38px;height:32px;padding:0 12px;border-radius:var(--r1);
-  border:1px solid var(--border-soft);background:var(--opt-bg);
-  font:600 13px/1 var(--font-ui);color:var(--fg-2)}
-.wengu-chip:hover{background:var(--deepen);border-color:var(--border-strong);color:var(--fg)}
-.wengu-chip.is-on{border-color:var(--primary);background:var(--primary-soft);color:var(--fg)}
+            /* chips（快捷作答）→ 思路 12 */
+            .wengu-chips {
+                display: flex;
+                flex-wrap: wrap;
+                gap: var(--sp2);
+                margin-bottom: var(--sp3);
+            }
+            .wengu-chip {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 38px;
+                height: 32px;
+                padding: 0 12px;
+                border-radius: var(--r1);
+                border: 1px solid var(--border-soft);
+                background: var(--opt-bg);
+                font: 600 13px/1 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .wengu-chip:hover {
+                background: var(--deepen);
+                border-color: var(--border-strong);
+                color: var(--fg);
+            }
+            .wengu-chip.is-on {
+                border-color: var(--primary);
+                background: var(--primary-soft);
+                color: var(--fg);
+            }
 
-.wengu-thought-toggle{
-  display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;
-  border-radius:var(--r1);border:1px solid var(--border-soft);
-  font:400 12.5px/1 var(--font-ui);color:var(--fg-2)}
-.wengu-thought-toggle:hover{background:var(--deepen);color:var(--fg);
-  border-color:var(--border-strong)}
-.wengu-thought-toggle.is-open{border-color:var(--border-strong);background:var(--deepen);
-  color:var(--fg)}
-.wengu-thought{margin:var(--sp3) 0 0}
-.wengu-input{
-  display:block;width:100%;padding:11px 13px;border-radius:var(--r1);
-  border:1px solid var(--border-soft);background:var(--bg);color:var(--fg);
-  font:400 13.5px/1.7 var(--font-ui);resize:vertical;min-height:84px}
-.wengu-input::placeholder{color:var(--fg-3)}
-.wengu-input:hover{border-color:var(--border-strong)}
-.wengu-input:focus{border-color:var(--primary);outline:2px solid var(--primary);
-  outline-offset:1px}
+            .wengu-thought-toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                height: 32px;
+                padding: 0 12px;
+                border-radius: var(--r1);
+                border: 1px solid var(--border-soft);
+                font: 400 12.5px/1 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .wengu-thought-toggle:hover {
+                background: var(--deepen);
+                color: var(--fg);
+                border-color: var(--border-strong);
+            }
+            .wengu-thought-toggle.is-open {
+                border-color: var(--border-strong);
+                background: var(--deepen);
+                color: var(--fg);
+            }
+            .wengu-thought {
+                margin: var(--sp3) 0 0;
+            }
+            .wengu-input {
+                display: block;
+                width: 100%;
+                padding: 11px 13px;
+                border-radius: var(--r1);
+                border: 1px solid var(--border-soft);
+                background: var(--bg);
+                color: var(--fg);
+                font: 400 13.5px/1.7 var(--font-ui);
+                resize: vertical;
+                min-height: 84px;
+            }
+            .wengu-input::placeholder {
+                color: var(--fg-3);
+            }
+            .wengu-input:hover {
+                border-color: var(--border-strong);
+            }
+            .wengu-input:focus {
+                border-color: var(--primary);
+                outline: 2px solid var(--primary);
+                outline-offset: 1px;
+            }
 
-/* 提交行 ←20→ 解析 */
-.wengu-submit-row{display:flex;align-items:center;gap:var(--sp3);margin-top:var(--sp5)}
-.wengu-btn{
-  display:inline-flex;align-items:center;justify-content:center;
-  min-width:104px;height:38px;padding:0 18px;border-radius:var(--r1);
-  font:500 13.5px/1 var(--font-ui);color:var(--fg);
-  border:1px solid var(--border-strong);background:transparent}
-.wengu-btn.b3-button--outline:hover{background:var(--deepen);border-color:var(--border-strong)}
-.wengu-btn:not(.b3-button--outline){
-  background:var(--primary-strong);border-color:var(--primary-strong);
-  color:var(--on-primary);font-weight:600}
-.wengu-btn:not(.b3-button--outline):hover{
-  background:var(--primary-strong-hover);border-color:var(--primary-strong-hover)}
-.wengu-dunno-btn{min-width:96px}
+            /* 提交行 ←20→ 解析 */
+            .wengu-submit-row {
+                display: flex;
+                align-items: center;
+                gap: var(--sp3);
+                margin-top: var(--sp5);
+            }
+            .wengu-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 104px;
+                height: 38px;
+                padding: 0 18px;
+                border-radius: var(--r1);
+                font: 500 13.5px/1 var(--font-ui);
+                color: var(--fg);
+                border: 1px solid var(--border-strong);
+                background: transparent;
+            }
+            .wengu-btn.b3-button--outline:hover {
+                background: var(--deepen);
+                border-color: var(--border-strong);
+            }
+            .wengu-btn:not(.b3-button--outline) {
+                background: var(--primary-strong);
+                border-color: var(--primary-strong);
+                color: var(--on-primary);
+                font-weight: 600;
+            }
+            .wengu-btn:not(.b3-button--outline):hover {
+                background: var(--primary-strong-hover);
+                border-color: var(--primary-strong-hover);
+            }
+            .wengu-dunno-btn {
+                min-width: 96px;
+            }
 
-/* 揭示态解析 */
-.wengu-static-sol{
-  position:relative;margin-top:var(--sp5);padding-top:var(--sp5);
-  border-top:1px solid transparent;
-  border-image:linear-gradient(90deg,var(--border-soft) 0%,
-    var(--border-soft) 62%,transparent 100%) 1}
-.wengu-static-sol>.p{
-  display:inline-flex;align-items:center;gap:8px;margin:0 0 var(--sp3);
-  font:600 15px/1 var(--font-ui);color:var(--ok)}
-.wengu-static-sol>.p::before{
-  content:"正确答案";font:400 12px/1 var(--font-ui);color:var(--fg-2);
-  padding:4px 8px;border:1px solid var(--ok);border-radius:4px;
-  background:var(--ok-soft)}
-.wengu-static-sol blockquote{
-  margin:0;padding:var(--sp4) var(--sp4);
-  border-left:2px solid var(--border-strong);border-radius:0 var(--r1) var(--r1) 0;
-  background:var(--hover)}
-.wengu-static-sol blockquote .p{
-  margin:0;font:400 14px/1.75 var(--font-ui);color:var(--fg);text-wrap:pretty}
+            /* 揭示态解析 */
+            .wengu-static-sol {
+                position: relative;
+                margin-top: var(--sp5);
+                padding-top: var(--sp5);
+                border-top: 1px solid transparent;
+                border-image: linear-gradient(90deg, var(--border-soft) 0%, var(--border-soft) 62%, transparent 100%) 1;
+            }
+            .wengu-static-sol > .p {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                margin: 0 0 var(--sp3);
+                font: 600 15px/1 var(--font-ui);
+                color: var(--ok);
+            }
+            .wengu-static-sol > .p::before {
+                content: "正确答案";
+                font: 400 12px/1 var(--font-ui);
+                color: var(--fg-2);
+                padding: 4px 8px;
+                border: 1px solid var(--ok);
+                border-radius: 4px;
+                background: var(--ok-soft);
+            }
+            .wengu-static-sol blockquote {
+                margin: 0;
+                padding: var(--sp4) var(--sp4);
+                border-left: 2px solid var(--border-strong);
+                border-radius: 0 var(--r1) var(--r1) 0;
+                background: var(--hover);
+            }
+            .wengu-static-sol blockquote .p {
+                margin: 0;
+                font: 400 14px/1.75 var(--font-ui);
+                color: var(--fg);
+                text-wrap: pretty;
+            }
 
-/* ── 5. 对照区：忠实复现现行数值 ───────────────────────────────────────── */
-.cmp-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px}
-.cmp-col{min-width:0}
-.col-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
-.chip{
-  display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:999px;
-  font:500 11.5px/1 var(--font-ui);border:1px solid}
-.chip-bad{color:var(--danger);border-color:var(--danger);background:var(--danger-soft)}
-.chip-new{color:var(--fg);border-color:var(--primary);background:var(--primary-soft)}
-.col-head .col-sub{font-size:11.5px;color:var(--fg-3);line-height:1.5}
+            /* ── 5. 对照区：忠实复现现行数值 ───────────────────────────────────────── */
+            .cmp-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 60px;
+            }
+            .cmp-col {
+                min-width: 0;
+            }
+            .col-head {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 0 0 12px;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                height: 22px;
+                padding: 0 10px;
+                border-radius: 999px;
+                font: 500 11.5px/1 var(--font-ui);
+                border: 1px solid;
+            }
+            .chip-bad {
+                color: var(--danger);
+                border-color: var(--danger);
+                background: var(--danger-soft);
+            }
+            .chip-new {
+                color: var(--fg);
+                border-color: var(--primary);
+                background: var(--primary-soft);
+            }
+            .col-head .col-sub {
+                font-size: 11.5px;
+                color: var(--fg-3);
+                line-height: 1.5;
+            }
 
-/* 左列：严格按 current-state.md 复现紧凑观感 */
-.demo-current .wengu-ghead{padding:4px 8px}
-.demo-current .wengu-gmat{
-  max-height:240px;overflow-y:auto;padding:4px 12px 8px;
-  background-color:var(--surface);font-family:var(--font-ui);
-  border-bottom:1px dashed var(--border);border-image:none;
-  scrollbar-width:thin;scrollbar-color:rgba(226,218,197,.14) transparent}
-.demo-current .wengu-gmat::-webkit-scrollbar{width:8px}
-.demo-current .wengu-gmat::-webkit-scrollbar-thumb{
-  background:rgba(226,218,197,.14);border-radius:4px}
-.demo-current .wengu-gmat>.p{
-  max-width:none;margin:4px 0;
-  font:400 16px/1.5 var(--font-ui);color:var(--fg)}
-.demo-current .wengu-gmat>.p:last-child{margin-bottom:4px}
-.demo-current .wengu-gqs{padding:0 8px 8px}
-.demo-current .wengu-card{padding:8px;border-radius:var(--r1)}
-.demo-current .wengu-card-head{margin-bottom:4px}
-.demo-current .wengu-qprotyle{margin-bottom:0}
-.demo-current .wengu-qprotyle>.p{margin:4px 0;font:400 15px/1.5 var(--font-ui)}
+            /* 左列：严格按 current-state.md 复现紧凑观感 */
+            .demo-current .wengu-ghead {
+                padding: 4px 8px;
+            }
+            .demo-current .wengu-gmat {
+                max-height: 240px;
+                overflow-y: auto;
+                padding: 4px 12px 8px;
+                background-color: var(--surface);
+                font-family: var(--font-ui);
+                border-bottom: 1px dashed var(--border);
+                border-image: none;
+                scrollbar-width: thin;
+                scrollbar-color: rgba(226, 218, 197, 0.14) transparent;
+            }
+            .demo-current .wengu-gmat::-webkit-scrollbar {
+                width: 8px;
+            }
+            .demo-current .wengu-gmat::-webkit-scrollbar-thumb {
+                background: rgba(226, 218, 197, 0.14);
+                border-radius: 4px;
+            }
+            .demo-current .wengu-gmat > .p {
+                max-width: none;
+                margin: 4px 0;
+                font: 400 16px/1.5 var(--font-ui);
+                color: var(--fg);
+            }
+            .demo-current .wengu-gmat > .p:last-child {
+                margin-bottom: 4px;
+            }
+            .demo-current .wengu-gqs {
+                padding: 0 8px 8px;
+            }
+            .demo-current .wengu-card {
+                padding: 8px;
+                border-radius: var(--r1);
+            }
+            .demo-current .wengu-card-head {
+                margin-bottom: 4px;
+            }
+            .demo-current .wengu-qprotyle {
+                margin-bottom: 0;
+            }
+            .demo-current .wengu-qprotyle > .p {
+                margin: 4px 0;
+                font: 400 15px/1.5 var(--font-ui);
+            }
 
-/* ── 6. 标注层（spec chrome，不属于产品实现） ─────────────────────────── */
-/* 材料区：¶ 段落序号落在左留白；before→after 小字分落两侧留白，与正文栏保持净距 */
-.spec-unit .wengu-gmat>.p{counter-increment:mat-p}
-.spec-unit .wengu-gmat>.p::before{
-  content:"¶" counter(mat-p);position:absolute;left:-1.6rem;top:.44em;
-  font:500 11px/1 var(--font-mono);color:var(--fg-3);letter-spacing:.02em}
-.spec-unit .wengu-gmat::before,
-.spec-unit .wengu-gmat::after,
-.spec-unit .wengu-gmat>.p::after{
-  position:absolute;z-index:2;
-  font:400 11px/1.65 var(--font-ui);color:var(--fg-3);
-  padding-left:9px;border-left:1px solid var(--border-soft)}
-.spec-unit .wengu-gmat::before{
-  content:"区内边距 · 上4 左右12 下8 → 22 / 24 / 24px";left:14px;top:24px;width:156px}
-.spec-unit .wengu-gmat::after{
-  content:"分界 1px 虚线紧贴 → 1px 渐隐细线 ｜ 末段→线 8 → 41px";
-  left:14px;bottom:10px;width:156px}
-.spec-unit .wengu-gmat>.p:first-child::after{
-  content:"行长 无约束 → 68ch 居中 ｜ 行高 1.5 → 1.75 ｜ 字号 16px Georgia";
-  left:calc(100% + 20px);top:0;width:170px}
-.spec-unit .wengu-gmat>.p:last-child::after{
-  content:"段距 4px → 17px（1.05em）";left:calc(100% + 20px);top:0;width:170px}
+            /* ── 6. 标注层（spec chrome，不属于产品实现） ─────────────────────────── */
+            /* 材料区：¶ 段落序号落在左留白；before→after 小字分落两侧留白，与正文栏保持净距 */
+            .spec-unit .wengu-gmat > .p {
+                counter-increment: mat-p;
+            }
+            .spec-unit .wengu-gmat > .p::before {
+                content: "¶" counter(mat-p);
+                position: absolute;
+                left: -1.6rem;
+                top: 0.44em;
+                font: 500 11px/1 var(--font-mono);
+                color: var(--fg-3);
+                letter-spacing: 0.02em;
+            }
+            .spec-unit .wengu-gmat::before,
+            .spec-unit .wengu-gmat::after,
+            .spec-unit .wengu-gmat > .p::after {
+                position: absolute;
+                z-index: 2;
+                font: 400 11px/1.65 var(--font-ui);
+                color: var(--fg-3);
+                padding-left: 9px;
+                border-left: 1px solid var(--border-soft);
+            }
+            .spec-unit .wengu-gmat::before {
+                content: "区内边距 · 上4 左右12 下8 → 22 / 24 / 24px";
+                left: 14px;
+                top: 24px;
+                width: 156px;
+            }
+            .spec-unit .wengu-gmat::after {
+                content: "分界 1px 虚线紧贴 → 1px 渐隐细线 ｜ 末段→线 8 → 41px";
+                left: 14px;
+                bottom: 10px;
+                width: 156px;
+            }
+            .spec-unit .wengu-gmat > .p:first-child::after {
+                content: "行长 无约束 → 68ch 居中 ｜ 行高 1.5 → 1.75 ｜ 字号 16px Georgia";
+                left: calc(100% + 20px);
+                top: 0;
+                width: 170px;
+            }
+            .spec-unit .wengu-gmat > .p:last-child::after {
+                content: "段距 4px → 17px（1.05em）";
+                left: calc(100% + 20px);
+                top: 0;
+                width: 170px;
+            }
 
-/* 题卡区：每行都是整宽块，left:100% + 80px 统一落在右侧标注栏 */
-.spec-unit .wengu-card-head,
-.spec-unit .wengu-opts,
-.spec-unit .wengu-chips,
-.spec-unit .wengu-submit-row,
-.spec-unit .wengu-static-sol{position:relative}
-.spec-unit .wengu-card-head::after,
-.spec-unit .wengu-opts::after,
-.spec-unit .wengu-chips::after,
-.spec-unit .wengu-submit-row::after,
-.spec-unit .wengu-static-sol::after{
-  content:"";position:absolute;z-index:2;top:0;
-  left:calc(100% + 80px);width:200px;
-  font:400 11px/1.65 var(--font-ui);color:var(--fg-3);
-  padding-left:9px;border-left:1px solid var(--border-soft)}
-.spec-unit .wengu-card-head::after{content:"卡头 → 题干 4px → 16px ｜ 卡内边距 8px → 20px"}
-.spec-unit .wengu-opts::after{
-  content:"选项行 28px → 44px ｜ 行距 4px → 8px ｜ 字母徽标与选项正文基线对齐"}
-.spec-unit .wengu-chips::after{
-  content:"选项 → chips 4px → 20px ｜ chips 28px → 32px ｜ chips → 思路 12px"}
-.spec-unit .wengu-submit-row::after{
-  content:"思路 → 提交行 8px → 20px ｜ 按钮 32px → 38px"}
-.spec-unit .wengu-static-sol::after{
-  content:"提交行 → 解析 8px → 20px ｜ 解析底 +12px ｜ 答案走语义绿"}
+            /* 题卡区：每行都是整宽块，left:100% + 80px 统一落在右侧标注栏 */
+            .spec-unit .wengu-card-head,
+            .spec-unit .wengu-opts,
+            .spec-unit .wengu-chips,
+            .spec-unit .wengu-submit-row,
+            .spec-unit .wengu-static-sol {
+                position: relative;
+            }
+            .spec-unit .wengu-card-head::after,
+            .spec-unit .wengu-opts::after,
+            .spec-unit .wengu-chips::after,
+            .spec-unit .wengu-submit-row::after,
+            .spec-unit .wengu-static-sol::after {
+                content: "";
+                position: absolute;
+                z-index: 2;
+                top: 0;
+                left: calc(100% + 80px);
+                width: 200px;
+                font: 400 11px/1.65 var(--font-ui);
+                color: var(--fg-3);
+                padding-left: 9px;
+                border-left: 1px solid var(--border-soft);
+            }
+            .spec-unit .wengu-card-head::after {
+                content: "卡头 → 题干 4px → 16px ｜ 卡内边距 8px → 20px";
+            }
+            .spec-unit .wengu-opts::after {
+                content: "选项行 28px → 44px ｜ 行距 4px → 8px ｜ 字母徽标与选项正文基线对齐";
+            }
+            .spec-unit .wengu-chips::after {
+                content: "选项 → chips 4px → 20px ｜ chips 28px → 32px ｜ chips → 思路 12px";
+            }
+            .spec-unit .wengu-submit-row::after {
+                content: "思路 → 提交行 8px → 20px ｜ 按钮 32px → 38px";
+            }
+            .spec-unit .wengu-static-sol::after {
+                content: "提交行 → 解析 8px → 20px ｜ 解析底 +12px ｜ 答案走语义绿";
+            }
 
-/* ── 7. 设计说明 ───────────────────────────────────────────────────────── */
-.notes{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 40px}
-.note{
-  border-top:1px solid var(--border-soft);padding-top:12px;
-  font:400 12.5px/1.75 var(--font-ui);color:var(--fg-2)}
-.note h3{font:600 12.5px/1.5 var(--font-ui);color:var(--fg);margin-bottom:6px}
-.note b{color:var(--fg);font-weight:600}
-.note code{font:400 11.5px/1.6 var(--font-mono);color:var(--fg-2);
-  background:var(--hover);padding:1px 5px;border-radius:4px}
-</style>
-</head>
-<body>
-<main class="sheet">
+            /* ── 7. 设计说明 ───────────────────────────────────────────────────────── */
+            .notes {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px 40px;
+            }
+            .note {
+                border-top: 1px solid var(--border-soft);
+                padding-top: 12px;
+                font: 400 12.5px/1.75 var(--font-ui);
+                color: var(--fg-2);
+            }
+            .note h3 {
+                font: 600 12.5px/1.5 var(--font-ui);
+                color: var(--fg);
+                margin-bottom: 6px;
+            }
+            .note b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .note code {
+                font: 400 11.5px/1.6 var(--font-mono);
+                color: var(--fg-2);
+                background: var(--hover);
+                padding: 1px 5px;
+                border-radius: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <main class="sheet">
+            <!-- ══ 稿头 ══════════════════════════════════════════════════════════ -->
+            <header class="sheet-head" data-od-id="spec-header">
+                <div class="sheet-eyebrow">温故 · 桌面端刷题 · 英语阅读「材料组单元」</div>
+                <h1>材料阅读节奏重设计</h1>
+                <p class="lede">
+                    主区画布 1100px。左侧为现行 CSS 数值的忠实复现（含病灶数字），下方为完整重设计单元：四段英语原文 +
+                    一张完整题卡。所有颜色取自运行中 Neo+ 深色暖调主题的实测令牌，字体只用系统栈。
+                </p>
+                <div class="legend">
+                    <span class="l-bad"><i></i>病灶 · 现行数值</span>
+                    <span class="l-new"><i></i>重设计 · 新数值</span>
+                    <span class="l-ok"><i></i>语义色 · 答对</span>
+                    <span><i></i>¶ 段落序号（本稿辅助标注，便于对应题干「Paragraph 2」）</span>
+                </div>
+            </header>
 
-  <!-- ══ 稿头 ══════════════════════════════════════════════════════════ -->
-  <header class="sheet-head" data-od-id="spec-header">
-    <div class="sheet-eyebrow">温故 · 桌面端刷题 · 英语阅读「材料组单元」</div>
-    <h1>材料阅读节奏重设计</h1>
-    <p class="lede">主区画布 1100px。左侧为现行 CSS 数值的忠实复现（含病灶数字），下方为完整重设计单元：四段英语原文 + 一张完整题卡。所有颜色取自运行中 Neo+ 深色暖调主题的实测令牌，字体只用系统栈。</p>
-    <div class="legend">
-      <span class="l-bad"><i></i>病灶 · 现行数值</span>
-      <span class="l-new"><i></i>重设计 · 新数值</span>
-      <span class="l-ok"><i></i>语义色 · 答对</span>
-      <span><i></i>¶ 段落序号（本稿辅助标注，便于对应题干「Paragraph 2」）</span>
-    </div>
-  </header>
+            <div class="sheet-body">
+                <div class="canvas">
+                    <!-- ══ ① 对照 ════════════════════════════════════════════════════ -->
+                    <section class="band" id="compare" data-od-id="band-compare">
+                        <div class="band-head">
+                            <span class="idx">①</span>
+                            <h2>对照 · 现状 vs 重设计</h2>
+                            <p class="band-lead">
+                                同一段材料、同一列宽。左列逐条按
+                                <em>current-state.md</em>
+                                的像素值复现；右列为重设计后的数值。仅材料区与分界不同，题卡节奏见 ②。
+                            </p>
+                        </div>
 
-  <div class="sheet-body">
-    <div class="canvas">
+                        <div class="cmp-grid">
+                            <!-- 现状 -->
+                            <div class="cmp-col demo-current" data-od-id="compare-current">
+                                <div class="col-head">
+                                    <span class="chip chip-bad">现状 · 病灶</span>
+                                    <span class="col-sub"
+                                        >段距 4px ｜ 行高继承 ≈1.5 ｜ 行长无约束 ｜ 区内边距 4/12/8</span
+                                    >
+                                </div>
 
-      <!-- ══ ① 对照 ════════════════════════════════════════════════════ -->
-      <section class="band" id="compare" data-od-id="band-compare">
-        <div class="band-head">
-          <span class="idx">①</span>
-          <h2>对照 · 现状 vs 重设计</h2>
-          <p class="band-lead">同一段材料、同一列宽。左列逐条按 <em>current-state.md</em> 的像素值复现；右列为重设计后的数值。仅材料区与分界不同，题卡节奏见 ②。</p>
-        </div>
+                                <div class="wengu-gunit">
+                                    <div class="wengu-ghead">
+                                        <button class="wengu-gmat-fold" title="展开/收起材料">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M5.2 2.6 9.6 7l-4.4 4.4"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.6"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                            <span>共享材料</span>
+                                        </button>
+                                        <span class="wengu-gnav">
+                                            <button class="wengu-gnav-btn" title="上一题" disabled>
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M8.8 2.6 4.4 7l4.4 4.4"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.6"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                            <span class="wengu-gq-label">1/4</span>
+                                            <button class="wengu-gnav-btn" title="下一题">
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M5.2 2.6 9.6 7l-4.4 4.4"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.6"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </div>
 
-        <div class="cmp-grid">
-          <!-- 现状 -->
-          <div class="cmp-col demo-current" data-od-id="compare-current">
-            <div class="col-head">
-              <span class="chip chip-bad">现状 · 病灶</span>
-              <span class="col-sub">段距 4px ｜ 行高继承 ≈1.5 ｜ 行长无约束 ｜ 区内边距 4/12/8</span>
+                                    <div class="wengu-gmat" data-mprotyle="">
+                                        <div class="p">
+                                            A group of Labour MPs, among them Yvette Cooper, are bringing in the new
+                                            year with a call to institute a UK “town of culture” award. The proposal is
+                                            that it should sit alongside the existing city of culture title, which was
+                                            held by Hull in 2017, and has been awarded to Coventry for 2021. …
+                                        </div>
+                                        <div class="p">
+                                            Some might see the proposal as a booby prize for the fact that Britain is no
+                                            longer able to apply for the much more prestigious title of European capital
+                                            of culture, a sought-after award bagged by Glasgow in 1990 and Liverpool in
+                                            2008. …
+                                        </div>
+                                        <div class="p">
+                                            It is also wise to recall that such titles are not a cure-all. A badly run
+                                            “year of culture” washes in and out of a place like the tide, bringing
+                                            prominence for a spell but leaving no lasting benefits to the community. …
+                                        </div>
+                                    </div>
+
+                                    <div class="wengu-gqs">
+                                        <div class="wengu-card">
+                                            <div class="wengu-card-head">
+                                                <span class="wengu-card-num">6</span>
+                                                <span class="wengu-badge">单选</span>
+                                                <span class="wengu-card-title">推理判断</span>
+                                            </div>
+                                            <div class="wengu-qprotyle" data-qprotyle="">
+                                                <div class="p">
+                                                    According to Paragraph 2, the proposal might be regarded by some
+                                                    as（ ）
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ul class="taglist" data-od-id="lesion-list">
+                                    <li>
+                                        <span
+                                            >段距 <b class="bad">4px</b>（<em>.p{margin:4px 0}</em
+                                            >）：四五百词的段落黏成一块</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >行高 <b class="bad">未覆盖</b>，继承全局紧凑值
+                                            <b class="bad">≈1.5</b>：行长句挤成灰面</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >行长 <b class="bad">无 max-width</b>：宽窗下一行 100+
+                                            字符，换行找不到下一行</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >区内边距 上 <b class="bad">4px</b> / 左右 <b class="bad">12px</b> / 下
+                                            <b class="bad">8px</b>：首行几乎贴住工具条</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >材料上限 <b class="bad">46vh 内滚动</b>（此处按 240px 复现）：可见 9
+                                            行，其余要滚</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >分界 <b class="bad">1px 虚线</b>紧贴末段（末段→线仅
+                                            <b class="bad">8px</b>）｜ 题卡区上缘 <b class="bad">0px</b></span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >题卡内边距 <b class="bad">8px</b> ｜ 卡头→题干 <b class="bad">4px</b></span
+                                        >
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- 重设计 -->
+                            <div class="cmp-col demo-next" data-od-id="compare-redesign">
+                                <div class="col-head">
+                                    <span class="chip chip-new">重设计</span>
+                                    <span class="col-sub"
+                                        >段距 17px ｜ 行高 1.75 ｜ 68ch 居中 ｜ 区内边距 22/24/24</span
+                                    >
+                                </div>
+
+                                <div class="wengu-gunit">
+                                    <div class="wengu-ghead">
+                                        <button class="wengu-gmat-fold" title="展开/收起材料">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M5.2 2.6 9.6 7l-4.4 4.4"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.6"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                            <span>共享材料</span>
+                                        </button>
+                                        <span class="wengu-gnav">
+                                            <button class="wengu-gnav-btn" title="上一题">
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M8.8 2.6 4.4 7l4.4 4.4"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.6"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                            <span class="wengu-gq-label">1/4</span>
+                                            <button class="wengu-gnav-btn" title="下一题">
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M5.2 2.6 9.6 7l-4.4 4.4"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.6"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </div>
+
+                                    <div class="wengu-gmat" data-mprotyle="">
+                                        <div class="p">
+                                            A group of Labour MPs, among them Yvette Cooper, are bringing in the new
+                                            year with a call to institute a UK “town of culture” award. The proposal is
+                                            that it should sit alongside the existing city of culture title, which was
+                                            held by Hull in 2017, and has been awarded to Coventry for 2021. …
+                                        </div>
+                                        <div class="p">
+                                            Some might see the proposal as a booby prize for the fact that Britain is no
+                                            longer able to apply for the much more prestigious title of European capital
+                                            of culture, a sought-after award bagged by Glasgow in 1990 and Liverpool in
+                                            2008. …
+                                        </div>
+                                        <div class="p">
+                                            It is also wise to recall that such titles are not a cure-all. A badly run
+                                            “year of culture” washes in and out of a place like the tide, bringing
+                                            prominence for a spell but leaving no lasting benefits to the community. …
+                                        </div>
+                                    </div>
+
+                                    <div class="wengu-gqs">
+                                        <div class="wengu-card">
+                                            <div class="wengu-card-head">
+                                                <span class="wengu-card-num">6</span>
+                                                <span class="wengu-badge">单选</span>
+                                                <span class="wengu-card-title">推理判断</span>
+                                            </div>
+                                            <div class="wengu-qprotyle" data-qprotyle="">
+                                                <div class="p">
+                                                    According to Paragraph 2, the proposal might be regarded by some
+                                                    as（ ）
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ul class="taglist" data-od-id="redesign-list">
+                                    <li>
+                                        <span
+                                            >段距 <b class="good">17px</b>（<em>1.05em</em>，底线
+                                            0.9em）：段落各自成块，扫读有落点</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >行高 <b class="good">1.75</b> ｜ 字号
+                                            <b class="good">16px</b>，显式声明不再继承全局</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >行长
+                                            <b class="good">max-width:68ch</b>
+                                            居中，两侧对称留白；窗口再宽也不拉长</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >区内边距 上 <b class="good">22px</b> / 左右 <b class="good">24px</b> / 下
+                                            <b class="good">24px</b></span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >材料 <b class="good">整篇展开</b>，取消 46vh
+                                            内滚动；「共享材料」折叠钮保留为收起入口</span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >分界 <b class="good">1px 渐隐细线</b> ｜ 末段→线
+                                            <b class="good">41px</b>（17 段后距 + 24 下边距）｜ 题卡区上缘
+                                            <b class="good">24px</b></span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span
+                                            >题卡内边距 <b class="good">20px</b> ｜ 卡头→题干
+                                            <b class="good">16px</b></span
+                                        >
+                                    </li>
+                                    <li>
+                                        <span class="dim"
+                                            >本列宽约 472px，未达 68ch，故行长与对称留白效果见下方全宽单元</span
+                                        >
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ══ ② 重设计态 · 完整单元 ═════════════════════════════════════ -->
+                    <section class="band" id="redesign" data-od-id="band-redesign">
+                        <div class="band-head">
+                            <span class="idx">②</span>
+                            <h2>重设计态 · 完整单元</h2>
+                            <div class="state-switch" role="group" aria-label="演示状态（本稿标注层）">
+                                <span>演示态</span>
+                                <button type="button" data-view="answer" aria-pressed="false">作答态</button>
+                                <button type="button" data-view="reveal" aria-pressed="true">揭示态</button>
+                            </div>
+                        </div>
+
+                        <div class="spec-unit" id="unit-demo" data-od-id="unit-redesign">
+                            <div class="wengu-gunit" data-mid="mat-demo">
+                                <!-- 工具条 -->
+                                <div class="wengu-ghead">
+                                    <button class="wengu-gmat-fold" data-act="gmat-fold" title="展开/收起材料">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                            <path
+                                                d="M5.2 2.6 9.6 7l-4.4 4.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            />
+                                        </svg>
+                                        <span>共享材料</span>
+                                    </button>
+                                    <span class="wengu-gnav">
+                                        <button class="wengu-gnav-btn" data-act="gq-prev" title="上一题">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M8.8 2.6 4.4 7l4.4 4.4"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.6"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                        </button>
+                                        <span class="wengu-gq-label">1/4</span>
+                                        <button class="wengu-gnav-btn" data-act="gq-next" title="下一题">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M5.2 2.6 9.6 7l-4.4 4.4"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.6"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </span>
+                                </div>
+
+                                <!-- 共享材料：四段全文 -->
+                                <div class="wengu-gmat" data-mprotyle="">
+                                    <div class="p">
+                                        A group of Labour MPs, among them Yvette Cooper, are bringing in the new year
+                                        with a call to institute a UK “town of culture” award. The proposal is that it
+                                        should sit alongside the existing city of culture title, which was held by Hull
+                                        in 2017, and has been awarded to Coventry for 2021. Cooper and her colleagues
+                                        argue that the success of the crown for Hull, where it brought in £220m of
+                                        investment and an avalanche of arts, ought not to be confined to cities.
+                                        Britain’s towns, it is true, are not prevented from applying, but they generally
+                                        lack the resources to put together a bid to beat their bigger competitors. A
+                                        town of culture award could, it is argued, become an annual event, attracting
+                                        funding and creating jobs.
+                                    </div>
+                                    <div class="p">
+                                        Some might see the proposal as a booby prize for the fact that Britain is no
+                                        longer able to apply for the much more prestigious title of European capital of
+                                        culture, a sought-after award bagged by Glasgow in 1990 and Liverpool in 2008. A
+                                        cynic might speculate that the UK is on the verge of disappearing into an
+                                        endless fever of self-celebration in its desperation to reinvent itself for the
+                                        post-Brexit world: after town of culture, who knows what will follow—village of
+                                        culture? Suburb of culture? Hamlet of culture?
+                                    </div>
+                                    <div class="p">
+                                        It is also wise to recall that such titles are not a cure-all. A badly run “year
+                                        of culture” washes in and out of a place like the tide, bringing prominence for
+                                        a spell but leaving no lasting benefits to the community. The really successful
+                                        holders of such titles are those that do a great deal more than fill hotel
+                                        bedrooms and bring in high-profile arts events and good press for a year. They
+                                        transform the aspirations of the people who live there; they nudge the
+                                        self-image of the city into a bolder and more optimistic light. It is hard to
+                                        get right, and requires a remarkable degree of vision, as well as cooperation
+                                        between city authorities, the private sector, community groups and cultural
+                                        organisations. But it can be done: Glasgow’s year as European capital of culture
+                                        can certainly be seen as one of a complex series of factors that have turned the
+                                        city into the powerhouse of art, music and theatre that it remains today.
+                                    </div>
+                                    <div class="p">
+                                        A “town of culture” could be not just about the arts but about honouring a
+                                        town’s peculiarities—helping sustain its high street, supporting local
+                                        facilities and above all celebrating its people. Jeremy Wright, the culture
+                                        secretary, should welcome this positive, hope-filled proposal, and turn it into
+                                        action.
+                                    </div>
+                                </div>
+
+                                <!-- 组内题卡：一次显示一题 -->
+                                <div class="wengu-gqs" data-od-id="group-questions">
+                                    <div
+                                        class="wengu-card"
+                                        data-qid="gen-demo-1"
+                                        data-idx="5"
+                                        data-od-id="question-card-1"
+                                    >
+                                        <div class="wengu-card-head">
+                                            <span class="wengu-card-num">6</span>
+                                            <span class="wengu-badge">单选</span>
+                                            <span class="wengu-card-title">推理判断</span>
+                                            <button
+                                                class="wengu-side-iconbtn wengu-regen-btn"
+                                                data-act="regen"
+                                                title="重新生成"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.5"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="wengu-qprotyle" data-qprotyle="">
+                                            <div class="p">
+                                                According to Paragraph 2, the proposal might be regarded by some as（ ）
+                                            </div>
+                                            <div class="wengu-opts" role="radiogroup" aria-label="选项">
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">A</span>
+                                                    <div class="wengu-opt-body">an inaccessible target</div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">B</span>
+                                                    <div class="wengu-opt-body">a sensible compromise</div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">C</span>
+                                                    <div class="wengu-opt-body">an eye-catching bonus</div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">D</span>
+                                                    <div class="wengu-opt-body">a self-deceiving attempt</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="wengu-chips">
+                                            <button class="wengu-chip" data-letter="A">A</button>
+                                            <button class="wengu-chip" data-letter="B">B</button>
+                                            <button class="wengu-chip" data-letter="C">C</button>
+                                            <button class="wengu-chip" data-letter="D">D</button>
+                                        </div>
+                                        <button class="wengu-thought-toggle" data-act="thought-toggle">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.4"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                            思路
+                                        </button>
+                                        <div class="wengu-thought">
+                                            <textarea
+                                                class="wengu-input"
+                                                rows="3"
+                                                placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"
+                                            ></textarea>
+                                        </div>
+                                        <div class="wengu-submit-row" data-submit-row="">
+                                            <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
+                                            <button class="wengu-btn" data-act="submit">提交</button>
+                                            <button
+                                                class="wengu-btn wengu-dunno-btn b3-button--outline"
+                                                data-act="dunno"
+                                            >
+                                                不会
+                                            </button>
+                                        </div>
+                                        <div class="wengu-static-sol" data-static-sol="">
+                                            <div class="p">D</div>
+                                            <blockquote>
+                                                <div class="p">
+                                                    第二段中 “booby
+                                                    prize”（安慰奖）暗示该提案被视为一种自欺式的尝试：英国已无法申请“欧洲文化之都”，只好自造名目自我庆祝。A
+                                                    “inaccessible target” 与文意相反；B “sensible compromise” 与 “cynic
+                                                    might speculate” 的讥讽语气不符；C “eye-catching bonus”
+                                                    无对应。故答案为 D。
+                                                </div>
+                                            </blockquote>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="wengu-card"
+                                        data-qid="gen-demo-2"
+                                        data-idx="6"
+                                        data-od-id="question-card-2"
+                                        hidden
+                                    >
+                                        <div class="wengu-card-head">
+                                            <span class="wengu-card-num">7</span>
+                                            <span class="wengu-badge">单选</span>
+                                            <span class="wengu-card-title">细节定位</span>
+                                            <button
+                                                class="wengu-side-iconbtn wengu-regen-btn"
+                                                data-act="regen"
+                                                title="重新生成"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.5"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="wengu-qprotyle" data-qprotyle="">
+                                            <div class="p">
+                                                Cooper and her colleagues argue that a “town of culture” award could（
+                                                ）
+                                            </div>
+                                            <div class="wengu-opts" role="radiogroup" aria-label="选项">
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">A</span>
+                                                    <div class="wengu-opt-body">
+                                                        restrict entries to towns with enough resources
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">B</span>
+                                                    <div class="wengu-opt-body">
+                                                        become a yearly event that draws funding and jobs
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">C</span>
+                                                    <div class="wengu-opt-body">
+                                                        take the place of the city of culture title
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">D</span>
+                                                    <div class="wengu-opt-body">be judged by a panel of Labour MPs</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="wengu-chips">
+                                            <button class="wengu-chip" data-letter="A">A</button>
+                                            <button class="wengu-chip" data-letter="B">B</button>
+                                            <button class="wengu-chip" data-letter="C">C</button>
+                                            <button class="wengu-chip" data-letter="D">D</button>
+                                        </div>
+                                        <button class="wengu-thought-toggle" data-act="thought-toggle">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.4"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                            思路
+                                        </button>
+                                        <div class="wengu-thought">
+                                            <textarea
+                                                class="wengu-input"
+                                                rows="3"
+                                                placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"
+                                            ></textarea>
+                                        </div>
+                                        <div class="wengu-submit-row" data-submit-row="">
+                                            <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
+                                            <button class="wengu-btn" data-act="submit">提交</button>
+                                            <button
+                                                class="wengu-btn wengu-dunno-btn b3-button--outline"
+                                                data-act="dunno"
+                                            >
+                                                不会
+                                            </button>
+                                        </div>
+                                        <div class="wengu-static-sol" data-static-sol="" hidden>
+                                            <div class="p">B</div>
+                                            <blockquote>
+                                                <div class="p">
+                                                    第一段末句直接给出答案：“could, it is argued, become an annual
+                                                    event, attracting funding and creating jobs”。A
+                                                    与原文相反（原文说小镇“generally lack the
+                                                    resources”，是现状而非限制条件）；C 原文说该奖项与 city of culture
+                                                    并列存在，不是取代；D 无中生有，文中未出现评审主体。故答案为 B。
+                                                </div>
+                                            </blockquote>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="wengu-card"
+                                        data-qid="gen-demo-3"
+                                        data-idx="7"
+                                        data-od-id="question-card-3"
+                                        hidden
+                                    >
+                                        <div class="wengu-card-head">
+                                            <span class="wengu-card-num">8</span>
+                                            <span class="wengu-badge">单选</span>
+                                            <span class="wengu-card-title">词义猜测</span>
+                                            <button
+                                                class="wengu-side-iconbtn wengu-regen-btn"
+                                                data-act="regen"
+                                                title="重新生成"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.5"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="wengu-qprotyle" data-qprotyle="">
+                                            <div class="p">
+                                                The phrase “booby prize” (Para. 2) suggests that the proposal is seen
+                                                as（ ）
+                                            </div>
+                                            <div class="wengu-opts" role="radiogroup" aria-label="选项">
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">A</span>
+                                                    <div class="wengu-opt-body">a consolation for a bigger loss</div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">B</span>
+                                                    <div class="wengu-opt-body">a reward for cultural excellence</div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">C</span>
+                                                    <div class="wengu-opt-body">a threat to European cooperation</div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">D</span>
+                                                    <div class="wengu-opt-body">a waste of public money</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="wengu-chips">
+                                            <button class="wengu-chip" data-letter="A">A</button>
+                                            <button class="wengu-chip" data-letter="B">B</button>
+                                            <button class="wengu-chip" data-letter="C">C</button>
+                                            <button class="wengu-chip" data-letter="D">D</button>
+                                        </div>
+                                        <button class="wengu-thought-toggle" data-act="thought-toggle">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.4"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                            思路
+                                        </button>
+                                        <div class="wengu-thought">
+                                            <textarea
+                                                class="wengu-input"
+                                                rows="3"
+                                                placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"
+                                            ></textarea>
+                                        </div>
+                                        <div class="wengu-submit-row" data-submit-row="">
+                                            <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
+                                            <button class="wengu-btn" data-act="submit">提交</button>
+                                            <button
+                                                class="wengu-btn wengu-dunno-btn b3-button--outline"
+                                                data-act="dunno"
+                                            >
+                                                不会
+                                            </button>
+                                        </div>
+                                        <div class="wengu-static-sol" data-static-sol="" hidden>
+                                            <div class="p">A</div>
+                                            <blockquote>
+                                                <div class="p">
+                                                    “booby prize”
+                                                    指末等奖、安慰奖；同位语从句随即说明理由——英国已无法申请规格更高的“欧洲文化之都”（Glasgow
+                                                    1990、Liverpool 2008）。因此该提案被看作退而求其次的安慰。B、C、D
+                                                    在第二段均无对应信息，属无中生有。故答案为 A。
+                                                </div>
+                                            </blockquote>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="wengu-card"
+                                        data-qid="gen-demo-4"
+                                        data-idx="8"
+                                        data-od-id="question-card-4"
+                                        hidden
+                                    >
+                                        <div class="wengu-card-head">
+                                            <span class="wengu-card-num">9</span>
+                                            <span class="wengu-badge">单选</span>
+                                            <span class="wengu-card-title">主旨推理</span>
+                                            <button
+                                                class="wengu-side-iconbtn wengu-regen-btn"
+                                                data-act="regen"
+                                                title="重新生成"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                    <path
+                                                        d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="1.5"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="wengu-qprotyle" data-qprotyle="">
+                                            <div class="p">
+                                                What does the author consider crucial to a successful “year of
+                                                culture”?（ ）
+                                            </div>
+                                            <div class="wengu-opts" role="radiogroup" aria-label="选项">
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">A</span>
+                                                    <div class="wengu-opt-body">
+                                                        Bringing in high-profile arts events
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">B</span>
+                                                    <div class="wengu-opt-body">
+                                                        Filling hotel rooms and earning good press
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">C</span>
+                                                    <div class="wengu-opt-body">
+                                                        Changing how local people see themselves
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="wengu-option-fallback wengu-opt-m"
+                                                    role="radio"
+                                                    tabindex="0"
+                                                    aria-checked="false"
+                                                >
+                                                    <span class="wengu-opt-letter">D</span>
+                                                    <div class="wengu-opt-body">
+                                                        Securing investment from the private sector
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="wengu-chips">
+                                            <button class="wengu-chip" data-letter="A">A</button>
+                                            <button class="wengu-chip" data-letter="B">B</button>
+                                            <button class="wengu-chip" data-letter="C">C</button>
+                                            <button class="wengu-chip" data-letter="D">D</button>
+                                        </div>
+                                        <button class="wengu-thought-toggle" data-act="thought-toggle">
+                                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                                <path
+                                                    d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.4"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                />
+                                            </svg>
+                                            思路
+                                        </button>
+                                        <div class="wengu-thought">
+                                            <textarea
+                                                class="wengu-input"
+                                                rows="3"
+                                                placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"
+                                            ></textarea>
+                                        </div>
+                                        <div class="wengu-submit-row" data-submit-row="">
+                                            <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
+                                            <button class="wengu-btn" data-act="submit">提交</button>
+                                            <button
+                                                class="wengu-btn wengu-dunno-btn b3-button--outline"
+                                                data-act="dunno"
+                                            >
+                                                不会
+                                            </button>
+                                        </div>
+                                        <div class="wengu-static-sol" data-static-sol="" hidden>
+                                            <div class="p">C</div>
+                                            <blockquote>
+                                                <div class="p">
+                                                    第三段把 “really successful holders”
+                                                    与只填满酒店、带来曝光的那类作对比，落点是 “They transform the
+                                                    aspirations of the people who live there; they nudge the self-image
+                                                    of the city into a bolder and more optimistic light”，第四段又以上
+                                                    “celebrating its people” 收束。A、B
+                                                    恰是被作者降格为“不止于此”的表层指标；D
+                                                    只是成功所需的协作条件之一，不是关键。故答案为 C。
+                                                </div>
+                                            </blockquote>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 线索 chips（本例为空，保持 DOM 结构） -->
+                                <div class="wengu-gclues" data-clues="" hidden></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ══ ③ 设计说明 ════════════════════════════════════════════════ -->
+                    <section class="band" id="notes" data-od-id="band-notes">
+                        <div class="band-head">
+                            <span class="idx">③</span>
+                            <h2>设计说明 · 取值为底线而非上限</h2>
+                            <p class="band-lead">
+                                只改材料阅读节奏与题卡内部间距；侧栏、统计条、开刷面板、移动端一律未动。
+                            </p>
+                        </div>
+                        <div class="notes">
+                            <div class="note">
+                                <h3>为什么材料正文用 Georgia 衬线</h3>
+                                四段 300~500 词的英文长文，扫读时最需要的是“字行分明”。Georgia 的 x-height
+                                更大、字面更开，在 16px/1.75 下比无衬线更像正文页；同时与题卡的 PingFang SC
+                                无衬线形成层级区分——眼睛一看就知道“这块是要读的，下面那块是要答的”。仅材料正文使用，题干与选项保持无衬线。
+                            </div>
+                            <div class="note">
+                                <h3>行长与两侧留白</h3>
+                                正文 <code>max-width:68ch</code> 居中，约 66 字符/行，落在 45~75 字符的舒适区间。主区
+                                1100px 下两侧各约 250px 留白不是浪费：左留白放 ¶ 段落序号（题目会引用 “Paragraph
+                                2”），右留白放 before → after 小字标注。窗口继续变宽时正文不再拉长，留白随之变宽。
+                            </div>
+                            <div class="note">
+                                <h3>分界：从“紧贴虚线”到“两区各自成组”</h3>
+                                材料区改为 <code>--surface-inset</code>（surface 降
+                                0.10L）的凹槽，题卡区回到卡面并加大上缘内边距 24px；两者之间只留 1px
+                                渐隐细线（两端透明、中间 26% 暖沙），末段到线 41px。原来的
+                                <code>1px dashed</code> 改为渐隐线后，视线不再被一条等宽的硬边切断。
+                            </div>
+                            <div class="note">
+                                <h3>题卡 8/12/16/20 阶梯</h3>
+                                卡头→题干 16 ｜ 题干→选项 16 ｜ 选项行距 8 ｜ 选项→chips 20 ｜ chips→思路 12 ｜
+                                思路→提交行 20 ｜ 提交行→解析 20，全部走 <code>--sp2/3/4/5</code> 令牌。选项行
+                                <code>min-height:44px</code>（底线 40px，同时满足触控），字母徽标与选项正文用
+                                <code>align-items:baseline</code> 对齐。
+                            </div>
+                            <div class="note">
+                                <h3>交互态：悬停只压深，不降对比</h3>
+                                深色暖调里，把悬停做成“压深一档”（背景变暗而非变亮），正文对比随之上升而非下降：选项
+                                5.6:1 → 7.5:1，主按钮暖白字 6.0:1 → 7.7:1。禁用态（如上一步）才允许降低对比。
+                            </div>
+                            <div class="note">
+                                <h3>两处必要的取值修正</h3>
+                                ① 主按钮文字：令牌 <code>--b3-theme-on-primary</code>（近白）压在
+                                <code>#c5866a</code> 上实测仅 <b>2.90:1</b>，不达 4.5:1；故按钮填充改走同色相压深一档的
+                                <code>--primary-strong #8c5237</code>，暖白字 <b>6.00:1</b>。② 陶土橙作小字压在卡面上仅
+                                3.17:1，故卡面上的橙色文字统一用
+                                <code>--primary-text #e1a990</code>（<b>4.66:1</b>）。两处都不新增色相，只沿
+                                <code>oklch(from …)</code> 调整明度。
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="rail" aria-hidden="true">
+                    <div class="rail-head">
+                        <b>标注栏 / spec</b>
+                        <p>小字标注为稿件标注层，不属于产品实现。数值格式：现状 → 重设计。</p>
+                    </div>
+                </aside>
             </div>
+        </main>
 
-            <div class="wengu-gunit">
-              <div class="wengu-ghead">
-                <button class="wengu-gmat-fold" title="展开/收起材料">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.2 2.6 9.6 7l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  <span>共享材料</span>
-                </button>
-                <span class="wengu-gnav">
-                  <button class="wengu-gnav-btn" title="上一题" disabled>
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.8 2.6 4.4 7l4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                  <span class="wengu-gq-label">1/4</span>
-                  <button class="wengu-gnav-btn" title="下一题">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.2 2.6 9.6 7l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </span>
-              </div>
+        <script>
+            (function () {
+                var unit = document.getElementById("unit-demo");
+                var cards = [].slice.call(unit.querySelectorAll(".wengu-card"));
+                var label = unit.querySelector(".wengu-gq-label");
+                var prev = unit.querySelector('[data-act="gq-prev"]');
+                var next = unit.querySelector('[data-act="gq-next"]');
+                var fold = unit.querySelector('[data-act="gmat-fold"]');
+                var gunit = unit.querySelector(".wengu-gunit");
+                var ANSWER = [3, 1, 0, 2]; /* 1 D ｜ 2 B ｜ 3 A ｜ 4 C */
+                var S = cards.map(function () {
+                    return { answer: null, revealed: true };
+                });
+                var cur = 0;
 
-              <div class="wengu-gmat" data-mprotyle="">
-                <div class="p">A group of Labour MPs, among them Yvette Cooper, are bringing in the new year with a call to institute a UK “town of culture” award. The proposal is that it should sit alongside the existing city of culture title, which was held by Hull in 2017, and has been awarded to Coventry for 2021. …</div>
-                <div class="p">Some might see the proposal as a booby prize for the fact that Britain is no longer able to apply for the much more prestigious title of European capital of culture, a sought-after award bagged by Glasgow in 1990 and Liverpool in 2008. …</div>
-                <div class="p">It is also wise to recall that such titles are not a cure-all. A badly run “year of culture” washes in and out of a place like the tide, bringing prominence for a spell but leaving no lasting benefits to the community. …</div>
-              </div>
+                try {
+                    var saved = localStorage.getItem("wengu-unit-demo-idx");
+                    if (saved !== null && +saved < cards.length && +saved >= 0) cur = +saved;
+                } catch (e) {}
 
-              <div class="wengu-gqs">
-                <div class="wengu-card">
-                  <div class="wengu-card-head">
-                    <span class="wengu-card-num">6</span>
-                    <span class="wengu-badge">单选</span>
-                    <span class="wengu-card-title">推理判断</span>
-                  </div>
-                  <div class="wengu-qprotyle" data-qprotyle="">
-                    <div class="p">According to Paragraph 2, the proposal might be regarded by some as（  ）</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+                cards.forEach(function (card, i) {
+                    var opts = [].slice.call(card.querySelectorAll(".wengu-option-fallback"));
+                    var chips = [].slice.call(card.querySelectorAll(".wengu-chip"));
 
-            <ul class="taglist" data-od-id="lesion-list">
-              <li><span>段距 <b class="bad">4px</b>（<em>.p{margin:4px 0}</em>）：四五百词的段落黏成一块</span></li>
-              <li><span>行高 <b class="bad">未覆盖</b>，继承全局紧凑值 <b class="bad">≈1.5</b>：行长句挤成灰面</span></li>
-              <li><span>行长 <b class="bad">无 max-width</b>：宽窗下一行 100+ 字符，换行找不到下一行</span></li>
-              <li><span>区内边距 上 <b class="bad">4px</b> / 左右 <b class="bad">12px</b> / 下 <b class="bad">8px</b>：首行几乎贴住工具条</span></li>
-              <li><span>材料上限 <b class="bad">46vh 内滚动</b>（此处按 240px 复现）：可见 9 行，其余要滚</span></li>
-              <li><span>分界 <b class="bad">1px 虚线</b>紧贴末段（末段→线仅 <b class="bad">8px</b>）｜ 题卡区上缘 <b class="bad">0px</b></span></li>
-              <li><span>题卡内边距 <b class="bad">8px</b> ｜ 卡头→题干 <b class="bad">4px</b></span></li>
-            </ul>
-          </div>
+                    opts.forEach(function (o, j) {
+                        o.addEventListener("click", function () {
+                            pick(i, j);
+                        });
+                        o.addEventListener("keydown", function (e) {
+                            if (e.key === " " || e.key === "Enter") {
+                                e.preventDefault();
+                                pick(i, j);
+                            }
+                        });
+                    });
+                    chips.forEach(function (ch, j) {
+                        ch.addEventListener("click", function () {
+                            pick(i, j);
+                        });
+                    });
 
-          <!-- 重设计 -->
-          <div class="cmp-col demo-next" data-od-id="compare-redesign">
-            <div class="col-head">
-              <span class="chip chip-new">重设计</span>
-              <span class="col-sub">段距 17px ｜ 行高 1.75 ｜ 68ch 居中 ｜ 区内边距 22/24/24</span>
-            </div>
+                    card.querySelector('[data-act="submit"]').addEventListener("click", function () {
+                        S[i].revealed = true;
+                        paint();
+                    });
+                    card.querySelector('[data-act="dunno"]').addEventListener("click", function () {
+                        S[i].revealed = true;
+                        paint();
+                    });
+                    card.querySelector('[data-act="skip"]').addEventListener("click", function () {
+                        if (cur < cards.length - 1) {
+                            cur = cur + 1;
+                            paint();
+                        }
+                    });
+                    card.querySelector('[data-act="regen"]').addEventListener("click", function () {
+                        var b = this;
+                        b.classList.add("is-spin");
+                        setTimeout(function () {
+                            b.classList.remove("is-spin");
+                        }, 460);
+                    });
+                    var toggle = card.querySelector('[data-act="thought-toggle"]');
+                    var box = card.querySelector(".wengu-thought");
+                    toggle.addEventListener("click", function () {
+                        var willOpen = box.hidden;
+                        box.hidden = !willOpen;
+                        toggle.classList.toggle("is-open", willOpen);
+                        toggle.setAttribute("aria-expanded", String(willOpen));
+                    });
+                });
 
-            <div class="wengu-gunit">
-              <div class="wengu-ghead">
-                <button class="wengu-gmat-fold" title="展开/收起材料">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.2 2.6 9.6 7l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  <span>共享材料</span>
-                </button>
-                <span class="wengu-gnav">
-                  <button class="wengu-gnav-btn" title="上一题">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.8 2.6 4.4 7l4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                  <span class="wengu-gq-label">1/4</span>
-                  <button class="wengu-gnav-btn" title="下一题">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.2 2.6 9.6 7l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </span>
-              </div>
+                function pick(i, j) {
+                    S[i].answer = S[i].answer === j ? null : j;
+                    paint();
+                }
 
-              <div class="wengu-gmat" data-mprotyle="">
-                <div class="p">A group of Labour MPs, among them Yvette Cooper, are bringing in the new year with a call to institute a UK “town of culture” award. The proposal is that it should sit alongside the existing city of culture title, which was held by Hull in 2017, and has been awarded to Coventry for 2021. …</div>
-                <div class="p">Some might see the proposal as a booby prize for the fact that Britain is no longer able to apply for the much more prestigious title of European capital of culture, a sought-after award bagged by Glasgow in 1990 and Liverpool in 2008. …</div>
-                <div class="p">It is also wise to recall that such titles are not a cure-all. A badly run “year of culture” washes in and out of a place like the tide, bringing prominence for a spell but leaving no lasting benefits to the community. …</div>
-              </div>
+                fold.addEventListener("click", function () {
+                    var folded = gunit.classList.toggle("is-folded");
+                    unit.querySelector(".wengu-gmat").hidden = folded;
+                    fold.setAttribute("aria-expanded", String(!folded));
+                });
+                prev.addEventListener("click", function () {
+                    if (cur > 0) {
+                        cur--;
+                        paint();
+                    }
+                });
+                next.addEventListener("click", function () {
+                    if (cur < cards.length - 1) {
+                        cur++;
+                        paint();
+                    }
+                });
 
-              <div class="wengu-gqs">
-                <div class="wengu-card">
-                  <div class="wengu-card-head">
-                    <span class="wengu-card-num">6</span>
-                    <span class="wengu-badge">单选</span>
-                    <span class="wengu-card-title">推理判断</span>
-                  </div>
-                  <div class="wengu-qprotyle" data-qprotyle="">
-                    <div class="p">According to Paragraph 2, the proposal might be regarded by some as（  ）</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+                document.querySelectorAll(".state-switch button").forEach(function (b) {
+                    b.addEventListener("click", function () {
+                        var reveal = b.getAttribute("data-view") === "reveal";
+                        S.forEach(function (s) {
+                            s.revealed = reveal;
+                        });
+                        paint();
+                    });
+                });
 
-            <ul class="taglist" data-od-id="redesign-list">
-              <li><span>段距 <b class="good">17px</b>（<em>1.05em</em>，底线 0.9em）：段落各自成块，扫读有落点</span></li>
-              <li><span>行高 <b class="good">1.75</b> ｜ 字号 <b class="good">16px</b>，显式声明不再继承全局</span></li>
-              <li><span>行长 <b class="good">max-width:68ch</b> 居中，两侧对称留白；窗口再宽也不拉长</span></li>
-              <li><span>区内边距 上 <b class="good">22px</b> / 左右 <b class="good">24px</b> / 下 <b class="good">24px</b></span></li>
-              <li><span>材料 <b class="good">整篇展开</b>，取消 46vh 内滚动；「共享材料」折叠钮保留为收起入口</span></li>
-              <li><span>分界 <b class="good">1px 渐隐细线</b> ｜ 末段→线 <b class="good">41px</b>（17 段后距 + 24 下边距）｜ 题卡区上缘 <b class="good">24px</b></span></li>
-              <li><span>题卡内边距 <b class="good">20px</b> ｜ 卡头→题干 <b class="good">16px</b></span></li>
-              <li><span class="dim">本列宽约 472px，未达 68ch，故行长与对称留白效果见下方全宽单元</span></li>
-            </ul>
-          </div>
-        </div>
-      </section>
+                function paint() {
+                    cards.forEach(function (card, i) {
+                        card.hidden = i !== cur;
+                        var st = S[i];
+                        [].slice.call(card.querySelectorAll(".wengu-option-fallback")).forEach(function (o, j) {
+                            o.classList.toggle("is-picked", st.answer === j);
+                            o.classList.toggle("is-correct", st.revealed && j === ANSWER[i]);
+                            o.classList.toggle("is-wrong", st.revealed && st.answer === j && j !== ANSWER[i]);
+                            o.setAttribute("aria-checked", String(st.answer === j));
+                        });
+                        [].slice.call(card.querySelectorAll(".wengu-chip")).forEach(function (ch, j) {
+                            ch.classList.toggle("is-on", st.answer === j);
+                        });
+                        card.querySelector(".wengu-static-sol").hidden = !st.revealed;
+                    });
+                    label.textContent = cur + 1 + "/" + cards.length;
+                    prev.disabled = cur === 0;
+                    next.disabled = cur === cards.length - 1;
+                    document.querySelectorAll(".state-switch button").forEach(function (x) {
+                        var isReveal = x.getAttribute("data-view") === "reveal";
+                        x.setAttribute("aria-pressed", String(isReveal === S[cur].revealed));
+                    });
+                    try {
+                        localStorage.setItem("wengu-unit-demo-idx", String(cur));
+                    } catch (e) {}
+                }
 
-      <!-- ══ ② 重设计态 · 完整单元 ═════════════════════════════════════ -->
-      <section class="band" id="redesign" data-od-id="band-redesign">
-        <div class="band-head">
-          <span class="idx">②</span>
-          <h2>重设计态 · 完整单元</h2>
-          <div class="state-switch" role="group" aria-label="演示状态（本稿标注层）">
-            <span>演示态</span>
-            <button type="button" data-view="answer" aria-pressed="false">作答态</button>
-            <button type="button" data-view="reveal" aria-pressed="true">揭示态</button>
-          </div>
-        </div>
-
-        <div class="spec-unit" id="unit-demo" data-od-id="unit-redesign">
-          <div class="wengu-gunit" data-mid="mat-demo">
-            <!-- 工具条 -->
-            <div class="wengu-ghead">
-              <button class="wengu-gmat-fold" data-act="gmat-fold" title="展开/收起材料">
-                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.2 2.6 9.6 7l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>共享材料</span>
-              </button>
-              <span class="wengu-gnav">
-                <button class="wengu-gnav-btn" data-act="gq-prev" title="上一题">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.8 2.6 4.4 7l4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <span class="wengu-gq-label">1/4</span>
-                <button class="wengu-gnav-btn" data-act="gq-next" title="下一题">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.2 2.6 9.6 7l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-              </span>
-            </div>
-
-            <!-- 共享材料：四段全文 -->
-            <div class="wengu-gmat" data-mprotyle="">
-              <div class="p">A group of Labour MPs, among them Yvette Cooper, are bringing in the new year with a call to institute a UK “town of culture” award. The proposal is that it should sit alongside the existing city of culture title, which was held by Hull in 2017, and has been awarded to Coventry for 2021. Cooper and her colleagues argue that the success of the crown for Hull, where it brought in £220m of investment and an avalanche of arts, ought not to be confined to cities. Britain’s towns, it is true, are not prevented from applying, but they generally lack the resources to put together a bid to beat their bigger competitors. A town of culture award could, it is argued, become an annual event, attracting funding and creating jobs.</div>
-              <div class="p">Some might see the proposal as a booby prize for the fact that Britain is no longer able to apply for the much more prestigious title of European capital of culture, a sought-after award bagged by Glasgow in 1990 and Liverpool in 2008. A cynic might speculate that the UK is on the verge of disappearing into an endless fever of self-celebration in its desperation to reinvent itself for the post-Brexit world: after town of culture, who knows what will follow—village of culture? Suburb of culture? Hamlet of culture?</div>
-              <div class="p">It is also wise to recall that such titles are not a cure-all. A badly run “year of culture” washes in and out of a place like the tide, bringing prominence for a spell but leaving no lasting benefits to the community. The really successful holders of such titles are those that do a great deal more than fill hotel bedrooms and bring in high-profile arts events and good press for a year. They transform the aspirations of the people who live there; they nudge the self-image of the city into a bolder and more optimistic light. It is hard to get right, and requires a remarkable degree of vision, as well as cooperation between city authorities, the private sector, community groups and cultural organisations. But it can be done: Glasgow’s year as European capital of culture can certainly be seen as one of a complex series of factors that have turned the city into the powerhouse of art, music and theatre that it remains today.</div>
-              <div class="p">A “town of culture” could be not just about the arts but about honouring a town’s peculiarities—helping sustain its high street, supporting local facilities and above all celebrating its people. Jeremy Wright, the culture secretary, should welcome this positive, hope-filled proposal, and turn it into action.</div>
-            </div>
-
-            <!-- 组内题卡：一次显示一题 -->
-            <div class="wengu-gqs" data-od-id="group-questions">
-              <div class="wengu-card" data-qid="gen-demo-1" data-idx="5" data-od-id="question-card-1">
-                <div class="wengu-card-head">
-                  <span class="wengu-card-num">6</span>
-                  <span class="wengu-badge">单选</span>
-                  <span class="wengu-card-title">推理判断</span>
-                  <button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title="重新生成">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </div>
-                <div class="wengu-qprotyle" data-qprotyle="">
-                  <div class="p">According to Paragraph 2, the proposal might be regarded by some as（  ）</div>
-                  <div class="wengu-opts" role="radiogroup" aria-label="选项">
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">A</span><div class="wengu-opt-body">an inaccessible target</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">B</span><div class="wengu-opt-body">a sensible compromise</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">C</span><div class="wengu-opt-body">an eye-catching bonus</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">D</span><div class="wengu-opt-body">a self-deceiving attempt</div></div>
-                  </div>
-                </div>
-                <div class="wengu-chips">
-                  <button class="wengu-chip" data-letter="A">A</button>
-                  <button class="wengu-chip" data-letter="B">B</button>
-                  <button class="wengu-chip" data-letter="C">C</button>
-                  <button class="wengu-chip" data-letter="D">D</button>
-                </div>
-                <button class="wengu-thought-toggle" data-act="thought-toggle">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  思路
-                </button>
-                <div class="wengu-thought">
-                  <textarea class="wengu-input" rows="3" placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"></textarea>
-                </div>
-                <div class="wengu-submit-row" data-submit-row="">
-                  <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
-                  <button class="wengu-btn" data-act="submit">提交</button>
-                  <button class="wengu-btn wengu-dunno-btn b3-button--outline" data-act="dunno">不会</button>
-                </div>
-                <div class="wengu-static-sol" data-static-sol="">
-                  <div class="p">D</div>
-                  <blockquote><div class="p">第二段中 “booby prize”（安慰奖）暗示该提案被视为一种自欺式的尝试：英国已无法申请“欧洲文化之都”，只好自造名目自我庆祝。A “inaccessible target” 与文意相反；B “sensible compromise” 与 “cynic might speculate” 的讥讽语气不符；C “eye-catching bonus” 无对应。故答案为 D。</div></blockquote>
-                </div>
-              </div>
-
-              <div class="wengu-card" data-qid="gen-demo-2" data-idx="6" data-od-id="question-card-2" hidden>
-                <div class="wengu-card-head">
-                  <span class="wengu-card-num">7</span>
-                  <span class="wengu-badge">单选</span>
-                  <span class="wengu-card-title">细节定位</span>
-                  <button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title="重新生成">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </div>
-                <div class="wengu-qprotyle" data-qprotyle="">
-                  <div class="p">Cooper and her colleagues argue that a “town of culture” award could（  ）</div>
-                  <div class="wengu-opts" role="radiogroup" aria-label="选项">
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">A</span><div class="wengu-opt-body">restrict entries to towns with enough resources</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">B</span><div class="wengu-opt-body">become a yearly event that draws funding and jobs</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">C</span><div class="wengu-opt-body">take the place of the city of culture title</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">D</span><div class="wengu-opt-body">be judged by a panel of Labour MPs</div></div>
-                  </div>
-                </div>
-                <div class="wengu-chips">
-                  <button class="wengu-chip" data-letter="A">A</button>
-                  <button class="wengu-chip" data-letter="B">B</button>
-                  <button class="wengu-chip" data-letter="C">C</button>
-                  <button class="wengu-chip" data-letter="D">D</button>
-                </div>
-                <button class="wengu-thought-toggle" data-act="thought-toggle">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  思路
-                </button>
-                <div class="wengu-thought">
-                  <textarea class="wengu-input" rows="3" placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"></textarea>
-                </div>
-                <div class="wengu-submit-row" data-submit-row="">
-                  <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
-                  <button class="wengu-btn" data-act="submit">提交</button>
-                  <button class="wengu-btn wengu-dunno-btn b3-button--outline" data-act="dunno">不会</button>
-                </div>
-                <div class="wengu-static-sol" data-static-sol="" hidden>
-                  <div class="p">B</div>
-                  <blockquote><div class="p">第一段末句直接给出答案：“could, it is argued, become an annual event, attracting funding and creating jobs”。A 与原文相反（原文说小镇“generally lack the resources”，是现状而非限制条件）；C 原文说该奖项与 city of culture 并列存在，不是取代；D 无中生有，文中未出现评审主体。故答案为 B。</div></blockquote>
-                </div>
-              </div>
-
-              <div class="wengu-card" data-qid="gen-demo-3" data-idx="7" data-od-id="question-card-3" hidden>
-                <div class="wengu-card-head">
-                  <span class="wengu-card-num">8</span>
-                  <span class="wengu-badge">单选</span>
-                  <span class="wengu-card-title">词义猜测</span>
-                  <button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title="重新生成">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </div>
-                <div class="wengu-qprotyle" data-qprotyle="">
-                  <div class="p">The phrase “booby prize” (Para. 2) suggests that the proposal is seen as（  ）</div>
-                  <div class="wengu-opts" role="radiogroup" aria-label="选项">
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">A</span><div class="wengu-opt-body">a consolation for a bigger loss</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">B</span><div class="wengu-opt-body">a reward for cultural excellence</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">C</span><div class="wengu-opt-body">a threat to European cooperation</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">D</span><div class="wengu-opt-body">a waste of public money</div></div>
-                  </div>
-                </div>
-                <div class="wengu-chips">
-                  <button class="wengu-chip" data-letter="A">A</button>
-                  <button class="wengu-chip" data-letter="B">B</button>
-                  <button class="wengu-chip" data-letter="C">C</button>
-                  <button class="wengu-chip" data-letter="D">D</button>
-                </div>
-                <button class="wengu-thought-toggle" data-act="thought-toggle">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  思路
-                </button>
-                <div class="wengu-thought">
-                  <textarea class="wengu-input" rows="3" placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"></textarea>
-                </div>
-                <div class="wengu-submit-row" data-submit-row="">
-                  <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
-                  <button class="wengu-btn" data-act="submit">提交</button>
-                  <button class="wengu-btn wengu-dunno-btn b3-button--outline" data-act="dunno">不会</button>
-                </div>
-                <div class="wengu-static-sol" data-static-sol="" hidden>
-                  <div class="p">A</div>
-                  <blockquote><div class="p">“booby prize” 指末等奖、安慰奖；同位语从句随即说明理由——英国已无法申请规格更高的“欧洲文化之都”（Glasgow 1990、Liverpool 2008）。因此该提案被看作退而求其次的安慰。B、C、D 在第二段均无对应信息，属无中生有。故答案为 A。</div></blockquote>
-                </div>
-              </div>
-
-              <div class="wengu-card" data-qid="gen-demo-4" data-idx="8" data-od-id="question-card-4" hidden>
-                <div class="wengu-card-head">
-                  <span class="wengu-card-num">9</span>
-                  <span class="wengu-badge">单选</span>
-                  <span class="wengu-card-title">主旨推理</span>
-                  <button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title="重新生成">
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M11.6 7a4.6 4.6 0 1 1-1.5-3.4M10.6 1.3v3H7.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </div>
-                <div class="wengu-qprotyle" data-qprotyle="">
-                  <div class="p">What does the author consider crucial to a successful “year of culture”?（  ）</div>
-                  <div class="wengu-opts" role="radiogroup" aria-label="选项">
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">A</span><div class="wengu-opt-body">Bringing in high-profile arts events</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">B</span><div class="wengu-opt-body">Filling hotel rooms and earning good press</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">C</span><div class="wengu-opt-body">Changing how local people see themselves</div></div>
-                    <div class="wengu-option-fallback wengu-opt-m" role="radio" tabindex="0" aria-checked="false"><span class="wengu-opt-letter">D</span><div class="wengu-opt-body">Securing investment from the private sector</div></div>
-                  </div>
-                </div>
-                <div class="wengu-chips">
-                  <button class="wengu-chip" data-letter="A">A</button>
-                  <button class="wengu-chip" data-letter="B">B</button>
-                  <button class="wengu-chip" data-letter="C">C</button>
-                  <button class="wengu-chip" data-letter="D">D</button>
-                </div>
-                <button class="wengu-thought-toggle" data-act="thought-toggle">
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.6 10.6 3.2 8l5.4-5.4 2 2L5.2 10l-2.6.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  思路
-                </button>
-                <div class="wengu-thought">
-                  <textarea class="wengu-input" rows="3" placeholder="写你的思路/推导（可选）——收卷后 AI 判卷会点评"></textarea>
-                </div>
-                <div class="wengu-submit-row" data-submit-row="">
-                  <button class="wengu-btn b3-button--outline" data-act="skip">跳过</button>
-                  <button class="wengu-btn" data-act="submit">提交</button>
-                  <button class="wengu-btn wengu-dunno-btn b3-button--outline" data-act="dunno">不会</button>
-                </div>
-                <div class="wengu-static-sol" data-static-sol="" hidden>
-                  <div class="p">C</div>
-                  <blockquote><div class="p">第三段把 “really successful holders” 与只填满酒店、带来曝光的那类作对比，落点是 “They transform the aspirations of the people who live there; they nudge the self-image of the city into a bolder and more optimistic light”，第四段又以上 “celebrating its people” 收束。A、B 恰是被作者降格为“不止于此”的表层指标；D 只是成功所需的协作条件之一，不是关键。故答案为 C。</div></blockquote>
-                </div>
-              </div>
-            </div>
-
-            <!-- 线索 chips（本例为空，保持 DOM 结构） -->
-            <div class="wengu-gclues" data-clues="" hidden></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ══ ③ 设计说明 ════════════════════════════════════════════════ -->
-      <section class="band" id="notes" data-od-id="band-notes">
-        <div class="band-head">
-          <span class="idx">③</span>
-          <h2>设计说明 · 取值为底线而非上限</h2>
-          <p class="band-lead">只改材料阅读节奏与题卡内部间距；侧栏、统计条、开刷面板、移动端一律未动。</p>
-        </div>
-        <div class="notes">
-          <div class="note">
-            <h3>为什么材料正文用 Georgia 衬线</h3>
-            四段 300~500 词的英文长文，扫读时最需要的是“字行分明”。Georgia 的 x-height 更大、字面更开，在 16px/1.75 下比无衬线更像正文页；同时与题卡的 PingFang SC 无衬线形成层级区分——眼睛一看就知道“这块是要读的，下面那块是要答的”。仅材料正文使用，题干与选项保持无衬线。
-          </div>
-          <div class="note">
-            <h3>行长与两侧留白</h3>
-            正文 <code>max-width:68ch</code> 居中，约 66 字符/行，落在 45~75 字符的舒适区间。主区 1100px 下两侧各约 250px 留白不是浪费：左留白放 ¶ 段落序号（题目会引用 “Paragraph 2”），右留白放 before → after 小字标注。窗口继续变宽时正文不再拉长，留白随之变宽。
-          </div>
-          <div class="note">
-            <h3>分界：从“紧贴虚线”到“两区各自成组”</h3>
-            材料区改为 <code>--surface-inset</code>（surface 降 0.10L）的凹槽，题卡区回到卡面并加大上缘内边距 24px；两者之间只留 1px 渐隐细线（两端透明、中间 26% 暖沙），末段到线 41px。原来的 <code>1px dashed</code> 改为渐隐线后，视线不再被一条等宽的硬边切断。
-          </div>
-          <div class="note">
-            <h3>题卡 8/12/16/20 阶梯</h3>
-            卡头→题干 16 ｜ 题干→选项 16 ｜ 选项行距 8 ｜ 选项→chips 20 ｜ chips→思路 12 ｜ 思路→提交行 20 ｜ 提交行→解析 20，全部走 <code>--sp2/3/4/5</code> 令牌。选项行 <code>min-height:44px</code>（底线 40px，同时满足触控），字母徽标与选项正文用 <code>align-items:baseline</code> 对齐。
-          </div>
-          <div class="note">
-            <h3>交互态：悬停只压深，不降对比</h3>
-            深色暖调里，把悬停做成“压深一档”（背景变暗而非变亮），正文对比随之上升而非下降：选项 5.6:1 → 7.5:1，主按钮暖白字 6.0:1 → 7.7:1。禁用态（如上一步）才允许降低对比。
-          </div>
-          <div class="note">
-            <h3>两处必要的取值修正</h3>
-            ① 主按钮文字：令牌 <code>--b3-theme-on-primary</code>（近白）压在 <code>#c5866a</code> 上实测仅 <b>2.90:1</b>，不达 4.5:1；故按钮填充改走同色相压深一档的 <code>--primary-strong #8c5237</code>，暖白字 <b>6.00:1</b>。② 陶土橙作小字压在卡面上仅 3.17:1，故卡面上的橙色文字统一用 <code>--primary-text #e1a990</code>（<b>4.66:1</b>）。两处都不新增色相，只沿 <code>oklch(from …)</code> 调整明度。
-          </div>
-        </div>
-      </section>
-
-    </div>
-
-    <aside class="rail" aria-hidden="true">
-      <div class="rail-head">
-        <b>标注栏 / spec</b>
-        <p>小字标注为稿件标注层，不属于产品实现。数值格式：现状 → 重设计。</p>
-      </div>
-    </aside>
-  </div>
-</main>
-
-<script>
-(function(){
-  var unit   = document.getElementById('unit-demo');
-  var cards  = [].slice.call(unit.querySelectorAll('.wengu-card'));
-  var label  = unit.querySelector('.wengu-gq-label');
-  var prev   = unit.querySelector('[data-act="gq-prev"]');
-  var next   = unit.querySelector('[data-act="gq-next"]');
-  var fold   = unit.querySelector('[data-act="gmat-fold"]');
-  var gunit  = unit.querySelector('.wengu-gunit');
-  var ANSWER = [3,1,0,2];                     /* 1 D ｜ 2 B ｜ 3 A ｜ 4 C */
-  var S = cards.map(function(){ return {answer:null, revealed:true}; });
-  var cur = 0;
-
-  try{ var saved = localStorage.getItem('wengu-unit-demo-idx');
-       if(saved !== null && +saved < cards.length && +saved >= 0) cur = +saved; }catch(e){}
-
-  cards.forEach(function(card,i){
-    var opts = [].slice.call(card.querySelectorAll('.wengu-option-fallback'));
-    var chips = [].slice.call(card.querySelectorAll('.wengu-chip'));
-
-    opts.forEach(function(o,j){
-      o.addEventListener('click', function(){ pick(i,j); });
-      o.addEventListener('keydown', function(e){
-        if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); pick(i,j); }
-      });
-    });
-    chips.forEach(function(ch,j){
-      ch.addEventListener('click', function(){ pick(i,j); });
-    });
-
-    card.querySelector('[data-act="submit"]').addEventListener('click', function(){
-      S[i].revealed = true; paint();
-    });
-    card.querySelector('[data-act="dunno"]').addEventListener('click', function(){
-      S[i].revealed = true; paint();
-    });
-    card.querySelector('[data-act="skip"]').addEventListener('click', function(){
-      if(cur < cards.length - 1){ cur = cur + 1; paint(); }
-    });
-    card.querySelector('[data-act="regen"]').addEventListener('click', function(){
-      var b = this; b.classList.add('is-spin');
-      setTimeout(function(){ b.classList.remove('is-spin'); }, 460);
-    });
-    var toggle = card.querySelector('[data-act="thought-toggle"]');
-    var box = card.querySelector('.wengu-thought');
-    toggle.addEventListener('click', function(){
-      var willOpen = box.hidden;
-      box.hidden = !willOpen;
-      toggle.classList.toggle('is-open', willOpen);
-      toggle.setAttribute('aria-expanded', String(willOpen));
-    });
-  });
-
-  function pick(i,j){
-    S[i].answer = (S[i].answer === j) ? null : j;
-    paint();
-  }
-
-  fold.addEventListener('click', function(){
-    var folded = gunit.classList.toggle('is-folded');
-    unit.querySelector('.wengu-gmat').hidden = folded;
-    fold.setAttribute('aria-expanded', String(!folded));
-  });
-  prev.addEventListener('click', function(){ if(cur>0){ cur--; paint(); } });
-  next.addEventListener('click', function(){ if(cur<cards.length-1){ cur++; paint(); } });
-
-  document.querySelectorAll('.state-switch button').forEach(function(b){
-    b.addEventListener('click', function(){
-      var reveal = b.getAttribute('data-view') === 'reveal';
-      S.forEach(function(s){ s.revealed = reveal; });
-      paint();
-    });
-  });
-
-  function paint(){
-    cards.forEach(function(card,i){
-      card.hidden = (i !== cur);
-      var st = S[i];
-      [].slice.call(card.querySelectorAll('.wengu-option-fallback')).forEach(function(o,j){
-        o.classList.toggle('is-picked', st.answer === j);
-        o.classList.toggle('is-correct', st.revealed && j === ANSWER[i]);
-        o.classList.toggle('is-wrong', st.revealed && st.answer === j && j !== ANSWER[i]);
-        o.setAttribute('aria-checked', String(st.answer === j));
-      });
-      [].slice.call(card.querySelectorAll('.wengu-chip')).forEach(function(ch,j){
-        ch.classList.toggle('is-on', st.answer === j);
-      });
-      card.querySelector('.wengu-static-sol').hidden = !st.revealed;
-    });
-    label.textContent = (cur+1) + '/' + cards.length;
-    prev.disabled = (cur === 0);
-    next.disabled = (cur === cards.length - 1);
-    document.querySelectorAll('.state-switch button').forEach(function(x){
-      var isReveal = (x.getAttribute('data-view') === 'reveal');
-      x.setAttribute('aria-pressed', String(isReveal === S[cur].revealed));
-    });
-    try{ localStorage.setItem('wengu-unit-demo-idx', String(cur)); }catch(e){}
-  }
-
-  /* 折叠钮初始为展开；思路块默认展开以展示完整节奏 */
-  unit.querySelectorAll('.wengu-thought').forEach(function(box){ box.hidden = false; });
-  unit.querySelectorAll('.wengu-thought-toggle').forEach(function(t){
-    t.classList.add('is-open'); t.setAttribute('aria-expanded','true');
-  });
-  paint();
-})();
-</script>
-</body>
+                /* 折叠钮初始为展开；思路块默认展开以展示完整节奏 */
+                unit.querySelectorAll(".wengu-thought").forEach(function (box) {
+                    box.hidden = false;
+                });
+                unit.querySelectorAll(".wengu-thought-toggle").forEach(function (t) {
+                    t.classList.add("is-open");
+                    t.setAttribute("aria-expanded", "true");
+                });
+                paint();
+            })();
+        </script>
+    </body>
 </html>
