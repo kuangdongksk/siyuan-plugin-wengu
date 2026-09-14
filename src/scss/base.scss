@@ -427,6 +427,13 @@
   }
 }
 
+/* 页内转换条「前往抉择」聚焦反馈（Issue #85）：面板横幅的「前往页内转换条
+   抉择」链把条滚进视野后短暂描边——弱动效、不改布局。 */
+.wengu-convert-bar.is-flash {
+  outline: 2px solid var(--b3-theme-primary);
+  outline-offset: 2px;
+}
+
 /* 批量转换：面板分篇进度行（文档名 + 状态，逐篇一行） */
 .wengu-batch-row {
   display: flex;

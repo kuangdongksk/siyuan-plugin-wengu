@@ -1210,6 +1210,44 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   样式在 `scss/aiflow.scss`（`.wengu-aiflow-*`，**单开一片**——rail.scss
   已 420 行，塞进去会逼近 500 红线），`index.scss` 里 `@use`。
 
+### 流级横幅的视觉还原（Issue #85，20260914；设计稿
+
+`design/convert-stop-redesign.html` 已验收 → 照稿施工勿发明视觉）
+
+- **视图模型在 `ai/core/FlowBannerUi.ts`（纯逻辑带单测）**，组件零判断：
+  构成条分段（`flowSegs` 篇数→flex 权重）、六态 chips（`flowChips`，零值
+  `isZero` 压暗）、清单窗口（`listWindowOf`，当前行落窗口第 4 位=设计稿
+  「第 9–14 篇」）。**分段/计数/窗口全在这里判**，组件只按 vm 渲染。
+- ⚠️ **注册表是通用形态，不许泄漏 convert 类型**：`AiFlowQueue.items` 是
+  `{index,name,state,reason?,note?,metric?}`、计数是六个数字、统计是
+  `{hint,value,tail?}`。业务域（`ConvertFlow`）负责把 ConvertRun 快照
+  **折算**成这套结构；`FlowRegistry` 里出现任何 `ConvertBatchItem` 都是越界。
+- ⚠️ **六态必须含 `queued`**（#79 遗留偏差：实到五态缺它——排队恰是跑动期
+  最该看到的一态）。计数取值 `countsOf` 在 `ConvertFlow`；**停止态把
+  `stopped` 单列**（running 段扣掉被停的那篇，两者不同色），`flowSegs`/
+  `flowChips` 都按这个口径。
+- ⚠️ **`progressAiFlow` 只覆盖本次传了的键**（undefined 一律保留原值）：
+  某次推进漏传一个键就整块擦掉构成条/统计（六批流的纯文本 progress 调用
+  与结构化 payload 混跑，这条是刚需）。
+- ⚠️ **停止钮范围词由登记侧给**（`beginAiFlow({stopKey})`），**不许按
+  「有没有队列维度」猜**：六批流同样没有队列维度，猜会把它们的钮错写成
+  「停止转换」。转换族两条：批量 `aiFlowStopBatch`「停止整批转换」/ 单篇
+  `aiFlowStopSingle`「停止转换」——**动作名即范围**（设计稿 Q4）。
+- **两行标题**：`title`（主，随阶段换「转换运行中」/「转换已停止 · 等待
+  抉择」）+ `subtitle`（副，「批量队列 ·《卷名》」/「单篇 ·《卷名》」）。
+  六批流不带 `stopKey`/`subtitle` 旧口径照常（副标题可缺省）。
+- **单流态 = 无 `queue`**：只出 `.wengu-aiflow-bar` + stats + 停止钮，
+  **不出** seg/counts/展开入口（`redesign-single-running` 屏）。
+- **停止态不回退 #77 行为**：横幅上「保留已生成 / 全部丢弃」两钮**保留**
+  （抉择入口一处是页内条，横幅是第二入口）；另加 badge `stopped` 与
+  「前往页内转换条抉择」文字链（`ConvertAccess.revealConvertBar` 滚条 +
+  `.is-flash` 短描边，找不到条时零动作）。
+- **范围外**：六个批流的**进度摘要上报**（#79 遗留 B）本单不做——批流内部
+  没有进度通道，补它要动批流循环；它们维持「流名 + 停止钮」，样式同一套。
+- ⚠️ **page 内转换条的停止钮同步换范围词**（`renderConvertBar` 读
+  `convertRunSnapshot()?.batch` 判批量/单篇），与横幅同一组词、同一
+  cancel 语义样式——两处口径分叉正是设计稿点名的「粒度错位」。
+
 ### 通用横切约束
 
 - **Svelte 渐进迁移**（2026-08-27 起，全仓 UI 分六批迁 Svelte 5）：模式样板/暗雷清单/
