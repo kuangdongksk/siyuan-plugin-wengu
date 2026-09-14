@@ -241,7 +241,8 @@
         {@render tailRows()}
     {:else}
         {@render protyle()}
-        <!-- 作答位：选择题字母 chip / 判断按钮 / 填空输入 / 简答·作文·翻译多行 -->
+        <!-- 作答位：字母 chip 在选项行之后（先读选项、再作答）/ 判断按钮 /
+             填空输入 / 简答·作文·翻译多行 -->
         {#if isChoice(q)}
             <div class="wengu-chips">
                 {#each letters as L, i (i)}

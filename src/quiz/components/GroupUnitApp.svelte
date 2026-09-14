@@ -103,7 +103,7 @@
     }
 </script>
 
-<div class="wengu-gunit" data-mid={mid} data-collapsed={collapsed ? "" : undefined} bind:this={rootEl}>
+<div class="wengu-gunit wengu-reading" data-mid={mid} data-collapsed={collapsed ? "" : undefined} bind:this={rootEl}>
     <div class="wengu-ghead">
         <Button
             class="wengu-gmat-fold"

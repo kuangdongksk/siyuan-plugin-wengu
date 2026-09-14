@@ -1,0 +1,144 @@
+/* 材料阅读节奏（English 阅读/完形，20260914 设计稿
+   design/wengu-reading-unit-redesign.html 落地）——
+   材料区从「小卡片 + 内滚」改为阅读面：凹槽底、衬线正文、68ch 行长、
+   渐隐分界线。作用域是「作答列表 + 组题单元」，二者同挂
+   `.wengu-reading`（挂载点在 CardHtml.renderMainShell / GroupUnitApp）。
+
+   ⚠️ 类名选型：**不许用 `.wengu-pv`** —— 那是预览模式作用域
+   （PreviewFlow.decoratePreview 加在面板根上，scss/preview.scss 一大片
+   按它切换），复用即把预览样式带进做题态。 */
+.wengu-reading {
+  /* 字体：材料正文用衬线（Georgia/Times 系 + 中文字体回退），题卡保持无衬线 */
+  --wengu-font-read: Georgia, "Times New Roman", "Songti SC", "Source Han Serif SC", serif;
+  /* 材料凹槽：比卡面深一档（主题变量派生，明暗主题自适应） */
+  --wengu-well: color-mix(in srgb, var(--b3-theme-background) 62%, var(--b3-theme-on-background) 5%);
+}
+
+/* ── 材料区：凹槽 + 阅读栏 + 渐隐分界 ── */
+.wengu-reading .wengu-gmat {
+  /* 改阅读面：不再内滚（旧的 46vh 内滚把正文切成两段滚动区） */
+  max-height: none;
+  overflow: visible;
+  padding: 22px 24px 24px;
+  background: var(--wengu-well);
+  /* 1px dashed 紧贴 → 1px 渐隐细线（两端透明、中段 26%）：视线不再被
+     一条等宽硬边切断。 */
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--b3-border-color) 16%,
+      var(--b3-border-color) 84%,
+      transparent 100%
+    )
+    1;
+}
+
+/* 正文栏：68ch 居中（主区 1100px 下两侧各约 250px 留白），行高 1.75
+   比题卡的 1.7 更松——长文扫读要「字行分明」。`:where()` 让整条选择器
+   仍按两段类算特异性（不被 `.wengu-card :where(.p)` 的 0,2,0 反压）。 */
+.wengu-reading :where(.wengu-gmat) :where(.p) {
+  max-width: 68ch;
+  margin: 0 auto 1.05em; /* 段距 4px → 17px */
+  font: 400 16px/1.75 var(--wengu-font-read);
+  text-wrap: pretty;
+  hyphens: none;
+}
+
+.wengu-reading :where(.wengu-gmat) :where(.p):first-child {
+  margin-top: 0;
+}
+
+.wengu-reading :where(.wengu-gmat) :where(.p):last-child {
+  margin-bottom: 0;
+}
+
+/* 词表区是材料尾部的「元数据」而非正文：不参与 68ch 居中与衬线正文 */
+.wengu-reading :where(.wengu-gmat) :where(.wengu-gloss) {
+  max-width: 68ch;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: var(--b3-font-family);
+}
+
+/* 折叠态：整片收起（`[data-collapsed]` 由 GroupUnitApp 写在组单元上），
+   内边距一并归零，不让空凹槽留白 */
+.wengu-reading .wengu-gunit[data-collapsed] .wengu-gmat {
+  padding: 0;
+}
+
+/* ── 题卡区：8/12/16/20 阶梯 ── */
+.wengu-reading .wengu-card {
+  padding: 20px;
+}
+
+.wengu-reading .wengu-gqs {
+  padding: 24px;
+}
+
+/* 选项行：28px → 44px 行高，字母与正文基线对齐 */
+.wengu-reading .wengu-option-fallback {
+  align-items: baseline;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--b3-theme-surface);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-background-light);
+}
+
+.wengu-reading .wengu-opts {
+  row-gap: 8px; /* 与 .wengu-chips 的 8px 对齐（见 card-render.scss「选项行距 4px → 8px」） */
+}
+
+.wengu-reading .wengu-opt-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--b3-theme-surface);
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-reading .wengu-opt-body {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* 作答 alphabet chip：作答位在**选项之后**（阅读态口径见 QuizCard 注），
+   选它即选中对应选项行，故与选项行同款描边/底/选中态 */
+.wengu-reading .wengu-chips {
+  gap: 8px;
+  margin-bottom: 20px; /* 选项 → chips 20 */
+}
+
+.wengu-reading .wengu-chip {
+  min-width: 38px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--b3-border-radius);
+}
+
+/* 提交行：思路 → 提交行 20，按钮 38px */
+.wengu-reading .wengu-submit-row {
+  margin-top: 20px;
+}
+
+.wengu-reading .wengu-submit-row .wengu-btn {
+  height: 38px;
+  font-size: 13.5px;
+}
+
+/* 解析区：提交行 ←20→ 解析 ｜ 解析底 +12 */
+.wengu-reading .wengu-static-sol {
+  margin-top: 20px;
+  padding-top: 20px;
+  padding-bottom: 12px;
+}
+
+/* 卡头 → 题干 16 */
+.wengu-reading .wengu-card-head {
+  margin-bottom: 16px;
+}
