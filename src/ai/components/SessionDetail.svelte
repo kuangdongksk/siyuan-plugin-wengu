@@ -38,13 +38,14 @@
 
 <div class="wengu-aipanel-detail">
     <div class="wengu-aipanel-dhead">
-        <h3 class="wengu-aipanel-dtitle">{view.head.title}</h3>
+        <!-- 模型名折进 title 悬停（gap-list S7：稿内 detail-head 无「时间 ·
+             模型」meta 串，常驻视觉位让给状态徽标贴右） -->
+        <h3 class="wengu-aipanel-dtitle" title={view.head.modelText}>{view.head.title}</h3>
         <span class="wengu-aipanel-badge is-plain">kind={view.head.kindText}</span>
         <span class={`wengu-aipanel-badge is-${view.head.status.badgeCls}`}>
             {#if view.head.status.spin}<span class="wengu-aipanel-spin" aria-hidden="true"></span>{/if}
             {view.head.status.badgeText}
         </span>
-        <span class="wengu-aipanel-meta">{view.head.meta}</span>
     </div>
 
     <div class="wengu-aipanel-dbody">
@@ -85,12 +86,20 @@
 
     {#if view.ownNote || view.retryable}
         <div class="wengu-aipanel-dfoot">
-            {#if view.ownNote}
+            {#if view.ownNote.length > 0}
                 <div class="wengu-aipanel-own">
                     <span class={`wengu-aipanel-dot is-${view.head.status.dotCls}`}></span>
-                    <span>{view.ownNote}</span>
+                    <!-- 归属说明按**分段**渲染（gap-list A7，叠加 Issue #88 的
+                         停止态语义）：首句加粗、入口词主色强调——组件不解析
+                         字符串，段由 core 侧给（`FlowOwnership.ownershipSegsOf`） -->
+                    <span class="wengu-aipanel-owntext">
+                        {#each view.ownNote as seg, i (i)}
+                            {#if seg.bold}<b>{seg.text}</b>{:else if seg.accent}<span class="at">{seg.text}</span
+                                >{:else}{seg.text}{/if}
+                        {/each}
+                    </span>
                     <!-- 抉择入口只在**被停止**的记录上出（停止后的唯一收口动作）；
-                         在途记录的归属备注只指路「去哪停」，不出这个钮 -->
+                         在途记录的归属备注只指路「去哪停」，宿主不给这个钮 -->
                     {#if view.decidable && onDecide}
                         <Button type="button" variant="text" onclick={onDecide}>{t("aiFlowGotoDecide")}</Button>
                     {/if}

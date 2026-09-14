@@ -234,31 +234,12 @@
   font-size: 12px;
 }
 
-/* ── AI 会话面板（rail「AI 会话」工作区；登记簿见 ai/data/AiSessions） ── */
+/* ── AI 会话面板（rail「AI 会话」工作区；登记簿见 ai/data/AiSessions） ──
 
-/* 两栏式（20260901 改版）：左会话清单固定宽自滚 / 右明细+追问输入 */
-.wengu-ai-two {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.wengu-ai-side {
-  flex: none;
-  width: 320px;
-  min-width: 0;
-}
-
-.wengu-ai-side .wengu-ai-list {
-  max-height: calc(100vh - 260px);
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.wengu-ai-pane {
-  flex: 1;
-  min-width: 0;
-}
+   **布局与行样式整体迁到 scss/aipanel.scss（Issue #92 一体卡改造）**：
+   两栏裸排（`.wengu-ai-two`/`.wengu-ai-side`/`.wengu-ai-pane`）已退役——
+   现在由 `.wengu-aipanel` 卡的 grid 承担列宽（292px + 1fr）与分隔，树列
+   自滚也不再靠这里的裸 `max-height`。此处只留 rail/宿主共用的少量杂物。 */
 
 .wengu-ai-empty {
   padding: 32px 0;
@@ -272,9 +253,9 @@
   margin-bottom: 10px;
 }
 
-/* 左栏树（20260902 走共享 TreeList）：b3-list-item 行内承载状态徽标/
-   类别章/标题/时间，删除钮 hover 才显（--hide-action 兜底同旧平铺行
-   口径——常驻会把 320px 行宽吃掉，标题被截） */
+/* 左栏树（20260902 走共享 TreeList）：删除钮 hover 才显（--hide-action
+   兜底同旧平铺行口径——常驻会把行宽吃掉，名字被截；Issue #92 gap-list
+   S5 亦要求删除钮不得占常驻视觉位） */
 .wengu-ai-list .b3-list-item .b3-list-item__action {
   display: none;
 }
@@ -284,26 +265,21 @@
   display: inline-flex;
 }
 
-/* 转圈动画（AI 会话面板的 running 徽标复用——同族样式见 scss/aipanel.scss） */
+/* 转圈动画（AI 会话面板的 running 徽标复用——同族样式见 scss/aipanel.scss；
+   横幅 aiflow.scss 的色点脉冲也引用本 keyframes） */
 @keyframes wengu-ai-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
+/* 行名：撑满 + 省略号（字号/字色分档在 scss/aipanel.scss 按深度给） */
 .wengu-ai-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-}
-
-.wengu-ai-meta {
-  flex: none;
-  font-size: 12px;
-  color: var(--b3-theme-on-surface-light);
 }
 
 .wengu-ai-err {

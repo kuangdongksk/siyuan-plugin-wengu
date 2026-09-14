@@ -16,6 +16,7 @@
 
 import type { AiSessionRecord } from "../data/AiSessions";
 import { AI_STOPPED } from "../data/AiSessions";
+import type { SessionLogSeg } from "./SessionDetail";
 import { fmt } from "../../ui/shared";
 
 /** 流归属说明的形态：转换族 / 六批流（带流名）/ 单调用流（无说明）；
@@ -69,11 +70,47 @@ export function decideEntryOf(own: FlowOwnership): boolean {
     return own.kind === "stoppedConvert";
 }
 
-/** 归属说明行的成品文案（i18n 已解析；单调用流返回空串=不渲染）。 */
-export function ownershipTextOf(t: (k: string) => string, own: FlowOwnership): string {
-    if (own.kind === "convert") return t("convertStoppedHint");
-    if (own.kind === "batch") return fmt(t("aiFlowOwningBatch"), { flow: t(own.flowKey) });
-    if (own.kind === "stoppedConvert") return t("aiOwnStoppedConvert");
-    if (own.kind === "stoppedBatch") return fmt(t("aiOwnStoppedBatch"), { flow: t(own.flowKey) });
-    return "";
+/**
+ * 归属说明行的**分段文案**（Issue #92 gap-list A7 on top of Issue #88 的
+ *  `stopped*` 两态语义）：设计稿的 own-note 是 `<b>首句加粗（归属）</b>` +
+ * 正文 + `<span class="at">入口词</span>`（主色强调「停止整批转换」）——
+ * **文案分段供给，组件不解析字符串**（同 SessionDetail 的日志分段口径）。
+ * 单调用流返回空数组=不渲染。
+ *
+ * 四段各取一词，代码不拼句：
+ *  - `aiOwnHeadConvert` / `aiOwnHeadBatch`（**加粗**；批流派带 `{flow}` 流名）
+ *  - `aiOwnBody`（正文，**含开启的引导引号**）
+ *  - 入口钮词（主色，复用横幅那一组 `aiFlowStop*`——**动作名即范围**）
+ *  - `aiOwnTail`（收尾，**含闭合的引导引号**与句读）
+ *
+ * 引号/顿号/连接符都是**语言相关写法**（中文「」、英文 “”），故归各自的
+ * 模板携带；在代码里拼会把两套写法各钉死一次。
+ *
+ * ⚠️ **首段的取词必须按 kind 分**（Issue #88 的停止态语义不许被本单冲掉）：
+ * `stoppedConvert`/`stoppedBatch` 是在途归属说明的**另一句话**（「已随整批
+ * 停下、抉择在哪」），拿 `convert` 的模板套过去会让用户已经停了还被指路
+ * 「请去停止」。故 `aiOwnStopped*` 两键进**首段**（加粗位），`aiOwnBody`/
+ * `aiOwnTail`（正文与收尾的**结构**，不含停止动作词）两态共用：
+ * `aiOwnBody` 的中文引号只在加粗首段以句读收束时才成对（英文侧改全角
+ * 逗号收束，见 i18n 注释），`aiOwnTail` 是**句末**收尾、不引住任何词。
+ * 入口钮词仍**只属在途态**（停止后的动作是页内抉择，不是「停止整批转换」）。
+ */
+export function ownershipSegsOf(t: (k: string) => string, own: FlowOwnership): SessionLogSeg[] {
+    if (own.kind === "none") return [];
+    const stopped = own.kind === "stoppedConvert" || own.kind === "stoppedBatch";
+    const batch = own.kind === "batch" || own.kind === "stoppedBatch";
+    const head = stopped
+        ? batch
+            ? fmt(t("aiOwnStoppedBatch"), { flow: t(own.flowKey) })
+            : t("aiOwnStoppedConvert")
+        : batch
+          ? fmt(t("aiOwnHeadBatch"), { flow: t(own.flowKey) })
+          : t("aiOwnHeadConvert");
+    const segs: SessionLogSeg[] = [
+        { text: head, em: false, bold: true },
+        { text: t("aiOwnBody"), em: false },
+    ];
+    if (!stopped) segs.push({ text: t(batch ? "aiFlowStop" : "aiFlowStopBatch"), em: false, accent: true });
+    segs.push({ text: t("aiOwnTail"), em: false });
+    return segs;
 }

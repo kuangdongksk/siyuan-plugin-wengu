@@ -5,7 +5,7 @@
     import { SessionPanelCtl } from "../core/SessionPanelCtl";
     import { buildSessionTree, groupRowName } from "../core/SessionTree";
     import { detailViewOf } from "../core/SessionDetail";
-    import { decideEntryOf, flowOwnershipOf, ownershipTextOf } from "../core/FlowOwnership";
+    import { decideEntryOf, flowOwnershipOf, ownershipSegsOf } from "../core/FlowOwnership";
     import { listAiModels } from "../models";
     import FlowBanner from "./FlowBanner.svelte";
     import SessionDetail from "./SessionDetail.svelte";
@@ -36,6 +36,19 @@
      * 组件零判断。登记簿本体在 data/AiSessions（全仓共享单例，agentChatOnce
      * 带 track 的调用自动登记），本组件只吃快照；挂载编排见
      * ai/SessionPanel.ts。零 <style>，类名走全局 scss（scss/aipanel.scss）。
+     *
+     * **照施工规格精修（Issue #92，`design/aipanel-gap-list.md` 权威修法）**：
+     *  - **一体卡（S1/S2）**：`.wengu-aipanel` 用稿的 grid（292px + 1fr、卡面 +
+     *    1px 边线 + 12px 圆角 + overflow:hidden），横幅 FlowBanner 移入卡内作
+     *    跨栏首行（组件根 `.wengu-aiflow` 自身已无圆角/外围边框）；
+     *  - **树列（S3/S4）**：292px 列宽由 grid 接管（`.wengu-ai-side` 的固定宽
+     *    与裸 max-height 一并删），树列吃凹槽底 + 右边线 + 上下 padding；
+     *  - **行尾三件化（S5）**：叶行 = 点 + 任务名 + 徽标贴右，**行尾不常驻
+     *    时间戳**（选中后详情日志首列即 HH:MM:SS），组行「N 条 · 时间」meta
+     *    删，删除钮退回 hover 显隐（rail.scss 既有口径）；
+     *  - **详情（S7/S8）**：详情头删常驻 meta 串（模型名折进 h3 的 title），
+     *    状态徽标贴右；主体自身滚动窗删（滚动交卡壳）。kinds 过滤条与 hint
+     *    留在卡外（S9 已拍板的取舍：卡内只留三件）。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -62,13 +75,9 @@
     const kindLabel = (k: string): string => (KIND_KEYS[k] ? t(KIND_KEYS[k]) : k);
 
     const modelNames = new Map(listAiModels().map((m) => [m.id, m.name]));
+    /** 模型显示名：设计稿 detail-head **无**「时间 · 模型」meta 串（gap-list
+     *  S7），模型名折进 h3 的 `title` 悬停可见——信息不丢，常驻视觉位不占。 */
     const modelName = (id: string): string => modelNames.get(id) ?? (id || t("aiModelDefault"));
-
-    const p2 = (n: number): string => String(n).padStart(2, "0");
-    const fmtTime = (ts: number): string => {
-        const d = new Date(ts);
-        return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
-    };
 
     /** 快照 → 树（种类→文档→调用两级分支；类别过滤与 i18n 种类名注入，
      *  纯函数见 core/SessionTree）。 */
@@ -85,7 +94,7 @@
             kindText: sel ? kindLabel(sel.kind) : "",
             title: sel ? (tree.leafViewByKey.get(sel.id)?.name ?? "") : "",
             modelText: sel ? modelName(sel.model) : "",
-            ownNote: sel ? ownershipTextOf(t, flowOwnershipOf(sel)) : "",
+            ownNote: sel ? ownershipSegsOf(t, flowOwnershipOf(sel)) : [],
             decidable: sel ? decideEntryOf(flowOwnershipOf(sel)) : false,
         })
     );
@@ -130,9 +139,8 @@
         </div>
         <div class="wengu-muted" style="margin-bottom:8px">{t("aiPanelHint")}</div>
 
-        <!-- 流级横幅（Issue #77 / #85）：多调用流的停止唯一入口；无在途流时整条不渲染 -->
-        <FlowBanner {t} onDecide={() => v.convertAccess.revealConvertBar()} />
-
+        <!-- kinds 过滤条与 hint 留在**卡外**（设计稿 S9 取舍：卡内只有
+             「横幅 + 树 + 详情」三件纯度），故在卡壳之前。 -->
         <div class="wengu-ai-kinds">
             <Button type="button" variant={ui.filter === "" ? "main" : "outline"} onclick={() => ctl.setFilter("")}
                 >{t("aiKindAll")}</Button
@@ -143,9 +151,15 @@
                 >
             {/each}
         </div>
-        <!-- 两栏式（20260901）：左清单常驻（TreeList 树），点行切右栏明细 -->
-        <div class="wengu-ai-two">
-            <div class="wengu-ai-side">
+
+        <!-- 一体卡（稿 .ai-panel，gap-list S1/S2）：横幅是卡内**跨栏首行**，
+             下面 grid 两栏 = 树 292px + 详情 1fr。无在途流时横幅整条不渲染
+             （那行高度自然归 0，两栏顶到卡首，无需 is-plain 分支）。 -->
+        <div class="wengu-aipanel">
+            <!-- 流级横幅（Issue #77 / #85）：多调用流的停止唯一入口；无在途流时整条不渲染 -->
+            <FlowBanner {t} onDecide={() => v.convertAccess.revealConvertBar()} />
+
+            <div class="wengu-aipanel-tree">
                 <div class="wengu-ai-list">
                     {#if tree.nodes.length === 0}
                         <div class="wengu-muted">{t("aiEmpty")}</div>
@@ -160,21 +174,29 @@
                                 {#snippet main(n)}
                                     {@const b = tree.branchByKey.get(n.key)}
                                     {#if b}
-                                        <!-- 二级组行（设计稿 tg1/tg2）=「类别 · 文档名」组合行；
-                                             种类级只出类别名（b.subject 缺位）。
-                                             **组行不带状态点**：设计稿的色点与徽标只属于
-                                             叶子行（tg 行是「caret + 名字」），且 b.status 是
-                                             状态词（running/done/error）——拿它拼 is-{status}
-                                             与色名族（run/done/fail）不同名，只会拼出死规则。 -->
-                                        <span class={`wengu-aipanel-group ${b.subject ? "is-sub" : "is-kind"}`}
+                                        <!-- 组行（设计稿 tg1/tg2）=「caret + 名字」两件，
+                                             **不渲染色点**（Issue #88 复审 + gap-list S5）：
+                                             ① 设计稿的色点/徽标只属叶子行 `.leaf`（spec 6.2 的
+                                                `.tg1`/`.tg2` 规则里没有任何 dot）；
+                                             ② 组行的聚合状态是**状态词**（running/done/error），
+                                                与色名族（run/done/fail）不同名，拼 `is-{status}`
+                                                只会拼出无规则的死类 ⇒ 那个 8px 空位还会把 A1 的
+                                                正文起点 14/27px 顶到 29/42px。
+                                             组内状态由叶子行的点/徽标逐条表达，不聚合到组行。 -->
+                                        <!-- 组行字色/字号分两档（gap-list A2/A3），走 rail.scss 的
+                                             `.wengu-ai-name` 基类 + 本面板的 is-group/is-tg1 档：
+                                             种类行（tg1，无 subject）12px + 字距；
+                                             主题组行（tg2）12.5px；两者同为 muted 色 -->
+                                        <span class="wengu-ai-name is-group{b.subject ? '' : ' is-tg1'}"
                                             >{groupRowName(b.kind, b.subject, kindLabel)}</span
                                         >
                                     {:else}
                                         {@const lv = tree.leafViewByKey.get(n.key)}
-                                        <!-- 叶子行（设计稿 leaf）= 状态点 + 任务名 + 状态徽标；
+                                        <!-- 叶子行（设计稿 leaf）= 状态点 + 任务名 + 状态徽标（贴右）；
+                                             行尾**不常驻时间戳**（时间已在详情头），
                                              40 条记录一眼看出哪批失败哪批成功 -->
                                         <span class="wengu-aipanel-dot is-{lv?.dotCls ?? 'done'}"></span>
-                                        <span class="wengu-ai-name">{lv?.name ?? n.name}</span>
+                                        <span class="wengu-ai-name is-leaf">{lv?.name ?? n.name}</span>
                                         {#if lv}
                                             <span class={`wengu-aipanel-badge is-${lv.badgeCls}`}>
                                                 {#if lv.spin}
@@ -188,13 +210,8 @@
                                 {#snippet trailing(n)}
                                     {@const b = tree.branchByKey.get(n.key)}
                                     {#if b}
-                                        <span class="wengu-ai-meta"
-                                            >{fmt(t("aiGroupMeta"), {
-                                                n: String(b.recs.length),
-                                                time: fmtTime(b.createdAt),
-                                            })}</span
-                                        >
-                                        <!-- 种类级不配删除（误击会清整类）；文档级两击删该文档全部记录 -->
+                                        <!-- 种类级不配删除（误击会清整类）；文档级两击删该文档全部记录。
+                                             删除钮属功能件：hover 才显（rail.scss 既有口径），不占常驻视觉位 -->
                                         {#if b.subject}
                                             <span class="b3-list-item__action">
                                                 <Button
@@ -211,8 +228,6 @@
                                             </span>
                                         {/if}
                                     {:else}
-                                        {@const r = tree.recByKey.get(n.key)}
-                                        {#if r}<span class="wengu-ai-meta">{fmtTime(r.createdAt)}</span>{/if}
                                         <span class="b3-list-item__action">
                                             <Button
                                                 type="button"
@@ -229,7 +244,8 @@
                     {/if}
                 </div>
             </div>
-            <div class="wengu-ai-pane">
+
+            <div class="wengu-aipanel-pane">
                 {#if sel && detail}
                     <!-- 三段详情（设计稿 .ai-detail；视图模型在 core/SessionDetail，
                          组件零判断）。换记录时整块重挂 ⇒ 全文展开态自然复位。 -->
