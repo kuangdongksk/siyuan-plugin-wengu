@@ -16,10 +16,12 @@
 
 /* ── 材料区：凹槽 + 阅读栏 + 渐隐分界 ── */
 .wengu-reading .wengu-gmat {
-  /* 改阅读面：不再内滚（旧的 46vh 内滚把正文切成两段滚动区） */
+  /* 改阅读面：不再内滚（旧的 46vh 内滚把正文切成两段滚动区）。
+     左右内边距给到 32px：既留出 ¶ 序号的左留白（-1.6rem ≈ 26px），
+     也不让正文栏贴到凹槽边（窄窗下 68ch 铺满时的最后一道净空）。 */
   max-height: none;
   overflow: visible;
-  padding: 22px 24px 24px;
+  padding: 22px 32px 24px;
   background: var(--wengu-well);
   /* 1px dashed 紧贴 → 1px 渐隐细线（两端透明、中段 26%）：视线不再被
      一条等宽硬边切断。 */
@@ -53,12 +55,15 @@
   margin-bottom: 0;
 }
 
-/* 词表区是材料尾部的「元数据」而非正文：不参与 68ch 居中与衬线正文 */
+/* 词表区是材料尾部的「元数据」而非正文：**不进 68ch 栏、贴左、无衬线**
+   （它在 .p 之后，本就不吃正文那条 68ch 规则；这里的 override 是防未来
+   上游给 .wengu-gloss 加宽度）。无衬线比正文小一号是为了与阅读面区分。 */
 .wengu-reading :where(.wengu-gmat) :where(.wengu-gloss) {
-  max-width: 68ch;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
   font-family: var(--b3-font-family);
+  font-size: 14px;
 }
 
 /* 折叠态：整片收起（`[data-collapsed]` 由 GroupUnitApp 写在组单元上），
@@ -76,14 +81,14 @@
   padding: 24px;
 }
 
-/* 选项行：28px → 44px 行高，字母与正文基线对齐 */
+/* 选项行：28px → 44px 行高，字母与正文基线对齐（底色/悬停压深在文末
+   「交互态」段统一给，此处不重复声明） */
 .wengu-reading .wengu-option-fallback {
   align-items: baseline;
   min-height: 44px;
   padding: 8px 14px;
   border: 1px solid var(--b3-theme-surface);
   border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-background-light);
 }
 
 .wengu-reading .wengu-opts {
@@ -108,10 +113,14 @@
 }
 
 /* 作答 alphabet chip：作答位在**选项之后**（阅读态口径见 QuizCard 注），
-   选它即选中对应选项行，故与选项行同款描边/底/选中态 */
+   选它即选中对应选项行，故与选项行同款描边/底/选中态。
+   ⚠️ 间距方向：`margin-top` 是**选项 → chips 20**（选中项在下方作答），
+   `margin-bottom` 是 **chips → 思路 12**——底子的存量注释把两者说反了，
+   真机表现就是「选项与作答位贴死、作答位到思路又多出一截」。 */
 .wengu-reading .wengu-chips {
   gap: 8px;
-  margin-bottom: 20px; /* 选项 → chips 20 */
+  margin-top: 20px;
+  margin-bottom: 12px;
 }
 
 .wengu-reading .wengu-chip {
@@ -119,6 +128,12 @@
   height: 32px;
   padding: 0 12px;
   border-radius: var(--b3-border-radius);
+}
+
+/* 「思路」折叠钮自带 `margin: 4px 0`：chips 的 12px 底距已够（不必再加
+   叠），展开后的文本域底距交给 .wengu-thought 的 8px。 */
+.wengu-reading .wengu-thought-toggle {
+  margin-top: 0;
 }
 
 /* 提交行：思路 → 提交行 20，按钮 38px */
@@ -141,4 +156,108 @@
 /* 卡头 → 题干 16 */
 .wengu-reading .wengu-card-head {
   margin-bottom: 16px;
+}
+
+/* 题干 → 选项 16。走**段落底距**而非容器底距：选项行与解析区是题干
+   容器的后续兄弟（同挂 .wengu-qprotyle），容器 margin-bottom 只作用在
+   最后一个孩子之后，对「题干→选项」这段根本不起作用——真机表现就是
+   调了没反应。段落底距 17 → 16 与选项行的 margin-top 0 **折叠**，
+   落值即 16（相邻兄弟 margin 折叠取较大者，故此处不必也**不能**用
+   容器底距叠加表达）。 */
+.wengu-reading .wengu-qprotyle :where(.p) {
+  margin-bottom: 16px;
+}
+
+/* 容器自身底距归零（存量 12px 会与末段底距叠加成 28px）：题干之后的
+   所有纵向间距一律由「末段底距 16」与后续件（选项/解析/作答位）自己的
+   margin 表达——一个方向一个来源，不做双份叠加。 */
+.wengu-reading .wengu-qprotyle {
+  margin-bottom: 0;
+}
+
+/* ── ¶ 段落序号（设计稿 4.2）──
+   题目会引用「Paragraph 2」，序号落在 68ch 正文栏的**左留白**里（居中
+   栏两侧各约 250px 留白一处用途）。
+   ⚠️ **只数顶层段落**（`>` 子选择器）：列表项正文也是 `<li><div class="p">`
+   （MdRender 把 paragraph_open 一律出 div.p）——后代式会把每个列表项
+   算成一个「段落」（序号窜进列表），而「Paragraph N」指的是正文段落。
+   装饰链打的词形 `<u>` 与线索 `<mark>` 都是 `.p` **内部**的节点 ⇒ 不
+   影响计数；装饰出口整段重铺（先摘旧 mark 再铺）也不重复计数——counter
+   是按文档树实时算的、与重铺无关（幂等天然成立）。 */
+.wengu-reading .wengu-gmat {
+  counter-reset: wengu-para;
+}
+
+.wengu-reading .wengu-gmat > .p {
+  position: relative;
+  counter-increment: wengu-para;
+}
+
+.wengu-reading .wengu-gmat > .p::before {
+  content: "¶" counter(wengu-para);
+  position: absolute;
+  left: -1.6rem;
+  top: 0.44em;
+  font: 500 11px/1 var(--b3-font-family-code, monospace);
+  color: var(--b3-theme-on-surface-light);
+  letter-spacing: 0.02em;
+}
+
+/* ── 交互态「压深一档」（设计稿：悬停=背景变暗，对比只升不降）──
+   `--wengu-deepen` = 把主题前景色按低透明度叠在底色上，**任何主题下
+   都让底变暗**（`--b3-theme-on-background` 明主题近黑、暗主题近白，
+   叠上去都是「往背景反方向走一档」）；禁用态才允许降对比。 */
+.wengu-reading {
+  --wengu-deepen: color-mix(in srgb, var(--b3-theme-on-background) 10%, transparent);
+  --wengu-opt-bg: color-mix(in srgb, var(--b3-theme-on-surface) 4%, transparent);
+}
+
+.wengu-reading .wengu-option-fallback {
+  background: var(--wengu-opt-bg);
+}
+
+.wengu-reading .wengu-option-fallback:hover {
+  background: var(--wengu-deepen);
+  border-color: var(--b3-theme-primary);
+}
+
+.wengu-reading .wengu-chip:hover {
+  background: var(--wengu-deepen);
+  border-color: var(--b3-theme-primary);
+}
+
+/* 禁用态才降对比（悬停永不降）：选项行本身不是控件（作答靠字母 chip），
+   卡锁定/揭示后整行不再有悬停反馈——降对比只发生在 chip 禁用态。 */
+.wengu-reading .wengu-chip:disabled {
+  opacity: 0.62;
+}
+
+.wengu-reading .wengu-card.wengu-revealed .wengu-option-fallback:hover,
+.wengu-reading .wengu-card.wengu-graded .wengu-option-fallback:hover {
+  background: var(--wengu-opt-bg);
+  border-color: var(--b3-theme-surface);
+}
+
+/* ── 两处取值修正的令牌落地（Issue #81；#70 口径：全用 var() 全名）──
+   ① 主按钮：稿内 `--primary-strong` 是「primary 同色相压深一档」，为的
+      是暖白字达 4.5:1——落在令牌上就是 `--b3-theme-primary` 与
+      `--b3-theme-on-primary` 的**固定组合**（不新增色相，明暗自适应）。
+   ② 卡面橙色小字：提亮变体 = primary 与卡面按比例混合，保 4.5:1。 */
+.wengu-reading .wengu-submit-row .wengu-btn:not(.wengu-skip-btn):not(.wengu-dunno-btn):not(:disabled) {
+  background: var(--b3-theme-primary);
+  border-color: var(--b3-theme-primary);
+  color: var(--b3-theme-on-primary);
+  font-weight: 600;
+}
+
+.wengu-reading .wengu-submit-row .wengu-btn:not(.wengu-skip-btn):not(.wengu-dunno-btn):not(:disabled):hover {
+  background: color-mix(in srgb, var(--b3-theme-primary) 82%, var(--b3-theme-background));
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 82%, var(--b3-theme-background));
+}
+
+/* 卡面橙色小字（题号/字母角标/考点）：提亮变体——primary 混入卡面背景，
+   暗主题下提亮、明主题下压深，两个方向都是「离开背景色一档」。 */
+.wengu-reading .wengu-card-num,
+.wengu-reading .wengu-opt-letter {
+  color: color-mix(in srgb, var(--b3-theme-primary) 74%, var(--b3-theme-background));
 }

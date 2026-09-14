@@ -8,6 +8,7 @@ import { setFallbackTitle } from "../../bank/data/BankSets";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, buildSetGroups, type DrillUnit, type SetGroup } from "./DrillUnits";
+import { readingScopeOf } from "../flow/ReadingScope";
 import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { restoreContextFor, type CardInitCtx } from "./CardState";
 import { focusQuestion } from "../flow/MaterialFlow";
@@ -96,8 +97,14 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     // 题集分组（多集合刷：题号栏横线 + 正文标题行；单题集一段=零装饰）。
     // 分组只切分视图——列表顺序是题集先后 × 集内原序，绝不重排。
     const setGroups = buildSetGroups(v.list, (id) => v.docs.find((d) => d.id === id)?.title || setFallbackTitle(id));
+    // 阅读面作用域（Issue #81）：英语卷才挂 .wengu-reading（阅读面 +
+    // 间距阶梯）。**唯一判定点**（两条渲染链同源）：壳层传给题卡列表，
+    // 组单元经 cardModel.reading 消费。同步窥视题库（渲染路径不 await，
+    // 见本函数头注），非英语卷/未装载一律 false ⇒ 渲染产物逐字节不变。
+    const reading = readingScopeOf(v.list, v.bankStore());
     const cardModel: CardHtmlModel = {
         t: v.t,
+        reading,
         showAttempts: v.settings?.showAttempts !== false,
         // 预览不透历史对错（题号/徽标/描色全中性，保密）
         showWrongBadge: !pv && v.settings?.showWrong !== false && v.revealMode !== "after",
@@ -127,6 +134,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
             // 且不挂面板，专题刷题卡死为锁定卡，20260903 定诊随聚合修复）
             hasDoc: colMode || !!doc,
             listCount: v.list.length,
+            reading,
             startPanelHtml: "<div data-startpanel-host></div>",
             cardsHtml: "",
             // 题号栏改 Svelte 挂载锚（bindNumRail 以 anchor 法插入；

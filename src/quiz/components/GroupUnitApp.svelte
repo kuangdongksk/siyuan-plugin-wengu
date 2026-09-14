@@ -52,6 +52,10 @@
     } = $props();
 
     let qi = $state(clampGroupQi(getGroupQi(mid) ?? 0, qs.length));
+    /** 阅读面作用域（Issue #81）：本组所在卷是英语卷才挂 .wengu-reading。
+     *  判定唯一点在壳层（QuizShell 的 readingScopeOf），这里只消费——
+     *  两条渲染链同源，非英语卷不带类名（逐字节一致）。 */
+    const reading = m.reading === true;
     let collapsed = $state(false);
     let rootEl = $state<HTMLElement | undefined>(undefined);
     let matEl = $state<HTMLElement | undefined>(undefined);
@@ -103,7 +107,12 @@
     }
 </script>
 
-<div class="wengu-gunit wengu-reading" data-mid={mid} data-collapsed={collapsed ? "" : undefined} bind:this={rootEl}>
+<div
+    class="wengu-gunit{reading ? ' wengu-reading' : ''}"
+    data-mid={mid}
+    data-collapsed={collapsed ? "" : undefined}
+    bind:this={rootEl}
+>
     <div class="wengu-ghead">
         <Button
             class="wengu-gmat-fold"
