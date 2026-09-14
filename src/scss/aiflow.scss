@@ -447,13 +447,3 @@
     opacity: 0.35;
   }
 }
-
-/* 记录详情的「流归属说明行」（Issue #77）：记录级停止钮退役后，改为一行
-   说明指向横幅。弱化色 + 细字，不与轮次正文抢注意力。 */
-.wengu-ai-owning {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--b3-theme-on-surface-light);
-  border-left: 2px solid var(--b3-theme-primary);
-  padding-left: 8px;
-}

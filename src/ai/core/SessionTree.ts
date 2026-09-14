@@ -28,13 +28,15 @@ export interface SessionBranchView {
     createdAt: number;
 }
 
-/** 树化结果：TreeList 节点 + 两个行渲染查找表（同知识面板 idiom）。 */
+/** 树化结果：TreeList 节点 + 三个行渲染查找表（同知识面板 idiom）。 */
 export interface SessionTreeData {
     nodes: TreeListNode[];
     /** 叶子 key（=记录 id）→ 记录。 */
     recByKey: Map<string, AiSessionRecord>;
     /** 分支 key → 分支视图（种类级与主题级都在）。 */
     branchByKey: Map<string, SessionBranchView>;
+    /** 叶子 key → 行视图（状态点/徽标/行名；Issue #88 设计稿还原）。 */
+    leafViewByKey: Map<string, SessionLeafView>;
 }
 
 /** 状态聚合优先级：在途 > 失败 > 完成（分支里还有在途调用就转圈）。 */
@@ -70,14 +72,18 @@ function leafName(r: AiSessionRecord, subject: string | undefined): string {
 export function buildSessionTree(
     recs: AiSessionRecord[],
     filter: string,
-    kindLabel: (k: string) => string = (k) => k
+    kindLabel: (k: string) => string = (k) => k,
+    t: (k: string) => string = (k) => k
 ): SessionTreeData {
     const recByKey = new Map<string, AiSessionRecord>();
     const branchByKey = new Map<string, SessionBranchView>();
+    const leafViewByKey = new Map<string, SessionLeafView>();
     const leaf = (r: AiSessionRecord, subject?: string): TreeListNode => {
         recByKey.set(r.id, r);
+        const name = leafName(r, subject);
+        leafViewByKey.set(r.id, leafViewOf(r, name, t));
         // hideAction：删除钮走行尾 hover 才显（同旧平铺行口径）
-        return { key: r.id, id: r.id, name: leafName(r, subject), kind: "doc", hideAction: true, children: [] };
+        return { key: r.id, id: r.id, name, kind: "doc", hideAction: true, children: [] };
     };
     const branch = (view: SessionBranchView, children: TreeListNode[]): TreeListNode => {
         branchByKey.set(view.key, view);
@@ -156,5 +162,57 @@ export function buildSessionTree(
             branch({ key: kkey, kind, recs: krecs, status: aggStatus(krecs), createdAt: krecs[0].createdAt }, children)
         );
     }
-    return { nodes, recByKey, branchByKey };
+    return { nodes, recByKey, branchByKey, leafViewByKey };
+}
+
+/**
+ * 叶子行的**视图形态**（Issue #88，纯函数带单测）：树行 = 状态点 + 任务名
+ * + 状态徽标（设计稿 `ai-panel-*` 的 `.leaf`）。
+ *
+ * 为什么单拎出来：设计稿要求「40 条记录一眼看出哪批失败哪批成功」，而
+ * 旧行只有类别章 + 标题 + 时间——状态只藏在图标色里。这里把「点色 / 徽标
+ * 词 / 徽标色 / 行名」一次算清，组件只按字段渲染（组件零判断）。
+ */
+export interface SessionLeafView {
+    /** 状态点色类（`is-run` / `is-done` / `is-fail`）。 */
+    dotCls: string;
+    /** 状态徽标色类（同上一组）。 */
+    badgeCls: string;
+    /** 状态词（已取词：running / done / error）。 */
+    badgeText: string;
+    /** 徽标是否带转圈（只有 running）。 */
+    spin: boolean;
+    /** 行名（任务名；空则回落记录 title）。 */
+    name: string;
+    /** 排队等槽后缀文案（running 且 queued 时非空）。 */
+    queuedNote: string;
+}
+
+/** 状态 → 三个色类与词键（设计稿的 dot 与 badge 一族共用同一组色名）。 */
+const STATUS_VIEW: Record<AiSessionRecord["status"], { cls: string; key: string; spin: boolean }> = {
+    running: { cls: "run", key: "aiStatusRunning", spin: true },
+    done: { cls: "done", key: "aiStatusDone", spin: false },
+    error: { cls: "fail", key: "aiStatusError", spin: false },
+};
+
+/** 叶子行视图（见 {@link SessionLeafView}）；subject 在位时行名已剥尾随主题。 */
+export function leafViewOf(r: AiSessionRecord, name: string, t: (k: string) => string): SessionLeafView {
+    const v = STATUS_VIEW[r.status];
+    return {
+        dotCls: v.cls,
+        badgeCls: v.cls,
+        badgeText: t(v.key),
+        spin: v.spin,
+        name: name || r.title,
+        // 排队等槽（Issue #76）是**瞬时展示态**，只对 running 有意义——done/
+        // error 上挂「等待空闲通道」自相矛盾（hydrate 已清，防内存态误挂）
+        queuedNote: r.status === "running" && r.queued ? t("aiWaitingSlot") : "",
+    };
+}
+
+/** 二级组行行名（设计稿 tg2=「类别 · 文档名」组合行；主题在位即组合，
+ *  缺省回落类别名——单条种类上提的叶子也走这条，名字里带上文档信息）。 */
+export function groupRowName(kind: string, subject: string | undefined, kindLabel: (k: string) => string): string {
+    const k = kindLabel(kind);
+    return subject ? `${k} · ${subject}` : k;
 }

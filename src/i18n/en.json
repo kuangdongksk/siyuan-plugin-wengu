@@ -889,5 +889,11 @@
   "aiFlowStatIndexed": "Indexed",
   "aiFlowRowNoteFailed": "Does not block later items",
   "aiFlowSub": "{head} · “{title}”",
-  "aiFlowSegJoin": ", "
+  "aiFlowSegJoin": ", ",
+  "aiPanelGroups": "{n} groups",
+  "aiRecordConvertBatch": "Batch {i} · {n} questions",
+  "aiLogLabel": "Turn log",
+  "aiLogInput": "Input {n} chars",
+  "aiLogOutput": "Output {n} chars",
+  "aiLogOutputQ": "Output {n} chars · {q} questions"
 }

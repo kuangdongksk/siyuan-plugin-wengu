@@ -301,3 +301,49 @@ describe("排队标记（Issue #76：全局在途闸的排队可见性）", () =
         expect(r.queued).toBeUndefined(); // 不留「已中断 · 等待空闲通道…」矛盾组合
     });
 });
+
+describe("retitle（Issue #88：记录 title 任务名化通道）", () => {
+    it("改名只动 title，状态/轮次/组字段全不变；快照可见", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "convert", "转换 · 卷名", "m1", "prompt", { id: "g1", title: "转换 · 卷名" });
+        s.retitle("s1", "生成第 12 批 · 8 题");
+        const r = s.list()[0];
+        expect(r.title).toBe("生成第 12 批 · 8 题");
+        expect(r.status).toBe("running");
+        expect(r.turns).toHaveLength(1);
+        expect(r.group).toBe("g1");
+        expect(r.groupTitle).toBe("转换 · 卷名");
+    });
+
+    it("**不设状态闸**：已收口的记录也改名（收口快一步的极端时序不该把行名永远留在类别名）", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "convert", "转换 · 卷名", "m1", "q");
+        s.succeed("s1", "reply");
+        s.retitle("s1", "生成第 3 批 · 5 题");
+        expect(s.list()[0].title).toBe("生成第 3 批 · 5 题");
+    });
+
+    it("同值零动作（不触发订阅通知）；空标题/未知 id 静默", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "convert", "转换 · 卷名", "m1", "q");
+        const fn = vi.fn();
+        s.subscribe(fn);
+        s.retitle("s1", "转换 · 卷名"); // 同值
+        s.retitle("s1", ""); // 空
+        s.retitle("nope", "x"); // 未知
+        expect(fn).not.toHaveBeenCalled();
+        expect(s.list()[0].title).toBe("转换 · 卷名");
+    });
+
+    it("改名随落盘往返（重启后仍是任务名，不回退类别名）", async () => {
+        const m = memStore();
+        const a = new AiSessionStore(m.loadRaw, m.saveRaw);
+        a.begin("s1", "convert", "转换 · 卷名", "m1", "q");
+        a.retitle("s1", "生成第 1 批 · 4 题");
+        a.flushNow();
+        await Promise.resolve(); // 串行链一跳
+        const b = new AiSessionStore(m.loadRaw, m.saveRaw);
+        await b.ready();
+        expect(b.list()[0].title).toBe("生成第 1 批 · 4 题");
+    });
+});

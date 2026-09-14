@@ -11,6 +11,7 @@ import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { KnowledgeIndex } from "../knowledge/KnowledgeLink";
 import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { aiStopHandle, newAiGroupId, type AiSessionGroup } from "../../../ai/client";
+import { aiSessions } from "../../../ai/data/AiSessions";
 import { SetWriter } from "../output/SetWriter";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import { setTypeUnion } from "../../../bank/data/BankSets";
@@ -400,6 +401,19 @@ export async function convertDocBatched(
             }
         }
         const nq = batch.drafts.filter((d) => !d.material).length;
+        // 行名任务名化（Issue #88）：批号（本批是全片第几批）与题数（本批
+        // 产出几道题）此刻才知道——AI 会话面板那行从此是「生成第 12 批
+        // · 8 题」而非类别名「转换」。**逐片批号**：片是并行单元，跨片
+        // 累加序不确定；片内序即用户读到的「第几批」，不会因并发漂移。
+        if (batch.sid) {
+            aiSessions()?.retitle(
+                batch.sid,
+                fmt(t("aiRecordConvertBatch"), {
+                    i: String(batch.batchNo),
+                    n: String(nq),
+                })
+            );
+        }
         count += nq;
         flushedBatches++;
         flushedCursor = Math.max(flushedCursor, batch.end);
@@ -459,13 +473,17 @@ export async function convertDocBatched(
             // 首个非空即该卷学科（同卷各片一致，后续片只是不同意措辞）
             if (subject && !genSubject) genSubject = subject;
         },
-        makeCall: (step: () => StepContext | undefined) =>
+        makeCall: (step: () => StepContext | undefined, onSid: (sid: string) => void) =>
             makeKnowAwareAi({
                 modelId: opts.modelId,
                 signal: internal.signal,
                 knowIndex,
                 label: info.title,
                 group: trackGroup,
+                // 生成调用的登记 id 回传（Issue #88）：批落库后据它把面板行名
+                // 改成「生成第 N 批 · M 题」——**与下面的 abort.onSid 并存**，
+                // 两条链各管一段（改名 / 停止）
+                onGenerateSid: onSid,
                 // 面板「停止」接线（Issue #72）：面板对该流任一 running
                 // 记录点停 = 走 abortFlow，与页内停止钮**同一总闸**（置
                 // 「用户终止」标记 + 断在途 fetch + worker 池收口 → 单篇转

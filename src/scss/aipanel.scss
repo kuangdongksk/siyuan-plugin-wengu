@@ -1,0 +1,303 @@
+/* AI 会话面板（Issue #88 按设计稿还原；`ai-panel-*` 三屏）
+   视觉规格照 design/convert-stop-redesign.html 的 ai-panel-batch-running /
+   ai-panel-single-running / ai-panel-stopped 三屏与 legacy-ai-panel 对照屏，
+   **不自行发明**：
+
+     ① 树（.wengu-aipanel-thead / 二级组行 / 叶子行）= 头部标题 + 组数徽标、
+        二级组行「类别 · 文档名」、叶子行「状态点 + 任务名 + 状态徽标」；
+     ② 详情三段 = detail-head（h3 + kind 徽标 + 状态徽标）/ detail-body
+        （log-label + ul.log 轮次日志）/ detail-foot（own-note 归属备注）；
+     ③ 状态语言一套三件：色点 / 徽标 / 状态词（六态同色名族）。
+
+   色值**一律 var(--b3-*) 全名**，禁止写死色值与令牌裸名（#70 事故口径）。
+   令牌权威在 design/theme-tokens-neo.md（下称「令牌表」）；component-group
+   令牌在本仓不存在时的兜底写在各条注释里（设计稿的 --ok-solid/--fail-solid/
+   --accent-dim 等语义令牌落成 b3 令牌 + color-mix 组合，同 aiflow.scss 口径）。 */
+
+/* ── ① 状态语言（色点 / 徽标，与横幅同一个色名族：run/done/fail/skip/stop/queued） ── */
+
+.wengu-aipanel-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.wengu-aipanel-dot.is-run {
+  background: var(--b3-theme-primary);
+  /* 设计稿 dot--run 的光晕；令牌表无对应项，用主色弱化混出 */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 24%, transparent);
+}
+
+.wengu-aipanel-dot.is-done {
+  background: var(--b3-card-success-color);
+}
+
+.wengu-aipanel-dot.is-fail {
+  background: var(--b3-card-error-color);
+}
+
+.wengu-aipanel-dot.is-skip {
+  background: transparent;
+  border: 1.5px solid var(--b3-card-success-color);
+}
+
+.wengu-aipanel-dot.is-stop {
+  background: transparent;
+  border: 1.5px solid var(--b3-theme-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 24%, transparent);
+}
+
+.wengu-aipanel-dot.is-queued {
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--b3-theme-on-surface) 42%, transparent);
+}
+
+.wengu-aipanel-dot.is-cancel {
+  background: transparent;
+  border: 1.5px solid color-mix(in srgb, var(--b3-theme-on-surface) 30%, transparent);
+}
+
+/* 徽标基形（设计稿 .badge：19px 高、11px mono、4px 圆角） */
+.wengu-aipanel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.wengu-aipanel-badge.is-plain {
+  color: var(--b3-theme-on-surface-light);
+  border-color: var(--b3-border-color);
+}
+
+.wengu-aipanel-badge.is-run {
+  color: var(--b3-theme-primary);
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+}
+
+.wengu-aipanel-badge.is-done {
+  color: var(--b3-card-success-color);
+  border-color: color-mix(in srgb, var(--b3-card-success-color) 40%, transparent);
+  background: color-mix(in srgb, var(--b3-card-success-color) 14%, transparent);
+}
+
+.wengu-aipanel-badge.is-fail {
+  color: var(--b3-card-error-color);
+  border-color: color-mix(in srgb, var(--b3-card-error-color) 45%, transparent);
+  background: color-mix(in srgb, var(--b3-card-error-color) 14%, transparent);
+}
+
+.wengu-aipanel-badge.is-stop {
+  color: var(--b3-theme-primary);
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+}
+
+/* 转圈（设计稿 .spin：1.6px 环，仅 running 徽标内） */
+.wengu-aipanel-spin {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.6px solid color-mix(in srgb, var(--b3-theme-primary) 30%, transparent);
+  border-top-color: var(--b3-theme-primary);
+  animation: wengu-ai-spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wengu-aipanel-spin {
+    animation: none;
+  }
+}
+
+/* ── ② 树（左栏） ── */
+
+/* 组数徽标（设计稿 ai-tree-head 的 badge--plain）：与宿主标题栏同一行
+   （重复一行「AI 会话」是纯噪音，见 SessionPanelApp 注释）；动作钮仍贴右，
+   故徽标只占自己的位、不吃 margin-left:auto。 */
+.wengu-aipanel-gcount {
+  font-weight: 400;
+}
+
+/* 叶子行：状态点 + 任务名 + 徽标（徽标贴右）。宿主是共享 TreeList 的
+   li，这里只调内部排布，**不动 TreeList 本体**（知识面板/侧栏树零回归：
+   选择器前缀锁在本面板根类上）。 */
+.wengu-ai-list .b3-list-item .wengu-aipanel-dot {
+  margin-right: 2px;
+}
+
+.wengu-ai-list .b3-list-item .wengu-aipanel-badge {
+  margin-left: 6px;
+}
+
+/* 选中行主题色高亮（设计稿 leaf.is-selected 的 inset 2px 主题线——b3 原生
+   --focus 只有底色，这里把左侧描边补上） */
+.wengu-ai-list .b3-list-item--focus {
+  box-shadow: inset 2px 0 0 var(--b3-theme-primary);
+}
+
+/* ── ③ 详情三段 ── */
+
+/* 三段外壳：竖排、主体吃满剩余高（设计稿 .ai-detail 的 flex column） */
+.wengu-aipanel-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wengu-aipanel-dhead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.wengu-aipanel-dtitle {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--b3-theme-on-surface);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 状态徽标贴右（设计稿 .detail-head .badge { margin-left:auto }） */
+.wengu-aipanel-dhead .wengu-aipanel-meta {
+  margin-left: auto;
+}
+
+.wengu-aipanel-meta {
+  flex: none;
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aipanel-dbody {
+  padding: 13px 16px;
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.wengu-aipanel-logl {
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--b3-theme-on-surface-light);
+  margin-bottom: 9px;
+}
+
+.wengu-aipanel-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* 两列 grid：时间戳 66px mono + 摘要（设计稿 .log li） */
+.wengu-aipanel-log li {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 12.5px;
+  color: var(--b3-theme-on-surface-light);
+  border-bottom: 1px solid color-mix(in srgb, var(--b3-border-color) 60%, transparent);
+}
+
+.wengu-aipanel-log li:last-child {
+  border-bottom: 0;
+}
+
+.wengu-aipanel-log .t {
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aipanel-log em {
+  font-style: normal;
+  color: var(--b3-theme-on-surface);
+}
+
+/* 可展开行（设计稿的日志行是摘要；全文按需展开——面板的核心用途是回看
+   产出，全文不能丢）。悬停给出手势与底色，收起时与设计稿逐字同形。 */
+.wengu-aipanel-log li.is-clickable {
+  cursor: pointer;
+}
+
+.wengu-aipanel-log li.is-clickable:hover {
+  background: var(--b3-list-hover);
+}
+
+.wengu-aipanel-log li.is-open {
+  row-gap: 4px;
+}
+
+.wengu-aipanel-log li.is-error .wengu-aipanel-logtext {
+  color: var(--b3-card-error-color);
+}
+
+/* 全文块：跨两列（grid-column 1/-1），等宽小字、可滚动、保留换行 */
+.wengu-aipanel-logfull {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--b3-font-family-code);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--b3-theme-on-surface);
+  background: color-mix(in srgb, var(--b3-theme-background) 55%, transparent);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
+.wengu-aipanel-dfoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 16px;
+  border-top: 1px solid var(--b3-border-color);
+  background: color-mix(in srgb, var(--b3-theme-background) 35%, transparent);
+}
+
+/* 归属备注（设计稿 .own-note：虚线框 + 状态点 + 12.5px 弱化色） */
+.wengu-aipanel-own {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--b3-theme-on-surface-light);
+  border: 1px dashed var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 9px 11px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wengu-aipanel-own .wengu-aipanel-dot {
+  margin-top: 5px;
+}
