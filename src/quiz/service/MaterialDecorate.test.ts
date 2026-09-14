@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NO_WRAP_SELECTOR, NON_CANON_SELECTOR, isLiftSpan, pickNodeIndexes, planClueMarks } from "./MaterialDecorate";
 import { buildCanonMap, remapCanon } from "./ClueCanon";
-import { markSlots } from "../flow/ClueMark";
+import { markSlots, mergeMarkSlots } from "../flow/ClueMark";
 
 /**
  * 装饰出口的**判定链**（Issue #52 二期验收 4/5/6）：坐标优先 → 文本匹配
@@ -257,6 +257,78 @@ describe("mark × gloss 交叉顺序矩阵（Issue #53 验收 1：施工序在�
             { node: 2, start: 0, end: 3 },
         ]);
         expect(isLiftSpan(plan[0].hits[0].start === 0, true)).toBe(true);
+    });
+});
+
+describe("施工前合并重叠区间（Issue #56：主路径不许静默丢 mark）", () => {
+    // 用户真机：同一题干三条线索 `proposal` / `proposal might be regarded` /
+    // `to Paragraph`。前两条**同起点**——逐条独立算计划 ⇒ 短的那条先落格
+    // （markSlots 同起点按插入序稳定排序），长的那条随后越界被 wrapRange
+    // 静默跳过（chips 三条、mark 只一个）。装饰出口的坐标路径必须同样过
+    // `mergeMarkSlots`，只修 fallback 等于用户主路径带病。
+    const slot = (node: number, start: number, end: number, text: string) => ({ node, start, end, text });
+
+    it("同起点短 + 长（坐标路径产出的计划）：合并成一条覆盖长区间", () => {
+        const plan = [
+            { text: "proposal", hits: [{ node: 0, start: 4, end: 12 }] },
+            { text: "proposal might be regarded", hits: [{ node: 0, start: 4, end: 30 }] },
+        ];
+        const merged = mergeMarkSlots(markSlots(plan));
+        expect(merged).toEqual([slot(0, 4, 30, "proposal might be regarded")]);
+    });
+
+    it("第三条不相交线索照常独立出 mark（验收 1）", () => {
+        const plan = [
+            { text: "proposal", hits: [{ node: 0, start: 4, end: 12 }] },
+            { text: "proposal might be regarded", hits: [{ node: 0, start: 4, end: 30 }] },
+            { text: "to Paragraph", hits: [{ node: 1, start: 0, end: 12 }] },
+        ];
+        const merged = mergeMarkSlots(markSlots(plan));
+        expect(merged).toEqual([slot(0, 4, 30, "proposal might be regarded"), slot(1, 0, 12, "to Paragraph")]);
+    });
+
+    it("验收 4：删掉被覆盖的短线索 ⇒ 剩余线索重新合并（长的那条仍单独出）", () => {
+        // 删除被覆盖的 `proposal` 后只剩长的那条 ⇒ 合并结果与单条线索一致；
+        // 反之（删长的）则短的照常独立出 mark
+        const long = { text: "proposal might be regarded", hits: [{ node: 0, start: 4, end: 30 }] };
+        const short = { text: "proposal", hits: [{ node: 0, start: 4, end: 12 }] };
+        expect(mergeMarkSlots(markSlots([long]))).toEqual([slot(0, 4, 30, "proposal might be regarded")]);
+        expect(mergeMarkSlots(markSlots([short]))).toEqual([slot(0, 4, 12, "proposal")]);
+    });
+
+    it("合并只影响施工计划：`resolved` 仍与 anchors 逐位对齐（惰性升格不许错位）", () => {
+        // 合并发生在 markSlots 之后（施工计划层），`planClueMarks` 的
+        // resolved 逐位对齐口径不受影响——否则升格会把坐标写到别的线索上
+        const { map, texts } = canonAfterGloss();
+        const anchors = [
+            { text: "Fund", range: { s: 0, e: 4 } },
+            { text: "crucial", range: { s: 11, e: 18 } },
+        ];
+        const { plan, resolved } = planClueMarks(map, texts, anchors);
+        expect(resolved.map((r) => r.text)).toEqual(["Fund", "crucial"]);
+        expect(resolved.map((r) => r.range)).toEqual([
+            { s: 0, e: 4 },
+            { s: 11, e: 18 },
+        ]);
+        // 两条不相交 ⇒ 合并后计划长度不变（合并零副作用）
+        expect(mergeMarkSlots(markSlots(plan))).toHaveLength(2);
+    });
+
+    it("部分重叠（坐标跨 <u> 抬升段）：合并后按并集落格，不再逐段越界", () => {
+        // 坐标路径：一条覆盖 "Funding"，另一条覆盖 "ing is"（起点落在 <u> 之后）
+        const plan = [
+            {
+                text: "Funding",
+                hits: [
+                    { node: 0, start: 0, end: 4 },
+                    { node: 1, start: 0, end: 3 },
+                ],
+            },
+            { text: "ing is", hits: [{ node: 1, start: 0, end: 6 }] },
+        ];
+        const merged = mergeMarkSlots(markSlots(plan));
+        // 节点 1 的两段合并成 [0,6)；节点 0 保持独立（跨节点不合并）
+        expect(merged).toEqual([slot(0, 0, 4, "Funding"), slot(1, 0, 6, "ing is")]);
     });
 });
 

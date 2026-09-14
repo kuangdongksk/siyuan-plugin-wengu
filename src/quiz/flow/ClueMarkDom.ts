@@ -1,4 +1,12 @@
-import { CLUE_ARM_MS, clickClueChip, markSlots, newClueDeleteState, planMarks, type ClueDeleteState } from "./ClueMark";
+import {
+    CLUE_ARM_MS,
+    clickClueChip,
+    markSlots,
+    mergeMarkSlots,
+    newClueDeleteState,
+    planMarks,
+    type ClueDeleteState,
+} from "./ClueMark";
 
 /**
  * 线索标注的 DOM 手术层（Issue #28）：原文高亮包装（mark 元素）与
@@ -118,6 +126,13 @@ function wrapRange(node: Text, start: number, end: number): void {
  * **自后向前**切。故先按**未改动**的节点表算出全部计划（`planMarks`），
  * 再由 `markSlots` 统一排序施工（节点升序 + 节点内起点降序）。
  * 按线索逐条施工是错的：第二条线索落在同一节点时区间越界，静默不落格。
+ *
+ * ⚠️ **排序前必过 `ClueMark.mergeMarkSlots` 合并**（Issue #56）：逐条独立
+ * 匹配（线索间不做避让）+ 同起点两条以插入序稳定排序 ⇒ 先落格那条切完
+ * 节点、后一条越界被保护性跳过，静默不出 mark（「同段文字反复微调标注」
+ * 必然踩中）。合并取并集（长覆盖短/部分重叠成一段/相接成一段），合并后
+ * 互不相交 ⇒ 施工不再触发守卫。**装饰出口的坐标路径同样过这一步**——
+ * 两条链都不许静默丢 mark，只修 fallback 等于用户主路径带病。
  */
 export function applyClueMarks(root: HTMLElement | undefined | null, clues: string[]): void {
     if (!root) return;
@@ -131,7 +146,9 @@ export function applyClueMarks(root: HTMLElement | undefined | null, clues: stri
     // 施工序列由 ClueMark.markSlots 给出（节点升序 + 节点内起点降序）：
     // 同一节点里靠后的段先切，前段偏移才不被 splitText 截短——按线索
     // 逐条施工会让**第二条线索在同一节点内静默不落格**。
-    for (const slot of markSlots(plan)) {
+    // 排序前合并同节点内重叠/相接的区间（Issue #56）：相交的两条不合并
+    // 就是「先切的那条截短节点、后一条越界静默丢 mark」。
+    for (const slot of mergeMarkSlots(markSlots(plan))) {
         const node = nodes[slot.node];
         if (!node?.isConnected) continue;
         // 落格守卫（Issue #51）：序号上标参与匹配但**不许被包**——mark 套在
