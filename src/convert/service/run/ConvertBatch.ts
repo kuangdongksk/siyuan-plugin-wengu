@@ -9,7 +9,7 @@ import { applyKnowDrafts } from "../draft/QuestionDraft";
 import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { KnowledgeIndex } from "../knowledge/KnowledgeLink";
 import { makeKnowAwareAi } from "../knowledge/KnowRoute";
-import { newAiGroupId, type AiSessionGroup } from "../../../ai/client";
+import { aiStopHandle, newAiGroupId, type AiSessionGroup } from "../../../ai/client";
 import { SetWriter } from "../output/SetWriter";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import { setTypeUnion } from "../../../bank/data/BankSets";
@@ -326,10 +326,17 @@ export async function convertDocBatched(
     let userAborted = false;
     let flushedCursor = baseFrom; // 已落库的连续前缀末尾（续跑断点）
     const internal = new AbortController();
-    const relayAbort = (): void => {
+    /** 本流程的「用户终止」总闸（唯一写入点）：置标记（收口判据）+
+     *  断在途 fetch + worker 池收口。页内停止钮（relayAbort）与 AI 会话
+     *  面板的「停止」（aiStopHandle 接线）走的是**同一个** abortFlow——
+     *  「面板点停 = 等价于页内停止」就是这条线，不是只断当前一笔 fetch。
+     *  ⚠️ 不能只调 internal.abort()：那会让收口判成「AI 失败」而非
+     *  「用户终止」（Issue #72 实现期踩到）。 */
+    const abortFlow = (): void => {
         userAborted = true;
         internal.abort();
     };
+    const relayAbort = (): void => abortFlow();
     opts.signal?.addEventListener("abort", relayAbort);
 
     // 分片规划：并发度 1 时单片（逐字回到改造前行为）；续跑只规划断点之后
@@ -426,6 +433,14 @@ export async function convertDocBatched(
                 knowIndex,
                 label: info.title,
                 group: trackGroup,
+                // 面板「停止」接线（Issue #72）：面板对该流任一 running
+                // 记录点停 = 走 abortFlow，与页内停止钮**同一总闸**（置
+                // 「用户终止」标记 + 断在途 fetch + worker 池收口 → 单篇转
+                // 保留/丢弃抉择、队列篇间收口），不是只断一笔 fetch。
+                // 句柄的 signal 传 internal.signal 而非 opts.signal：后者是
+                // TYPES 检测等其他链路的中止源，接成 stop 会把批次收口误判
+                // 成「用户终止」）。
+                abort: aiStopHandle(internal.signal, abortFlow),
                 buildPrompt: (source, rule, list) =>
                     buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list, genTypes, step()),
             }),

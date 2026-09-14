@@ -1046,8 +1046,35 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   生成标签/变式重练/薄弱加练/收集补题全部「点击即关窗」——AI 后台跑、调用带 track
   进 AI 会话面板（实时进度）、终态走通知。重型批流走 ai/flow.ts launchAiFlow 单飞闸
   （aiFlowBegin/End，内核写流并发互吞防线）；「停止」迁到 AI 会话面板（client.ts
-  中止登记簿 stopBySid：track.onSid 把记录 id 挂回流级 AbortController，面板
-  abortAiSession 触发；转换流自带页内停止面未接线、面板对其点停静默无效）。
+  中止登记簿 stopBySid：track.onSid 把记录 id 挂回流级句柄，面板 abortAiSession 触发）。
+
+### AI 会话面板的中止接线（Issue #72，20260914）
+
+- **登记簿句柄两形态**：`stopBySid` 的值放宽成**可中止句柄**
+  （`AbortController | () => void`）——`aiAbort()` 出 AbortController
+  （通用流），`aiStopHandle(signal, stop)` 出停止回调（**自带总闸**的
+  业务流专用）。`abortAiSession` 对两者都只是「调一下」，触发即从表移除；
+  别再往登记簿塞第三种形态。
+- ⚠️ **转换族原先每笔都不带 `onSid`**（`makeKnowAwareAi` 只传
+  `{kind,title,group}`）——面板对转换 running 记录点「停止」查无此 id、
+  **静默无效**（六个既有批流好使、唯独转换不行）。现已接线：整卷
+  （`ConvertBatch`）、增量（`ConvertIncrement`）、AI 索引
+  （`generateKnowledgeOutline` → `KnowPanelCtl`）。新增任何转换族
+  `agentChatOnce` 调用点都**必须**带 onSid，漏一处就有一笔是死的。
+- ⚠️ **面板点停 = 等价于页内停止**，不是只断当前这笔 fetch：
+  `ConvertBatch` 的 `abortFlow()` 是**唯一**总闸——置「用户终止」标记 +
+  `internal.abort()`；页内停止（relayAbort）与面板停止（aiStopHandle 的
+  stop）都走它。**只调 `internal.abort()` 是错的**：`userAborted` 不置位
+  ⇒ 收口判成「AI 失败」而非「用户终止」（实现期真踩到，回归测试锁在
+  `convert/service/test/ConvertPanelStop.test.ts`）。句柄的 signal 传
+  `internal.signal` 而非 `opts.signal`（后者是 TYPES 检测等链路的中止源，
+  接成 stop 会把批次收口误判成用户终止）。
+- `ConvertIncrement` 自建 `stopCtrl`（它不由 ConvertRun 起、拿不到
+  `startExclusiveConvertRun` 的 controller），`run.signal` 转接进来；
+  逐块与块间都认 `stopCtrl.signal.aborted`。
+- `runSegment` 窗口循环**必须每批收尾再查一次 `signal.aborted`**：此前只在
+  下一笔 AI 前查，最后一批之后落下的停止会白烧一个窗口的 AI（真机「点了
+  停止还继续出题」）。
 - **页面已可见的反馈不重复通知**（判题/词书导入/学伴 AI 等），新增后台流照此口径接。
 
 ### 通用横切约束

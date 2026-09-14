@@ -170,6 +170,12 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         }
         cursor = end;
         res.cursor = cursor;
+        // 面板「停止」/页内停止若在上一笔 AI 之后落下：窗口循环必须**当场
+        // 退出**，别再取下一个窗口发 AI。本批已落库（停止不是字节级精确的
+        // ——「停止前刚落库完的那批」保留，其后一律不写，与既有信号回传
+        // 口径一致）；此前只有「下一笔 AI 前」的检查，最后一批之后落下的
+        // 停止会白白多烧一个窗口的 AI（真机表现为「点了停止还继续出题」）。
+        if (deps.signal.aborted) break;
     }
     res.cursor = cursor;
     return res;

@@ -6,6 +6,7 @@ import { collectKpRefs } from "../data/BankRegen";
 import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
 import { knowTreesOf, pendingIndexIds } from "../data/KnowTrees";
 import { notifyError, notifyInfo, type NotifyMsg } from "../../ui/Notify";
+import { aiStopHandle } from "../../ai/client";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
 import { openBatchLinkDialog } from "../ui/BatchLinkDialog";
@@ -430,7 +431,17 @@ export class KnowPanelCtl {
         for (const id of ids) {
             if (ctrl.signal.aborted) break;
             try {
-                const r = await generateKnowledgeOutline(id, this.v.aiModelId(), ctrl.signal, bank);
+                // 面板「停止」接线（Issue #72）：面板对该 running 索引记录
+                // 点停 = 中止整批（逐篇检查 ctrl.signal 退出），不是只断
+                // 当前这一篇的 AI。ctrl 是本流程自建的 AbortController，
+                // 与页内「再点=中止」同一处。
+                const r = await generateKnowledgeOutline(
+                    id,
+                    this.v.aiModelId(),
+                    ctrl.signal,
+                    bank,
+                    aiStopHandle(ctrl.signal, () => ctrl.abort())
+                );
                 ok++;
                 count += r.count;
             } catch (e) {

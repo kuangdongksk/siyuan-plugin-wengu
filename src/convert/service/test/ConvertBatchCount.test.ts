@@ -62,6 +62,11 @@ A
 @@TO: END`;
 vi.mock("../../../ai/client", () => ({
     newAiGroupId: () => "g-test",
+    // 面板「停止」接线（Issue #72）：本用例只锁批数口径，句柄给个恒等实现
+    aiStopHandle: (signal: AbortSignal, stop: () => void) => ({
+        signal,
+        onSid: (): void => void stop,
+    }),
     agentChatOnce: vi.fn(async () => {
         ai.calls++;
         if (ai.calls % 3 === 0) {

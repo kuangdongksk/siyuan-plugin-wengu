@@ -18,11 +18,17 @@ const FALLBACK_COOLDOWN_MS = 60_000;
 
 /* ── 后台 AI 流的中止接线与单飞闸（20260905 弹窗去阻塞改造） ── */
 
-/** 登记簿记录 id → 该调用所属流的 AbortController：流入口用 aiAbort()
- *  建句柄、track.onSid 把每个在途调用的记录 id 挂上——AI 会话面板对
- *  running 记录点「停止」即 abortAiSession(id) 断掉在途 fetch，流循环
- *  逐项检查 signal 退出。调用收口时自动注销。 */
-const stopBySid = new Map<string, AbortController>();
+/** 登记簿里的「可中止句柄」两种形态：AbortController（aiAbort 造的
+ *  通用流出品）与停止回调（**自带总闸**的业务流专用，如转换的
+ *  stopConvertRun → internal.abort()——见 aiStopHandle）。面板「停止」
+ *  对两者都只是「调一下」，不关心里面是断单笔 fetch 还是收整条流。 */
+type StopHandle = AbortController | (() => void);
+
+/** 登记簿记录 id → 该调用所属流的可中止句柄：流入口用 aiAbort() /
+ *  aiStopHandle() 建句柄、track.onSid 把每个在途调用的记录 id 挂上——
+ *  AI 会话面板对 running 记录点「停止」即 abortAiSession(id) 调停该流，
+ *  流循环逐项检查 signal / 自身 aborted 标记退出。调用收口时自动注销。 */
+const stopBySid = new Map<string, StopHandle>();
 
 /** 后台流的中止句柄：signal 传给每个 agentChatOnce，onSid 传进 track。 */
 export interface AiAbort {
@@ -35,12 +41,27 @@ export function aiAbort(): AiAbort {
     return { signal: ctrl.signal, onSid: (sid) => stopBySid.set(sid, ctrl) };
 }
 
+/**
+ * 自带停止回调的中止句柄（业务流总闸版 aiAbort）：signal 只用于**本轮
+ * 在途 fetch 断流**（转换族每笔调用都要它），onSid 把面板「停止」接到
+ * 调用方给的 stop——**语义等价于页内停止钮**：转换流即
+ * `stopConvertRun` → `internal.abort()`（置 aborted 标记 + 断在途
+ * fetch + worker 池收口），不是只断当前这一笔 fetch。
+ *
+ * 转换族（整卷/批量队列/增量）原先 track 只带 {kind,title,group}、从不
+ * 传 onSid，面板点停因此查无此 id、静默无效（Issue #72 根因）。
+ */
+export function aiStopHandle(signal: AbortSignal, stop: () => void): AiAbort {
+    return { signal, onSid: (sid) => stopBySid.set(sid, stop) };
+}
+
 /** 中止一条在途调用所属的流（面板「停止」入口）；未接线/已收口返 false。 */
 export function abortAiSession(sid: string): boolean {
-    const c = stopBySid.get(sid);
-    if (!c) return false;
+    const h = stopBySid.get(sid);
+    if (!h) return false;
     stopBySid.delete(sid);
-    c.abort();
+    if (typeof h === "function") h();
+    else h.abort();
     return true;
 }
 
