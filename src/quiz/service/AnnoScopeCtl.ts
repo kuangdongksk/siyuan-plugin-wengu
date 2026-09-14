@@ -1,6 +1,6 @@
 import type { QuestionBank } from "../../bank/data/QuestionBank";
-import { peekSetTypeUnion, setTypeUnion } from "../../bank/data/BankSets";
-import { annoOwnerQid, isEnglishTypes } from "../flow/AnnoScope";
+import { peekSetSubject, peekSetTypeUnion, setTypeUnion } from "../../bank/data/BankSets";
+import { annoOwnerQid, isEnglishScope } from "../flow/AnnoScope";
 import type { WenguQuestion } from "../../types";
 
 /**
@@ -10,9 +10,14 @@ import type { WenguQuestion } from "../../types";
  * 题集题型并集。
  *
  * 反查链：选段所在卡（`data-qid`；组题材料面板按组内卡，见 annoOwnerQid）
- * → 该题 rootId（= 源题集 id）→ 该卷题型并集含英语四类任一。**任何一环
- * 反查不到即 false**（宁缺勿错：放行标生词比误出更坏）。聚合「全部习题」
- * 混合刷天然按各卡各判。
+ * → 该题 rootId（= 源题集 id）→ 该卷是否英语卷（Issue #83 两级口径
+ * `isEnglishScope`：**有学科以学科为准、无学科回退题型并集**）。**任何
+ * 一环反查不到即 false**（宁缺勿错：放行标生词比误出更坏）。聚合「全部
+ * 习题」混合刷天然按各卡各判（本控制器按 setId 缓存即为此）。
+ *
+ * ⚠️ **只服务「标生词」这一个语言专属功能**：阅读面/题卡间距阶梯看**材料
+ * 组结构**、全学科一致（`flow/ReadingScope`），**不经过本控制器**——两者
+ * 曾经同源是 #81 修错方向的产物（#83 已切分）。
  */
 
 /** 判定宿主（QuizView 以自身实现：题表 + 题库）。 */
@@ -75,13 +80,21 @@ export class AnnoScopeCtl {
         // 异步补正——下一次 selectionchange 就有正确结果（题表装载通常
         // 先于用户选段，这条只为时序死角）
         if (bank.peek()) {
-            const english = isEnglishTypes(peekSetTypeUnion(bank, setId));
+            const english = isEnglishScope(peekSetSubject(bank, setId), peekSetTypeUnion(bank, setId));
             this.cache.set(setId, english);
             return english;
         }
         const gen = this.gen;
+        // 异步补正（题库整体未装载的时序死角）：题型并集 await 查库；
+        // ⚠️ 学科**必须在 await 之后再窥视**——进这条分支的前提正是
+        // `bank.peek()` 为空，此时提前取学科恒 undefined：带学科的纯阅读
+        // 英语卷（全 single、无英语形态）会被落成「无学科 ⇒ 回退题型并集
+        // ⇒ 非英语」，缓存一直错到下次换卷/切模式。setTypeUnion 内部已
+        // await bank.all()，回来时 peek 就绪 ⇒ 这里读到的是真学科。
+        // 回归锁：service/AnnoScopeCtl.test「补正判真」。
         void setTypeUnion(bank, setId).then((types) => {
-            if (gen === this.gen) this.cache.set(setId, isEnglishTypes(types)); // 已换卷/切模式的旧世代结果丢弃
+            // 已换卷/切模式的旧世代结果丢弃
+            if (gen === this.gen) this.cache.set(setId, isEnglishScope(peekSetSubject(bank, setId), types));
         });
         return false;
     }

@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { QuestionType } from "../../types";
-import { annoEnabled, annoOwnerQid, isEnglishTypes, pickAnnobarButtons } from "./AnnoScope";
+import {
+    annoEnabled,
+    annoOwnerQid,
+    isEnglishScope,
+    isEnglishSubject,
+    isEnglishTypes,
+    pickAnnobarButtons,
+} from "./AnnoScope";
 
 /**
  * 标注浮条作用域纯逻辑（Issue #45）：模式闸（只做题模式放行）、卷级
- * 英语判定（题型并集含英语四类任一）、按钮分流（两钮都不出=不出现）。
+ * 英语判定、按钮分流（两钮都不出=不出现）。英语判定 Issue #83 起是
+ * **两级口径**：有学科以学科为准、无学科回退题型并集（见下方 isEnglishScope 段）。
  */
 
 describe("annoEnabled 模式闸", () => {
@@ -41,6 +49,48 @@ describe("isEnglishTypes 卷级英语判定", () => {
         expect(isEnglishTypes([])).toBe(false);
         expect(isEnglishTypes(undefined)).toBe(false);
         expect(isEnglishTypes(null)).toBe(false);
+    });
+});
+
+describe("isEnglishScope 两级口径（Issue #83 标生词闸）", () => {
+    it("有学科以学科为准：纯阅读英语卷（只有 single）也判英语（验收 1）", () => {
+        expect(isEnglishScope("英语", [QuestionType.Single])).toBe(true);
+    });
+
+    it("有学科以学科为准：语文卷（essay/trans）不判英语（验收 2）", () => {
+        expect(isEnglishScope("语文", [QuestionType.Essay, QuestionType.Trans])).toBe(false);
+        expect(isEnglishScope("数学", [QuestionType.Single])).toBe(false);
+    });
+
+    it("学科与题型并集**冲突时以学科为准**（两个方向都锁）", () => {
+        // 英语学科 + 无英语形态 ⇒ 英语；数学学科 + 有英语形态 ⇒ 非英语
+        expect(isEnglishScope("英语", [])).toBe(true);
+        expect(isEnglishScope("数学", [QuestionType.Cloze, QuestionType.Match])).toBe(false);
+    });
+
+    it("无学科回退题型并集（存量题集不回归，验收 4）", () => {
+        expect(isEnglishScope(undefined, [QuestionType.Cloze])).toBe(true);
+        expect(isEnglishScope(undefined, [QuestionType.Single])).toBe(false);
+        expect(isEnglishScope(undefined, undefined)).toBe(false);
+    });
+
+    it("空串/空白/占位学科走回退腿（不算「有学科」）", () => {
+        expect(isEnglishScope("", [QuestionType.Single])).toBe(false);
+        expect(isEnglishScope("   ", [QuestionType.Essay])).toBe(true);
+    });
+});
+
+describe("isEnglishSubject 学科字面判定", () => {
+    it("认「英语/英文/english」（大小写与空白不敏感）", () => {
+        for (const s of ["英语", " 英语 ", "英文", "English", "ENGLISH", "english "]) {
+            expect(isEnglishSubject(s), s).toBe(true);
+        }
+    });
+
+    it("其它学科与虚词一律不认（不做模糊匹配）", () => {
+        for (const s of ["英语文学", "English literature", "数学", "语文", "自控原理", "无", "", undefined]) {
+            expect(isEnglishSubject(s as string | undefined), String(s)).toBe(false);
+        }
     });
 });
 

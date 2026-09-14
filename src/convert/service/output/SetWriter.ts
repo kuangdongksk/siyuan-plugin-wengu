@@ -1,6 +1,6 @@
 import { GROUP_PREV } from "../../../siyuan/attrs";
 import type { QuestionBank, BankRecord } from "../../../bank/data/QuestionBank";
-import { mintMatId, mintQid, mintSetId, removeRecords } from "../../../bank/data/BankSets";
+import { mintMatId, mintQid, mintSetId, normalizeSubject, removeRecords } from "../../../bank/data/BankSets";
 import { parseQuestionKramdown, questionHash } from "../../../bank/data/BankParse";
 import { renderUnit } from "../draft/QuestionDraft";
 import type { DraftUnit } from "../draft/QuestionDraft";
@@ -40,17 +40,29 @@ export class SetWriter {
     constructor(private readonly bank: QuestionBank) {}
 
     /** 开（或续挂）本次转换的题集：setId 给定且存在=续跑接管；否则新建。
-     *  源卷影子专题（专题面板「·源卷」行）随建，题单随写维护。 */
-    async openSet(opts: { setId?: string; title: string; srcId?: string; hPath?: string }): Promise<string> {
+     *  源卷影子专题（专题面板「·源卷」行）随建，题单随写维护。
+     *  `subject` = 转换首批判定行报出的**真实学科**（Issue #83）：新建时
+     *  落库、续挂的存量题集**只填不改**（已有学科不被首批复检覆写——同
+     *  title/srcId/hPath 的补齐口径：存量零迁移、缺什么补什么）。 */
+    async openSet(opts: {
+        setId?: string;
+        title: string;
+        srcId?: string;
+        hPath?: string;
+        subject?: string;
+    }): Promise<string> {
         const data = await this.bank.all();
         data.sets ??= {};
         const id = opts.setId && data.sets[opts.setId] ? opts.setId : mintSetId();
+        const subject = normalizeSubject(opts.subject);
         if (!data.sets[id]) {
             data.sets[id] = {
                 id,
                 title: opts.title,
                 ...(opts.hPath ? { hPath: opts.hPath } : {}),
                 ...(opts.srcId ? { srcId: opts.srcId } : {}),
+                // 学科（Issue #83）：首批判定行报出，缺省不带键（无学科）
+                ...(subject ? { subject } : {}),
                 qids: [],
                 createdAt: Date.now(),
             };
@@ -67,6 +79,8 @@ export class SetWriter {
             if (opts.title && !s.title) s.title = opts.title;
             if (opts.srcId && !s.srcId) s.srcId = opts.srcId;
             if (opts.hPath && !s.hPath) s.hPath = opts.hPath;
+            // 学科只填不改（存量集/续跑复检不覆写既有判定；要改需显式重转）
+            if (subject && !s.subject) s.subject = subject;
         }
         this.bank.markDirty();
         return id;

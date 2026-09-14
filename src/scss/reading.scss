@@ -1,8 +1,13 @@
-/* 材料阅读节奏（English 阅读/完形，20260914 设计稿
+/* 材料阅读节奏（**全学科材料组**，20260914 设计稿
    design/wengu-reading-unit-redesign.html 落地）——
    材料区从「小卡片 + 内滚」改为阅读面：凹槽底、衬线正文、68ch 行长、
    渐隐分界线。作用域是「作答列表 + 组题单元」，二者同挂
    `.wengu-reading`（挂载点在 CardHtml.renderMainShell / GroupUnitApp）。
+
+   ⚠️ 作用域的判据是**材料组结构**（材料块 + 依附小题 = 一题多问），
+   **与学科/题型零关系**（Issue #83）：英语阅读/完形、语文文言文、政治
+   材料分析、工科一题多问都是材料组，都吃这套；纯独立题段不吃。别把
+   它接回英语卷判别（#81/#82 的修错方向）。
 
    ⚠️ 类名选型：**不许用 `.wengu-pv`** —— 那是预览模式作用域
    （PreviewFlow.decoratePreview 加在面板根上，scss/preview.scss 一大片

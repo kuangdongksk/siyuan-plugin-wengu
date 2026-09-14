@@ -152,6 +152,27 @@ describe("SetWriter · 20260903 审查修复", () => {
         expect(out.questions[0]?.group).toBe(out.materials[0]?.id);
     });
 
+    it("openSet 落**学科**（Issue #83）：新建时写入、续挂时只填不改", async () => {
+        const { bank, data } = newBank();
+        const w = new SetWriter(bank);
+        // 新建：首批判定行报出的学科随题集落库
+        const s1 = await w.openSet({ title: "英一阅读", srcId: "src-1", subject: "英语（阅读理解）" });
+        expect(data().sets?.[s1].subject).toBe("英语"); // 归一取首个学科名
+        // 续挂：已有学科不被首批复检覆写（只填不改）
+        await w.openSet({ setId: s1, title: "英一阅读", subject: "数学" });
+        expect(data().sets?.[s1].subject).toBe("英语");
+        // 存量集（无 subject）：续跑首次报出即补上
+        const s2 = await w.openSet({ title: "语文卷" });
+        delete data().sets![s2].subject; // 模拟旧版建的集：字段缺失
+        await w.openSet({ setId: s2, title: "语文卷", subject: "语文" });
+        expect(data().sets?.[s2].subject).toBe("语文");
+        // 未报/占位 ⇒ 不落键（无学科，判别回退题型并集）
+        const s3 = await w.openSet({ title: "未知卷", subject: "无" });
+        expect(data().sets?.[s3].subject).toBeUndefined();
+        const s4 = await w.openSet({ title: "无报卷" });
+        expect(data().sets?.[s4].subject).toBeUndefined();
+    });
+
     it("丢弃空题集（只出材料的批）连 set/材料/影子专题一起回收", async () => {
         const { bank, data } = newBank();
         const w = new SetWriter(bank);

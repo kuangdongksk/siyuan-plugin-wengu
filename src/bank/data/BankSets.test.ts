@@ -6,8 +6,10 @@ import {
     allSetMaterials,
     allSetQuestions,
     ensureSets,
+    normalizeSubject,
     orderedSetIds,
     originDocIdOf,
+    peekSetSubject,
     qidHasBlock,
     readRecordSrcGroups,
     removeRecords,
@@ -238,5 +240,35 @@ describe("聚合视图（all：全部习题合刷）", () => {
         });
         expect((await allSetQuestions(bank)).map((q) => q.id)).toEqual(["q1"]);
         expect((await allSetMaterials(bank)).map((m) => m.bodyMd)).toEqual(["材料一"]);
+    });
+});
+
+describe("题集学科（Issue #83：种类是真实学科，不是题型代理）", () => {
+    it("normalizeSubject：去装饰取首个学科名；空/占位一律 undefined", () => {
+        expect(normalizeSubject("英语")).toBe("英语");
+        expect(normalizeSubject(" 英语 ")).toBe("英语");
+        expect(normalizeSubject("英语（阅读理解）")).toBe("英语");
+        expect(normalizeSubject("数学/高数")).toBe("数学");
+        expect(normalizeSubject("自控原理。")).toBe("自控原理");
+        // 占位/空 ⇒ 无学科（回退题型并集，不落假学科）
+        for (const raw of ["无", "未知", "不确定", "N/A", "-", " ", "", undefined, null]) {
+            expect(normalizeSubject(raw as string | undefined), String(raw)).toBeUndefined();
+        }
+    });
+
+    it("peekSetSubject：窥视已装载题集的学科，未装载/无字段/不存在 ⇒ undefined", async () => {
+        const { bank } = newBank({
+            sets: {
+                s1: { id: "s1", title: "英一阅读", qids: [], createdAt: 1, subject: "英语" },
+                s2: { id: "s2", title: "存量卷", qids: [], createdAt: 2 },
+            },
+        });
+        expect(bank.peek()).toBeUndefined();
+        expect(peekSetSubject(bank, "s1")).toBeUndefined(); // 未装载不查库（宁窄勿宽）
+        await bank.preload();
+        expect(peekSetSubject(bank, "s1")).toBe("英语");
+        expect(peekSetSubject(bank, "s2")).toBeUndefined(); // 存量无字段=无学科
+        expect(peekSetSubject(bank, "s-nope")).toBeUndefined();
+        expect(peekSetSubject(bank, "")).toBeUndefined();
     });
 });

@@ -90,7 +90,9 @@ export interface MainShellModel {
     previewing: boolean;
     hasDoc: boolean;
     listCount: number;
-    /** 阅读面作用域（英语卷，Issue #81）：挂主区题卡列表；非英语卷不带该类名。 */
+    /** 阅读面作用域（Issue #83 **结构判据**）：整卷**每段都有材料组**时
+     *  挂主区题卡列表（`.wengu-card-list.wengu-reading`），混合刷下材料段
+     *  与纯独立题段并存时此处 false、改由段包装逐段挂（QuizShell）。 */
     reading: boolean;
     /** 未开刷时渲染开刷面板。 */
     startPanelHtml?: string;

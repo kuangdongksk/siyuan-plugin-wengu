@@ -81,6 +81,56 @@ export function peekSetTypeUnion(bank: QuestionBank, setId: string): QuestionTyp
     return typeUnionOf(bank.peek(), setId);
 }
 
+/* ── 题集学科（Issue #83）──
+ * 题型是**作答形态**、不是**学科**：英语阅读的 single 与数学单选都是
+ * single，语文的 essay/trans 也在英语四类形态里——拿「题型并集含英语四类
+ * 任一」当语言代理，两个方向都会判错（纯阅读英语卷漏判、语文卷误判）。
+ * 故题集补**真实学科字段**（转换首批判定行顺带报出），判定的两级口径见
+ * quiz/flow/AnnoScope 的 isEnglishScope：**有学科以学科为准、无学科才回退
+ * 题型并集**（存量题集零迁移、逐字节不回归）。
+ *
+ * ⚠️ **仅服务「标生词」**（语言专属功能）：阅读面/题卡间距阶梯是**材料组
+ * 结构**判据、与学科零关系（quiz/flow/ReadingScope）。别把本字段接到任何
+ * 视觉判定上——那是 #83 的根因（#81/#82 把阅读面绑在英语判别上）。 */
+
+/** 学科字面归一：去空白/标点、全角冒号顿号等作分隔后取**首个词**——
+ *  约定 AI 只报一个学科（「英语」/「数学」/「语文」…），偶发带说明
+ *  （「英语（阅读理解）」）时取斜杠前的首段。空/占位（「无」「未知」「-」）
+ *  一律归 undefined=**无学科**（回退题型并集，而不是落一个假学科）。
+ *  ⚠️ 归一**只做去装饰**，不做别名映射/模糊匹配：学科是开放集（历史、
+ *  政治、自控原理…），猜错比不猜更坏（假学科会把判别锁死）。 */
+export function normalizeSubject(raw?: string | null): string | undefined {
+    // 占位先判**原串**再判首段：拆词会先动斜杠（「N/A」拆完只剩 \`N\`），
+    // 顺序反过来就把它当成一个真学科落库、判别被假学科锁死
+    const trimmed = (raw ?? "").trim();
+    if (isPlaceholderSubject(trimmed)) return undefined;
+    // 分隔符：换行/逗号/顿号/分号/竖线/斜杠/各类括号——AI 偶发写
+    // 「英语（阅读理解）」/「数学/高数」时取首个学科名
+    const head = trimmed
+        .split(/[\n\r,，、;；|/（(【[]/)[0]
+        ?.replace(/[\s:：.。·—–-]+/g, "")
+        .trim();
+    return head && !isPlaceholderSubject(head) ? head : undefined;
+}
+
+/** 占位/空串 = 无学科（「无」「未知」「N/A」…）。 */
+function isPlaceholderSubject(s: string): boolean {
+    return !s || /^(无|未知|不确定|未注明|none|unknown|n\/a|-+)$/i.test(s);
+}
+
+/** 题集学科解析的唯一计算体（窥视版与直读版同源，口径不分叉）。 */
+function subjectOfSet(data: BankData | undefined, setId: string): string | undefined {
+    if (!data || !setId) return undefined;
+    return normalizeSubject(data.sets?.[setId]?.subject);
+}
+
+/** 题集学科的**同步窥视版**（渲染/选段回调里的高频同步路径不能 await，
+ *  同 peekSetTypeUnion 的理由）：只看已装载缓存，未装载返回 undefined
+ *  =调用方按「无学科」收口（回退题型并集或宁窄勿宽，随消费点）。 */
+export function peekSetSubject(bank: QuestionBank, setId: string): string | undefined {
+    return subjectOfSet(bank.peek(), setId);
+}
+
 /** 全部题集聚合题目（聚合专题刷题列表；空题集自然无贡献）。 */
 export async function allSetQuestions(bank: QuestionBank): Promise<ParsedQuestion[]> {
     const out: ParsedQuestion[] = [];

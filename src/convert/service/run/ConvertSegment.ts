@@ -3,7 +3,7 @@ import type { StepContext } from "../../../ai/prompts/convert";
 import { questionHash } from "../../../bank/data/BankParse";
 import type { QuestionType } from "../../../types";
 import { parseVerdict } from "../core/ConvertService";
-import { parseTypes } from "../draft/ConvertDetect";
+import { parseSubject, parseTypes } from "../draft/ConvertDetect";
 import { shuffleDraftOptions } from "../draft/OptionShuffle";
 import { parseDrafts } from "../draft/QuestionDraft";
 import { foldGlossIntoDrafts } from "../gloss/GlossFold";
@@ -59,6 +59,10 @@ export interface SegmentDeps {
     ): (text: string) => Promise<{ reply: string; byAlias?: Map<string, KnowSection> }>;
     /** 某片首批报出的题型（编排层归类并集，供后开批次用）。 */
     reportTypes(types: QuestionType[]): void;
+    /** 某片首批报出的**学科**（Issue #83；空=未报/占位「无」——编排层
+     *  按「无学科」收口，题集回退题型并集判定，不落假学科）。多片并行的
+     *  首批各报各的（同卷各片学科一致，首个非空即该卷学科）。 */
+    reportSubject(subject?: string): void;
     /** 交付一批产物：编排层按片序闸门落库，返回落库题数。 */
     submit(batch: SegmentBatch): Promise<number>;
     /** 内部信号（用户终止或任一失败都会置位）。 */
@@ -125,11 +129,14 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
                     : String(err?.message ?? e);
             return res;
         }
-        // 首批顺带判定（能否出题 + 题型先验），后续批次复用题型
+        // 首批顺带判定（能否出题 + 题型先验 + 学科），后续批次复用题型
+        // （SUBJECT 行只在首批——非首批 prompt 明确免报）
         const verdict = res.batches === 1 ? parseVerdict(gen.reply) : undefined;
         if (verdict) {
             const types = parseTypes(gen.reply);
             if (types.length > 0) deps.reportTypes(types);
+            const subject = parseSubject(gen.reply); // 未报/占位「无」⇒ undefined
+            if (subject) deps.reportSubject(subject);
             if (!verdict.can) res.refused = verdict.reason;
         }
         const to = parseToDirective(gen.reply);

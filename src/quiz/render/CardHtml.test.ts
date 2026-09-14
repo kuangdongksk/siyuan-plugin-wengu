@@ -3,9 +3,10 @@ import { renderMainShell } from "./CardHtml";
 import type { MainShellModel } from "./CardHtml";
 
 /**
- * 主壳渲染（Issue #81）：`.wengu-reading` 只在英语卷出现——判定结果由
- * 调用方（QuizShell）经 readingScopeOf 传入，本层只做「有/无类名」的
- * 字符串契约（非英语卷渲染产物与改造前逐字节一致）。
+ * 主壳渲染（Issue #81，Issue #83 改结构判据）：`.wengu-reading` 是
+ * **阅读面作用域**类名——判定结果（整卷都是材料组单元）由调用方
+ * （QuizShell）经 readingShellScope 传入，本层只做「有/无类名」的字符串
+ * 契约（不挂时渲染产物与改造前逐字节一致）。
  */
 
 const t = (k: string): string => k;
@@ -24,13 +25,13 @@ const model = (over: Partial<MainShellModel> = {}): MainShellModel => ({
     ...over,
 });
 
-describe("renderMainShell · 阅读面作用域类名（Issue #81 挂载侧）", () => {
-    it("英语卷：题卡列表带 .wengu-reading", () => {
+describe("renderMainShell · 阅读面作用域类名（结构判据，Issue #83）", () => {
+    it("整卷每段含材料组：题卡列表带 .wengu-reading", () => {
         const html = renderMainShell(model({ reading: true }));
         expect(html).toContain('class="wengu-card-list wengu-reading"');
     });
 
-    it("非英语卷：不带 .wengu-reading（逐字节等价于改造前）", () => {
+    it("无材料组段：不带 .wengu-reading（逐字节等价于改造前）", () => {
         const html = renderMainShell(model({ reading: false }));
         expect(html).toContain('class="wengu-card-list"');
         expect(html).not.toContain("wengu-reading");
@@ -41,7 +42,7 @@ describe("renderMainShell · 阅读面作用域类名（Issue #81 挂载侧）",
         expect(html).toContain('class="wengu-card-list wengu-reading wengu-previewing"');
     });
 
-    it("非英语卷预览态：只有 wengu-previewing（无阅读面）", () => {
+    it("无材料组段预览态：只有 wengu-previewing（无阅读面）", () => {
         const html = renderMainShell(model({ reading: false, previewing: true }));
         expect(html).toContain('class="wengu-card-list wengu-previewing"');
         expect(html).not.toContain("wengu-reading");
