@@ -174,6 +174,11 @@ export class QuestionBank {
      *  拒绝一切落盘，防两机插件版本错位时旧版覆写清库。 */
     private foreign?: boolean;
     private flushTimer?: number;
+    /** 串行落盘链（同 AiSessions/HistoryStore/RouteCache 模式）：防抖
+     *  flush 与关键节点直调 flush 可并发，两笔 saveData 在途且「先发后落」
+     *  时盘面会短暂回退旧态——排队串行封掉这个窗口（千级题库整写慢盘
+     *  在途可超 2s 防抖窗）。链面吞错保后续可排，错误在本笔 await 侧处理。 */
+    private saveChain: Promise<unknown> = Promise.resolve();
     private readonly parsedCache = new Map<string, { hash: string; parsed: ParsedQuestion }>();
 
     constructor(
@@ -235,8 +240,15 @@ export class QuestionBank {
         }
         if (!this.dirty || !this.cache || this.foreign) return;
         this.dirty = false;
+        // 载荷取守卫后的活引用：saveRaw 调用瞬间才序列化，链上排到的每笔
+        // 写到的都是「它落笔那一刻」的最新内存态（不快照克隆——千级题库
+        // 克隆太贵，且晚笔带更新态正是我们要的次序语义）。
+        const cache = this.cache;
+        const run = this.saveChain.then(() => this.saveRaw(cache));
+        const noop = (): void => undefined;
+        this.saveChain = run.then(noop, noop);
         try {
-            await this.saveRaw(this.cache);
+            await run;
         } catch (e) {
             // 尽力而为：写失败保留脏标记并重排防抖——原只保留标记不清
             // 定时器，得等下一次 markDirty 才会再试（20260829 审查）；

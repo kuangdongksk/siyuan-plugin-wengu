@@ -158,3 +158,35 @@ describe("flush 失败重试（3.8.2 生命周期闸：终止类失败不重排�
         }
     });
 });
+
+describe("串行落盘链（并发 flush 排队，不双写在途）", () => {
+    it("A 在途期间的直调 flush 排队等 A resolve 后才起步，全程不重叠", async () => {
+        let inflight = 0;
+        let maxInflight = 0;
+        const gate: Array<() => void> = [];
+        const bank = new QuestionBank(
+            async () => undefined,
+            async () => {
+                inflight++;
+                maxInflight = Math.max(maxInflight, inflight);
+                await new Promise<void>((r) => gate.push(r));
+                inflight--;
+            }
+        );
+        await bank.preload();
+        bank.markDirty();
+        const a = bank.flush();
+        bank.markDirty();
+        const b = bank.flush(); // 防抖窗内再直调（销毁/关键节点语义）
+        await new Promise((r) => setTimeout(r, 0)); // 放微任务：链上首笔起步
+        expect(inflight).toBe(1);
+        expect(maxInflight).toBe(1); // A 在途，B 尚未起步
+        gate[0]!(); // 放行 A
+        await new Promise((r) => setTimeout(r, 0)); // 链推进到 B
+        expect(inflight).toBe(1);
+        expect(maxInflight).toBe(1); // 仍无重叠
+        gate[1]!(); // 放行 B
+        await Promise.all([a, b]);
+        expect(maxInflight).toBe(1);
+    });
+});
