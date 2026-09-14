@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AiSessionRecord } from "../data/AiSessions";
-import { AI_INTERRUPTED } from "../data/AiSessions";
+import { AI_INTERRUPTED, AI_STOPPED } from "../data/AiSessions";
 import { clockOf, detailViewOf, questionCountOf } from "./SessionDetail";
+import { buildSessionTree } from "./SessionTree";
 
 /**
  * 详情三段视图（Issue #88）：详情头（任务名 + kind 徽标 + 状态徽标）、
@@ -20,6 +21,8 @@ const TEMPLATES: Record<string, string> = {
     aiLogOutputQ: "输出 {n} 字 · 含 {q} 题",
     aiLogLabel: "轮次日志",
     aiInterrupted: "已中断（插件重载）",
+    aiStatusStopped: "已停止",
+    aiLogStopped: "收到整批停止指令 · 已产出部分保留待抉择",
     aiSending: "思考中…",
     aiWaitingSlot: "等待空闲通道…",
     aiWaitingSlotX: "",
@@ -39,7 +42,14 @@ function rec(over: Partial<AiSessionRecord> = {}): AiSessionRecord {
     };
 }
 
-const base = { t, kindText: "转换", title: "生成第 12 批 · 8 题", modelText: "默认模型", ownNote: "" };
+const base = {
+    t,
+    kindText: "转换",
+    title: "生成第 12 批 · 8 题",
+    modelText: "默认模型",
+    ownNote: "",
+    decidable: false,
+};
 
 describe("详情头", () => {
     it("任务名（树里那份行名）+ kind 徽标 + 状态徽标（与树叶子行同一份判定）", () => {
@@ -114,6 +124,69 @@ describe("轮次日志", () => {
         expect(v.retryable).toBe(true);
     });
 
+    it("时间锚只取真实可推的两点：user=登记时刻、ai=收口时刻（不编中间时刻）", () => {
+        const createdAt = new Date(2026, 8, 14, 14, 22, 7).getTime();
+        const endedAt = new Date(2026, 8, 14, 14, 22, 48).getTime();
+        const v = detailViewOf(
+            rec({
+                createdAt,
+                endedAt,
+                turns: [
+                    { role: "user", text: "abcd" },
+                    { role: "ai", text: "efgh" },
+                ],
+            }),
+            base
+        )!;
+        expect(v.rows[0].time).toBe("14:22:07");
+        expect(v.rows[1].time).toBe("14:22:48");
+    });
+
+    it("未收口（running）无 endedAt：ai 轮回落登记时刻（只有起点是真的）", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "q" },
+                    { role: "ai", text: "a" },
+                ],
+            }),
+            base
+        )!;
+        expect(v.rows[1].time).toBe("14:22:07");
+    });
+
+    it("被停止（AI_STOPPED）：末行是停止词（非红）、出抉择入口、不出重试钮", () => {
+        const v = detailViewOf(rec({ status: "error", error: AI_STOPPED, turns: [{ role: "user", text: "q" }] }), {
+            ...base,
+            ownNote: "本记录随整批转换一起停止…",
+            decidable: true, // 宿主按流归属判定（转换族才有保留/丢弃抉择）
+        })!;
+        expect(v.head.status).toMatchObject({ dotCls: "stop", badgeText: "已停止", spin: false });
+        expect(v.rows.at(-1)).toMatchObject({
+            isError: false,
+            parts: [{ text: "收到整批停止指令 · 已产出部分保留待抉择", em: false }],
+        });
+        expect(v.decidable).toBe(true);
+        expect(v.retryable).toBe(false);
+        expect(v.errorText).toBe("");
+        expect(v.ownNote).toBe("本记录随整批转换一起停止…");
+    });
+
+    it("抉择入口由宿主判定（本模块不猜）：宿主不给就没有，免死钮", () => {
+        const v = detailViewOf(
+            rec({ status: "error", error: AI_STOPPED, turns: [{ role: "user", text: "q" }] }),
+            base // ownNote="" 且 decidable=false（如单调用流被中止 / 六批流停下）
+        )!;
+        expect(v.decidable).toBe(false);
+        expect(v.ownNote).toBe("");
+    });
+
+    it("真失败不出抉择入口、出重试钮（停止态的反面，防两态混同）", () => {
+        const v = detailViewOf(rec({ status: "error", error: "超时", turns: [] }), base)!;
+        expect(v.decidable).toBe(false);
+        expect(v.retryable).toBe(true);
+    });
+
     it("重载中断：不进日志红行、不出重试正文（那是预期收口，不是失败）", () => {
         const v = detailViewOf(
             rec({ status: "error", error: AI_INTERRUPTED, turns: [{ role: "user", text: "q" }] }),
@@ -121,6 +194,27 @@ describe("轮次日志", () => {
         )!;
         expect(v.rows.at(-1)).toMatchObject({ isError: false, parts: [{ text: "已中断（插件重载）", em: false }] });
         expect(v.errorText).toBe("");
+    });
+});
+
+/**
+ * 跨模块一致性（Issue #88 验收 2/3）：树叶子行与详情头**同源**——两处都取
+ * `leafViewOf`，不会各写一套状态词/色名（否则同一条记录左栏说「已停止」
+ * 右栏说「失败」）。这条锁死「同源」这个结构事实。
+ */
+describe("树叶子行与详情头同源", () => {
+    it("被停止的记录：两处的色类与状态词逐字一致", () => {
+        const stopped = rec({ status: "error", error: AI_STOPPED });
+        const tree = buildSessionTree([stopped], "", (k) => k, t);
+        const d = detailViewOf(stopped, base)!;
+        const leaf = tree.leafViewByKey.get("s1")!;
+        expect(d.head.status).toMatchObject({
+            dotCls: leaf.dotCls,
+            badgeCls: leaf.badgeCls,
+            badgeText: leaf.badgeText,
+            spin: leaf.spin,
+        });
+        expect(leaf.dotCls).toBe("stop");
     });
 });
 

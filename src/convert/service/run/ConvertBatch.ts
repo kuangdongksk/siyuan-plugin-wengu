@@ -11,7 +11,7 @@ import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { KnowledgeIndex } from "../knowledge/KnowledgeLink";
 import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { aiStopHandle, newAiGroupId, type AiSessionGroup } from "../../../ai/client";
-import { aiSessions } from "../../../ai/data/AiSessions";
+import { AI_STOPPED, aiSessions } from "../../../ai/data/AiSessions";
 import { SetWriter } from "../output/SetWriter";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import { setTypeUnion } from "../../../bank/data/BankSets";
@@ -342,7 +342,9 @@ export async function convertDocBatched(
      *  「用户终止」（Issue #72 实现期踩到）。 */
     const abortFlow = (): void => {
         userAborted = true;
-        internal.abort();
+        // 带 AI_STOPPED 理由：在途那笔据此记「停止」而非「失败」（Issue #88）。
+        // ⚠️ 下面兄弟失败的 internal.abort() **不带**理由——两者必须能分辨。
+        internal.abort(AI_STOPPED);
     };
     const relayAbort = (): void => abortFlow();
     opts.signal?.addEventListener("abort", relayAbort);

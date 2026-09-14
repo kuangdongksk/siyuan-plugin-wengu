@@ -90,6 +90,16 @@ export const AI_SESSIONS_CAP = 150;
 export const AI_SESSION_KIND_CAP = 40;
 /** 重载时在途记录的收口标记（面板映射为「已中断」文案）。 */
 export const AI_INTERRUPTED = "interrupted";
+/** 被**中止**（用户停止整批流 / 进程内中止）的收口标记（Issue #88）：
+ *  与 {@link AI_INTERRUPTED} 同款哨兵形态——status 仍是 error（不动状态
+ *  机与存档 schema），但面板据此渲染**停止态**（琥珀色点 + `stopped` 徽标
+ *  + 「随整批一起停止」归属备注），而不是红色「失败」。
+ *
+ *  为什么要它：设计稿 `ai-panel-stopped` 屏里那条记录是 `dot--stop`
+ *  + `badge--stop`，而用户点停后真实落库的是 `errText(AbortError)`
+ *  = "aborted"——面板会一边显示「转换已停止 · 等待抉择」的横幅、一边把
+ *  同一条记录染成红色「失败」，两处口径互相矛盾（本单点名的粒度错位）。 */
+export const AI_STOPPED = "stopped";
 
 /** 单轮文本封顶（防御超长 prompt 撑爆存储）。 */
 const TURN_TEXT_CAP = 20_000;
@@ -251,6 +261,20 @@ export class AiSessionStore {
         r.endedAt = Date.now();
         delete r.error;
         r.turns.push({ role: "ai", text: capText(reply) });
+        this.schedule();
+        this.notify();
+    }
+
+    /** 被**中止**收口（用户停止整批流；Issue #88）：status 仍走 error
+     *  （状态机与存档 schema 不动），但 error 落 {@link AI_STOPPED} 哨兵
+     *  ⇒ 面板渲染**停止态**（琥珀色点 + stopped 徽标）而非红色「失败」。
+     *  仅 running 态可收口（防错序双写，同 {@link fail}）。 */
+    aborted(id: string): void {
+        const r = this.items.find((x) => x.id === id);
+        if (!r || r.status !== "running") return;
+        r.status = "error";
+        r.error = AI_STOPPED;
+        r.endedAt = Date.now();
         this.schedule();
         this.notify();
     }

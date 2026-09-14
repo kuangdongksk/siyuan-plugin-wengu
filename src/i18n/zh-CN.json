@@ -895,5 +895,9 @@
   "aiLogLabel": "轮次日志",
   "aiLogInput": "输入 {n} 字",
   "aiLogOutput": "输出 {n} 字",
-  "aiLogOutputQ": "输出 {n} 字 · 含 {q} 题"
+  "aiLogOutputQ": "输出 {n} 字 · 含 {q} 题",
+  "aiStatusStopped": "已停止",
+  "aiLogStopped": "收到整批停止指令 · 已产出部分保留待抉择",
+  "aiOwnStoppedConvert": "本记录随整批转换一起停止，已产出部分保留待抉择；保留或丢弃只有一处入口（页内转换条，或本面板顶部横幅的「前往页内转换条抉择」）。",
+  "aiOwnStoppedBatch": "本记录随「{flow}」一起停止，已产出部分保留待抉择；后续处置请在该流程的入口操作。"
 }

@@ -895,5 +895,9 @@
   "aiLogLabel": "Turn log",
   "aiLogInput": "Input {n} chars",
   "aiLogOutput": "Output {n} chars",
-  "aiLogOutputQ": "Output {n} chars · {q} questions"
+  "aiLogOutputQ": "Output {n} chars · {q} questions",
+  "aiStatusStopped": "Stopped",
+  "aiLogStopped": "Batch stop received · output kept pending your decision",
+  "aiOwnStoppedConvert": "This record stopped together with the batch conversion; the output is kept pending your decision. Retain or discard has exactly one entry point (the in-tab convert bar, or “Go to the in-tab bar to decide” on the banner above).",
+  "aiOwnStoppedBatch": "This record stopped together with “{flow}”; the output is kept pending your decision. Finish the decision at that flow's entry point."
 }

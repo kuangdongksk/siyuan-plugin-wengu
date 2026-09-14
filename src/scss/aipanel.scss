@@ -3,8 +3,9 @@
    ai-panel-single-running / ai-panel-stopped 三屏与 legacy-ai-panel 对照屏，
    **不自行发明**：
 
-     ① 树（.wengu-aipanel-thead / 二级组行 / 叶子行）= 头部标题 + 组数徽标、
-        二级组行「类别 · 文档名」、叶子行「状态点 + 任务名 + 状态徽标」；
+     ① 树（组数徽标 / 二级组行 / 叶子行）= 头部标题 + 组数徽标（与宿主标题栏
+        同一行）、组行「类别 · 文档名」（**无色点**）、叶子行「状态点 + 任务名
+        + 状态徽标」；
      ② 详情三段 = detail-head（h3 + kind 徽标 + 状态徽标）/ detail-body
         （log-label + ul.log 轮次日志）/ detail-foot（own-note 归属备注）；
      ③ 状态语言一套三件：色点 / 徽标 / 状态词（六态同色名族）。
@@ -37,15 +38,17 @@
   background: var(--b3-card-error-color);
 }
 
-.wengu-aipanel-dot.is-skip {
-  background: transparent;
-  border: 1.5px solid var(--b3-card-success-color);
-}
-
+/* 停止：空心主题色圈 + 光晕（设计稿 dot--stop：与 running 同色系但中空
+   ——「停下来了」不是「还在跑」） */
 .wengu-aipanel-dot.is-stop {
   background: transparent;
   border: 1.5px solid var(--b3-theme-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--b3-theme-primary) 24%, transparent);
+}
+
+.wengu-aipanel-dot.is-skip {
+  background: transparent;
+  border: 1.5px solid var(--b3-card-success-color);
 }
 
 .wengu-aipanel-dot.is-queued {
@@ -126,6 +129,24 @@
    故徽标只占自己的位、不吃 margin-left:auto。 */
 .wengu-aipanel-gcount {
   font-weight: 400;
+}
+
+/* 组行（设计稿 tg1/tg2）：弱化小字、无状态点（色点与徽标只属叶子行）。
+   种类级（is-kind）比文档级（is-sub）更弱一档——设计稿 tg1 是分类面、
+   tg2 才是「类别 · 文档名」的实体行。 */
+.wengu-aipanel-group {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-aipanel-group.is-kind {
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 
 /* 叶子行：状态点 + 任务名 + 徽标（徽标贴右）。宿主是共享 TreeList 的

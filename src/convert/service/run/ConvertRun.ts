@@ -7,6 +7,7 @@ import { notifyError, notifyInfo } from "../../../ui/Notify";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import type { SubDocRef } from "../source/SubDocs";
 import { runBatchQueue } from "./ConvertBatchQueue";
+import { AI_STOPPED } from "../../../ai/data/AiSessions";
 import {
     batchMetaOf,
     getAborted,
@@ -206,7 +207,7 @@ export function batchHeadText(t: (k: string) => string, batch: { title?: string;
 export function startConvertRun(cfg: ConvertRunCfg, ev: ConvertRunEvents): boolean {
     if (getActive() || getAborted()) return false;
     const controller = new AbortController();
-    const run: ActiveRun = { cfg, ev, abort: () => controller.abort() };
+    const run: ActiveRun = { cfg, ev, abort: () => controller.abort(AI_STOPPED) };
     if (cfg.subDocs && cfg.subDocs.length > 0) {
         run.batchTitle = cfg.batchTitle ?? cfg.subDocs[0].title;
         run.items = cfg.subDocs.map((d, index) => ({
@@ -399,7 +400,10 @@ function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
 }
 
 /** 页内/面板「停止」：中止批次循环，转保留/丢弃抉择。
- *  批量队列下=当前篇转抉择 + 剩余篇取消（见 ConvertBatchQueue）。 */
+ *  批量队列下=当前篇转抉择 + 剩余篇取消（见 ConvertBatchQueue）。
+ *  ⚠️ 中止**必须带 `AI_STOPPED` 理由**（Issue #88）：在途那笔 AI 调用据此
+ *  在登记簿里记「停止」而非「失败」——不带理由时它与「被兄弟失败连坐断掉
+ *  的调用」形态完全相同（见 ai/client 的 isUserStopOf）。 */
 export function stopConvertRun(): void {
     getActive()?.abort();
 }
@@ -425,7 +429,7 @@ export function startExclusiveConvertRun(
             knowRoots: [],
         },
         ev,
-        abort: () => controller.abort(),
+        abort: () => controller.abort(AI_STOPPED),
     });
     ev.setConverting(true);
     notifyState();

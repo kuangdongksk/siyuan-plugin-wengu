@@ -1396,11 +1396,20 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   带单测）——旧行只有类别章 + 标题 + 时间，状态藏在图标色里，40 条记录看不出
   哪批失败哪批成功。
     - **视图形态由纯逻辑给**（`leafViewByKey`：`dotCls`/`badgeCls`/`badgeText`/
-      `spin`/`name`/`queuedNote`），`SessionPanelApp` 的 main 片段只按字段渲染。
-      状态点与徽标是**两套命名但同一组色名**（run/done/fail/skip/stop/queued），
-      新增色名要两处同步。
-    - ⚠️ **`queuedNote` 只对 running 出**：排队等槽是瞬时展示态（#76），挂在
-      done/error 上就是「已完成 · 等待空闲通道」这种自相矛盾的组合。
+      `spin`/`name`），`SessionPanelApp` 的 main 片段只按字段渲染。
+      状态点与徽标是**两套命名但同一组色名**（run/done/fail/stop），新增色名
+      要两处同步（scss 与 `STATUS_VIEW`）。
+    - ⚠️ **状态词 ≠ 色类名**（本次复审修复的真机级缺陷）：记录状态是
+      `running/done/error`（状态词），样式族认的是 `run/done/fail/stop`
+      （色名）——拿状态词直接拼 `is-{status}` 只会拼出两条死规则（组行色点
+      全无色）。故叶子行走 `leafViewOf` 产出的 `dotCls/badgeCls`，**组行干脆
+      不渲染色点**（设计稿 tg1/tg2 只有「caret + 名字」，色点与徽标只属叶子行）。
+    - **展示态比 `record.status` 多一档**（`leafStateOf`）：`error` 里还分
+      「真失败」与「被中止」（`AI_STOPPED` 哨兵，见下）——色名族因此是
+      run/done/fail/**stop** 四个。
+    - ⚠️ **排队等槽不在树行发后缀**：设计稿叶子行只有「点 + 任务名 + 徽标」
+      三件；等槽文案属**右栏**的进行态行（`SessionDetail.pending`），细粒度
+      信息只有一个落点。
     - ⚠️ **共享组件 `ui/TreeList.svelte` 本体不动**：新形态全靠 ai 面板根上的
       作用域类（`.wengu-ai-list .b3-list-item .wengu-aipanel-*`）与 main/trailing
       片段表达——知识面板/侧栏树两棵树零回归（改 TreeList 会同时改三棵树）。
@@ -1419,6 +1428,19 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
     - ⚠️ **全文不能丢**：设计稿的日志行是摘要形态，而面板的核心用途是**回看
       产出**——每行带回 `full`、点行展开（默认收起=设计稿形态）。换记录靠
       `{#key sel.id}` 重挂 ⇒ 展开态自然复位。
+    - ⚠️ **时间锚只取「真实可推」的两点**：登记簿只存记录级 createdAt/
+      endedAt（内核不回传单轮时刻）——user 轮=createdAt、ai 轮=endedAt，
+      **不按时间窗均分编造中间时刻**（编出来的数字看着精确却是假的，同
+      「题数只出数得出来的」口径）。全用 createdAt 的后果是整条时间线恒同
+      一刻（设计稿是 14:22:07 → 14:22:31 → 14:22:48 的推进），读起来像
+      「时间戳坏了」。未收口（running）无 endedAt → 回落起点，即「只有起点
+      是真的」的诚实形态。
+    - **被停止的记录**（`AI_STOPPED`）：末行出「收到整批停止指令 · …」
+      （**非红**，设计稿 stopped 屏的末行）、出「前往页内转换条抉择」入口
+      （`decidable`）、**不出重试钮**（它是整批流的一部分，单笔重跑会脱离
+      那条流）；归属备注换成「已随整批停下、抉择只有一处入口」的**停止态
+      文案**（与在途态的「要停止请去横幅」是两句话，`FlowOwnership` 的
+      `stoppedConvert`/`stoppedBatch`）。
 - **记录 title 的任务名化（数据层配套）**：
     - `AiSessionStore.retitle(id, title)`（**新增通道**，optional 只加不改名、
       存量记录不回填）：转换批记录的批号/题数在**批落库时**才知道，而
@@ -1435,6 +1457,24 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       用例分别锁死。
     - **其它域的 title 语义不动**：本单只改转换批的命名与渲染，判题/路由/
       标签等照旧。存量记录（title=「转换」）渲染回退现状形态，不悬空。
+- **中止 ≠ 失败（Issue #88 复审补记）**：用户停止整批流时，在途调用被
+  断流收口，**不能记成红色「失败」**（横幅说「转换已停止」而记录说「失败」
+  ——正是本单名点名的两处口径分叉）。故 `AiSessionStore.aborted(id)` 落
+  `AI_STOPPED` 哨兵（status 仍是 error，**不动状态机与存档 schema**）；
+  `succeed`/`retrying` 照旧清 error ⇒ 哨兵不残留。
+    - ⚠️ **判据是「signal 已断 **且** 理由为 AI_STOPPED」，不是裸的
+      `signal.aborted`**（`ai/client.isUserStopOf`）：转换/增量族的
+      「面板停止」与「被兄弟失败连坐断掉的其余 in-flight 调用」走的是**同一
+      个** signal（编排层 `internal.abort()`），只看 aborted 会把后者也标成
+      停止——用户明明失败了却看到「停止」，比不标更坏。故约定：**业务侧凡
+      用户显式停止，abort 时都带 `AI_STOPPED` 理由**（转换族 `abortFlow`、
+      `stopConvertRun`、增量 `relayStop`、`aiAbort()`/`abortAiSession` 四处
+      是全部写入点）；理由缺失（旧调用方/不支持 reason 的运行时）一律按失败
+      处置——**宁可报失败，不可把失败说成停止**。
+    - **抉择入口只属转换族**（`FlowOwnership.decideEntryOf`）：保留/丢弃是
+      转换条的动作，六个批流停下即停下——给它们出「前往页内转换条抉择」
+      会把用户引到**另一条流**的入口。`SessionDetailView.decidable` 因此由
+      宿主按流归属注入（与 `ownNote` 同口径），本模块不猜。
 - **样式在 `scss/aipanel.scss`（`.wengu-aipanel-*`，单开一片——rail.scss 与
   aiflow.scss 都接近红线）**，`index.scss` 里 `@use`；`@keyframes wengu-ai-spin`
   仍留在 rail.scss 供两片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
