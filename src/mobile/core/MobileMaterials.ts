@@ -1,9 +1,9 @@
-import { decorateMaterial } from "../../quiz/service/MaterialDecorate";
+import { decorateMaterialEntry } from "../../quiz/service/MaterialDecorate";
 import type { WenguMaterial } from "../../types";
 
 /**
  * 材料面板渲染（移动端，设计稿屏 ③）：**复用桌面材料装饰的唯一出口**
- * （`quiz/service/MaterialDecorate.decorateMaterial`）——词形联动与线索
+ * （`quiz/service/MaterialDecorate.decorateMaterialEntry`）——词形联动与线索
  * mark 的施工口径与桌面完全一致，移动端不复制第二份装饰链。
  *
  * 只在**材料展开时**才渲染正文：屏 ③ 默认收起（只留摘要行），展开是
@@ -22,11 +22,11 @@ export function materialSummary(md: string | undefined, limit = 64): string {
 
 /** 材料正文 HTML：过装饰出口后再取 innerHTML（词表/线索与桌面同链）。
  *  用 detached 容器承载施工现场——直接拼 markdown 字符串会绕过
- *  decorateMaterial（词形联动与线索 mark 全丢）。 */
+ *  decorateMaterialEntry（词形联动与线索 mark 全丢）。 */
 export function materialHtml(material: WenguMaterial | undefined): string {
     if (!material?.bodyMd) return "";
     if (typeof document === "undefined") return "";
     const host = document.createElement("div");
-    decorateMaterial(host, { md: material.bodyMd });
+    decorateMaterialEntry(host, { md: material.bodyMd });
     return host.innerHTML;
 }
