@@ -90,6 +90,8 @@ export interface MainShellModel {
     previewing: boolean;
     hasDoc: boolean;
     listCount: number;
+    /** 阅读面作用域（英语卷，Issue #81）：挂主区题卡列表；非英语卷不带该类名。 */
+    reading: boolean;
     /** 未开刷时渲染开刷面板。 */
     startPanelHtml?: string;
     cardsHtml: string;
@@ -128,7 +130,7 @@ export function renderMainShell(m: MainShellModel): string {
               : ""
     }
     <div data-report hidden></div>
-    <div class="wengu-body">${m.numsHtml}<div class="wengu-card-list${
+    <div class="wengu-body">${m.numsHtml}<div class="wengu-card-list${m.reading ? " wengu-reading" : ""}${
         m.previewing ? " wengu-previewing" : ""
     }">${m.cardsHtml}</div></div>`);
 }
