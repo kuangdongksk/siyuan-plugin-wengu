@@ -85,12 +85,16 @@ export class AnnoScopeCtl {
             return english;
         }
         const gen = this.gen;
-        // 异步补正（题库整体未装载的时序死角）：题型并集要 await 查库，
-        // 学科则先窥视一次（peek 为空即 undefined，按「无学科」走回退腿）
-        const subject = peekSetSubject(bank, setId);
+        // 异步补正（题库整体未装载的时序死角）：题型并集 await 查库；
+        // ⚠️ 学科**必须在 await 之后再窥视**——进这条分支的前提正是
+        // `bank.peek()` 为空，此时提前取学科恒 undefined：带学科的纯阅读
+        // 英语卷（全 single、无英语形态）会被落成「无学科 ⇒ 回退题型并集
+        // ⇒ 非英语」，缓存一直错到下次换卷/切模式。setTypeUnion 内部已
+        // await bank.all()，回来时 peek 就绪 ⇒ 这里读到的是真学科。
+        // 回归锁：service/AnnoScopeCtl.test「补正判真」。
         void setTypeUnion(bank, setId).then((types) => {
             // 已换卷/切模式的旧世代结果丢弃
-            if (gen === this.gen) this.cache.set(setId, isEnglishScope(subject, types));
+            if (gen === this.gen) this.cache.set(setId, isEnglishScope(peekSetSubject(bank, setId), types));
         });
         return false;
     }

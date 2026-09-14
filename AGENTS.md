@@ -516,10 +516,18 @@ sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
               首卡——同组单元必同源题集，卷级结论一致）。
         - 判定按题集缓存（`quiz/service/AnnoScopeCtl`，自 QuizView 拆出压
           500 行红线）：选段回调是高频**同步**路径，走
-          `BankSets.peekSetTypeUnion` 窥视已装载数据（`bank.peek()`），
-          未装载先按否收口 + 异步 `setTypeUnion` 补正——**不许在
-          selectionchange 里 await 查库**；`invalidateAnnoScope` 在换卷/
-          切题集/切模式时清缓存。
+          `BankSets.peekSetSubject` / `peekSetTypeUnion` 窥视已装载数据
+          （`bank.peek()`），未装载先按否收口 + 异步 `setTypeUnion` 补正
+          ——**不许在 selectionchange 里 await 查库**；`invalidateAnnoScope`
+          在换卷/切题集/切模式时清缓存。
+            - ⚠️ **补正腿的学科必须在 await `setTypeUnion` 之后才窥视**
+              （20260914 复审修复）：进补正分支的前提正是 `bank.peek()` 为空，
+              在 await 前取学科**恒 undefined** ⇒ 带学科的纯阅读英语卷
+              （全 single、无英语形态）被落成「无学科 ⇒ 回退题型并集 ⇒ 非
+              英语」，缓存一直错到下次换卷/切模式（「标生词」全程不出来，
+              与验收 5 相悖）。`setTypeUnion` 内部已 await `bank.all()`，
+              回来时 peek 就绪 ⇒ 那时读到的才是真学科。回归测试
+              `service/AnnoScopeCtl.test`（含反证：把取用点挪回 await 前即挂）。
         - **两钮都不出 = 浮条整体不出现**：非英语卷在非可标区域（解析区/
           选项区）选段即此情形——改造前会浮出一条只剩「标生词」的空条。
     - **阅读面作用域（`.wengu-reading`，Issue #81 / #83）**：材料区改
