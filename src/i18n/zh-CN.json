@@ -637,6 +637,8 @@
   "notifyConvertDone": "转换完成：共 {n} 题",
   "notifyConvertFail": "转换失败：{msg}",
   "notifyReimportCursor": "此题集由逐段生成（批边界由 AI 决定，不可复现），重新导入按整卷重转处理",
+  "notifyReimportUnchanged": "源文档未变更，题集已是最新，无需重转",
+  "notifyReimportPartial": "检测到源文档变更，保留前 {n} 段，从变更处继续生成",
   "notifyModelFallback": "所选模型已失效，本次已改用可用模型「{name}」",
   "notifyModelFallbackDefault": "所选模型已失效，本次已改用思源默认模型",
   "notifyMobileQuizOnly": "移动端请从侧栏 dock 打开「温故」刷题面板",

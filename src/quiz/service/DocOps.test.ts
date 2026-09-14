@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { reimportCfg, reimportResume } from "./DocOps";
+import { qidsFromOffset } from "../../convert/service/source/SetSegments";
+import { removeRecords } from "../../bank/data/BankSets";
+import { QuestionBank as Bank } from "../../bank/data/QuestionBank";
+import type { BankData } from "../../bank/data/QuestionBank";
+
+// node 测试环境无 window，题库 markDirty 的防抖定时器走 globalThis 顶上
+(globalThis as { window?: unknown }).window ??= globalThis;
 
 /** 「删除此题集」/「重新导入」的纯逻辑面（内核 IO 不进单测，见
  *  vitest.config.ts；20260903 起题集=题库实体，planReimportRead/
@@ -63,5 +70,71 @@ describe("reimportResume", () => {
     it("无题集 id 的记录（旧形态）不带断点，按全量重转", () => {
         expect(reimportResume({ offset: 5000 })).toBeUndefined();
         expect(reimportResume(undefined)).toBeUndefined();
+    });
+});
+
+/**
+ * 重导的段级删除集（Issue #74 回归清单 2）：从第一条失配段起重转前，要删
+ * 该段起（`srcKey` 偏移 >= 段起点）的记录，且**只删这些**——变更段之前的
+ * 记录（含其作答统计/题单序）原样保留。删除集纯函数在 convert 侧的
+ * SetSegments（qidsFromOffset），这里锁「题集内归属 + 组题记录一并计入 +
+ * 材料/别集不误伤」的口径（DocOps 真机链走内核，删除动作复用
+ * BankSets.removeRecords——该函数已有单测，本用例不重复）。
+ */
+describe("重导段级删除集（Issue #74）", () => {
+    const data = (): BankData =>
+        ({
+            version: 1,
+            records: {
+                "gen-1": { qid: "gen-1", sourceDocId: "set-1", srcKey: "A:0" },
+                "gen-2": { qid: "gen-2", sourceDocId: "set-1", srcKey: "A:12", group: "mat-1" },
+                "gen-3": { qid: "gen-3", sourceDocId: "set-1", srcKey: "A:24", group: "mat-1" },
+                "gen-x": { qid: "gen-x", sourceDocId: "set-2", srcKey: "A:0" },
+            },
+            collections: [],
+            migratedDocs: [],
+            hashed: {},
+            knowRoots: [],
+            folders: [],
+            knowHidden: [],
+            docStats: {},
+            sets: {
+                "set-1": { id: "set-1", title: "卷", qids: ["gen-1", "gen-2", "gen-3"], createdAt: 0 },
+                "set-2": { id: "set-2", title: "别的卷", qids: ["gen-x"], createdAt: 0 },
+            },
+            materials: { "mat-1": { id: "mat-1", setId: "set-1", bodyMd: "阅读原文" } },
+        }) as unknown as BankData;
+
+    it("失配段之前的记录一条不删（保留其题单序与作答统计）", () => {
+        expect(qidsFromOffset(data(), "set-1", 12)).toEqual(["gen-2", "gen-3"]);
+    });
+
+    it("组题记录（挂材料的）与普通记录同口径计入删除集", () => {
+        const d = data();
+        const qids = qidsFromOffset(d, "set-1", 24);
+        expect(qids).toEqual(["gen-3"]);
+        // 材料正文不在删除集里（孤儿材料无消费面，与既有口径一致）
+        expect(d.materials!["mat-1"]).toBeDefined();
+    });
+
+    it("别的题集不受影响；无失配段（整篇哈希不同）时不删任何记录", () => {
+        expect(qidsFromOffset(data(), "set-1", 999)).toEqual([]);
+        expect(qidsFromOffset(data(), "set-2", 0)).toEqual(["gen-x"]);
+    });
+
+    it("删除集经 removeRecords 清掉记录/题单序/哈希索引（既有回收口径）", async () => {
+        let cache: BankData | undefined;
+        const bank = new Bank(
+            async () => (cache ??= data()),
+            async (v) => {
+                cache = v;
+            }
+        );
+        const before = await bank.all();
+        const qids = qidsFromOffset(before, "set-1", 12);
+        await removeRecords(bank, qids);
+        const after = await bank.all();
+        expect(Object.keys(after.records).filter((q) => q.startsWith("gen-"))).toEqual(["gen-1", "gen-x"]);
+        expect(after.sets!["set-1"].qids).toEqual(["gen-1"]);
     });
 });

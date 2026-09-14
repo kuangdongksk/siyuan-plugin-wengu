@@ -637,6 +637,8 @@
   "notifyConvertDone": "Conversion finished: {n} questions",
   "notifyConvertFail": "Conversion failed: {msg}",
   "notifyReimportCursor": "This set was generated segment-by-segment (batch boundaries are AI-decided and not reproducible) — re-import runs a full re-conversion",
+  "notifyReimportUnchanged": "Source unchanged — this set is already up to date",
+  "notifyReimportPartial": "Source changed — kept the first {n} segments, continuing from the changed part",
   "notifyModelFallback": "The selected model is no longer valid — fell back to \"{name}\" for this call",
   "notifyModelFallbackDefault": "The selected model is no longer valid — fell back to SiYuan's default model for this call",
   "notifyMobileQuizOnly": "On mobile open the Wengu drill panel from the sidebar dock",

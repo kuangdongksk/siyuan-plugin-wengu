@@ -71,6 +71,17 @@ export interface BankSet {
     /** 题目 id 的有序集合（转换写入序=原卷题序）。 */
     qids: string[];
     createdAt: number;
+    /** 整篇源 kramdown 的内容哈希（Issue #74）：逐段自推进题集的重导
+     *  凭据——转换每批 flush 后写（续跑以续跑时的源为准覆写），重新导入
+     *  时与**当前**源重算的哈希比对，命中即「源文档未变更」零动作。
+     *  optional、只加不改名、不 bump version；存量/结构切块题集无此字段
+     *  = 现状行为（走增量三态分类或整卷重转）。 */
+    srcContentHash?: string;
+    /** 分段边界表（Issue #74）：每**已落库批**一条 `{s, e, h}`，段首尾
+     *  相接、连续覆盖 `[0, 已落库游标]`；偏移口径与记录 `srcKey` 的
+     *  `A:<偏移>` 键、断点游标同一单位（剥块 id IAL 后 kramdown 的字符
+     *  偏移，见 convert/service/source/SetSegments）。optional，同上。 */
+    segs?: { s: number; e: number; h: string }[];
 }
 
 /** 材料块正文（阅读/完形等共享原文；20260903 起随题入库，不再依赖
