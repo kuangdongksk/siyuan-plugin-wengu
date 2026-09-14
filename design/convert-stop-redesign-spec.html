@@ -1,0 +1,2648 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>温故桌面端 · AI 转换任务 运行 / 停止 · 重设计稿</title>
+        <style>
+            /* ============================================================
+   令牌 —— 全部来自 reference/theme-tokens.md 实测值（见 brand-spec.md）
+   ============================================================ */
+            :root {
+                --bg: oklch(0.2965 0.0134 239); /* #272e33 深蓝灰底 */
+                --bg-sunken: oklch(0.2665 0.0134 239);
+                --surface: oklch(0.3904 0.0284 232.7); /* #364852 青灰卡面 */
+                --surface-2: oklch(0.4344 0.0284 232.7);
+                --surface-3: oklch(0.3404 0.0242 234.5); /* 卡内凹槽 / 侧栏 */
+                --fg: oklch(0.8404 0.0315 88.4); /* #d3cab4 暖米正文 */
+                --muted: oklch(0.76 0.0295 88.4);
+                --faint: oklch(0.76 0.0295 88.4 / 0.55);
+                --border: oklch(0.8891 0.0295 89.6 / 0.2);
+                --border-2: oklch(0.8891 0.0295 89.6 / 0.34);
+                --hover: oklch(0.8891 0.0295 89.6 / 0.08);
+                --accent: oklch(0.677 0.0876 44.8); /* #c5866a 陶土橙 */
+                --accent-hi: oklch(0.732 0.0876 44.8);
+                --accent-solid: oklch(0.56 0.095 44.8);
+                --accent-text: oklch(0.82 0.075 44.8);
+                --accent-dim: oklch(0.677 0.0876 44.8 / 0.18);
+                --on-accent: oklch(0.99 0.01 44.8);
+                --ok: oklch(0.8 0.11 155);
+                --ok-solid: oklch(0.68 0.12 155);
+                --ok-dim: oklch(0.68 0.12 155 / 0.18);
+                --fail: oklch(0.8 0.13 28);
+                --fail-solid: oklch(0.62 0.16 28);
+                --fail-dim: oklch(0.62 0.16 28 / 0.18);
+                --queued: oklch(0.76 0.0295 88.4 / 0.42);
+                --queued-fill: oklch(0.76 0.0295 88.4 / 0.16);
+                --r: 6px;
+                --r-b: 12px;
+                --sans: "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Microsoft Yahei", sans-serif;
+                --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+            }
+            body {
+                background: var(--bg);
+                color: var(--fg);
+                font: 400 14px/1.6 var(--sans);
+                -webkit-font-smoothing: antialiased;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+            }
+            h1,
+            h2,
+            h3,
+            h4,
+            p,
+            ul,
+            ol,
+            figure {
+                margin: 0;
+            }
+            ul,
+            ol {
+                padding: 0;
+                list-style: none;
+            }
+
+            /* ============================================================
+   文档外壳
+   ============================================================ */
+            .doc {
+                max-width: 1164px;
+                margin: 0 auto;
+                padding: 44px 32px 104px;
+            }
+            .doc-head {
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 26px;
+            }
+            .kicker {
+                font: 500 12px/1 var(--mono);
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--faint);
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            .kicker .tag-src {
+                border: 1px solid var(--border);
+                border-radius: 999px;
+                padding: 3px 9px;
+                letter-spacing: 0.06em;
+            }
+            h1 {
+                margin-top: 16px;
+                font-size: 38px;
+                line-height: 1.22;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+                text-wrap: balance;
+            }
+            .lede {
+                margin-top: 14px;
+                max-width: 74ch;
+                color: var(--muted);
+                font-size: 15px;
+                line-height: 1.75;
+                text-wrap: pretty;
+            }
+            .lede b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+
+            .legend {
+                margin-top: 22px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .legend li {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                font-size: 12px;
+                color: var(--muted);
+                border: 1px solid var(--border);
+                border-radius: 999px;
+                padding: 4px 11px 4px 9px;
+            }
+            .swatch {
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+                flex: 0 0 auto;
+            }
+            .sw-done {
+                background: var(--ok-solid);
+            }
+            .sw-run {
+                background: var(--accent);
+            }
+            .sw-fail {
+                background: var(--fail-solid);
+            }
+            .sw-idle {
+                background: var(--queued);
+            }
+
+            /* 章节 */
+            .sec {
+                margin-top: 64px;
+            }
+            .sec-head {
+                display: flex;
+                align-items: baseline;
+                gap: 14px;
+                padding-bottom: 14px;
+                border-bottom: 1px solid var(--border);
+            }
+            .sec-num {
+                font: 500 13px/1 var(--mono);
+                color: var(--faint);
+                letter-spacing: 0.08em;
+            }
+            .sec-head h2 {
+                font-size: 21px;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+            }
+            .sec-head .sec-sub {
+                color: var(--muted);
+                font-size: 13px;
+                margin-left: auto;
+                text-align: right;
+            }
+            .sec-note {
+                margin-top: 16px;
+                color: var(--muted);
+                font-size: 13.5px;
+                max-width: 82ch;
+                line-height: 1.75;
+                text-wrap: pretty;
+            }
+            .sec-note b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+
+            /* 表面卡 */
+            .surface {
+                margin-top: 26px;
+            }
+            .surface-cap {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+                font-size: 12.5px;
+                color: var(--muted);
+            }
+            .surface-cap .tag {
+                font: 500 11px/1 var(--mono);
+                letter-spacing: 0.06em;
+                color: var(--accent-text);
+                border: 1px solid oklch(0.677 0.0876 44.8 / 0.45);
+                border-radius: 4px;
+                padding: 3px 7px;
+            }
+            .surface-cap .tag--neutral {
+                color: var(--muted);
+                border-color: var(--border-2);
+            }
+            .surface-cap .cap-name {
+                color: var(--fg);
+                font-weight: 600;
+                font-size: 13.5px;
+            }
+            .surface-cap .cap-src {
+                margin-left: auto;
+                color: var(--faint);
+                font: 400 11.5px/1 var(--mono);
+            }
+
+            /* ============================================================
+   b3 组件体系（沿用思源观感，不自造）
+   ============================================================ */
+            .b3-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                height: 30px;
+                padding: 0 12px;
+                border-radius: var(--r);
+                background: transparent;
+                border: 1px solid var(--border-2);
+                color: var(--fg);
+                font-size: 13px;
+                cursor: pointer;
+                transition:
+                    background 0.12s,
+                    border-color 0.12s,
+                    color 0.12s;
+                white-space: nowrap;
+            }
+            .b3-button:hover {
+                background: var(--hover);
+            }
+            .b3-button:focus-visible {
+                outline: 2px solid var(--accent);
+                outline-offset: 2px;
+            }
+            .b3-button--small {
+                height: 24px;
+                padding: 0 9px;
+                font-size: 12px;
+                border-color: var(--border);
+            }
+            .b3-button--text {
+                border-color: transparent;
+                padding: 0 7px;
+                color: var(--muted);
+            }
+            .b3-button--text:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .b3-button--cancel {
+                border-color: oklch(0.62 0.16 28 / 0.62);
+                color: var(--fail);
+            }
+            .b3-button--cancel:hover {
+                background: var(--fail-dim);
+                border-color: var(--fail);
+                color: var(--fail);
+            }
+            .b3-button--primary {
+                background: var(--accent-solid);
+                border-color: transparent;
+                color: var(--on-accent);
+                font-weight: 500;
+            }
+            .b3-button--primary:hover {
+                background: oklch(0.62 0.095 44.8);
+            }
+            .b3-button[disabled] {
+                color: var(--faint);
+                border-color: var(--border);
+                cursor: default;
+            }
+            .b3-button[disabled]:hover {
+                background: transparent;
+            }
+
+            /* 状态点 / 徽标 */
+            .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                flex: 0 0 auto;
+            }
+            .dot--done {
+                background: var(--ok-solid);
+            }
+            .dot--skip {
+                border: 1.5px solid var(--ok-solid);
+                background: transparent;
+            }
+            .dot--run {
+                background: var(--accent);
+                box-shadow: 0 0 0 3px var(--accent-dim);
+            }
+            .dot--stop {
+                background: transparent;
+                border: 1.5px solid var(--accent);
+                box-shadow: 0 0 0 3px var(--accent-dim);
+            }
+            .dot--fail {
+                background: var(--fail-solid);
+            }
+            .dot--queued {
+                border: 1.5px dashed var(--queued);
+                background: transparent;
+            }
+            .dot--cancel {
+                border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3);
+                background: transparent;
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                height: 19px;
+                padding: 0 7px;
+                border-radius: 4px;
+                font: 500 11px/1 var(--mono);
+                letter-spacing: 0.02em;
+                border: 1px solid transparent;
+            }
+            .badge--run {
+                color: var(--accent-text);
+                border-color: oklch(0.677 0.0876 44.8 / 0.45);
+                background: var(--accent-dim);
+            }
+            .badge--done {
+                color: var(--ok);
+                border-color: oklch(0.68 0.12 155 / 0.4);
+                background: var(--ok-dim);
+            }
+            .badge--fail {
+                color: var(--fail);
+                border-color: oklch(0.62 0.16 28 / 0.45);
+                background: var(--fail-dim);
+            }
+            .badge--stop {
+                color: var(--accent-text);
+                border-color: oklch(0.677 0.0876 44.8 / 0.45);
+            }
+            .badge--idle {
+                color: var(--muted);
+                border-color: var(--border);
+            }
+            .badge--plain {
+                border-color: var(--border);
+                color: var(--muted);
+            }
+
+            .spin {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                flex: 0 0 auto;
+                border: 1.6px solid var(--accent-dim);
+                border-top-color: var(--accent);
+                animation: spin 0.9s linear infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+            @keyframes pulse {
+                50% {
+                    opacity: 0.45;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .spin {
+                    animation: none;
+                    border-top-color: var(--accent);
+                }
+                .dot--run {
+                    animation: none;
+                }
+            }
+
+            /* ============================================================
+   思源页签外壳
+   ============================================================ */
+            .app {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r-b);
+                overflow: hidden;
+            }
+            .app-tabbar {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+                padding: 0 10px;
+                background: var(--bg-sunken);
+                border-bottom: 1px solid var(--border);
+                height: 34px;
+            }
+            .app-tab {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                height: 34px;
+                padding: 0 12px;
+                font-size: 12.5px;
+                color: var(--muted);
+                border-bottom: 2px solid transparent;
+            }
+            .app-tab.is-active {
+                color: var(--fg);
+                border-bottom-color: var(--accent);
+            }
+            .app-tab .app-tab-x {
+                color: var(--faint);
+                font-size: 13px;
+            }
+            .app-tab-plus {
+                color: var(--faint);
+                font-size: 14px;
+                padding: 0 6px;
+            }
+
+            /* 页内转换条（表面一） */
+            .convert-bar {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-height: 38px;
+                padding: 6px 12px;
+                border-bottom: 1px solid var(--border);
+                background: oklch(0.3904 0.0284 232.7 / 0.72);
+            }
+            .convert-bar .cb-text {
+                font-size: 13px;
+                color: var(--fg);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .cb-sep {
+                color: var(--faint);
+            }
+            .cb-num {
+                font: 500 12.5px/1 var(--mono);
+                letter-spacing: -0.01em;
+            }
+            .cb-actions {
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .convert-bar--stopped {
+                background: oklch(0.56 0.095 44.8 / 0.14);
+                border-bottom-color: oklch(0.677 0.0876 44.8 / 0.35);
+            }
+
+            .statline {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 9px 12px;
+                font-size: 12.5px;
+                color: var(--muted);
+                border-bottom: 1px solid var(--border);
+            }
+            .statline .stat-timer {
+                margin-left: auto;
+                font: 500 12.5px/1 var(--mono);
+                color: var(--fg);
+            }
+
+            /* 标注 */
+            .mk {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex: 0 0 auto;
+                width: 17px;
+                height: 17px;
+                border-radius: 50%;
+                background: var(--fail-solid);
+                color: var(--on-accent);
+                font: 600 10.5px/1 var(--mono);
+            }
+            .mk--accent {
+                background: var(--accent-solid);
+            }
+            .flag {
+                outline: 1px dashed oklch(0.62 0.16 28 / 0.78);
+                outline-offset: -2px;
+                border-radius: 4px;
+            }
+
+            .marks-title {
+                margin-top: 30px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: -0.005em;
+            }
+            .marks {
+                margin-top: 10px;
+                border: 1px solid var(--border);
+                border-radius: var(--r-b);
+                overflow: hidden;
+            }
+            .marks li {
+                display: flex;
+                gap: 11px;
+                padding: 11px 14px;
+                font-size: 13px;
+                color: var(--muted);
+                line-height: 1.65;
+                border-top: 1px solid var(--border);
+            }
+            .marks li:first-child {
+                border-top: 0;
+            }
+            .marks li b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .marks .mk {
+                margin-top: 2px;
+            }
+
+            /* before → after 小字注记 */
+            .deltas {
+                margin-top: 12px;
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+            }
+            .delta {
+                display: grid;
+                grid-template-columns: 44px minmax(0, 0.86fr) 16px 44px minmax(0, 1.14fr);
+                align-items: baseline;
+                gap: 9px;
+                font-size: 12.5px;
+                line-height: 1.6;
+                color: var(--muted);
+                text-wrap: pretty;
+            }
+            .delta .d-tag {
+                font: 500 10.5px/1.5 var(--mono);
+                letter-spacing: 0.06em;
+                text-align: center;
+                border-radius: 4px;
+                border: 1px solid var(--border);
+                padding: 2px 0;
+                color: var(--faint);
+            }
+            .delta .d-tag--after {
+                color: var(--accent-text);
+                border-color: oklch(0.677 0.0876 44.8 / 0.45);
+            }
+            .delta .d-arrow {
+                color: var(--faint);
+                text-align: center;
+                font-family: var(--mono);
+            }
+            .delta s {
+                color: var(--faint);
+                text-decoration-color: oklch(0.62 0.16 28 / 0.7);
+            }
+            .delta b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+
+            /* ============================================================
+   AI 会话面板（表面二）
+   ============================================================ */
+            .ai-panel {
+                display: grid;
+                grid-template-columns: 292px minmax(0, 1fr);
+                grid-template-areas: "banner banner" "tree detail";
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r-b);
+                overflow: hidden;
+            }
+            .ai-panel.is-plain {
+                grid-template-areas: "tree detail";
+            }
+
+            /* 流级横幅 */
+            .flow-banner {
+                grid-area: banner;
+                border-bottom: 1px solid var(--border);
+                background: var(--surface-2);
+            }
+            .flow-banner--run {
+                border-left: 3px solid var(--accent);
+            }
+            .flow-banner--stop {
+                border-left: 3px solid var(--accent);
+                background: oklch(0.56 0.095 44.8 / 0.14);
+            }
+            .fb-row {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 11px 14px;
+            }
+            .fb-id {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                min-width: 0;
+            }
+            .fb-title {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 0;
+            }
+            .fb-title strong {
+                font-size: 13.5px;
+                font-weight: 600;
+                letter-spacing: -0.005em;
+                white-space: nowrap;
+            }
+            .fb-title span {
+                font-size: 11.5px;
+                color: var(--muted);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .fb-prog {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                flex: 1 1 auto;
+                min-width: 180px;
+                max-width: 420px;
+            }
+            .fb-stats {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .fb-stats b {
+                font: 500 12px/1 var(--mono);
+                color: var(--fg);
+            }
+            .fb-actions {
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 0 0 auto;
+            }
+
+            /* 队列构成条（按篇着色，实心数据编码） */
+            .seg {
+                display: flex;
+                height: 6px;
+                border-radius: 999px;
+                overflow: hidden;
+                gap: 2px;
+                background: var(--queued-fill);
+            }
+            .seg i {
+                display: block;
+                height: 100%;
+                border-radius: 1px;
+            }
+            .seg .s-done {
+                background: var(--ok-solid);
+            }
+            .seg .s-skip {
+                background: oklch(0.68 0.12 155 / 0.42);
+            }
+            .seg .s-run,
+            .seg .s-stop {
+                background: var(--accent);
+            }
+            .seg .s-fail {
+                background: var(--fail-solid);
+            }
+            .seg .s-cancel {
+                background: oklch(0.76 0.0295 88.4 / 0.26);
+            }
+            .seg .s-queued {
+                background: oklch(0.76 0.0295 88.4 / 0.14);
+            }
+            .bar {
+                height: 6px;
+                border-radius: 999px;
+                background: var(--queued-fill);
+                overflow: hidden;
+            }
+            .bar i {
+                display: block;
+                height: 100%;
+                background: var(--accent);
+            }
+
+            /* 计数徽标 */
+            .counts {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+                padding: 0 14px 10px;
+            }
+            .counts .lead {
+                font-size: 11.5px;
+                color: var(--faint);
+                font-family: var(--mono);
+                letter-spacing: 0.04em;
+                margin-right: 2px;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                height: 20px;
+                padding: 0 8px;
+                border-radius: 4px;
+                border: 1px solid var(--border);
+                font-size: 11.5px;
+                color: var(--muted);
+            }
+            .chip b {
+                font: 500 11.5px/1 var(--mono);
+                color: var(--fg);
+            }
+            .chip i {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                flex: 0 0 auto;
+            }
+            .chip--done i {
+                background: var(--ok-solid);
+            }
+            .chip--done b {
+                color: var(--ok);
+            }
+            .chip--skip i {
+                border: 1.5px solid var(--ok-solid);
+            }
+            .chip--skip b {
+                color: var(--ok);
+            }
+            .chip--run i {
+                background: var(--accent);
+            }
+            .chip--run b {
+                color: var(--accent-text);
+            }
+            .chip--stop i {
+                border: 1.5px solid var(--accent);
+            }
+            .chip--stop b {
+                color: var(--accent-text);
+            }
+            .chip--fail i {
+                background: var(--fail-solid);
+            }
+            .chip--fail b {
+                color: var(--fail);
+            }
+            .chip--cancel i {
+                border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3);
+            }
+            .chip--queued i {
+                border: 1.5px dashed var(--queued);
+            }
+            .chip.is-zero {
+                opacity: 0.62;
+            }
+            .chip.is-zero b {
+                color: var(--muted);
+            }
+
+            /* 分篇列表 */
+            .fb-list {
+                border-top: 1px solid var(--border);
+                background: oklch(0.3404 0.0242 234.5 / 0.55);
+            }
+            .fb-list-head {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 7px 14px;
+                font: 500 11px/1 var(--mono);
+                letter-spacing: 0.08em;
+                color: var(--faint);
+                border-bottom: 1px solid var(--border);
+            }
+            .fb-list-head .ln {
+                margin-left: auto;
+                letter-spacing: 0;
+            }
+            .doc-row {
+                display: grid;
+                grid-template-columns: 22px 172px 188px minmax(0, 1fr) 108px;
+                align-items: center;
+                gap: 12px;
+                padding: 7px 14px;
+                border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.1);
+                font-size: 12.5px;
+            }
+            .doc-row:last-child {
+                border-bottom: 0;
+            }
+            .doc-row.is-current {
+                background: var(--accent-dim);
+            }
+            .doc-row .dr-idx {
+                font: 500 11.5px/1 var(--mono);
+                color: var(--faint);
+            }
+            .doc-row .dr-name {
+                color: var(--fg);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .doc-row.is-queued .dr-name {
+                color: var(--muted);
+            }
+            .doc-row.is-cancel .dr-name {
+                color: var(--muted);
+                text-decoration: line-through;
+                text-decoration-color: oklch(0.76 0.0295 88.4 / 0.5);
+            }
+            .doc-row .dr-state {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .doc-row .dr-note {
+                color: var(--faint);
+                font-size: 11.5px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .doc-row .dr-metric {
+                font: 400 11.5px/1 var(--mono);
+                color: var(--muted);
+                text-align: right;
+                white-space: nowrap;
+            }
+            .doc-row .st-done {
+                color: var(--ok);
+            }
+            .doc-row .st-run {
+                color: var(--accent-text);
+                font-weight: 500;
+            }
+            .doc-row .st-fail {
+                color: var(--fail);
+            }
+            .fb-list-foot {
+                padding: 7px 14px;
+                font-size: 11.5px;
+                color: var(--faint);
+                background: oklch(0.3404 0.0242 234.5 / 0.35);
+            }
+
+            /* 面板两栏 */
+            .ai-tree {
+                grid-area: tree;
+                background: var(--surface-3);
+                border-right: 1px solid var(--border);
+                padding: 8px 0 12px;
+                min-width: 0;
+            }
+            .ai-tree-head {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 4px 14px 9px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .ai-tree-head .badge {
+                margin-left: auto;
+            }
+            .tg1 {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                padding: 3px 14px;
+                font-size: 12px;
+                color: var(--muted);
+                letter-spacing: 0.02em;
+            }
+            .tg1 .caret {
+                color: var(--faint);
+                font-size: 10px;
+                width: 9px;
+            }
+            .tg2 {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                padding: 5px 14px 5px 27px;
+                font-size: 12.5px;
+                color: var(--muted);
+            }
+            .leaf {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 14px 6px 42px;
+                font-size: 12.5px;
+                color: var(--fg);
+                cursor: default;
+            }
+            .leaf:hover {
+                background: var(--hover);
+            }
+            .leaf.is-selected {
+                background: var(--accent-dim);
+                box-shadow: inset 2px 0 0 var(--accent);
+            }
+            .leaf .leaf-name {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .leaf .badge {
+                margin-left: auto;
+            }
+            .leaf .kind {
+                font: 400 11px/1 var(--mono);
+                color: var(--faint);
+            }
+
+            .ai-detail {
+                grid-area: detail;
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+                background: var(--surface);
+            }
+            .detail-head {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                padding: 12px 16px;
+                border-bottom: 1px solid var(--border);
+                flex-wrap: wrap;
+            }
+            .detail-head h3 {
+                font-size: 14px;
+                font-weight: 600;
+                letter-spacing: -0.005em;
+            }
+            .detail-head .badge {
+                margin-left: auto;
+            }
+            .detail-body {
+                padding: 13px 16px;
+                flex: 1 1 auto;
+                min-height: 120px;
+            }
+            .log-label {
+                font: 500 11px/1 var(--mono);
+                letter-spacing: 0.08em;
+                color: var(--faint);
+                margin-bottom: 9px;
+            }
+            .log {
+                display: flex;
+                flex-direction: column;
+                gap: 1px;
+            }
+            .log li {
+                display: grid;
+                grid-template-columns: 66px minmax(0, 1fr);
+                gap: 12px;
+                padding: 6px 0;
+                font-size: 12.5px;
+                color: var(--muted);
+                border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.08);
+            }
+            .log li:last-child {
+                border-bottom: 0;
+            }
+            .log .t {
+                font: 400 11.5px/1.6 var(--mono);
+                color: var(--faint);
+            }
+            .log em {
+                font-style: normal;
+                color: var(--fg);
+            }
+            .detail-foot {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 11px 16px;
+                border-top: 1px solid var(--border);
+                background: oklch(0.3404 0.0242 234.5 / 0.35);
+                flex-wrap: wrap;
+            }
+            .detail-foot .hint {
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+            .own-note {
+                display: flex;
+                align-items: flex-start;
+                gap: 9px;
+                font-size: 12.5px;
+                color: var(--muted);
+                line-height: 1.6;
+                border: 1px dashed var(--border-2);
+                border-radius: var(--r);
+                padding: 9px 11px;
+            }
+            .own-note .dot {
+                margin-top: 5px;
+            }
+            .own-note b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+
+            /* ============================================================
+   结论卡
+   ============================================================ */
+            .qs {
+                margin-top: 24px;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 16px;
+            }
+            .q {
+                border: 1px solid var(--border);
+                border-radius: var(--r-b);
+                padding: 18px 20px;
+                background: var(--surface);
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .q-q {
+                display: flex;
+                gap: 10px;
+                align-items: baseline;
+            }
+            .q-q .qn {
+                font: 500 12px/1 var(--mono);
+                color: var(--faint);
+            }
+            .q-q h3 {
+                font-size: 14.5px;
+                font-weight: 600;
+                line-height: 1.5;
+                letter-spacing: -0.005em;
+            }
+            .q-verdict {
+                border-left: 3px solid var(--accent);
+                background: var(--accent-dim);
+                border-radius: 0 var(--r) var(--r) 0;
+                padding: 10px 13px;
+                font-size: 13px;
+                line-height: 1.7;
+                color: var(--fg);
+            }
+            .q-verdict .verdict-tag {
+                font: 500 10.5px/1 var(--mono);
+                letter-spacing: 0.08em;
+                color: var(--accent-text);
+                display: block;
+                margin-bottom: 5px;
+            }
+            .q-why {
+                font-size: 12.5px;
+                color: var(--muted);
+                line-height: 1.7;
+            }
+            .q-why b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+
+            .foot {
+                margin-top: 56px;
+                padding-top: 18px;
+                border-top: 1px solid var(--border);
+                font-size: 12px;
+                color: var(--faint);
+                line-height: 1.8;
+            }
+
+            @media (max-width: 1000px) {
+                .doc {
+                    padding: 32px 20px 72px;
+                }
+                h1 {
+                    font-size: 30px;
+                }
+                .ai-panel {
+                    grid-template-columns: 1fr;
+                    grid-template-areas: "banner" "tree" "detail";
+                }
+                .ai-panel.is-plain {
+                    grid-template-areas: "tree" "detail";
+                }
+                .ai-tree {
+                    border-right: 0;
+                    border-bottom: 1px solid var(--border);
+                }
+                .qs {
+                    grid-template-columns: 1fr;
+                }
+                .app {
+                    overflow-x: auto;
+                }
+                .app > * {
+                    min-width: 720px;
+                }
+                .delta {
+                    grid-template-columns: 40px 1fr;
+                    grid-auto-rows: auto;
+                }
+                .delta .d-arrow {
+                    display: none;
+                }
+                .fb-row {
+                    flex-wrap: wrap;
+                }
+                .fb-prog {
+                    min-width: 100%;
+                    order: 3;
+                    max-width: none;
+                }
+                .doc-row {
+                    grid-template-columns: 22px 96px minmax(0, 1fr) 104px;
+                }
+                .doc-row .dr-note {
+                    display: none;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main class="doc">
+            <!-- ==================== 文档头 ==================== -->
+            <header class="doc-head" data-od-id="doc-header">
+                <div class="kicker">
+                    <span>温故 · 桌面端</span>
+                    <span class="tag-src">设计稿 · 2026-09-14</span>
+                    <span>基准 Neo+ 深色暖调 + 思源 b3 组件体系</span>
+                </div>
+                <h1>AI 转换任务的运行与停止：把「整批」的停止从一条 AI 调用里搬出来</h1>
+                <p class="lede">
+                    现在的停止入口错位：AI 会话树里的一行是 <b>一次 AI 调用</b>（整批任务里的一小笔），
+                    而它详情里的「停止」停的却是 <b>整条转换流</b>。想停这一笔的人误杀整批，想停整批的人找不到入口。
+                    本稿把停止收归<b>流级</b>：面板顶部常驻「转换运行中」横幅，页内转换条与它同口径；
+                    记录详情不再提供停止，只说明归属。
+                </p>
+                <ul class="legend" data-od-id="semantic-legend">
+                    <li><span class="swatch sw-done"></span>绿 = 完成 / 答对</li>
+                    <li><span class="swatch sw-run"></span>陶土橙 = 进行中 / 当前 / 待抉择</li>
+                    <li><span class="swatch sw-fail"></span>红 = 失败 / 答错</li>
+                    <li><span class="swatch sw-idle"></span>弱灰 = 排队 / 取消</li>
+                </ul>
+            </header>
+
+            <!-- ==================== 01 对比屏 ==================== -->
+            <section class="sec" id="before" data-od-id="section-before">
+                <div class="sec-head">
+                    <span class="sec-num">01</span>
+                    <h2>对比屏 · 现状两处表面</h2>
+                    <span class="sec-sub">按 reference/current-state.md 忠实复现 · 标注粒度错位点</span>
+                </div>
+                <p class="sec-note">
+                    两处表面各有一套「停止」，口径都是<b>整条转换流</b>，但所处的视觉位置暗示的粒度完全不同：
+                    页内转换条在任务顶上（读起来像整批），记录详情在一条小记录里（读起来像这一笔）。
+                </p>
+
+                <!-- 1.1 页内转换条 · 运行中 -->
+                <figure class="surface" data-od-id="legacy-convert-bar-running">
+                    <figcaption class="surface-cap">
+                        <span class="tag tag--neutral">表面一 · 现状</span>
+                        <span class="cap-name">页内转换条 · 运行中</span>
+                        <span class="cap-src">思源页签顶部</span>
+                    </figcaption>
+                    <div class="app">
+                        <div class="app-tabbar">
+                            <div class="app-tab is-active"><span>温故复习</span><span class="app-tab-x">×</span></div>
+                            <div class="app-tab"><span>错题回顾</span></div>
+                            <span class="app-tab-plus">＋</span>
+                        </div>
+                        <div class="convert-bar">
+                            <span class="spin" aria-hidden="true"></span>
+                            <p class="cb-text">
+                                <span class="cb-num">已读 62% · 累计 148 题</span>
+                                <span class="cb-sep">|</span>
+                                <span>第 12/24 篇 ·《2024 考研英语真题精读》</span>
+                            </p>
+                            <div class="cb-actions">
+                                <button class="b3-button b3-button--small">复制</button>
+                                <button class="b3-button b3-button--small">停止</button>
+                                <span class="mk" title="粒度错位点 2">2</span>
+                            </div>
+                        </div>
+                        <div class="statline">
+                            <span
+                                >《2024 考研英语真题精读》共 480 题 · 已刷 320/480 · 答对 264/320 · 已刷 3 轮 · 最近 4/5
+                                · 最佳 5/5</span
+                            >
+                            <span class="stat-timer">12:04</span>
+                        </div>
+                    </div>
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>停止钮与「复制」并排、同体量幽灵小钮，不突出；文案只有两个字，看不出停的范围</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span>体量不变，文案改为<b>「停止整批转换」</b>，独立到横幅右侧并加二次确认</span>
+                        </p>
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>分篇状态只在状态文字里按篇滚动，滚动过去就再也看不到队列全景</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span>同一条内嵌<b>按篇着色的队列构成条</b>，六态计数常驻，可展开逐篇行</span>
+                        </p>
+                    </div>
+                </figure>
+
+                <!-- 1.2 页内转换条 · 抉择态 -->
+                <figure class="surface" data-od-id="legacy-convert-bar-stopped">
+                    <figcaption class="surface-cap">
+                        <span class="tag tag--neutral">表面一 · 现状</span>
+                        <span class="cap-name">页内转换条 · 停止后抉择态</span>
+                        <span class="cap-src">思源页签顶部</span>
+                    </figcaption>
+                    <div class="app">
+                        <div class="app-tabbar">
+                            <div class="app-tab is-active"><span>温故复习</span><span class="app-tab-x">×</span></div>
+                            <div class="app-tab"><span>错题回顾</span></div>
+                            <span class="app-tab-plus">＋</span>
+                        </div>
+                        <div class="convert-bar convert-bar--stopped">
+                            <span class="cb-text"><span class="cb-num">已停止（已生成 148 题 · 6 批）</span></span>
+                            <div class="cb-actions">
+                                <button class="b3-button b3-button--small">保留已生成</button>
+                                <button class="b3-button b3-button--small">全部丢弃</button>
+                                <span class="mk" title="粒度错位点 3">3</span>
+                            </div>
+                        </div>
+                        <div class="statline">
+                            <span
+                                >《2024 考研英语真题精读》共 480 题 · 已刷 320/480 · 答对 264/320 · 已刷 3 轮 · 最近 4/5
+                                · 最佳 5/5</span
+                            >
+                            <span class="stat-timer">12:04</span>
+                        </div>
+                    </div>
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>「保留已生成 / 全部丢弃」平级并列，两个同体量小钮，谁更安全看不出来</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span
+                                >「保留已生成」为主按钮，<b>「全部丢弃」为红描边二次确认</b>；并写明被停止的是哪一篇、哪些被取消</span
+                            >
+                        </p>
+                    </div>
+                </figure>
+
+                <!-- 1.3 AI 会话面板 -->
+                <figure class="surface" data-od-id="legacy-ai-panel">
+                    <figcaption class="surface-cap">
+                        <span class="tag tag--neutral">表面二 · 现状</span>
+                        <span class="cap-name">AI 会话面板 · 树 + 详情</span>
+                        <span class="cap-src">rail 工作区 · running 记录选中</span>
+                    </figcaption>
+                    <div class="ai-panel is-plain">
+                        <div class="ai-tree">
+                            <div class="ai-tree-head">AI 会话<span class="badge badge--plain">3 组</span></div>
+                            <div class="tg1"><span class="caret">▾</span>转换</div>
+                            <div class="tg2"><span class="caret">▾</span>转换 · 2024 考研英语真题精读</div>
+                            <div class="leaf is-selected flag">
+                                <span class="dot dot--run"></span>
+                                <span class="leaf-name">生成第 12 批 · 8 题</span>
+                                <span class="badge badge--run"
+                                    ><span class="spin" aria-hidden="true"></span>running</span
+                                >
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">路由 · 送去「长难句拆解」</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                            <div class="tg2"><span class="caret">▸</span>转换 · 2023 年真题（已完成）</div>
+                            <div class="leaf">
+                                <span class="dot dot--fail"></span>
+                                <span class="leaf-name">生成第 6 批 · 6 题</span>
+                                <span class="badge badge--fail">error</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">生成第 7 批 · 5 题</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                        </div>
+                        <div class="ai-detail">
+                            <div class="detail-head">
+                                <h3>生成第 12 批 · 8 题</h3>
+                                <span class="badge badge--plain">kind=convert</span>
+                                <span class="badge badge--run">running</span>
+                            </div>
+                            <div class="detail-body">
+                                <p class="log-label">轮次日志</p>
+                                <ul class="log">
+                                    <li>
+                                        <span class="t">14:22:07</span
+                                        ><span>轮次 1 · 输入 <em>3,240 字</em> → 输出 <em>8 题</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:22:31</span
+                                        ><span>轮次 2 · 校验 8 题，其中 <em>2 题重试</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:22:48</span><span>轮次 3 · 写入题集 · <em>8 题</em></span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="detail-foot">
+                                <button class="b3-button">停止</button>
+                                <span class="mk" title="粒度错位点 1">1</span>
+                                <span class="hint"
+                                    >这一条记录是整批队列中的一小笔，但此处「停止」的实际结果是整条转换流停止。</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </figure>
+
+                <h3 class="marks-title" data-od-id="mismatch-title">粒度错位点</h3>
+                <ul class="marks" data-od-id="mismatch-marks">
+                    <li>
+                        <span class="mk">1</span
+                        ><span
+                            ><b>记录级停止钮的语义越界。</b>树里一行 = 一次 AI 调用（第 12 批 · 8
+                            题），点它详情里的「停止」，实际执行的是「当前篇 stopped + 剩余篇全部 cancelled +
+                            汇总通知」。界面给的是小粒度，动作是大粒度 —— 想停这一笔的人误杀整批。</span
+                        >
+                    </li>
+                    <li>
+                        <span class="mk">2</span
+                        ><span
+                            ><b>页内停止钮没有范围说明。</b
+                            >文案只有「停止」二字，与「复制」同体量并排，既不突出也无范围；用户无法从按钮本身读出它停的是整批。</span
+                        >
+                    </li>
+                    <li>
+                        <span class="mk">3</span
+                        ><span
+                            ><b>抉择态的两个钮没有倾向。</b
+                            >「保留已生成」与「全部丢弃」同体量并列，安全项与破坏项看起来一样重，且不交代停在哪一篇、哪些被取消。</span
+                        >
+                    </li>
+                    <li>
+                        <span class="mk">4</span
+                        ><span
+                            ><b>面板缺流级呈现，队列全景也只活在页内文字里。</b>批量队列运行时面板里只有「转换 ·
+                            文档A」组（running）与历史组（done），没有一行说明「整批队列正在跑」；分篇六态（排队 / 进行
+                            / 完成 / 跳过 / 停止 / 失败）随状态行滚动更新，滚过即消失，两个表面互不可见 ——
+                            想停整批的人不会想到面板，更不会想到要进某条小记录的详情。</span
+                        >
+                    </li>
+                </ul>
+            </section>
+
+            <!-- ==================== 02 重设计屏 ==================== -->
+            <section class="sec" id="after" data-od-id="section-after">
+                <div class="sec-head">
+                    <span class="sec-num">02</span>
+                    <h2>重设计屏 · 三个状态</h2>
+                    <span class="sec-sub">批量队列运行中 / 单篇运行中 / 停止后抉择态</span>
+                </div>
+                <p class="sec-note">
+                    同一个原则贯穿三个状态：<b>停止只有一个粒度 —— 整条转换流</b>，且只在流级入口出现。
+                    页内转换条与面板横幅是同一个动作的两个位置，文案、颜色、确认方式完全一致；
+                    记录详情不再出现停止，改为一行归属说明指向流级入口。
+                </p>
+
+                <!-- 2.1 批量队列运行中 -->
+                <figure class="surface" data-od-id="redesign-batch-running">
+                    <figcaption class="surface-cap">
+                        <span class="tag">状态 1 · 批量队列运行中</span>
+                        <span class="cap-name">页内转换条 + AI 会话面板（流级横幅展开）</span>
+                        <span class="cap-src">第 12/24 篇 · 进行中</span>
+                    </figcaption>
+
+                    <div class="app">
+                        <div class="app-tabbar">
+                            <div class="app-tab is-active"><span>温故复习</span><span class="app-tab-x">×</span></div>
+                            <div class="app-tab"><span>错题回顾</span></div>
+                            <span class="app-tab-plus">＋</span>
+                        </div>
+                        <div class="convert-bar" data-od-id="convert-bar-running">
+                            <span class="spin" aria-hidden="true"></span>
+                            <p class="cb-text">
+                                <span class="cb-num">已读 62% · 累计 148 题</span>
+                                <span class="cb-sep">|</span>
+                                <span>第 12/24 篇 ·《2024 考研英语真题精读》</span>
+                            </p>
+                            <div class="cb-actions">
+                                <button class="b3-button b3-button--small">复制</button>
+                                <button
+                                    class="b3-button b3-button--small b3-button--cancel"
+                                    data-od-id="cta-stop-batch-bar"
+                                >
+                                    停止整批转换
+                                </button>
+                            </div>
+                        </div>
+                        <div class="statline">
+                            <span
+                                >《2024 考研英语真题精读》共 480 题 · 已刷 320/480 · 答对 264/320 · 已刷 3 轮 · 最近 4/5
+                                · 最佳 5/5</span
+                            >
+                            <span class="stat-timer">12:04</span>
+                        </div>
+                    </div>
+
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>「停止」</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span><b>「停止整批转换」</b>·红描边（b3 cancel 观感）·二次确认「将取消剩余 12 篇」</span>
+                        </p>
+                    </div>
+
+                    <div class="ai-panel" style="margin-top: 16px" data-od-id="ai-panel-batch-running">
+                        <!-- 流级横幅 -->
+                        <div class="flow-banner flow-banner--run" data-od-id="flow-banner-running">
+                            <div class="fb-row">
+                                <div class="fb-id">
+                                    <span class="dot dot--run"></span>
+                                    <span class="fb-title">
+                                        <strong>转换运行中</strong>
+                                        <span>批量队列 ·《2024 考研英语真题精读》</span>
+                                    </span>
+                                </div>
+                                <div class="fb-prog">
+                                    <div
+                                        class="seg"
+                                        role="img"
+                                        aria-label="队列构成：完成 9 篇、跳过 1 篇、进行中 1 篇、失败 1 篇、排队 12 篇，共 24 篇"
+                                    >
+                                        <i class="s-done" style="flex: 9"></i>
+                                        <i class="s-skip" style="flex: 1"></i>
+                                        <i class="s-fail" style="flex: 1"></i>
+                                        <i class="s-run" style="flex: 1"></i>
+                                        <i class="s-queued" style="flex: 12"></i>
+                                    </div>
+                                    <div class="fb-stats">
+                                        <span>第 <b>12</b>/24 篇</span><span class="cb-sep">·</span>
+                                        <span>本篇已读 <b>62%</b></span
+                                        ><span class="cb-sep">·</span> <span>累计 <b>148</b> 题</span
+                                        ><span class="cb-sep">·</span>
+                                        <span>已生成 <b>6</b> 批</span>
+                                    </div>
+                                </div>
+                                <div class="fb-actions">
+                                    <button
+                                        class="b3-button b3-button--small b3-button--text"
+                                        data-od-id="toggle-queue-detail"
+                                    >
+                                        收起分篇 ▴
+                                    </button>
+                                    <button class="b3-button b3-button--cancel" data-od-id="cta-stop-batch-panel">
+                                        停止整批转换
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="counts" data-od-id="queue-counts">
+                                <span class="lead">共 24 篇</span>
+                                <span class="chip chip--done"><i></i>完成 <b>9</b></span>
+                                <span class="chip chip--skip"><i></i>跳过 <b>1</b></span>
+                                <span class="chip chip--run"><i></i>进行中 <b>1</b></span>
+                                <span class="chip chip--fail"><i></i>失败 <b>1</b></span>
+                                <span class="chip chip--cancel is-zero"><i></i>取消 <b>0</b></span>
+                                <span class="chip chip--queued"><i></i>排队 <b>12</b></span>
+                            </div>
+
+                            <div class="fb-list" data-od-id="queue-doc-list">
+                                <div class="fb-list-head">
+                                    <span>分篇状态</span>
+                                    <span class="ln">第 9–14 篇 · 共 24 篇</span>
+                                </div>
+                                <div class="doc-row is-fail">
+                                    <span class="dr-idx">09</span>
+                                    <span class="dr-name">Text 9 · 教育公平</span>
+                                    <span class="dr-state st-fail"
+                                        ><span class="dot dot--fail"></span>失败 · 模型返回超时</span
+                                    >
+                                    <span class="dr-note">已重试 2 次 · 不阻塞后续篇</span>
+                                    <span class="dr-metric">0 题</span>
+                                </div>
+                                <div class="doc-row is-done">
+                                    <span class="dr-idx">10</span>
+                                    <span class="dr-name">Text 10 · 城市规划</span>
+                                    <span class="dr-state st-done"><span class="dot dot--done"></span>完成</span>
+                                    <span class="dr-note">已写入题集</span>
+                                    <span class="dr-metric">46 题</span>
+                                </div>
+                                <div class="doc-row is-done">
+                                    <span class="dr-idx">11</span>
+                                    <span class="dr-name">Text 11 · 气候政策</span>
+                                    <span class="dr-state st-done"
+                                        ><span class="dot dot--skip"></span>跳过 · 已有题集</span
+                                    >
+                                    <span class="dr-note">零 AI 跳过</span>
+                                    <span class="dr-metric">32 题</span>
+                                </div>
+                                <div class="doc-row is-current">
+                                    <span class="dr-idx">12</span>
+                                    <span class="dr-name">Text 12 · 人工智能伦理</span>
+                                    <span class="dr-state st-run"><span class="dot dot--run"></span>进行中</span>
+                                    <span class="dr-note">本批 8 题 · 轮次 3</span>
+                                    <span class="dr-metric">已读 62%</span>
+                                </div>
+                                <div class="doc-row is-queued">
+                                    <span class="dr-idx">13</span>
+                                    <span class="dr-name">Text 13 · 城市化与住房</span>
+                                    <span class="dr-state"><span class="dot dot--queued"></span>排队</span>
+                                    <span class="dr-note">等待第 12 篇结束</span>
+                                    <span class="dr-metric">—</span>
+                                </div>
+                                <div class="doc-row is-queued">
+                                    <span class="dr-idx">14</span>
+                                    <span class="dr-name">Text 14 · 博物馆与记忆</span>
+                                    <span class="dr-state"><span class="dot dot--queued"></span>排队</span>
+                                    <span class="dr-note">—</span>
+                                    <span class="dr-metric">—</span>
+                                </div>
+                                <div class="fb-list-foot">第 1–8 篇已完成 · 第 9 篇失败 · 第 15–24 篇排队中</div>
+                            </div>
+                        </div>
+
+                        <!-- 树 -->
+                        <div class="ai-tree">
+                            <div class="ai-tree-head">AI 会话<span class="badge badge--plain">3 组</span></div>
+                            <div class="tg1"><span class="caret">▾</span>转换</div>
+                            <div class="tg2"><span class="caret">▾</span>转换 · 2024 考研英语真题精读</div>
+                            <div class="leaf is-selected">
+                                <span class="dot dot--run"></span>
+                                <span class="leaf-name">生成第 12 批 · 8 题</span>
+                                <span class="badge badge--run"
+                                    ><span class="spin" aria-hidden="true"></span>running</span
+                                >
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">路由 · 送去「长难句拆解」</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                            <div class="tg2"><span class="caret">▸</span>转换 · 2023 年真题（已完成）</div>
+                            <div class="leaf">
+                                <span class="dot dot--fail"></span>
+                                <span class="leaf-name">生成第 6 批 · 6 题</span>
+                                <span class="badge badge--fail">error</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">生成第 7 批 · 5 题</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                        </div>
+
+                        <!-- 详情：无停止钮 -->
+                        <div class="ai-detail">
+                            <div class="detail-head">
+                                <h3>生成第 12 批 · 8 题</h3>
+                                <span class="badge badge--plain">kind=convert</span>
+                                <span class="badge badge--run">running</span>
+                            </div>
+                            <div class="detail-body">
+                                <p class="log-label">轮次日志</p>
+                                <ul class="log">
+                                    <li>
+                                        <span class="t">14:22:07</span
+                                        ><span>轮次 1 · 输入 <em>3,240 字</em> → 输出 <em>8 题</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:22:31</span
+                                        ><span>轮次 2 · 校验 8 题，其中 <em>2 题重试</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:22:48</span><span>轮次 3 · 写入题集 · <em>8 题</em></span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="detail-foot">
+                                <div class="own-note">
+                                    <span class="dot dot--run"></span>
+                                    <span>
+                                        <b>本记录是《2024 考研英语真题精读》队列中的第 12 批</b>，不是独立任务； 单笔 AI
+                                        调用不可单独中止。要停止，请用顶部横幅的
+                                        <span style="color: var(--accent-text)">「停止整批转换」</span
+                                        >——本详情不再提供停止按钮。
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>面板无流级行，整批任务在树里被拆成一堆看不出归属的小记录</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span
+                                >面板顶部<b>常驻流级横幅</b>：队列名 + 按篇着色构成条 + 第 i/N + 累计题数 +
+                                停止整批转换</span
+                            >
+                        </p>
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>分篇六态随页内文字滚动，过去即消失；面板看不到队列全景</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span
+                                >两层密度：横幅常驻<b>六态计数徽标</b>，展开为<b>逐篇行</b>（篇名 / 状态 /
+                                本篇进度），当前篇高亮</span
+                            >
+                        </p>
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>记录详情底部一个「停止」，停的是整条流</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span>该钮<b>去掉</b>，原位换一行归属说明，把用户送回唯一的流级入口</span>
+                        </p>
+                    </div>
+                </figure>
+
+                <!-- 2.2 单篇运行中 -->
+                <figure class="surface" data-od-id="redesign-single-running">
+                    <figcaption class="surface-cap">
+                        <span class="tag">状态 2 · 单篇运行中</span>
+                        <span class="cap-name">无分篇维态 · 横幅自动收敛为单篇形态</span>
+                        <span class="cap-src">《Text 7 · 城市与记忆》</span>
+                    </figcaption>
+
+                    <div class="app">
+                        <div class="app-tabbar">
+                            <div class="app-tab is-active"><span>温故复习</span><span class="app-tab-x">×</span></div>
+                            <div class="app-tab"><span>错题回顾</span></div>
+                            <span class="app-tab-plus">＋</span>
+                        </div>
+                        <div class="convert-bar" data-od-id="convert-bar-single">
+                            <span class="spin" aria-hidden="true"></span>
+                            <p class="cb-text">
+                                <span class="cb-num">已读 38% · 累计 46 题</span>
+                                <span class="cb-sep">|</span>
+                                <span>单篇 ·《2024 考研英语真题精读 · Text 7 城市与记忆》</span>
+                            </p>
+                            <div class="cb-actions">
+                                <button class="b3-button b3-button--small">复制</button>
+                                <button
+                                    class="b3-button b3-button--small b3-button--cancel"
+                                    data-od-id="cta-stop-single-bar"
+                                >
+                                    停止转换
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ai-panel" style="margin-top: 16px" data-od-id="ai-panel-single-running">
+                        <div class="flow-banner flow-banner--run" data-od-id="flow-banner-single">
+                            <div class="fb-row">
+                                <div class="fb-id">
+                                    <span class="dot dot--run"></span>
+                                    <span class="fb-title">
+                                        <strong>转换运行中</strong>
+                                        <span>单篇 ·《2024 考研英语真题精读 · Text 7 城市与记忆》</span>
+                                    </span>
+                                </div>
+                                <div class="fb-prog">
+                                    <div class="bar" role="img" aria-label="本篇已读 38%">
+                                        <i style="width: 38%"></i>
+                                    </div>
+                                    <div class="fb-stats">
+                                        <span>本篇已读 <b>38%</b></span
+                                        ><span class="cb-sep">·</span> <span>累计 <b>46</b> 题</span
+                                        ><span class="cb-sep">·</span>
+                                        <span>已生成 <b>6</b> 批</span>
+                                    </div>
+                                </div>
+                                <div class="fb-actions">
+                                    <button class="b3-button b3-button--cancel" data-od-id="cta-stop-single-panel">
+                                        停止转换
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-tree">
+                            <div class="ai-tree-head">AI 会话<span class="badge badge--plain">1 组</span></div>
+                            <div class="tg1"><span class="caret">▾</span>转换</div>
+                            <div class="tg2"><span class="caret">▾</span>转换 · Text 7 城市与记忆</div>
+                            <div class="leaf is-selected">
+                                <span class="dot dot--run"></span>
+                                <span class="leaf-name">生成第 6 批 · 7 题</span>
+                                <span class="badge badge--run"
+                                    ><span class="spin" aria-hidden="true"></span>running</span
+                                >
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">生成第 5 批 · 9 题</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">路由 · 送去「长难句拆解」</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                        </div>
+
+                        <div class="ai-detail">
+                            <div class="detail-head">
+                                <h3>生成第 6 批 · 7 题</h3>
+                                <span class="badge badge--plain">kind=convert</span>
+                                <span class="badge badge--run">running</span>
+                            </div>
+                            <div class="detail-body">
+                                <p class="log-label">轮次日志</p>
+                                <ul class="log">
+                                    <li>
+                                        <span class="t">14:31:12</span
+                                        ><span>轮次 1 · 输入 <em>2,880 字</em> → 输出 <em>7 题</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:31:40</span
+                                        ><span>轮次 2 · 校验 7 题，<em>全部通过</em></span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="detail-foot">
+                                <div class="own-note">
+                                    <span class="dot dot--run"></span>
+                                    <span>
+                                        <b>本记录是《Text 7 城市与记忆》转换流中的第 6 批</b>，不是独立任务；
+                                        停止请用顶部横幅的「停止转换」，停止后面板与页内转换条同时进入保留 / 丢弃抉择。
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>单篇与批量共用一套文案，靠「第 i/N 篇」出现与否区分，读不出粒度差异</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span
+                                >单篇<b>自动去掉分篇入口与计数徽标</b>，进度条降为单条已读进度，副标题写明「单篇」</span
+                            >
+                        </p>
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>停止都不说明停的范围</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span>两种范围两个词：批量「停止整批转换」/ 单篇「停止转换」，动作名即范围</span>
+                        </p>
+                    </div>
+                </figure>
+
+                <!-- 2.3 停止后抉择态 -->
+                <figure class="surface" data-od-id="redesign-stopped">
+                    <figcaption class="surface-cap">
+                        <span class="tag">状态 3 · 停止后抉择态</span>
+                        <span class="cap-name">页内转换条保留 / 丢弃 + 面板终态汇总</span>
+                        <span class="cap-src">停止发生在第 12 篇</span>
+                    </figcaption>
+
+                    <div class="app">
+                        <div class="app-tabbar">
+                            <div class="app-tab is-active"><span>温故复习</span><span class="app-tab-x">×</span></div>
+                            <div class="app-tab"><span>错题回顾</span></div>
+                            <span class="app-tab-plus">＋</span>
+                        </div>
+                        <div class="convert-bar convert-bar--stopped" data-od-id="convert-bar-decide">
+                            <span class="cb-text">
+                                <span class="cb-num">已停止（已生成 148 题 · 6 批）</span>
+                                <span class="cb-sep">|</span>
+                                <span>停在第 12 篇 · 其余 12 篇已取消</span>
+                            </span>
+                            <div class="cb-actions">
+                                <button
+                                    class="b3-button b3-button--small b3-button--primary"
+                                    data-od-id="cta-keep-generated"
+                                >
+                                    保留已生成
+                                </button>
+                                <button
+                                    class="b3-button b3-button--small b3-button--cancel"
+                                    data-od-id="cta-discard-all"
+                                >
+                                    全部丢弃
+                                </button>
+                            </div>
+                        </div>
+                        <div class="statline">
+                            <span
+                                >《2024 考研英语真题精读》共 480 题 · 已刷 320/480 · 答对 264/320 · 已刷 3 轮 · 最近 4/5
+                                · 最佳 5/5</span
+                            >
+                            <span class="stat-timer">12:04</span>
+                        </div>
+                    </div>
+
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span
+                                >「保留已生成」与「全部丢弃」同体量并列，无默认倾向，也无「停在哪、取消了什么」的交代</span
+                            >
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span
+                                >保留为主按钮、丢弃为红描边；状态行补上<b>「停在第 12 篇 · 其余 12 篇已取消」</b
+                                >，与面板汇总同一组数字</span
+                            >
+                        </p>
+                    </div>
+
+                    <div class="ai-panel" style="margin-top: 16px" data-od-id="ai-panel-stopped">
+                        <div class="flow-banner flow-banner--stop" data-od-id="flow-banner-stopped">
+                            <div class="fb-row">
+                                <div class="fb-id">
+                                    <span class="dot dot--stop"></span>
+                                    <span class="fb-title">
+                                        <strong>转换已停止 · 等待抉择</strong>
+                                        <span>批量队列 ·《2024 考研英语真题精读》</span>
+                                    </span>
+                                </div>
+                                <div class="fb-prog">
+                                    <div
+                                        class="seg"
+                                        role="img"
+                                        aria-label="队列构成：完成 9 篇、跳过 1 篇、失败 1 篇、停止 1 篇、取消 12 篇，共 24 篇"
+                                    >
+                                        <i class="s-done" style="flex: 9"></i>
+                                        <i class="s-skip" style="flex: 1"></i>
+                                        <i class="s-fail" style="flex: 1"></i>
+                                        <i class="s-stop" style="flex: 1"></i>
+                                        <i class="s-cancel" style="flex: 12"></i>
+                                    </div>
+                                    <div class="fb-stats">
+                                        <span>停在第 <b>12</b>/24 篇</span><span class="cb-sep">·</span>
+                                        <span>本篇已读 <b>62%</b></span
+                                        ><span class="cb-sep">·</span> <span>累计 <b>148</b> 题</span
+                                        ><span class="cb-sep">·</span>
+                                        <span>已生成 <b>6</b> 批</span>
+                                    </div>
+                                </div>
+                                <div class="fb-actions">
+                                    <span class="badge badge--stop">stopped</span>
+                                    <button
+                                        class="b3-button b3-button--small b3-button--text"
+                                        data-od-id="link-to-decide"
+                                    >
+                                        前往页内转换条抉择
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="counts" data-od-id="queue-counts-stopped">
+                                <span class="lead">共 24 篇</span>
+                                <span class="chip chip--done"><i></i>完成 <b>9</b></span>
+                                <span class="chip chip--skip"><i></i>跳过 <b>1</b></span>
+                                <span class="chip chip--stop"><i></i>停止 <b>1</b></span>
+                                <span class="chip chip--fail"><i></i>失败 <b>1</b></span>
+                                <span class="chip chip--cancel"><i></i>取消 <b>12</b></span>
+                                <span class="chip chip--queued is-zero"><i></i>排队 <b>0</b></span>
+                            </div>
+
+                            <div class="fb-list" data-od-id="queue-doc-list-stopped">
+                                <div class="fb-list-head">
+                                    <span>分篇状态</span>
+                                    <span class="ln">第 11–15 篇 · 共 24 篇</span>
+                                </div>
+                                <div class="doc-row is-done">
+                                    <span class="dr-idx">11</span>
+                                    <span class="dr-name">Text 11 · 气候政策</span>
+                                    <span class="dr-state st-done"
+                                        ><span class="dot dot--skip"></span>跳过 · 已有题集</span
+                                    >
+                                    <span class="dr-note">零 AI 跳过</span>
+                                    <span class="dr-metric">32 题</span>
+                                </div>
+                                <div class="doc-row is-current">
+                                    <span class="dr-idx">12</span>
+                                    <span class="dr-name">Text 12 · 人工智能伦理</span>
+                                    <span class="dr-state st-run"
+                                        ><span class="dot dot--stop"></span>停止 · 待抉择</span
+                                    >
+                                    <span class="dr-note">本批 8 题已生成</span>
+                                    <span class="dr-metric">已读 62%</span>
+                                </div>
+                                <div class="doc-row is-cancel">
+                                    <span class="dr-idx">13</span>
+                                    <span class="dr-name">Text 13 · 城市化与住房</span>
+                                    <span class="dr-state"><span class="dot dot--cancel"></span>取消</span>
+                                    <span class="dr-note">因停止未运行</span>
+                                    <span class="dr-metric">—</span>
+                                </div>
+                                <div class="doc-row is-cancel">
+                                    <span class="dr-idx">14</span>
+                                    <span class="dr-name">Text 14 · 博物馆与记忆</span>
+                                    <span class="dr-state"><span class="dot dot--cancel"></span>取消</span>
+                                    <span class="dr-note">因停止未运行</span>
+                                    <span class="dr-metric">—</span>
+                                </div>
+                                <div class="doc-row is-cancel">
+                                    <span class="dr-idx">15</span>
+                                    <span class="dr-name">Text 15 · 城市化与迁徙</span>
+                                    <span class="dr-state"><span class="dot dot--cancel"></span>取消</span>
+                                    <span class="dr-note">因停止未运行</span>
+                                    <span class="dr-metric">—</span>
+                                </div>
+                                <div class="fb-list-foot">
+                                    第 1–10 篇已出结果（第 9 篇失败）· 第 13–24 篇因停止取消 · 9 + 1 + 1 + 1 + 12 = 24
+                                    篇
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-tree">
+                            <div class="ai-tree-head">AI 会话<span class="badge badge--plain">2 组</span></div>
+                            <div class="tg1"><span class="caret">▾</span>转换</div>
+                            <div class="tg2"><span class="caret">▾</span>转换 · 2024 考研英语真题精读</div>
+                            <div class="leaf is-selected">
+                                <span class="dot dot--stop"></span>
+                                <span class="leaf-name">生成第 12 批 · 8 题</span>
+                                <span class="badge badge--stop">stopped</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">路由 · 送去「长难句拆解」</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">生成第 11 批 · 6 题</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                        </div>
+
+                        <div class="ai-detail">
+                            <div class="detail-head">
+                                <h3>生成第 12 批 · 8 题</h3>
+                                <span class="badge badge--plain">kind=convert</span>
+                                <span class="badge badge--stop">stopped</span>
+                            </div>
+                            <div class="detail-body">
+                                <p class="log-label">轮次日志</p>
+                                <ul class="log">
+                                    <li>
+                                        <span class="t">14:22:07</span
+                                        ><span>轮次 1 · 输入 <em>3,240 字</em> → 输出 <em>8 题</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:22:31</span
+                                        ><span>轮次 2 · 校验 8 题，其中 <em>2 题重试</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:22:48</span><span>轮次 3 · 写入题集 · <em>8 题</em></span>
+                                    </li>
+                                    <li>
+                                        <span class="t">14:23:05</span
+                                        ><span><em>收到整批停止指令</em> · 本批已产出保留待抉择</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="detail-foot">
+                                <div class="own-note">
+                                    <span class="dot dot--stop"></span>
+                                    <span>
+                                        <b>本记录随整批转换一起停止</b>，产出的 8 题已计入「已生成 148 题 · 6 批」。
+                                        保留或丢弃的抉择只有一处入口（页内转换条，或本面板顶部横幅的「前往页内转换条抉择」），本详情不重复提供。
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="deltas">
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span
+                                >停止后面板没有终态交代，只剩一条条 stopped / cancelled
+                                的小记录，用户不知道停在哪、影响了几篇</span
+                            >
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span
+                                >横幅转<b>终态汇总</b>：停在第 12/24 篇 + 六态计数 +
+                                逐篇取消行，与页内转换条同一组数字；抉择入口只留一处</span
+                            >
+                        </p>
+                        <p class="delta">
+                            <span class="d-tag">现状</span>
+                            <span>停止后仍在详情里保留停止按钮，状态含糊</span>
+                            <span class="d-arrow">→</span>
+                            <span class="d-tag d-tag--after">本稿</span>
+                            <span>记录改徽标 <b>stopped</b>，详情写明「随整批一起停止」，不再提供任何重复入口</span>
+                        </p>
+                    </div>
+                </figure>
+            </section>
+
+            <!-- ==================== 03 四个问题的结论 ==================== -->
+            <section class="sec" id="decisions" data-od-id="section-decisions">
+                <div class="sec-head">
+                    <span class="sec-num">03</span>
+                    <h2>四个问题的本稿采用</h2>
+                    <span class="sec-sub">每问一句结论 · 一行为理由</span>
+                </div>
+
+                <div class="qs">
+                    <article class="q" data-od-id="decision-flow-stop-entry">
+                        <div class="q-q">
+                            <span class="qn">Q1</span>
+                            <h3>流级停止入口住哪？</h3>
+                        </div>
+                        <p class="q-verdict">
+                            <span class="verdict-tag">本稿采用</span>
+                            面板顶部给一条<b>常驻「转换运行中」流级横幅</b>（队列名 + 按篇着色构成条 + 第 i/N 篇 +
+                            累计题数 + 「停止整批转换」），与页内转换条同口径并列，两者文案与二次确认完全一致。
+                        </p>
+                        <p class="q-why">
+                            理由：停止是流级动作，入口必须与流同层且常驻可见；横幅放在树的上方，让「整批」先于「某笔」被看到，用户不需要先猜到要进哪条记录。
+                        </p>
+                    </article>
+
+                    <article class="q" data-od-id="decision-record-stop">
+                        <div class="q-q">
+                            <span class="qn">Q2</span>
+                            <h3>记录级「停止」钮去留？</h3>
+                        </div>
+                        <p class="q-verdict">
+                            <span class="verdict-tag">本稿采用</span>
+                            <b>去掉。</b>记录详情底部不再有停止按钮，原位换一行归属说明：「本记录是队列中的第 12
+                            批，单笔 AI 调用不可单独中止」，并把停止指引回顶部横幅。
+                        </p>
+                        <p class="q-why">
+                            理由：一条记录 = 一次 AI
+                            调用，本来就不存在「单独停这一笔」的能力，保留按钮只能靠改文案补救；而改标注仍会把「这里能停」的错觉留在用户视线最强的位置，且与横幅形成两个同功能入口。去掉后粒度与语义唯一对应。
+                        </p>
+                    </article>
+
+                    <article class="q" data-od-id="decision-queue-overview">
+                        <div class="q-q">
+                            <span class="qn">Q3</span>
+                            <h3>批量队列全景进不进面板？</h3>
+                        </div>
+                        <p class="q-verdict">
+                            <span class="verdict-tag">本稿采用</span>
+                            进，用<b>两层密度</b>：横幅常驻一行六态<b>计数徽标</b>（完成 / 跳过 / 进行中 / 失败 / 取消 /
+                            排队，零值压暗），
+                            加上一条按篇着色的<b>队列构成条</b>；点「收起分篇」展开为<b>逐篇行列表</b>（序号 / 篇名 /
+                            状态 / 本篇注记 / 本篇进度），当前篇高亮。
+                        </p>
+                        <p class="q-why">
+                            理由：只给计数徽标会让「哪一篇出了问题、停在哪一篇」无从查证；纯状态点阵列又无法承载篇名与原因。摘要常驻
+                            + 全量按需展开，既不挤占面板，又能一眼看出队列构成。
+                        </p>
+                    </article>
+
+                    <article class="q" data-od-id="decision-progress-levels">
+                        <div class="q-q">
+                            <span class="qn">Q4</span>
+                            <h3>运行中进度的层级分配？</h3>
+                        </div>
+                        <p class="q-verdict">
+                            <span class="verdict-tag">本稿采用</span>
+                            <b>页内转换条给全量</b>（队列构成条 + 第 i/N 篇 + 本篇已读 % + 累计题数 +
+                            已生成批数，单篇时自动收敛为一条已读进度）； <b>面板横幅给摘要</b>（同一条队列构成条 + 第
+                            i/N + 本篇已读 % + 累计题数，展开后可得全量分篇）；
+                            <b>记录详情只给本笔局部量</b>（本轮次题数、批号、耗时），不出现全局进度。
+                        </p>
+                        <p class="q-why">
+                            理由：两个表面共享同一组数字，避免出现两套进度互相矛盾；记录是执行明细，重复全局进度只会稀释它自己的信息。
+                        </p>
+                    </article>
+                </div>
+
+                <p class="foot" data-od-id="doc-foot">
+                    基准：reference/theme-tokens.md（Neo+ 深色暖调实测令牌 + 思源 b3 组件体系）·
+                    结构来源：reference/current-state.md · 令牌与视觉语言见 brand-spec.md。所有颜色均由令牌经 oklch()
+                    派生，未引入新色相；语义色仅沿用温故既有约定（绿 = 完成 / 答对，红 = 失败 / 答错，陶土橙 = 进行中 /
+                    当前 / 待抉择，弱灰 = 排队 / 取消）。 reference 中提到的两张实拍截图未随项目提供，本稿的现状复现依据
+                    current-state.md 的文字描述与 theme-tokens.md 的结构语言，未使用任何占位文案。
+                </p>
+            </section>
+
+            <!-- ==================== 06 施工规格 · AI 会话面板（追加节，不动上方任何原内容） ==================== -->
+            <section class="sec" id="spec" data-od-id="section-spec">
+                <style>
+                    /* 06 节专用样式（前缀 sp-，不与原类冲突；原 <style> 一字未动） */
+                    #spec .sp-note {
+                        margin-top: 14px;
+                        color: var(--muted);
+                        font-size: 13px;
+                        line-height: 1.75;
+                        max-width: 90ch;
+                    }
+                    #spec .sp-note b {
+                        color: var(--fg);
+                        font-weight: 600;
+                    }
+                    #spec .sp-h3 {
+                        margin: 30px 0 4px;
+                        font-size: 14.5px;
+                        font-weight: 600;
+                        letter-spacing: -0.005em;
+                    }
+                    #spec .sp-h3 .sp-h3n {
+                        font: 500 11px/1 var(--mono);
+                        letter-spacing: 0.08em;
+                        color: var(--accent-text);
+                        margin-right: 8px;
+                    }
+                    #spec .sp-sub {
+                        margin: 2px 0 12px;
+                        font-size: 12.5px;
+                        color: var(--muted);
+                        line-height: 1.7;
+                    }
+                    #spec .sp-tblwrap {
+                        border: 1px solid var(--border);
+                        border-radius: 8px;
+                        overflow-x: auto;
+                    }
+                    #spec table.sp-tbl {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 12px;
+                        line-height: 1.6;
+                        min-width: 720px;
+                    }
+                    #spec .sp-tbl th {
+                        text-align: left;
+                        font: 500 11px/1 var(--mono);
+                        letter-spacing: 0.06em;
+                        color: var(--faint);
+                        padding: 8px 10px;
+                        border-bottom: 1px solid var(--border);
+                        background: oklch(0.3404 0.0242 234.5 / 0.55);
+                        white-space: nowrap;
+                    }
+                    #spec .sp-tbl td {
+                        padding: 6px 10px;
+                        border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.08);
+                        color: var(--muted);
+                        vertical-align: top;
+                    }
+                    #spec .sp-tbl tr:last-child td {
+                        border-bottom: 0;
+                    }
+                    #spec .sp-tbl .sel {
+                        font-family: var(--mono);
+                        font-size: 11.5px;
+                        color: var(--accent-text);
+                        white-space: nowrap;
+                    }
+                    #spec .sp-tbl .dec {
+                        font-family: var(--mono);
+                        font-size: 11.5px;
+                        color: var(--fg);
+                    }
+                    #spec .sp-tbl .b3 {
+                        font-size: 11px;
+                        color: var(--faint);
+                    }
+                    #spec .sp-tbl .b3 code {
+                        font-family: var(--mono);
+                        font-size: 11px;
+                        color: var(--muted);
+                    }
+                    #spec .sp-callout {
+                        margin-top: 14px;
+                        border: 1px dashed var(--border-2);
+                        border-radius: 6px;
+                        padding: 10px 13px;
+                        font-size: 12.5px;
+                        line-height: 1.7;
+                        color: var(--muted);
+                    }
+                    #spec .sp-callout b {
+                        color: var(--fg);
+                        font-weight: 600;
+                    }
+                    #spec .sp-callout .at {
+                        color: var(--accent-text);
+                    }
+                    #spec .sp-demos {
+                        margin-top: 14px;
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        gap: 16px;
+                    }
+                    #spec .sp-demo-cap {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin-bottom: 10px;
+                        font-size: 12.5px;
+                        color: var(--muted);
+                    }
+                    #spec .sp-demo-cap .cap-name {
+                        color: var(--fg);
+                        font-weight: 600;
+                        font-size: 13.5px;
+                    }
+                    #spec .sp-demo-cap .tag {
+                        font: 500 11px/1 var(--mono);
+                        letter-spacing: 0.06em;
+                        color: var(--accent-text);
+                        border: 1px solid oklch(0.677 0.0876 44.8 / 0.45);
+                        border-radius: 4px;
+                        padding: 3px 7px;
+                    }
+                    #spec .sp-demo-cap .tag--neutral {
+                        color: var(--muted);
+                        border-color: var(--border-2);
+                    }
+                    #spec .ai-panel {
+                        font-size: 12.5px;
+                    }
+                    #spec .sp-demo-notes {
+                        margin-top: 12px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 6px;
+                        font-size: 12px;
+                        color: var(--muted);
+                        line-height: 1.65;
+                    }
+                    #spec .sp-demo-notes b {
+                        color: var(--fg);
+                        font-weight: 600;
+                    }
+                    @media (max-width: 1000px) {
+                        #spec .sp-demos {
+                            grid-template-columns: 1fr;
+                        }
+                    }
+                </style>
+
+                <div class="sec-head">
+                    <span class="sec-num">06</span>
+                    <h2>施工规格 · AI 会话面板</h2>
+                    <span class="sec-sub">实现逐字对齐 · 禁止自由发挥</span>
+                </div>
+                <p class="sec-note">
+                    本节是 02 节三屏的<b>施工图</b>：6.1 给出设计稿 oklch 令牌到思源 <b>var(--b3-*)</b> 的唯一落点（色值必须走
+                    b3 变量，#70 事故口径）；6.2 是 `.ai-panel` 全部元素的 CSS
+                    规格总表（逐条从本稿 `<style>` 提取，<b>值不改</b>——实现时按表抄写，凑不出的令牌按 6.1 映射落
+                    b3，其余尺寸/字距/字重照字面值）；6.3 交代<b>存量记录的回退形态</b>（旧数据叶子行只有「转换」二字 +
+                    时间 + 三态徽标，不是稿里 mock 的「生成第 N 批 · M 题」，对不上稿时按 6.3 认、不要自由发挥）；6.4
+                    是新数据形态与轮次日志三行的逐行对照（哪些可施工、哪些是稿 mock 专属）。
+                    差距清单见配套 `gap-list.md`。
+                </p>
+
+                <!-- ==================== 6.1 令牌映射 ==================== -->
+                <h3 class="sp-h3"><span class="sp-h3n">6.1</span>令牌 → 思源 b3 落点（唯一授权映射）</h3>
+                <p class="sp-sub">
+                    「b3 落点」列即实现色值的最终形态；表中 color-mix 一律 `color-mix(in srgb, … , transparent)`。尺寸令牌
+                   （--r 6px / --r-b 12px）与 mono 字族直接写字面值 / `var(--b3-font-family-code)`。
+                </p>
+                <div class="sp-tblwrap">
+                    <table class="sp-tbl">
+                        <thead>
+                            <tr><th>稿令牌</th><th>稿值（oklch）</th><th>b3 落点（实现写这个）</th><th>用途</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="sel">--surface</td><td class="dec">0.3904 0.0284 232.7</td><td class="b3"><code>var(--b3-theme-surface)</code></td><td class="b3">卡面 / 详情底</td></tr>
+                            <tr><td class="sel">--surface-2</td><td class="dec">0.4344 0.0284 232.7</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-surface) 90%, var(--b3-theme-on-surface) 10%)</code>（或退回同 surface，靠 3px 左线分层）</td><td class="b3">横幅 run 底</td></tr>
+                            <tr><td class="sel">--surface-3</td><td class="dec">0.3404 0.0242 234.5</td><td class="b3"><code>var(--b3-theme-background)</code></td><td class="b3">树凹槽底 / fb-list、detail-foot 底的基色</td></tr>
+                            <tr><td class="sel">--fg</td><td class="dec">0.8404 0.0315 88.4</td><td class="b3"><code>var(--b3-theme-on-surface)</code></td><td class="b3">正文 / 叶行名 / em / b</td></tr>
+                            <tr><td class="sel">--muted</td><td class="dec">0.76 0.0295 88.4</td><td class="b3"><code>var(--b3-theme-on-surface-light)</code></td><td class="b3">弱化正文 / 组行 / chip 词</td></tr>
+                            <tr><td class="sel">--faint</td><td class="dec">0.76 … / 0.55</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface-light) 55%, transparent)</code></td><td class="b3">第三档：log-label / 时间戳 / dr-idx / dr-note / caret</td></tr>
+                            <tr><td class="sel">--border</td><td class="dec">0.8891 … / 0.2</td><td class="b3"><code>var(--b3-border-color)</code></td><td class="b3">常规边线</td></tr>
+                            <tr><td class="sel">--border-2</td><td class="dec">0.8891 … / 0.34</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface) 34%, transparent)</code></td><td class="b3">own-note 虚线 / 普通钮描边</td></tr>
+                            <tr><td class="sel">--hover</td><td class="dec">0.8891 … / 0.08</td><td class="b3"><code>var(--b3-list-hover)</code></td><td class="b3">行 hover / 钮 hover</td></tr>
+                            <tr><td class="sel">--accent</td><td class="dec">0.677 0.0876 44.8</td><td class="b3"><code>var(--b3-theme-primary)</code></td><td class="b3">主题陶土橙（线 / 实心 / 描边）</td></tr>
+                            <tr><td class="sel">--accent-solid</td><td class="dec">0.56 0.095 44.8</td><td class="b3"><code>var(--b3-theme-primary)</code>（主钮底=思源主钮体系）</td><td class="b3">主按钮底</td></tr>
+                            <tr><td class="sel">--accent-text</td><td class="dec">0.82 0.075 44.8</td><td class="b3"><code>var(--b3-theme-primary)</code>（b3 无亮档变量，直接主色，<b>不自行混白</b>）</td><td class="b3">run/stop 徽标与 chip 词色</td></tr>
+                            <tr><td class="sel">--accent-dim</td><td class="dec">0.677 … / 0.18</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-primary) 18%, transparent)</code></td><td class="b3">选中底 / 徽标底 / run·stop 点 3px 光晕 / spin 环底</td></tr>
+                            <tr><td class="sel">--accent-hi</td><td class="dec">0.732 0.0876 44.8</td><td class="b3">—（本稿未使用，勿落）</td><td class="b3">无</td></tr>
+                            <tr><td class="sel">--ok / --ok-solid</td><td class="dec">0.8 / 0.68 0.12 155</td><td class="b3"><code>var(--b3-card-success-color)</code></td><td class="b3">完成（词色与实心同源）</td></tr>
+                            <tr><td class="sel">--ok-dim</td><td class="dec">0.68 … / 0.18</td><td class="b3"><code>color-mix(in srgb, var(--b3-card-success-color) 18%, transparent)</code></td><td class="b3">done 徽标底</td></tr>
+                            <tr><td class="sel">--fail / --fail-solid</td><td class="dec">0.8 / 0.62 0.16 28</td><td class="b3"><code>var(--b3-card-error-color)</code></td><td class="b3">失败</td></tr>
+                            <tr><td class="sel">--fail-dim</td><td class="dec">0.62 … / 0.18</td><td class="b3"><code>color-mix(in srgb, var(--b3-card-error-color) 18%, transparent)</code></td><td class="b3">fail 徽标底 / cancel 钮 hover 底</td></tr>
+                            <tr><td class="sel">--queued</td><td class="dec">0.76 … / 0.42</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface) 42%, transparent)</code></td><td class="b3">排队虚线点 / chip</td></tr>
+                            <tr><td class="sel">--queued-fill</td><td class="dec">0.76 … / 0.16</td><td class="b3"><code>color-mix(in srgb, var(--b3-theme-on-surface) 16%, transparent)</code></td><td class="b3">seg / bar 轨道底</td></tr>
+                            <tr><td class="sel">--on-accent</td><td class="dec">0.99 0.01 44.8</td><td class="b3">沿用宿主主钮文字色</td><td class="b3">主钮 / mk 上的字</td></tr>
+                            <tr><td class="sel">--r / --r-b</td><td class="dec">6px / 12px</td><td class="b3">字面量 <code>6px</code> / <code>12px</code>（own-note 圆角建议写死 6px，防主题变量漂移）</td><td class="b3">小圆角 / 卡圆角</td></tr>
+                            <tr><td class="sel">--mono</td><td class="dec">ui-monospace, …</td><td class="b3"><code>var(--b3-font-family-code)</code></td><td class="b3">所有数字 / 时间戳 / 小标签</td></tr>
+                            <tr><td class="sel">--sans</td><td class="dec">PingFang SC, …</td><td class="b3">正文继承宿主 <code>var(--b3-font-family)</code></td><td class="b3">—</td></tr>
+                            <tr><td class="sel">行内裸 oklch</td><td class="dec">s-skip .42 / s-cancel .26 / s-queued .14 / dr-line .1 / log-line .08 / stop 底 .14 / cancel 描边 .3·.5</td><td class="b3">依次 <code>success 42%</code> / <code>on-surface 26%</code> / <code>on-surface 14%</code> / <code>on-surface 10%</code> / <code>on-surface 8%</code> / <code>primary 14%</code> / <code>on-surface 30%·50%</code> 的 color-mix</td><td class="b3">见 6.2 各行备注</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ==================== 6.2 CSS 规格总表 ==================== -->
+                <h3 class="sp-h3"><span class="sp-h3n">6.2</span>CSS 规格总表（`.ai-panel` 全部元素）</h3>
+                <p class="sp-sub">
+                    逐条从本稿 `<style>` 提取，<b>属性与值一字不改</b>。实现逐字对齐，禁止自由发挥：声明串里能直接读 b3
+                    落点的按 6.1 换写，其余（尺寸、字重、字距、grid 模板）照抄字面值。「备注」列只标色令牌与易错点。
+                </p>
+
+                <div class="sp-tblwrap">
+                    <table class="sp-tbl">
+                        <thead>
+                            <tr><th>选择器</th><th>声明（属性: 值; …）</th><th>备注（b3 落点 / 易错点）</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="sel">.ai-panel</td><td class="dec">display: grid; grid-template-columns: 292px minmax(0, 1fr); grid-template-areas: "banner banner" "tree detail"; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-b); overflow: hidden;</td><td class="b3">surface→<code>--b3-theme-surface</code>；border→<code>--b3-border-color</code>；圆角 12px。整卡一体是结构前提，<b>横幅在卡内</b></td></tr>
+                            <tr><td class="sel">.ai-panel.is-plain</td><td class="dec">grid-template-areas: "tree detail";</td><td class="b3">无横幅态（现状实现根本没有这张卡——结构差距 S1/S2）</td></tr>
+                            <tr><td class="sel">@media (max-width: 1000px) .ai-panel</td><td class="dec">grid-template-columns: 1fr; grid-template-areas: "banner" "tree" "detail";</td><td class="b3">单列折行</td></tr>
+                            <tr><td class="sel">@media … .ai-panel.is-plain</td><td class="dec">grid-template-areas: "tree" "detail";</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">@media … .ai-tree</td><td class="dec">border-right: 0; border-bottom: 1px solid var(--border);</td><td class="b3">窄屏分隔线换到底边</td></tr>
+
+                            <tr><td class="sel">.flow-banner</td><td class="dec">grid-area: banner; border-bottom: 1px solid var(--border); background: var(--surface-2);</td><td class="b3">surface-2 落点见 6.1；<b>无自身圆角 / 外边距 / 外围边框</b></td></tr>
+                            <tr><td class="sel">.flow-banner--run</td><td class="dec">border-left: 3px solid var(--accent);</td><td class="b3">accent→<code>--b3-theme-primary</code></td></tr>
+                            <tr><td class="sel">.flow-banner--stop</td><td class="dec">border-left: 3px solid var(--accent); background: oklch(0.56 0.095 44.8 / 0.14);</td><td class="b3">底→<code>color-mix(primary 14%)</code>；左线与 run <b>同色</b>（换色会被读成两条流）</td></tr>
+                            <tr><td class="sel">.fb-row</td><td class="dec">display: flex; align-items: center; gap: 14px; padding: 11px 14px;</td><td class="b3">尺寸照抄</td></tr>
+                            <tr><td class="sel">.fb-id</td><td class="dec">display: flex; align-items: center; gap: 9px; min-width: 0;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.fb-title</td><td class="dec">display: flex; flex-direction: column; gap: 2px; min-width: 0;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.fb-title strong</td><td class="dec">font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap;</td><td class="b3">易漏 letter-spacing -0.005em</td></tr>
+                            <tr><td class="sel">.fb-title span</td><td class="dec">font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;</td><td class="b3">muted→<code>--b3-theme-on-surface-light</code></td></tr>
+                            <tr><td class="sel">.fb-prog</td><td class="dec">display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 180px; max-width: 420px;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.fb-stats</td><td class="dec">display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.fb-stats b</td><td class="dec">font: 500 12px/1 var(--mono); color: var(--fg);</td><td class="b3">mono→<code>--b3-font-family-code</code></td></tr>
+                            <tr><td class="sel">.fb-actions</td><td class="dec">margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto;</td><td class="b3">—</td></tr>
+
+                            <tr><td class="sel">.seg</td><td class="dec">display: flex; height: 6px; border-radius: 999px; overflow: hidden; gap: 2px; background: var(--queued-fill);</td><td class="b3">queued-fill→<code>on-surface 16%</code></td></tr>
+                            <tr><td class="sel">.seg i</td><td class="dec">display: block; height: 100%; border-radius: 1px;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.seg .s-done</td><td class="dec">background: var(--ok-solid);</td><td class="b3">→<code>--b3-card-success-color</code></td></tr>
+                            <tr><td class="sel">.seg .s-skip</td><td class="dec">background: oklch(0.68 0.12 155 / 0.42);</td><td class="b3">→<code>success 42%</code></td></tr>
+                            <tr><td class="sel">.seg .s-run, .seg .s-stop</td><td class="dec">background: var(--accent);</td><td class="b3">→<code>--b3-theme-primary</code></td></tr>
+                            <tr><td class="sel">.seg .s-fail</td><td class="dec">background: var(--fail-solid);</td><td class="b3">→<code>--b3-card-error-color</code></td></tr>
+                            <tr><td class="sel">.seg .s-cancel</td><td class="dec">background: oklch(0.76 0.0295 88.4 / 0.26);</td><td class="b3">→<code>on-surface 26%</code></td></tr>
+                            <tr><td class="sel">.seg .s-queued</td><td class="dec">background: oklch(0.76 0.0295 88.4 / 0.14);</td><td class="b3">→<code>on-surface 14%</code></td></tr>
+                            <tr><td class="sel">.bar</td><td class="dec">height: 6px; border-radius: 999px; background: var(--queued-fill); overflow: hidden;</td><td class="b3">单流态进度条</td></tr>
+                            <tr><td class="sel">.bar i</td><td class="dec">display: block; height: 100%; background: var(--accent);</td><td class="b3">—</td></tr>
+
+                            <tr><td class="sel">.counts</td><td class="dec">display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.counts .lead</td><td class="dec">font-size: 11.5px; color: var(--faint); font-family: var(--mono); letter-spacing: 0.04em; margin-right: 2px;</td><td class="b3">faint 档 + 字距 0.04em（两处都易漏）</td></tr>
+                            <tr><td class="sel">.chip</td><td class="dec">display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 11.5px; color: var(--muted);</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.chip b</td><td class="dec">font: 500 11.5px/1 var(--mono); color: var(--fg);</td><td class="b3">默认数字色，按态覆写</td></tr>
+                            <tr><td class="sel">.chip i</td><td class="dec">width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;</td><td class="b3">chip 内点 6px（比行内点小 2px）</td></tr>
+                            <tr><td class="sel">.chip--done i / b</td><td class="dec">background: var(--ok-solid) / color: var(--ok)</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.chip--skip i / b</td><td class="dec">border: 1.5px solid var(--ok-solid) / color: var(--ok)</td><td class="b3">描边=没结果</td></tr>
+                            <tr><td class="sel">.chip--run i / b</td><td class="dec">background: var(--accent) / color: var(--accent-text)</td><td class="b3">b→<code>--b3-theme-primary</code></td></tr>
+                            <tr><td class="sel">.chip--stop i / b</td><td class="dec">border: 1.5px solid var(--accent) / color: var(--accent-text)</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.chip--fail i / b</td><td class="dec">background: var(--fail-solid) / color: var(--fail)</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.chip--cancel i</td><td class="dec">border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3);</td><td class="b3">→<code>on-surface 30%</code></td></tr>
+                            <tr><td class="sel">.chip--queued i</td><td class="dec">border: 1.5px dashed var(--queued);</td><td class="b3">虚线=还没轮到</td></tr>
+                            <tr><td class="sel">.chip.is-zero / .is-zero b</td><td class="dec">opacity: 0.62 / color: var(--muted)</td><td class="b3">零值压暗</td></tr>
+
+                            <tr><td class="sel">.fb-list</td><td class="dec">border-top: 1px solid var(--border); background: oklch(0.3404 0.0242 234.5 / 0.55);</td><td class="b3">底→<code>color-mix(--b3-theme-background 55%, transparent)</code></td></tr>
+                            <tr><td class="sel">.fb-list-head</td><td class="dec">display: flex; align-items: center; gap: 8px; padding: 7px 14px; font: 500 11px/1 var(--mono); letter-spacing: 0.08em; color: var(--faint); border-bottom: 1px solid var(--border);</td><td class="b3">faint 档</td></tr>
+                            <tr><td class="sel">.fb-list-head .ln</td><td class="dec">margin-left: auto; letter-spacing: 0;</td><td class="b3">右注记撤字距</td></tr>
+                            <tr><td class="sel">.doc-row</td><td class="dec">display: grid; grid-template-columns: 22px 172px 188px minmax(0, 1fr) 108px; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.1); font-size: 12.5px;</td><td class="b3">行分割线→<code>on-surface 10%</code>（<b>不是</b>实色 border-color）</td></tr>
+                            <tr><td class="sel">.doc-row:last-child</td><td class="dec">border-bottom: 0;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.doc-row.is-current</td><td class="dec">background: var(--accent-dim);</td><td class="b3">→<code>primary 18%</code>（现状用 --b3-theme-primary-light，偏浓）</td></tr>
+                            <tr><td class="sel">.doc-row .dr-idx</td><td class="dec">font: 500 11.5px/1 var(--mono); color: var(--faint);</td><td class="b3">faint 档</td></tr>
+                            <tr><td class="sel">.doc-row .dr-name</td><td class="dec">color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.doc-row.is-queued .dr-name</td><td class="dec">color: var(--muted);</td><td class="b3">没跑的字浅一档</td></tr>
+                            <tr><td class="sel">.doc-row.is-cancel .dr-name</td><td class="dec">color: var(--muted); text-decoration: line-through; text-decoration-color: oklch(0.76 0.0295 88.4 / 0.5);</td><td class="b3">删除线装饰色→<code>on-surface 50%</code></td></tr>
+                            <tr><td class="sel">.doc-row .dr-state</td><td class="dec">display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted);</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.doc-row .dr-note</td><td class="dec">color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;</td><td class="b3">faint 档</td></tr>
+                            <tr><td class="sel">.doc-row .dr-metric</td><td class="dec">font: 400 11.5px/1 var(--mono); color: var(--muted); text-align: right; white-space: nowrap;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.doc-row .st-done / .st-run / .st-fail</td><td class="dec">color: var(--ok) / color: var(--accent-text); font-weight: 500 / color: var(--fail)</td><td class="b3">st-run 带 500</td></tr>
+                            <tr><td class="sel">.fb-list-foot</td><td class="dec">padding: 7px 14px; font-size: 11.5px; color: var(--faint); background: oklch(0.3404 0.0242 234.5 / 0.35);</td><td class="b3">底→<code>background 35%</code>；<b>现状未实现此行</b></td></tr>
+                            <tr><td class="sel">@media … .fb-row / .fb-prog</td><td class="dec">flex-wrap: wrap / min-width: 100%; order: 3; max-width: none</td><td class="b3">窄屏换行</td></tr>
+                            <tr><td class="sel">@media … .doc-row / .dr-note</td><td class="dec">grid-template-columns: 22px 96px minmax(0, 1fr) 104px / display: none</td><td class="b3">窄屏四列、隐藏备注列</td></tr>
+
+                            <tr><td class="sel">.ai-tree</td><td class="dec">grid-area: tree; background: var(--surface-3); border-right: 1px solid var(--border); padding: 8px 0 12px; min-width: 0;</td><td class="b3">surface-3→<code>--b3-theme-background</code>；<b>无</b>横向滚动窗 / max-height</td></tr>
+                            <tr><td class="sel">.ai-tree-head</td><td class="dec">display: flex; align-items: center; gap: 8px; padding: 4px 14px 9px; font-size: 13px; font-weight: 600;</td><td class="b3">树头；实现并入宿主标题栏是既定取舍（gap-list S9）</td></tr>
+                            <tr><td class="sel">.ai-tree-head .badge</td><td class="dec">margin-left: auto;</td><td class="b3">组数徽标贴右</td></tr>
+                            <tr><td class="sel">.tg1</td><td class="dec">display: flex; align-items: center; gap: 7px; padding: 3px 14px; font-size: 12px; color: var(--muted); letter-spacing: 0.02em;</td><td class="b3">种类行（一级）；缩进 14px 是<b>正文起点</b></td></tr>
+                            <tr><td class="sel">.tg1 .caret</td><td class="dec">color: var(--faint); font-size: 10px; width: 9px;</td><td class="b3">箭头列 9px</td></tr>
+                            <tr><td class="sel">.tg2</td><td class="dec">display: flex; align-items: center; gap: 7px; padding: 5px 14px 5px 27px; font-size: 12.5px; color: var(--muted);</td><td class="b3">主题组行（二级）；缩进 27px</td></tr>
+                            <tr><td class="sel">.leaf</td><td class="dec">display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 42px; font-size: 12.5px; color: var(--fg); cursor: default;</td><td class="b3">叶行（三级）；缩进 42px；gap 8px = 点/名/徽标统一间距</td></tr>
+                            <tr><td class="sel">.leaf:hover</td><td class="dec">background: var(--hover);</td><td class="b3">→<code>--b3-list-hover</code></td></tr>
+                            <tr><td class="sel">.leaf.is-selected</td><td class="dec">background: var(--accent-dim); box-shadow: inset 2px 0 0 var(--accent);</td><td class="b3">18% 底 + inset 2px 竖线</td></tr>
+                            <tr><td class="sel">.leaf .leaf-name</td><td class="dec">min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.leaf .badge</td><td class="dec">margin-left: auto;</td><td class="b3"><b>徽标贴右</b>（现状 margin-left:6px 跟名字走）</td></tr>
+                            <tr><td class="sel">.leaf .kind</td><td class="dec">font: 400 11px/1 var(--mono); color: var(--faint);</td><td class="b3">叶行内 mono 弱注记位（存量回退形态的时间戳即落此位，见 6.3）</td></tr>
+
+                            <tr><td class="sel">.ai-detail</td><td class="dec">grid-area: detail; display: flex; flex-direction: column; min-width: 0; background: var(--surface);</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.detail-head</td><td class="dec">display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.detail-head h3</td><td class="dec">font-size: 14px; font-weight: 600; letter-spacing: -0.005em;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.detail-head .badge</td><td class="dec">margin-left: auto;</td><td class="b3">状态徽标贴右（稿内无「时间·模型」meta 串，见 gap-list S7）</td></tr>
+                            <tr><td class="sel">.detail-body</td><td class="dec">padding: 13px 16px; flex: 1 1 auto; min-height: 120px;</td><td class="b3"><b>无</b> max-height / overflow-y（滚动归整卡）</td></tr>
+                            <tr><td class="sel">.log-label</td><td class="dec">font: 500 11px/1 var(--mono); letter-spacing: 0.08em; color: var(--faint); margin-bottom: 9px;</td><td class="b3">500 + faint 两处易漏</td></tr>
+                            <tr><td class="sel">.log</td><td class="dec">display: flex; flex-direction: column; gap: 1px;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.log li</td><td class="dec">display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 12px; padding: 6px 0; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid oklch(0.8891 0.0295 89.6 / 0.08);</td><td class="b3">分割线→<code>on-surface 8%</code></td></tr>
+                            <tr><td class="sel">.log li:last-child</td><td class="dec">border-bottom: 0;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.log .t</td><td class="dec">font: 400 11.5px/1.6 var(--mono); color: var(--faint);</td><td class="b3">时间戳列 faint 档</td></tr>
+                            <tr><td class="sel">.log em</td><td class="dec">font-style: normal; color: var(--fg);</td><td class="b3">强调数字回正文色</td></tr>
+                            <tr><td class="sel">.detail-foot</td><td class="dec">display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-top: 1px solid var(--border); background: oklch(0.3404 0.0242 234.5 / 0.35); flex-wrap: wrap;</td><td class="b3">底→<code>background 35%</code></td></tr>
+                            <tr><td class="sel">.detail-foot .hint</td><td class="dec">font-size: 12px; color: var(--muted); line-height: 1.5;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.own-note</td><td class="dec">display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color: var(--muted); line-height: 1.6; border: 1px dashed var(--border-2); border-radius: var(--r); padding: 9px 11px;</td><td class="b3">虚线用 <b>border-2（34% 档）</b>非普通边线；圆角 6px 写死</td></tr>
+                            <tr><td class="sel">.own-note .dot</td><td class="dec">margin-top: 5px;</td><td class="b3">点对齐首行</td></tr>
+                            <tr><td class="sel">.own-note b</td><td class="dec">color: var(--fg); font-weight: 600;</td><td class="b3">首句加粗（文案须分段供给，见 gap-list A7）</td></tr>
+
+                            <tr><td class="sel">.dot</td><td class="dec">width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;</td><td class="b3">行内点 8px（chip 内另有 6px 覆写）</td></tr>
+                            <tr><td class="sel">.dot--done / --fail</td><td class="dec">background: var(--ok-solid) / var(--fail-solid)</td><td class="b3">实心=有结果</td></tr>
+                            <tr><td class="sel">.dot--skip</td><td class="dec">border: 1.5px solid var(--ok-solid); background: transparent;</td><td class="b3">描边=没结果</td></tr>
+                            <tr><td class="sel">.dot--run</td><td class="dec">background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);</td><td class="b3">光晕 18% 档（现状 24% 偏浓）</td></tr>
+                            <tr><td class="sel">.dot--stop</td><td class="dec">background: transparent; border: 1.5px solid var(--accent); box-shadow: 0 0 0 3px var(--accent-dim);</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.dot--queued</td><td class="dec">border: 1.5px dashed var(--queued); background: transparent;</td><td class="b3">虚线=还没轮到</td></tr>
+                            <tr><td class="sel">.dot--cancel</td><td class="dec">border: 1.5px solid oklch(0.76 0.0295 88.4 / 0.3); background: transparent;</td><td class="b3">→<code>on-surface 30%</code></td></tr>
+
+                            <tr><td class="sel">.badge</td><td class="dec">display: inline-flex; align-items: center; gap: 5px; height: 19px; padding: 0 7px; border-radius: 4px; font: 500 11px/1 var(--mono); letter-spacing: 0.02em; border: 1px solid transparent;</td><td class="b3"><b>500 字重易漏</b>（现状 400）</td></tr>
+                            <tr><td class="sel">.badge--run</td><td class="dec">color: var(--accent-text); border-color: oklch(0.677 0.0876 44.8 / 0.45); background: var(--accent-dim);</td><td class="b3">边 45% / 底 18%</td></tr>
+                            <tr><td class="sel">.badge--done</td><td class="dec">color: var(--ok); border-color: oklch(0.68 0.12 155 / 0.4); background: var(--ok-dim);</td><td class="b3">边 40% / 底 18%（现状底 14% 偏淡）</td></tr>
+                            <tr><td class="sel">.badge--fail</td><td class="dec">color: var(--fail); border-color: oklch(0.62 0.16 28 / 0.45); background: var(--fail-dim);</td><td class="b3">边 45% / 底 18%</td></tr>
+                            <tr><td class="sel">.badge--stop</td><td class="dec">color: var(--accent-text); border-color: oklch(0.677 0.0876 44.8 / 0.45);</td><td class="b3"><b>无底色</b>；边 45%（现状 100% 实边偏硬）</td></tr>
+                            <tr><td class="sel">.badge--idle / --plain</td><td class="dec">color: var(--muted); border-color: var(--border);</td><td class="b3">—</td></tr>
+
+                            <tr><td class="sel">.spin</td><td class="dec">width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; border: 1.6px solid var(--accent-dim); border-top-color: var(--accent); animation: spin 0.9s linear infinite;</td><td class="b3">12px（现状 11px）；环底 18% 档</td></tr>
+                            <tr><td class="sel">@keyframes spin</td><td class="dec">to { transform: rotate(360deg) }</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">@keyframes pulse</td><td class="dec">50% { opacity: 0.45 }</td><td class="b3">仅定义；本稿未挂到任何元素——run 点<b>不脉冲</b>（实现自行加的 1.4s 脉冲是稿外发挥，gap-list B 类）</td></tr>
+                            <tr><td class="sel">prefers-reduced-motion</td><td class="dec">.spin { animation: none; border-top-color: var(--accent) } .dot--run { animation: none }</td><td class="b3">—</td></tr>
+
+                            <tr><td class="sel">.b3-button</td><td class="dec">display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r); background: transparent; border: 1px solid var(--border-2); color: var(--fg); font-size: 13px; transition: background 0.12s, border-color 0.12s, color 0.12s; white-space: nowrap;</td><td class="b3">面板内动作钮；实现走思源 Button 体系等价映射</td></tr>
+                            <tr><td class="sel">.b3-button:hover / :focus-visible</td><td class="dec">background: var(--hover) / outline: 2px solid var(--accent); outline-offset: 2px;</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.b3-button--small</td><td class="dec">height: 24px; padding: 0 9px; font-size: 12px; border-color: var(--border);</td><td class="b3">—</td></tr>
+                            <tr><td class="sel">.b3-button--text / :hover</td><td class="dec">border-color: transparent; padding: 0 7px; color: var(--muted) / background: var(--hover); color: var(--fg);</td><td class="b3">「收起分篇」「前往抉择」用</td></tr>
+                            <tr><td class="sel">.b3-button--cancel / :hover</td><td class="dec">border-color: oklch(0.62 0.16 28 / 0.62); color: var(--fail) / background: var(--fail-dim); border-color: var(--fail); color: var(--fail);</td><td class="b3">「停止整批转换」红描边族</td></tr>
+                            <tr><td class="sel">.b3-button--primary / :hover</td><td class="dec">background: var(--accent-solid); border-color: transparent; color: var(--on-accent); font-weight: 500 / background: oklch(0.62 0.095 44.8);</td><td class="b3">「保留已生成」主钮</td></tr>
+                            <tr><td class="sel">.b3-button[disabled] / :hover</td><td class="dec">color: var(--faint); border-color: var(--border); cursor: default / background: transparent;</td><td class="b3">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ==================== 6.3 存量记录回退形态 ==================== -->
+                <h3 class="sp-h3"><span class="sp-h3n">6.3</span>存量记录回退形态（旧数据长这样——对不上稿时按这里认）</h3>
+                <p class="sp-sub">
+                    02 屏树里 mock 的「生成第 12 批 · 8 题」是<b>新数据形态</b>；登记簿现存记录的 title 是「转换 ·
+                    高等数学」这类组式标题，树化后叶子行名被剥成只剩<b>「转换」二字</b>（组标题「 ·
+                    」后的部分成为主题节点，行名剥尾随主题避免重复）。实现时遇到「转换」行不要以为出错、更不要自由发挥补内容——它就是存量记录的正常形态。
+                </p>
+
+                <div class="sp-demos" data-od-id="spec-legacy-tree-demo">
+                    <div>
+                        <div class="sp-demo-cap">
+                            <span class="tag tag--neutral">存量 · 回退形态</span>
+                            <span class="cap-name">登记簿现有数据的树</span>
+                        </div>
+                        <div class="ai-tree" style="border: 1px solid var(--border); border-radius: 8px">
+                            <div class="ai-tree-head">AI 会话<span class="badge badge--plain">3 组</span></div>
+                            <div class="tg1"><span class="caret">▾</span>转换</div>
+                            <div class="tg2"><span class="caret">▾</span>转换 · 高等数学</div>
+                            <div class="leaf is-selected">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">转换</span>
+                                <span class="kind">09-12 14:22</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--fail"></span>
+                                <span class="leaf-name">转换</span>
+                                <span class="kind">09-11 10:05</span>
+                                <span class="badge badge--fail">error</span>
+                            </div>
+                            <div class="tg2"><span class="caret">▸</span>转换 · 线性代数</div>
+                            <div class="tg1"><span class="caret">▾</span>判分</div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">判分 · 13/21</span>
+                                <span class="kind">09-10 09:41</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                        </div>
+                        <div class="sp-demo-notes">
+                            <span>· 叶行名只剩「转换」二字 —— 组式 title「转换 · 高等数学」的主题已上提为 tg2 节点，行名剥尾随「 · 主题」；</span>
+                            <span>· 行尾三件 = <b>状态点 + 行名 + 时间戳（mono 弱注记位）+ 状态徽标贴右</b>；徽标词只有三态 running / done / error（登记簿只有这三种 status）；</span>
+                            <span>· 单条种类不设层（判分仅 1 条 → 上提为叶行），行名<b>保留全名</b>「判分 · 13/21」（剥了就丢信息）；单条主题同理保留全名。</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="sp-demo-cap">
+                            <span class="tag">新数据 · 目标形态</span>
+                            <span class="cap-name">登记簿补批次字段后的树（02 屏 mock）</span>
+                        </div>
+                        <div class="ai-tree" style="border: 1px solid var(--border); border-radius: 8px">
+                            <div class="ai-tree-head">AI 会话<span class="badge badge--plain">1 组</span></div>
+                            <div class="tg1"><span class="caret">▾</span>转换</div>
+                            <div class="tg2"><span class="caret">▾</span>转换 · 2024 考研英语真题精读</div>
+                            <div class="leaf is-selected">
+                                <span class="dot dot--run"></span>
+                                <span class="leaf-name">生成第 12 批 · 8 题</span>
+                                <span class="badge badge--run"
+                                    ><span class="spin" aria-hidden="true"></span>running</span
+                                >
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">生成第 11 批 · 6 题</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                            <div class="leaf">
+                                <span class="dot dot--done"></span>
+                                <span class="leaf-name">路由 · 送去「长难句拆解」</span>
+                                <span class="badge badge--done">done</span>
+                            </div>
+                        </div>
+                        <div class="sp-demo-notes">
+                            <span>· 叶行名自带信息量：「<b>生成第 N 批 · M 题</b>」「路由 · 送去「…」」，无需行尾时间戳补上下文 —— 稿内叶行<b>没有</b>时间戳；</span>
+                            <span>· 徽标六态全量（run / done / skip / stop / fail / queued / cancel），run 带 12px 转圈；</span>
+                            <span>· 两棵树的<b>结构、缩进、字号、点/徽标规格完全相同</b>——差别的只是数据，不是样式。</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sp-callout" data-od-id="spec-legacy-detail-callout">
+                    <b>存量记录的详情同样有回退形态：</b>detail-head 的 h3 就是叶子行名（「转换」），kind 徽标
+                    「kind=convert」，状态徽标 done/error；轮次日志每条消息一行（user「输入 N 字」/ assistant「输出 N
+                    题」各自成行，题数数不出时只报字数），<b>所有行的时间戳是同一个记录级锚</b>（登记簿未存逐轮时间）——
+                    同一时刻重复出现是数据边界、不是渲染 bug；done / error 记录无归属备注（own-note 仅 running
+                    的多调用流出），detail-foot 相应不渲染。禁止为「凑得像 02 屏」给存量数据编批次号、编逐轮时间。
+                </div>
+
+                <!-- ==================== 6.4 新数据形态与轮次日志对照 ==================== -->
+                <h3 class="sp-h3"><span class="sp-h3n">6.4</span>轮次日志三行对照（02 屏 mock vs 可施工文案）</h3>
+                <p class="sp-sub">
+                    02 屏日志是「一行=一轮、时间逐轮推进」的 mock；登记簿只存 prompt 与回复全文。下表逐行钉死哪些可施工、
+                    哪些是 mock 专属——<b>可施工的照抄形态，不可施工的宁缺勿编</b>。
+                </p>
+                <div class="sp-tblwrap">
+                    <table class="sp-tbl">
+                        <thead>
+                            <tr><th>#</th><th>02 屏 mock（batch-running / stopped 屏）</th><th>可施工形态</th><th>依据 / 边界</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="sel">行 1</td>
+                                <td class="dec">14:22:07 · 轮次 1 · 输入 &lt;em&gt;3,240 字&lt;/em&gt; → 输出 &lt;em&gt;8 题&lt;/em&gt;</td>
+                                <td class="dec">轮次 {n} · 输入 &lt;em&gt;{x} 字&lt;/em&gt; → 输出 &lt;em&gt;{q} 题&lt;/em&gt;（一轮一行：user+assistant 合并；x=prompt 字符数恒可数；q 由 @@Q 标记行或行首编号数出，<b>数不出只报字数不编题数</b>）</td>
+                                <td class="b3">turns 有序可编号；字数=字符串长度（确定性）；题数 questionCountOf 口径</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">行 2</td>
+                                <td class="dec">14:22:31 · 轮次 2 · 校验 8 题，其中 &lt;em&gt;2 题重试&lt;/em&gt;</td>
+                                <td class="dec">不出（无数据则该轮无此行；轮次行只保留「输入 → 输出」骨架）</td>
+                                <td class="b3">校验 / 重试计数无结构化数据 —— <b>稿 mock 专属</b>，硬凑必错</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">行 3</td>
+                                <td class="dec">14:22:48 · 轮次 3 · 写入题集 · &lt;em&gt;8 题&lt;/em&gt;</td>
+                                <td class="dec">不出（同上）</td>
+                                <td class="b3">写入事件无结构化数据 —— 稿 mock 专属</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">时间戳列</td>
+                                <td class="dec">14:22:07 → 14:22:31 → 14:22:48（逐轮递增）</td>
+                                <td class="dec">全行同一记录级锚 clockOf(rec.createdAt)（HH:MM:SS mono 11.5px faint）</td>
+                                <td class="b3">AiTurn 未存逐轮时间；<b>禁止伪造递增时间戳</b>（已知偏差，如实呈现）</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">停止屏第 4 行</td>
+                                <td class="dec">14:23:05 · &lt;em&gt;收到整批停止指令&lt;/em&gt; · 本批已产出保留待抉择</td>
+                                <td class="dec">中断行整行入日志（aiInterrupted 词）；error 态正文行红字（is-error），全文可展开</td>
+                                <td class="b3">已实现（错误/中断随日志走），形态与本行一致</td>
+                            </tr>
+                            <tr>
+                                <td class="sel">单篇屏（2 行版）</td>
+                                <td class="dec">14:31:12 · 轮次 1 · 输入 2,880 字 → 输出 7 题 / 14:31:40 · 轮次 2 · 校验 7 题，全部通过</td>
+                                <td class="dec">同上口径（行 1 可出、行 2 不出）</td>
+                                <td class="b3">—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="sp-callout" data-od-id="spec-newdata-callout">
+                    <b>新数据形态的登记前提</b>：「生成第 N 批 · M 题」的批号与题数需要写入侧在登记时带上（现登记簿无此字段）；
+                    在字段补齐前，树/详情按 6.3 回退形态呈现即为正确实现。own-note 文案按 02 屏三段结构供给：
+                    <b>首句加粗</b>（归属）+ 正文 + 入口词 <span class="at">「停止整批转换」</span>（主色强调）——
+                    现实现的纯文本整串无层次，属 A 级差距（gap-list A7），修法是文案分段而非样式硬凑。
+                </div>
+            </section>
+        </main>
+    </body>
+</html>
