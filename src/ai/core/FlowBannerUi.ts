@@ -99,6 +99,11 @@ export interface AiFlowBannerView {
     chips: AiFlowChip[];
     /** 分篇清单行（展开且非空时；收起时为空数组）。 */
     rows: AiFlowRow[];
+    /** 分篇清单尾行的汇总（稿 `.fb-list-foot`；gap-list A11）。**只按可确定
+     *  数据组**（已出结果/失败/取消/共几篇），数不出不编——稿里那句
+     *  「第 1–8 篇已完成 · 第 15–24 篇排队中」是 mock 的措辞，这里的文案
+     *  由同一组六态计数推出，与 counts 行同一份数字（两处不会打架）。 */
+    listFoot: string;
     listWindow?: AiFlowListWindow;
     /** 清单是否可以展开（有 queue 且篇数 ≥1）。 */
     expandable: boolean;
@@ -299,6 +304,7 @@ export function bannerViewOf(
         totalLabel: hasQueue ? fmt(t("aiFlowTotal"), { n: String(queue.total) }) : "",
         chips: hasQueue ? flowChips(queue.counts) : [],
         rows,
+        listFoot: hasQueue ? flowListFoot(t, queue) : "",
         listWindow:
             hasQueue && expanded && win
                 ? {
@@ -329,6 +335,23 @@ export function bannerViewOf(
 function stopKeyOf(snap: AiFlowSnapshot, armed: boolean): string {
     if (armed) return "aiFlowStopConfirm";
     return snap.stopKey ?? "aiFlowStop";
+}
+
+/**
+ * 清单尾行汇总（稿 `.fb-list-foot`；gap-list A11）：**只报数得出来的**
+ * ——已出结果（done + skipped）/ 失败 / 取消 / 共 N 篇。稿里「第 1–8 篇已
+ * 完成 · 第 15–24 篇排队中」这种**区间**措辞要连续段推导，六态计数给不出
+ * （取消与排队可交错），硬凑会把错的区间写进 UI（宁缺勿错）。无队列时为空。
+ */
+export function flowListFoot(t: T, queue: AiFlowQueue | undefined): string {
+    if (!queue || queue.total <= 0) return "";
+    const n = segCounts(queue.counts);
+    return fmt(t("aiFlowListFoot"), {
+        done: String(n.done + n.skipped),
+        fail: String(n.failed),
+        cancel: String(n.cancelled),
+        n: String(queue.total),
+    });
 }
 
 /** 窗口切片（窗口由 listWindowOf 定；行状态词在这里取词）。 */

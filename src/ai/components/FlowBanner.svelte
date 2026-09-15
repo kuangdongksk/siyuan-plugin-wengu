@@ -200,6 +200,9 @@
                         <span class="dr-metric">{r.metric}</span>
                     </div>
                 {/each}
+                {#if view.listFoot}
+                    <div class="wengu-aiflow-list-foot">{view.listFoot}</div>
+                {/if}
             </div>
         {/if}
     </div>

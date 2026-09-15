@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { bannerViewOf, flowChips, flowSegLabel, flowSegs, listWindowOf, LIST_WINDOW } from "./FlowBannerUi";
+import {
+    bannerViewOf,
+    flowChips,
+    flowListFoot,
+    flowSegLabel,
+    flowSegs,
+    listWindowOf,
+    LIST_WINDOW,
+} from "./FlowBannerUi";
 import {
     aiFlowSnapshot,
     beginAiFlow,
@@ -150,6 +158,39 @@ describe("分篇清单窗口", () => {
 
     it("总数不足窗口 ⇒ 全出", () => {
         expect(listWindowOf(3, 2)).toEqual({ from: 1, to: 3 });
+    });
+});
+
+describe("清单尾行汇总（gap-list A11）", () => {
+    const tplFoot = (k: string): string =>
+        k === "aiFlowListFoot" ? "已出结果 {done} 篇 · 失败 {fail} 篇 · 取消 {cancel} 篇 · 共 {n} 篇" : k;
+
+    it("按六态计数出「已出结果 / 失败 / 取消 / 共 N 篇」（与 counts 行同一份数字）", () => {
+        const foot = flowListFoot(
+            tplFoot,
+            queue({ counts: counts({ done: 9, skipped: 1, failed: 1, cancelled: 12 }) })
+        );
+        // 已出结果 = done + skipped（跳过也算「有结果」——已有题集）
+        expect(foot).toBe("已出结果 10 篇 · 失败 1 篇 · 取消 12 篇 · 共 24 篇");
+    });
+
+    it("无队列/总篇数 0 ⇒ 不出（空串）", () => {
+        expect(flowListFoot(tplFoot, undefined)).toBe("");
+        expect(flowListFoot(tplFoot, queue({ total: 0 }))).toBe("");
+    });
+
+    it("view 模型只在有队列时带 listFoot", () => {
+        const snap = (ov: Partial<AiFlowSnapshot> = {}): AiFlowSnapshot => ({
+            id: "f",
+            title: "转换运行中",
+            phase: "running",
+            ...ov,
+        });
+        expect(bannerViewOf(snap(), false, false, tplFoot)!.listFoot).toBe("");
+        expect(
+            bannerViewOf(snap({ queue: queue({ counts: counts({ done: 3, queued: 21 }) }) }), false, false, tplFoot)!
+                .listFoot
+        ).toBe("已出结果 3 篇 · 失败 0 篇 · 取消 0 篇 · 共 24 篇");
     });
 });
 
