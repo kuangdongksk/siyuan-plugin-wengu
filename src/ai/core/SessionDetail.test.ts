@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { AiSessionRecord } from "../data/AiSessions";
 import { AI_INTERRUPTED, AI_STOPPED } from "../data/AiSessions";
-import { canExpandRow, clockOf, detailViewOf, isRowOpen, questionCountOf, type SessionLogSeg } from "./SessionDetail";
+import {
+    canExpandRow,
+    clockOf,
+    copyPartsOf,
+    detailViewOf,
+    isRowOpen,
+    joinCopyParts,
+    questionCountOf,
+    type SessionLogSeg,
+} from "./SessionDetail";
 import { buildSessionTree } from "./SessionTree";
+import zhDict from "../../i18n/zh-CN.json";
+import enDict from "../../i18n/en.json";
 
 /**
  * 详情三段视图（Issue #88）：详情头（任务名 + kind 徽标 + 状态徽标）、
@@ -204,21 +215,21 @@ describe("轮次日志", () => {
             base
         )!;
         expect(v.rows[0].segments).toEqual([
-            { side: "user", label: "输入", text: "abcdef" },
-            { side: "ai", label: "输出", text: "回复" },
+            { side: "user", label: "输入", text: "abcdef", copyText: "abcdef" },
+            { side: "ai", label: "输出", text: "回复", copyText: "回复" },
         ]);
     });
 
     it("缺侧的尾轮只出一块（单侧行不分块凑数）；不可展开的状态行没有块", () => {
         // 只有 user 侧：输入一块
         const tail = detailViewOf(rec({ turns: [{ role: "user", text: "abcd" }] }), base)!;
-        expect(tail.rows[0].segments).toEqual([{ side: "user", label: "输入", text: "abcd" }]);
+        expect(tail.rows[0].segments).toEqual([{ side: "user", label: "输入", text: "abcd", copyText: "abcd" }]);
         // 孤立 ai 轮：输出一块
         const lone = detailViewOf(rec({ turns: [{ role: "ai", text: "abc" }] }), base)!;
-        expect(lone.rows[0].segments).toEqual([{ side: "ai", label: "输出", text: "abc" }]);
+        expect(lone.rows[0].segments).toEqual([{ side: "ai", label: "输出", text: "abc", copyText: "abc" }]);
         // 收口的状态行（末行）无正文 ⇒ 无块，与 full 为空串同义（组件据此不出可展开手势）
         const err = detailViewOf(rec({ status: "error", error: "超时", turns: [{ role: "user", text: "q" }] }), base)!;
-        expect(err.rows.at(-1)).toMatchObject({ full: "", segments: [] });
+        expect(err.rows.at(-1)).toMatchObject({ full: "", segments: [], copyParts: [] });
     });
 
     it("两块文本与摘要行共用同一份轮次数据（分块不另取数，摘要行本身不动）", () => {
@@ -422,6 +433,163 @@ describe("三段收口（归属备注 / 进行态 / 重试）", () => {
         expect(detailViewOf(rec({ status: "done" }), { ...base, ownNote: note })!.ownNote).toEqual([]);
         // 真失败走 errorText，不出归属备注
         expect(detailViewOf(rec({ status: "error", error: "超时" }), { ...base, ownNote: note })!.ownNote).toEqual([]);
+    });
+});
+
+/**
+ * 一键复制的正文口径（Issue #124 验收 1/2）：复制吃的是**原文**，不是渲染
+ * 后的 HTML——粘贴回来必须与源串逐字一致（公式、缩进、换行都在）。
+ */
+describe("复制正文", () => {
+    const pairTurns = [
+        { role: "user" as const, text: "算一算：$x^2+1$\n第二行\n" },
+        { role: "ai" as const, text: "@@Q 一\n@@Q 二\n\n结束" },
+    ];
+
+    it("块级复制正文与源串逐字一致（公式与正文内部换行都不动）", () => {
+        const v = detailViewOf(rec({ turns: pairTurns }), base)!;
+        // 逐字：公式 `$x^2+1$`、正文内部换行一律保留
+        expect(v.rows[0].segments[0].copyText).toBe("算一算：$x^2+1$\n第二行");
+        expect(v.rows[0].segments[1].copyText).toBe("@@Q 一\n@@Q 二\n\n结束");
+    });
+
+    it("整轮复制 = 各块原文按输入/输出序拼接、块间空行分隔", () => {
+        const v = detailViewOf(rec({ turns: pairTurns }), base)!;
+        expect(joinCopyParts(v.rows[0].copyParts)).toBe("算一算：$x^2+1$\n第二行\n\n@@Q 一\n@@Q 二\n\n结束");
+    });
+
+    it("块尾空行归一：源串尾部的空行不进复制结果（块级与整轮同口径）", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "a\n\n\n" },
+                    { role: "ai", text: "b\n" },
+                ],
+            }),
+            base
+        )!;
+        expect(v.rows[0].segments.map((x) => x.copyText)).toEqual(["a", "b"]);
+        expect(joinCopyParts(v.rows[0].copyParts)).toBe("a\n\nb");
+    });
+
+    it("整轮与逐块同源（结合律）：复制整轮 == 逐块复制再按同样分隔拼起来", () => {
+        // 「整轮」不是另写一套拼接：`copyParts` 恒等于各块复制正文的数组
+        const v = detailViewOf(rec({ turns: pairTurns }), base)!;
+        const perBlock = v.rows[0].segments.map((x) => x.copyText);
+        expect(v.rows[0].copyParts).toEqual(perBlock);
+        expect(joinCopyParts(v.rows[0].copyParts)).toBe(joinCopyParts(perBlock));
+    });
+
+    it("缺侧的尾轮：整轮 == 那一块（单块不凑数）", () => {
+        const v = detailViewOf(rec({ turns: [{ role: "user", text: "只有一个输入" }] }), base)!;
+        expect(v.rows[0].copyParts).toEqual(["只有一个输入"]);
+        expect(joinCopyParts(v.rows[0].copyParts)).toBe("只有一个输入");
+    });
+
+    it("状态行（收口/错误行）无正文 ⇒ 无复制（与 segments 同判据）", () => {
+        const v = detailViewOf(rec({ status: "error", error: "超时", turns: [{ role: "user", text: "q" }] }), base)!;
+        expect(v.rows.at(-1)).toMatchObject({ segments: [], copyParts: [] });
+        expect(joinCopyParts(v.rows.at(-1)!.copyParts)).toBe("");
+    });
+
+    it("copyPartsOf：不 trim、行尾 CR 归一、块尾空行折叠（多次拼接自稳定）", () => {
+        // 不 trim：缩进与尾随空格都是原文
+        expect(copyPartsOf(["  a  "])).toEqual(["  a  "]);
+        // 行尾 CR（存储层可能的 CRLF）在复制正文里归一成 LF，不折进粘贴结果
+        expect(copyPartsOf(["a\r\n\r\nb\r\n"])).toEqual(["a\n\nb"]);
+        // 块尾一串空行折成一个；块**间**的空行保留
+        expect(copyPartsOf(["a\n\n\n\n"])).toEqual(["a"]);
+        // 幂等：拿结果再跑一遍不变（复制链不会越复制越短）
+        const once = copyPartsOf(["a\r\nb\n\n"]);
+        expect(copyPartsOf(once)).toEqual(once);
+    });
+
+    it("copyPartsOf 保留「存在但为空」的块（空段按空位参与，不静默吞掉）", () => {
+        // 只跳过 undefined（该侧不存在）；空串是「有这一块、内容是空的」
+        expect(copyPartsOf(["", "b"])).toEqual(["", "b"]);
+        expect(joinCopyParts(copyPartsOf(["", "b"]))).toBe("\n\nb");
+    });
+});
+
+/**
+ * i18n 真表锁（Issue #124）：本单新增的取词键必须**真在字典里且非空**。
+ *
+ * 插件的取词口径是 `i18n[key] || key`（**缺键或空串值都回落键名**）——漏加
+ * 一个键，面板上就把字面键名渲染给用户，而用例里的 `t` 替身永远看不出来
+ * （替身同样回落键名，段键断言照样全绿）。故这条走**真实中英字典**。
+ * 同族锁见 FlowOwnership.test 的幽灵键锁（Issue #93 复审抓到的形态）。
+ */
+describe("取词键真在字典里（幽灵键锁）", () => {
+    const dicts: Record<string, Record<string, string>> = {
+        zh: zhDict as Record<string, string>,
+        en: enDict as Record<string, string>,
+    };
+    /** 详情渲染真正会取到的键（含本单新增的四个复制键）。 */
+    const asked = [
+        "aiLogIn",
+        "aiLogOut",
+        "aiLogLabel",
+        "aiCopyBlock",
+        "aiCopyTurn",
+        "aiCopied",
+        "aiCopyFail",
+        "aiLogTurnIn",
+        "aiLogTurnInOut",
+        "aiLogTurnInOutQ",
+        "aiLogTurnOut",
+        "aiSending",
+        "aiWaitingSlot",
+        "aiLogStopped",
+        "aiInterrupted",
+        "aiStatusRunning",
+        "aiStatusDone",
+        "aiStatusError",
+        "aiStatusStopped",
+    ];
+
+    for (const [name, dict] of Object.entries(dicts)) {
+        it(`${name}：详情渲染取过的每个键都在字典里且非空`, () => {
+            for (const k of asked) expect(dict[k], `${name} 缺键或空值：${k}`).toBeTruthy();
+        });
+    }
+
+    it("复制相关的四个键中英齐备（新增文案不许只加一侧）", () => {
+        // 断言落在真字典上：少加一侧（或键名打错）这条就红
+        expect(zhDict.aiCopyBlock).toBeTruthy();
+        expect(enDict.aiCopyBlock).toBeTruthy();
+        expect(zhDict.aiCopyTurn).toBeTruthy();
+        expect(enDict.aiCopyTurn).toBeTruthy();
+        expect(zhDict.aiCopied).toBeTruthy();
+        expect(enDict.aiCopied).toBeTruthy();
+        expect(zhDict.aiCopyFail).toBeTruthy();
+        expect(enDict.aiCopyFail).toBeTruthy();
+    });
+
+    it("整个详情视图的取词都命中真字典（渲染结果里不得出现键名）", () => {
+        for (const dict of Object.values(dicts)) {
+            const realT = (k: string): string => {
+                const v = dict[k];
+                if (!v) throw new Error(`幽灵键：${k}`);
+                return v;
+            };
+            const v = detailViewOf(
+                rec({
+                    status: "done",
+                    endedAt: new Date(2026, 8, 14, 14, 22, 48).getTime(),
+                    turns: [
+                        { role: "user", text: "q" },
+                        { role: "ai", text: "a" },
+                    ],
+                }),
+                { ...base, t: realT }
+            )!;
+            // 摘要行、块标签、日志标签一律是译文，不是键名
+            const texts = [
+                v.logLabel,
+                ...v.rows.flatMap((r) => [...r.parts.map((x) => x.text), ...r.segments.map((x) => x.label)]),
+            ];
+            for (const x of texts) expect(x).not.toMatch(/^ai[A-Z]/);
+        }
     });
 });
 

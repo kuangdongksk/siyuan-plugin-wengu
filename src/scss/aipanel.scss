@@ -396,3 +396,70 @@
 .wengu-aipanel-owntext .at {
   color: var(--b3-theme-primary);
 }
+
+/* ── 轮次日志的复制钮（Issue #124） ──
+   两个落点共用 `.wengu-aipanel-copy` 一个类：块头的图标钮（贴右）与块尾的
+   整轮文字钮。
+   **常显、不做 hover 显隐**——触屏没有 hover，而「移动端必须常显」在触屏
+   上等于「永远常显」；hover 只是桌面端多出来的一层糖，不为此写两套样式。
+   反馈态走 `.hit` / `.hitfail`（Svelte 的 `class:hit` 产出**裸类名**，不是
+   `is-hit`——按族里其余类的命名习惯写成 `is-hit` 会整片无样式，只剩图标
+   换了、颜色没换）：图标换 iconCheck、title 换「已复制」，**不改底色**
+   （同 base.scss `wengu-status-*` 口径：状态反馈不上色到动作件本身）。 */
+.wengu-aipanel-copy {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  /* 与相邻文字 4px（design-review §〇 间距表） */
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  /* faint 第三档（同 .wengu-aipanel-logsegl），不与正文抢眼 */
+  color: color-mix(in srgb, var(--b3-theme-on-surface-light) 75%, transparent);
+  user-select: none;
+}
+
+.wengu-aipanel-copy:hover {
+  color: var(--b3-theme-primary);
+  /* 悬停底走 surface 叠加（禁止写死色值，同 #70 口径） */
+  background: color-mix(in srgb, var(--b3-theme-surface) 88%, transparent);
+}
+
+.wengu-aipanel-copy:focus-visible {
+  outline: 1px solid var(--b3-theme-primary);
+  outline-offset: 1px;
+}
+
+/* 复制成功：图标已由组件换成 iconCheck，这里只把色提到主题色 */
+.wengu-aipanel-copy.hit {
+  color: var(--b3-theme-primary);
+}
+
+/* 复制失败（非安全上下文 + execCommand 兜底也失败）：提示词走失败色，
+   **不弹 toast、不抛错**（验收 3）——用户仍可自行圈选。 */
+.wengu-aipanel-copy.hitfail {
+  color: var(--b3-card-error-color);
+}
+
+/* 块头一行：侧别标签贴左、复制钮贴右 */
+.wengu-aipanel-logsegh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 整轮复制钮贴块尾左（与末块之间留一档呼吸，同块间距口径） */
+.wengu-aipanel-copyturn {
+  grid-column: 1 / -1;
+  align-self: flex-start;
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.wengu-aipanel-copy-t {
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
