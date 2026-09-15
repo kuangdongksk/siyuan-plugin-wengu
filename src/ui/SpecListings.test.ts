@@ -96,15 +96,21 @@ function specTokens(): Set<string> {
 function usedIconIds(): Map<string, string> {
     const hits = new Map<string, string>();
     for (const [rel, src] of CODE) {
-        for (const m of src.matchAll(/["'`](icon[A-Za-z]+)["'`]/g)) hits.set(m[1], rel);
-        for (const m of src.matchAll(/xlink:href="#(icon[A-Za-z]+)"/g)) hits.set(m[1], rel);
+        const code = stripComments(src);
+        for (const m of code.matchAll(/["'`](icon[A-Za-z]+)["'`]/g)) hits.set(m[1], rel);
+        for (const m of code.matchAll(/xlink:href="#(icon[A-Za-z]+)"/g)) hits.set(m[1], rel);
     }
     return hits;
 }
 
-/** 剥**注释**（块 / 行）：注释里复述「写法」不算代码在用（同
- *  `ButtonVariants.test.ts` 与审计 #112 的「注释命中是假死键」口径）。 */
-const stripComments = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+/** 剥**注释**（块 / svelte / 整行 `//`）：注释里复述某个 id 或令牌名不算
+ *  「代码在用」——本仓口径同 `ButtonVariants.test.ts` 与审计 #112 的「注释命中是
+ *  假死键」。⚠️ 只剥**整行** `//`（不剥行尾），免得误伤 `https://`。 */
+const stripComments = (s: string): string =>
+    s
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/<!--[\s\S]*?-->/g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
 
 /** 代码在用的 `--b3-*` 令牌：scss 走真编译，ts/svelte 走源码文本（剥注释）。 */
 function usedTokens(): Map<string, string> {
