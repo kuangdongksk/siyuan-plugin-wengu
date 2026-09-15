@@ -919,5 +919,9 @@
   "aiOwnStoppedTail": " This detail view offers neither a decision nor a stop button.",
   "aiOwnStoppedBatchBody": "; this detail view offers neither a decision nor a stop button — finish up at that flow's own entry point.",
   "aiLogIn": "Input",
-  "aiLogOut": "Output"
+  "aiLogOut": "Output",
+  "aiCopyBlock": "Copy this block",
+  "aiCopyTurn": "Copy full turn",
+  "aiCopied": "Copied",
+  "aiCopyFail": "Copy failed — select manually"
 }

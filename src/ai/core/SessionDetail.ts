@@ -29,6 +29,11 @@
  *     「输入」（user）/「输出」（ai）两块、各带 faint 档小标签；缺侧的尾轮
  *     只出一块。**摘要行本身不动**（仍是一行一轮的 S6 形态）——分块只在
  *     行展开态里做。设计稿三屏没有已完成态详情屏，此为稿外形态补全。
+ *  5. **复制正文与渲染正文分列**（Issue #124）：每块带 `copyText`、每行带
+ *     `copyParts`（整轮），都由 `copyPartsOf` 单点产出——组件复制时**只读
+ *     `copyText`**，`text` 留给渲染。两列是刻意的：「粘贴与原文逐字一致」
+ *     这条验收若只能靠 `text` 表达，日后在 `text` 上做任何展示期清洗
+ *     （改空白、去标记）都会静默改掉复制结果，而没有任何测试会红。
  */
 
 import type { AiSessionRecord, AiTurn } from "../data/AiSessions";
@@ -79,6 +84,11 @@ export interface SessionLogRow {
      *  标签、ai 侧带「输出」标签，各成一块（缺侧的尾轮只出一块）。空数组=
      *  不可展开（无正文的状态行），与 `full` 为空串同义。 */
     segments: SessionLogSegment[];
+    /** **整轮**的一键复制正文（Issue #124）：各块原文按序拼全文、块间空行
+     *  分隔——数据源与 `segments` 同源（`copyPartsOf`），**不是**渲染后的
+     *  HTML，逐字等于用户手选分块正文所能拿到的内容。空数组=不可复制
+     *  （与 `segments` 同判据，收口状态行两处都空）。 */
+    copyParts: string[];
 }
 
 /** 展开态的一**块**正文（Issue #98）：一个侧别 + 已取词的标签 + 该侧全文。 */
@@ -89,6 +99,15 @@ export interface SessionLogSegment {
     label: string;
     /** 该侧正文（原文，不截断）。 */
     text: string;
+    /** 该块的**一键复制正文**（Issue #124）：逐字等于该侧原文。
+     *
+     *  为什么单列一个字段而不是让组件直接用 `text`——「粘出来的正是
+     *  源串本身」这条口径就永远不可断言：`text` 上做任何渲染期清洗
+     *  （折行归一 `\r\n` → `\n`、去掉零宽字符、切掉尾部空白）都静默生效，
+     *  而验收 1 要求「粘贴内容与原文逐字一致」（含公式 `$...$` 与换行）。
+     *  故复制正文走**独立字段**、由 `copyPartsOf` 单点产出，单测锁
+     *  「逐字相等」；组件只读 `copyText`（不读 `text`）。 */
+    copyText: string;
 }
 
 /** 详情三段整体视图（无选中记录时 undefined）。 */
@@ -144,9 +163,34 @@ export function questionCountOf(text: string): number {
  */
 function sidesOf(t: (k: string) => string, user: AiTurn | undefined, ai: AiTurn | undefined): SessionLogSegment[] {
     const out: SessionLogSegment[] = [];
-    if (user) out.push({ side: "user", label: t("aiLogIn"), text: user.text });
-    if (ai) out.push({ side: "ai", label: t("aiLogOut"), text: ai.text });
+    if (user) out.push({ side: "user", label: t("aiLogIn"), text: user.text, copyText: copyPartsOf([user.text])[0] });
+    if (ai) out.push({ side: "ai", label: t("aiLogOut"), text: ai.text, copyText: copyPartsOf([ai.text])[0] });
     return out;
+}
+
+/** 整轮复制/块复制的**唯一**拼接口径（Issue #124）。
+ *
+ *  块级与整轮共用这一个函数（块 = 单元素的退化形态），三条性质都是
+ *  验收 1「粘贴内容与原文逐字一致」的直接来源：
+ *   - **不 trim、不归一**：公式 `$...$`、kramdown 标记、缩进都是原文；
+ *     唯一的例外是**行尾 CR**（见下），它属于换行表示、不属于内容；
+ *   - **空块按「空段」参与**——只跳过 `undefined`（该侧不存在），不跳过
+ *     空串（存在但为空）：`["", "b"].join("\n\n")` = `"\n\nb"` 把首段
+ *     的空位如实带出，与用户在两个块上各按一次复制、再粘在一起的结果一致；
+ *   - **块间 `\n\n`，块尾一串 `\n` 折成一个**（`+` 兼修 `[^\n]` 不匹配
+ *     CR 的漏网：`"a\r\n\n"` 尾部的 `\r` 不在 `[^\n]` 里，只有 `+`
+ *     接得住）：块级复制本来就该「块尾无空行」——浏览器圈选块尾空行粘出来
+ *     通常也带不上；`\n+` 让「有没有尾空行」不再影响复制结果（多次拼接
+ *     自稳定）。块间的 `\n\n` 是刻意的，**不给一个「更紧凑」的口径**。
+ *
+ *  设 `C(x)` 为单块口径，则「整轮 == 逐块复制再拼」（结合律）——写进单测。 */
+export function copyPartsOf(parts: readonly string[]): string[] {
+    return parts.map((x) => x.replace(/\r\n/g, "\n").replace(/\n+$/, ""));
+}
+
+/** 各块的复制正文按序拼整串（块间空行分隔）——「复制整轮」吃的就是这个。 */
+export function joinCopyParts(parts: readonly string[]): string {
+    return parts.join("\n\n");
 }
 
 /**
@@ -219,6 +263,7 @@ function rowOf(
         key = q > 0 ? "aiLogTurnInOutQ" : "aiLogTurnInOut";
         if (q > 0) vars.q = String(q);
     }
+    const segments = sidesOf(t, user, ai);
     return {
         time: clockOf(anchor),
         parts: segsOf(t(key), vars),
@@ -226,7 +271,9 @@ function rowOf(
         // 全文=本轮两侧原文拼接（面板的核心用途是回看产出，全文不能丢）；
         // 展开态按侧别分块呈现（Issue #98）
         full: ai ? `${user.text}\n\n${ai.text}` : user.text,
-        segments: sidesOf(t, user, ai),
+        segments,
+        // 整轮复制正文与分块**同源**（`copyPartsOf` 单点口径，Issue #124）
+        copyParts: copyPartsOf(segments.map((x) => x.text)),
     };
 }
 
@@ -258,6 +305,7 @@ function rowsOf(t: (k: string) => string, turns: AiTurn[], anchorOf: (side: "use
                 isError: false,
                 full: turn.text,
                 segments: sidesOf(t, undefined, turn),
+                copyParts: copyPartsOf([turn.text]),
             });
         } else {
             // 连续 ai 轮（上一次已配对掉一个）：出「追加输出」行，不编新轮号
@@ -267,6 +315,7 @@ function rowsOf(t: (k: string) => string, turns: AiTurn[], anchorOf: (side: "use
                 isError: false,
                 full: turn.text,
                 segments: sidesOf(t, undefined, turn),
+                copyParts: copyPartsOf([turn.text]),
             });
         }
     }
@@ -316,6 +365,8 @@ export function detailViewOf(
             isError: !stopped && rec.error !== AI_INTERRUPTED,
             full: "",
             segments: [],
+            // 状态行没有正文 ⇒ 也无整轮复制（与 segments 同判据）
+            copyParts: [],
         });
     }
     return {
