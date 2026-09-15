@@ -84,8 +84,9 @@ export function decideEntryOf(own: FlowOwnership): boolean {
  *    **含闭合的引导引号**与句读）。
  *  - **停止态**两段或三段：`aiOwnStoppedConvert`/`aiOwnStoppedBatch`（加粗）+
  *    **该支自己的**正文（`aiOwnStoppedBody` / `aiOwnStoppedBatchBody`）
- *    + 收尾（`aiOwnStoppedTail`；batch 支没收尾，故两段）——**没有 accent
- *    段**（动作是页内抉择，不是「停止整批转换」）。两支的正文不共用：
+ *    + 收尾（`aiOwnStoppedTail`；batch 支**不收尾**、也不读收尾键，故只有
+ *    两段）——**没有 accent 段**（动作是页内抉择，不是「停止整批转换」）。
+ *    两支的正文不共用：
  *    转换支指路页内转换条（唯一抉择入口），六个批流没有抉择、只交代「去
  *    哪收口」，共用正文必有一条指向错的落点。
  *
@@ -114,13 +115,22 @@ export function ownershipSegsOf(t: (k: string) => string, own: FlowOwnership): S
           ? fmt(t("aiOwnHeadBatch"), { flow: t(own.flowKey) })
           : t("aiOwnHeadConvert");
     if (stopped) {
-        // 停止态：加粗首段 + **该支自己的**正文/收尾（无 accent 段）。
+        // 停止态：加粗首段 + **该支自己的**正文（无 accent 段）。
         // convert 支指路页内转换条（唯一抉择入口）；batch 支无抉择，只
         // 交代「去哪收口」——两支的正文不共用（指向不同落点）。
         const stoppedSegs: SessionLogSeg[] = [{ text: head, em: false, bold: true }];
-        stoppedSegs.push({ text: t(batch ? "aiOwnStoppedBatchBody" : "aiOwnStoppedBody"), em: false });
-        const tail = t(batch ? "aiOwnStoppedBatchTail" : "aiOwnStoppedTail");
-        if (tail) stoppedSegs.push({ text: tail, em: false });
+        if (batch) {
+            // 六个批流：正文已是一句完整交代（含句末收束），**不收尾**
+            // ——故这里**根本不读收尾键**。
+            // ⚠️ 别改回「读一个不存在的键、靠空值判不渲染」：插件取词是
+            // `i18n[k] || k`，**缺键回落键名**（truthy），`if (tail)` 会
+            // 把字面键名 `aiOwnStoppedBatchTail` 渲染进面板——正是本单
+            // 要修的「幽灵键」类缺陷（Issue #93 复审第二处）。
+            stoppedSegs.push({ text: t("aiOwnStoppedBatchBody"), em: false });
+            return stoppedSegs;
+        }
+        stoppedSegs.push({ text: t("aiOwnStoppedBody"), em: false });
+        stoppedSegs.push({ text: t("aiOwnStoppedTail"), em: false });
         return stoppedSegs;
     }
     return [
