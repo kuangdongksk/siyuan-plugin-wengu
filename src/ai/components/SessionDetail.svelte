@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { SessionDetailView } from "../core/SessionDetail";
+    import { canExpandRow, isRowOpen, type SessionDetailView } from "../core/SessionDetail";
     import Button from "../../ui/Button.svelte";
 
     /**
@@ -36,7 +36,11 @@
     /** 展开全文的行下标集合（Issue #98：**默认全部展开**——一般成功记录
      *  只有一轮，再点一下才看到产出是多余动作；点行头仍可收起/展开，交互
      *  本身不变）。集合里只记**被显式收起**的行：记录换 key 重挂时集合清空
-     *  ⇒ 新记录回到「全展开」，不需要看行数重算。 */
+     *  ⇒ 新记录回到「全展开」，不需要看行数重算。
+     *
+     *  开合判据与「可展开」判据都在 core 侧（`isRowOpen` / `canExpandRow`，
+     *  带单测）——组件自持的 $state 在 vitest 里挂不上，判据留在组件里
+     *  「默认展开」就没有回归锁。 */
     let closedRows = $state<Record<number, boolean>>({});
     const toggleRow = (i: number): void => {
         closedRows[i] = !closedRows[i];
@@ -59,8 +63,8 @@
         <p class="wengu-aipanel-logl">{view.logLabel}</p>
         <ul class="wengu-aipanel-log">
             {#each view.rows as row, i (i)}
-                {@const canOpen = row.full !== ""}
-                {@const isOpen = canOpen && !closedRows[i]}
+                {@const canOpen = canExpandRow(row)}
+                {@const isOpen = isRowOpen(row, closedRows, i)}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <li
