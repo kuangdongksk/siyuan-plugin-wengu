@@ -77,28 +77,35 @@ export function decideEntryOf(own: FlowOwnership): boolean {
  * **文案分段供给，组件不解析字符串**（同 SessionDetail 的日志分段口径）。
  * 单调用流返回空数组=不渲染。
  *
- * 四段各取一词，代码不拼句：
- *  - `aiOwnHeadConvert` / `aiOwnHeadBatch`（**加粗**；批流派带 `{flow}` 流名）
- *  - `aiOwnBody`（正文，**含开启的引导引号**）
- *  - 入口钮词（主色，复用横幅那一组 `aiFlowStop*`——**动作名即范围**）
- *  - `aiOwnTail`（收尾，**含闭合的引导引号**与句读）
+ * **两态各持一整套词，不共用正文/收尾**（Issue #93 复审必修）：
+ *  - **在途态**四段：`aiOwnHeadConvert`/`aiOwnHeadBatch`（加粗，批流派带
+ *    `{flow}`）+ `aiOwnBody`（正文，**含开启的引导引号**）+ 入口钮词（主色，
+ *    复用横幅那一组 `aiFlowStop*`——**动作名即范围**）+ `aiOwnTail`（收尾，
+ *    **含闭合的引导引号**与句读）。
+ *  - **停止态**两段或三段：`aiOwnStoppedConvert`/`aiOwnStoppedBatch`（加粗）+
+ *    **该支自己的**正文（`aiOwnStoppedBody` / `aiOwnStoppedBatchBody`）
+ *    + 收尾（`aiOwnStoppedTail`；batch 支没收尾，故两段）——**没有 accent
+ *    段**（动作是页内抉择，不是「停止整批转换」）。两支的正文不共用：
+ *    转换支指路页内转换条（唯一抉择入口），六个批流没有抉择、只交代「去
+ *    哪收口」，共用正文必有一条指向错的落点。
+ *
+ * ⚠️ **两态绝不共用 body/tail**：`aiOwnBody`/`aiOwnTail` 是**为一对引导引号
+ * 设计的**（开引号在 body 尾、闭引号在 tail 首，中间夹 accent 的入口钮词）。
+ * 停止态省掉 accent 段后，body 的开引号与 tail 的闭引号会直接相撞成**空引号
+ * 对**「」/“”，且 body 的「要停止请用…」还在给一条**已经停了**的记录下停止
+ * 指令——语义自我矛盾。故停止态自有 body/tail（见 i18n），`ownershipSegsOf`
+ * 按 `stopped` 分派两套键。
  *
  * 引号/顿号/连接符都是**语言相关写法**（中文「」、英文 “”），故归各自的
- * 模板携带；在代码里拼会把两套写法各钉死一次。
- *
- * ⚠️ **首段的取词必须按 kind 分**（Issue #88 的停止态语义不许被本单冲掉）：
- * `stoppedConvert`/`stoppedBatch` 是在途归属说明的**另一句话**（「已随整批
- * 停下、抉择在哪」），拿 `convert` 的模板套过去会让用户已经停了还被指路
- * 「请去停止」。故 `aiOwnStopped*` 两键进**首段**（加粗位），`aiOwnBody`/
- * `aiOwnTail`（正文与收尾的**结构**，不含停止动作词）两态共用：
- * `aiOwnBody` 的中文引号只在加粗首段以句读收束时才成对（英文侧改全角
- * 逗号收束，见 i18n 注释），`aiOwnTail` 是**句末**收尾、不引住任何词。
- * 入口钮词仍**只属在途态**（停止后的动作是页内抉择，不是「停止整批转换」）。
+ * 模板携带；在代码里拼会把两套写法各钉死一次。**成句级断言**在
+ * `FlowOwnership.test`：停止态整串不得含停止指令、不得出现不配对引号。
  */
 export function ownershipSegsOf(t: (k: string) => string, own: FlowOwnership): SessionLogSeg[] {
     if (own.kind === "none") return [];
     const stopped = own.kind === "stoppedConvert" || own.kind === "stoppedBatch";
     const batch = own.kind === "batch" || own.kind === "stoppedBatch";
+    // 加粗首段的取词按 kind 分（停止态是「已随整批停下、抉择在哪」，
+    // 拿在途态模板套过去会让用户已经停了还被指路「请去停止」）。
     const head = stopped
         ? batch
             ? fmt(t("aiOwnStoppedBatch"), { flow: t(own.flowKey) })
@@ -106,11 +113,20 @@ export function ownershipSegsOf(t: (k: string) => string, own: FlowOwnership): S
         : batch
           ? fmt(t("aiOwnHeadBatch"), { flow: t(own.flowKey) })
           : t("aiOwnHeadConvert");
-    const segs: SessionLogSeg[] = [
+    if (stopped) {
+        // 停止态：加粗首段 + **该支自己的**正文/收尾（无 accent 段）。
+        // convert 支指路页内转换条（唯一抉择入口）；batch 支无抉择，只
+        // 交代「去哪收口」——两支的正文不共用（指向不同落点）。
+        const stoppedSegs: SessionLogSeg[] = [{ text: head, em: false, bold: true }];
+        stoppedSegs.push({ text: t(batch ? "aiOwnStoppedBatchBody" : "aiOwnStoppedBody"), em: false });
+        const tail = t(batch ? "aiOwnStoppedBatchTail" : "aiOwnStoppedTail");
+        if (tail) stoppedSegs.push({ text: tail, em: false });
+        return stoppedSegs;
+    }
+    return [
         { text: head, em: false, bold: true },
         { text: t("aiOwnBody"), em: false },
+        { text: t(batch ? "aiFlowStop" : "aiFlowStopBatch"), em: false, accent: true },
+        { text: t("aiOwnTail"), em: false },
     ];
-    if (!stopped) segs.push({ text: t(batch ? "aiFlowStop" : "aiFlowStopBatch"), em: false, accent: true });
-    segs.push({ text: t("aiOwnTail"), em: false });
-    return segs;
 }

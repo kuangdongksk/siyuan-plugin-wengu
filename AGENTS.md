@@ -1455,9 +1455,21 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       文案**（与在途态的「要停止请去横幅」是两句话，`FlowOwnership` 的
       `stoppedConvert`/`stoppedBatch`）。⚠️ **#92 把这段文案从整串改成分段
       后，两态语义必须原样保住**：首段（加粗位）取 `aiOwnStopped*` 两键，
-      且停止态**不出「停止」动作词**（用户已经停过了，动作是页内抉择）；
-      `aiOwnBody`/`aiOwnTail` 是正文与收尾的**结构**（不含停止动作词），
-      两态共用。`FlowOwnership.test` / `SessionDetail.test` 各有用例锁死。
+      且停止态**不出「停止」动作词**（用户已经停过了，动作是页内抉择）。
+      ⚠️ **停止态必须持自己的一整套词，绝不与在途态共用 body/tail**
+      （#93 复审必修，实现期真踩到）：`aiOwnBody`/`aiOwnTail` 是**为一对
+      引导引号设计的**——开引号在 body 尾、闭引号在 tail 首，中间夹 accent
+      的入口钮词。停止态省掉 accent 段后，body 的开引号与 tail 的闭引号
+      **直接相撞成空引号对**「」/“”，而 body 的「要停止请用…」还在给一条
+      **已经停了**的记录下停止指令（自相矛盾）。故停止态走
+      `aiOwnStoppedBody`/`aiOwnStoppedTail`（转换支，指路页内转换条这个
+      唯一抉择入口）与 `aiOwnStoppedBatchBody`（六个批流支**没有抉择**，
+      不指路转换条——那是另一条流的入口；该支收尾键为空串、不渲染，故
+      两段）。**在途态四段形态不动。**
+      两条锁：段键序列 + **成句级断言**（`FlowOwnership.test`：拿真实
+      i18n 把段拼成整串，断言停止态不含停止指令子串、无空引号对、引号
+      配平——段键全对而句子仍坏正是本坑的形态，只锁段键锁不住）。
+      `FlowOwnership.test` / `SessionDetail.test` 各有用例锁死。
 - **记录 title 的任务名化（数据层配套）**：
     - `AiSessionStore.retitle(id, title)`（**新增通道**，optional 只加不改名、
       存量记录不回填）：转换批记录的批号/题数在**批落库时**才知道，而

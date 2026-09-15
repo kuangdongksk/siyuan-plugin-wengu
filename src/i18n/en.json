@@ -902,5 +902,8 @@
   "aiLogTurnOut": "Output {y} chars",
   "aiLogStopped": "Batch stop received · output kept pending your decision",
   "aiOwnStoppedConvert": "This record stopped together with the batch conversion; the output is kept pending your decision",
-  "aiOwnStoppedBatch": "This record stopped together with “{flow}”; the output is kept pending your decision"
+  "aiOwnStoppedBatch": "This record stopped together with “{flow}”; the output is kept pending your decision",
+  "aiOwnStoppedBody": "; keeping or discarding the output has exactly one entry point — the in-tab convert bar (the banner above also links straight to it).",
+  "aiOwnStoppedTail": " This detail view offers neither a decision nor a stop button.",
+  "aiOwnStoppedBatchBody": "; this detail view offers neither a decision nor a stop button — finish up at that flow's own entry point."
 }
