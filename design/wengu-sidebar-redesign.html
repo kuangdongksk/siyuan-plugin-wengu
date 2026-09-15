@@ -1,0 +1,1889 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>温故桌面端 · 侧栏与做题主区 重设计施工稿</title>
+        <style>
+            /* ============================================================
+               施工稿令牌层 —— 变量名即 b3 全名（照抄口径）
+               本稿 :root 给的是 Neo+ 深色暖调实测值（theme-tokens-neo.md），
+               body.light 给浅色验证值。实现侧不抄这两段——变量由思源主题注入，
+               规则层（下方各组件段）才是抄进 scss 的部分。
+               派生令牌（--wengu-*）是实现侧要自带定义式的，见 §0 表。
+               ============================================================ */
+            :root {
+                --b3-theme-primary: #c5866a;
+                --b3-theme-primary-light: rgba(197, 134, 106, 0.56);
+                --b3-theme-primary-lightest: rgba(197, 134, 106, 0.16);
+                --b3-theme-on-primary: #fdf6ef;
+                --b3-theme-background: #272e33;
+                --b3-theme-background-light: rgba(226, 218, 197, 0.1);
+                --b3-theme-surface: #364852;
+                --b3-theme-on-surface: #d3cab4;
+                --b3-theme-on-surface-light: rgba(211, 202, 180, 0.65);
+                --b3-border-color: rgba(226, 218, 197, 0.2);
+                --b3-list-hover: rgba(226, 218, 197, 0.08);
+                --b3-border-radius: 6px;
+                --b3-border-radius-b: 12px;
+                --b3-theme-success: #9ec98a;
+                --b3-theme-error: #f2a199;
+                --b3-card-warning-color: #e9b95e;
+                /* 派生：color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent) */
+                --wengu-faint: rgba(211, 202, 180, 0.55);
+                /* 派生：color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent) */
+                --wengu-border-strong: rgba(226, 218, 197, 0.34);
+                /* 派生（reading.scss 既有同源）：color-mix(in srgb, var(--b3-theme-background) 62%, var(--b3-theme-on-background) 5%) */
+                --wengu-well: #2c3c45;
+                /* 派生：color-mix(in srgb, var(--b3-theme-background) 94%, black) —— 微沉底 */
+                --wengu-sunken: #232930;
+                --wengu-side-w: 280px;
+                --wengu-nums-w: 64px;
+                --wengu-head-h: 46px;
+            }
+            /* 浅色验证态：只翻变量，规则层零改动 —— 即「明暗两态成立」的证明方式 */
+            body.light {
+                --b3-theme-primary: #b06a4e;
+                --b3-theme-primary-light: rgba(176, 106, 78, 0.4);
+                --b3-theme-primary-lightest: rgba(176, 106, 78, 0.12);
+                --b3-theme-on-primary: #fff8f2;
+                --b3-theme-background: #f3efe7;
+                --b3-theme-background-light: rgba(47, 42, 36, 0.06);
+                --b3-theme-surface: #fbf9f4;
+                --b3-theme-on-surface: #4a443a;
+                --b3-theme-on-surface-light: rgba(74, 68, 58, 0.62);
+                --b3-border-color: rgba(71, 62, 52, 0.18);
+                --b3-list-hover: rgba(71, 62, 52, 0.07);
+                --b3-theme-success: #568640;
+                --b3-theme-error: #c25045;
+                --b3-card-warning-color: #b07908;
+                --wengu-faint: rgba(74, 68, 58, 0.5);
+                --wengu-border-strong: rgba(71, 62, 52, 0.32);
+                --wengu-well: #eae4d8;
+                --wengu-sunken: #ece6da;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+            }
+            body {
+                background: var(--b3-theme-background);
+                color: var(--b3-theme-on-surface);
+                font:
+                    400 14px/1.6 "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Microsoft Yahei",
+                    sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: none;
+                border: 0;
+                cursor: pointer;
+            }
+            h1,
+            h2,
+            h3,
+            h4,
+            p,
+            ul,
+            ol,
+            figure {
+                margin: 0;
+            }
+            ul,
+            ol {
+                padding: 0;
+                list-style: none;
+            }
+            svg {
+                fill: currentColor;
+            }
+
+            /* ============ 文档外壳 ============ */
+            .doc {
+                max-width: 1164px;
+                margin: 0 auto;
+                padding: 44px 32px 104px;
+            }
+            .doc-head {
+                border-bottom: 1px solid var(--b3-border-color);
+                padding-bottom: 26px;
+            }
+            .kicker {
+                font:
+                    500 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--wengu-faint);
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            .kicker .tag-src {
+                border: 1px solid var(--b3-border-color);
+                border-radius: 999px;
+                padding: 3px 9px;
+                letter-spacing: 0.06em;
+            }
+            h1 {
+                margin-top: 16px;
+                font-size: 38px;
+                line-height: 1.22;
+                font-weight: 600;
+                letter-spacing: -0.015em;
+                color: var(--b3-theme-on-surface);
+            }
+            .lede {
+                margin-top: 14px;
+                max-width: 74ch;
+                color: var(--b3-theme-on-surface-light);
+                font-size: 15px;
+                line-height: 1.75;
+            }
+            .theme-toggle {
+                float: right;
+                margin-top: 4px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 30px;
+                padding: 0 14px;
+                border: 1px solid var(--b3-border-color);
+                border-radius: 999px;
+                font-size: 12.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .theme-toggle:hover {
+                border-color: var(--wengu-border-strong);
+                color: var(--b3-theme-on-surface);
+                background: var(--b3-list-hover);
+            }
+
+            /* 铁律条 */
+            .rules {
+                margin-top: 22px;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                gap: 8px;
+            }
+            .rule {
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius);
+                padding: 8px 12px;
+                font-size: 12.5px;
+                color: var(--b3-theme-on-surface-light);
+                line-height: 1.6;
+            }
+            .rule b {
+                color: var(--b3-theme-on-surface);
+            }
+
+            /* 区块外壳 */
+            section.sec {
+                margin-top: 56px;
+            }
+            .sec-head {
+                display: flex;
+                align-items: baseline;
+                gap: 12px;
+                border-bottom: 1px solid var(--b3-border-color);
+                padding-bottom: 10px;
+            }
+            .sec-no {
+                font:
+                    600 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                letter-spacing: 0.1em;
+                color: var(--b3-theme-primary);
+            }
+            .sec-head h2 {
+                font-size: 21px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface);
+            }
+            .sec-head .note {
+                margin-left: auto;
+                font-size: 12px;
+                color: var(--wengu-faint);
+            }
+            .sec-lede {
+                margin: 12px 0 18px;
+                max-width: 78ch;
+                font-size: 13px;
+                line-height: 1.75;
+                color: var(--b3-theme-on-surface-light);
+            }
+
+            /* 演示台：套一层「视口」框，模拟在插件页签内的观感 */
+            .stage {
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--b3-theme-background);
+                padding: 18px;
+                overflow: hidden;
+            }
+            .stage-frac {
+                display: flex;
+                gap: 18px;
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+            .stage-frac > .frac-main {
+                flex: 1;
+                min-width: 0;
+            }
+            .caption {
+                margin-top: 10px;
+                font-size: 12px;
+                color: var(--wengu-faint);
+                line-height: 1.7;
+            }
+            .caption b {
+                color: var(--b3-theme-on-surface-light);
+                font-weight: 600;
+            }
+
+            /* 规格表 */
+            table.spec {
+                width: 100%;
+                margin-top: 16px;
+                border-collapse: collapse;
+                font-size: 12.5px;
+            }
+            table.spec th,
+            table.spec td {
+                border: 1px solid var(--b3-border-color);
+                padding: 6px 10px;
+                text-align: left;
+                vertical-align: top;
+                line-height: 1.6;
+            }
+            table.spec th {
+                background: var(--wengu-well);
+                color: var(--b3-theme-on-surface-light);
+                font-weight: 600;
+                font-size: 12px;
+            }
+            table.spec td.sel {
+                font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+            table.spec td.val {
+                font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                font-size: 12px;
+            }
+            table.spec .tok {
+                color: var(--b3-theme-primary);
+            }
+            .foot {
+                margin-top: 64px;
+                border-top: 1px solid var(--b3-border-color);
+                padding-top: 16px;
+                font-size: 12px;
+                color: var(--wengu-faint);
+                line-height: 1.8;
+            }
+
+            /* ============================================================
+               ① 侧栏 .wengu-side（规则层从这里起为「照抄进 scss」的形态）
+               ============================================================ */
+            .demo-side {
+                width: var(--wengu-side-w);
+                flex: none;
+                display: flex;
+                flex-direction: column;
+                border: 1px solid var(--b3-border-color);
+                border-right: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--wengu-sunken);
+                height: 588px;
+                overflow: hidden;
+            }
+            .wengu-side-head {
+                padding: 12px 12px 8px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .wengu-side-head .sh-t {
+                flex: 1;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                color: var(--b3-theme-on-surface);
+            }
+            .wengu-side-iconbtn {
+                width: 26px;
+                height: 26px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: var(--b3-border-radius);
+                color: var(--b3-theme-on-surface-light);
+            }
+            .wengu-side-iconbtn:hover {
+                background: var(--b3-list-hover);
+                color: var(--b3-theme-on-surface);
+            }
+            .wengu-side-iconbtn svg {
+                width: 14px;
+                height: 14px;
+                flex: none;
+            }
+            .wengu-side-tools {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding: 2px 12px 8px;
+            }
+            .wengu-side-search {
+                height: 30px;
+                width: 100%;
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius);
+                background: var(--wengu-well);
+                color: var(--b3-theme-on-surface);
+                font-size: 12.5px;
+                padding: 0 10px;
+            }
+            .wengu-side-search::placeholder {
+                color: var(--wengu-faint);
+            }
+            .wengu-side-toolrow {
+                display: flex;
+                gap: 8px;
+            }
+            .wengu-side-tool {
+                flex: 1;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius);
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .wengu-side-tool:hover {
+                border-color: var(--wengu-border-strong);
+                color: var(--b3-theme-on-surface);
+                background: var(--b3-list-hover);
+            }
+            .wengu-side-tool svg {
+                width: 13px;
+                height: 13px;
+                flex: none;
+            }
+            .wengu-side-ai {
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+                border-radius: var(--b3-border-radius);
+                background: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+                font-size: 12.5px;
+                font-weight: 600;
+            }
+            .wengu-side-ai:hover {
+                background: color-mix(in srgb, var(--b3-theme-primary) 26%, transparent);
+                border-color: var(--b3-theme-primary);
+            }
+            .wengu-side-ai svg {
+                width: 14px;
+                height: 14px;
+                flex: none;
+            }
+            .wengu-side-body {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                padding: 2px 8px 12px;
+            }
+            .wengu-side-label {
+                padding: 8px 8px 2px;
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+                letter-spacing: 0.03em;
+            }
+            .wengu-side-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 7px;
+                border-radius: var(--b3-border-radius);
+                padding: 5px 8px;
+                cursor: pointer;
+            }
+            .wengu-side-item:hover {
+                background: var(--b3-list-hover);
+            }
+            .wengu-side-item .n-ico {
+                width: 14px;
+                height: 14px;
+                flex: none;
+                margin-top: 3px;
+                color: var(--wengu-faint);
+            }
+            .wengu-side-item .n-main {
+                flex: 1;
+                min-width: 0;
+            }
+            .wengu-side-title {
+                font-size: 13px;
+                line-height: 1.45;
+                color: var(--b3-theme-on-surface);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .wengu-side-meta {
+                margin-top: 1px;
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .wengu-side-item.wengu-side-active {
+                background: var(--b3-theme-primary-lightest);
+                box-shadow: inset 0 0 0 1.5px var(--b3-theme-primary);
+            }
+            .wengu-side-item.wengu-side-active .wengu-side-title {
+                font-weight: 600;
+            }
+            .wengu-side-item.wengu-side-active .n-ico {
+                color: var(--b3-theme-primary);
+            }
+            /* 树行（覆写 b3-list-item 的示意；缩进 lvl2 +14 lvl3 +30 由原生折叠机制承担） */
+            .demo-tree .row {
+                display: flex;
+                align-items: flex-start;
+                gap: 7px;
+                border-radius: var(--b3-border-radius);
+                padding: 5px 8px;
+                cursor: pointer;
+            }
+            .demo-tree .row:hover {
+                background: var(--b3-list-hover);
+            }
+            .demo-tree .caret {
+                width: 14px;
+                height: 14px;
+                flex: none;
+                margin-top: 3px;
+                color: var(--wengu-faint);
+                transition: transform 0.15s;
+            }
+            .demo-tree .row.open .caret {
+                transform: rotate(90deg);
+            }
+            .demo-tree .t {
+                font-size: 13px;
+                line-height: 1.45;
+                word-break: break-all;
+            }
+            .demo-tree .lvl1 {
+                padding-left: 8px;
+            }
+            .demo-tree .lvl2 {
+                padding-left: 22px;
+            }
+            .demo-tree .lvl3 {
+                padding-left: 38px;
+            }
+
+            /* ============================================================
+               ② 题号栏 .wengu-nums（吸顶竖列形态，栏体 64px）
+               ============================================================ */
+            .demo-nums-wrap {
+                flex: none;
+                display: flex;
+                gap: 18px;
+                align-items: flex-start;
+            }
+            .wengu-nums {
+                width: var(--wengu-nums-w);
+                flex: none;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 10px;
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--wengu-sunken);
+                max-height: 520px;
+                overflow-y: auto;
+            }
+            .wengu-nums-cap {
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+                text-align: center;
+                letter-spacing: 0.03em;
+                white-space: nowrap;
+            }
+            .wengu-nums-cap b {
+                color: var(--b3-theme-on-surface);
+                font-variant-numeric: tabular-nums;
+            }
+            .wengu-nums-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 5px;
+                align-content: start;
+                width: 100%;
+                padding-right: 2px;
+                overflow-y: auto;
+                scrollbar-width: none;
+            }
+            .wengu-nums-grid::-webkit-scrollbar {
+                display: none;
+            }
+            .wengu-num {
+                width: 100%;
+                height: 28px;
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius);
+                background: transparent;
+                color: var(--b3-theme-on-surface);
+                font-size: 12px;
+                font-variant-numeric: tabular-nums;
+                text-align: center;
+                line-height: 26px;
+                cursor: pointer;
+                padding: 0;
+            }
+            .wengu-num:hover {
+                background: var(--b3-list-hover);
+                color: var(--b3-theme-on-surface);
+                border-color: var(--wengu-border-strong);
+            }
+            .wengu-num.wengu-num-active {
+                background: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+                font-weight: 700;
+                box-shadow: inset 0 0 0 1.5px var(--b3-theme-primary);
+            }
+            .wengu-num.wengu-num-right {
+                background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+                border-color: color-mix(in srgb, var(--b3-theme-success) 42%, transparent);
+                color: var(--b3-theme-success);
+            }
+            .wengu-num.wengu-num-wrong {
+                background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+                border-color: color-mix(in srgb, var(--b3-theme-error) 42%, transparent);
+                color: var(--b3-theme-error);
+            }
+            .wengu-num.wengu-num-answered {
+                background: color-mix(in srgb, var(--b3-theme-on-surface) 14%, transparent);
+                border-color: var(--wengu-border-strong);
+                color: var(--b3-theme-on-surface);
+            }
+            .wengu-nums-more {
+                font-size: 11px;
+                color: var(--wengu-faint);
+                text-align: center;
+                padding: 2px 0;
+            }
+            .wengu-num-gap {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                margin: 2px 0;
+                padding: 2px 0;
+                cursor: pointer;
+            }
+            .wengu-num-gap-line {
+                width: 16px;
+                height: 2px;
+                border-radius: 1px;
+                background: var(--b3-theme-on-surface-light);
+                opacity: 0.45;
+                transition:
+                    width 0.15s ease,
+                    opacity 0.15s ease;
+            }
+            .wengu-num-gap:hover .wengu-num-gap-line {
+                width: calc(100% - 4px);
+                opacity: 0.9;
+            }
+            .wengu-nums-legend {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                width: 100%;
+                border-top: 1px solid var(--b3-border-color);
+                padding-top: 8px;
+                margin-top: 4px;
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+                text-align: left;
+            }
+            .wengu-nums-key {
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 3px;
+                border: 1px solid var(--wengu-border-strong);
+                margin-right: 6px;
+                vertical-align: -1px;
+            }
+            .k-cur {
+                background: var(--b3-theme-primary);
+            }
+            .k-ok {
+                background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+            }
+            .k-bad {
+                background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+            }
+            .k-done {
+                background: color-mix(in srgb, var(--b3-theme-on-surface) 14%, transparent);
+            }
+
+            /* ============================================================
+               ③ 头部统计条 .wengu-head（46px 吸顶单行）
+               ============================================================ */
+            .wengu-head-demo {
+                min-height: var(--wengu-head-h);
+                display: flex;
+                flex-wrap: nowrap;
+                align-items: center;
+                gap: 14px;
+                padding: 0 22px;
+                border: 1px solid var(--b3-border-color);
+                border-bottom: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius);
+                background: var(--b3-theme-background);
+                font-size: 13px;
+                color: var(--b3-theme-on-surface-light);
+                overflow: hidden;
+            }
+            .wengu-head-seg.is-title {
+                color: var(--b3-theme-on-surface);
+                font-weight: 600;
+                letter-spacing: 0.01em;
+                white-space: nowrap;
+            }
+            .wengu-head-seg {
+                white-space: nowrap;
+            }
+            .wengu-head-seg b {
+                color: var(--b3-theme-on-surface);
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .wengu-head-sep {
+                flex: none;
+                align-self: center;
+                height: 16px;
+                width: 1px;
+                background: var(--wengu-border-strong);
+            }
+            .wengu-head-mode {
+                flex: none;
+                font-size: 11px;
+                background: var(--wengu-well);
+                border: 1px solid var(--b3-border-color);
+                border-radius: 999px;
+                padding: 2px 10px;
+                color: var(--b3-theme-on-surface);
+                white-space: nowrap;
+            }
+            .wengu-timer {
+                margin-left: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                color: var(--b3-theme-on-surface);
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+                font-size: 13px;
+                white-space: nowrap;
+            }
+            .wengu-timer svg {
+                width: 14px;
+                height: 14px;
+                flex: none;
+            }
+            .wengu-end-round {
+                flex: none;
+                height: 28px;
+                padding: 0 14px;
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                border-radius: var(--b3-border-radius);
+                background: var(--b3-theme-primary);
+                color: var(--b3-theme-on-primary);
+                font-size: 12.5px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .wengu-end-round:hover {
+                background: var(--b3-theme-primary-light);
+            }
+            .wengu-end-round svg {
+                width: 13px;
+                height: 13px;
+            }
+
+            /* ============================================================
+               ④ 题卡：卡头 chips + 考点行 + 自评五星行
+               ============================================================ */
+            .wengu-card-demo {
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--b3-theme-surface);
+                padding: 16px 22px 12px;
+                max-width: 860px;
+            }
+            .wengu-card-head {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 12px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid var(--b3-border-color);
+            }
+            .wengu-card-num {
+                display: inline-flex;
+                align-items: center;
+                border-radius: 999px;
+                padding: 2px 10px;
+                font-size: 11px;
+                font-weight: 600;
+                background: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+                border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 35%, transparent);
+            }
+            .wengu-badge {
+                display: inline-flex;
+                align-items: center;
+                border-radius: 999px;
+                padding: 2px 10px;
+                font-size: 11px;
+                font-weight: 600;
+                background: var(--wengu-well);
+                color: var(--b3-theme-on-surface);
+                border: 1px solid var(--b3-border-color);
+            }
+            .wengu-card-title {
+                margin-right: auto;
+                font-weight: 600;
+                font-size: 14px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                min-width: 0;
+            }
+            .wengu-meta {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+            }
+            .wengu-meta .wengu-star {
+                width: 12px;
+                height: 12px;
+                color: var(--b3-card-warning-color);
+            }
+            .wengu-card-body {
+                padding: 4px 0 6px;
+                color: var(--b3-theme-on-surface);
+                font-size: 14px;
+                line-height: 1.75;
+            }
+            .wengu-kcaps {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            .wengu-kcaps-label {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .wengu-kchip {
+                font-size: 12px;
+                color: var(--b3-theme-primary);
+                background: var(--b3-theme-primary-lightest);
+                border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 35%, transparent);
+                border-radius: 999px;
+                padding: 2px 10px;
+                cursor: pointer;
+            }
+            .wengu-kchip:hover {
+                background: color-mix(in srgb, var(--b3-theme-primary) 26%, transparent);
+            }
+            .wengu-self {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-top: 12px;
+            }
+            .wengu-self .sr-label {
+                font-size: 12.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .wengu-stars {
+                display: inline-flex;
+                gap: 4px;
+            }
+            .wengu-star-btn {
+                width: 26px;
+                height: 26px;
+                border-radius: var(--b3-border-radius);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--wengu-faint);
+                padding: 0;
+            }
+            .wengu-star-btn:hover {
+                background: var(--b3-list-hover);
+                color: var(--b3-theme-on-surface-light);
+            }
+            .wengu-star-btn svg {
+                width: 17px;
+                height: 17px;
+            }
+            .wengu-star-btn.on {
+                color: var(--b3-card-warning-color);
+            }
+            .wengu-self-hint {
+                font-size: 11px;
+                color: var(--wengu-faint);
+            }
+
+            /* ============================================================
+               ⑤ 切换确认弹窗（b3-dialog 落法，此处仅示意内容区）
+               ============================================================ */
+            .demo-dialog {
+                width: min(480px, 100%);
+                border: 1px solid var(--wengu-border-strong);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--b3-theme-surface);
+                padding: 24px 26px;
+                box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+            }
+            .d-ico {
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+                margin-bottom: 12px;
+            }
+            .d-ico svg {
+                width: 18px;
+                height: 18px;
+            }
+            .d-t {
+                font-size: 16.5px;
+                font-weight: 700;
+                margin-bottom: 6px;
+                color: var(--b3-theme-on-surface);
+            }
+            .d-d {
+                font-size: 13.5px;
+                line-height: 1.75;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .d-d b {
+                color: var(--b3-theme-on-surface);
+            }
+            .d-a {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                margin-top: 20px;
+            }
+            .d-btn {
+                height: 30px;
+                padding: 0 16px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border-radius: var(--b3-border-radius);
+                font-size: 12.5px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .d-btn.primary {
+                background: var(--b3-theme-primary);
+                color: var(--b3-theme-on-primary);
+            }
+            .d-btn.primary:hover {
+                background: var(--b3-theme-primary-light);
+            }
+            .d-btn.outline {
+                border: 1px solid var(--wengu-border-strong);
+                color: var(--b3-theme-on-surface);
+                font-weight: 500;
+            }
+            .d-btn.outline:hover {
+                background: var(--b3-list-hover);
+            }
+
+            /* ============================================================
+               ⑥ 阅读组分隔条 .wengu-splitter（antd Splitter 语义）
+               ============================================================ */
+            .demo-split {
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--b3-theme-background);
+                width: 620px;
+                max-width: 100%;
+                display: flex;
+                flex-direction: column;
+                height: 400px;
+                overflow: hidden;
+            }
+            .wengu-gmat {
+                flex: none;
+                height: 190px;
+                overflow-y: auto;
+                padding: 16px 24px;
+                background: var(--wengu-well);
+                font-size: 13px;
+                line-height: 1.8;
+                color: var(--b3-theme-on-surface);
+            }
+            .wengu-gmat p {
+                margin: 0 0 10px;
+            }
+            .wengu-splitter {
+                flex: none;
+                height: 14px;
+                margin: -4px 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: row-resize;
+                touch-action: none;
+                position: relative;
+                z-index: 2;
+            }
+            .wengu-splitter i {
+                display: block;
+                width: 56px;
+                height: 2px;
+                border-radius: 999px;
+                background: color-mix(in srgb, var(--b3-theme-on-surface-light) 30%, transparent);
+                transition: background 0.15s;
+            }
+            .wengu-splitter:hover i,
+            .wengu-splitter:focus-visible i {
+                background: color-mix(in srgb, var(--b3-theme-primary) 50%, transparent);
+            }
+            .wengu-splitter.dragging i {
+                background: var(--b3-theme-primary);
+            }
+            body.wengu-splitting {
+                cursor: row-resize;
+                user-select: none;
+            }
+            .split-host {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                padding: 12px 20px;
+            }
+            .split-states {
+                display: flex;
+                gap: 22px;
+                flex-wrap: wrap;
+                margin-top: 14px;
+            }
+            .split-state {
+                flex: none;
+            }
+            .split-state .bar {
+                width: 180px;
+                height: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .split-state .bar i {
+                width: 56px;
+                height: 2px;
+                border-radius: 999px;
+                background: color-mix(in srgb, var(--b3-theme-on-surface-light) 30%, transparent);
+            }
+            .split-state.hover .bar i {
+                background: color-mix(in srgb, var(--b3-theme-primary) 50%, transparent);
+            }
+            .split-state.drag .bar i {
+                background: var(--b3-theme-primary);
+            }
+            .split-state .lb {
+                font-size: 11px;
+                color: var(--wengu-faint);
+                text-align: center;
+                margin-top: 2px;
+            }
+
+            /* ============================================================
+               ⑦ 错题本 .wengu-review（单列可展开行形态）
+               ============================================================ */
+            .demo-mistake {
+                max-width: 860px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .m-filters {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .wengu-review-fchip {
+                height: 28px;
+                padding: 0 14px;
+                border-radius: 999px;
+                border: 1px solid var(--b3-border-color);
+                font-size: 12.5px;
+                color: var(--b3-theme-on-surface);
+                display: inline-flex;
+                align-items: center;
+            }
+            .wengu-review-fchip:hover {
+                background: var(--b3-list-hover);
+                color: var(--b3-theme-on-surface);
+                border-color: var(--wengu-border-strong);
+            }
+            .wengu-review-fchip.on {
+                background: var(--b3-theme-primary-lightest);
+                border-color: color-mix(in srgb, var(--b3-theme-primary) 50%, transparent);
+                color: var(--b3-theme-primary);
+                font-weight: 600;
+            }
+            .wengu-review-sel {
+                height: 28px;
+                padding: 0 12px;
+                border-radius: 999px;
+                border: 1px solid var(--b3-border-color);
+                background: var(--wengu-well);
+                font-size: 12.5px;
+                color: var(--b3-theme-on-surface);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .wengu-review-sel svg {
+                width: 12px;
+                height: 12px;
+            }
+            .m-count {
+                margin-left: auto;
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .m-count b {
+                color: var(--b3-theme-on-surface);
+                font-variant-numeric: tabular-nums;
+            }
+            .m-list {
+                display: flex;
+                flex-direction: column;
+                gap: 9px;
+            }
+            .wengu-review-group-title {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+                margin: 4px 2px 0;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .wengu-review-redrill {
+                margin-left: auto;
+                height: 22px;
+                padding: 0 10px;
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius);
+                font-size: 11.5px;
+                color: var(--b3-theme-on-surface-light);
+                display: inline-flex;
+                align-items: center;
+            }
+            .wengu-review-redrill:hover {
+                color: var(--b3-theme-primary);
+                border-color: var(--b3-theme-primary);
+            }
+            .wengu-review-item {
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                background: var(--b3-theme-surface);
+                overflow: hidden;
+            }
+            .wengu-review-item:hover {
+                border-color: var(--wengu-border-strong);
+            }
+            .wengu-review-item.open {
+                border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+            }
+            .wengu-review-rowhead {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 12px 18px;
+                cursor: pointer;
+            }
+            .wengu-review-date {
+                flex: none;
+                width: 44px;
+                font-size: 11px;
+                color: var(--wengu-faint);
+                font-variant-numeric: tabular-nums;
+            }
+            .wengu-review-set {
+                flex: none;
+                max-width: 190px;
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .wengu-review-item-stem {
+                flex: 1;
+                min-width: 0;
+                font-size: 13.5px;
+                font-weight: 600;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: var(--b3-theme-on-surface);
+            }
+            .wengu-review-mini {
+                flex: none;
+                display: inline-flex;
+                gap: 2px;
+            }
+            .wengu-review-mini svg {
+                width: 13px;
+                height: 13px;
+                color: var(--wengu-faint);
+            }
+            .wengu-review-mini svg.on {
+                color: var(--b3-card-warning-color);
+            }
+            .wengu-review-count {
+                flex: none;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--b3-theme-error);
+                background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+                border: 1px solid color-mix(in srgb, var(--b3-theme-error) 35%, transparent);
+                border-radius: 999px;
+                padding: 1px 9px;
+            }
+            .wengu-review-item-open {
+                border-top: 1px solid var(--b3-border-color);
+                padding: 14px 22px 18px;
+                background: var(--wengu-sunken);
+            }
+            .m-open-meta {
+                display: flex;
+                gap: 12px;
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+                margin-bottom: 10px;
+                flex-wrap: wrap;
+            }
+            .wengu-review-sec {
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                padding: 10px 14px;
+                margin-bottom: 10px;
+                font-size: 13px;
+                line-height: 1.7;
+            }
+            .wengu-review-sec .sec-t {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+                margin-bottom: 6px;
+            }
+            .m-acts {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                margin-top: 14px;
+            }
+            .m-empty {
+                border: 1px dashed var(--b3-border-color);
+                border-radius: var(--b3-border-radius-b);
+                padding: 28px 0;
+                text-align: center;
+                font-size: 13px;
+                color: var(--wengu-faint);
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+            <defs>
+                <symbol id="i-star" viewBox="0 0 24 24">
+                    <path d="M12 2.6l2.8 5.9 6.5.8-4.8 4.4 1.3 6.4L12 17l-5.8 3.1 1.3-6.4L2.7 9.3l6.5-.8z" />
+                </symbol>
+                <symbol id="i-clock" viewBox="0 0 24 24">
+                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm.9-13h-1.8v5.4l4.4 2.7.9-1.5-3.5-2.1z" />
+                </symbol>
+                <symbol id="i-search" viewBox="0 0 24 24">
+                    <path d="M10 2a8 8 0 105.3 14l5.4 5.3 1.4-1.4-5.3-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z" />
+                </symbol>
+                <symbol id="i-refresh" viewBox="0 0 24 24">
+                    <path d="M12 4V1L7 6l5 5V7a6 6 0 11-6 6H4a8 8 0 108-9z" />
+                </symbol>
+                <symbol id="i-left" viewBox="0 0 24 24">
+                    <path d="M15.4 4.6L14 3.2 5.2 12l8.8 8.8 1.4-1.4L8 12z" />
+                </symbol>
+                <symbol id="i-right" viewBox="0 0 24 24">
+                    <path d="M8.6 19.4l1.4 1.4L18.8 12 10 3.2 8.6 4.6 16 12z" />
+                </symbol>
+                <symbol id="i-down" viewBox="0 0 24 24">
+                    <path d="M4.6 8.6L3.2 10l8.8 8.8L20.8 10l-1.4-1.4L12 16z" />
+                </symbol>
+                <symbol id="i-info" viewBox="0 0 24 24">
+                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2v2h-2zm0 4h2v4h-2z" />
+                </symbol>
+                <symbol id="i-check" viewBox="0 0 24 24">
+                    <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
+                </symbol>
+                <symbol id="i-list" viewBox="0 0 24 24">
+                    <path d="M3 5h2v2H3zm4 0h14v2H7zM3 11h2v2H3zm4 0h14v2H7zM3 17h2v2H3zm4 0h14v2H7z" />
+                </symbol>
+                <symbol id="i-file" viewBox="0 0 24 24">
+                    <path d="M14 2H4v20h16V8zm0 2.5L17.5 8H14zM6 20V4h6v6h6v10z" />
+                </symbol>
+                <symbol id="i-folder" viewBox="0 0 24 24">
+                    <path d="M2 4h8l2 2h10v14H2zm2 2v12h16V8h-9.2l-2-2z" />
+                </symbol>
+                <symbol id="i-spark" viewBox="0 0 24 24">
+                    <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8zM19 15l.9 3.1L23 19l-3.1.9L19 23l-.9-3.1L15 19l3.1-.9z" />
+                </symbol>
+            </defs>
+        </svg>
+
+        <div class="doc">
+            <div class="doc-head">
+                <button class="theme-toggle" id="themeToggle" type="button">
+                    <svg width="13" height="13"><use href="#i-spark" /></svg>
+                    切换明暗验证态
+                </button>
+                <div class="kicker">
+                    <span>wengu · desktop drill</span>
+                    <span class="tag-src">施工稿 v1 · 2026-09-15</span>
+                    <span class="tag-src">权威：wengu-desktop-drill.html（组件级）</span>
+                </div>
+                <h1>侧栏与做题主区 · 重设计施工稿</h1>
+                <p class="lede">
+                    逐区块「照抄即可」级施工图。做题主区保持现状<b>多题长卷</b>形态（禁单题翻页）；现有 DOM 类名逐字保留，新增结构用新类名；
+                    页面内所有颜色只写 b3 令牌全名——本稿以 Neo+ 深色实测值渲染默认态，右上钮可切浅色验证态，两态由变量翻转、规则层零改动。
+                    差距论证与 S/A/B/C 分级见同目录 sidebar-gap-list.md。
+                </p>
+                <div class="rules">
+                    <div class="rule"><b>令牌</b>：31 个白名单全名；圆角 4 / 6(令牌) / 12(令牌) / 999</div>
+                    <div class="rule"><b>字号</b>：11 / 12 / 12.5 / 13 / 13.5 / 14；16.5 仅弹窗标题</div>
+                    <div class="rule"><b>间距</b>：2 / 4 / 6 / 8 / 12 / 14（稿 13→12、5→4或6）</div>
+                    <div class="rule"><b>按钮</b>：面板至多一个 primary；选中态=浅底+主色描边</div>
+                    <div class="rule"><b>图标</b>：一律 svgIcon 白名单 id；本稿内联 svg 仅为替身</div>
+                    <div class="rule"><b>弹窗</b>：openWenguDialog；右起第一钮为主操作</div>
+                </div>
+            </div>
+
+            <!-- ══════════════════ §0 令牌映射 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§0</span>
+                    <h2>令牌映射（稿变量 → b3 落点）</h2>
+                    <span class="note">完整论证见 sidebar-gap-list.md §0</span>
+                </div>
+                <table class="spec">
+                    <tr>
+                        <th style="width: 26%">稿变量（wengu-desktop-drill.html）</th>
+                        <th style="width: 37%">实现落点</th>
+                        <th>备注</th>
+                    </tr>
+                    <tr><td class="val">--bg / --surface / --fg / --muted / --soft</td><td class="val"><span class="tok">--b3-theme-background</span> / <span class="tok">--b3-theme-surface</span> / <span class="tok">--b3-theme-on-background</span> / <span class="tok">--b3-theme-on-surface</span> / <span class="tok">--b3-theme-on-surface-light</span></td><td>五主位直映</td></tr>
+                    <tr><td class="val">--border / --border2 / --hover</td><td class="val"><span class="tok">--b3-border-color</span> / <span class="val">--wengu-border-strong</span>（派生：on-background 34%）/ <span class="tok">--b3-list-hover</span></td><td>border-strong 为 base.scss 新增派生定义</td></tr>
+                    <tr><td class="val">--faint</td><td class="val"><span class="val">--wengu-faint</span> = color-mix(in srgb, <span class="tok">--b3-theme-on-background</span> 55%, transparent)</td><td>b3 无更低文字档，一次定义全局用</td></tr>
+                    <tr><td class="val">--accent 三档 / --on-accent / --accent-soft / --accent-text</td><td class="val"><span class="tok">--b3-theme-primary</span>（三档并一）/ <span class="tok">--b3-theme-on-primary</span> / <span class="tok">--b3-theme-primary-lightest</span> / <span class="tok">--b3-theme-primary</span></td><td>hover/active 走思源按钮体系</td></tr>
+                    <tr><td class="val">--ok / --ok-soft；--bad / --bad-soft</td><td class="val"><span class="tok">--b3-theme-success</span> / mix 13%；<span class="tok">--b3-theme-error</span> / mix 13%</td><td>语义边 = mix(语义色 42%, transparent)</td></tr>
+                    <tr><td class="val">--well / --cell-done</td><td class="val"><span class="val">--wengu-well</span>（reading.scss 同源式）/ mix(on-surface 14%, transparent)</td><td>well 不重复定义，沿用既有</td></tr>
+                    <tr><td class="val">星色 #e9b95e</td><td class="val"><span class="tok">--b3-card-warning-color</span></td><td>评分星金黄惯例 + 明暗自适应；低星=警示谱系</td></tr>
+                    <tr><td class="val">--r-ctl 6 / qn 5 / --r-card 12</td><td class="val"><span class="tok">--b3-border-radius</span> / 归 6 档 <span class="tok">--b3-border-radius</span> / <span class="tok">--b3-border-radius-b</span></td><td>阶梯无 5px，归档</td></tr>
+                </table>
+            </section>
+
+            <!-- ══════════════════ §1 侧栏 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§1</span>
+                    <h2>重设计侧栏（.wengu-side 系）</h2>
+                    <span class="note">DOM 类名不动；树行覆写 b3-list-item 观感</span>
+                </div>
+                <p class="sec-lede">
+                    宽 220→280；选中语言从「左条」换「内描边 + 软底」；工具区两枚图标钮升等宽文字工具钮；新增 AI 讲解入口长钮（挂既有 AI 面板）。
+                    树行走 TreeList 原生结构，仅全局 SCSS 覆写行壳观感（圆角/内衬/选中态），缩进仍由原生折叠机制承担。
+                </p>
+                <div class="stage">
+                    <div class="stage-frac">
+                        <aside class="demo-side wengu-side">
+                            <div class="wengu-side-head">
+                                <span class="sh-t">题集目录</span>
+                                <button class="wengu-side-iconbtn" title="刷新" type="button"><svg><use href="#i-refresh" /></svg></button>
+                                <button class="wengu-side-iconbtn" title="收起侧栏" type="button"><svg><use href="#i-left" /></svg></button>
+                            </div>
+                            <div class="wengu-side-tools">
+                                <input class="wengu-side-search" placeholder="搜索题集 / 题干…" />
+                                <div class="wengu-side-toolrow">
+                                    <button class="wengu-side-tool" type="button"><svg><use href="#i-info" /></svg>统计</button>
+                                    <button class="wengu-side-tool" type="button"><svg><use href="#i-list" /></svg>专题</button>
+                                </div>
+                                <button class="wengu-side-ai" type="button"><svg><use href="#i-spark" /></svg>AI 讲解</button>
+                            </div>
+                            <div class="wengu-side-body">
+                                <div class="wengu-side-label">专题</div>
+                                <div class="wengu-side-item">
+                                    <svg class="n-ico"><use href="#i-folder" /></svg>
+                                    <span class="n-main">
+                                        <span class="wengu-side-title">冲刺模拟卷</span>
+                                        <span class="wengu-side-meta">6 题 · 已刷 2</span>
+                                    </span>
+                                </div>
+                                <div class="wengu-side-item">
+                                    <svg class="n-ico"><use href="#i-folder" /></svg>
+                                    <span class="n-main">
+                                        <span class="wengu-side-title">错题重刷</span>
+                                        <span class="wengu-side-meta">18 题 · 已刷 0</span>
+                                    </span>
+                                </div>
+                                <div class="wengu-side-label">全部题目</div>
+                                <div class="wengu-side-item wengu-side-active">
+                                    <svg class="n-ico"><use href="#i-list" /></svg>
+                                    <span class="n-main">
+                                        <span class="wengu-side-title">聚合题库</span>
+                                        <span class="wengu-side-meta">420 题 · 已刷 96</span>
+                                    </span>
+                                </div>
+                                <div class="wengu-side-label">文档</div>
+                                <div class="demo-tree">
+                                    <div class="row open lvl1">
+                                        <svg class="caret"><use href="#i-right" /></svg>
+                                        <span class="t">数学</span>
+                                    </div>
+                                    <div class="row open lvl2">
+                                        <svg class="caret"><use href="#i-right" /></svg>
+                                        <span class="t">考研数学强化通关330</span>
+                                    </div>
+                                    <div class="row lvl3">
+                                        <svg class="n-ico" style="width:14px;height:14px;flex:none;margin-top:3px;color:var(--wengu-faint)"><use href="#i-file" /></svg>
+                                        <span class="n-main" style="flex:1;min-width:0">
+                                            <span class="wengu-side-title">高等数学-题解</span>
+                                            <span class="wengu-side-meta">120 题 · 已刷 41</span>
+                                        </span>
+                                    </div>
+                                    <div class="row lvl3">
+                                        <svg class="n-ico" style="width:14px;height:14px;flex:none;margin-top:3px;color:var(--wengu-faint)"><use href="#i-file" /></svg>
+                                        <span class="n-main" style="flex:1;min-width:0">
+                                            <span class="wengu-side-title">线性代数-题解（超长题集名截断示意，悬停出全名）</span>
+                                            <span class="wengu-side-meta">96 题 · 已刷 12</span>
+                                        </span>
+                                    </div>
+                                    <div class="row lvl2">
+                                        <svg class="caret"><use href="#i-right" /></svg>
+                                        <span class="t">概率论与数理统计</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </aside>
+                        <div class="frac-main">
+                            <table class="spec">
+                                <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                                <tr><td class="sel">.wengu-side</td><td class="val">width:280px; border-right:1px solid <span class="tok">--b3-border-color</span>; background:var(--wengu-sunken)</td><td>微沉底 = mix(background 94%, black)；两态同式</td></tr>
+                                <tr><td class="sel">.wengu-side-head</td><td class="val">padding:12px 12px 8px; border-bottom:0; font-size:13px; letter-spacing:.04em; font-weight:600</td><td>去底边线</td></tr>
+                                <tr><td class="sel">.wengu-side-iconbtn</td><td class="val">width/height:26px; padding:0; display:inline-flex; center; border-radius:<span class="tok">--b3-border-radius</span></td><td>定尺寸化；svg 14×14</td></tr>
+                                <tr><td class="sel">.wengu-side-tools</td><td class="val">column; gap:8px; padding:2px 12px 8px</td><td>搜索框保留 b3-text-field 本体，只对齐边距</td></tr>
+                                <tr><td class="sel">.wengu-side-tool（新）</td><td class="val">flex:1; height:30px; border:1px <span class="tok">--b3-border-color</span>; radius <span class="tok">--b3-border-radius</span>; gap:6px; font-size:12px</td><td>hover：border-strong + on-surface + list-hover</td></tr>
+                                <tr><td class="sel">.wengu-side-ai（新）</td><td class="val">height:32px; border:mix(primary 45%); bg <span class="tok">--b3-theme-primary-lightest</span>; color <span class="tok">--b3-theme-primary</span>; radius <span class="tok">--b3-border-radius</span>; 12.5px/600</td><td>hover：mix(primary 26%) 底 + primary 边</td></tr>
+                                <tr><td class="sel">.wengu-tree .b3-list-item</td><td class="val">border-radius:<span class="tok">--b3-border-radius</span>; padding:5px 8px</td><td>行壳观感覆写；hover 走 <span class="tok">--b3-list-hover</span> 原生</td></tr>
+                                <tr><td class="sel">.wengu-side-item</td><td class="val">border-radius:<span class="tok">--b3-border-radius</span>; padding:5px 8px; gap:7px</td><td>与树行同壳</td></tr>
+                                <tr><td class="sel">.wengu-side-active</td><td class="val">background:<span class="tok">--b3-theme-primary-lightest</span>; box-shadow:inset 0 0 0 1.5px <span class="tok">--b3-theme-primary</span>; border-left:0</td><td>左条语言退役；树行选中同式</td></tr>
+                                <tr><td class="sel">.wengu-side-meta</td><td class="val">font-size:11px; margin-top:1px; color:<span class="tok">--b3-theme-on-surface-light</span></td><td>稿 11.5 归 11</td></tr>
+                            </table>
+                            <p class="caption">
+                                <b>缺失形态</b>：长题集名单行 ellipsis（上例第二文档行），悬停 title 保全名；空态=树区居中「暂无题集，点顶部转换按钮导入」；搜索命中时平铺组沿用同一行壳。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════════ §2 题号栏 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§2</span>
+                    <h2>题号栏（.wengu-nums 系 · 吸顶竖列形态）</h2>
+                    <span class="note">保持现状吸顶；帽/图例/至N 为新增结构</span>
+                </div>
+                <p class="sec-lede">
+                    按钮从 22px 裸格升 28px 五态格（hover / 当前 / 答对 / 答错 / 已答中性）；新增题号帽「题号 N/M」与底部图例（作答中图例只留「当前/已答」两项，不透对错）。
+                    当前题采用与侧栏选中一致的「软底 + 内描边」语言（spec §2.3 合规；若取稿原样实底反白须先在 spec 登记例外）。NumRail 实测封顶（--wengu-nums-max）逻辑不变，新增帽/图例高度计入。
+                </p>
+                <div class="stage">
+                    <div class="stage-frac">
+                        <div class="wengu-nums" role="navigation">
+                            <div class="wengu-nums-cap">题号 <b>12</b>/40</div>
+                            <div class="wengu-nums-grid">
+                                <button class="wengu-num" type="button">1</button>
+                                <button class="wengu-num wengu-num-right" type="button">2</button>
+                                <button class="wengu-num wengu-num-right" type="button">3</button>
+                                <button class="wengu-num wengu-num-wrong" type="button">4</button>
+                                <button class="wengu-num wengu-num-wrong" type="button">5</button>
+                                <button class="wengu-num wengu-num-right" type="button">6</button>
+                                <button class="wengu-num wengu-num-right" type="button">7</button>
+                                <button class="wengu-num wengu-num-wrong" type="button">8</button>
+                                <button class="wengu-num wengu-num-right" type="button">9</button>
+                                <button class="wengu-num wengu-num-right" type="button">10</button>
+                                <button class="wengu-num wengu-num-right" type="button">11</button>
+                                <button class="wengu-num wengu-num-active" type="button">12</button>
+                                <button class="wengu-num" type="button">13</button>
+                                <button class="wengu-num" type="button">14</button>
+                                <div class="wengu-num-gap" title="第二套 · 概率论与数理统计">
+                                    <span class="wengu-num-gap-line"></span>
+                                </div>
+                                <button class="wengu-num" type="button">15</button>
+                                <button class="wengu-num" type="button">16</button>
+                                <div class="wengu-nums-more">…至 40</div>
+                            </div>
+                            <div class="wengu-nums-legend">
+                                <span><i class="wengu-nums-key k-cur"></i>当前题</span>
+                                <span><i class="wengu-nums-key k-ok"></i>答对</span>
+                                <span><i class="wengu-nums-key k-bad"></i>答错</span>
+                                <span><i class="wengu-nums-key k-done"></i>已答未揭示</span>
+                            </div>
+                        </div>
+                        <div class="frac-main">
+                            <table class="spec">
+                                <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                                <tr><td class="sel">.wengu-nums</td><td class="val">width:64px; padding:12px 10px; gap:8px</td><td>吸顶/sticky 与自滚封顶逻辑照旧</td></tr>
+                                <tr><td class="sel">.wengu-nums-cap（新）</td><td class="val">font-size:11px; color:<span class="tok">--b3-theme-on-surface-light</span>; center; ls .03em</td><td>b = on-surface + tabular-nums</td></tr>
+                                <tr><td class="sel">.wengu-nums-grid（新）</td><td class="val">grid 1col; gap:5px; align-content:start; flex:1 + overflow-y:auto（题多时网格层自滚）+ scrollbar-width:none 与 ::-webkit-scrollbar display:none（内滚不显滚动条，滚轮/键盘照常）</td><td>滚动职责从 .wengu-nums 下放本层（帽/图例常驻不滚）；滚动条隐藏为用户 20260915 拍板</td></tr>
+                                <tr><td class="sel">.wengu-num</td><td class="val">width:100%（栏内自适应）; height:28px; radius <span class="tok">--b3-border-radius</span>; border:1px <span class="tok">--b3-border-color</span>; bg transparent; 12px tabular</td><td>稿 5px 圆角归 6 档</td></tr>
+                                <tr><td class="sel">.wengu-num:hover</td><td class="val">bg <span class="tok">--b3-list-hover</span>; color <span class="tok">--b3-theme-on-surface</span>; border-color var(--wengu-border-strong)</td><td>—</td></tr>
+                                <tr><td class="sel">.wengu-num-active</td><td class="val">bg <span class="tok">--b3-theme-primary-lightest</span>; color <span class="tok">--b3-theme-primary</span>; 700; box-shadow:inset 0 0 0 1.5px <span class="tok">--b3-theme-primary</span></td><td>与侧栏选中同语言（用户 20260915 已拍板定案）</td></tr>
+                                <tr><td class="sel">.wengu-num-right / -wrong</td><td class="val">bg mix(<span class="tok">success/error</span> 13%); border mix(42%); color 语义色</td><td>补语义边（现状无边）</td></tr>
+                                <tr><td class="sel">.wengu-num-answered</td><td class="val">bg mix(on-surface 14%); border var(--wengu-border-strong); color <span class="tok">--b3-theme-on-surface</span></td><td>中性化（现 primary-lightest 与答对混淆）</td></tr>
+                                <tr><td class="sel">.wengu-num-gap（既有）</td><td class="val">不动（16×2 短线 + hover 伸展 + 点击滚组首）</td><td>组间线交互保留</td></tr>
+                                <tr><td class="sel">.wengu-nums-more（新）</td><td class="val">font-size:11px; color var(--wengu-faint); center; padding:2px 0</td><td>题号超 60 时出（「…至 40」）</td></tr>
+                                <tr><td class="sel">.wengu-nums-legend（新）</td><td class="val">column; gap:4px; border-top <span class="tok">--b3-border-color</span>; padding-top:8px; 11px on-surface-light</td><td>色块 8×8 r3 边 border-strong；作答中只出 2 项</td></tr>
+                            </table>
+                            <p class="caption">
+                                <b>缺失形态</b>：多套分组=组间线 + 「…至 N」行（上例 14 与 15 之间）；百位题号不放大字号，靠栏内宽自适应；空态不适用（无题不出栏）。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════════ §3 头部统计条 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§3</span>
+                    <h2>头部统计条（.wengu-head 系 · 46px 吸顶单行）</h2>
+                    <span class="note">段序结构不动（Issue #100 产物）</span>
+                </div>
+                <p class="sec-lede">
+                    吸顶态收成 46px 单行：段距 8→14、竖线定高 16、计时升正文色 600、交卷钮升主钮（本区唯一 primary）。
+                    稿的模式胶囊不复活模式切换器，改作「进行中轮次」指示（可选）。窄窗（&lt;900px）回退现状 wrap 兜底。
+                </p>
+                <div class="stage">
+                    <div class="wengu-head-demo wengu-head">
+                        <span class="wengu-head-seg is-title">线性代数 · 共 40 题</span>
+                        <span class="wengu-head-seg">已刷 <b>12</b>/40</span>
+                        <span class="wengu-head-seg">答对 <b>9</b></span>
+                        <span class="wengu-head-sep"></span>
+                        <span class="wengu-head-seg">已刷 <b>2</b> 轮</span>
+                        <span class="wengu-head-seg">最近 <b>7</b>/12</span>
+                        <span class="wengu-head-seg">最佳 <b>9</b>/12</span>
+                        <span class="wengu-head-mode">第 2 轮 · 进行中</span>
+                        <span class="wengu-timer"><svg><use href="#i-clock" /></svg>23:41</span>
+                        <button class="wengu-end-round" type="button"><svg><use href="#i-check" /></svg>结束本轮</button>
+                    </div>
+                    <table class="spec">
+                        <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                        <tr><td class="sel">.wengu-head（吸顶态）</td><td class="val">min-height:46px; flex-wrap:nowrap; gap:14px; padding:0 22px</td><td>@media (max-width:900px) 回 wrap+padding 8px（现状兜底）</td></tr>
+                        <tr><td class="sel">.wengu-head-seg</td><td class="val">font-size:13px; color <span class="tok">--b3-theme-on-surface-light</span></td><td>b 段：on-surface + 600 + tabular（现状已有）</td></tr>
+                        <tr><td class="sel">.wengu-head-seg.is-title</td><td class="val">color <span class="tok">--b3-theme-on-surface</span>; 600; ls .01em</td><td>—</td></tr>
+                        <tr><td class="sel">.wengu-head-sep</td><td class="val">height:16px; align-self:center; width:1px; background var(--wengu-border-strong)</td><td>由 stretch 改定高居中</td></tr>
+                        <tr><td class="sel">.wengu-head-mode（新·可选）</td><td class="val">font-size:11px; bg var(--wengu-well); border <span class="tok">--b3-border-color</span>; 999px; padding:2px 10px</td><td>仅 quiz 已开刷出现；不复活模式切换</td></tr>
+                        <tr><td class="sel">.wengu-timer</td><td class="val">gap:6px; color <span class="tok">--b3-theme-on-surface</span>; 600; tabular; 13px</td><td>图标 iconClock 14×14</td></tr>
+                        <tr><td class="sel">.wengu-end-round</td><td class="val">height:28px; padding:0 14px; radius <span class="tok">--b3-border-radius</span>; 12.5px/600; bg <span class="tok">--b3-theme-primary</span>; color <span class="tok">--b3-theme-on-primary</span></td><td>本区唯一 primary；阴影不取（无令牌、深色不可见）</td></tr>
+                    </table>
+                    <p class="caption">
+                        <b>缺失形态</b>：窄窗 wrap 后段序不变、计时与交卷钮折末行；无轮次时不插竖线（renderSubheadHtml 既有「两侧有内容才插」口径）；长题集名段 max-width 46ch ellipsis。
+                    </p>
+                </div>
+            </section>
+
+            <!-- ══════════════════ §4 题卡内新增行 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§4</span>
+                    <h2>题卡：考点 chips 行 + 自评五星行</h2>
+                    <span class="note">卡壳改浮起语言；两行均揭示后才出现</span>
+                </div>
+                <p class="sec-lede">
+                    卡壳从「底色底 + surface 边」改「surface 底 + border-color 边 + 12px 圆角」浮起语言；卡头题号/题型 chips 胶囊化。
+                    考点行（.wengu-kcaps）与自评五星行（.wengu-self 改造）都是<b>揭示后</b>形态——考点名可暗示解法方向，揭示前不渲染不占位。
+                    五星数据落点两案（会话内轻量 / 题库沉淀）见差距清单 §7.b，UI 形态先行。
+                </p>
+                <div class="stage">
+                    <div class="wengu-card-demo wengu-card wengu-revealed">
+                        <div class="wengu-card-head">
+                            <span class="wengu-card-num">题 12</span>
+                            <span class="wengu-badge">单选</span>
+                            <span class="wengu-card-title">向量组的线性相关性</span>
+                            <span class="wengu-meta"><svg class="wengu-star"><use href="#i-star" /></svg><svg class="wengu-star"><use href="#i-star" /></svg><svg class="wengu-star"><use href="#i-star" /></svg></span>
+                            <span class="wengu-meta">强化 330</span>
+                            <span class="wengu-meta">刷过 4 次</span>
+                        </div>
+                        <div class="wengu-card-body">
+                            设 A 为 m×n 矩阵，B 为 n×m 矩阵，则下列说法正确的是____（题干示意，KaTeX 实渲染由 ProtyleHost 承担）。
+                        </div>
+                        <div class="wengu-kcaps">
+                            <span class="wengu-kcaps-label">考点</span>
+                            <button class="wengu-kchip" type="button">线性相关</button>
+                            <button class="wengu-kchip" type="button">秩判别</button>
+                            <button class="wengu-kchip" type="button">齐次方程组</button>
+                        </div>
+                        <div class="wengu-self" data-self>
+                            <span class="sr-label">自评掌握度</span>
+                            <span class="wengu-stars" role="radiogroup" aria-label="自评掌握度">
+                                <button class="wengu-star-btn on" type="button" aria-label="1 星"><svg><use href="#i-star" /></svg></button>
+                                <button class="wengu-star-btn on" type="button" aria-label="2 星"><svg><use href="#i-star" /></svg></button>
+                                <button class="wengu-star-btn on" type="button" aria-label="3 星"><svg><use href="#i-star" /></svg></button>
+                                <button class="wengu-star-btn" type="button" aria-label="4 星"><svg><use href="#i-star" /></svg></button>
+                                <button class="wengu-star-btn" type="button" aria-label="5 星"><svg><use href="#i-star" /></svg></button>
+                            </span>
+                            <span class="wengu-self-hint">点击星级评价对本题的掌握程度，再点同星取消</span>
+                        </div>
+                    </div>
+                    <table class="spec">
+                        <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                        <tr><td class="sel">.wengu-card</td><td class="val">background <span class="tok">--b3-theme-surface</span>; border-color <span class="tok">--b3-border-color</span>; radius <span class="tok">--b3-border-radius-b</span></td><td>浮起语言；content-visibility / scroll-margin 照旧</td></tr>
+                        <tr><td class="sel">.wengu-card-num</td><td class="val">999px; padding:2px 10px; 11px/600; bg <span class="tok">--b3-theme-primary-lightest</span>; color <span class="tok">--b3-theme-primary</span>; border mix(primary 35%)</td><td>题号胶囊化</td></tr>
+                        <tr><td class="sel">.wengu-badge</td><td class="val">999px; padding:2px 10px; 11px/600; bg var(--wengu-well); color <span class="tok">--b3-theme-on-surface</span>; border <span class="tok">--b3-border-color</span></td><td>题型徽标中性化（现 primary 系）</td></tr>
+                        <tr><td class="sel">.wengu-kcaps（新）</td><td class="val">flex; wrap; gap:8px; margin-top:12px</td><td>揭示闸：仅 .wengu-revealed 下渲染</td></tr>
+                        <tr><td class="sel">.wengu-kcaps-label</td><td class="val">12px; color <span class="tok">--b3-theme-on-surface-light</span></td><td>—</td></tr>
+                        <tr><td class="sel">.wengu-kchip（新）</td><td class="val">12px; color <span class="tok">--b3-theme-primary</span>; bg <span class="tok">--b3-theme-primary-lightest</span>; border mix(primary 35%); 999px; padding:2px 10px</td><td>hover bg mix(primary 26%)；无检索目标时降纯展示</td></tr>
+                        <tr><td class="sel">.wengu-self</td><td class="val">gap:12px; margin-top:12px</td><td>容器与 data-self 契约不动；显示闸 selfOn 不变</td></tr>
+                        <tr><td class="sel">.wengu-star-btn（新）</td><td class="val">26×26; radius <span class="tok">--b3-border-radius</span>; center; color var(--wengu-faint)</td><td>hover：list-hover 底 + on-surface-light；svg 17×17</td></tr>
+                        <tr><td class="sel">.wengu-star-btn.on</td><td class="val">color <span class="tok">--b3-card-warning-color</span></td><td>fill currentColor（svg 既有口径）；radiogroup + radio 语义</td></tr>
+                        <tr><td class="sel">.wengu-self-hint</td><td class="val">11px; color var(--wengu-faint)</td><td>—</td></tr>
+                    </table>
+                    <p class="caption">
+                        <b>缺失形态</b>：无考点（q.knowledge 空）整行不渲染；组题的考点行在组内当前卡同位；卡头难度星维持 12px（与自评星 17px 语义区分）。
+                    </p>
+                </div>
+            </section>
+
+            <!-- ══════════════════ §5 切换确认弹窗 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§5</span>
+                    <h2>切换题集二次确认弹窗</h2>
+                    <span class="note">openWenguDialog 落法 · 主钮=留在本卷</span>
+                </div>
+                <p class="sec-lede">
+                    触发：quiz 模式下点另一题集/专题/聚合行（树内与搜索平铺两路），且 session 未收卷（判据同 StartPanel「未完成轮」：
+                    <span class="val">session &amp;&amp; !session.endedAt &amp;&amp; session.answered &gt; 0</span>）。review 筛选 / preview 只读 / 点当前行均不触发。
+                    落点：SideMount 传出的 onOpenDoc / onOpenCollection 回调在视图层统一包闸（组件无会话知识）。
+                    <b>主钮论证</b>：主钮（右起第一）=「留在本卷」——拦截的存在理由是防误中断，主钮承载安全默认；「留在本卷」零成本、「继续切换」不可逆（中断计时与卷内视口）；
+                    与 IDE「未保存切换」类拦截先例一致。基建：WenguDialogAction 需补 primary 变体（spec §5.4 待修项，本特性促成）。
+                </p>
+                <div class="stage">
+                    <div style="display:flex;justify-content:center;background:var(--wengu-sunken);border-radius:var(--b3-border-radius-b);padding:36px 16px">
+                        <div class="demo-dialog" role="dialog" aria-modal="true" aria-labelledby="dt">
+                            <div class="d-ico"><svg><use href="#i-info" /></svg></div>
+                            <div class="d-t" id="dt">切换题集？</div>
+                            <div class="d-d">
+                                本卷还有未交卷的进度：<b>已答 12/40 题，计时 23:41</b>。切换后进度不会丢失，可从开刷面板「继续上次」回到本卷。<br />
+                                将打开「<b>高等数学-题解</b>」。
+                            </div>
+                            <div class="d-a">
+                                <button class="d-btn outline" type="button">继续切换</button>
+                                <button class="d-btn primary" type="button">留在本卷</button>
+                            </div>
+                        </div>
+                    </div>
+                    <table class="spec">
+                        <tr><th style="width:30%">项</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                        <tr><td class="sel">容器</td><td class="val">openWenguDialog + b3-dialog；extraCls=wengu-switch-confirm</td><td>不自绘遮罩；图标位 iconInfo（svgIcon 白名单）</td></tr>
+                        <tr><td class="sel">宽度 / 高度</td><td class="val">min(480px, calc(100vw - 32px))；max-height calc(100vh - 200px)</td><td>spec §5 sm 档（稿 430 归档 480）</td></tr>
+                        <tr><td class="sel">标题 / 正文</td><td class="val">16.5px/700；13.5px lh 1.75 on-surface-light，加粗段 on-surface</td><td>展示型字号仅此处用</td></tr>
+                        <tr><td class="sel">按钮排布</td><td class="val">右对齐 gap 10；右起第一=「留在本卷」primary；「继续切换」outline</td><td>h30 / padding 0 16 / 12.5px 600</td></tr>
+                        <tr><td class="sel">安全默认</td><td class="val">Esc / 点遮罩 = 留在本卷</td><td>Enter 同主钮</td></tr>
+                        <tr><td class="sel">i18n 新键</td><td class="val">switchConfirmTitle / Body / Stay / Go</td><td>正文带 {n}/{N}/{mm:ss}/{目标名} 占位</td></tr>
+                    </table>
+                    <p class="caption">
+                        <b>缺失形态</b>：目标名超长时正文内 46ch ellipsis + title 保全名；触发判据为空轮（answered=0）不弹，直接切。
+                    </p>
+                </div>
+            </section>
+
+            <!-- ══════════════════ §6 阅读组分隔条 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§6</span>
+                    <h2>阅读组可拖分隔条（.wengu-splitter）</h2>
+                    <span class="note">antd Splitter 语义 · 替代固定 52vh</span>
+                </div>
+                <p class="sec-lede">
+                    材料区与题目区构成上下双面板，拖中间手柄调高度比例；MaterialScroll 判定读 clientHeight/scrollHeight 实值，天然兼容任意拖后高度，
+                    仅需 pointerup 时补一次 syncMatScroll（拖动不触发 resize）。下方演示台<b>可真拖</b>——双击手柄复位。
+                </p>
+                <div class="stage">
+                    <div class="stage-frac">
+                        <div class="demo-split">
+                            <div class="wengu-gmat" id="demoMat">
+                                <p>阅读材料示意（一）。渐大面积的城市边缘带正在成为生物多样性研究的新前沿……</p>
+                                <p>研究团队在 2019 至 2023 年间对 42 个样地进行了连续观测，记录了包括传粉昆虫在内的 300 余个物种的动态……</p>
+                                <p>材料区超出限高时内滚，底部渐隐线随「还能往下滚」显隐（既有机制，读实值不受拖动影响）……</p>
+                                <p>继续向下还有更多段落，用于撑出滚动能力，观察手柄拖动时本区高度实时变化……</p>
+                                <p>末段。双击中间手柄可复位默认比例（52vh）。</p>
+                            </div>
+                            <div class="wengu-splitter" id="demoSplitter" tabindex="0" role="separator" aria-orientation="horizontal" title="拖动调整材料区高度，双击复位">
+                                <i></i>
+                            </div>
+                            <div class="split-host">
+                                <div class="wengu-card-demo" style="max-width:none;padding:12px 16px">
+                                    <div class="wengu-card-head" style="margin-bottom:8px;padding-bottom:8px">
+                                        <span class="wengu-card-num">题 27</span>
+                                        <span class="wengu-badge">多选</span>
+                                        <span class="wengu-card-title">主旨题（组内当前题示意）</span>
+                                    </div>
+                                    <div class="wengu-card-body" style="font-size:13px">题目区随材料区让高——拖高材料则本题上滚，拖低则整卡入视。</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="frac-main">
+                            <table class="spec">
+                                <tr><th style="width:30%">选择器 / 事件</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                                <tr><td class="sel">.wengu-splitter（新）</td><td class="val">flex:none; height:14px; margin:-4px 0; center; cursor:row-resize; touch-action:none; tabindex=0</td><td>14px 热区，内芯 56×2 999px</td></tr>
+                                <tr><td class="sel">内芯 常态</td><td class="val">background:mix(<span class="tok">--b3-theme-on-surface-light</span> 30%, transparent)</td><td>—</td></tr>
+                                <tr><td class="sel">内芯 hover / focus</td><td class="val">mix(<span class="tok">--b3-theme-primary</span> 50%, transparent)</td><td>键盘可达</td></tr>
+                                <tr><td class="sel">内芯 拖动中</td><td class="val"><span class="tok">--b3-theme-primary</span> 实色；body.wengu-splitting 全局 row-resize + user-select:none</td><td>setPointerCapture 防丢事件</td></tr>
+                                <tr><td class="sel">pointermove</td><td class="val">clamp(160px, 高度, min(75vh, host 高)) → 写 --wengu-mat-cap（px，元素内联）</td><td>min 160 / max 75vh</td></tr>
+                                <tr><td class="sel">pointerup</td><td class="val">释放 capture → 持久化 → 手动 syncMatScroll() 一次</td><td>渐隐与 cap 判定补调</td></tr>
+                                <tr><td class="sel">dblclick</td><td class="val">清内联 --wengu-mat-cap（回 52vh 默认）</td><td>—</td></tr>
+                                <tr><td class="sel">键盘</td><td class="val">Arrow ±24px；Home/End 到 min/max</td><td>同 pointer 路径写值</td></tr>
+                                <tr><td class="sel">持久化</td><td class="val">prefs 键 matCapRatio（0.16–0.75 小数，全局）</td><td>存比例不存像素；照 onPersistOpen 回写模式</td></tr>
+                            </table>
+                            <div class="split-states">
+                                <div class="split-state">
+                                    <div class="bar"><i></i></div>
+                                    <div class="lb">常态</div>
+                                </div>
+                                <div class="split-state hover">
+                                    <div class="bar"><i></i></div>
+                                    <div class="lb">hover / focus</div>
+                                </div>
+                                <div class="split-state drag">
+                                    <div class="bar"><i></i></div>
+                                    <div class="lb">拖动中</div>
+                                </div>
+                            </div>
+                            <p class="caption">
+                                <b>缺失形态</b>：拖到 min/max 顶格时 clamp 生效（不再移动，无视觉惩罚态）；材料缺失的组不出手柄（结构都不在）；触屏走同 pointer 路径。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════════ §7 错题本 ══════════════════ -->
+            <section class="sec">
+                <div class="sec-head">
+                    <span class="sec-no">§7</span>
+                    <h2>错题本（.wengu-review 系 · 单列可展开行）</h2>
+                    <span class="note">按稿 .mistake 整套 + 显示规则修正</span>
+                </div>
+                <p class="sec-lede">
+                    两栏结构退役：条目升卡片行（日期 / 题集名 / 题干 / 迷你星 / 错次五件套），点击整行展开详情（sec 结构原样移入）。
+                    <b>题集名规则</b>：显示层剥结尾「-题解」（displaySetName = 去掉结尾的「-题解」，无后缀原样；中段连字符不伤），悬停 title 保全名。
+                    <b>日期规则</b>：与当前年比较——同年 MM-DD、跨年 YYYY-MM-DD，悬停 title 全量 YYYY-MM-DD HH:mm（上表第二行给跨年样例）。
+                </p>
+                <div class="stage">
+                    <div class="demo-mistake wengu-review">
+                        <div class="m-filters">
+                            <button class="wengu-review-fchip on" type="button">全部</button>
+                            <button class="wengu-review-fchip" type="button">未掌握</button>
+                            <button class="wengu-review-fchip" type="button">已掌握</button>
+                            <span class="wengu-review-sel">按最近排序 <svg><use href="#i-down" /></svg></span>
+                            <span class="m-count">共 <b>18</b> 题 · 未掌握 <b>11</b></span>
+                        </div>
+                        <div class="m-list">
+                            <div class="wengu-review-group-title">
+                                考研数学强化通关330（组头=分节标题 + 重刷入口）
+                                <button class="wengu-review-redrill" type="button">重刷本文档（11）</button>
+                            </div>
+                            <div class="wengu-review-item open">
+                                <div class="wengu-review-rowhead">
+                                    <span class="wengu-review-date" title="2026-09-13 21:04">09-13</span>
+                                    <span class="wengu-review-set" title="考研数学强化通关330·线性代数-题解">考研数学强化通关330·线性代数</span>
+                                    <span class="wengu-review-item-stem">设 A 为 3 阶实对称矩阵，λ₁=1, λ₂=2…（题干单行截断示意）</span>
+                                    <span class="wengu-review-mini" title="自评 3/5">
+                                        <svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                    </span>
+                                    <span class="wengu-review-count">错 3</span>
+                                </div>
+                                <div class="wengu-review-item-open">
+                                    <div class="m-open-meta">
+                                        <span>线性代数 · 特征值</span>
+                                        <span>最近错于 2026-09-13 21:04</span>
+                                        <span>错 3 次</span>
+                                    </div>
+                                    <div class="wengu-review-sec">
+                                        <div class="sec-t">题干与作答</div>
+                                        历次作答时间线、答案、解析分节原样移入（.wengu-review-sec 系类名不变，仅壳从右栏换到展开区）。
+                                    </div>
+                                    <div class="m-acts">
+                                        <button class="d-btn outline" type="button">查看原文</button>
+                                        <button class="d-btn outline" type="button">标记已掌握</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="wengu-review-item">
+                                <div class="wengu-review-rowhead">
+                                    <span class="wengu-review-date" title="2025-12-30 09:12">2025-12-30</span>
+                                    <span class="wengu-review-set" title="03-习思想-题解">03-习思想</span>
+                                    <span class="wengu-review-item-stem">跨年条目：日期带年份（与当前年比较，同年省年）……</span>
+                                    <span class="wengu-review-mini" title="自评 1/5">
+                                        <svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                    </span>
+                                    <span class="wengu-review-count">错 5</span>
+                                </div>
+                            </div>
+                            <div class="wengu-review-item">
+                                <div class="wengu-review-rowhead">
+                                    <span class="wengu-review-date" title="2026-09-12 14:40">09-12</span>
+                                    <span class="wengu-review-set" title="高等数学-题解">高等数学</span>
+                                    <span class="wengu-review-item-stem">「全部」聚合视图出题集名列；组内视图同名省略……</span>
+                                    <span class="wengu-review-mini" title="自评 4/5">
+                                        <svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                    </span>
+                                    <span class="wengu-review-count">错 2</span>
+                                </div>
+                            </div>
+                            <div class="wengu-review-group-title" style="margin-top:10px">
+                                03-习思想
+                                <button class="wengu-review-redrill" type="button">重刷本文档（3）</button>
+                            </div>
+                            <div class="wengu-review-item">
+                                <div class="wengu-review-rowhead">
+                                    <span class="wengu-review-date" title="2026-09-10 10:02">09-10</span>
+                                    <span class="wengu-review-set" title="03-习思想-题解">03-习思想</span>
+                                    <span class="wengu-review-item-stem">多组分组示意：组间以 12px 分节标题区隔，行不再重复组名……</span>
+                                    <span class="wengu-review-mini" title="自评 2/5">
+                                        <svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                    </span>
+                                    <span class="wengu-review-count">错 1</span>
+                                </div>
+                            </div>
+                            <div class="m-empty">空态示意：没有符合条件的错题（筛后为空与从未出错两态文案沿用现状 reviewEmpty / reviewFilterEmpty）</div>
+                        </div>
+                    </div>
+                    <table class="spec">
+                        <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
+                        <tr><td class="sel">.wengu-review-cols</td><td class="val">退役（grid 两栏删）</td><td>.wengu-review-list 单列满宽</td></tr>
+                        <tr><td class="sel">.wengu-review-item</td><td class="val">border <span class="tok">--b3-border-color</span>; radius <span class="tok">--b3-border-radius-b</span>; bg <span class="tok">--b3-theme-surface</span>; overflow:hidden</td><td>hover border-strong；展开 mix(primary 45%)</td></tr>
+                        <tr><td class="sel">.wengu-review-rowhead（新）</td><td class="val">flex; center; gap:14px; padding:12px 18px; cursor:pointer</td><td>五件套行头</td></tr>
+                        <tr><td class="sel">.wengu-review-date</td><td class="val">flex:none; width:44px; 11px; color var(--wengu-faint); tabular</td><td>同年 MM-DD / 跨年 YYYY-MM-DD；title 全量</td></tr>
+                        <tr><td class="sel">.wengu-review-set</td><td class="val">flex:none; max-width:190px; 11px; on-surface-light; ellipsis</td><td>displaySetName 剥「-题解」；title 保全名；组内视图省</td></tr>
+                        <tr><td class="sel">.wengu-review-item-stem</td><td class="val">flex:1; 13.5px/600; 单行 ellipsis</td><td>由 2 行 clamp 改单行</td></tr>
+                        <tr><td class="sel">.wengu-review-mini（新）</td><td class="val">13×13 星；on 态 <span class="tok">--b3-card-warning-color</span></td><td>历史自评回显；数据落点见差距清单 §7.b</td></tr>
+                        <tr><td class="sel">.wengu-review-count</td><td class="val">11px/600; color <span class="tok">--b3-theme-error</span>; bg mix(13%); border mix(35%); 999px; padding:1px 9px</td><td>—</td></tr>
+                        <tr><td class="sel">.wengu-review-fchip（新）</td><td class="val">height:28px; padding:0 14px; 999px; border <span class="tok">--b3-border-color</span>; 12.5px</td><td>on 态：primary-lightest + mix(primary 50%) 边 + primary 字 + 600（合规选中语言）</td></tr>
+                        <tr><td class="sel">.wengu-review-item-open（新）</td><td class="val">border-top <span class="tok">--b3-border-color</span>; padding:14px 22px 18px; bg var(--wengu-sunken)</td><td>sec / timeline 类名原样移入；操作行右对齐 gap 10</td></tr>
+                    </table>
+                    <p class="caption">
+                        <b>缺失形态</b>：空态（上例虚线框）；「全部」聚合视图出题集名列、组内视图省同名列；无自评数据时迷你星整体不出。
+                    </p>
+                </div>
+            </section>
+
+            <div class="foot">
+                施工稿 v1 · 2026-09-15 · 与 sidebar-gap-list.md 同口径（S/A/B/C 分级与令牌映射论证见彼文件）。<br />
+                本稿默认以 Neo+ 深色实测值渲染；右上「切换明暗验证态」翻转 body.light 变量组——规则层零改动即两态成立，即实现侧的验收方式。
+                页内 svg 均为替身示意，实现侧一律走 svgIcon 白名单 id（iconClock / iconSearch / iconRefresh / iconLeft / iconRight / iconDown / iconInfo / iconCheck / iconList / iconFile / iconFolder / iconStar）。
+            </div>
+        </div>
+
+        <script>
+            // 明暗验证态切换：只翻 body 类，变量组接管全部颜色
+            (function () {
+                var btn = document.getElementById("themeToggle");
+                btn.addEventListener("click", function () {
+                    document.body.classList.toggle("light");
+                });
+            })();
+
+            // 演示用分隔条：真拖（setPointerCapture + clamp + 双击复位），
+            // 与施工规格同路径——实现侧照此写进 GroupUnitApp
+            (function () {
+                var splitter = document.getElementById("demoSplitter");
+                var mat = document.getElementById("demoMat");
+                var host = splitter.parentElement;
+                if (!splitter || !mat) return;
+                var startY = 0;
+                var startH = 0;
+                var min = 160;
+                function maxH() {
+                    return Math.min(window.innerHeight * 0.75, host.clientHeight - 120);
+                }
+                splitter.addEventListener("pointerdown", function (e) {
+                    startY = e.clientY;
+                    startH = mat.getBoundingClientRect().height;
+                    splitter.setPointerCapture(e.pointerId);
+                    splitter.classList.add("dragging");
+                    document.body.classList.add("wengu-splitting");
+                    e.preventDefault();
+                });
+                splitter.addEventListener("pointermove", function (e) {
+                    if (!splitter.classList.contains("dragging")) return;
+                    var next = Math.max(min, Math.min(maxH(), startH + (e.clientY - startY)));
+                    mat.style.height = next + "px";
+                });
+                function endDrag() {
+                    splitter.classList.remove("dragging");
+                    document.body.classList.remove("wengu-splitting");
+                }
+                splitter.addEventListener("pointerup", endDrag);
+                splitter.addEventListener("pointercancel", endDrag);
+                splitter.addEventListener("dblclick", function () {
+                    mat.style.height = ""; // 复位默认（实现侧=清内联 --wengu-mat-cap 回 52vh）
+                });
+            })();
+        </script>
+    </body>
+</html>

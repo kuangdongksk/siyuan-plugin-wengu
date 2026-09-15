@@ -1,0 +1,198 @@
+# 桌面端刷题界面 · 侧栏与做题主区 差距清单（sidebar-gap-list）
+
+对照三源：
+
+- **设计稿（权威）**：`design/wengu-desktop-drill.html` —— 视觉唯一权威。但页面级结构只取组件级样式，做题主区保持现状「多题长卷」形态（所有题卡依次铺开滚动），**不采用**稿内「单题卡 + 上一题/下一题」翻页形态。
+- **实现（现状实测）**：`src/scss/{base,panels,cards,card-render,reading,review}.scss` + `src/quiz/components/{SidePanelApp,NumRailApp,QuizHeadApp,GroupUnitApp}.svelte` + `src/quiz/components/QuizCard/index.svelte` + `src/review/`（逐值读出，非印象）。
+- **宿主约束**：`docs/design-spec.md`（UI 规范权威：令牌白名单/字号阶梯/间距圆角阶梯/按钮层级/弹窗规范）+ 思源 b3 令牌体系；用户运行 Neo+ 深色暖调主题（实测见 `theme-tokens-neo.md`），**所有修法必须明暗两态成立**。
+
+两条铁律（贯穿全部修法）：
+
+1. **现有 DOM 类名逐字不动**（`.wengu-side` 系、`.wengu-nums/.wengu-num` 系、`.wengu-review-*` 系等）。稿只供视觉规格；新增结构（题号帽/图例/考点行/星标行/分隔条/确认弹窗）另给新类名。
+2. **颜色一律落 b3 令牌全名**，稿内 oklch/rgba 独立变量不许原样落实现；映射见 §0。
+
+分级（沿用 `aipanel-gap-list.md` 口径，按用户可见影响排序）：
+
+- **S 结构级** —— 结构/DOM 形态不同，需动组件编排或新增结构；
+- **A 显著数值差** —— 一眼可见的尺寸/颜色/层级差；
+- **B 细节档位** —— 字号半档、间距 2px 级的收尾差；
+- **C 稿外新增** —— 稿与实现都没有、本轮新定义的特性（§7 a–e）。
+
+---
+
+## §0 令牌映射表（稿变量 → b3 落点）
+
+稿的 `:root` 变量只在稿内成立；实现侧按下表逐项替换。`color-mix` 写法沿用 aipanel-gap-list 先例（b3 无对应档位时用官方令牌派生，明暗两态自动跟随）。
+
+| 稿变量（值） | b3 落点 | 说明 |
+| --- | --- | --- |
+| `--bg` #272e33 | `--b3-theme-background` | 页面底 |
+| `--bg-page` #20262b | 不映射 | 现状主区无独立页底层，维持 `background` 单层 |
+| `--surface` #364852 | `--b3-theme-surface` | 卡面 |
+| `--well` #2c3c45 | `--wengu-well`（reading.scss 既有：`color-mix(in srgb, var(--b3-theme-background) 62%, var(--b3-theme-on-background) 5%)`） | 凹槽底已有同名机制，继续用，不新增 |
+| `--fg` #d3cab4 | `--b3-theme-on-background` | 正文 |
+| `--muted` #c1baa8 | `--b3-theme-on-surface` | 次要但可读（Neo 下恰为暖米 #d3cab4） |
+| `--soft` 66% | `--b3-theme-on-surface-light` | 弱化正文 |
+| `--faint` 42% | `--wengu-faint`: `color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent)` | b3 无更低文字档；一次性定义进 base.scss 顶部 |
+| `--border` 20% | `--b3-border-color` | 常规边 |
+| `--border2` 36% | `--wengu-border-strong`: `color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent)` | 强调边（hover 描边/已答边/图例色块边） |
+| `--hover` 8% | `--b3-list-hover` | 悬停底 |
+| `--accent` / `--accent-lo` / `--accent-act` | `--b3-theme-primary`（三档并一） | 思源按钮体系自带 hover/active，不自造三档 |
+| `--on-accent` | `--b3-theme-on-primary` | 实底上的字 |
+| `--accent-soft` rgba(197,134,106,.16) | `--b3-theme-primary-lightest` | 选中软底（思源原生选中档） |
+| `--accent-text` #dda187 | `--b3-theme-primary` | 软底上的字直接用主色（b3 无 text-on-soft 档；主色在明暗两态都可读） |
+| `--ok` #9ec98a / `--ok-soft` | `--b3-theme-success` / `color-mix(in srgb, var(--b3-theme-success) 13%, transparent)` | 答对 |
+| `--bad` #f2a199 / `--bad-soft` | `--b3-theme-error` / `color-mix(in srgb, var(--b3-theme-error) 13%, transparent)` | 答错 |
+| `--na` #9aa096 | `--b3-theme-on-surface-light` | 中性态 |
+| `--cell-done` rgba(226,218,197,.14) | `color-mix(in srgb, var(--b3-theme-on-background) 14%, transparent)` | 已答中性格 |
+| 星色 `#e9b95e`（.star.on/.ms.on） | `--b3-card-warning-color` | 论证：评分星的金黄是跨产品惯例，b3 体系内颜色最近、且明暗两态自适应的是 warning 档（spec 白名单内 warning 仅此一对）；语义上低分星=「未掌握」警示谱系，不违和。备选 `--b3-theme-primary` 会丢金色惯例并与选中态混淆，不取 |
+| `--r-ctl` 6px | `var(--b3-border-radius)` | 控件圆角（稿 qn 的 5px 一并归 6px 档——spec 圆角阶梯无 5px） |
+| `--r-card` 12px | `var(--b3-border-radius-b)` | 卡/弹窗圆角 |
+
+字号/间距归档：稿的 11.5px/10.5px 归 **11px**、12.5px 归 **12.5px**（阶梯内有此档）或 12px、13.5px 归 **13.5px**（阶梯内有）、16.5px/38px 属展示型（标题/弹窗图标不受正文阶梯约束）；间距 13px 归 **12px**、5px 归 **4px 或 6px**（按邻值取齐）。
+
+---
+
+## §1 侧栏（`.wengu-side` 系）
+
+现状结构（SidePanelApp.svelte）：`.wengu-side > .wengu-side-head（标题 + 刷新/折叠两图标钮）> .wengu-side-tools（b3-text-field 搜索 + 图标钮 stats/collections + convert 文字钮）> .wengu-side-body（专题组 `.wengu-side-label`/`.wengu-side-item` + 聚合行 + `.wengu-tree` TreeList 或搜索平铺组）`。
+
+| # | 稿（wengu-desktop-drill.html） | 现状（实测） | 修法 | 级 |
+| --- | --- | --- | --- | --- |
+| 1.1 | 容器宽 280px，`border-right 1px var(--border)`，底 `rgba(0,0,0,.06)` 微沉 | `width 220px`，`border-right 1px solid var(--b3-theme-surface)`，无底色（base.scss `.wengu-side`） | `.wengu-side{width:280px;border-right-color:var(--b3-border-color);background:color-mix(in srgb,var(--b3-theme-background) 94%,black)}`。深色=压暗一档、浅色=压灰一档，两态同式 | A |
+| 1.2 | 头部 `padding 12px 12px 8px`，标题 13px/600/`ls .04em`，**无底边线**；右缘图标钮 26×26、radius 6px、常态 soft 色 | `.wengu-side-head{padding 4px 8px;font-weight 600}`（字号继承 14px），`border-bottom 1px var(--b3-theme-surface)`；`.wengu-side-iconbtn{padding 3px 4px}` 非定尺寸 | `.wengu-side-head{padding:12px 12px 8px;border-bottom:0;font-size:13px;letter-spacing:.04em}`；`.wengu-side-iconbtn{width:26px;height:26px;padding:0;border-radius:var(--b3-border-radius);display:inline-flex;align-items:center;justify-content:center}` | A |
+| 1.3 | 搜索框 h30、well 底、`border`、radius 6px、12.5px、`padding 0 10px 0 31px`、图标左 9px、focus `outline 2px accent-text`；区块边距 `margin 2px 12px 8px` | `.wengu-side-search` 直接挂思源原生 `b3-text-field`（13px，原生高约 30、原生 focus 描边），区块边距随 `.wengu-side-tools{padding 8px}` | 保留 `b3-text-field` 控件本体（思源观感即达意、不自绘输入框），只对齐几何与边距：`.wengu-side-tools{padding:2px 12px 8px}`（column 布局维持），`.wengu-side-search{margin:0 0 8px}`。原生 focus 样式保留，不追稿的 outline 2px | B |
+| 1.4 | 工具区：两枚**等宽文字工具钮**（`.tool` flex1、h30、border、radius 6px、icon+12px 文案、hover 描边升 border2）；AI 长钮（`.btn-ai` h32、`border rgba(197,134,106,.45)`、`accent-soft` 底、`accent-text` 字、radius 6px、12.5px/600） | 工具区为 column：stats/collections 是**纯图标钮**（`.wengu-side-iconbtn`），convert 是 outline Button（`.wengu-side-convert` flex1 居中）；无 AI 入口钮 | stats/collections 升文字钮：新类 `.wengu-side-tool{flex:1;height:30px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--b3-border-color);border-radius:var(--b3-border-radius);font-size:12px;color:var(--b3-theme-on-surface-light)}`，hover `border-color:var(--wengu-border-strong);color:var(--b3-theme-on-surface);background:var(--b3-list-hover)`；两钮包一层 `display:flex;gap:8px` 的 `.wengu-side-toolrow`。AI 钮为稿有实现无的**新增入口**（挂既有 AI 讲解面板，用户 20260915 已批），类名 `.wengu-side-ai`，样式：h32、`border:1px solid color-mix(in srgb,var(--b3-theme-primary) 45%,transparent)`、`background:var(--b3-theme-primary-lightest)`、`color:var(--b3-theme-primary)`、`border-radius:var(--b3-border-radius)`、12.5px/600，hover `background:color-mix(in srgb,var(--b3-theme-primary) 16%,transparent);border-color:var(--b3-theme-primary)` | S |
+| 1.5 | 树行自绘形态：`.node` radius 6px、`padding 5px 8px`、gap 7px、行文 13px/`lh 1.45`/break-all；caret 14×14 faint、开合旋转；副题行 `.n-sub` 11.5px muted；图标 `.n-ico` 14×14 faint | 树行走思源原生 `b3-list-item`（TreeList 产出，hover `b3-list-hover`，选中/缩进/箭头全原生），`.wengu-side-item{padding 4px 8px 4px 12px}` 另用于专题/聚合行 | **不拆 TreeList**（DOM 结构不动），用全局 SCSS 覆写达稿观感：`.wengu-tree .b3-list-item{border-radius:var(--b3-border-radius);padding:5px 8px}`、`.wengu-tree .b3-list-item:hover{background:var(--b3-list-hover)}`；`.wengu-side-item` 同步 `border-radius:var(--b3-border-radius);padding:5px 8px` | S |
+| 1.6 | 选中态：`background accent-soft` + `box-shadow inset 0 0 0 1.5px accent`（内描边）；选中行文字 fg/600、图标 accent-text | `.wengu-side-active{border-left:2px solid var(--b3-theme-primary);background:var(--b3-theme-primary-lightest)}`（左条语言）；树行选中走原生 | 统一改内描边语言（跨组件一致，见 §2 当前题号态）：`.wengu-side-active{border-left:0;background:var(--b3-theme-primary-lightest);box-shadow:inset 0 0 0 1.5px var(--b3-theme-primary)}`，树行选中 `.wengu-tree .b3-list-item.b3-list-item--focus`（思源选中类名，以实际输出为准）同式覆写，选中行 `font-weight:600` | S |
+| 1.7 | 缩进 lvl2 +14px、lvl3 +30px | b3-list-item 原生 `--file-toggle-width` 缩进（约 18px/级） | 原生缩进已近似稿的层级表达，不动（避免与 TreeList 折叠机制打架）；专题/聚合行沿用 `.wengu-side-item` 既有左衬 | B |
+| 1.8 | 行副题（`N 题 · 已刷 X`）11.5px muted、`margin-top 1px` | `docMeta` 由 SidePanelApp 以 `wengu-side-meta`（12px on-surface-light）输出 | `.wengu-side-meta{font-size:11px;color:var(--b3-theme-on-surface-light);margin-top:1px}` | B |
+
+---
+
+## §2 题号栏（`.wengu-nums` 系）
+
+现状（NumRailApp.svelte + cards.scss）：`nav.wengu-nums` 为 `.wengu-body` flex 首列的**吸顶竖列**（sticky、题多自滚），按钮 22px 高裸数字。稿是常驻右分割栏形态——**按硬性前提保持现状吸顶形态**，只取组件级样式。
+
+| # | 稿 | 现状 | 修法 | 级 |
+| --- | --- | --- | --- | --- |
+| 2.1 | 栏宽 64px、`border-right`、微沉底、`padding 12px 10px`、gap 8px | 无固定宽（内容自适应），`padding 8px 0`、gap 4px、无边线无底 | 保持吸顶竖列；`.wengu-nums{width:64px;box-sizing:border-box;padding:12px 10px;gap:8px}`。边线/底不取（吸顶浮层加右边线在长卷滚动中会割裂，稿的分割栏语境不成立）；NumRail 实测封顶逻辑（`--wengu-nums-max`）不变，需把新增 12px 上下衬计入 | A |
+| 2.2 | 题号帽 `.qn-cap`：11px muted 居中 `ls .03em`，`题号 <b>3</b>/40`（b 为 fg、tabular） | 无帽 | 新增结构 `.wengu-nums-cap{font-size:11px;color:var(--b3-theme-on-surface-light);text-align:center;letter-spacing:.03em}`，内 `b{color:var(--b3-theme-on-surface);font-variant-numeric:tabular-nums}`；类名挂 `.wengu-nums` 首子（NumRailApp 加一段静态头部）。同时按钮序列包进新层 `.wengu-nums-grid{display:grid;grid-template-columns:1fr;gap:5px;align-content:start;flex:1;overflow-y:auto}`——题多时的自滚职责从 `.wengu-nums` 下放本层，帽与图例常驻不滚 | S |
+| 2.3 | 按钮 28px 高、radius 5px、12px、tabular、`border 1px var(--border)`、透明底、muted 字 | `.wengu-num{min-width 24px;height 22px;padding 0 4px;border 1px transparent;radius var(--b3-border-radius);background var(--b3-theme-surface);color var(--b3-theme-on-surface);font-size 12px}`（surface 实底格） | `.wengu-num{width:32px;min-width:32px;height:28px;padding:0;border-radius:var(--b3-border-radius);background:transparent;border-color:var(--b3-border-color);color:var(--b3-theme-on-surface);font-variant-numeric:tabular-nums}`。多题号（如 100+）以字号不放大、宽度撑到栏内可用宽处理（`max-width:100%`） | A |
+| 2.4 | hover：hover 底 + fg 字 + border2 描边 | hover：`background var(--b3-theme-background-light)`，边仍透明 | `:hover{background:var(--b3-list-hover);color:var(--b3-theme-on-surface);border-color:var(--wengu-border-strong)}` | B |
+| 2.5 | 当前题 `.cur`：accent 实底、on-accent 字、700；外加 `.cur2`（双题号场景 outline 2px accent） | `.wengu-num-active`：透明底 + `border-color primary` + `color primary` + 600 | spec §2.3「选中态禁 primary 实底」的字面管辖对象是可切换选中项（chips/树行），题号栏当前题是**位置指示器**，稿取实底有理；但为跨组件语言统一与规避 spec 例外登记成本，**与 §1.6 同款内描边语言**（用户 20260915 已拍板按此落，不登记例外）：`.wengu-num-active{background:var(--b3-theme-primary-lightest);color:var(--b3-theme-primary);font-weight:700;box-shadow:inset 0 0 0 1.5px var(--b3-theme-primary)}` | S |
+| 2.6 | 答对 `.ok`：ok-soft 底 + `border rgba(158,201,138,.42)` + ok 字；答错 `.bad` 同构红 | `.wengu-num-right`：success 14% 底 + success 字，**无边**；`.wengu-num-wrong` 同构 | 补语义边：`.wengu-num-right{background:color-mix(in srgb,var(--b3-theme-success) 13%,transparent);border-color:color-mix(in srgb,var(--b3-theme-success) 42%,transparent);color:var(--b3-theme-success)}`，wrong 同构 error | B |
+| 2.7 | 已答中性 `.done`：`cell-done` 底 + border2 + fg 字（after 模式不透对错） | `.wengu-num-answered`：`primary-lightest` 底 + primary 字 | 改中性（避免与答对绿/主色混淆语义）：`.wengu-num-answered{background:color-mix(in srgb,var(--b3-theme-on-background) 14%,transparent);border-color:var(--wengu-border-strong);color:var(--b3-theme-on-surface)}` | A |
+| 2.8 | 「…至 N」省略行 `.qn-more`：11px faint 居中（组间长跳省略） | 组间只有 `.wengu-num-gap` 短横线（16×2、hover 伸展） | 分隔线交互（hover 伸展 + 点击滚组首）保留；**吸顶长卷滚动中段**补充省略行的信息价值有限，仅在题号超 60 时于栏顶帽下插一行 `.wengu-nums-more{font-size:11px;color:var(--wengu-faint);text-align:center;padding:2px 0}`（文案「…至 40」）；类名新增 | C |
+| 2.9 | 底部图例 `.qn-legend`：`border-top` 分隔、`padding-top 8px`、列距 4px、11px muted；色块 `i` 8×8、radius 3px、`border border2`，四项（当前/答对/答错/已答） | 无图例 | 新增结构 `.wengu-nums-legend{display:flex;flex-direction:column;gap:4px;width:100%;border-top:1px solid var(--b3-border-color);padding-top:8px;margin-top:4px;font-size:11px;color:var(--b3-theme-on-surface-light);text-align:left}`，色块 `.wengu-nums-key{display:inline-block;width:8px;height:8px;border-radius:3px;border:1px solid var(--wengu-border-strong);margin-right:6px}`，四态取色与 2.5–2.7 修法后的实色一致（当前=primary、对=success、错=error、已答=on-background 42% 底）。仅多题集/收卷揭示态出现（作答中不透对错时图例只留「当前/已答」两项） | S |
+
+**滚动条口径（用户 20260915 拍板）**：题号栏内滚**不显示滚动条**——`.wengu-nums` 与 `.wengu-nums-grid` 均加 `scrollbar-width:none` 与 `::-webkit-scrollbar{display:none}`（滚轮/键盘/拖动滚动能力照常保留）；可滚性由题号帽「题号 N/M」表达。本轮稿涉及的其余内滚窗（阅读组材料区/错题本列表等）同样**一律隐藏原生滚动条**、保留滚动能力，可滚性由既有线索（渐隐分界线等）表达——该规则只作用于插件自己的滚动容器，不写全局通配选择器。
+
+---
+
+## §3 头部统计条（`.wengu-head` 系）
+
+现状（QuizHeadApp.svelte + panels.scss + CardHtml.ts `renderSubheadHtml`）：`flex wrap` 弱分段行，吸顶时负 margin 全宽 + 底边线。分段结构 `is-title 段 → 进度段 → .wengu-head-sep → 轮次段` 已是 Issue #100 结构化产物，与稿 `.stats` 的段序同构——差距集中在几何与字重。
+
+| # | 稿 | 现状 | 修法 | 级 |
+| --- | --- | --- | --- | --- |
+| 3.1 | `.stats` 定高 46px、单行 nowrap、`gap 14px`、`padding 0 22px`、底边线 + 微沉底 | `.wengu-head{flex wrap;gap 8px;margin-bottom 8px}`；吸顶态 `padding 8px` + 底边线 | 吸顶态 `.wengu-main>…>.wengu-head:first-child{min-height:46px;padding:0 22px;gap:14px;flex-wrap:nowrap}`；窄窗兜底：容器宽不足以容纳计时+交卷钮时允许 wrap（`@media (max-width:900px)` 回 `flex-wrap:wrap;min-height:0;padding:8px`，稿未画窄态、按现状兜底）。微沉底不取（吸顶层需要实底压卡） | A |
+| 3.2 | 段字 13px muted；题集名段 fg/600/`ls .01em`；`b` fg/600/tabular | 段色 `on-surface-light`；`.is-title` on-background/600；`b` 600/tabular/on-background | 现状与稿逐值同构（13px=默认 14px 需收一档）：`.wengu-head .wengu-head-seg{font-size:13px}`，`.is-title{letter-spacing:.01em}`。其余已达标 | B |
+| 3.3 | 竖线 `.st-sep` 1×16、border2、自对齐居中 | `.wengu-head-sep{width 1px;align-self:stretch;margin 2px;background var(--b3-border-color)}` | `.wengu-head-sep{align-self:center;height:16px;background:var(--wengu-border-strong)}` | B |
+| 3.4 | 计时 `.st-timer`：`ml auto`、gap 6px、fg 色、600、tabular、13px | `.wengu-timer{ml auto;gap 4px;color on-surface-light}` 无字重 | `.wengu-timer{gap:6px;color:var(--b3-theme-on-surface);font-weight:600}` | B |
+| 3.5 | 模式胶囊 `.st-mode`：11.5px、well 底、border、99px、`padding 2px 10px` | 无（模式切换器 2026-08-26 已裁撤，入口收敛到开刷面板） | **不复活模式切换器**。胶囊位改作「进行中轮次」指示（可选增强，C 类）：新类 `.wengu-head-mode{font-size:11px;background:var(--wengu-well);border:1px solid var(--b3-border-color);border-radius:999px;padding:2px 10px;color:var(--b3-theme-on-surface)}`，文本「第 N 轮 · 进行中」，仅 quiz 已开刷时出现 | C |
+| 3.6 | 按钮：`.btn.sm` h28、`padding 0 14px`、radius 6px、12.5px/600；primary 实底 + `shadow 0 2px 10px` | `.wengu-end-round{padding 2px 10px;font-size 12px}` 走 outline Button | 交卷钮是本区唯一主操作（after 模式「交卷并查看答案」是收卷唯一出口），升主钮：`.wengu-end-round{height:28px;padding:0 14px;font-size:12.5px}` + Button 落 primary 变体（spec「一个面板至多一个 primary」此处即该一个；头部其余钮全部 outline/text）。阴影不取（思源按钮体系无阴影令牌，Neo 深色下不可见） | A |
+
+---
+
+## §4 题卡内元素（`.wengu-card` 系）
+
+| # | 稿 | 现状 | 修法 | 级 |
+| --- | --- | --- | --- | --- |
+| 4.1 | 卡壳：surface 底、radius 12px、`shadow 0 8px 32px rgba(0,0,0,.22)`、`w min(860px,100%)` | `.wengu-card{padding 16px;border 1px var(--b3-theme-surface);radius var(--b3-border-radius);background var(--b3-theme-background)}`（凹进语言：底色底+surface 边） | 改浮起语言：`.wengu-card{background:var(--b3-theme-surface);border-color:var(--b3-border-color);border-radius:var(--b3-border-radius-b)}`。阴影不取（无令牌、深色态无效；明暗一致性优先）。`content-visibility/contain-intrinsic-size/scroll-margin` 等性能与锚点属性原样保留 | A |
+| 4.2 | 卡头 chips：`.chip` 11.5px→11px、99px 胶囊、`padding 2px 10px`、600；题号 chip `.c-no` accent-soft 底+accent-text 字+主色 35% 边；题型 chip `.c-type` well 底+muted | `.wengu-card-num` 裸文本 primary/600；`.wengu-badge{padding 1px 6px;radius var(--b3-border-radius);primary-lightest 底+primary 字;12px}` | 题号胶囊化：`.wengu-card-num{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;background:var(--b3-theme-primary-lightest);color:var(--b3-theme-primary);border:1px solid color-mix(in srgb,var(--b3-theme-primary) 35%,transparent)}`；题型徽标中性化：`.wengu-badge{border-radius:999px;padding:2px 10px;font-size:11px;background:var(--wengu-well);color:var(--b3-theme-on-surface);border:1px solid var(--b3-border-color)}` | A |
+| 4.3 | 考点 chips 行 `.kcaps`：`margin-top 12px`（稿 13 归档）、居左、「考点」标签 12px muted + 可点 chips；`.kchip` 12px、accent-text 字、accent-soft 底、主色 35% 边、99px、`padding 2.5px 11px`→`2px 10px`、hover 底加深（26%） | 无 | **新增结构**，类名 `.wengu-kcaps`：`display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px`，标签 `.wengu-kcaps-label{font-size:12px;color:var(--b3-theme-on-surface-light)}`，chip `.wengu-kchip{font-size:12px;color:var(--b3-theme-primary);background:var(--b3-theme-primary-lightest);border:1px solid color-mix(in srgb,var(--b3-theme-primary) 35%,transparent);border-radius:999px;padding:2px 10px;cursor:pointer}`，hover `background:color-mix(in srgb,var(--b3-theme-primary) 26%,transparent)`。点击语义=在统计/知识文档中按考点检索（实现期接既有入口）。**防剧透**：整行只在 `.wengu-card.wengu-revealed` 下渲染（考点名可暗示答案方向），揭示前不占位 | S |
+| 4.4 | 自评五星行 `.selfrate`：`margin-top 12px`、gap 12px；label 12.5px muted；星钮 26×26、radius 6px（稿 5 归 6）、iconStar 17×17、faint 常态、hover hover 底+soft 字；点亮 `#e9b95e` fill；hint 11.5px→11px faint | `.wengu-self{flex;center;gap 8px;mt 8px}` 为**两枚按钮**（`self-right` success 实底 / `self-wrong` error 实底），主观题提交后 `selfOn` 显示 | **改交互形态**（数据落点见 §7.b）：保留 `.wengu-self` 容器类与 `data-self` 契约，内部改五星 radiogroup——`.wengu-self{gap:12px;margin-top:12px}`，标签沿用现有 span（12.5px on-surface-light），星钮 `.wengu-star-btn{width:26px;height:26px;border-radius:var(--b3-border-radius);display:inline-flex;align-items:center;justify-content:center;color:var(--wengu-faint)}`、内 svg 17×17，hover `background:var(--b3-list-hover);color:var(--b3-theme-on-surface-light)`；点亮态 `.wengu-star-btn.on{color:var(--b3-card-warning-color)}`（svg `fill:currentColor` 已是现状口径）。提示文案 `.wengu-self-hint{font-size:11px;color:var(--wengu-faint)}`。显示闸不变（`selfOn`：主观题提交后） | S |
+| 4.5 | 难度星随卡头 meta（17×17 星） | `.wengu-card-head .wengu-star` 12×12 | 卡头难度星维持 12px（meta 级小号，稿的 17 星属自评行专属尺寸）；两处星尺寸语义不同，不混 | — |
+
+---
+
+## §5 错题本（`.wengu-review-*` 系）
+
+现状（ReviewApp/ReviewGroup/ReviewDetail + review.scss）：工具行（两个 `b3-select` + 概况 + 刷新）+ **左清单右详情两栏**（`grid minmax(280px,360px) 1fr`）。稿 `.mistake` 为**单列可展开行**——做题主区「按现状」的硬性前提不覆盖错题本，且用户点名以稿 `.mistake` 整套为基准，故本节按稿形态重排（结构级，**用户 20260915 已拍板**），现有类名在等效位置保留复用。
+
+| # | 稿 | 现状 | 修法 | 级 |
+| --- | --- | --- | --- | --- |
+| 5.1 | 单列行列表：`.m-row` 卡片（border、radius 12px、surface 底、overflow hidden），行头 `.m-head-row{gap 14px;padding 12px 18px}`，点击整行展开 `.m-reveal`（`border-top` + 微沉底 + `padding 14px 22px 18px`） | 两栏 grid：左清单条目无卡壳（透明底、hover surface、`padding 6px 8px`），右 `wengu-review-detail` 常驻 | 结构重排：`.wengu-review-cols` 两栏布局退役，`.wengu-review-list` 改单列满宽；条目壳 `.wengu-review-item` 升卡片：`border:1px solid var(--b3-border-color);border-radius:var(--b3-border-radius-b);background:var(--b3-theme-surface);overflow:hidden`，选中/展开态 `border-color:color-mix(in srgb,var(--b3-theme-primary) 45%,transparent)`；hover `border-color:var(--wengu-border-strong)`。右详情栏内容（题干/时间线/答案/解析分节）整体移入展开区，类名 `.wengu-review-item-open` 包裹，内部 `.wengu-review-sec` 系原样复用。`wengu-review-detail-empty` 空态文案保留（无选中时列表上方提示条） | S |
+| 5.2 | 筛选行 `.m-filters`：状态 chips 胶囊（`.fchip` h28、`padding 0 14px`、99px、border、12.5px、muted；on 态 accent-soft 底+主色 50% 边+accent-text 字+600）+ 下拉 `.fsel`（h28、99px、well 底）+ 右侧计数 `.m-count`（12px muted、b fg） | 两个思源原生 `b3-select` + `wengu-review-summary` 概况文本 | 状态维（全部/未掌握/已掌握）改胶囊组：新类 `.wengu-review-fchip{height:28px;padding:0 14px;border-radius:999px;border:1px solid var(--b3-border-color);font-size:12.5px;color:var(--b3-theme-on-surface);background:transparent;cursor:pointer}`，选中 `.wengu-review-fchip.on{background:var(--b3-theme-primary-lightest);border-color:color-mix(in srgb,var(--b3-theme-primary) 50%,transparent);color:var(--b3-theme-primary);font-weight:600}`（浅底+描边语言，合规 §2.3）。排序维保留 `b3-select`（下拉语义天然）。概况移行尾：`.wengu-review-summary{margin-left:auto;font-size:12px}` | A |
+| 5.3 | 行头五件套：日期 `.m-date` 11.5px→11px faint tabular `width 44px`；题集名 `.m-set` 11.5px→11px muted `max-width 190px` ellipsis；题干 `.m-t` `flex 1` 13.5px/600 ellipsis；迷你星 `.m-mini` 13×13（on 星色）；错次 `.m-cnt` error 字+13% 底+35% 边、99px、`padding 1px 9px`、600 | 条目为竖排三行：stem（12px 2 行 clamp）+ meta 行（knowledge · 错 N 次 · MM-DD HH:mm）+ tags 行（badge ± cause）；**按文档分组**带组头（12px 标题 + 重刷钮） | 行头改横排五件套（单行卡头）：`.wengu-review-item` 内新结构 `.wengu-review-rowhead{display:flex;align-items:center;gap:14px;padding:12px 18px;cursor:pointer}`——日期 `.wengu-review-date{flex:none;width:44px;font-size:11px;color:var(--wengu-faint);font-variant-numeric:tabular-nums}`、题集名 `.wengu-review-set{flex:none;max-width:190px;font-size:11px;color:var(--b3-theme-on-surface-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`、题干 `.wengu-review-item-stem` 改单行 ellipsis（13.5px/600、`flex:1`）、错次 `.wengu-review-count{flex:none;font-size:11px;font-weight:600;color:var(--b3-theme-error);background:color-mix(in srgb,var(--b3-theme-error) 13%,transparent);border:1px solid color-mix(in srgb,var(--b3-theme-error) 35%,transparent);border-radius:999px;padding:1px 9px}`。迷你星（历史自评回显）为 §7.b 数据落点未定前的占位形态，先留结构 `.wengu-review-mini`（13×13、on 态 `--b3-card-warning-color`）。**分组保留**（按文档分组是重刷入口的载体）：组头降为 12px 分节标题 + 重刷钮，组内行共享题集名列可省（同组同名）——题集名列仅在「全部」聚合视图中出现 | S |
+| 5.4 | 展开区：meta 行（11.5px→11px muted、gap 12px）+ 题干/答案/解析 + 操作行 `.m-acts`（右对齐、gap 10px、`margin-top 14px`） | 详情分节 `.wengu-review-sec`（border、radius-b、`padding 8px 10px`）竖排 gap 12px；操作钮 `wengu-review-detail-actions` | 展开区壳 `.wengu-review-item-open{border-top:1px solid var(--b3-border-color);padding:14px 22px 18px;background:color-mix(in srgb,var(--b3-theme-background) 94%,black)}`（与 §1.1 侧栏微沉同式，两态成立）；内部 sec 结构原样；操作行 `.wengu-review-detail-actions{justify-content:flex-end;gap:10px;margin-top:14px}` | A |
+| 5.5 | 日期显示：稿混用「09-13」与「2026-09-12」 | `fmtDateTime` 统一「MM-DD HH:mm」 | 见 §7.e 统一口径 | — |
+| 5.6 | 题集名：稿裸露「-题解」后缀 | 组头/题集名原样输出 `docTitle` | 见 §7.e 显示规则 | — |
+
+---
+
+## §6 阅读组材料区（`.wengu-gmat` 系）与切换链路
+
+| # | 稿 | 现状 | 修法 | 级 |
+| --- | --- | --- | --- | --- |
+| 6.1 | —（稿未画分隔条） | `.wengu-gmat-host[data-scroll-cap]` 固定 `--wengu-mat-cap:52vh`，材料区 `max-height` 后内滚 | 新增可拖分隔条（交互语义按 antd Splitter），完整规格见 §7.c | C |
+| 6.2 | 弹窗 `.modal`（430px、surface、border2、radius 12、`padding 24px 26px`、icon 位 38×38、标题 16.5/700、正文 13.5 lh1.75、操作行右对齐 gap 10） | 切换题集**无任何确认闸**：`selectDoc` 直接 `reloadDocs`；聚合行走 `colFlow.switchTo` 同样直切 | 新增二次确认弹窗（b3-dialog 体系落法 + 主钮论证），完整规格见 §7.d | C |
+
+---
+
+## §7 新增特性规格（实现里没有，属新增而非差距）
+
+### a. 考点 chips 行（`.wengu-kcaps`）
+
+- **位置**：题卡题干区底部（`.wengu-qprotyle` 之后、作答区之前）；组题在组内当前卡同位。数据源 `q.knowledge`（现状卡头 label 已消费）+ 后续多考点字段（实现期定）。
+- **防剧透口径**：整行仅 `.wengu-revealed` 揭示后渲染——考点名本身可暗示解法方向；揭示前不占位（`hidden` 而非 `visibility`，避免留白暗示「此处有考点」）。
+- **样式**：见 §4.3（逐值）。chip 可点：点击=按考点检索（统计面板考点 Tab / 知识文档定位，实现期接既有入口；无目标时降级为不可点纯展示 chip）。
+
+### b. 自评掌握度五星行（`.wengu-self` 改造）
+
+- **UI 形态先行，数据落点实现期设计**：现状自评是布尔（`selfAssess(host,q,ctl,ok)` → 对/错两钮），五星语义=掌握度 1–5。落点选项（实现期拍板）：
+  1. **会话内轻量**：session 记 `selfStars: Record<qid, 1|2|3|4|5>`，轮报告出均值——不动题库 schema，最小改动；
+  2. **题库沉淀**：bank 记 per-qid 最近值+历史均值，错题本迷你星（§5.3 `.wengu-review-mini`）读它——打通「自评 → 错题本回显」闭环，但动 WeaknessStore 数据面。
+  - 推荐 1 先行、2 作为后续迭代（与本清单「UI 形态先行」口径一致；**用户 20260915 已拍板按方案 1 落**）。
+- **交互**：radiogroup 语义（aria `radiogroup` + 星钮 `radio`，键盘左右移动）；点第 n 星=评 n；再点同值星=取消评分（回到未评）。已评后可改。
+- **显示闸**：沿用现状 `selfOn`（主观题提交后进入自评阶段）；揭示前不显示。
+- **样式**：见 §4.4。文案 label 沿用 i18n `selfLabel` 现键，hint 建议 11px「点击星级评价对本题的掌握程度」。
+
+### c. 阅读组可拖分隔条（antd Splitter 语义）
+
+- **结构**：`.wengu-gmat-host` 尾部新增 `.wengu-splitter`（新类）：`flex:none;height:6px;margin:0 -4px`（出血 4px 扩大热区，实际命中 14px）、`cursor:row-resize`、`touch-action:none`、`tabindex="0"`（键盘可达）。材料区与题目区构成上下双面板，拖动改 `--wengu-mat-cap`（px 值写元素内联 style，优先级盖 52vh 默认）。
+- **三态**：常态 `background:color-mix(in srgb,var(--b3-theme-on-surface-light) 30%,transparent)` 圆角 999px 内芯 2px 高；hover 内芯 `background:var(--b3-theme-primary)` 50% 透明；拖动中（body 挂 `.wengu-splitting`）内芯 `background:var(--b3-theme-primary)` 实色 + `cursor:row-resize` 全局 + `user-select:none` 全局。
+- **交互**：`pointerdown` 记起点与材料区起始高度并 `setPointerCapture` → `pointermove` 算 delta → `clamp` 后写 `--wengu-mat-cap` → `pointerup` 释放 capture、持久化、**手动调一次 `syncMatScroll()`**（拖动不触发 resize 事件，渐隐与 cap 判定会滞留——MaterialFlow 判定函数读 clientHeight/scrollHeight 实值，天然兼容任意拖后高度，只需补一次调用）。
+- **约束**：`min 160px`（材料至少可见数行）、`max min(75vh, host 可用高)`（题目区至少留一卡+作答行）。超界 clamp。
+- **双击复位**：`dblclick` 清元素内联 `--wengu-mat-cap`（回 52vh 默认）并持久化默认标记。
+- **键盘**（可达性建议）：`ArrowUp/Down` ±24px、`Home/End` 到 min/max，同 pointer 路径写值。
+- **持久化**：全局 prefs 键 `matCapRatio`（0.16–0.75 小数，**存比例不存像素**——换设备/换窗口高度稳），照 `onPersistOpen` 回写 prefs 模式；恢复时 `ratio × host 高` 折算 px。per-doc 粒度留实现期定夺（默认全局）。
+
+### d. 切换题集二次确认弹窗
+
+- **触发**：刷题模式（`mode === "quiz"`）下，侧栏点击**另一**题集行/专题行/聚合行（树内与搜索平铺两路都算），且当前有进行中轮次——判据与 StartPanel「未完成轮」同源：`session && !session.endedAt && session.answered > 0`（`answered > 0` 防空轮骚扰）。
+  - 不触发的路径：review 模式点文档=筛选错题本（`selectDoc` 已分流，不切上下文）；preview 模式只读无会话损失；点击当前已选中行（`selectDoc` 同 id 早退）。
+  - **落点**：两路入口在视图层汇闸——`SideMount.mountSideFor` 传给组件的 `onOpenDoc`/`onOpenCollection` 回调外包一层 `confirmSwitch(targetName, fn)`（组件层无会话知识，视图层持 session；实现侧即 QuizView 的 `selectDoc` 与 `colFlow.switchTo` 前各插一闸，或统一包 sideAct 相邻出口）。
+- **文案**：标题「切换题集？」；正文「本卷还有未交卷的进度：已答 {n}/{N} 题，计时 {mm:ss}。切换后进度不会丢失，可从开刷面板『继续上次』回到本卷。将打开『{目标名}』。」（正文带加粗现状段，对齐稿 `.m-d b` 口径）。
+- **两钮与主钮论证**：主钮（右起第一，spec §5 弹窗位序）= **「留在本卷」**（primary）；次钮=「继续切换」（outline）。论证：
+  1. **触发语境**：用户正在长卷中途作答，点侧栏多为误触或浏览性点击；弹窗的存在理由就是防误中断，主钮应承载安全默认；
+  2. **后果不对称**：「留在本卷」零成本（想切随时再点侧栏行）；「继续切换」中断计时与当前卷视口/滚动位置（不可逆方向）——不可逆动作放次钮、抬高点击成本，确保意图明确；
+  3. **先例一致**：IDE/编辑器「未保存切换」类拦截的主钮均为保留当前工作（VSCode 保留、Excel 主推「保存」），思源删除确认等破坏性动作也是「取消」在安全位。
+- **基建缺口**：`WenguDialogAction.variant` 现只支持 `outline`（spec §5.4 已登记待修），本特性促成补 `primary` 变体（或复用 `b3-button` 默认实底——Dialog.ts actions 出钮时 `outline` 标志位反转为默认实底即可，最小改法）。
+- **视觉**：走 `openWenguDialog` + b3-dialog 体系（**不自绘**稿的 veil/modal——稿该组态仅示意外壳气质）；宽度收敛 sm 档 `min(480px, calc(100vw - 32px))`（spec §5 档位，稿 430px 归档 480）；`max-height calc(100vh - 200px)`；图标位用 `iconInfo`（svgIcon 白名单内，38×38 容器 `--b3-theme-primary-lightest` 底圆角 10px 可选）；Esc/遮罩点击=留在本卷（安全默认）。
+- **i18n 新键**（建议名）：`switchConfirmTitle` / `switchConfirmBody` / `switchConfirmStay` / `switchConfirmGo`。
+
+### e. 错题本显示规则修正
+
+- **题集名「-题解」后缀**：真实数据形如「概率论与数理统计-题解」「03-习思想-题解」「考研数学强化通关330·线性代数-题解」。规则：**显示层**统一 `displaySetName(title) = title.replace(/[-–—]\s*题解$/u, "")`——只剥结尾（锚定 `$`），路径中段的连字符不伤（「03-习思想-题解」→「03-习思想」；「考研数学强化通关330·线性代数-题解」→「考研数学强化通关330·线性代数」）；无后缀原样返回（「高数第一章」不变）。**悬停 `title` 属性保全名**（用户需要确认源文档时可悬停）。落点：`ui/shared.ts` 新纯函数 + `ReviewHtml.listReviewModel` 的 `docTitle` 加工处（或 ReviewGroup/行头组件消费处），一处收口全清单生效。
+- **日期口径统一**：现状 `fmtDateTime` 出「MM-DD HH:mm」，稿混用「09-13」与「2026-09-12」。统一规则（**按位分层**）：
+  - 清单行日期列（§5.3 `.wengu-review-date`）：与**当前年**比较——同年 `MM-DD`；跨年 `YYYY-MM-DD`（跨年不带时刻，行级轻量）；悬停 `title` 全量 `YYYY-MM-DD HH:mm`。
+  - 详情/时间线（`renderTimelineHtml`）：同年 `MM-DD HH:mm`（现状式）；跨年升 `YYYY-MM-DD HH:mm`。
+  - 落点：`fmtDateTime` 加跨年分支 + 新 `fmtDayShort(ts)`（清单行用），两函数集中 `ui/shared.ts`；「今天/昨天」相对式**不取**（列表滚动回看时相对基准漂移，绝对短日期更稳）。
+
+---
+
+## §8 施工稿指针
+
+逐区块「照抄即可」级施工图（含尺寸/字号/间距/圆角/颜色逐值表 + b3 令牌 + 明暗两态验证 + 缺失形态示意）见同目录 `wengu-sidebar-redesign.html`。两文件口径一致处不再重复论证。
