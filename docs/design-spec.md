@@ -34,9 +34,13 @@
 3. **例外必须具名且集中**（见 §9 例外登记表）。规范里的例外值一律登记
    「例外值 / 落点 / 理由 / 是否设计稿指定」；**未登记的按违规处理**。
 4. **判定在 core、渲染在组件**（硬口径）。视图模型下沉纯函数并带单测，
-   Svelte 组件零判断、零 `<style>`（见 `docs/svelte-migration.md`）。
+   Svelte 组件零判断。**样式绑定**另立新规（整改 F1 / Issue #127，见 §十三）：
+   **组件独占、无 TS 拼串触达、不跨组件复用的样式写进组件 `<style>`；**
+   其余（TS 渲染层产物 / 跨组件共享 / 移动基座）**留共享片并登记**。
+   旧口径「组件零 `<style>`」已作废（`docs/svelte-migration.md` 同步改写）。
 5. **关键视觉规格必须落到断言。** 先例：`quiz/render/StartPanelStyle.test.ts`
-   （sass **真编译**后断言尺寸/令牌，而非读源码文本）、
+   （**组件内 `<style>` 自 `?raw` 取出后 sass 真编译 + Svelte 真编译零
+   `css_unused_selector` 双闸**，断言尺寸/令牌而非读源码文本）、
    `quiz/render/SubheadHtml.test.ts`（源级断言 primary 唯一）。
    规范条款能写成断言的，一律写成断言——这是防漂移的唯一硬手段。
 
@@ -264,8 +268,9 @@ border-color: var(--b3-theme-primary); /* 与主操作实底明确区分 */
 
 **AI 会话面板密集刻度例外**：该面板的 `1/2/5/9px` 一排微间距是设计稿
 （`convert-stop-redesign.html`）要求，**单列「面板密集区特例」**，不强行同档。
-⚠️ 14px 有**两个**落点（`aiflow.scss` 的面板刻度、`startpanel.scss` 的设计稿
-例外），**两者都要在 §9 具名**，否则读规范时分不清哪个是例外。
+⚠️ 14px 有**两个**落点（`aiflow.scss` 的面板刻度、`StartPanelApp.svelte`
+`<style>` 的设计稿例外，原 `startpanel.scss` 已删——见 §9 E1），**两者都要在 §9
+具名**，否则读规范时分不清哪个是例外。
 
 **❌ 违反，待修（后续批次 F）**：`gap` 内非 4 倍数（`3/5/7/9/11/18px`）共
 **20 处**（`margin` / `padding` 内另有 39 处），逐处归位或进例外表。
@@ -484,7 +489,8 @@ sprite 内（master 版 `appearance/icons/litheness/icon.js`，该版共 260 个
 3. **无标记零回归**：桌面不带 `.wengu-mobile` ⇒ 样式逐字节不变。各片头注
    都写明了这个验收条件。
 4. **移动端样式独立成 `mobile-*.scss` 片**，**禁止追加到桌面片尾部**
-   ——正是 `english.scss` 破 500 行的教训（§9）。
+   ——正是 `english.scss` 破 500 行的教训（§9）；该片已于整改 F1 #127 拆出
+   `mobile-english.scss`（§13.5）。
 
 ### 7.2 触控与尺寸（⚠️ 部分达标）
 
@@ -611,20 +617,21 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 
 **未登记的按违规处理。** 每条写明：例外值 / 落点 / 理由 / 是否设计稿指定。
 
-| #   | 例外值                 | 落点                                                        | 理由                               | 稿定   |
-| --- | ---------------------- | ----------------------------------------------------------- | ---------------------------------- | ------ |
-| E1  | 间距 **14px**          | `startpanel.scss` 开刷面板操作行（`wengu-start-actions`）   | 随卡片尺寸放宽                     | ✅ 屏① |
-| E2  | 间距 **14px**          | `aiflow.scss` 面板密集刻度                                  | AI 横幅内部节奏                    | ✅     |
-| E3  | 间距 **1/2/5/9px**     | AI 会话面板（`aiflow` / `aipanel*`）                        | 面板密集区特例                     | ✅     |
-| E4  | 间距 **12px**          | `wengu-word-actions` 单词卡主操作区                         | 大按钮触区、居中                   | ✅     |
-| E5  | 圆角 **4px**           | 题卡自绘按钮族（`.wengu-btn` / `.wengu-chip`）              | 贴题卡视觉                         | ✅     |
-| E6  | 圆角 **20px 20px 0 0** | `mobile-drawer.scss` 抽屉顶角                               | 移动端单列特例                     | ✅     |
-| E7  | 触控 **40px**          | `words-mobile.scss`(6) + `english.scss`(5) 的次要/密集控件  | 非误按代价高的动作                 | ⬜     |
-| E8  | 字号 **17~44px**       | 展示型字号（图标/数字大字/空态标题）                        | 非正文档                           | ⬜     |
-| E9  | 定宽 **300px**         | `startpanel.scss` 开刷面板控件                              | 内核 `fn__size200` 的放宽          | ✅     |
-| E10 | 字面色值               | 阴影兜底段 + 全屏遮罩（`rgba(0,0,0,.2/.35/.42)`）           | 遮罩与主题无关                     | ⬜     |
-| E11 | 超长文件               | `src/word/data/phonetics-data.ts`(47148) / `words-p01..p16` | **生成数据文件**，脚本产出、勿手改 | —      |
-| E12 | 超长文件               | `src/quiz/index.ts`(**576**，基线豁免)                      | 编排内聚，**只许减不许增**         | —      |
+| #   | 例外值                 | 落点                                                                     | 理由                               | 稿定   |
+| --- | ---------------------- | ------------------------------------------------------------------------ | ---------------------------------- | ------ |
+| E1  | 间距 **14px**          | `StartPanelApp.svelte` `<style>` 开刷面板操作行（`wengu-start-actions`） | 随卡片尺寸放宽                     | ✅ 屏① |
+| E2  | 间距 **14px**          | `aiflow.scss` 面板密集刻度                                               | AI 横幅内部节奏                    | ✅     |
+| E3  | 间距 **1/2/5/9px**     | AI 会话面板（`aiflow` / `aipanel*`）                                     | 面板密集区特例                     | ✅     |
+| E4  | 间距 **12px**          | `wengu-word-actions` 单词卡主操作区                                      | 大按钮触区、居中                   | ✅     |
+| E5  | 圆角 **4px**           | 题卡自绘按钮族（`.wengu-btn` / `.wengu-chip`）                           | 贴题卡视觉                         | ✅     |
+| E6  | 圆角 **20px 20px 0 0** | `mobile-drawer.scss` 抽屉顶角                                            | 移动端单列特例                     | ✅     |
+| E7  | 触控 **40px**          | `words-mobile.scss`(6) + `english.scss`(5) 的次要/密集控件               | 非误按代价高的动作                 | ⬜     |
+| E8  | 字号 **17~44px**       | 展示型字号（图标/数字大字/空态标题）                                     | 非正文档                           | ⬜     |
+| E9  | 定宽 **300px**         | `StartPanelApp.svelte` `<style>` 开刷面板控件                            | 内核 `fn__size200` 的放宽          | ✅     |
+| E10 | 字面色值               | 阴影兜底段 + 全屏遮罩（`rgba(0,0,0,.2/.35/.42)`）                        | 遮罩与主题无关                     | ⬜     |
+| E11 | 超长文件               | `src/word/data/phonetics-data.ts`(47148) / `words-p01..p16`              | **生成数据文件**，脚本产出、勿手改 | —      |
+| E12 | 超长文件               | `src/quiz/index.ts`(**576**，基线豁免)                                   | 编排内聚，**只许减不许增**         | —      |
+| E13 | 样式落点               | 组件 `<style>`（`css:"injected"` 运行时注入，非 `dist/index.css`）       | 组件独占样式随组件走（§13）        | —      |
 
 > ⚠️ **E12 的口径**：豁免**不是免死金牌**——`quiz/index.ts` 的基线是 574，
 > 现已 576（净增 2）。规范口径＝**豁免额度即上限**，越线照样算违规。
@@ -653,8 +660,9 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 1. **单文件 ≤500 行**（唯一豁免 `quiz/index.ts`，且豁免即上限）。
    ⚠️ 豁免范围需明确：**生成数据文件豁免**（§9 E11）；
    **测试文件同受 ≤500**（视需要按 `describe` 分片）。
-   **❌ 待修**：`ConvertBatch.ts`(604) / `english.scss`(564) /
-   `QuestionBank.ts`(531) / `index.ts`(512) 四个文件超线。
+   **❌ 待修**：`ConvertBatch.ts`(604) / `QuestionBank.ts`(531) /
+   `index.ts`(512) 三个文件超线（`english.scss`(564) 已于整改 F1 #127 拆片回线，
+   见 §13.5）。
    **建议加一条极轻量单测**把红线变成 CI 会红的东西（10 行：扫
    `src/**/*.{ts,svelte,scss}` 断言行长 ≤500 + 显式豁免额度常量）——
    这是「拆一次压线后继续净增」的唯一根治手段。
@@ -684,14 +692,139 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 
 ---
 
+## 十三、样式绑定：组件 `<style>` vs 共享片
+
+> **新规生效（整改 F1 / Issue #127，20260915）。** 用户立规「**非通用样式一律写入
+> 组件文件**」，替代旧约定「组件零 `<style>`，全部走全局 scss」（原
+> `svelte-migration.md:15`，已于 `1c62857` 20260909 显式执行过一轮迁出）。
+> 本节是该口径的**唯一权威落点**；`docs/svelte-migration.md` 与 `AGENTS.md`
+> 只作索引与施工要点，不得与本条相左。
+
+### 13.1 归属判定（三步定生死）
+
+| 判据                                                         | 归属               |
+| ------------------------------------------------------------ | ------------------ |
+| 单组件独占、样式类名不出现在 TS 拼串里、不跨组件复用         | **组件 `<style>`** |
+| ① **TS 字符串渲染层**产出的 `wengu-*` 类                     | 共享片（登记）     |
+| ② **跨组件共享**（同一类名被 ≥2 组件引用）                   | 共享片（登记）     |
+| ③ 四片 `mobile-*.scss` 共用的 `.wengu-mobile .wengu-md` 基座 | 共享片             |
+
+①的清单（迁移硬约束，改动此节的渲染层须同步本节）：`QuizShell` / `CardHtml` /
+`NumRail` / `MaterialDecorate` / `ClueMarkDom` / `ProtyleHost` / `PreviewFlow` /
+`AnnoFlow` / `KnowPicker` / `ModelPicker` / `WorkspaceShell` / `MdRender` /
+`FormHtml` / `SettingsDialog` 等拼 `innerHTML` 的 `.ts`。
+
+### 13.2 迁入组件 `<style>` 的四条硬约束
+
+1. **类名逐字保留**（DOM 零变化）——`<style>` 里的类名与迁移前 scss 逐字一致，
+   只加 `:global()` 包裹（**选择器形态**另有第 3 条）。
+2. **凡类名由子组件渲染 / `{@html}` 注入 / TS 外部写入的选择器，一律 `:global()`
+   局部包裹**。Svelte `scoped` 只重写**模板里的静态类名**；下列形态不加 `:global()`
+   会导致**整条规则被静默删掉**（`svelte-check` 的 `css_unused_selector` 会预警，
+   但 `check:svelte --threshold error` 把它吞了 ⇒ 必须靠单测兜底）：
+    - `class=` 传给子组件（如 `<Select class="wengu-start-ctl">`、`<Button class="…">`）；
+    - `{@html svgIcon(id, "cls")}` 注入的类名；
+    - 父组件样式里定位**子组件渲染出的 DOM**（如 FormRow 的 `.wengu-formrow`）；
+    - TS 侧 `classList.add/remove`、`className = "wengu-…"` 写入的类。
+      **正确写法**：`:global()` 只包住会失配的那一段，保留自有静态类做 scoped 锚点，
+      例如 `.wengu-start .wengu-start-card :global(.wengu-formrow) { … }`。
+3. **选择器形态逐字保留**（不只是类名）：段序、段数、`>` 与迁移前 scss **逐字一致**，
+   只允许把**会失配的那一段**套 `:global()`。**禁止为了让 scoped 命中而补/删中间段**
+   ——那会静默改特异性与作用面（本案 `cardicon` / `b3-label__text` 两条实测踩中，
+   修法与机器闸见 §13.4 坑 4）。
+4. **构建通道**：组件 `<style>` 走 svelte-loader 的 `css:"injected"`
+   （**运行时注入** `<style id="svelte-xxxx">` 到 `head`），与全局 scss 的
+   `MiniCssExtractPlugin` → `dist/index.css` **两条通道并存**。
+   ∴ `pnpm build` 后**不要**指望在 `dist/index.css` 里 grep 到组件样式；
+   组件样式在 bundle 的 `$$css = { hash, code }` 里，靠 `append_styles` 运行时挂载。
+
+### 13.3 样式绑定登记表（留共享片的样式必须在此登记）
+
+**未登记的按违规处理**（同 §9 口径）。新迁出的每一片、以及任何留共享片的
+「专属类族」，都要在此登记**绑定到哪个渲染函数 / 哪组组件**。
+
+| 共享片                                  | 绑定到（渲染源）                                                 | 留片理由               |
+| --------------------------------------- | ---------------------------------------------------------------- | ---------------------- |
+| `base.scss`                             | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                    | ① TS 渲染层 + 共享底座 |
+| `panels.scss`                           | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS | ①（47 类 TS 触达）     |
+| `cards.scss` / `card-render.scss`       | `CardHtml` / `CardMount` / `QuizCard` 组件族                     | ①（各 21~25 类）       |
+| `english.scss`                          | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`   | ①（27 类 TS 触达）     |
+| `english-gloss.scss`                    | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）        | ① + 跨组件复用         |
+| `reading.scss`                          | `GroupUnitApp` / `CardHtml`（原文高亮）                          | ①（19 类）             |
+| `preview.scss`                          | `PreviewFlow.ts`（无 Svelte 渲染源）                             | ①（19 类）             |
+| `rail.scss`                             | `RailApp` / 4 个面板骨架（`PanelFit.ts` TS 触达）                | ② 跨面板共享           |
+| `words.scss` / `words-mobile.scss`      | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）  | ② + 对偶片须同批       |
+| `mobile-*.scss` / `mobile-english.scss` | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族       | ③ 基座 + 跨组件        |
+| `aipanel*.scss` / `aiflow.scss`         | `SessionPanelApp` / `SessionDetail` / `FlowBanner`               | ② 跨组件 + TS 触达     |
+
+### 13.4 试点结论（Issue #127，`startpanel.scss` → `StartPanelApp.svelte`）
+
+**试点片选**：#110 审计判定最干净的一片（唯一消费者、零 TS 拼串触达，106 行）。
+
+**构建路径可用性（已验证）**：
+
+- svelte-loader `css:"injected"` **首次启用即通**，真打通。产物形态＝
+  bundle 内 `const $$css = { hash: 'svelte-xxxx', code: '…' }` +
+  `append_styles(anchor, $$css)`，运行时 `create_element('style')` 插 `head`，
+  以 `hash` 作 `style.id` 去重。
+- 实测（`pnpm build` + 产物核对）：`dist/index.js` 内含
+  `class="wengu-start svelte-xxxx"` 与完整 CSS 文本；`dist/index.css`
+  **不再含** `wengu-start` 规则（符合「两通道并存」预期，非丢失）。
+- **12 条选择器 → 编译产物 12 条一条不少**（sass 与 Svelte 双编译核对）。
+
+**遇到的坑（写进 §13.2.2，后来者直接照抄修法）**：
+
+1. **`:global()` 是必需品，不是可选项**。`startpanel.scss` 的 12 条选择器里有 **8 条**
+   命中「子组件渲染 / `{@html}` 注入」（涉 **6 个类名**：`wengu-formrow` /
+   `fn__flex-1` / `b3-label__text` / `wengu-start-ctl` / `wengu-start-act` /
+   `wengu-start-cardicon`；余 4 条 `wengu-start` / `-card` / `-cardhead` /
+   `-actions` 是自有静态类，不需包裹）⇒ 不加 `:global()` 就会被 scoped 整条删除。
+   **迁片前先跑 `grep -c 'class="[^"]*{'`（动态量）与「传给子组件的 `class=`」
+   清单（`:global()` 必需量）分别定量。**
+2. **`svelte-check` 的 `css_unused_selector` 是唯一静态安全网，但被门禁吞掉**
+   （`check:svelte --threshold error`）。∴ 试点把「Svelte 真编译零 unused 选择器」
+   写进了 `StartPanelStyle.test.ts`——**每迁一片都要带这条闸**，否则失配只在真机画面暴露。
+3. **规格断言不必丢**：sass 把 `:global(...)` 原样透传，故断言前做一次
+   `:global(` 剥壳归一化即可**逐字沿用原规格断言**（本案 8 条规格断言一条未减，
+   另加 3 条迁移闸）。
+4. **「类名逐字保留」不等于「选择器逐字保留」——补中间段是隐形回归**（本案实测踩中）。
+   迁片时为了让 scoped 命中，容易顺手把 `.wengu-start .wengu-start-cardicon` 写成
+   `.wengu-start .wengu-start-cardhead > :global(.wengu-start-cardicon)`、把
+   `.a .card .row .text` 砍成 `.a .row .text`：**类名一个没少、没多**，故
+   「零 unused 选择器」闸与肉眼都放行，但**特异性与作用面已变**（0,2,0→0,3,0、
+   0,4,0→0,3,0），换主题 / 加层级即露馅。**修法＝选择器形态（段序、段数、`>`）
+   与迁移前逐字一致，只允许在失配的那一段套 `:global()`。**
+   ∴ 试点把**整份选择器名录**钉进 `StartPanelStyle.test.ts`（剥 `:global()` 后
+   与迁移前名录逐字比对）——**每迁一片都要抄这条闸**，见 §13.2.4。
+
+**后续批次建议**（对照 #110 纯度排序表，**同域串行、异域可并行**）：
+
+- **批 1（低风险，可紧接着做）**：`companion.scss`(197→ ~150 可迁)、
+  `startpanel.scss`（已完成）、`rail.scss` 的 rail 段（~60）。
+- **批 2~3（中风险，含动态拼类需 `:global()`）**：`aiflow.scss`(498)、
+  `report.scss`、`stats.scss`、`review.scss`。
+- **批 4~5（中→高）**：`mobile-*.scss` 四片 + `aipanel*.scss`。
+- **不迁**（① TS 渲染层）：`panels` / `english` / `base` / `cards` /
+  `card-render` / `reading` / `preview`——维持共享片并登记（§13.3）。
+- ⚠️ **跨组件对偶片**（`words.scss` ↔ `words-mobile.scss`）**必须成批迁移**，
+  切勿单飞。
+
+### 13.5 红线收口（整改 F1 顺带）
+
+`english.scss` 原 564 行破 §11「单文件 ≤500」红线，本单按语义机械拆片
+（零样式变更，83 条规则集完全一致）：`english.scss`(408) +
+`english-gloss.scss`(108) + `mobile-english.scss`(60)。
+
+---
+
 ## 附：本文与其它文档的关系
 
-| 文档                                           | 角色                                                                 |
-| ---------------------------------------------- | -------------------------------------------------------------------- |
-| **`docs/design-spec.md`（本文）**              | **界面规范唯一权威落点**                                             |
-| `docs/design-review.md §〇`                    | 历史审查清单（**保留不删**），规范条款已上收本文；§一/§四 为历史快照 |
-| `AGENTS.md` 通用横切约束                       | 索引 + 最常踩的几条（指向本文）                                      |
-| `docs/svelte-migration.md`                     | Svelte 迁移模式样板（组件零 `<style>` 等）                           |
-| `design/*.html` / `design/aipanel-gap-list.md` | **设计稿**（照稿施工、勿发明视觉）                                   |
-| `design/theme-tokens-neo.md`                   | **观察记录，非规范来源**（见文首）                                   |
-| `docs/question-block-contract.md`              | 题块契约（改行为必须同步）                                           |
+| 文档                                           | 角色                                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------------------- |
+| **`docs/design-spec.md`（本文）**              | **界面规范唯一权威落点**                                               |
+| `docs/design-review.md §〇`                    | 历史审查清单（**保留不删**），规范条款已上收本文；§一/§四 为历史快照   |
+| `AGENTS.md` 通用横切约束                       | 索引 + 最常踩的几条（指向本文）                                        |
+| `docs/svelte-migration.md`                     | Svelte 迁移施工手册（模式样板 / 暗雷清单；样式绑定权威口径见本文 §13） |
+| `design/*.html` / `design/aipanel-gap-list.md` | **设计稿**（照稿施工、勿发明视觉）                                     |
+| `design/theme-tokens-neo.md`                   | **观察记录，非规范来源**（见文首）                                     |
+| `docs/question-block-contract.md`              | 题块契约（改行为必须同步）                                             |

@@ -111,12 +111,18 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   看板娘+管理面板、bank 工作区面板（专题/知识文档）、review 错题本主区、stats 统计面板、
   convert 两弹窗、quiz 6-1~6-3（开刷面板/轮次报告/rail/题号栏）、6-4a 题卡渲染层
   （三类题卡+材料组壳逐单元 mount）、6-4b 作答态收敛（三写统一进卡内 CardUi 响应态）、
-  6-5 侧栏/头部壳（SidePanelApp/QuizHeadApp，2026-08-31，quiz 域收官）。组件零
-  `<style>`，类名与迁移前逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
+  6-5 侧栏/头部壳（SidePanelApp/QuizHeadApp，2026-08-31，quiz 域收官）。
+  **样式绑定自 20260915 改规（整改 F1 #127）**：组件独占、无 TS 拼串触达、
+  不跨组件复用的样式 → **写进组件 `<style>`**（`css:"injected"` 运行时注入，
+  不落 `dist/index.css`）；TS 渲染层产物 / 跨组件共享 / 移动基座 → **留共享片
+  并登记**。**权威口径＝`docs/design-spec.md` §十三**（含绑定登记表 + 试点
+  结论 + `:global()` 四条硬约束），旧口径「组件零 `<style>`」已作废。
+  类名与迁移前逐字一致（DOM 零变化）；新域挂载一律用 `ui/mountApp.ts`。
 - **界面规范唯一权威落点＝`docs/design-spec.md`**（整改 E #120 收口成文，20260915；
   令牌全名白名单 / 按钮层级 / 字号·间距·圆角阶梯 / 表单构件 / 弹窗浮层 / 图标
   （含 sprite 合法 id 清单）/ 移动端专属 / 文案与 i18n / 例外登记表 / 与主题对抗 /
-  结构红线 / 整页不滚动）。**改任何 UI 前先读它**；`docs/design-review.md §〇`
+  结构红线 / 整页不滚动 / 样式绑定（§十三，整改 F1 #127 起））。
+  **改任何 UI 前先读它**；`docs/design-review.md §〇`
   保留作历史审查清单（条款已上收 design-spec，不删）。两条最常犯的：图标一律
   `FormHtml.svgIcon`（禁 emoji 字符，排版符号 `→ · 「」` 豁免）；表单统一 FormHtml
   行样式。
@@ -151,7 +157,8 @@ undefined`；types 1.2.4 有该字段，`getFrontend` 反而没有类型）。
     - **触屏样式走根元素标记类分流**：挂载层 `markMobileUi` 给单词面板
       根元素（+ `document.body`）打 `.wengu-mobile`，触屏规则全部写成
       它的后代选择器（`src/scss/words-mobile.scss`；挂 body 的浮层适配在
-      `english.scss` 尾段）。**禁用 media query**——桌面浏览器窄窗口会误伤，
+      `src/scss/mobile-english.scss`——整改 F1 #127 自 `english.scss` 尾段拆出）。
+      **禁用 media query**——桌面浏览器窄窗口会误伤，
       触屏适配只按环境分流；无标记时样式逐字节不变（桌面零回归）。
     - **iOS speechSynthesis 首播要在手势栈内**（20260910 定论）：`$effect`
       是微任务，脱离手势的首次播放会被系统静默丢弃。故**自动播报落点按环境

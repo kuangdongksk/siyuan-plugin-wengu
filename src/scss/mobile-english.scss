@@ -1,0 +1,60 @@
+/* 英语题型移动端触屏适配（整改 F1 #127 自 english.scss 拆出，
+   与四片 `mobile-*.scss` 同口径）。规则内容零改动；`index.scss` 注册在
+   其余 english 片之后（内含对前片类的覆写，靠后即安全）。 */
+
+/* ── 移动端触屏适配（Issue #10）：只挂 `body.wengu-mobile`（挂载层
+   ui/shared.markMobileUi 按 window.siyuan.mobile 打的标记类；桌面无此标记
+   ⇒ 本段整段不生效，禁 media query —— 口径见 scss/words-mobile.scss 首注）。
+
+   本段覆盖**挂 body 的浮层（选中文本操作条）与英文题型组壳**。
+   它们目前只出现在刷题页签里，而页签在移动端打不开（openTab 空桩，本期
+   范围外）——故属「标记已就位、尺寸预先备好」的预防性适配，成本为零
+   （标记不存在即整段不生效），将来页签落到移动端时无需再补。
+   hover 依赖项一律改按下态或常显（触屏 hover 会粘住）。 ── */
+body.wengu-mobile {
+  /* 选中文本操作条：挂 body 的浮层，触区抬高到 40px */
+  .wengu-annobar-btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 93.75%;
+
+    &:hover {
+      background: transparent;
+    }
+
+    &:active {
+      background: var(--b3-list-hover);
+    }
+  }
+
+  /* 材料组折叠钮 / 组内翻页钮：小图标钮触区抬高 */
+  .wengu-gmat-fold,
+  .wengu-gnav-btn {
+    min-width: 40px;
+    min-height: 40px;
+
+    &:hover {
+      background: transparent;
+    }
+
+    &:active {
+      background: var(--b3-list-hover);
+    }
+  }
+
+  /* 完形空号条 / 选项行：触区抬高 */
+  .wengu-slotbtn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .wengu-slot-opt {
+    min-height: 44px;
+    padding: 10px;
+  }
+
+  /* 线索标注 chip：点按命中区抬高 */
+  .wengu-clue-chip {
+    padding: 6px 10px;
+  }
+}

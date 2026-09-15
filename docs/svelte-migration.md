@@ -12,8 +12,19 @@
 - 类型检查：`pnpm run check:svelte`（svelte-check + tsconfig.svelte.json
   的 bundler 解析；主 tsconfig 的 node10 解析配 vitest 子路径导出会假报）。
   tsc/eslint 都不覆盖 `.svelte`，svelte-check 是唯一关卡，调试链必跑。
-- 样式：组件**零 `<style>` 块**，类名与迁移前逐字一致，全部走全局
-  scss（`src/scss/`）——迁移不改任何 CSS。
+- 样式：**样式绑定权威口径见 `docs/design-spec.md` §十三**（整改 F1 / Issue #127
+  起生效，本节仅作施工要点，不得与该章相左）。
+    - **新规**：组件独占、无 TS 拼串触达、不跨组件复用的样式 → **写进组件
+      `<style>`**；TS 渲染层产物 / 跨组件共享 / 移动基座 → **留共享片并登记**。
+    - 旧口径「组件零 `<style>`，全部走全局 scss」（本文件原第 15 行）**已作废**
+      ——它是 2026-08-27 迁移期约定，且 `1c62857`(20260909) 还据此把最后一个
+      组件内 `<style>` 迁了出去，与本单方向相反。
+    - **迁移不改任何 CSS** 这句仍然成立：迁入 `<style>` 只换**落点**，
+      类名逐字保留（DOM 零变化），只多一层 `:global()` 包裹（见暗雷 §3）。
+    - 组件 `<style>` 走 svelte-loader `css:"injected"`：**运行时注入** `<style>`
+      到 `head`，不落 `dist/index.css`——`pnpm build` 后别在 css 产物里找组件样式。
+    - 首个试点：`startpanel.scss` → `StartPanelApp.svelte`（Issue #127），
+      结论与坑见 `design-spec.md` §13.4。
 - FormHtml（`src/ui/FormHtml.ts`）是两轨公共地基：Svelte 组件里
   `{@html svgIcon(...)}` 桥接图标（规范 §〇.1 禁 emoji 不变），
   表单行用 `src/ui/FormRow.svelte`（逐类名复刻 formRow 输出）。
@@ -65,6 +76,26 @@ const p = $derived(ui.progress!);
 3. **scss 里 `data-act`/`data-*` 键控选择器是迁移暗雷**：Svelte 化后
    元素不再带这些属性，CSS 静默失效（查词行按钮退化 block 顶爆布局
    的真机事故）。迁前先 grep scss 里目标面板的选择器，改专用类名。
+    - ⚠️ **同族的第二个坑（整改 F1 / Issue #127 实测）：样式迁进组件
+      `<style>` 后 scoped 会**静默删掉**失配的整条规则**。`svelte` 编译器的
+      `css_unused_selector` 会预警，但 `check:svelte --threshold error` 把它吞了
+      ⇒ 必须靠单测兜底。**三种必失配形态**（各自修法）：
+        1. `class=` 传给子组件（`<Select class="wengu-ctl">`）→ 选择器侧写
+           `:global(.wengu-ctl)`；
+        2. `{@html svgIcon(id, "cls")}` 注入的类名 → `:global(.cls)`；
+        3. 父组件样式定位**子组件渲染出的 DOM**（如 FormRow 的 `.wengu-formrow`、
+           `.fn__flex-1`）→ `:global(...)` 包住子组件产物那一段。
+           ✅ **动态拼 class（``class={`a-${v}`}``）反而安全**：Svelte 把哈希加在
+           **选择器**侧、运行时字符串原样输出，能命中。**模板里静态写死的类名也安全。**
+           ∴ 迁片前先跑 `grep -c 'class="[^"]*{'`（动态量）与「传给子组件的 class=」清单
+           （`:global()` 必需量）分别定量。权威口径见 `design-spec.md` §13.2。
+    - ⚠️ **第三个坑：`:global()` 只许「套壳」，不许借机改形态**（同单实测）。
+      为了让 scoped 命中，容易把 `.a .card .icon` 顺手写成
+      `.a .cardhead > :global(.icon)`、或把 `.a .card .row .text` 砍成 `.a .row .text`
+      ——**类名一个没增没减、`css_unused_selector` 也照样零**，但特异性与作用面
+      已经变了，换个主题或加层 DOM 才炸。**修法＝选择器段序/段数/`>` 与迁移前
+      逐字一致，只在失配那一段外套 `:global()`**；并把整份选择器名录钉进单测
+      （design-spec §13.4 坑 4 有完整修法）。
 4. **按钮点击冒泡到卡根**：推进按钮点完换卡后，同一次点击冒泡到卡根
    会把新卡误翻面。卡根 onclick 要忽略 `closest("button, input")` 来源。
 5. **焦点恢复要 `$effect` 手动对齐**旧 innerHTML 全量重绘的行为
@@ -399,3 +430,35 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   MainShellModel 剥掉不再透传的侧栏/头部字段。
 - 红线备注：src/quiz/index.ts 518 行略超 500——本批新增的 sideAct
   访问器簇属 QuizView 紧凑访问器表，强行外移破坏内聚，豁免并记此。
+
+## 样式绑定试点落地记录（2026-09-15，整改 F1 / Issue #127）
+
+- **政策落地**：样式归属新规（组件独占 → 组件 `<style>`；TS 渲染层 /
+  跨组件 / 移动基座 → 共享片并登记）收进 `docs/design-spec.md` **§十三**，
+  本文件与 `AGENTS.md` 的旧口径「组件零 `<style>`」同步作废（§暗雷 3 扩写、
+  「现状」段改写）。
+- **试点片**：`src/scss/startpanel.scss`(106) → `StartPanelApp.svelte` `<style>`。
+  唯一消费者、零 TS 拼串触达，是审计 #110 判定最干净的一片。
+  类名逐字保留（DOM 零变化）；6 组命中「子组件产物 / `{@html}` 注入」的选择器
+  逐条 `:global()` 局部包裹（修法与定量口径见暗雷 3）。
+- **构建通道实证**：svelte-loader `css:"injected"` 首次启用即通。产物形态＝
+  bundle 内 `const $$css = { hash: 'svelte-xxxx', code: '…' }` + `append_styles`，
+  运行时 `create_element('style')` 插 `head`（`hash` 作 `style.id` 去重）。
+  `pnpm build` 核验：`dist/index.js` 内含 `class="wengu-start svelte-xxxx"` 与
+  完整 CSS 文本；`dist/index.css` **不再含** `wengu-start` 规则（两通道并存，
+  非丢失）。
+- **断言改造**：`quiz/render/StartPanelStyle.test.ts` 由「编译独立 scss」改为
+  「自 `?raw` 取组件 `<style>` → sass 真编译（`:global()` 剥壳归一化）+ Svelte
+  真编译零 `css_unused_selector`」双闸。**8 条规格断言一条未减**，另加 3 条
+  迁移闸（scoped 未删条 / injected 通道生效 / **选择器名录逐字平价**），并把
+  「失配」与「形态漂移」两类事故都从真机画面异常前移到单测。
+  ⚠️ 名录闸是试点实测逼出来的：迁片时为了让 scoped 命中顺手补/删中间段
+  （`cardicon` 补 `.wengu-start-cardhead >`、`b3-label__text` 砍 `.wengu-start-card`）
+  ——**类名一个没变、零 unused 选择器照样绿，但特异性已改**，详见 design-spec §13.4 坑 4。
+- **红线顺带**：`english.scss`(564) 按语义机械拆片 → `english.scss`(408) +
+  `english-gloss.scss`(108) + `mobile-english.scss`(60)，`index.scss` 同步注册。
+  83 条规则集与拆分前**完全一致**（零样式变更），详见 design-spec §13.5。
+- **后续批次**：按审计 #110 纯度表，批 1 余项 `companion.scss` / `rail.scss`(rail 段)；
+  批 2~~3 `aiflow` / `report` / `stats` / `review`；批 4~~5 `mobile-*` + `aipanel*`；
+  `panels` / `english` / `base` / `cards` / `card-render` / `reading` / `preview`
+  因 TS 渲染层**维持共享片并登记**（design-spec §13.3）。
