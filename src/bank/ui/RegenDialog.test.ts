@@ -54,6 +54,20 @@ const ORIG_KD = [
     '{: custom-plugin-wengu-q="1" custom-plugin-wengu-type="single"}',
 ].join("\n");
 
+/** 挤行回复（AI 无视「每个选项一个 @@P opt」，三个选项塞进同一部件）：
+ *  正确项文本仍在选项里（故 reseatAnswer 命中、零自检），但渲染只给首行
+ *  编字母 ⇒ 不拆行落库即「只剩一个选项」。 */
+const PACKED_REPLY = [
+    "@@Q type=single",
+    "@@P stem",
+    "下列关于运动的说法正确的是（）",
+    "@@P opt",
+    "运动是物质的唯一特性\n运动是物质的根本属性\n运动是物质的一维性",
+    "@@P ans",
+    "B",
+    "@@END",
+].join("\n");
+
 /** 选项被改写的回复（正确项文本已不在选项里）→ 必须走 AI 自检。 */
 const MISMATCH_REPLY = [
     "@@Q type=single",
@@ -199,6 +213,19 @@ describe("runRegen · 答案核查兜底（Issue #123 验收 ②）", () => {
         // 自检那一发的题目正文里，标记已被换成选项文本（与落盘同一形态）
         expect(prompts[1]).not.toContain("〔opt:");
         expect(prompts[1]).toContain("「运动是物质的存在方式」正确");
+    });
+
+    it("挤行回复：拆行落库（不拆则渲染只给首行编字母 ⇒ 只剩一个选项）", async () => {
+        // 与上条同源：`shuffleDraftOptions` 撤除时带走了它的**两道**格式
+        // 处理，本链直写 replaceRecordKramdown，两步都得自己接。
+        const { bank, read } = newBank();
+        replies.push(PACKED_REPLY);
+        const ok = await regenRecords(deps(bank), ["q1"], noStop());
+        expect(ok).toBe(1);
+        const kd = read().records.q1.kramdown;
+        expect(kd).toContain("- B. 运动是物质的根本属性");
+        expect(kd).toContain("- C. 运动是物质的一维性");
+        expect(kd).toContain("> B"); // 答案字母逐字不动（死形态指向原文位置）
     });
 
     it("文本命中（选项沿用原题）→ 零自检调用，直接落盘", async () => {

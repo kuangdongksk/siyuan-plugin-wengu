@@ -7,6 +7,7 @@ import { reseatAnswer } from "../gen/RegenVerify";
 import { extractBlockId } from "../../convert/service/core/ConvertService";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
 import { replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
+import { unpackPackedOptions } from "../../convert/service/draft/OptionUnpack";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/knowledge/KnowRef";
@@ -196,7 +197,13 @@ async function runRegen(
         });
         const drafts = parseDrafts(reply).filter(hasStemPart);
         if (drafts.length === 0) throw new Error(t("convertEmptyReply"));
-        const draft = drafts[0];
+        // ⚠️ **格式规范先行**（P1，20260915 审查）：本链产物**直写
+        // `replaceRecordKramdown`**（不经 SetWriter），撤掉 `shuffleDraftOptions`
+        // 时把它的**两道格式处理**（挤行拆行 + 标记替换）一并带走了。故两步
+        // 都在本链自己接线，顺序与 SetWriter 同款：① 挤行拆行（AI 把多选项
+        // 塞进一个 `@@P opt` 时渲染只给首行编字母，不拆行就落库「只剩一个
+        // 选项」）→ ② 核查与替换。
+        const draft = unpackPackedOptions(drafts[0]);
         // 核查：原题正确项文本 → 新选项位置 → 校正 ans 字母（本链已不洗牌，
         // 校正只为消「AI 照抄原题旧字母」这一事实，见下方「不再洗牌」注释）
         const verdict = reseatAnswer(draft, q);

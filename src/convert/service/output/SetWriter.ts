@@ -106,9 +106,14 @@ export class SetWriter {
         const out: AppendOut = { qids: [], units: [], questions: [], materials: [] };
         // 解析选项引用标记替换（Issue #131）：落库前的**最后一道**处理
         // （reseat 校正在上游做完）——把 `〔opt:X〕` 换成选项文本，解析
-        // 因此不含任何选项字母。**唯一落库出口**（转换/增量/重生成三链
-        // 都经此处），故接线只此一处；替换走纯函数返回新 draft，不改调用方
-        // 手里的对象（渐进呈现视图、AI 会话面板可能仍在读它）。
+        // 因此不含任何选项字母。
+        // ⚠️ **本处只是三个接线点之一，不是「唯一落库出口」**（20260915
+        // 审查 P1 修正）：regen（`RegenDialog.runRegen` → 直写
+        // `replaceRecordKramdown`）与出题链（`GenQuestion.genWithVerify`
+        // → `addGenerated`）都**不经本函数**，各自接线。加新的「AI 产物
+        // 直接落库」链时照着那两处自己接。
+        // 替换走纯函数返回新 draft，不改调用方手里的对象（渐进呈现视图、
+        // AI 会话面板可能仍在读它）。
         const list = units.map((u) => ({
             ...u,
             // ① 挤行选项拆行（纯格式规范，不动答案字母——死形态下字母指向

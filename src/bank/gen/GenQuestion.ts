@@ -4,6 +4,8 @@ import { tKey } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { conceptPrompt, variantPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
+import { replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
+import { unpackPackedOptions } from "../../convert/service/draft/OptionUnpack";
 import { sectionKramdown } from "../../convert/service/knowledge/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
@@ -105,7 +107,18 @@ async function genWithVerify(
     // （「正确项写最前」→ 渲染按序编字母 ⇒ 正确项恒为 A），
     // 消剧透改由**展示层**进卡 mount 前现洗（CardDisplayShuffle）——
     // 库与源文档同为死形态，落库哈希/自检基线因此稳定。
-    const kd = renderUnit(drafts[0]);
+    //
+    // ⚠️ **但「不洗牌」不等于「不接线」**（P1，20260915 审查）：本链产物
+    // 经 `GenCore`/`VariantDrill` 的 `addGenerated` **直写题库**（不经
+    // SetWriter），撤掉 `shuffleDraftOptions` 时一并带走的还有它原来的
+    // 两道格式处理 —— 而 P1-2 把 `〔opt:X〕` 标记约定改成**缺省恒在**后，
+    // 本链 prompt 已经要求 AI 写标记：不在这里替换，**裸标记原样落库并
+    // 显示在题卡上**（与 regen 链同一个坑）。挤行同理：AI 把多选项塞进
+    // 一个 `@@P opt` 时渲染只给首行编字母，不拆行就落库「只剩一个选项」。
+    // 故按 SetWriter 同款两步接线（纯函数、返回新对象，不改调用方手里
+    // 的 draft）：① 挤行拆行（不碰答案字母）→ ② 标记替换。
+    const fixed = replaceDraftOptionRefs(unpackPackedOptions(drafts[0]));
+    const kd = renderUnit(fixed);
     const check = await agentChatOnce(verifyPrompt(kd), modelId, AI_TIMEOUT.mid, abort?.signal, {
         kind: track.kind,
         // ⚠️ 自检后缀是**语言相关写法**（中文「 · 自检」/ 英文「 · self-check」），

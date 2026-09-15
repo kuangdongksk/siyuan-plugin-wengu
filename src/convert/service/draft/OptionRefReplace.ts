@@ -89,10 +89,14 @@ export function replaceOptionRefs(text: string, opts: string[]): string {
  *  消费者（渐进呈现视图、AI 会话面板），原地改会让「替换前/后」两个视图
  *  打架。无标记时返回**原对象**（引用相等，零开销）。
  *
- *  ⚠️ **两个调用点，别以为 SetWriter 是唯一出口**（20260915 审查 P1）：
- *  `SetWriter.append`（转换/增量链）与 `bank/ui/RegenDialog.runRegen`
- *  （**直写 replaceRecordKramdown，不经 SetWriter**）。将来再加任何
- *  「AI 产物直接落库」的链，一律照 regen 自己接线。
+ *  ⚠️ **三个调用点，别以为 SetWriter 是唯一出口**（20260915 审查 P1）：
+ *    1. `SetWriter.append`（转换/增量链）；
+ *    2. `bank/ui/RegenDialog.runRegen`（**直写 replaceRecordKramdown，
+ *       不经 SetWriter**）；
+ *    3. `bank/gen/GenQuestion.genWithVerify`（加练/变式链产物经
+ *       `addGenerated` **直写题库**，同样不经 SetWriter）。
+ *  后两处都是「AI 产物直接落库」的链，标记替换必须各自接线——`SetWriter`
+ *  兜不到它们。将来再加同类链，一律照这两处自己接。
  */
 export function replaceDraftOptionRefs(d: DraftUnit): DraftUnit {
     if (d.material) return d; // 材料块无选项组

@@ -296,14 +296,27 @@
       照常书写。落库前把标记换成选项文本（「」包裹）。X 非法（**该组**选项
       数内）→ 降级裸字母（丢标记不丢信息）；数学环境内的标记**照常替换**
       （标记即显式意图，与 gloss 域 `^{}` 的取舍相反）。
-      ⚠️ **两个接线点，不是「唯一落库出口」**（20260915 审查 P1 修正）：
+      ⚠️ **三个接线点，不是「唯一落库出口」**（20260915 审查 P1 修正）：
         1. `SetWriter.append`（转换 / 增量两条链）；
         2. `bank/ui/RegenDialog.runRegen`（**直写 `replaceRecordKramdown`，
            不经 SetWriter**）——原稿断言「唯一落库出口」对 regen 不成立，
            漏接线的后果是 keep 序 prompt 要求的裸标记**原样写进题库并显示
            在题卡上**。落点在 `reseatAnswer` 之后、`verifyPrompt`/`renderUnit`
            之前（自检看到的必须就是落盘形态）。
-           将来再加任何「AI 产物直接落库」的链，**一律照 regen 那样自己接线**，
+        3. `bank/gen/GenQuestion.genWithVerify`（加练/变式链，产物经
+           `addGenerated` **直写题库**）——**第二个被「唯一出口」漏掉的链**。
+           P1-2 把标记约定改成缺省恒在后这条链也开始要求 AI 写标记，而它当年的
+           两道格式处理（拆行 + 替换）是随 `shuffleDraftOptions` 一起被撤掉的
+           ⇒ 裸标记与挤行选项**双双原样落库**（真机后果：题卡解析显示
+           `〔opt:A〕`、挤行题只剩一个选项）。现按 SetWriter 同款两步接线：
+           ① `unpackPackedOptions`（拆行、不碰答案字母）→ ② `replaceDraftOptionRefs`。
+           `GenQuestion.test.ts` 三例锁住（标记不落库 / 自检入参=落库形态 /
+           挤行字母不动）。
+           ⚠️ **regen 链同样漏了拆行**（同次补齐）：`RegenDialog.test.ts` 新增
+           一例锁住——`shuffleDraftOptions` 撤除带走的是**两道**处理，只补标记
+           替换仍会让挤行回复落库成「只剩一个选项」。
+           **判据：凡是「AI 产物直接落库」的链（不经 SetWriter 的），标记替换
+           与挤行拆行都要各自接线** —— 加新链时照 regen 与 gen 这两处自己接，
            别指望 SetWriter 兜。
            ⚠️ **标记约定缺省恒在**（同次审查 P1）：它曾随 `order`/`bank` 条件生效，
            把 `GenQuestion` 的 conceptPrompt/variantPrompt（加练/变式，走**默认
@@ -323,8 +336,11 @@
     - **挤行拆行接出**（`draft/OptionUnpack.ts`）：旧 `unpackPackedSingle`
       是「格式规范 + 把答案改成 A」的合体，后者建立在「正确项在最前」假设
       上——死形态下字母指向原文，改答案就是凭空判错。新函数**只拆行、不碰
-      答案字母**，接线同样在 SetWriter.append（两步都是纯函数、都不改调用方
-      手里的 draft）。
+      答案字母**，接线与标记替换同点：`SetWriter.append` 与
+      `GenQuestion.genWithVerify`（两处都是纯函数、都不改调用方手里的 draft）。
+      ⚠️ 挤行拆行**也不是 SetWriter 独有**：出题链同样直写题库，原先由
+      `shuffleDraftOptions` 顺带做的拆行随之一并撤掉，漏接即「挤行题只剩一个
+      选项」落库。
     - ⚠️ **展示层洗牌换的是副本对象**（`quiz/render/CardDisplayShuffle.ts`
       在 QuizShell 里 `buildDrillUnits` **之前**跑）：凡按 `indexOf(q)` /
       身份比对做「题在整卷里的下标」的地方**必然落空**——本次顺修三处
