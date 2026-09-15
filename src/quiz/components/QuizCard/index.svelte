@@ -82,8 +82,10 @@
     let protoEl = $state<HTMLElement | undefined>(undefined);
 
     /** 考点 chips（Issue #135 §7.a）：数据源 q.knowledge（卡头 label 同源）
-     *  + 多考点字段（尚无，实现期留位）；无考点整行不出。 */
-    const kcaps = [q.knowledge, q.chapter].filter((k): k is string => !!k && k.trim() !== "");
+     *  + chapter（章节名同档粒度，检索口两者都认）；多考点字段尚无=留位。
+     *  **去重**（Set）：`{#each}` 带值 key，knowledge 与 chapter 同串时
+     *  重复 key 会抛 each_key_duplicate（整卡崩），故先收敛。 */
+    const kcaps = [...new Set([q.knowledge, q.chapter].filter((k): k is string => !!k && k.trim() !== ""))];
     /** 自评五星当前值（1..5，0=未评）；初值取自会话记录（改判/恢复回显）。 */
     let stars = $state(selfStarsOf(host, q.id));
     /** 点第 n 星=评 n；再点同值=取消（§7.b 交互）。 */
@@ -389,8 +391,32 @@
         </div>
         {@render tailRows()}
         <div class="wengu-ai-comment" data-ai-comment hidden={!ui.aiComment}>{ui.aiComment}</div>
+        <!-- 自评行（`.wengu-self` + `data-self` + `selfOn` 三闸不动）：
+             ① 判对错/改判钮（既有功能，**不可删**——契约
+                `docs/question-block-contract.md` 三点六「原自评按钮保留为改判
+                入口」，且 AI 判分失败补账、缺题型/答案的降级自评都靠它记账）；
+             ② 新增五星掌握度（Issue #135 §4.4/§7.b，与对错是两个维度）。 -->
         <div class="wengu-self" data-self hidden={!ui.selfOn}>
             <span class="wengu-self-label">{ui.selfLabel}</span>
+            <Button
+                class="wengu-btn"
+                variant="success"
+                data-act="self-right"
+                onclick={on ? () => void selfAssess(host, q, ctl, true) : undefined}
+            >
+                {@html svgIcon("iconCheck")}
+                {t("selfRight")}
+            </Button>
+            <Button
+                class="wengu-btn"
+                variant="error"
+                data-act="self-wrong"
+                onclick={on ? () => void selfAssess(host, q, ctl, false) : undefined}
+            >
+                {@html svgIcon("iconClose")}
+                {t("selfWrong")}
+            </Button>
+            <span class="wengu-self-label">{t("selfStarsLabel")}</span>
             <!-- 五星 radiogroup（Issue #135 §4.4/§7.b）：点第 n 星=评 n，
                  再点同值=取消，已评可改；键盘左右移动 -->
             <span class="wengu-stars" role="radiogroup" aria-label={t("selfStarsLabel")} onkeydown={starKey}>

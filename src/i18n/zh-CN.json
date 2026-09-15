@@ -940,5 +940,11 @@
   "statsKcapHead": "考点「{k}」· {n} 题",
   "statsKcapClear": "返回常规视图",
   "statsKcapNone": "本卷该考点下暂无题目",
-  "headRoundRunning": "第 {n} 轮 · 进行中"
+  "headRoundRunning": "第 {n} 轮 · 进行中",
+  "numsCap": "题号",
+  "numsMore": "…至 {n}",
+  "numsLegendCur": "当前题",
+  "numsLegendOk": "答对",
+  "numsLegendBad": "答错",
+  "numsLegendDone": "已答未揭示"
 }

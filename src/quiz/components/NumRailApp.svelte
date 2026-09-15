@@ -24,16 +24,20 @@
      */
     import type { SetGroup } from "../render/DrillUnits";
     import Button from "../../ui/Button.svelte";
+    import { fmt } from "../../ui/shared";
 
     let {
         initialStates,
         title,
+        t,
         setGroups = [],
         revealed = false,
     }: {
         /** 每题初始态类名后缀（"" | wengu-num-right | wengu-num-wrong）。 */
         initialStates: string[];
         title: string;
+        /** 取词（题号帽/省略行/图例三项文案：nums* 键族）。 */
+        t: (key: string) => string;
         /** 题集分组（多集合刷；单题集一组=不出横线）。 */
         setGroups?: SetGroup[];
         /** 已收卷/揭示态：图例补「答对/答错」两项（作答中不透对错）。 */
@@ -45,6 +49,12 @@
     // svelte-ignore state_referenced_locally
     let marks = $state<string[]>([...initialStates]);
 
+    /** 揭示态（图例是否补对错两项）。props 只给**初值**：instant 恒真、
+        after 恢复已收卷轮真；after 收卷（revealAll）发生在壳存活期间、不
+        重建组件，故经 setRevealed 升级——否则图例永远停在「作答中」档。 */
+    // svelte-ignore state_referenced_locally
+    let shown = $state(revealed);
+
     /** 组首题下标 → 分组（横线行插入点）。 */
     const gapAt = new Map(setGroups.map((g) => [g.start, g] as const));
 
@@ -55,6 +65,11 @@
     /** 滚动跟踪/点击的高亮写入（bindNumRail 调用）。 */
     export function setActive(n: number): void {
         active = n;
+    }
+
+    /** 收卷统一揭示（revealAll/revealCard）：图例补对错两项（幂等）。 */
+    export function setRevealed(r: boolean): void {
+        shown = r;
     }
 
     /** after 模式已答标记：仅中性态升级（对错态不覆盖，旧 markNumAnswered 守卫）。 */
@@ -69,9 +84,9 @@
 </script>
 
 <nav class="wengu-nums" data-nums {title}>
-    <div class="wengu-nums-cap">题号 <b>{active}</b>/{total}</div>
+    <div class="wengu-nums-cap">{t("numsCap")} <b>{active}</b>/{total}</div>
     {#if total > MORE_AT}
-        <div class="wengu-nums-more">…至 {total}</div>
+        <div class="wengu-nums-more">{fmt(t("numsMore"), { n: String(total) })}</div>
     {/if}
     <div class="wengu-nums-grid">
         {#each marks as _, i (i)}
@@ -87,14 +102,14 @@
             >
         {/each}
     </div>
-    {#if setGroups.length > 1 || revealed}
+    {#if setGroups.length > 1 || shown}
         <div class="wengu-nums-legend">
-            <span><i class="wengu-nums-key k-cur"></i>当前题</span>
-            {#if revealed}
-                <span><i class="wengu-nums-key k-ok"></i>答对</span>
-                <span><i class="wengu-nums-key k-bad"></i>答错</span>
+            <span><i class="wengu-nums-key k-cur"></i>{t("numsLegendCur")}</span>
+            {#if shown}
+                <span><i class="wengu-nums-key k-ok"></i>{t("numsLegendOk")}</span>
+                <span><i class="wengu-nums-key k-bad"></i>{t("numsLegendBad")}</span>
             {/if}
-            <span><i class="wengu-nums-key k-done"></i>已答未揭示</span>
+            <span><i class="wengu-nums-key k-done"></i>{t("numsLegendDone")}</span>
         </div>
     {/if}
 </nav>

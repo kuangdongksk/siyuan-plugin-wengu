@@ -940,5 +940,11 @@
   "statsKcapHead": "Point \"{k}\" · {n} question(s)",
   "statsKcapClear": "Back to usual view",
   "statsKcapNone": "No question under this point in this set",
-  "headRoundRunning": "Round {n} · in progress"
+  "headRoundRunning": "Round {n} · in progress",
+  "numsCap": "No.",
+  "numsMore": "…to {n}",
+  "numsLegendCur": "Current",
+  "numsLegendOk": "Correct",
+  "numsLegendBad": "Wrong",
+  "numsLegendDone": "Answered"
 }

@@ -204,3 +204,21 @@ export const kcapSearchFor =
 function roundIndex(v: SideViewAccess): number {
     return typeof v.roundIndex === "function" ? v.roundIndex() : 0;
 }
+
+/** 进行中轮的 1-based 序号（Issue #135 §3.5 头部分段胶囊）。
+ *
+ *  ⚠️ **不能用 `rounds.length` 当序号**（真机 off-by-one，两处都对不上）：
+ *  `rounds` 是装载时的历史快照，`startRound` 只把它 upsert 落盘、**不追加
+ *  进这个数组**，所以
+ *    - 新开一轮：快照里有 N 个历史轮，进行中的是第 N+1 轮，取 length 会
+ *      少报一轮（显示「第 0 轮」当 N=0）；
+ *    - 「继续上次」：session 就是快照里的那个未收卷轮，它已在 length 里，
+ *      再 +1 就多报一轮。
+ *  正解=**按 id 在表内定位**：命中取位次 +1；未命中（新轮）取 length +1。
+ *  无进行中轮（session 空）回 0，调用侧据此不出胶囊。
+ *  纯函数落这里而不是 index.ts：编排层已顶到豁免额度（§11.1 红线）。 */
+export function roundIndexFor(rounds: { id: string }[], session?: { id: string }): number {
+    if (!session) return 0;
+    const i = rounds.findIndex((r) => r.id === session.id);
+    return i >= 0 ? i + 1 : rounds.length + 1;
+}

@@ -29,6 +29,30 @@
       纯展示 chip（预览/复习等只读壳）。
     - **侧栏 AI 入口**：`.wengu-side-ai` 经 `sideActFor` 的 `side-ai` 分支
       落 `switchWorkspace("ai")`（rail 已存在的 AI 工作区，不新造面板通道）。
+- **本轮复审纠偏（20260915 二轮，五处真机级；复审 PR #140 时逐条实测发现）**：
+    - **自评行是「加」不是「换」**：五星掌握度与既有「我答对了/我答错了」
+      **并列**在同一 `.wengu-self` 行内。删掉对错钮会一次打断三条链——
+      契约三点六的 brief **改判入口**、AI 判分失败**补账**（`judgeBriefAnswer`
+      catch 的 `showSelf`）、缺题型/答案的**降级自评**（`submitQuestion`
+      的非 objective 分支）。**五星只是新增维度，不承载记账**。
+    - **题号栏图例的揭示闸必须可运行期升级**：`revealed` 只作 props 初值
+      不够——after 收卷（`revealAll → revealCard`）发生在壳存活期间、不重建
+      组件，图例永远停在「作答中」。现走 `markNumRailRevealed()` 响应态，
+      并在 `revealCard` 里调用（instant/after 两路都过它）；壳重建那一路
+      的初值补 `|| !!currentSession()?.endedAt`（收卷后切工作区/折叠侧栏会
+      `renderList`，不补就退回「作答中」而卡片已揭示，两处口径打架）。
+    - **「第 N 轮」序号不能用 `rounds.length`**：它是装载时的历史快照，
+      `startRound` 只 upsert 落盘、不追加进数组 ⇒ 新轮少报一轮、
+      「继续上次」多报一轮。按 id 定位（`SideMount.roundIndexFor`，纯函数带测）。
+    - **考点 chip 首点会静默失效**：`StatsCtl.attach` 在组件 `onMount`（Svelte
+      排微任务）里，而「面板没开→顺手开→立刻检索」的那次 `loadKcap` 必早于
+      attach（`ui` 还是 undefined）⇒ 浮层开了却停在常规详情页。现以
+      `pendingKcap` 兜住，attach 时补做。
+    - **`kcaps` 必须去重**：`knowledge` 与 `chapter` 同串时，带值 key 的
+      `{#each kcaps as k (k)}` 会抛 `each_key_duplicate` **整卡崩**
+      （Svelte 内核对带值 key 撞键是硬抛，非警告）。
+    - **组件文案一律 `t()`**：题号帽/省略行/图例六处字面中文已清（英文环境
+      原样显示中文）；新增 i18n 键 `numsCap` / `numsMore` / `numsLegend*`。
 
 - `index.ts` = QuizView 编排（546 行，压回基线；Issue #12 起记账镜像
   外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、

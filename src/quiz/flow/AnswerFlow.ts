@@ -8,7 +8,7 @@ import type { TimerController } from "../service/TimerController";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { markNum } from "../render/FlowDom";
-import { markNumRailAnswered } from "../render/NumRail";
+import { markNumRailAnswered, markNumRailRevealed } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
 import type { CardCtl } from "../render/CardCtl";
 import type { WenguQuestion } from "../../types";
@@ -356,6 +356,10 @@ export function revealCard(
     r: { submitted: string; ok: boolean; verdict?: string; comment?: string }
 ): void {
     markNum(host, q, r.ok);
+    // 揭示即升图例档（Issue #135 §2.9）：instant 判分与 after 收卷
+    // （revealAll → 本函数）两路都过这里，题号栏图例据此补「答对/答错」。
+    // 组件不重建（收卷不换壳），故必须走响应态而不能只靠 props 初值。
+    markNumRailRevealed();
     // steps 卡揭示走自己的收口（答完出整题结果行、预览态不覆盖；
     // Issue #21 起 dunnoSteps 也过它）；此处只做揭示 + 题号描色
     if (hasSteps(q)) {

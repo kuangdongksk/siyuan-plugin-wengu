@@ -108,6 +108,8 @@ interface NumRailExports {
     setActive(n: number): void;
     markAnswered(n: number): void;
     markResult(n: number, ok: boolean): void;
+    /** 收卷统一揭示（Issue #135 §2.9）：图例补对错两项。 */
+    setRevealed(r: boolean): void;
 }
 
 let numsApp: MountedSvelteApp<NumRailExports> | undefined;
@@ -128,6 +130,13 @@ export function markNumRailAnswered(n: number): void {
     numsApp?.app.markAnswered(n);
 }
 
+/** 收卷/揭示态升级（AnswerFlow.revealCard 收口至此）：题号栏图例由
+ *  「作答中」档升「揭示」档（补答对/答错两项）。**必须走响应态**——
+ *  after 收卷发生在壳存活期间（不重建组件），props 初值改不动它。 */
+export function markNumRailRevealed(): void {
+    numsApp?.app.setRevealed(true);
+}
+
 export function bindNumRail(
     root: HTMLElement,
     list: WenguQuestion[],
@@ -140,8 +149,11 @@ export function bindNumRail(
         /** 题集分组（多集合刷：组间横线分隔行，hover 展示题集标题）。 */
         setGroups: SetGroup[];
         /** 已收卷/揭示（Issue #135 §2.9）：图例补「答对/答错」两项
-         *  （作答中不透对错时只留「当前/已答」）。 */
+         *  （作答中不透对错时只留「当前/已答」）。挂载时初值，运行期由
+         *  `markNumRailRevealed` 升级（收卷不重建壳）。 */
         revealed?: boolean;
+        /** 取词（题号帽/省略行/图例三项文案；i18n `nums*` 键族）。 */
+        t: (key: string) => string;
     }
 ): void {
     // 题号栏组件挂载：壳在 .wengu-body 里放 [data-nums-anchor] 锚
@@ -158,6 +170,7 @@ export function bindNumRail(
                 {
                     initialStates: list.map((q) => numState(q, opts.showPast).trim()),
                     title: opts.numsTitle,
+                    t: opts.t,
                     setGroups: opts.setGroups,
                     revealed: opts.revealed === true,
                 },

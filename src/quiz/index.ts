@@ -40,7 +40,7 @@ import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
-import { kcapSearchFor, sideActFor } from "./flow/SideMount";
+import { kcapSearchFor, roundIndexFor, sideActFor } from "./flow/SideMount";
 import { relatedAccessFor } from "./flow/RelatedAccess";
 import type { RelatedViewAccess } from "../bank/ui/RelatedDialog";
 import { TimerController } from "./service/TimerController";
@@ -457,7 +457,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly addDocTotal = (add: number) => (this.docTotalSec += add);
     readonly finishNow = (): void => manualFinishRound(roundFinishCtx(this));
     readonly allRounds = (): WenguSession[] => this.rounds;
-    readonly roundIndex = (): number => (this.session ? this.rounds.length : 0);
+    readonly roundIndex = (): number => roundIndexFor(this.rounds, this.session); // #135 §3.5 胶囊
     readonly finishedSession = (): WenguSession | undefined => this.finished;
     readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
     /** 手动收卷统一揭示（after 模式）：等静态分片全部挂载后按表揭示——

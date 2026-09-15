@@ -29,6 +29,14 @@ const FLOW = import.meta.glob("../flow/SideMount.ts", {
 }) as Record<string, string>;
 const SIDEMOUNT = FLOW["../flow/SideMount.ts"] ?? "";
 
+/** render 层源码（`?raw`）：图例初值的**两条来路**断言读它。 */
+const RAW_RENDER = import.meta.glob("./QuizShell.ts", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+const SHELL = RAW_RENDER["./QuizShell.ts"] ?? "";
+
 /** 组件源码（`?raw`）。 */
 const RAW = import.meta.glob("../components/**/*.svelte", {
     query: "?raw",
@@ -118,8 +126,19 @@ describe("§2 题号栏（NumRailApp + cards.scss）", () => {
         expect(NUMS).toContain('class="wengu-nums-cap"');
         expect(NUMS).toContain('class="wengu-nums-grid"');
         expect(NUMS).toContain('class="wengu-nums-legend"');
-        // 作答中只留「当前/已答」两项，揭示后补对错（图例的 revealed 闸）
-        expect(NUMS).toMatch(/\{#if revealed\}[\s\S]*k-ok[\s\S]*k-bad[\s\S]*\{\/if\}/);
+        // 作答中只留「当前/已答」两项，揭示后补对错（图例的 shown 闸）
+        expect(NUMS).toMatch(/\{#if shown\}[\s\S]*k-ok[\s\S]*k-bad[\s\S]*\{\/if\}/);
+        // 揭示闸必须**可运行期升级**：after 收卷不重建壳，只靠 props 初值
+        // 会让图例永远停在「作答中」档（本单修的真机缺陷）
+        expect(NUMS).toContain("export function setRevealed");
+        expect(NUMS).toContain("let shown = $state(revealed)");
+        // 组件文案一律走 t()（题号帽/省略行/图例六处字面中文已清）
+        expect(NUMS).toContain('t("numsCap")');
+        expect(NUMS).toContain('t("numsMore")');
+        expect(NUMS).toContain('t("numsLegendOk")');
+        // 壳重建路径（收卷后切工作区/折叠侧栏）也要给揭示档初值——
+        // 本轮已封卷（endedAt）时图例不得退回「作答中」
+        expect(SHELL).toMatch(/revealed: v\.revealMode === "instant" \|\| !!v\.currentSession\(\)\?\.endedAt/);
         // 类名契约逐字不动（旧类名仍在）
         for (const cls of ["wengu-num", "wengu-num-gap", "wengu-num-gap-line"]) expect(NUMS).toContain(cls);
         expect(NUMS).toContain("data-nums");
@@ -292,6 +311,21 @@ describe("§4 题卡（QuizCard + cards.scss / card-render.scss）", () => {
         const on = bodyOf(CARD_RENDER, ".wengu-star-btn.on {");
         expect(on).toContain("color: var(--b3-card-warning-color)");
         expect(bodyOf(CARD_RENDER, ".wengu-self-hint {")).toContain("font-size: 11px");
+    });
+
+    it("自评行**保留**对错/改判钮（五星是新增维度，不替换既有功能）", () => {
+        // 契约 docs/question-block-contract.md 三点六：原自评钮是 brief 改判
+        // 入口，也是 AI 判分失败补账与缺题型降级自评的唯一出口——删了它
+        // 这三条链全部断掉（本单修的真机回归）
+        expect(CARD).toContain('data-act="self-right"');
+        expect(CARD).toContain('data-act="self-wrong"');
+        expect(CARD).toMatch(/selfAssess\(host, q, ctl, true\)/);
+        expect(CARD).toMatch(/selfAssess\(host, q, ctl, false\)/);
+    });
+
+    it("考点 chips **去重**（knowledge/chapter 同串不得撞 each key）", () => {
+        // 带值 key 的 {#each} 撞键会抛 each_key_duplicate 把整卡搞崩
+        expect(CARD).toMatch(/new Set\(\[q\.knowledge, q\.chapter\]/);
     });
 
     it("五星 radiogroup 语义 + 再点同值取消 + 键盘左右（§7.b）", () => {
