@@ -398,8 +398,8 @@
 }
 
 /* ── 轮次日志的复制钮（Issue #124） ──
-   两个落点共用 `.wengu-aipanel-copy` 一个类：块头的图标钮（贴右）与块尾的
-   整轮文字钮。
+   两个落点共用 `.wengu-aipanel-copy` 一个类：块头的图标钮（贴右）与**轮次
+   头**的整轮文字钮（贴右，与摘要同排）。
    **常显、不做 hover 显隐**——触屏没有 hover，而「移动端必须常显」在触屏
    上等于「永远常显」；hover 只是桌面端多出来的一层糖，不为此写两套样式。
    反馈态走 `.hit` / `.hitfail`（Svelte 的 `class:hit` 产出**裸类名**，不是
@@ -450,11 +450,28 @@
   gap: 8px;
 }
 
-/* 整轮复制钮贴块尾左（与末块之间留一档呼吸，同块间距口径） */
+/* 轮次头一行：摘要贴左、整轮复制钮贴右（Issue #124 需求 3）。
+   钮放轮次头 ⇒ **与展开态无关**：收起行也能整轮复制（放块尾会随行收起
+   一起消失）。本行占 li 的摘要列（grid 第二列）。
+   不写 flex-wrap：摘要长时应在自己一侧正常折行、钮钉在右上，**别让钮被
+   挤到下一行独自贴左**（那看着像一个走失的控件）；摘要侧 min-width:0 是
+   折行的前提（不给就撑破列宽、钮被挤出可视区）。 */
+.wengu-aipanel-loghead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wengu-aipanel-loghead .wengu-aipanel-logtext {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* 整轮复制钮：与摘要首行对齐（摘要行高 1.6 × 12.5px ≈ 20px，钮自身高 ~18px，
+   顶对齐即可，不另加 margin 撑高行） */
 .wengu-aipanel-copyturn {
-  grid-column: 1 / -1;
-  align-self: flex-start;
-  margin-top: 6px;
   font-size: 11px;
 }
 

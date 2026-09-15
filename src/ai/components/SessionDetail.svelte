@@ -23,8 +23,9 @@
      *    （读屏与整段复制的阅读序=真实先后），块间距由 aipanel.scss 的
      *    `margin-top` 给。**摘要行本身不动**，仍是一行一轮。
      *
-     * **一键复制（Issue #124）**：块头右侧的复制钮（每块一个）与轮次头的
-     * 「复制整轮」（`copyParts` 按输入/输出序拼全文、块间空行分隔）。
+     * **一键复制（Issue #124）**：块头右侧的复制钮（每块一个）与**轮次头**
+     * 的「复制整轮」（`copyParts` 按输入/输出序拼全文、块间空行分隔）——
+     * 整轮钮落在轮次头而非块尾：它与展开态无关，收起行也该能一次取走全轮。
      * 两个刻意的形态取舍：
      *  - 复制钮**常显**、不做 hover 显隐：触屏没有 hover，「移动端必须常显」
      *    等于「永远常显」——hover 只是桌面端多出来的一层糖，不为此写两套；
@@ -120,10 +121,49 @@
                     onclick={() => canOpen && toggleRow(i)}
                 >
                     <span class="t">{row.time}</span>
-                    <span class="wengu-aipanel-logtext">
-                        {#each row.parts as seg, j (j)}
-                            {#if seg.em}<em>{seg.text}</em>{:else}{seg.text}{/if}
-                        {/each}
+                    <!-- 轮次头一行 = 摘要贴左 + 「复制整轮」贴右（Issue #124 需求 3）。
+                         钮放**轮次头**而不是块尾：整轮复制与展开态无关，收起行也该能
+                         一次取走全轮（放块尾会随行收起一起消失，还得先展开才能复制）。
+                         钮在行头 click 容器（li）内 ⇒ onclick 必须 stopPropagation（同块级钮）。 -->
+                    <span class="wengu-aipanel-loghead">
+                        <span class="wengu-aipanel-logtext">
+                            {#each row.parts as seg, j (j)}
+                                {#if seg.em}<em>{seg.text}</em>{:else}{seg.text}{/if}
+                            {/each}
+                        </span>
+                        {#if row.copyParts.length > 0}
+                            {@const tk = `${i}:turn`}
+                            {@const tFail = copiedKey === `fail:${tk}`}
+                            <!-- svelte-ignore a11y_click_events_have_key_events -->
+                            <!-- svelte-ignore a11y_no_static_element_interactions -->
+                            <span
+                                class="wengu-aipanel-copy wengu-aipanel-copyturn"
+                                class:hit={copiedKey === tk}
+                                class:hitfail={tFail}
+                                role="button"
+                                tabindex="0"
+                                title={tFail ? t("aiCopyFail") : copiedKey === tk ? t("aiCopied") : t("aiCopyTurn")}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    void copyBlock(tk, turnText(row));
+                                }}
+                                onkeydown={(e) => {
+                                    if (e.key !== "Enter" && e.key !== " ") return;
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    void copyBlock(tk, turnText(row));
+                                }}
+                            >
+                                {@html svgIcon(copiedKey === tk ? "iconCheck" : "iconCopy")}
+                                <span class="wengu-aipanel-copy-t"
+                                    >{tFail
+                                        ? t("aiCopyFail")
+                                        : copiedKey === tk
+                                          ? t("aiCopied")
+                                          : t("aiCopyTurn")}</span
+                                >
+                            </span>
+                        {/if}
                     </span>
                     {#if isOpen}
                         <!-- 块头一行 = 侧别标签贴左 + 复制钮贴右（Issue #124）：
@@ -171,41 +211,6 @@
                                 <pre class="wengu-aipanel-logfull">{seg.text}</pre>
                             </div>
                         {/each}
-                        <!-- 整轮复制（Issue #124 验收 1）：`copyParts` 按输入/输出序
-                             拼全文、块间空行分隔。与块级钮同一套反馈（`${i}:turn`）。 -->
-                        {#if row.copyParts.length > 0}
-                            {@const tk = `${i}:turn`}
-                            {@const tFail = copiedKey === `fail:${tk}`}
-                            <!-- svelte-ignore a11y_click_events_have_key_events -->
-                            <!-- svelte-ignore a11y_no_static_element_interactions -->
-                            <span
-                                class="wengu-aipanel-copy wengu-aipanel-copyturn"
-                                class:hit={copiedKey === tk}
-                                class:hitfail={tFail}
-                                role="button"
-                                tabindex="0"
-                                title={tFail ? t("aiCopyFail") : copiedKey === tk ? t("aiCopied") : t("aiCopyTurn")}
-                                onclick={(e) => {
-                                    e.stopPropagation();
-                                    void copyBlock(tk, turnText(row));
-                                }}
-                                onkeydown={(e) => {
-                                    if (e.key !== "Enter" && e.key !== " ") return;
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    void copyBlock(tk, turnText(row));
-                                }}
-                            >
-                                {@html svgIcon(copiedKey === tk ? "iconCheck" : "iconCopy")}
-                                <span class="wengu-aipanel-copy-t"
-                                    >{tFail
-                                        ? t("aiCopyFail")
-                                        : copiedKey === tk
-                                          ? t("aiCopied")
-                                          : t("aiCopyTurn")}</span
-                                >
-                            </span>
-                        {/if}
                     {/if}
                 </li>
             {/each}
