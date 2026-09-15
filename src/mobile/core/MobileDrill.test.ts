@@ -130,6 +130,51 @@ function armed(over: { reveal?: "instant" | "after"; questions?: WenguQuestion[]
     return { drill, ui, calls, upserts, list };
 }
 
+describe("展示层选项洗牌（Issue #131 P1：移动端要洗）", () => {
+    /** 4 选项题：死形态下正确项（按协议「写最前」）恒为首位——不洗就是剧透。 */
+    const four = (id: string): WenguQuestion =>
+        q(id, { optionMd: ["正解", "干扰一", "干扰二", "干扰三"], answer: "A" });
+
+    it("start() 洗的是副本：正确项不再恒为首位；fullList 原件不动", () => {
+        const { drill, ui } = armed({ questions: [four("a"), four("b"), four("c"), four("d")] });
+        // 副本：不是 fullList 里那几个对象
+        expect(drill.ui.list[0]).not.toBe(ui.fullList[0]);
+        // 原件未被污染（重开一轮/记账按原件 id 走）
+        expect(ui.fullList.every((x) => x.optionMd![0] === "正解")).toBe(true);
+        expect(ui.fullList.every((x) => x.answer === "A")).toBe(true);
+        // 至少一题的首位不再是正确项（洗牌生效；4 题全恒等的概率 (1/24)^4 可忽略）
+        const firstIsAnswer = drill.ui.list.filter((x) => {
+            const i = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf((x.answer ?? "").toUpperCase());
+            return (x.optionMd ?? [])[0] === "正解" && i === 0;
+        }).length;
+        expect(firstIsAnswer).toBeLessThan(drill.ui.list.length);
+    });
+
+    it("洗后答案字母仍指向同一选项文本（判分口径不变）", () => {
+        const { drill } = armed({ questions: [four("a"), four("b"), four("c"), four("d"), four("e")] });
+        for (const x of drill.ui.list) {
+            const i = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf((x.answer ?? "").toUpperCase());
+            expect(x.optionMd![i]).toBe("正解");
+            expect([...(x.optionMd ?? [])].sort()).toEqual(["干扰一", "干扰二", "干扰三", "正解"].sort());
+        }
+    });
+
+    it("洗后判分与题号栏下标自洽：答对洗后的答案字母记 ok", async () => {
+        const { drill, calls } = armed({ questions: [four("a"), four("b"), four("c")] });
+        const a = drill.ui.list[0].answer!;
+        drill.pickLetter(a);
+        await drill.submit();
+        expect(drill.ui.cards[0].ok).toBe(true);
+        expect(calls[0]).toMatchObject({ qid: "a", ok: true });
+    });
+
+    it("id 与卷内顺序不变（题号栏/会话快照按 id 走）", () => {
+        const { drill, ui } = armed({ questions: [four("a"), four("b"), four("c")] });
+        expect(drill.ui.list.map((x) => x.id)).toEqual(ui.fullList.map((x) => x.id));
+        expect(drill.ui.list).toHaveLength(3);
+    });
+});
+
 describe("开刷与作答", () => {
     it("开刷建会话并落库；题集为空时不动", () => {
         const { drill, upserts } = armed();
@@ -145,7 +190,8 @@ describe("开刷与作答", () => {
 
     it("单选题点选即答：判分即锁定 + 揭示（揭示写入点不缺）", async () => {
         const { drill, calls } = armed();
-        drill.pickLetter("A");
+        // 展示层洗牌后正确字母是随机的：按洗后的视图取（口径见洗牌一节）
+        drill.pickLetter(drill.ui.list[0].answer!);
         await drill.submit();
         const ui = drill.ui.cards[0];
         expect(ui.graded).toBe(true);
@@ -273,10 +319,12 @@ describe("未完成轮判据只看 endedAt", () => {
 describe("错题再练一轮", () => {
     it("以本轮错题为范围开新轮（scope=wrong + 清单快照）", async () => {
         const { drill } = armed();
-        drill.pickLetter("B"); // 答错
+        // 洗牌后正确字母不确定：取一个**不等于**答案的字母来答错
+        const right = drill.ui.list[0].answer!;
+        drill.pickLetter(right === "A" ? "B" : "A"); // 答错
         await drill.submit();
         drill.next();
-        drill.pickLetter("A"); // 答对
+        drill.pickLetter(drill.ui.list[1].answer!); // 答对
         await drill.submit();
         expect(drill.ui.screen).toBe("report");
         drill.retryWrong();

@@ -542,11 +542,15 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
 - **展示层选项洗牌**（Issue #131，20260915）：消剧透从「生成期洗牌」搬到
   「展示期现洗」——库与题源文档是**死形态**（选项按原文顺序、答案字母指向
   原文位置、解析不含任何选项字母，见 convert 域）。
-    - 落点 `render/CardDisplayShuffle.ts`（纯函数），**唯一调用点**是
-      `QuizShell.renderQuizShellFor` 里、`buildDrillUnits` **之前**：
-      `pv || v.progressive.active ? v.list : shuffleListForDisplay(v.list)`。
-      **预览模式与渐进呈现不洗**（预览要看死形态对照原文；渐进是生成产物
-      直出、重渲染会跳序）。
+    - 落点 `render/CardDisplayShuffle.ts`（纯函数），两个调用点：
+        1. `QuizShell.renderQuizShellFor` 里、`buildDrillUnits` **之前**：
+           `pv || v.progressive.active ? v.list : shuffleListForDisplay(v.list)`。
+           **预览模式与渐进呈现不洗**（预览要看死形态对照原文；渐进是生成
+           产物直出、重渲染会跳序）；
+        2. `mobile/core/MobileDrill.start()`（含「继续上次」与
+           `retryWrong()`）——**移动端要洗**（20260915 审查定案，原稿「移动端
+           不在范围」作废）：移动端显示死形态时，新造题按协议「正确项写最前」
+           恒为首位＝剧透。洗的同样是副本，`ui.fullList` 原件不动。
     - 洗的对象：顶层选项组（single/multiple，`q.answer` 字母随同一映射重写）、
       steps **每步**选项组（各步独立洗，`step.answer` 同步重写）；位置敏感
       措辞组跳过（`POSITION_SENSITIVE` 从 `convert/.../OptionShuffle` 复用，
@@ -559,5 +563,6 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
     - 判分口径零改动：`gradeQuestion` 按字母比、`optionIsRight` 按 idx 找答案
       ——展示序变了、字母与选项的对应关系随之变，两者仍自洽（单测锁
       「洗后答案字母指向同一选项文本」）。
-    - 移动端（`src/mobile/`）**不在本规范范围**：它的列表与查找同源
-      （`ui.list` 一份对象），不洗即显示死形态，与预览同口径。
+    - 移动端（`src/mobile/`）**口径与桌面同**：`MobileDrill.start()` 洗副本
+      （见上）。判据与其他面板一致——库/源文档是死形态，凡「做题」展示都必须
+      现洗；「预览」才看死形态。

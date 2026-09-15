@@ -21,6 +21,7 @@ import {
     submit,
 } from "./MobileAnswering";
 import { answerKindOf } from "./MobileModel";
+import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
 
 /**
@@ -209,7 +210,16 @@ export class MobileDrill {
 
     /* ── 开刷 ── */
 
-    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。 */
+    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。
+     *
+     *  **展示层选项洗牌**（Issue #131 P1，20260915 审查）：本题与桌面
+     *  `QuizShell` 同口径——库/源文档是**死形态**（选项按原文顺序、答案
+     *  字母指向原文位置），消剧透在展示层进卡前现洗。移动端**必须洗**：
+     *  新造题按协议「正确项写最前」⇒ 不洗则正确项恒为首位，等于剧透
+     *  （原稿「移动端不在本规范范围」的判断已作废）。
+     *  洗的是 `shuffleListForDisplay` 出品的**新副本**：`ui.fullList`
+     *  原件不动，题号栏/记账/`scopeIds` 全按 id 走（`ui.list` 与 cards
+     *  同下标，副本不入库不回流）。 */
     start(progress: "fresh" | "continue"): void {
         const docId = this.ui.home.activeSetId;
         if (!docId || this.ui.fullList.length === 0) return;
@@ -220,12 +230,14 @@ export class MobileDrill {
             this.ui.setup.reveal = last.revealMode === "after" ? "after" : "instant";
             this.ui.setup.timing = last.mode;
             const ids = new Set(last.scopeIds ?? []);
-            this.ui.list = ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList];
+            this.ui.list = shuffleListForDisplay(
+                ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList]
+            );
             this.ui.session = last;
         } else {
             const src =
                 this.ui.setup.count > 0 ? this.ui.fullList.slice(0, this.ui.setup.count) : [...this.ui.fullList];
-            this.ui.list = src;
+            this.ui.list = shuffleListForDisplay(src);
             this.ui.session = {
                 id: newSessionId(),
                 docId,
@@ -383,7 +395,8 @@ export class MobileDrill {
         const wrong = new Set(s.results.filter((r) => !r.ok).map((r) => baseQid(r.qid)));
         if (wrong.size === 0) return;
         const subset = this.ui.list.filter((q) => wrong.has(q.id));
-        this.ui.list = subset;
+        // 错题再练是**新一轮**：同样现洗（洗的是新副本，作业见下）
+        this.ui.list = shuffleListForDisplay(subset);
         this.ui.setup.reveal = "instant";
         this.ui.session = {
             id: newSessionId(),

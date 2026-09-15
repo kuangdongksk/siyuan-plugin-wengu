@@ -293,11 +293,33 @@
     - **解析选项引用标记协议**（`draft/OptionRefReplace.ts`）：凡指代选项
       一律写 `〔opt:X〕`（全角方括号，与「〔插图:…〕」同款、与 IAL `{:` 无
       碰撞），**不得用裸字母指代选项**；非指代的大写字母（Plan A、维生素 A）
-      照常书写。落库前（SetWriter.append，**唯一落库出口**）把标记换成选项
-      文本（「」包裹）。X 非法（超选项数）→ 降级裸字母（丢标记不丢信息）；
-      数学环境内的标记**照常替换**（标记即显式意图，与 gloss 域 `^{}` 的
-      取舍相反）。协议只在显式要了顺序口径的调用方（`order`/`bank`）出现，
-      默认变体逐字节不含它。
+      照常书写。落库前把标记换成选项文本（「」包裹）。X 非法（**该组**选项
+      数内）→ 降级裸字母（丢标记不丢信息）；数学环境内的标记**照常替换**
+      （标记即显式意图，与 gloss 域 `^{}` 的取舍相反）。
+      ⚠️ **两个接线点，不是「唯一落库出口」**（20260915 审查 P1 修正）：
+        1. `SetWriter.append`（转换 / 增量两条链）；
+        2. `bank/ui/RegenDialog.runRegen`（**直写 `replaceRecordKramdown`，
+           不经 SetWriter**）——原稿断言「唯一落库出口」对 regen 不成立，
+           漏接线的后果是 keep 序 prompt 要求的裸标记**原样写进题库并显示
+           在题卡上**。落点在 `reseatAnswer` 之后、`verifyPrompt`/`renderUnit`
+           之前（自检看到的必须就是落盘形态）。
+           将来再加任何「AI 产物直接落库」的链，**一律照 regen 那样自己接线**，
+           别指望 SetWriter 兜。
+           ⚠️ **标记约定缺省恒在**（同次审查 P1）：它曾随 `order`/`bank` 条件生效，
+           把 `GenQuestion` 的 conceptPrompt/variantPrompt（加练/变式，走**默认
+           协议**）漏在链外——那些链解析写裸字母、写库又不洗 ⇒ 一进卡就指错，
+           正是本单要杀的 bug 类。现 `withSolRule = opts?.solRule !== false`，
+           `solRule: false` 只作逃生口（无调用方）。protocol 测试锁三个变体都带。
+           ⚠️ **字母表按部件分组**（同次审查 P1）：`option*`（顶层）与
+           `step-k-option*`（第 k 步）是**各自从 A 起**的独立字母表。拍平进同一
+           张表时，两步各 3 选项的题里 step-2 解析的 `〔opt:A〕` 会换成 **step-1**
+           的选项文本（静默错内容）。`ctxGroupOf` 按部件名定组（顶层
+           `solution`/`stem` → 顶层组；`step-k-*` → 第 k 步组），与
+           `CardDisplayShuffle` 的逐步独立洗牌同源，两处一起看。
+           ⚠️ 契约现实：`resolvePart` 只认 `step-N-(stem|option|answer)`，
+           `@@P step-1-solution` 会解析成空名被丢 ⇒ **逐步解析当前不入协议**
+           （整题解析统一写 `@@P sol` = 顶层组）；上面的 `step-k-*` 分支是前瞻
+           实现，测试里有一条断言锁住这个现实。
     - **挤行拆行接出**（`draft/OptionUnpack.ts`）：旧 `unpackPackedSingle`
       是「格式规范 + 把答案改成 A」的合体，后者建立在「正确项在最前」假设
       上——死形态下字母指向原文，改答案就是凭空判错。新函数**只拆行、不碰

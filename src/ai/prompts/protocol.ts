@@ -26,6 +26,12 @@ import { QuestionType } from "../../types";
  * 维生素 A）照常书写。落库前由 `OptionRefReplace` 换成选项文本——解析
  * 因此**不含任何选项字母**，展示层洗牌只剩答案字母重映射一件事，英语域
  * 也不会被裸 A 误伤。
+ *
+ * ⚠️ **标记约定缺省恒在**（P1，20260915 审查）：它曾随 `order`/`bank`
+ * 条件生效，把 GenQuestion 的 conceptPrompt/variantPrompt（加练/变式，
+ * 走默认协议）漏在链外——这些链的解析仍是裸字母，写库不洗、展示只重映射
+ * 答案 ⇒ 一进卡解析字母就指错。设计是「解析无选项字母」**全链统一**，
+ * 故 `solRule` 缺省 true，只在显式 `solRule: false` 时摘除。
  */
 
 /** 行协议选项顺序口径（Issue #123）：缺省=「正确项在最前、系统重排
@@ -131,12 +137,25 @@ const MATERIAL_TYPE_RULES: Partial<Record<QuestionType, string>> = {
  *
  *  `opts.order`（Issue #123）与 `opts.bank`（Issue #131）**只替换 @@P opt
  *  那一行的写作约定**，其余段落逐字不变。二者同时给出时 bank 优先
- *  （条件规则已含两支语义）。解析的 `〔opt:X〕` 标记约定（SOL_REF_RULE）
- *  随 `order` / `bank` 一并生效——只有显式声明了选项顺序口径的调用方才
- *  拿得到它，出题/加练/知识点变式（默认重排、由系统洗牌）保持原样。 */
-export function protocolSpec(types?: QuestionType[], opts?: { order?: ProtocolOptsOrder; bank?: boolean }): string {
+ *  （条件规则已含两支语义）。
+ *
+ *  解析的 `〔opt:X〕` 标记约定（SOL_REF_RULE）**缺省恒在**（P1，20260915
+ *  审查）：设计是「解析无选项字母」**全链统一**——所有走行协议的调用方
+ *  产物都会落库、都会被展示层洗牌，裸字母指代选项必错。只有显式传
+ *  `solRule: false` 才摘掉（当前无调用方这么做，留着做逃生口）。 */
+export function protocolSpec(
+    types?: QuestionType[],
+    opts?: { order?: ProtocolOptsOrder; bank?: boolean; solRule?: boolean }
+): string {
     const optLine = opts?.bank ? OPT_LINE_BY_BANK : opts?.order === "keep" ? OPT_LINE_KEEP : OPT_LINE_DEFAULT;
-    const withSolRule = !!opts?.bank || opts?.order === "keep";
+    // 解析标记约定**缺省为真**（P1，20260915 审查）：设计是「解析无选项字母」
+    // **全链统一**——凡是走行协议出题/改题的调用方（转换、增量、重生成、
+    // 概念辨析、变式、加练）落库后都会被展示层洗牌，而这些链原本只有
+    // 声明了顺序口径的两个拿得到约定：GenQuestion 的 conceptPrompt /
+    // variantPrompt 走**默认协议**、AI 写裸字母（它自己输出的序位，写库
+    // 不洗、展示只重映射答案）⇒ **这些新题一进卡解析字母就全指错**（正是
+    // 本单要杀的 bug 类）。故缺省带上，`withSolRule` 只作显式关闭口。
+    const withSolRule = opts?.solRule !== false;
     const head = headOf(optLine, withSolRule);
     if (!types) {
         return `${head}其它部件：材料块正文 @@P body、参考译文 @@P trans；多步引导题（type=steps）每步依次 @@P step（步引导语）、@@P step-opt（该步选项）、@@P step-ans（该步答案），步号自动递增，整题解析仍用 @@P sol；完形/新题型每空依次 @@P slot-opt、@@P slot-ans，空号自动递增。@@Q 行还可带：difficulty=1~5（有明确难度线索才写）、steps=method|result|…（steps 题必带，按序声明每步类型）、group=prev（材料组小题，材料=文中紧邻其前的材料块）、material=1（共享材料块，搭配 @@P body/trans）。`;

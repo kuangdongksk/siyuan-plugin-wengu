@@ -8,10 +8,16 @@ import { regenRecords } from "./RegenDialog";
  * 落盘**（记录 kramdown 逐字节不变），报错走既有 errText 通道。
  */
 
-/** AI 通道替身：按序吐出「重生成回复 / 自检结论」，空回复=调用方兜底失败。 */
+/** AI 通道替身：按序吐出「重生成回复 / 自检结论」，空回复=调用方兜底失败。
+ *  `prompts` 收下每一发的 prompt 原文（自检那发的入参形态要能直接观测
+ *  ——「替换落在自检前还是后」只有看入参才验证得动）。 */
 const replies: string[] = [];
+const prompts: string[] = [];
 vi.mock("../../ai/client", () => ({
-    agentChatOnce: async (): Promise<string> => replies.shift() ?? "",
+    agentChatOnce: async (prompt: string): Promise<string> => {
+        prompts.push(prompt);
+        return replies.shift() ?? "";
+    },
     aiAbort: (): unknown => ({ signal: new AbortController().signal, onSid: (): void => undefined }),
     newAiGroupId: (): string => "g-test",
 }));
@@ -61,6 +67,27 @@ const MISMATCH_REPLY = [
     "运动是物质的一维性",
     "@@P ans",
     "A",
+    "@@END",
+].join("\n");
+
+/** 带选项引用标记的回复（keep 序协议要求 AI 在解析里写 〔opt:X〕）：
+ *  正确项文本与 OK_REPLY 同款，故 reseatAnswer 文本命中、零自检。 */
+const MARKED_REPLY = [
+    "@@Q type=single",
+    "@@P stem",
+    "下列关于运动的说法正确的是（）",
+    "@@P opt",
+    "运动是物质的唯一特性",
+    "@@P opt",
+    "运动是物质的根本属性",
+    "@@P opt",
+    "运动是物质的一维性",
+    "@@P ans",
+    "B",
+    "@@P sol",
+    "〔opt:B〕正确：运动是物质的根本属性。",
+    "@@P sol",
+    "〔opt:A〕错在把唯一特性当成根本属性。",
     "@@END",
 ].join("\n");
 
@@ -119,6 +146,7 @@ const deps = (bank: QuestionBank) => ({ t: (k: string) => k, bank, modelId: "", 
 
 beforeEach(() => {
     replies.length = 0;
+    prompts.length = 0;
 });
 
 describe("runRegen · 答案核查兜底（Issue #123 验收 ②）", () => {
@@ -141,6 +169,36 @@ describe("runRegen · 答案核查兜底（Issue #123 验收 ②）", () => {
         expect(ok).toBe(1);
         expect(read().records.q1.kramdown).not.toBe(ORIG_KD);
         expect(read().records.q1.hash).not.toBe("h1");
+    });
+
+    it("解析里的 〔opt:X〕 标记**不落库**（P1：regen 链不经 SetWriter）", async () => {
+        // runRegen 直写 replaceRecordKramdown（不走 SetWriter.append），故
+        // 标记替换必须在本链接线——否则 keep 序 prompt 要求的裸标记会原样
+        // 写进题库、显示在题卡上（「唯一落库出口」断言对 regen 不成立）。
+        const { bank, read } = newBank();
+        replies.push(MARKED_REPLY);
+        const ok = await regenRecords(deps(bank), ["q1"], noStop());
+        expect(ok).toBe(1);
+        const kd = read().records.q1.kramdown;
+        expect(kd).not.toContain("〔opt:"); // 标记已换掉
+        expect(kd).toContain("「运动是物质的根本属性」正确"); // 换成选项文本
+        expect(kd).toContain("「运动是物质的唯一特性」错在"); // A 也被换
+    });
+
+    it("自检会话看到的是**已替换**形态（与落盘一致，P1 顺序断言）", async () => {
+        // 失配分支发的是 verifyPrompt(renderUnit(draft))——替换必须落在
+        // **自检之前**，否则 AI 自检的基线与落盘形态漂移（自检过、落盘另一份）。
+        const { bank } = newBank();
+        // 正确项文本被改写 ⇒ reseatAnswer 失配 ⇒ 走自检
+        const mismatchedMarked = MARKED_REPLY.replace("运动是物质的根本属性", "运动是物质的存在方式");
+        replies.push(mismatchedMarked, "VERIFY: yes");
+        const ok = await regenRecords(deps(bank), ["q1"], noStop());
+        expect(ok).toBe(1);
+        expect(prompts).toHaveLength(2); // 重生成 + 自检，自检不多不少一发
+        expect(prompts[0]).toContain("〔opt:X〕"); // 重生成 prompt 带标记协议
+        // 自检那一发的题目正文里，标记已被换成选项文本（与落盘同一形态）
+        expect(prompts[1]).not.toContain("〔opt:");
+        expect(prompts[1]).toContain("「运动是物质的存在方式」正确");
     });
 
     it("文本命中（选项沿用原题）→ 零自检调用，直接落盘", async () => {
