@@ -1,0 +1,108 @@
+/* 英语题型配套浮层（整改 F1 #127 自 english.scss 拆出）：
+   标注浮层（选中文本操作条，fixed 定位在 body 下）+ 竖排色板
+   （Issue #57，独立可复用积木 ui/ColorMenu.svelte）。纯文件边界拆分，
+   规则内容零改动；`index.scss` 注册在 `english` 之后（源码序无覆写依赖）。
+ */
+
+/* ── 标注浮层（选中操作条，fixed 定位在 body 下）── */
+.wengu-annobar {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--b3-border-radius-b);
+  background: var(--b3-theme-surface);
+  box-shadow: var(--b3-dialog-shadow);
+}
+
+.wengu-annobar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: var(--b3-theme-on-background);
+  font-size: 87.5%;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--b3-border-radius);
+}
+
+.wengu-annobar-btn:hover {
+  background: var(--b3-list-hover);
+}
+
+/* 选色入口（Issue #57）：主钮「标为线索」旁的小色块角标——点它开竖排
+   色板。与主钮同款 hover，但视觉上先秀「默认黄」的色块，暗示这里有颜色。 */
+.wengu-annobar-color {
+  gap: 3px;
+  padding: 4px 6px 4px 4px;
+  border-left: 1px solid var(--b3-border-color);
+}
+
+.wengu-annobar-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--b3-card-warning-background);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-background) 20%, transparent);
+}
+
+.wengu-annobar-color svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── 竖排色板（Issue #57，独立可复用积木 ui/ColorMenu.svelte）──
+   宿主挂 body 的 fixed 浮层（与 annobar 同款定位口径）；色块色值由
+   组件内联喂入主题变量，本段只管布局与观感。 */
+.wengu-colormenu-host {
+  position: fixed;
+  z-index: 1001;
+}
+
+.wengu-colormenu {
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: var(--b3-border-radius-b);
+  background: var(--b3-theme-surface);
+  box-shadow: var(--b3-dialog-shadow);
+  user-select: none;
+}
+
+.wengu-colormenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--b3-theme-on-background);
+  font-size: 87.5%;
+  text-align: left;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--b3-border-radius);
+}
+
+.wengu-colormenu-item:hover {
+  background: var(--b3-list-hover);
+}
+
+.wengu-colormenu-item-on {
+  background: color-mix(in srgb, var(--b3-theme-primary) 15%, transparent);
+}
+
+.wengu-colormenu-swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--b3-border-radius);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-background) 20%, transparent);
+}
+
+.wengu-colormenu-label {
+  flex: 1;
+}

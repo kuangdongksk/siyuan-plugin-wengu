@@ -106,7 +106,8 @@
   `quiz/service/GlossDom`（`splitGloss` 拆正文/词表、`dataGlossTableHtml`
   出 `ul.wengu-gloss`——词条下划线/音标弱化/释义常规），**施工**在装饰层
   （正文里与词表词形精确匹配的**首次**出现包 `span.wengu-gloss-link > u +
-sup`）。样式在 `scss/english.scss`；改动类名必须同步装饰层的
+sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 #127
+  由 564 行 english.scss 按语义拆出两片，类名与规则零变更）；改动类名必须同步装饰层的
   `NON_CANON_SELECTOR`/`NO_WRAP_SELECTOR`（`ul.wengu-gloss` 是契约）。
     - **挂载顺序是「实现保证」不是「调用约定」**（Issue #53 验收 4）：词表
       区与词形联动必在 ② 之后、⑤ 之前，由出口内部固定；`GroupUnitApp` 的
