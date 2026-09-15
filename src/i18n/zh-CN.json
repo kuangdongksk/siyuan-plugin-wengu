@@ -798,7 +798,7 @@
   "mobileBatchMode": "收卷模式",
   "mobileRemain": "还剩",
   "mobileBatchHint": "本轮为收卷统一判分：作答只显示「已答」，对错与解析交卷后揭晓",
-  "mobileAnswerHint": "点选答案后提交判定",
+  "mobileAnswerHint": "作答后按「确认答案」判分",
   "mobileMultiHint": "可多选，提交「确认答案」后判分",
   "mobileSkip": "跳过本题",
   "mobileDunno": "标不会",

@@ -13,8 +13,10 @@
      * （题型 + 来源 + 组内点）+ 题干/材料/作答位 + 底部操作区（跳过 /
      * 标不会 / 上一题 / 主操作）+ 题号抽屉 + 交卷确认弹层。
      *
-     * 主操作按钮按形态分流：多选与文本作答出「确认答案」，单选/判断
-     * 点选即答（已揭示后按钮变「下一题」）。
+     * 主操作按钮按形态分流：**所有可作答形态都出「确认答案」**
+     * （单选/判断/多选/文本/填空/无题型兜底）——点选只落选择态、
+     * 一律不自动提交，防误触（Issue #105）；已揭示后按钮变「下一题」。
+     * 逐空题（slots）无作答位，不出现确认钮。
      */
     const drill: MobileDrill = getContext(MOBILE_DRILL_CTX);
     const t = (k: string) => drill.t(k);
@@ -43,19 +45,19 @@
     /** 逐空题（完形/新题型）移动端暂无作答位：不出现「确认答案」，
      *  也不给「跳过 / 不会」（作答单位是「空」，题级记账会错位）。 */
     const unsupported = $derived(kind === "slots");
-    /** 主操作：需显式确认的形态（多选 / 文本作答 / 填空 / 无题型兜底）
-     *  ——单选与判断点选即答，其余都要按一次「确认答案」（设计稿屏 ②④）。 */
-    const needConfirm = $derived(
-        !!q &&
-            !ui?.revealed &&
-            !unsupported &&
-            (kind === "text" || kind === "fill" || kind === "plain" || isMultiSelect(q))
+    /** 主操作：**所有可作答形态都要显式确认**（Issue #105 两段式——
+     *  点选只落选择态、不再自动提交，防误触）；逐空题无作答位故排除。 */
+    const needConfirm = $derived(!!q && !ui?.revealed && !unsupported);
+
+    /** 选择/判断未选中任何项时禁用确认钮（未作答就是没得判）。
+     *  文本/填空保持现行为：空提交按原样出「未作答」提示，不 disable。 */
+    const confirmDisabled = $derived(
+        !!ui?.busy || (kind === "choice" && !ui?.letters) || (kind === "judge" && !ui?.judge)
     );
 
+    /** 点选只落选择态——提交一律由「确认答案」触发（Issue #105）。 */
     function pick(letter: string): void {
         drill.pickLetter(letter);
-        // 单选 / 判断点选即答（设计稿屏 ②B③）；多选与文本/填空等按钮确认
-        if (kind === "judge" || (kind === "choice" && !isMultiSelect(q!))) void drill.submit();
     }
 </script>
 
@@ -72,9 +74,9 @@
         aria-label={t("mobileDrawerTitle")}
         onclick={() => drill.toggleDrawer()}
     >
-        {@html svgIcon("iconGrid")}
+        {@html svgIcon("iconList")}
     </button>
-    <button class="wengu-md-submitchip{batch ? ' primary' : ''}" onclick={() => drill.requestEnd()}>
+    <button class="wengu-md-submitchip primary" onclick={() => drill.requestEnd()}>
         {batch ? t("endRoundRevealBtn") : t("mobileSubmitRound")}
     </button>
 </header>
@@ -138,7 +140,7 @@
                 {/if}
             </div>
         {:else if !ui.ok}
-            <div class="wengu-md-hintbar">{@html svgIcon("iconFlag")}{t("mobileWrongAdded")}</div>
+            <div class="wengu-md-hintbar">{@html svgIcon("iconBookmark")}{t("mobileWrongAdded")}</div>
         {/if}
     {/if}
 </div>
@@ -150,7 +152,7 @@
                 {@html svgIcon("iconRight")}{t("mobileSkip")}
             </button>
             <button class="wengu-md-subtab" disabled={ui?.locked} onclick={() => drill.dunno()}>
-                {@html svgIcon("iconFlag")}{t("mobileDunno")}
+                {@html svgIcon("iconBookmark")}{t("mobileDunno")}
             </button>
         </div>
     {/if}
@@ -159,15 +161,20 @@
             {t("mobilePrev")}
         </Button>
         {#if ui?.locked || ui?.revealed}
-            <Button class="wengu-md-btn-solid" onclick={() => drill.next()}>
+            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.next()}>
                 {t("mobileNext")}{@html svgIcon("iconRight")}
             </Button>
         {:else if needConfirm}
-            <Button class="wengu-md-btn-solid" disabled={ui?.busy} onclick={() => void drill.submit()}>
+            <Button
+                variant="main"
+                class="wengu-md-btn-solid"
+                disabled={confirmDisabled}
+                onclick={() => void drill.submit()}
+            >
                 {ui?.busy ? t("aiJudging") : t("mobileConfirm")}
             </Button>
         {:else}
-            <Button class="wengu-md-btn-solid" onclick={() => drill.next()}>
+            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.next()}>
                 {t("mobileNext")}{@html svgIcon("iconRight")}
             </Button>
         {/if}
@@ -187,7 +194,9 @@
         <p>{t("mobileConfirmEndBody")}</p>
         <div class="wengu-md-sheet-foot">
             <Button variant="outline" onclick={() => drill.cancelEnd()}>{t("cancel")}</Button>
-            <Button class="wengu-md-btn-solid" onclick={() => drill.endRound()}>{t("endRoundRevealBtn")}</Button>
+            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.endRound()}
+                >{t("endRoundRevealBtn")}</Button
+            >
         </div>
     </div>
 {/if}

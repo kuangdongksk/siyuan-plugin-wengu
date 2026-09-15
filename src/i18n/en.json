@@ -798,7 +798,7 @@
   "mobileBatchMode": "Submit mode",
   "mobileRemain": "Left",
   "mobileBatchHint": "Answers show “answered” only; verdicts appear after submitting",
-  "mobileAnswerHint": "Pick an answer then submit",
+  "mobileAnswerHint": "Answer, then tap Confirm to grade",
   "mobileMultiHint": "Multi-select allowed; tap Confirm to grade",
   "mobileSkip": "Skip",
   "mobileDunno": "Not sure",
