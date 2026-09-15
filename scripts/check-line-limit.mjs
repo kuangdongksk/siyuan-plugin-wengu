@@ -10,8 +10,11 @@
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+// 用 fileURLToPath 而非 URL.pathname：Windows 下 pathname 会给出 `/C:/proj/`，
+// 再交给 node:path 的 join 就拼成 `C:\C:\proj\src`，脚本直接崩（#135 复核）。
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LIMIT = 500;
 
 /** 豁免表：路径（posix 相对仓库根）→ 上限（= 当前行数，只许减不许增）。 */
