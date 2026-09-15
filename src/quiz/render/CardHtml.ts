@@ -39,43 +39,60 @@ export interface SubheadModel {
     rounds: { answered: number; correct: number }[];
 }
 
-/** 文档信息 + 轮次成绩（已刷 N 轮 · 最近 c/a · 最佳 c/a）。 */
+/** 统计段：数字走 <b>（tabular-nums 在 CSS），其余字符逐字转义。 */
+function statSeg(html: string): string {
+    return `<span class="wengu-head-seg">${html}</span>`;
+}
+
+/** 数字加重（转义 + 包 <b>）。 */
+function num(v: string): string {
+    return `<b>${esc(v)}</b>`;
+}
+
+/** 文档信息 + 轮次成绩（已刷 N 轮 · 最近 c/a · 最佳 c/a）。
+ *  Issue #100：输出**结构化分段**供头部统计条样式化——段序
+ *  题集名 → 已刷/答对 → 竖线 → 轮次成绩；数字加重，段间竖线只在
+ *  **两侧都有内容**时才插（无进度/无轮次时不留悬挂分隔符）；文案仍
+ *  全部来自既有 i18n 键，逐字不改（题集名整段逐字转义，不认数字，
+ *  免得标题里带数字时被误加重）。 */
 export function renderSubheadHtml(m: SubheadModel): string {
     const { t, doc, rounds } = m;
     if (!doc) return "";
-    const info = `<span class="wengu-muted">${esc(
-        fmt(t("docTitleCount"), {
-            title: doc.title || doc.id,
-            n: String(doc.total || m.listCount),
-        })
-    )}</span>${
+    const total = String(doc.total || m.listCount);
+    const title = `<span class="wengu-head-seg is-title">${esc(
+        fmt(t("docTitleCount"), { title: doc.title || doc.id, n: total })
+    )}</span>`;
+    // 轮次成绩段（无轮次则整段不出）
+    const last: { answered: number; correct: number } | undefined = rounds[rounds.length - 1];
+    const best = last
+        ? rounds.reduce(
+              (acc, r) =>
+                  r.answered > 0 && r.correct / r.answered > (acc.answered > 0 ? acc.correct / acc.answered : -1)
+                      ? r
+                      : acc,
+              last
+          )
+        : undefined;
+    // 进度段：只在刷过题时出（含「共 n 题」的重复占位按序喂实参）
+    const progress =
         doc.attempted > 0
-            ? `<span class="wengu-muted">${esc(
+            ? statSeg(
                   fmt(t("docProgress"), {
-                      a: String(doc.attempted),
-                      r: String(doc.rightCount),
-                      n: String(doc.total),
+                      a: num(String(doc.attempted)),
+                      r: num(String(doc.rightCount)),
+                      n: num(total),
                   })
-              )}</span>`
-            : ""
-    }`;
-    if (rounds.length === 0) return info;
-    const last = rounds[rounds.length - 1];
-    const best = rounds.reduce(
-        (acc, r) =>
-            r.answered > 0 && r.correct / r.answered > (acc.answered > 0 ? acc.correct / acc.answered : -1) ? r : acc,
-        last
-    );
-    return (
-        info +
-        `<span class="wengu-muted">${esc(fmt(t("drillRounds"), { n: String(rounds.length) }))}</span>` +
-        `<span class="wengu-muted">${esc(
-            fmt(t("lastRound"), { c: String(last.correct), a: String(last.answered) })
-        )}</span>` +
-        `<span class="wengu-muted">${esc(
-            fmt(t("bestRound"), { c: String(best.correct), a: String(best.answered) })
-        )}</span>`
-    );
+              )
+            : "";
+    if (!last || !best) return title + progress;
+    const roundsHtml =
+        statSeg(fmt(t("drillRounds"), { n: num(String(rounds.length)) })) +
+        statSeg(fmt(t("lastRound"), { c: num(String(last.correct)), a: num(String(last.answered)) })) +
+        statSeg(fmt(t("bestRound"), { c: num(String(best.correct)), a: num(String(best.answered)) }));
+    // 未刷过（无进度段）时不插空分隔符：轮次段直接接在题集名段之后
+    return progress === ""
+        ? title + roundsHtml
+        : title + progress + '<span class="wengu-head-sep"></span>' + roundsHtml;
 }
 
 /** 主区外壳渲染入参（QuizView 组装好各片段后交给这里拼装）。
