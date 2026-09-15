@@ -1,5 +1,6 @@
 import { wordLib } from "../service/WordLib";
 import { notifyError } from "../../ui/Notify";
+import { SaveChain } from "../../ui/shared";
 
 /**
  * 单词复习的进度存储（schema v3，20260828 redesign §五）：**进度 key 从
@@ -464,15 +465,12 @@ export class WordStore {
     /** 串行落盘链（同 ChatStore 模式）：调用方全是 void save()（不 await），
      *  并发写会撞「内核 fetchSyncPost 并发互吞响应」丢进度（卡片收尾与
      *  组边界 runGroup 两条并发源几乎必然重叠，20260828 审查）。 */
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
 
     async save(p: WenguWordProgress): Promise<void> {
         if (this.foreign) return; // 版本闩：停写保护
-        const run = this.saveChain.then(() => this.saveRaw(p));
-        const noop = (): void => undefined;
-        this.saveChain = run.then(noop, noop);
         try {
-            await run;
+            await this.saveChain.enqueue(() => this.saveRaw(p));
         } catch (_) {
             // 尽力而为：写失败不阻断刷词
         }

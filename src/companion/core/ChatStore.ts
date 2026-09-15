@@ -1,4 +1,5 @@
 import type { ChatTurn } from "../../ai/prompts/companion";
+import { SaveChain } from "../../ui/shared";
 
 /**
  * 学伴聊天历史存储（每学伴一份）：插件 saveData("companion-chat")
@@ -27,7 +28,7 @@ function validTurns(v: unknown): ChatTurn[] {
 export class ChatStore {
     private map: Record<string, ChatTurn[]> = {};
     private ready?: Promise<void>;
-    private chain: Promise<unknown> = Promise.resolve();
+    private readonly chain = new SaveChain();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -75,7 +76,7 @@ export class ChatStore {
 
     private flush(): void {
         const snap = { ...this.map };
-        this.chain = this.chain.then(async (): Promise<void> => {
+        void this.chain.enqueue(async (): Promise<void> => {
             try {
                 await this.saveRaw(snap);
             } catch (_) {

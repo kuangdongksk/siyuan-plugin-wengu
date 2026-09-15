@@ -4,6 +4,7 @@ import {
     ROUTE_BATCH_SIZE,
     type KnowRouteFail,
 } from "../../convert/service/knowledge/KnowRoute";
+import { SaveChain } from "../../ui/shared";
 import { questionHash } from "./BankParse";
 import { knowHash } from "./KnowHash";
 
@@ -60,7 +61,7 @@ export class RouteCache {
     private dirty = false;
     /** 串行落盘链（同 HistoryStore 模式）：并发 saveData 撞「内核
      *  fetchSyncPost 并发互吞响应」会静默丢最后一份。 */
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -131,9 +132,7 @@ export class RouteCache {
         const snap = this.data;
         this.dirty = false;
         const noop = (): void => undefined;
-        const run = this.saveChain.then(() => this.saveRaw(snap));
-        this.saveChain = run.then(noop, noop);
-        await run.then(noop, noop);
+        await this.saveChain.enqueue(() => this.saveRaw(snap)).then(noop, noop);
     }
 }
 

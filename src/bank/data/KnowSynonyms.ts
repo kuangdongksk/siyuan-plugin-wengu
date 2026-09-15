@@ -20,6 +20,8 @@
  * 其余存储店模式）。
  */
 
+import { SaveChain } from "../../ui/shared";
+
 /** 同义词表存储（saveData("know-synonyms")）。 */
 export interface KnowSynonymsData {
     version: 1;
@@ -74,7 +76,7 @@ export class KnowSynonymsStore {
     private dirty = false;
     /** 串行落盘链（同 KnowHash/RouteCache 模式）：并发 saveData 撞
      *  「内核 fetchSyncPost 并发互吞响应」会静默丢最后一份。 */
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -177,9 +179,7 @@ export class KnowSynonymsStore {
         const snap = this.data;
         this.dirty = false;
         const noop = (): void => undefined;
-        const run = this.saveChain.then(() => this.saveRaw(snap));
-        this.saveChain = run.then(noop, noop);
-        await run.then(noop, noop);
+        await this.saveChain.enqueue(() => this.saveRaw(snap)).then(noop, noop);
     }
 }
 

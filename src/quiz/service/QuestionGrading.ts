@@ -144,3 +144,17 @@ export function slotOptionIsRight(slot: { optionMd: string[]; answer: string }, 
     if (/^[A-Z]+$/.test(ansNorm)) return ansNorm.includes(letter);
     return slot.optionMd[idx] !== undefined && optionComparable(slot.optionMd[idx]) === ansNorm;
 }
+
+/** AI 三态判词 → i18n 键（`right`/`partial` 以外一律按 `wrong` 兜底）。
+ *  唯一实现：桌面 AnswerFlow 结果行、移动端作答结果行、题卡恢复态三处共用
+ *  （`esc()`/模板包装留在调用侧）。 */
+export function verdictLabelKey(verdict: string): string {
+    if (verdict === "right") return "correct";
+    if (verdict === "partial") return "verdictPartial";
+    return "wrong";
+}
+
+/** AI 三态判词 → 结果行状态（icon/描色派生用；`partial` 以外非 right 一律 wrong）。 */
+export function verdictStatus(verdict: string): "right" | "wrong" | "partial" {
+    return verdict === "right" ? "right" : verdict === "partial" ? "partial" : "wrong";
+}

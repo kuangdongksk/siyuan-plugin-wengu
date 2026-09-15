@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WeaknessStore } from "./WeaknessStore";
+import { WeaknessStore, weakCauseLabelKey } from "./WeaknessStore";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import type { WenguQuestion } from "../../types";
 
@@ -46,5 +46,14 @@ describe("WeaknessStore 版本闩（version>1 = 更新版插件写的画像，�
         await store.applyRound(session, [question]);
         expect(store.topSync(10).map((r) => r.key)).toEqual(["ch:第一章"]);
         expect(saved).toBe(1);
+    });
+});
+
+describe("weakCauseLabelKey（Issue #114 归拢新增锁）", () => {
+    it("规范键 → i18n 键：weakCause + 首字母大写", () => {
+        expect(weakCauseLabelKey("concept")).toBe("weakCauseConcept");
+        expect(weakCauseLabelKey("calc")).toBe("weakCauseCalc");
+        expect(weakCauseLabelKey("misread")).toBe("weakCauseMisread");
+        expect(weakCauseLabelKey("other")).toBe("weakCauseOther");
     });
 });

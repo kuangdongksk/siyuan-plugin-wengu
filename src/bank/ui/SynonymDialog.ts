@@ -1,4 +1,4 @@
-import { esc, fmt } from "../../ui/shared";
+import { Armed, esc, fmt } from "../../ui/shared";
 import { openWenguDialog } from "../../ui/Dialog";
 import { notifyInfo } from "../../ui/Notify";
 import { knowSynonyms, type KnowSynonymEntry } from "../data/KnowSynonyms";
@@ -11,9 +11,6 @@ import { knowSynonyms, type KnowSynonymEntry } from "../data/KnowSynonyms";
  *
  * 表在 AI 判定后由弹窗自动写回，无需手动维护；此弹窗只做查看与重置。
  */
-
-/** 武装态复位时限（两击确认，同其余弹窗口径）。 */
-const ARM_RESET_MS = 3000;
 
 export interface SynonymDeps {
     t: (key: string) => string;
@@ -40,28 +37,25 @@ export async function openSynonymDialog(deps: SynonymDeps): Promise<void> {
         ],
     });
     root.querySelector("[data-act='syn-cancel']")?.addEventListener("click", () => dialog.destroy());
-    // 清空=两击确认（首击变红「确认清空」，3s 复原），清掉后关窗
-    const clearBtn = root.querySelector<HTMLElement>("[data-act='syn-clear']");
-    let armed = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const disarm = (): void => {
-        armed = false;
-        if (timer) clearTimeout(timer);
-        timer = undefined;
-        if (clearBtn) {
-            clearBtn.textContent = t("synClear");
-            clearBtn.classList.remove("wengu-syn-armed");
-        }
-    };
+    // 清空=两击确认（首击变红「确认清空」，3s 复原），清掉后关窗。
+    // 武装态走公共底座 Armed（同专题/转换条口径，3s 自动复位）：armed 值
+    // 即按钮本身，判据走类名（apply 是唯一写入者）。
+    // ⚠️ apply 必须**双向写态**：底座 `arm()` 进门先 `disarm()` 一次，单向
+    // apply（只管还原）会把首击刚置上的文案与类当场抹掉，复击永不成立
+    // （20260915 复核实测）。
+    const clearBtn = root.querySelector<HTMLButtonElement>("[data-act='syn-clear']");
+    const arm = new Armed<HTMLButtonElement>((btn) => {
+        const target = btn ?? clearBtn;
+        if (!target) return;
+        target.textContent = btn ? t("synClearConfirm") : t("synClear");
+        target.classList.toggle("wengu-syn-armed", !!btn);
+    });
     clearBtn?.addEventListener("click", () => {
-        if (!armed) {
-            armed = true;
-            clearBtn.textContent = t("synClearConfirm");
-            clearBtn.classList.add("wengu-syn-armed");
-            timer = setTimeout(disarm, ARM_RESET_MS);
+        if (!clearBtn.classList.contains("wengu-syn-armed")) {
+            arm.arm(clearBtn);
             return;
         }
-        disarm();
+        arm.disarm();
         void store
             ?.clear()
             .then(() => notifyInfo({ key: "synCleared" }))

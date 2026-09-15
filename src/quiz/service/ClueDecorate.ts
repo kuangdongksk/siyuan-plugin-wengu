@@ -17,6 +17,7 @@
  *   （落回 scss 默认，见 `ClueColor.clueColorStyle`）。
  */
 import { markSlots, mergeMarkSlots, planMarks, type MarkPlan, type MarkSlot, type NodeRange } from "../flow/ClueMark";
+import { wrapRange } from "../flow/ClueMarkDom";
 import { clueColorStyle, DEFAULT_CLUE_COLOR } from "../flow/ClueColor";
 import { canonOffsetOf, canonSlots, verifyCanonSlice, type CanonMap, type CanonRange } from "./ClueCanon";
 import { allTextNodes, isMatchSourceNode, LIFT_SELECTOR, NO_WRAP_SELECTOR, pickNodeIndexes } from "./CanonDom";
@@ -175,19 +176,6 @@ function wrapElement(el: HTMLElement, style?: string): void {
     if (style) mark.setAttribute("style", style);
     parent.replaceChild(mark, el);
     mark.appendChild(el);
-}
-
-/** 把一段文本节点区间包进 mark（先切后包，区间越界即跳过）。 */
-function wrapRange(node: Text, start: number, end: number, style?: string): void {
-    const text = node.nodeValue ?? "";
-    if (start < 0 || end > text.length || start >= end) return;
-    const target = node.splitText(start);
-    target.splitText(end - start);
-    const mark = document.createElement("mark");
-    mark.className = "wengu-clue-mark";
-    if (style) mark.setAttribute("style", style);
-    target.parentNode?.replaceChild(mark, target);
-    mark.appendChild(target);
 }
 
 /**

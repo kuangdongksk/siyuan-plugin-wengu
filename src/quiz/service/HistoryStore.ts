@@ -1,6 +1,7 @@
 import type { WenguRevealMode, WenguStepsMode, WenguTimingMode } from "../../types";
 import { mintPrefixedId } from "../../types";
 import { notifyError } from "../../ui/Notify";
+import { SaveChain } from "../../ui/shared";
 
 /** 一轮的刷题范围：全部 / 上轮错题 / 历史未掌握错题（复习模式 D5）。 */
 export type WenguRoundScope = "all" | "wrong" | "wrongAll";
@@ -98,7 +99,7 @@ export class HistoryStore {
      *  fire-and-forget，快速连答并发 saveData 撞「内核 fetchSyncPost 并发
      *  互吞响应」——一轮最后一次落库被吞则封卷数据（endedAt/最终计数）
      *  丢失（20260829 三轮审查）。 */
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -148,10 +149,8 @@ export class HistoryStore {
     /** 挂到串行链落盘（写失败吞错：内存态仍在，下次写入自愈）。 */
     private enqueueSave(h: WenguHistory): Promise<void> {
         if (this.foreign) return Promise.resolve(); // 版本闩：停写保护
-        const run = this.saveChain.then(() => this.saveRaw(h));
         const noop = (): void => undefined;
-        this.saveChain = run.then(noop, noop);
-        return run.then(noop, noop);
+        return this.saveChain.enqueue(() => this.saveRaw(h)).then(noop, noop);
     }
 
     /** 某文档的全部轮次，按开始时间升序。 */

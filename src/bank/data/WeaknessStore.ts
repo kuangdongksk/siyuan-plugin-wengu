@@ -20,6 +20,12 @@ import { notifyError } from "../../ui/Notify";
 /** 错因归类（AI 输出规整后的键；显示文案 i18n weakCause*）。 */
 export type WeakCause = "concept" | "calc" | "method" | "formula" | "misread" | "other";
 
+/** 错因规范键 → i18n 键（`weakCause` + 首字母大写；展示侧共用，
+ *  禁止再手写键名拼接）。 */
+export function weakCauseLabelKey(cause: string): string {
+    return `weakCause${cause[0].toUpperCase()}${cause.slice(1)}`;
+}
+
 /** AI 错因文本 → 规范键（模糊匹配，未命中归 other）。 */
 export function normalizeCause(text: string): WeakCause {
     const s = text.trim();

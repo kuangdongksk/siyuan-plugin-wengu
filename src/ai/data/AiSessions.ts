@@ -20,7 +20,7 @@
  * 树状呈现「动作 → 多个会话」。
  */
 
-import { errText, isLifecycleGone } from "../../ui/shared";
+import { errText, isLifecycleGone, SaveChain } from "../../ui/shared";
 import { notifyError } from "../../ui/Notify";
 
 /** 会话轮次：user=发给 AI 的完整 prompt，ai=AI 回答全文（即「产出」）。 */
@@ -164,7 +164,7 @@ export class AiSessionStore {
     private dirty = false;
     private flushTimer?: ReturnType<typeof setTimeout>;
     /** 串行落盘链（同 ChatStore/RouteCache 模式：并发 saveData 互吞）。 */
-    private chain: Promise<unknown> = Promise.resolve();
+    private readonly chain = new SaveChain();
     private listeners = new Set<() => void>();
     /** 版本闩：盘上数据来自更新版插件时停写保护（升级后自然解除）。 */
     private foreign = false;
@@ -419,13 +419,13 @@ export class AiSessionStore {
         if (!this.dirty) return;
         this.dirty = false;
         const snap: AiSessionsData = { version: 1, items: this.items.map(cloneRecord) };
-        const run = this.chain.then(() => this.saveRaw(snap));
+        const run = this.chain.enqueue(() => this.saveRaw(snap));
         const noop = (): void => undefined;
         // 链面吞错保后续可排（内存为准），但不再静默：落盘失败走思源
         // 通知（Notify 错误冷却防重试风暴）。3.8.2 生命周期闸（410）
         // 除外——重载后旧实例的僵尸登记（长 AI 任务熬过重载才收口）
         // 属预期失败，弹了只是调试重载期的噪音（20260904）。
-        this.chain = run.then(noop, (e: unknown): void => {
+        void run.then(noop, (e: unknown): void => {
             if (isLifecycleGone(e)) return;
             notifyError({ key: "notifySaveFailAi", vars: { msg: errText(e) } });
         });

@@ -5,6 +5,7 @@
     import { MOBILE_DRILL_CTX, type MobileDrill } from "../core/MobileCtx";
     import { countChoices, countLabel, groupSetsByDoc } from "../core/MobileModel";
     import { fmt } from "../../ui/shared";
+    import { baseQid } from "../../types";
 
     /**
      * 屏 ① 开刷面板（设计稿 `design/wengu-mobile-drill.html`）：续刷卡片
@@ -16,8 +17,7 @@
     const t = (k: string) => drill.t(k);
     const pct = (a: number, n: number) => (n > 0 ? Math.round((a / n) * 100) : 0);
     /** 未完成轮的已答题数：按块 id 去重（多步/逐空题记的是 `qid#k`）。 */
-    const resumedAnswered = (s: { results: { qid: string }[] }) =>
-        new Set(s.results.map((r) => r.qid.split("#")[0])).size;
+    const resumedAnswered = (s: { results: { qid: string }[] }) => new Set(s.results.map((r) => baseQid(r.qid))).size;
 </script>
 
 <div class="wengu-md-toolrow">

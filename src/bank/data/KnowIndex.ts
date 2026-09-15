@@ -1,6 +1,6 @@
 import { KernelQuery } from "../../siyuan/query";
 import { KernelBlock } from "../../siyuan/block";
-import { errText, isLifecycleGone } from "../../ui/shared";
+import { errText, isLifecycleGone, SaveChain } from "../../ui/shared";
 import { notifyError } from "../../ui/Notify";
 
 /**
@@ -177,7 +177,7 @@ export class KnowIndexStore {
     private foreign = false;
     /** 串行落盘链（同 KnowHash/RouteCache 模式）：并发 saveData 撞「内核
      *  fetchSyncPost 并发互吞响应」会静默丢最后一份。 */
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
     /** 同一根的捕获单飞（并发装载同根只捕获一次）。 */
     private capturing = new Map<string, Promise<KnowIndexRoot | null>>();
 
@@ -290,12 +290,12 @@ export class KnowIndexStore {
         const snap = this.data;
         this.dirty = false;
         const noop = (): void => undefined;
-        const run = this.saveChain.then(() => this.saveRaw(snap));
-        this.saveChain = run.then(noop, noop);
         // 生命周期闸（410）：旧实例残骸的预期失败静默，其余记日志不上抛
-        await run.then(noop, (e: unknown): void => {
-            if (!isLifecycleGone(e)) console.warn("[wengu] 知识索引快照落盘失败", errText(e));
-        });
+        await this.saveChain
+            .enqueue(() => this.saveRaw(snap))
+            .then(noop, (e: unknown): void => {
+                if (!isLifecycleGone(e)) console.warn("[wengu] 知识索引快照落盘失败", errText(e));
+            });
     }
 }
 

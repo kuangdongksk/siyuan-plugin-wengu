@@ -3,6 +3,7 @@ import { mdFragmentHtml, optionRowHtml } from "../quiz/service/ProtyleHost";
 import type { WenguQuestion } from "../types";
 import type { ReviewAttempt } from "./core/ReviewUi";
 import { esc, fmt, fmtDateTime } from "../ui/shared";
+import { weakCauseLabelKey } from "../bank/data/WeaknessStore";
 
 /**
  * 错题本（复习模式）的模型层（Svelte 化前的清单/详情渲染函数已删，
@@ -149,7 +150,7 @@ export function renderTimelineHtml(t: (k: string) => string, attempts: ReviewAtt
             const icon = mark === "right" ? "iconCheck" : mark === "partial" ? "iconIndeterminateCheck" : "iconClose";
             const comment = a.comment ? `<div class="wengu-review-tl-comment">${esc(a.comment)}</div>` : "";
             const cause = a.cause
-                ? `<div class="wengu-review-tl-cause">${esc(t(`weakCause${cap(a.cause)}`))}</div>`
+                ? `<div class="wengu-review-tl-cause">${esc(t(weakCauseLabelKey(a.cause)))}</div>`
                 : "";
             return `<div class="wengu-review-tl-item">
   <span class="wengu-review-tl-time">${fmtDateTime(a.ts)}</span>
@@ -161,8 +162,4 @@ export function renderTimelineHtml(t: (k: string) => string, attempts: ReviewAtt
 </div>`;
         })
         .join("");
-}
-
-function cap(s: string): string {
-    return s ? s[0].toUpperCase() + s.slice(1) : s;
 }

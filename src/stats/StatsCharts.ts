@@ -5,7 +5,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import type { WenguSession } from "../quiz/service/HistoryStore";
 import type { RoundTrendItem } from "./StatsService";
-import { mmss } from "../ui/shared"; /**
+import { mmss, ratePct } from "../ui/shared"; /**
  * 统计图表层：插件自带按需 echarts（echarts/core 注册最小集），
  * 不用 window.echarts——官方未向插件开放（issue #8516 关闭未采纳）。
  * option 组装为纯函数；实例生命周期（init/dispose/resize）由
@@ -126,7 +126,7 @@ export function roundsOption(rounds: WenguSession[], t: T): EChartsCoreOption {
                 symbolSize: 6,
                 itemStyle: { color: ok },
                 lineStyle: { color: ok, width: 2 },
-                data: rounds.map((r) => (r.answered > 0 ? Math.round((r.correct / r.answered) * 100) : 0)),
+                data: rounds.map((r) => ratePct(r.correct, r.answered)),
             },
         ],
     };

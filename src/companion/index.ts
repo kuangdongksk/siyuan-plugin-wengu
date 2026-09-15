@@ -1,8 +1,10 @@
 import { wordLib } from "../word/service/WordLib";
 import type { WordGrade } from "../word/core/WordStore";
+import { baseQid } from "../types";
 import type { WenguQuestion } from "../types";
 import type { QuizView } from "../quiz";
-import { plainOf, type ExplainCtx } from "../ai/prompts/companion";
+import type { ExplainCtx } from "../ai/prompts/companion";
+import { plainText } from "../ui/shared";
 import CompanionApp from "./components/CompanionApp.svelte";
 import CompanionPanelApp from "./components/CompanionPanelApp.svelte";
 import { CompanionCtl, type CompanionDeps, type CompanionEvent } from "./core/CompanionCtl";
@@ -90,14 +92,14 @@ export function notifyQuizAnswer(
     ok: boolean,
     sec: number
 ): void {
-    const q = v.list.find((x) => x.id === qid.split("#")[0]);
+    const q = v.list.find((x) => x.id === baseQid(qid));
     let explain: ExplainCtx | undefined;
     if (!ok && q) {
         explain = {
             kind: "quiz",
-            stem: plainOf(q.stemMd ?? "", 160),
-            submitted: plainOf(submitted, 60),
-            answer: plainOf(q.answer ?? "", 80),
+            stem: plainText(q.stemMd ?? "", 160),
+            submitted: plainText(submitted, 60),
+            answer: plainText(q.answer ?? "", 80),
         };
     }
     notifyCompanion({ kind: "quiz-answer", ok, sec: sec > 0 ? sec : undefined, explain });

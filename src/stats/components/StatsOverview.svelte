@@ -5,7 +5,8 @@
     import { trendOption } from "../StatsCharts";
     import type { WenguDoc } from "../../types";
     import { svgIcon } from "../../ui/FormHtml";
-    import { esc, fmt, mmss } from "../../ui/shared";
+    import { esc, fmt, mmss, ratePct } from "../../ui/shared";
+    import { weakCauseLabelKey } from "../../bank/data/WeaknessStore";
     import { echart } from "./echart";
     import Button from "../../ui/Button.svelte";
 
@@ -19,7 +20,7 @@
     const { ctl, ui, t } = getContext<StatsCtx>(STATS_CTX)!;
     const s = $derived(model.stats);
 
-    const weakCauseLabel = (cause: string): string => t(`weakCause${cause[0].toUpperCase()}${cause.slice(1)}`);
+    const weakCauseLabel = (cause: string): string => t(weakCauseLabelKey(cause));
     const causeMax = $derived(Math.max(1, ...model.extra.causeDist.map((c) => c.n)));
 </script>
 
@@ -126,7 +127,7 @@
                         <td>{d.total}</td>
                         <td>{d.attempted}</td>
                         <td>{d.rightCount}</td>
-                        <td>{d.attempted > 0 ? `${Math.round((d.rightCount / d.attempted) * 100)}%` : "-"}</td>
+                        <td>{d.attempted > 0 ? `${ratePct(d.rightCount, d.attempted)}%` : "-"}</td>
                         <td>{mmss(d.totalTime)}</td>
                     </tr>
                 {/each}

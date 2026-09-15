@@ -3,7 +3,7 @@ import type { ParsedQuestion } from "./BankParse";
 import type { BankKnowTree } from "./KnowTrees";
 import { knKey, normKn, pickStandardName } from "./KnowledgeNorm";
 import { notifyError } from "../../ui/Notify";
-import { errText, isLifecycleGone } from "../../ui/shared";
+import { errText, isLifecycleGone, SaveChain } from "../../ui/shared";
 import { mintPrefixedId } from "../../types";
 
 /**
@@ -201,7 +201,7 @@ export class QuestionBank {
      *  flush 与关键节点直调 flush 可并发，两笔 saveData 在途且「先发后落」
      *  时盘面会短暂回退旧态——排队串行封掉这个窗口（千级题库整写慢盘
      *  在途可超 2s 防抖窗）。链面吞错保后续可排，错误在本笔 await 侧处理。 */
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
     private readonly parsedCache = new Map<string, { hash: string; parsed: ParsedQuestion }>();
 
     constructor(
@@ -267,11 +267,8 @@ export class QuestionBank {
         // 写到的都是「它落笔那一刻」的最新内存态（不快照克隆——千级题库
         // 克隆太贵，且晚笔带更新态正是我们要的次序语义）。
         const cache = this.cache;
-        const run = this.saveChain.then(() => this.saveRaw(cache));
-        const noop = (): void => undefined;
-        this.saveChain = run.then(noop, noop);
         try {
-            await run;
+            await this.saveChain.enqueue(() => this.saveRaw(cache));
         } catch (e) {
             // 尽力而为：写失败保留脏标记并重排防抖——原只保留标记不清
             // 定时器，得等下一次 markDirty 才会再试（20260829 审查）；

@@ -1,10 +1,11 @@
 <script lang="ts">
     import { svgIcon } from "../../ui/FormHtml";
     import Button from "../../ui/Button.svelte";
-    import { fmt, mmss } from "../../ui/shared";
+    import { fmt, mmss, ratePct } from "../../ui/shared";
     import { runAgentTextOrPanel } from "../../ai/agentPanel";
     import { byBaseQid, buildAnalysisPrompt } from "../../ai/prompts/judge";
-    import type { WeakCause, WeakTopRow } from "../../bank/data/WeaknessStore";
+    import { weakCauseLabelKey } from "../../bank/data/WeaknessStore";
+    import type { WeakTopRow } from "../../bank/data/WeaknessStore";
     import type { RoundReportModel } from "../render/RoundReport";
 
     /**
@@ -57,18 +58,13 @@
     });
     // 历史轮次得分条形图：高度 ∝ 正确率
     const scoreBars = rounds.map((r, i) => ({
-        h: Math.max(4, Math.round((r.answered > 0 ? r.correct / r.answered : 0) * 100)),
+        h: Math.max(4, ratePct(r.correct, r.answered)),
         title: fmt(t("reportRoundScore"), { n: String(i + 1), c: String(r.correct), a: String(r.answered) }),
         label: i + 1,
     }));
 
     let aiBtn: HTMLButtonElement;
     let aiOut: HTMLDivElement;
-
-    /** 错因显示文案（存储是规范键，展示走 i18n）。 */
-    function weakCauseLabel(cause: WeakCause): string {
-        return t(`weakCause${cause[0].toUpperCase()}${cause.slice(1)}`);
-    }
 
     /** AI 分析：面板优先、页内降级（按钮/输出区命令式直喂）。 */
     function runAi(): void {
@@ -126,7 +122,7 @@
                         <span class="wengu-weak-title">{r.title}</span>
                         <span class="wengu-meta">{fmt(t("weakStats"), { w: String(r.wrong), n: String(r.total) })}</span
                         >
-                        {#if r.topCause}<span class="wengu-badge">{weakCauseLabel(r.topCause)}</span>{/if}
+                        {#if r.topCause}<span class="wengu-badge">{t(weakCauseLabelKey(r.topCause))}</span>{/if}
                     </div>
                 {/each}
             </div>
