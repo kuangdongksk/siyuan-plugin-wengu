@@ -1,7 +1,14 @@
 /* 错题本（复习模式 M6）：单列可展开行（Issue #136 §5.1，两栏 grid 退役；
    详情从常驻右栏移入行内展开区 .wengu-review-item-open）。
    数据与编排见 ReviewFlow/ReviewHtml；Neo 主题下须复查无横向滚动条。
-   头部模式切换器样式已删（2026-08-26，入口改开刷面板三按钮）。 */
+   头部模式切换器样式已删（2026-08-26，入口改开刷面板三按钮）。
+
+   ⚠️ `--wengu-faint` / `--wengu-border-strong` 是设计稿派生档，**定义在
+   base.scss 顶部（Issue #135）**。本片按 §0 映射表消费，但两者**不保证同时
+   在仓**（#135 与本单并行），故一律带兜底值：派生式与 base.scss 写法逐字
+   相同，定义在时取变量、不在时用兜底，两种合并顺序下观感一致。
+   别去掉兜底——`--wengu-*` 没有 b3 官方兜底，悬空即整条声明失效
+   （规范 §1.2 反面教材；`ButtonVariants.test.ts` 有闸守着）。 */
 
 /* 复习模式接管主区：main 不滚，清单区自己滚 */
 .wengu-review-main {
@@ -49,7 +56,7 @@
 
 .wengu-review-fchip:hover {
   background: var(--b3-list-hover);
-  border-color: var(--wengu-border-strong);
+  border-color: var(--wengu-border-strong, color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent));
 }
 
 .wengu-review-fchip.on {
@@ -87,7 +94,7 @@
 .wengu-review-detail-empty {
   padding: 0 0 8px;
   font-size: 12px;
-  color: var(--wengu-faint);
+  color: var(--wengu-faint, color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent));
 }
 
 /* 分组：组头（分节标题 + 重刷按钮；§5.3 降为 12px）+ 组内行 */
@@ -128,7 +135,7 @@
 }
 
 .wengu-review-item:hover {
-  border-color: var(--wengu-border-strong);
+  border-color: var(--wengu-border-strong, color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent));
 }
 
 .wengu-review-item.open,
@@ -153,7 +160,7 @@
   min-width: 44px;
   white-space: nowrap;
   font-size: 11px;
-  color: var(--wengu-faint);
+  color: var(--wengu-faint, color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent));
   font-variant-numeric: tabular-nums;
 }
 
@@ -188,7 +195,7 @@
 
 .wengu-review-mini-star {
   display: inline-flex;
-  color: var(--wengu-faint);
+  color: var(--wengu-faint, color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent));
 }
 
 .wengu-review-mini-star svg {

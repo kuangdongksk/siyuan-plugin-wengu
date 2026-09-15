@@ -117,6 +117,32 @@ describe("错题本单列可展开行（Issue #136 §5）", () => {
             expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
         }
     });
+
+    /**
+     * 空态提示条的**语义闸**（Issue #136 §5.1 复核）：稿要求
+     * 「`wengu-review-detail-empty` 空态文案保留（无选中时列表上方提示条）」
+     * ——关键词是**无选中时**。两栏时期它由 `ui.detail.phase === "empty"`
+     * 门控；改单列展开后若照抄结构而漏掉门控，提示条会**常驻**挂在清单
+     * 顶部（展开任一行的同时还在喊「点一题回看」），且文案里的「左侧清单」
+     * 指向的左右栏已退役。
+     * 故两道：①必须由 `ui.selQid` 门控；②文案不得再指向已退役的方向词。
+     */
+    it("空态提示条只在无选中时出，且文案不指向已退役的左右栏", () => {
+        const app = SRC["../review/components/ReviewApp.svelte"];
+        const at = app.indexOf("wengu-review-detail-empty");
+        expect(at).toBeGreaterThan(-1);
+        // ① 就近门控：提示条所在片段要带 selQid 判定
+        const near = app.slice(Math.max(0, at - 400), at + 200);
+        expect(near).toMatch(/selQid/);
+        expect(near).toMatch(/\{#if !ui\.selQid\}/);
+        // ② 文案侧（字典值，非键名）：单列形态下无「左栏」可言
+        const zh = JSON.parse(SRC_ZH) as Record<string, string>;
+        const en = JSON.parse(SRC_EN) as Record<string, string>;
+        expect(zh.reviewPickHint).not.toMatch(/左侧|左栏|左边/);
+        expect(en.reviewPickHint).not.toMatch(/on the left|left/i);
+        expect(zh.reviewPickHint.length).toBeGreaterThan(0);
+        expect(en.reviewPickHint.length).toBeGreaterThan(0);
+    });
 });
 
 /**
@@ -142,6 +168,57 @@ const SRC = import.meta.glob("../**/*.{ts,svelte,scss}", {
 const relOf = (k: string): string => k.replace(/^\.\.\//, "").replace(/^\.\//, "ui/");
 
 const button = SRC["./Button.svelte"];
+
+/** i18n 字典原文（`?raw`，同 `SpecListings.test.ts` 口径）——文案断言
+ *  查**值**而非键名，故直接解析两份字典。 */
+const I18N = import.meta.glob("../i18n/*.json", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+const SRC_ZH = I18N["../i18n/zh-CN.json"];
+const SRC_EN = I18N["../i18n/en.json"];
+
+/**
+ * ⚠️ 悬空引用闸（Issue #136 复核）：`var(--wengu-*)` 是本仓自造档，
+ * 与 b3 官方令牌不同 —— **没有官方兜底**，未定义即整条声明在计算值期
+ * 失效、回落初始值（同规范 §1.2 的三处悬空令牌事故，`review.scss` 正是
+ * 那次被清零的文件之一）。本闸把「用了没人定义」变成 CI 会红的东西，
+ * 口径＝「定义面 ∈ 本仓 scss 编译产物的 `--wengu-*: 声明`」。
+ *
+ * 为什么必须真编译 scss：`?raw` 对 scss 在本仓 vitest 下恒空串
+ * （见上文注），编译产物才是真落进页面的东西。
+ */
+describe("自造令牌 --wengu-* 无悬空引用（规范 §1.2 反面教材防复发）", () => {
+    const SCSS = Object.keys(
+        import.meta.glob("../**/*.scss", { query: "?raw", import: "default", eager: true }) as Record<string, string>
+    );
+
+    /** 定义面：全仓 scss 里出现过的 `--wengu-x:` 声明（含组件内联 style 变量除外）。 */
+    const defined = new Set<string>();
+    for (const f of SCSS) {
+        const css = sass.compile(f.replace(/^\.\.\//, "src/")).css;
+        for (const m of css.matchAll(/(--wengu-[a-z0-9-]+)\s*:/g)) defined.add(m[1]);
+    }
+
+    it("定义面非空（防扫空即全绿）", () => {
+        expect(SCSS.length).toBeGreaterThan(15);
+        expect(defined.size).toBeGreaterThan(3);
+    });
+
+    it("每个 var(--wengu-*) 要么有人定义，要么带兜底值", () => {
+        const dangling: string[] = [];
+        for (const f of SCSS) {
+            const rel = f.replace(/^\.\.\//, "src/");
+            const css = sass.compile(rel).css;
+            // 只认「无兜底」形态：var(--x) 紧跟 `)`；var(--x, …) 由兜底自保
+            for (const m of css.matchAll(/var\(\s*(--wengu-[a-z0-9-]+)\s*\)/g)) {
+                if (!defined.has(m[1])) dangling.push(`${rel}: ${m[1]}`);
+            }
+        }
+        expect(dangling).toEqual([]);
+    });
+});
 
 describe("按钮变体词表（规范 §2.1）", () => {
     it("ButtonVariant 统一为 primary，不再有自造的 main", () => {

@@ -224,7 +224,7 @@
   "reviewSelfStars": "Self-rated {n}/5",
   "reviewLastWrong": "Last wrong at {at}",
   "reviewAttemptsN": "{n} attempts",
-  "reviewPickHint": "Pick a question on the left to review",
+  "reviewPickHint": "Click a row to expand the review",
   "reviewFilterTitle": "Filter by mastery",
   "reviewFilterAll": "All",
   "reviewFilterPending": "Pending",

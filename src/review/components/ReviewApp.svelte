@@ -93,7 +93,10 @@
                 {m.total === 0 ? t("reviewEmpty") : t("reviewFilterEmpty")}
             </div>
         {:else}
-            <div class="wengu-review-detail-empty">{t("reviewPickHint")}</div>
+            {#if !ui.selQid}
+                <!-- §5.1：空态提示条只在「无选中」时出（展开区已有内容时不占位） -->
+                <div class="wengu-review-detail-empty">{t("reviewPickHint")}</div>
+            {/if}
             {#each m.groups as g (g.docId)}
                 <ReviewGroup group={g} aggregated={m.aggregated} />
             {/each}
