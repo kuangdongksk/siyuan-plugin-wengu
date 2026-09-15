@@ -74,7 +74,10 @@
                 background: var(--b3-theme-background);
                 color: var(--b3-theme-on-surface);
                 font:
-                    400 14px/1.6 "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Microsoft Yahei",
+                    400 14px/1.6 "PingFang SC",
+                    "Hiragino Sans GB",
+                    "Source Han Sans SC",
+                    "Microsoft Yahei",
                     sans-serif;
                 -webkit-font-smoothing: antialiased;
             }
@@ -116,7 +119,11 @@
             }
             .kicker {
                 font:
-                    500 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                    500 12px/1 ui-monospace,
+                    "SF Mono",
+                    Menlo,
+                    Consolas,
+                    monospace;
                 letter-spacing: 0.14em;
                 text-transform: uppercase;
                 color: var(--wengu-faint);
@@ -197,7 +204,11 @@
             }
             .sec-no {
                 font:
-                    600 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                    600 12px/1 ui-monospace,
+                    "SF Mono",
+                    Menlo,
+                    Consolas,
+                    monospace;
                 letter-spacing: 0.1em;
                 color: var(--b3-theme-primary);
             }
@@ -1239,16 +1250,20 @@
         </style>
     </head>
     <body>
-        <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
             <defs>
                 <symbol id="i-star" viewBox="0 0 24 24">
                     <path d="M12 2.6l2.8 5.9 6.5.8-4.8 4.4 1.3 6.4L12 17l-5.8 3.1 1.3-6.4L2.7 9.3l6.5-.8z" />
                 </symbol>
                 <symbol id="i-clock" viewBox="0 0 24 24">
-                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm.9-13h-1.8v5.4l4.4 2.7.9-1.5-3.5-2.1z" />
+                    <path
+                        d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm.9-13h-1.8v5.4l4.4 2.7.9-1.5-3.5-2.1z"
+                    />
                 </symbol>
                 <symbol id="i-search" viewBox="0 0 24 24">
-                    <path d="M10 2a8 8 0 105.3 14l5.4 5.3 1.4-1.4-5.3-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z" />
+                    <path
+                        d="M10 2a8 8 0 105.3 14l5.4 5.3 1.4-1.4-5.3-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"
+                    />
                 </symbol>
                 <symbol id="i-refresh" viewBox="0 0 24 24">
                     <path d="M12 4V1L7 6l5 5V7a6 6 0 11-6 6H4a8 8 0 108-9z" />
@@ -1263,7 +1278,9 @@
                     <path d="M4.6 8.6L3.2 10l8.8 8.8L20.8 10l-1.4-1.4L12 16z" />
                 </symbol>
                 <symbol id="i-info" viewBox="0 0 24 24">
-                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2v2h-2zm0 4h2v4h-2z" />
+                    <path
+                        d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-11h2v2h-2zm0 4h2v4h-2z"
+                    />
                 </symbol>
                 <symbol id="i-check" viewBox="0 0 24 24">
                     <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
@@ -1278,7 +1295,9 @@
                     <path d="M2 4h8l2 2h10v14H2zm2 2v12h16V8h-9.2l-2-2z" />
                 </symbol>
                 <symbol id="i-spark" viewBox="0 0 24 24">
-                    <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8zM19 15l.9 3.1L23 19l-3.1.9L19 23l-.9-3.1L15 19l3.1-.9z" />
+                    <path
+                        d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8zM19 15l.9 3.1L23 19l-3.1.9L19 23l-.9-3.1L15 19l3.1-.9z"
+                    />
                 </symbol>
             </defs>
         </svg>
@@ -1296,9 +1315,10 @@
                 </div>
                 <h1>侧栏与做题主区 · 重设计施工稿</h1>
                 <p class="lede">
-                    逐区块「照抄即可」级施工图。做题主区保持现状<b>多题长卷</b>形态（禁单题翻页）；现有 DOM 类名逐字保留，新增结构用新类名；
-                    页面内所有颜色只写 b3 令牌全名——本稿以 Neo+ 深色实测值渲染默认态，右上钮可切浅色验证态，两态由变量翻转、规则层零改动。
-                    差距论证与 S/A/B/C 分级见同目录 sidebar-gap-list.md。
+                    逐区块「照抄即可」级施工图。做题主区保持现状<b>多题长卷</b>形态（禁单题翻页）；现有 DOM
+                    类名逐字保留，新增结构用新类名； 页面内所有颜色只写 b3 令牌全名——本稿以 Neo+
+                    深色实测值渲染默认态，右上钮可切浅色验证态，两态由变量翻转、规则层零改动。 差距论证与 S/A/B/C
+                    分级见同目录 sidebar-gap-list.md。
                 </p>
                 <div class="rules">
                     <div class="rule"><b>令牌</b>：31 个白名单全名；圆角 4 / 6(令牌) / 12(令牌) / 999</div>
@@ -1323,14 +1343,75 @@
                         <th style="width: 37%">实现落点</th>
                         <th>备注</th>
                     </tr>
-                    <tr><td class="val">--bg / --surface / --fg / --muted / --soft</td><td class="val"><span class="tok">--b3-theme-background</span> / <span class="tok">--b3-theme-surface</span> / <span class="tok">--b3-theme-on-background</span> / <span class="tok">--b3-theme-on-surface</span> / <span class="tok">--b3-theme-on-surface-light</span></td><td>五主位直映</td></tr>
-                    <tr><td class="val">--border / --border2 / --hover</td><td class="val"><span class="tok">--b3-border-color</span> / <span class="val">--wengu-border-strong</span>（派生：on-background 34%）/ <span class="tok">--b3-list-hover</span></td><td>border-strong 为 base.scss 新增派生定义</td></tr>
-                    <tr><td class="val">--faint</td><td class="val"><span class="val">--wengu-faint</span> = color-mix(in srgb, <span class="tok">--b3-theme-on-background</span> 55%, transparent)</td><td>b3 无更低文字档，一次定义全局用</td></tr>
-                    <tr><td class="val">--accent 三档 / --on-accent / --accent-soft / --accent-text</td><td class="val"><span class="tok">--b3-theme-primary</span>（三档并一）/ <span class="tok">--b3-theme-on-primary</span> / <span class="tok">--b3-theme-primary-lightest</span> / <span class="tok">--b3-theme-primary</span></td><td>hover/active 走思源按钮体系</td></tr>
-                    <tr><td class="val">--ok / --ok-soft；--bad / --bad-soft</td><td class="val"><span class="tok">--b3-theme-success</span> / mix 13%；<span class="tok">--b3-theme-error</span> / mix 13%</td><td>语义边 = mix(语义色 42%, transparent)</td></tr>
-                    <tr><td class="val">--well / --cell-done</td><td class="val"><span class="val">--wengu-well</span>（reading.scss 同源式）/ mix(on-surface 14%, transparent)</td><td>well 不重复定义，沿用既有</td></tr>
-                    <tr><td class="val">星色 #e9b95e</td><td class="val"><span class="tok">--b3-card-warning-color</span></td><td>评分星金黄惯例 + 明暗自适应；低星=警示谱系</td></tr>
-                    <tr><td class="val">--r-ctl 6 / qn 5 / --r-card 12</td><td class="val"><span class="tok">--b3-border-radius</span> / 归 6 档 <span class="tok">--b3-border-radius</span> / <span class="tok">--b3-border-radius-b</span></td><td>阶梯无 5px，归档</td></tr>
+                    <tr>
+                        <td class="val">--bg / --surface / --fg / --muted / --soft</td>
+                        <td class="val">
+                            <span class="tok">--b3-theme-background</span> /
+                            <span class="tok">--b3-theme-surface</span> /
+                            <span class="tok">--b3-theme-on-background</span> /
+                            <span class="tok">--b3-theme-on-surface</span> /
+                            <span class="tok">--b3-theme-on-surface-light</span>
+                        </td>
+                        <td>五主位直映</td>
+                    </tr>
+                    <tr>
+                        <td class="val">--border / --border2 / --hover</td>
+                        <td class="val">
+                            <span class="tok">--b3-border-color</span> /
+                            <span class="val">--wengu-border-strong</span>（派生：on-background 34%）/
+                            <span class="tok">--b3-list-hover</span>
+                        </td>
+                        <td>border-strong 为 base.scss 新增派生定义</td>
+                    </tr>
+                    <tr>
+                        <td class="val">--faint</td>
+                        <td class="val">
+                            <span class="val">--wengu-faint</span> = color-mix(in srgb,
+                            <span class="tok">--b3-theme-on-background</span> 55%, transparent)
+                        </td>
+                        <td>b3 无更低文字档，一次定义全局用</td>
+                    </tr>
+                    <tr>
+                        <td class="val">--accent 三档 / --on-accent / --accent-soft / --accent-text</td>
+                        <td class="val">
+                            <span class="tok">--b3-theme-primary</span>（三档并一）/
+                            <span class="tok">--b3-theme-on-primary</span> /
+                            <span class="tok">--b3-theme-primary-lightest</span> /
+                            <span class="tok">--b3-theme-primary</span>
+                        </td>
+                        <td>hover/active 走思源按钮体系</td>
+                    </tr>
+                    <tr>
+                        <td class="val">--ok / --ok-soft；--bad / --bad-soft</td>
+                        <td class="val">
+                            <span class="tok">--b3-theme-success</span> / mix 13%；<span class="tok"
+                                >--b3-theme-error</span
+                            >
+                            / mix 13%
+                        </td>
+                        <td>语义边 = mix(语义色 42%, transparent)</td>
+                    </tr>
+                    <tr>
+                        <td class="val">--well / --cell-done</td>
+                        <td class="val">
+                            <span class="val">--wengu-well</span>（reading.scss 同源式）/ mix(on-surface 14%,
+                            transparent)
+                        </td>
+                        <td>well 不重复定义，沿用既有</td>
+                    </tr>
+                    <tr>
+                        <td class="val">星色 #e9b95e</td>
+                        <td class="val"><span class="tok">--b3-card-warning-color</span></td>
+                        <td>评分星金黄惯例 + 明暗自适应；低星=警示谱系</td>
+                    </tr>
+                    <tr>
+                        <td class="val">--r-ctl 6 / qn 5 / --r-card 12</td>
+                        <td class="val">
+                            <span class="tok">--b3-border-radius</span> / 归 6 档
+                            <span class="tok">--b3-border-radius</span> / <span class="tok">--b3-border-radius-b</span>
+                        </td>
+                        <td>阶梯无 5px，归档</td>
+                    </tr>
                 </table>
             </section>
 
@@ -1342,24 +1423,35 @@
                     <span class="note">DOM 类名不动；树行覆写 b3-list-item 观感</span>
                 </div>
                 <p class="sec-lede">
-                    宽 220→280；选中语言从「左条」换「内描边 + 软底」；工具区两枚图标钮升等宽文字工具钮；新增 AI 讲解入口长钮（挂既有 AI 面板）。
-                    树行走 TreeList 原生结构，仅全局 SCSS 覆写行壳观感（圆角/内衬/选中态），缩进仍由原生折叠机制承担。
+                    宽 220→280；选中语言从「左条」换「内描边 + 软底」；工具区两枚图标钮升等宽文字工具钮；新增 AI
+                    讲解入口长钮（挂既有 AI 面板）。 树行走 TreeList 原生结构，仅全局 SCSS
+                    覆写行壳观感（圆角/内衬/选中态），缩进仍由原生折叠机制承担。
                 </p>
                 <div class="stage">
                     <div class="stage-frac">
                         <aside class="demo-side wengu-side">
                             <div class="wengu-side-head">
                                 <span class="sh-t">题集目录</span>
-                                <button class="wengu-side-iconbtn" title="刷新" type="button"><svg><use href="#i-refresh" /></svg></button>
-                                <button class="wengu-side-iconbtn" title="收起侧栏" type="button"><svg><use href="#i-left" /></svg></button>
+                                <button class="wengu-side-iconbtn" title="刷新" type="button">
+                                    <svg><use href="#i-refresh" /></svg>
+                                </button>
+                                <button class="wengu-side-iconbtn" title="收起侧栏" type="button">
+                                    <svg><use href="#i-left" /></svg>
+                                </button>
                             </div>
                             <div class="wengu-side-tools">
                                 <input class="wengu-side-search" placeholder="搜索题集 / 题干…" />
                                 <div class="wengu-side-toolrow">
-                                    <button class="wengu-side-tool" type="button"><svg><use href="#i-info" /></svg>统计</button>
-                                    <button class="wengu-side-tool" type="button"><svg><use href="#i-list" /></svg>专题</button>
+                                    <button class="wengu-side-tool" type="button">
+                                        <svg><use href="#i-info" /></svg>统计
+                                    </button>
+                                    <button class="wengu-side-tool" type="button">
+                                        <svg><use href="#i-list" /></svg>专题
+                                    </button>
                                 </div>
-                                <button class="wengu-side-ai" type="button"><svg><use href="#i-spark" /></svg>AI 讲解</button>
+                                <button class="wengu-side-ai" type="button">
+                                    <svg><use href="#i-spark" /></svg>AI 讲解
+                                </button>
                             </div>
                             <div class="wengu-side-body">
                                 <div class="wengu-side-label">专题</div>
@@ -1396,16 +1488,40 @@
                                         <span class="t">考研数学强化通关330</span>
                                     </div>
                                     <div class="row lvl3">
-                                        <svg class="n-ico" style="width:14px;height:14px;flex:none;margin-top:3px;color:var(--wengu-faint)"><use href="#i-file" /></svg>
-                                        <span class="n-main" style="flex:1;min-width:0">
+                                        <svg
+                                            class="n-ico"
+                                            style="
+                                                width: 14px;
+                                                height: 14px;
+                                                flex: none;
+                                                margin-top: 3px;
+                                                color: var(--wengu-faint);
+                                            "
+                                        >
+                                            <use href="#i-file" />
+                                        </svg>
+                                        <span class="n-main" style="flex: 1; min-width: 0">
                                             <span class="wengu-side-title">高等数学-题解</span>
                                             <span class="wengu-side-meta">120 题 · 已刷 41</span>
                                         </span>
                                     </div>
                                     <div class="row lvl3">
-                                        <svg class="n-ico" style="width:14px;height:14px;flex:none;margin-top:3px;color:var(--wengu-faint)"><use href="#i-file" /></svg>
-                                        <span class="n-main" style="flex:1;min-width:0">
-                                            <span class="wengu-side-title">线性代数-题解（超长题集名截断示意，悬停出全名）</span>
+                                        <svg
+                                            class="n-ico"
+                                            style="
+                                                width: 14px;
+                                                height: 14px;
+                                                flex: none;
+                                                margin-top: 3px;
+                                                color: var(--wengu-faint);
+                                            "
+                                        >
+                                            <use href="#i-file" />
+                                        </svg>
+                                        <span class="n-main" style="flex: 1; min-width: 0">
+                                            <span class="wengu-side-title"
+                                                >线性代数-题解（超长题集名截断示意，悬停出全名）</span
+                                            >
                                             <span class="wengu-side-meta">96 题 · 已刷 12</span>
                                         </span>
                                     </div>
@@ -1418,20 +1534,97 @@
                         </aside>
                         <div class="frac-main">
                             <table class="spec">
-                                <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                                <tr><td class="sel">.wengu-side</td><td class="val">width:280px; border-right:1px solid <span class="tok">--b3-border-color</span>; background:var(--wengu-sunken)</td><td>微沉底 = mix(background 94%, black)；两态同式</td></tr>
-                                <tr><td class="sel">.wengu-side-head</td><td class="val">padding:12px 12px 8px; border-bottom:0; font-size:13px; letter-spacing:.04em; font-weight:600</td><td>去底边线</td></tr>
-                                <tr><td class="sel">.wengu-side-iconbtn</td><td class="val">width/height:26px; padding:0; display:inline-flex; center; border-radius:<span class="tok">--b3-border-radius</span></td><td>定尺寸化；svg 14×14</td></tr>
-                                <tr><td class="sel">.wengu-side-tools</td><td class="val">column; gap:8px; padding:2px 12px 8px</td><td>搜索框保留 b3-text-field 本体，只对齐边距</td></tr>
-                                <tr><td class="sel">.wengu-side-tool（新）</td><td class="val">flex:1; height:30px; border:1px <span class="tok">--b3-border-color</span>; radius <span class="tok">--b3-border-radius</span>; gap:6px; font-size:12px</td><td>hover：border-strong + on-surface + list-hover</td></tr>
-                                <tr><td class="sel">.wengu-side-ai（新）</td><td class="val">height:32px; border:mix(primary 45%); bg <span class="tok">--b3-theme-primary-lightest</span>; color <span class="tok">--b3-theme-primary</span>; radius <span class="tok">--b3-border-radius</span>; 12.5px/600</td><td>hover：mix(primary 26%) 底 + primary 边</td></tr>
-                                <tr><td class="sel">.wengu-tree .b3-list-item</td><td class="val">border-radius:<span class="tok">--b3-border-radius</span>; padding:5px 8px</td><td>行壳观感覆写；hover 走 <span class="tok">--b3-list-hover</span> 原生</td></tr>
-                                <tr><td class="sel">.wengu-side-item</td><td class="val">border-radius:<span class="tok">--b3-border-radius</span>; padding:5px 8px; gap:7px</td><td>与树行同壳</td></tr>
-                                <tr><td class="sel">.wengu-side-active</td><td class="val">background:<span class="tok">--b3-theme-primary-lightest</span>; box-shadow:inset 0 0 0 1.5px <span class="tok">--b3-theme-primary</span>; border-left:0</td><td>左条语言退役；树行选中同式</td></tr>
-                                <tr><td class="sel">.wengu-side-meta</td><td class="val">font-size:11px; margin-top:1px; color:<span class="tok">--b3-theme-on-surface-light</span></td><td>稿 11.5 归 11</td></tr>
+                                <tr>
+                                    <th style="width: 30%">选择器</th>
+                                    <th style="width: 38%">施工值</th>
+                                    <th>说明</th>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side</td>
+                                    <td class="val">
+                                        width:280px; border-right:1px solid <span class="tok">--b3-border-color</span>;
+                                        background:var(--wengu-sunken)
+                                    </td>
+                                    <td>微沉底 = mix(background 94%, black)；两态同式</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-head</td>
+                                    <td class="val">
+                                        padding:12px 12px 8px; border-bottom:0; font-size:13px; letter-spacing:.04em;
+                                        font-weight:600
+                                    </td>
+                                    <td>去底边线</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-iconbtn</td>
+                                    <td class="val">
+                                        width/height:26px; padding:0; display:inline-flex; center; border-radius:<span
+                                            class="tok"
+                                            >--b3-border-radius</span
+                                        >
+                                    </td>
+                                    <td>定尺寸化；svg 14×14</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-tools</td>
+                                    <td class="val">column; gap:8px; padding:2px 12px 8px</td>
+                                    <td>搜索框保留 b3-text-field 本体，只对齐边距</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-tool（新）</td>
+                                    <td class="val">
+                                        flex:1; height:30px; border:1px <span class="tok">--b3-border-color</span>;
+                                        radius <span class="tok">--b3-border-radius</span>; gap:6px; font-size:12px
+                                    </td>
+                                    <td>hover：border-strong + on-surface + list-hover</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-ai（新）</td>
+                                    <td class="val">
+                                        height:32px; border:mix(primary 45%); bg
+                                        <span class="tok">--b3-theme-primary-lightest</span>; color
+                                        <span class="tok">--b3-theme-primary</span>; radius
+                                        <span class="tok">--b3-border-radius</span>; 12.5px/600
+                                    </td>
+                                    <td>hover：mix(primary 26%) 底 + primary 边</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-tree .b3-list-item</td>
+                                    <td class="val">
+                                        border-radius:<span class="tok">--b3-border-radius</span>; padding:5px 8px
+                                    </td>
+                                    <td>行壳观感覆写；hover 走 <span class="tok">--b3-list-hover</span> 原生</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-item</td>
+                                    <td class="val">
+                                        border-radius:<span class="tok">--b3-border-radius</span>; padding:5px 8px;
+                                        gap:7px
+                                    </td>
+                                    <td>与树行同壳</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-active</td>
+                                    <td class="val">
+                                        background:<span class="tok">--b3-theme-primary-lightest</span>;
+                                        box-shadow:inset 0 0 0 1.5px <span class="tok">--b3-theme-primary</span>;
+                                        border-left:0
+                                    </td>
+                                    <td>左条语言退役；树行选中同式</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-side-meta</td>
+                                    <td class="val">
+                                        font-size:11px; margin-top:1px; color:<span class="tok"
+                                            >--b3-theme-on-surface-light</span
+                                        >
+                                    </td>
+                                    <td>稿 11.5 归 11</td>
+                                </tr>
                             </table>
                             <p class="caption">
-                                <b>缺失形态</b>：长题集名单行 ellipsis（上例第二文档行），悬停 title 保全名；空态=树区居中「暂无题集，点顶部转换按钮导入」；搜索命中时平铺组沿用同一行壳。
+                                <b>缺失形态</b>：长题集名单行 ellipsis（上例第二文档行），悬停 title
+                                保全名；空态=树区居中「暂无题集，点顶部转换按钮导入」；搜索命中时平铺组沿用同一行壳。
                             </p>
                         </div>
                     </div>
@@ -1446,8 +1639,10 @@
                     <span class="note">保持现状吸顶；帽/图例/至N 为新增结构</span>
                 </div>
                 <p class="sec-lede">
-                    按钮从 22px 裸格升 28px 五态格（hover / 当前 / 答对 / 答错 / 已答中性）；新增题号帽「题号 N/M」与底部图例（作答中图例只留「当前/已答」两项，不透对错）。
-                    当前题采用与侧栏选中一致的「软底 + 内描边」语言（spec §2.3 合规；若取稿原样实底反白须先在 spec 登记例外）。NumRail 实测封顶（--wengu-nums-max）逻辑不变，新增帽/图例高度计入。
+                    按钮从 22px 裸格升 28px 五态格（hover / 当前 / 答对 / 答错 / 已答中性）；新增题号帽「题号
+                    N/M」与底部图例（作答中图例只留「当前/已答」两项，不透对错）。 当前题采用与侧栏选中一致的「软底 +
+                    内描边」语言（spec §2.3 合规；若取稿原样实底反白须先在 spec 登记例外）。NumRail
+                    实测封顶（--wengu-nums-max）逻辑不变，新增帽/图例高度计入。
                 </p>
                 <div class="stage">
                     <div class="stage-frac">
@@ -1484,21 +1679,101 @@
                         </div>
                         <div class="frac-main">
                             <table class="spec">
-                                <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                                <tr><td class="sel">.wengu-nums</td><td class="val">width:64px; padding:12px 10px; gap:8px</td><td>吸顶/sticky 与自滚封顶逻辑照旧</td></tr>
-                                <tr><td class="sel">.wengu-nums-cap（新）</td><td class="val">font-size:11px; color:<span class="tok">--b3-theme-on-surface-light</span>; center; ls .03em</td><td>b = on-surface + tabular-nums</td></tr>
-                                <tr><td class="sel">.wengu-nums-grid（新）</td><td class="val">grid 1col; gap:5px; align-content:start; flex:1 + overflow-y:auto（题多时网格层自滚）+ scrollbar-width:none 与 ::-webkit-scrollbar display:none（内滚不显滚动条，滚轮/键盘照常）</td><td>滚动职责从 .wengu-nums 下放本层（帽/图例常驻不滚）；滚动条隐藏为用户 20260915 拍板</td></tr>
-                                <tr><td class="sel">.wengu-num</td><td class="val">width:100%（栏内自适应）; height:28px; radius <span class="tok">--b3-border-radius</span>; border:1px <span class="tok">--b3-border-color</span>; bg transparent; 12px tabular</td><td>稿 5px 圆角归 6 档</td></tr>
-                                <tr><td class="sel">.wengu-num:hover</td><td class="val">bg <span class="tok">--b3-list-hover</span>; color <span class="tok">--b3-theme-on-surface</span>; border-color var(--wengu-border-strong)</td><td>—</td></tr>
-                                <tr><td class="sel">.wengu-num-active</td><td class="val">bg <span class="tok">--b3-theme-primary-lightest</span>; color <span class="tok">--b3-theme-primary</span>; 700; box-shadow:inset 0 0 0 1.5px <span class="tok">--b3-theme-primary</span></td><td>与侧栏选中同语言（用户 20260915 已拍板定案）</td></tr>
-                                <tr><td class="sel">.wengu-num-right / -wrong</td><td class="val">bg mix(<span class="tok">success/error</span> 13%); border mix(42%); color 语义色</td><td>补语义边（现状无边）</td></tr>
-                                <tr><td class="sel">.wengu-num-answered</td><td class="val">bg mix(on-surface 14%); border var(--wengu-border-strong); color <span class="tok">--b3-theme-on-surface</span></td><td>中性化（现 primary-lightest 与答对混淆）</td></tr>
-                                <tr><td class="sel">.wengu-num-gap（既有）</td><td class="val">不动（16×2 短线 + hover 伸展 + 点击滚组首）</td><td>组间线交互保留</td></tr>
-                                <tr><td class="sel">.wengu-nums-more（新）</td><td class="val">font-size:11px; color var(--wengu-faint); center; padding:2px 0</td><td>题号超 60 时出（「…至 40」）</td></tr>
-                                <tr><td class="sel">.wengu-nums-legend（新）</td><td class="val">column; gap:4px; border-top <span class="tok">--b3-border-color</span>; padding-top:8px; 11px on-surface-light</td><td>色块 8×8 r3 边 border-strong；作答中只出 2 项</td></tr>
+                                <tr>
+                                    <th style="width: 30%">选择器</th>
+                                    <th style="width: 38%">施工值</th>
+                                    <th>说明</th>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-nums</td>
+                                    <td class="val">width:64px; padding:12px 10px; gap:8px</td>
+                                    <td>吸顶/sticky 与自滚封顶逻辑照旧</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-nums-cap（新）</td>
+                                    <td class="val">
+                                        font-size:11px; color:<span class="tok">--b3-theme-on-surface-light</span>;
+                                        center; ls .03em
+                                    </td>
+                                    <td>b = on-surface + tabular-nums</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-nums-grid（新）</td>
+                                    <td class="val">
+                                        grid 1col; gap:5px; align-content:start; flex:1 +
+                                        overflow-y:auto（题多时网格层自滚）+ scrollbar-width:none 与 ::-webkit-scrollbar
+                                        display:none（内滚不显滚动条，滚轮/键盘照常）
+                                    </td>
+                                    <td>
+                                        滚动职责从 .wengu-nums 下放本层（帽/图例常驻不滚）；滚动条隐藏为用户 20260915
+                                        拍板
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-num</td>
+                                    <td class="val">
+                                        width:100%（栏内自适应）; height:28px; radius
+                                        <span class="tok">--b3-border-radius</span>; border:1px
+                                        <span class="tok">--b3-border-color</span>; bg transparent; 12px tabular
+                                    </td>
+                                    <td>稿 5px 圆角归 6 档</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-num:hover</td>
+                                    <td class="val">
+                                        bg <span class="tok">--b3-list-hover</span>; color
+                                        <span class="tok">--b3-theme-on-surface</span>; border-color
+                                        var(--wengu-border-strong)
+                                    </td>
+                                    <td>—</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-num-active</td>
+                                    <td class="val">
+                                        bg <span class="tok">--b3-theme-primary-lightest</span>; color
+                                        <span class="tok">--b3-theme-primary</span>; 700; box-shadow:inset 0 0 0 1.5px
+                                        <span class="tok">--b3-theme-primary</span>
+                                    </td>
+                                    <td>与侧栏选中同语言（用户 20260915 已拍板定案）</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-num-right / -wrong</td>
+                                    <td class="val">
+                                        bg mix(<span class="tok">success/error</span> 13%); border mix(42%); color
+                                        语义色
+                                    </td>
+                                    <td>补语义边（现状无边）</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-num-answered</td>
+                                    <td class="val">
+                                        bg mix(on-surface 14%); border var(--wengu-border-strong); color
+                                        <span class="tok">--b3-theme-on-surface</span>
+                                    </td>
+                                    <td>中性化（现 primary-lightest 与答对混淆）</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-num-gap（既有）</td>
+                                    <td class="val">不动（16×2 短线 + hover 伸展 + 点击滚组首）</td>
+                                    <td>组间线交互保留</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-nums-more（新）</td>
+                                    <td class="val">font-size:11px; color var(--wengu-faint); center; padding:2px 0</td>
+                                    <td>题号超 60 时出（「…至 40」）</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-nums-legend（新）</td>
+                                    <td class="val">
+                                        column; gap:4px; border-top <span class="tok">--b3-border-color</span>;
+                                        padding-top:8px; 11px on-surface-light
+                                    </td>
+                                    <td>色块 8×8 r3 边 border-strong；作答中只出 2 项</td>
+                                </tr>
                             </table>
                             <p class="caption">
-                                <b>缺失形态</b>：多套分组=组间线 + 「…至 N」行（上例 14 与 15 之间）；百位题号不放大字号，靠栏内宽自适应；空态不适用（无题不出栏）。
+                                <b>缺失形态</b>：多套分组=组间线 + 「…至 N」行（上例 14 与 15
+                                之间）；百位题号不放大字号，靠栏内宽自适应；空态不适用（无题不出栏）。
                             </p>
                         </div>
                     </div>
@@ -1526,21 +1801,71 @@
                         <span class="wengu-head-seg">最近 <b>7</b>/12</span>
                         <span class="wengu-head-seg">最佳 <b>9</b>/12</span>
                         <span class="wengu-head-mode">第 2 轮 · 进行中</span>
-                        <span class="wengu-timer"><svg><use href="#i-clock" /></svg>23:41</span>
-                        <button class="wengu-end-round" type="button"><svg><use href="#i-check" /></svg>结束本轮</button>
+                        <span class="wengu-timer"
+                            ><svg><use href="#i-clock" /></svg>23:41</span
+                        >
+                        <button class="wengu-end-round" type="button">
+                            <svg><use href="#i-check" /></svg>结束本轮
+                        </button>
                     </div>
                     <table class="spec">
-                        <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                        <tr><td class="sel">.wengu-head（吸顶态）</td><td class="val">min-height:46px; flex-wrap:nowrap; gap:14px; padding:0 22px</td><td>@media (max-width:900px) 回 wrap+padding 8px（现状兜底）</td></tr>
-                        <tr><td class="sel">.wengu-head-seg</td><td class="val">font-size:13px; color <span class="tok">--b3-theme-on-surface-light</span></td><td>b 段：on-surface + 600 + tabular（现状已有）</td></tr>
-                        <tr><td class="sel">.wengu-head-seg.is-title</td><td class="val">color <span class="tok">--b3-theme-on-surface</span>; 600; ls .01em</td><td>—</td></tr>
-                        <tr><td class="sel">.wengu-head-sep</td><td class="val">height:16px; align-self:center; width:1px; background var(--wengu-border-strong)</td><td>由 stretch 改定高居中</td></tr>
-                        <tr><td class="sel">.wengu-head-mode（新·可选）</td><td class="val">font-size:11px; bg var(--wengu-well); border <span class="tok">--b3-border-color</span>; 999px; padding:2px 10px</td><td>仅 quiz 已开刷出现；不复活模式切换</td></tr>
-                        <tr><td class="sel">.wengu-timer</td><td class="val">gap:6px; color <span class="tok">--b3-theme-on-surface</span>; 600; tabular; 13px</td><td>图标 iconClock 14×14</td></tr>
-                        <tr><td class="sel">.wengu-end-round</td><td class="val">height:28px; padding:0 14px; radius <span class="tok">--b3-border-radius</span>; 12.5px/600; bg <span class="tok">--b3-theme-primary</span>; color <span class="tok">--b3-theme-on-primary</span></td><td>本区唯一 primary；阴影不取（无令牌、深色不可见）</td></tr>
+                        <tr>
+                            <th style="width: 30%">选择器</th>
+                            <th style="width: 38%">施工值</th>
+                            <th>说明</th>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-head（吸顶态）</td>
+                            <td class="val">min-height:46px; flex-wrap:nowrap; gap:14px; padding:0 22px</td>
+                            <td>@media (max-width:900px) 回 wrap+padding 8px（现状兜底）</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-head-seg</td>
+                            <td class="val">
+                                font-size:13px; color <span class="tok">--b3-theme-on-surface-light</span>
+                            </td>
+                            <td>b 段：on-surface + 600 + tabular（现状已有）</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-head-seg.is-title</td>
+                            <td class="val">color <span class="tok">--b3-theme-on-surface</span>; 600; ls .01em</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-head-sep</td>
+                            <td class="val">
+                                height:16px; align-self:center; width:1px; background var(--wengu-border-strong)
+                            </td>
+                            <td>由 stretch 改定高居中</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-head-mode（新·可选）</td>
+                            <td class="val">
+                                font-size:11px; bg var(--wengu-well); border <span class="tok">--b3-border-color</span>;
+                                999px; padding:2px 10px
+                            </td>
+                            <td>仅 quiz 已开刷出现；不复活模式切换</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-timer</td>
+                            <td class="val">
+                                gap:6px; color <span class="tok">--b3-theme-on-surface</span>; 600; tabular; 13px
+                            </td>
+                            <td>图标 iconClock 14×14</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-end-round</td>
+                            <td class="val">
+                                height:28px; padding:0 14px; radius <span class="tok">--b3-border-radius</span>;
+                                12.5px/600; bg <span class="tok">--b3-theme-primary</span>; color
+                                <span class="tok">--b3-theme-on-primary</span>
+                            </td>
+                            <td>本区唯一 primary；阴影不取（无令牌、深色不可见）</td>
+                        </tr>
                     </table>
                     <p class="caption">
-                        <b>缺失形态</b>：窄窗 wrap 后段序不变、计时与交卷钮折末行；无轮次时不插竖线（renderSubheadHtml 既有「两侧有内容才插」口径）；长题集名段 max-width 46ch ellipsis。
+                        <b>缺失形态</b>：窄窗 wrap 后段序不变、计时与交卷钮折末行；无轮次时不插竖线（renderSubheadHtml
+                        既有「两侧有内容才插」口径）；长题集名段 max-width 46ch ellipsis。
                     </p>
                 </div>
             </section>
@@ -1553,9 +1878,10 @@
                     <span class="note">卡壳改浮起语言；两行均揭示后才出现</span>
                 </div>
                 <p class="sec-lede">
-                    卡壳从「底色底 + surface 边」改「surface 底 + border-color 边 + 12px 圆角」浮起语言；卡头题号/题型 chips 胶囊化。
-                    考点行（.wengu-kcaps）与自评五星行（.wengu-self 改造）都是<b>揭示后</b>形态——考点名可暗示解法方向，揭示前不渲染不占位。
-                    五星数据落点两案（会话内轻量 / 题库沉淀）见差距清单 §7.b，UI 形态先行。
+                    卡壳从「底色底 + surface 边」改「surface 底 + border-color 边 + 12px 圆角」浮起语言；卡头题号/题型
+                    chips 胶囊化。 考点行（.wengu-kcaps）与自评五星行（.wengu-self
+                    改造）都是<b>揭示后</b>形态——考点名可暗示解法方向，揭示前不渲染不占位。 五星数据落点两案（会话内轻量
+                    / 题库沉淀）见差距清单 §7.b，UI 形态先行。
                 </p>
                 <div class="stage">
                     <div class="wengu-card-demo wengu-card wengu-revealed">
@@ -1563,12 +1889,17 @@
                             <span class="wengu-card-num">题 12</span>
                             <span class="wengu-badge">单选</span>
                             <span class="wengu-card-title">向量组的线性相关性</span>
-                            <span class="wengu-meta"><svg class="wengu-star"><use href="#i-star" /></svg><svg class="wengu-star"><use href="#i-star" /></svg><svg class="wengu-star"><use href="#i-star" /></svg></span>
+                            <span class="wengu-meta"
+                                ><svg class="wengu-star"><use href="#i-star" /></svg
+                                ><svg class="wengu-star"><use href="#i-star" /></svg
+                                ><svg class="wengu-star"><use href="#i-star" /></svg
+                            ></span>
                             <span class="wengu-meta">强化 330</span>
                             <span class="wengu-meta">刷过 4 次</span>
                         </div>
                         <div class="wengu-card-body">
-                            设 A 为 m×n 矩阵，B 为 n×m 矩阵，则下列说法正确的是____（题干示意，KaTeX 实渲染由 ProtyleHost 承担）。
+                            设 A 为 m×n 矩阵，B 为 n×m 矩阵，则下列说法正确的是____（题干示意，KaTeX 实渲染由
+                            ProtyleHost 承担）。
                         </div>
                         <div class="wengu-kcaps">
                             <span class="wengu-kcaps-label">考点</span>
@@ -1579,30 +1910,104 @@
                         <div class="wengu-self" data-self>
                             <span class="sr-label">自评掌握度</span>
                             <span class="wengu-stars" role="radiogroup" aria-label="自评掌握度">
-                                <button class="wengu-star-btn on" type="button" aria-label="1 星"><svg><use href="#i-star" /></svg></button>
-                                <button class="wengu-star-btn on" type="button" aria-label="2 星"><svg><use href="#i-star" /></svg></button>
-                                <button class="wengu-star-btn on" type="button" aria-label="3 星"><svg><use href="#i-star" /></svg></button>
-                                <button class="wengu-star-btn" type="button" aria-label="4 星"><svg><use href="#i-star" /></svg></button>
-                                <button class="wengu-star-btn" type="button" aria-label="5 星"><svg><use href="#i-star" /></svg></button>
+                                <button class="wengu-star-btn on" type="button" aria-label="1 星">
+                                    <svg><use href="#i-star" /></svg>
+                                </button>
+                                <button class="wengu-star-btn on" type="button" aria-label="2 星">
+                                    <svg><use href="#i-star" /></svg>
+                                </button>
+                                <button class="wengu-star-btn on" type="button" aria-label="3 星">
+                                    <svg><use href="#i-star" /></svg>
+                                </button>
+                                <button class="wengu-star-btn" type="button" aria-label="4 星">
+                                    <svg><use href="#i-star" /></svg>
+                                </button>
+                                <button class="wengu-star-btn" type="button" aria-label="5 星">
+                                    <svg><use href="#i-star" /></svg>
+                                </button>
                             </span>
                             <span class="wengu-self-hint">点击星级评价对本题的掌握程度，再点同星取消</span>
                         </div>
                     </div>
                     <table class="spec">
-                        <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                        <tr><td class="sel">.wengu-card</td><td class="val">background <span class="tok">--b3-theme-surface</span>; border-color <span class="tok">--b3-border-color</span>; radius <span class="tok">--b3-border-radius-b</span></td><td>浮起语言；content-visibility / scroll-margin 照旧</td></tr>
-                        <tr><td class="sel">.wengu-card-num</td><td class="val">999px; padding:2px 10px; 11px/600; bg <span class="tok">--b3-theme-primary-lightest</span>; color <span class="tok">--b3-theme-primary</span>; border mix(primary 35%)</td><td>题号胶囊化</td></tr>
-                        <tr><td class="sel">.wengu-badge</td><td class="val">999px; padding:2px 10px; 11px/600; bg var(--wengu-well); color <span class="tok">--b3-theme-on-surface</span>; border <span class="tok">--b3-border-color</span></td><td>题型徽标中性化（现 primary 系）</td></tr>
-                        <tr><td class="sel">.wengu-kcaps（新）</td><td class="val">flex; wrap; gap:8px; margin-top:12px</td><td>揭示闸：仅 .wengu-revealed 下渲染</td></tr>
-                        <tr><td class="sel">.wengu-kcaps-label</td><td class="val">12px; color <span class="tok">--b3-theme-on-surface-light</span></td><td>—</td></tr>
-                        <tr><td class="sel">.wengu-kchip（新）</td><td class="val">12px; color <span class="tok">--b3-theme-primary</span>; bg <span class="tok">--b3-theme-primary-lightest</span>; border mix(primary 35%); 999px; padding:2px 10px</td><td>hover bg mix(primary 26%)；无检索目标时降纯展示</td></tr>
-                        <tr><td class="sel">.wengu-self</td><td class="val">gap:12px; margin-top:12px</td><td>容器与 data-self 契约不动；显示闸 selfOn 不变</td></tr>
-                        <tr><td class="sel">.wengu-star-btn（新）</td><td class="val">26×26; radius <span class="tok">--b3-border-radius</span>; center; color var(--wengu-faint)</td><td>hover：list-hover 底 + on-surface-light；svg 17×17</td></tr>
-                        <tr><td class="sel">.wengu-star-btn.on</td><td class="val">color <span class="tok">--b3-card-warning-color</span></td><td>fill currentColor（svg 既有口径）；radiogroup + radio 语义</td></tr>
-                        <tr><td class="sel">.wengu-self-hint</td><td class="val">11px; color var(--wengu-faint)</td><td>—</td></tr>
+                        <tr>
+                            <th style="width: 30%">选择器</th>
+                            <th style="width: 38%">施工值</th>
+                            <th>说明</th>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-card</td>
+                            <td class="val">
+                                background <span class="tok">--b3-theme-surface</span>; border-color
+                                <span class="tok">--b3-border-color</span>; radius
+                                <span class="tok">--b3-border-radius-b</span>
+                            </td>
+                            <td>浮起语言；content-visibility / scroll-margin 照旧</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-card-num</td>
+                            <td class="val">
+                                999px; padding:2px 10px; 11px/600; bg
+                                <span class="tok">--b3-theme-primary-lightest</span>; color
+                                <span class="tok">--b3-theme-primary</span>; border mix(primary 35%)
+                            </td>
+                            <td>题号胶囊化</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-badge</td>
+                            <td class="val">
+                                999px; padding:2px 10px; 11px/600; bg var(--wengu-well); color
+                                <span class="tok">--b3-theme-on-surface</span>; border
+                                <span class="tok">--b3-border-color</span>
+                            </td>
+                            <td>题型徽标中性化（现 primary 系）</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-kcaps（新）</td>
+                            <td class="val">flex; wrap; gap:8px; margin-top:12px</td>
+                            <td>揭示闸：仅 .wengu-revealed 下渲染</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-kcaps-label</td>
+                            <td class="val">12px; color <span class="tok">--b3-theme-on-surface-light</span></td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-kchip（新）</td>
+                            <td class="val">
+                                12px; color <span class="tok">--b3-theme-primary</span>; bg
+                                <span class="tok">--b3-theme-primary-lightest</span>; border mix(primary 35%); 999px;
+                                padding:2px 10px
+                            </td>
+                            <td>hover bg mix(primary 26%)；无检索目标时降纯展示</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-self</td>
+                            <td class="val">gap:12px; margin-top:12px</td>
+                            <td>容器与 data-self 契约不动；显示闸 selfOn 不变</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-star-btn（新）</td>
+                            <td class="val">
+                                26×26; radius <span class="tok">--b3-border-radius</span>; center; color
+                                var(--wengu-faint)
+                            </td>
+                            <td>hover：list-hover 底 + on-surface-light；svg 17×17</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-star-btn.on</td>
+                            <td class="val">color <span class="tok">--b3-card-warning-color</span></td>
+                            <td>fill currentColor（svg 既有口径）；radiogroup + radio 语义</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-self-hint</td>
+                            <td class="val">11px; color var(--wengu-faint)</td>
+                            <td>—</td>
+                        </tr>
                     </table>
                     <p class="caption">
-                        <b>缺失形态</b>：无考点（q.knowledge 空）整行不渲染；组题的考点行在组内当前卡同位；卡头难度星维持 12px（与自评星 17px 语义区分）。
+                        <b>缺失形态</b>：无考点（q.knowledge
+                        空）整行不渲染；组题的考点行在组内当前卡同位；卡头难度星维持 12px（与自评星 17px 语义区分）。
                     </p>
                 </div>
             </section>
@@ -1615,19 +2020,34 @@
                     <span class="note">openWenguDialog 落法 · 主钮=留在本卷</span>
                 </div>
                 <p class="sec-lede">
-                    触发：quiz 模式下点另一题集/专题/聚合行（树内与搜索平铺两路），且 session 未收卷（判据同 StartPanel「未完成轮」：
-                    <span class="val">session &amp;&amp; !session.endedAt &amp;&amp; session.answered &gt; 0</span>）。review 筛选 / preview 只读 / 点当前行均不触发。
-                    落点：SideMount 传出的 onOpenDoc / onOpenCollection 回调在视图层统一包闸（组件无会话知识）。
-                    <b>主钮论证</b>：主钮（右起第一）=「留在本卷」——拦截的存在理由是防误中断，主钮承载安全默认；「留在本卷」零成本、「继续切换」不可逆（中断计时与卷内视口）；
-                    与 IDE「未保存切换」类拦截先例一致。基建：WenguDialogAction 需补 primary 变体（spec §5.4 待修项，本特性促成）。
+                    触发：quiz 模式下点另一题集/专题/聚合行（树内与搜索平铺两路），且 session 未收卷（判据同
+                    StartPanel「未完成轮」：
+                    <span class="val">session &amp;&amp; !session.endedAt &amp;&amp; session.answered &gt; 0</span
+                    >）。review 筛选 / preview 只读 / 点当前行均不触发。 落点：SideMount 传出的 onOpenDoc /
+                    onOpenCollection 回调在视图层统一包闸（组件无会话知识）。
+                    <b>主钮论证</b
+                    >：主钮（右起第一）=「留在本卷」——拦截的存在理由是防误中断，主钮承载安全默认；「留在本卷」零成本、「继续切换」不可逆（中断计时与卷内视口）；
+                    与 IDE「未保存切换」类拦截先例一致。基建：WenguDialogAction 需补 primary 变体（spec §5.4
+                    待修项，本特性促成）。
                 </p>
                 <div class="stage">
-                    <div style="display:flex;justify-content:center;background:var(--wengu-sunken);border-radius:var(--b3-border-radius-b);padding:36px 16px">
+                    <div
+                        style="
+                            display: flex;
+                            justify-content: center;
+                            background: var(--wengu-sunken);
+                            border-radius: var(--b3-border-radius-b);
+                            padding: 36px 16px;
+                        "
+                    >
                         <div class="demo-dialog" role="dialog" aria-modal="true" aria-labelledby="dt">
-                            <div class="d-ico"><svg><use href="#i-info" /></svg></div>
+                            <div class="d-ico">
+                                <svg><use href="#i-info" /></svg>
+                            </div>
                             <div class="d-t" id="dt">切换题集？</div>
                             <div class="d-d">
-                                本卷还有未交卷的进度：<b>已答 12/40 题，计时 23:41</b>。切换后进度不会丢失，可从开刷面板「继续上次」回到本卷。<br />
+                                本卷还有未交卷的进度：<b>已答 12/40 题，计时 23:41</b
+                                >。切换后进度不会丢失，可从开刷面板「继续上次」回到本卷。<br />
                                 将打开「<b>高等数学-题解</b>」。
                             </div>
                             <div class="d-a">
@@ -1637,16 +2057,45 @@
                         </div>
                     </div>
                     <table class="spec">
-                        <tr><th style="width:30%">项</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                        <tr><td class="sel">容器</td><td class="val">openWenguDialog + b3-dialog；extraCls=wengu-switch-confirm</td><td>不自绘遮罩；图标位 iconInfo（svgIcon 白名单）</td></tr>
-                        <tr><td class="sel">宽度 / 高度</td><td class="val">min(480px, calc(100vw - 32px))；max-height calc(100vh - 200px)</td><td>spec §5 sm 档（稿 430 归档 480）</td></tr>
-                        <tr><td class="sel">标题 / 正文</td><td class="val">16.5px/700；13.5px lh 1.75 on-surface-light，加粗段 on-surface</td><td>展示型字号仅此处用</td></tr>
-                        <tr><td class="sel">按钮排布</td><td class="val">右对齐 gap 10；右起第一=「留在本卷」primary；「继续切换」outline</td><td>h30 / padding 0 16 / 12.5px 600</td></tr>
-                        <tr><td class="sel">安全默认</td><td class="val">Esc / 点遮罩 = 留在本卷</td><td>Enter 同主钮</td></tr>
-                        <tr><td class="sel">i18n 新键</td><td class="val">switchConfirmTitle / Body / Stay / Go</td><td>正文带 {n}/{N}/{mm:ss}/{目标名} 占位</td></tr>
+                        <tr>
+                            <th style="width: 30%">项</th>
+                            <th style="width: 38%">施工值</th>
+                            <th>说明</th>
+                        </tr>
+                        <tr>
+                            <td class="sel">容器</td>
+                            <td class="val">openWenguDialog + b3-dialog；extraCls=wengu-switch-confirm</td>
+                            <td>不自绘遮罩；图标位 iconInfo（svgIcon 白名单）</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">宽度 / 高度</td>
+                            <td class="val">min(480px, calc(100vw - 32px))；max-height calc(100vh - 200px)</td>
+                            <td>spec §5 sm 档（稿 430 归档 480）</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">标题 / 正文</td>
+                            <td class="val">16.5px/700；13.5px lh 1.75 on-surface-light，加粗段 on-surface</td>
+                            <td>展示型字号仅此处用</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">按钮排布</td>
+                            <td class="val">右对齐 gap 10；右起第一=「留在本卷」primary；「继续切换」outline</td>
+                            <td>h30 / padding 0 16 / 12.5px 600</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">安全默认</td>
+                            <td class="val">Esc / 点遮罩 = 留在本卷</td>
+                            <td>Enter 同主钮</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">i18n 新键</td>
+                            <td class="val">switchConfirmTitle / Body / Stay / Go</td>
+                            <td>正文带 {n}/{N}/{mm:ss}/{目标名} 占位</td>
+                        </tr>
                     </table>
                     <p class="caption">
-                        <b>缺失形态</b>：目标名超长时正文内 46ch ellipsis + title 保全名；触发判据为空轮（answered=0）不弹，直接切。
+                        <b>缺失形态</b>：目标名超长时正文内 46ch ellipsis + title
+                        保全名；触发判据为空轮（answered=0）不弹，直接切。
                     </p>
                 </div>
             </section>
@@ -1659,45 +2108,113 @@
                     <span class="note">antd Splitter 语义 · 替代固定 52vh</span>
                 </div>
                 <p class="sec-lede">
-                    材料区与题目区构成上下双面板，拖中间手柄调高度比例；MaterialScroll 判定读 clientHeight/scrollHeight 实值，天然兼容任意拖后高度，
-                    仅需 pointerup 时补一次 syncMatScroll（拖动不触发 resize）。下方演示台<b>可真拖</b>——双击手柄复位。
+                    材料区与题目区构成上下双面板，拖中间手柄调高度比例；MaterialScroll 判定读 clientHeight/scrollHeight
+                    实值，天然兼容任意拖后高度， 仅需 pointerup 时补一次 syncMatScroll（拖动不触发
+                    resize）。下方演示台<b>可真拖</b>——双击手柄复位。
                 </p>
                 <div class="stage">
                     <div class="stage-frac">
                         <div class="demo-split">
                             <div class="wengu-gmat" id="demoMat">
                                 <p>阅读材料示意（一）。渐大面积的城市边缘带正在成为生物多样性研究的新前沿……</p>
-                                <p>研究团队在 2019 至 2023 年间对 42 个样地进行了连续观测，记录了包括传粉昆虫在内的 300 余个物种的动态……</p>
-                                <p>材料区超出限高时内滚，底部渐隐线随「还能往下滚」显隐（既有机制，读实值不受拖动影响）……</p>
+                                <p>
+                                    研究团队在 2019 至 2023 年间对 42 个样地进行了连续观测，记录了包括传粉昆虫在内的 300
+                                    余个物种的动态……
+                                </p>
+                                <p>
+                                    材料区超出限高时内滚，底部渐隐线随「还能往下滚」显隐（既有机制，读实值不受拖动影响）……
+                                </p>
                                 <p>继续向下还有更多段落，用于撑出滚动能力，观察手柄拖动时本区高度实时变化……</p>
                                 <p>末段。双击中间手柄可复位默认比例（52vh）。</p>
                             </div>
-                            <div class="wengu-splitter" id="demoSplitter" tabindex="0" role="separator" aria-orientation="horizontal" title="拖动调整材料区高度，双击复位">
+                            <div
+                                class="wengu-splitter"
+                                id="demoSplitter"
+                                tabindex="0"
+                                role="separator"
+                                aria-orientation="horizontal"
+                                title="拖动调整材料区高度，双击复位"
+                            >
                                 <i></i>
                             </div>
                             <div class="split-host">
-                                <div class="wengu-card-demo" style="max-width:none;padding:12px 16px">
-                                    <div class="wengu-card-head" style="margin-bottom:8px;padding-bottom:8px">
+                                <div class="wengu-card-demo" style="max-width: none; padding: 12px 16px">
+                                    <div class="wengu-card-head" style="margin-bottom: 8px; padding-bottom: 8px">
                                         <span class="wengu-card-num">题 27</span>
                                         <span class="wengu-badge">多选</span>
                                         <span class="wengu-card-title">主旨题（组内当前题示意）</span>
                                     </div>
-                                    <div class="wengu-card-body" style="font-size:13px">题目区随材料区让高——拖高材料则本题上滚，拖低则整卡入视。</div>
+                                    <div class="wengu-card-body" style="font-size: 13px">
+                                        题目区随材料区让高——拖高材料则本题上滚，拖低则整卡入视。
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div class="frac-main">
                             <table class="spec">
-                                <tr><th style="width:30%">选择器 / 事件</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                                <tr><td class="sel">.wengu-splitter（新）</td><td class="val">flex:none; height:14px; margin:-4px 0; center; cursor:row-resize; touch-action:none; tabindex=0</td><td>14px 热区，内芯 56×2 999px</td></tr>
-                                <tr><td class="sel">内芯 常态</td><td class="val">background:mix(<span class="tok">--b3-theme-on-surface-light</span> 30%, transparent)</td><td>—</td></tr>
-                                <tr><td class="sel">内芯 hover / focus</td><td class="val">mix(<span class="tok">--b3-theme-primary</span> 50%, transparent)</td><td>键盘可达</td></tr>
-                                <tr><td class="sel">内芯 拖动中</td><td class="val"><span class="tok">--b3-theme-primary</span> 实色；body.wengu-splitting 全局 row-resize + user-select:none</td><td>setPointerCapture 防丢事件</td></tr>
-                                <tr><td class="sel">pointermove</td><td class="val">clamp(160px, 高度, min(75vh, host 高)) → 写 --wengu-mat-cap（px，元素内联）</td><td>min 160 / max 75vh</td></tr>
-                                <tr><td class="sel">pointerup</td><td class="val">释放 capture → 持久化 → 手动 syncMatScroll() 一次</td><td>渐隐与 cap 判定补调</td></tr>
-                                <tr><td class="sel">dblclick</td><td class="val">清内联 --wengu-mat-cap（回 52vh 默认）</td><td>—</td></tr>
-                                <tr><td class="sel">键盘</td><td class="val">Arrow ±24px；Home/End 到 min/max</td><td>同 pointer 路径写值</td></tr>
-                                <tr><td class="sel">持久化</td><td class="val">prefs 键 matCapRatio（0.16–0.75 小数，全局）</td><td>存比例不存像素；照 onPersistOpen 回写模式</td></tr>
+                                <tr>
+                                    <th style="width: 30%">选择器 / 事件</th>
+                                    <th style="width: 38%">施工值</th>
+                                    <th>说明</th>
+                                </tr>
+                                <tr>
+                                    <td class="sel">.wengu-splitter（新）</td>
+                                    <td class="val">
+                                        flex:none; height:14px; margin:-4px 0; center; cursor:row-resize;
+                                        touch-action:none; tabindex=0
+                                    </td>
+                                    <td>14px 热区，内芯 56×2 999px</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">内芯 常态</td>
+                                    <td class="val">
+                                        background:mix(<span class="tok">--b3-theme-on-surface-light</span> 30%,
+                                        transparent)
+                                    </td>
+                                    <td>—</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">内芯 hover / focus</td>
+                                    <td class="val">
+                                        mix(<span class="tok">--b3-theme-primary</span> 50%, transparent)
+                                    </td>
+                                    <td>键盘可达</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">内芯 拖动中</td>
+                                    <td class="val">
+                                        <span class="tok">--b3-theme-primary</span> 实色；body.wengu-splitting 全局
+                                        row-resize + user-select:none
+                                    </td>
+                                    <td>setPointerCapture 防丢事件</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">pointermove</td>
+                                    <td class="val">
+                                        clamp(160px, 高度, min(75vh, host 高)) → 写 --wengu-mat-cap（px，元素内联）
+                                    </td>
+                                    <td>min 160 / max 75vh</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">pointerup</td>
+                                    <td class="val">释放 capture → 持久化 → 手动 syncMatScroll() 一次</td>
+                                    <td>渐隐与 cap 判定补调</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">dblclick</td>
+                                    <td class="val">清内联 --wengu-mat-cap（回 52vh 默认）</td>
+                                    <td>—</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">键盘</td>
+                                    <td class="val">Arrow ±24px；Home/End 到 min/max</td>
+                                    <td>同 pointer 路径写值</td>
+                                </tr>
+                                <tr>
+                                    <td class="sel">持久化</td>
+                                    <td class="val">prefs 键 matCapRatio（0.16–0.75 小数，全局）</td>
+                                    <td>存比例不存像素；照 onPersistOpen 回写模式</td>
+                                </tr>
                             </table>
                             <div class="split-states">
                                 <div class="split-state">
@@ -1714,7 +2231,9 @@
                                 </div>
                             </div>
                             <p class="caption">
-                                <b>缺失形态</b>：拖到 min/max 顶格时 clamp 生效（不再移动，无视觉惩罚态）；材料缺失的组不出手柄（结构都不在）；触屏走同 pointer 路径。
+                                <b>缺失形态</b>：拖到 min/max 顶格时 clamp
+                                生效（不再移动，无视觉惩罚态）；材料缺失的组不出手柄（结构都不在）；触屏走同 pointer
+                                路径。
                             </p>
                         </div>
                     </div>
@@ -1729,9 +2248,12 @@
                     <span class="note">按稿 .mistake 整套 + 显示规则修正</span>
                 </div>
                 <p class="sec-lede">
-                    两栏结构退役：条目升卡片行（日期 / 题集名 / 题干 / 迷你星 / 错次五件套），点击整行展开详情（sec 结构原样移入）。
-                    <b>题集名规则</b>：显示层剥结尾「-题解」（displaySetName = 去掉结尾的「-题解」，无后缀原样；中段连字符不伤），悬停 title 保全名。
-                    <b>日期规则</b>：与当前年比较——同年 MM-DD、跨年 YYYY-MM-DD，悬停 title 全量 YYYY-MM-DD HH:mm（上表第二行给跨年样例）。
+                    两栏结构退役：条目升卡片行（日期 / 题集名 / 题干 / 迷你星 / 错次五件套），点击整行展开详情（sec
+                    结构原样移入）。
+                    <b>题集名规则</b>：显示层剥结尾「-题解」（displaySetName =
+                    去掉结尾的「-题解」，无后缀原样；中段连字符不伤），悬停 title 保全名。
+                    <b>日期规则</b>：与当前年比较——同年 MM-DD、跨年 YYYY-MM-DD，悬停 title 全量 YYYY-MM-DD
+                    HH:mm（上表第二行给跨年样例）。
                 </p>
                 <div class="stage">
                     <div class="demo-mistake wengu-review">
@@ -1739,7 +2261,9 @@
                             <button class="wengu-review-fchip on" type="button">全部</button>
                             <button class="wengu-review-fchip" type="button">未掌握</button>
                             <button class="wengu-review-fchip" type="button">已掌握</button>
-                            <span class="wengu-review-sel">按最近排序 <svg><use href="#i-down" /></svg></span>
+                            <span class="wengu-review-sel"
+                                >按最近排序 <svg><use href="#i-down" /></svg
+                            ></span>
                             <span class="m-count">共 <b>18</b> 题 · 未掌握 <b>11</b></span>
                         </div>
                         <div class="m-list">
@@ -1750,10 +2274,17 @@
                             <div class="wengu-review-item open">
                                 <div class="wengu-review-rowhead">
                                     <span class="wengu-review-date" title="2026-09-13 21:04">09-13</span>
-                                    <span class="wengu-review-set" title="考研数学强化通关330·线性代数-题解">考研数学强化通关330·线性代数</span>
-                                    <span class="wengu-review-item-stem">设 A 为 3 阶实对称矩阵，λ₁=1, λ₂=2…（题干单行截断示意）</span>
+                                    <span class="wengu-review-set" title="考研数学强化通关330·线性代数-题解"
+                                        >考研数学强化通关330·线性代数</span
+                                    >
+                                    <span class="wengu-review-item-stem"
+                                        >设 A 为 3 阶实对称矩阵，λ₁=1, λ₂=2…（题干单行截断示意）</span
+                                    >
                                     <span class="wengu-review-mini" title="自评 3/5">
-                                        <svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                        <svg class="on"><use href="#i-star" /></svg
+                                        ><svg class="on"><use href="#i-star" /></svg
+                                        ><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg
+                                        ><svg><use href="#i-star" /></svg>
                                     </span>
                                     <span class="wengu-review-count">错 3</span>
                                 </div>
@@ -1765,7 +2296,8 @@
                                     </div>
                                     <div class="wengu-review-sec">
                                         <div class="sec-t">题干与作答</div>
-                                        历次作答时间线、答案、解析分节原样移入（.wengu-review-sec 系类名不变，仅壳从右栏换到展开区）。
+                                        历次作答时间线、答案、解析分节原样移入（.wengu-review-sec
+                                        系类名不变，仅壳从右栏换到展开区）。
                                     </div>
                                     <div class="m-acts">
                                         <button class="d-btn outline" type="button">查看原文</button>
@@ -1777,9 +2309,13 @@
                                 <div class="wengu-review-rowhead">
                                     <span class="wengu-review-date" title="2025-12-30 09:12">2025-12-30</span>
                                     <span class="wengu-review-set" title="03-习思想-题解">03-习思想</span>
-                                    <span class="wengu-review-item-stem">跨年条目：日期带年份（与当前年比较，同年省年）……</span>
+                                    <span class="wengu-review-item-stem"
+                                        >跨年条目：日期带年份（与当前年比较，同年省年）……</span
+                                    >
                                     <span class="wengu-review-mini" title="自评 1/5">
-                                        <svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                        <svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg
+                                        ><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg
+                                        ><svg><use href="#i-star" /></svg>
                                     </span>
                                     <span class="wengu-review-count">错 5</span>
                                 </div>
@@ -1788,14 +2324,19 @@
                                 <div class="wengu-review-rowhead">
                                     <span class="wengu-review-date" title="2026-09-12 14:40">09-12</span>
                                     <span class="wengu-review-set" title="高等数学-题解">高等数学</span>
-                                    <span class="wengu-review-item-stem">「全部」聚合视图出题集名列；组内视图同名省略……</span>
+                                    <span class="wengu-review-item-stem"
+                                        >「全部」聚合视图出题集名列；组内视图同名省略……</span
+                                    >
                                     <span class="wengu-review-mini" title="自评 4/5">
-                                        <svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                        <svg class="on"><use href="#i-star" /></svg
+                                        ><svg class="on"><use href="#i-star" /></svg
+                                        ><svg class="on"><use href="#i-star" /></svg
+                                        ><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
                                     </span>
                                     <span class="wengu-review-count">错 2</span>
                                 </div>
                             </div>
-                            <div class="wengu-review-group-title" style="margin-top:10px">
+                            <div class="wengu-review-group-title" style="margin-top: 10px">
                                 03-习思想
                                 <button class="wengu-review-redrill" type="button">重刷本文档（3）</button>
                             </div>
@@ -1803,39 +2344,106 @@
                                 <div class="wengu-review-rowhead">
                                     <span class="wengu-review-date" title="2026-09-10 10:02">09-10</span>
                                     <span class="wengu-review-set" title="03-习思想-题解">03-习思想</span>
-                                    <span class="wengu-review-item-stem">多组分组示意：组间以 12px 分节标题区隔，行不再重复组名……</span>
+                                    <span class="wengu-review-item-stem"
+                                        >多组分组示意：组间以 12px 分节标题区隔，行不再重复组名……</span
+                                    >
                                     <span class="wengu-review-mini" title="自评 2/5">
-                                        <svg class="on"><use href="#i-star" /></svg><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
+                                        <svg class="on"><use href="#i-star" /></svg
+                                        ><svg class="on"><use href="#i-star" /></svg><svg><use href="#i-star" /></svg
+                                        ><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg>
                                     </span>
                                     <span class="wengu-review-count">错 1</span>
                                 </div>
                             </div>
-                            <div class="m-empty">空态示意：没有符合条件的错题（筛后为空与从未出错两态文案沿用现状 reviewEmpty / reviewFilterEmpty）</div>
+                            <div class="m-empty">
+                                空态示意：没有符合条件的错题（筛后为空与从未出错两态文案沿用现状 reviewEmpty /
+                                reviewFilterEmpty）
+                            </div>
                         </div>
                     </div>
                     <table class="spec">
-                        <tr><th style="width:30%">选择器</th><th style="width:38%">施工值</th><th>说明</th></tr>
-                        <tr><td class="sel">.wengu-review-cols</td><td class="val">退役（grid 两栏删）</td><td>.wengu-review-list 单列满宽</td></tr>
-                        <tr><td class="sel">.wengu-review-item</td><td class="val">border <span class="tok">--b3-border-color</span>; radius <span class="tok">--b3-border-radius-b</span>; bg <span class="tok">--b3-theme-surface</span>; overflow:hidden</td><td>hover border-strong；展开 mix(primary 45%)</td></tr>
-                        <tr><td class="sel">.wengu-review-rowhead（新）</td><td class="val">flex; center; gap:14px; padding:12px 18px; cursor:pointer</td><td>五件套行头</td></tr>
-                        <tr><td class="sel">.wengu-review-date</td><td class="val">flex:none; width:44px; 11px; color var(--wengu-faint); tabular</td><td>同年 MM-DD / 跨年 YYYY-MM-DD；title 全量</td></tr>
-                        <tr><td class="sel">.wengu-review-set</td><td class="val">flex:none; max-width:190px; 11px; on-surface-light; ellipsis</td><td>displaySetName 剥「-题解」；title 保全名；组内视图省</td></tr>
-                        <tr><td class="sel">.wengu-review-item-stem</td><td class="val">flex:1; 13.5px/600; 单行 ellipsis</td><td>由 2 行 clamp 改单行</td></tr>
-                        <tr><td class="sel">.wengu-review-mini（新）</td><td class="val">13×13 星；on 态 <span class="tok">--b3-card-warning-color</span></td><td>历史自评回显；数据落点见差距清单 §7.b</td></tr>
-                        <tr><td class="sel">.wengu-review-count</td><td class="val">11px/600; color <span class="tok">--b3-theme-error</span>; bg mix(13%); border mix(35%); 999px; padding:1px 9px</td><td>—</td></tr>
-                        <tr><td class="sel">.wengu-review-fchip（新）</td><td class="val">height:28px; padding:0 14px; 999px; border <span class="tok">--b3-border-color</span>; 12.5px</td><td>on 态：primary-lightest + mix(primary 50%) 边 + primary 字 + 600（合规选中语言）</td></tr>
-                        <tr><td class="sel">.wengu-review-item-open（新）</td><td class="val">border-top <span class="tok">--b3-border-color</span>; padding:14px 22px 18px; bg var(--wengu-sunken)</td><td>sec / timeline 类名原样移入；操作行右对齐 gap 10</td></tr>
+                        <tr>
+                            <th style="width: 30%">选择器</th>
+                            <th style="width: 38%">施工值</th>
+                            <th>说明</th>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-cols</td>
+                            <td class="val">退役（grid 两栏删）</td>
+                            <td>.wengu-review-list 单列满宽</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-item</td>
+                            <td class="val">
+                                border <span class="tok">--b3-border-color</span>; radius
+                                <span class="tok">--b3-border-radius-b</span>; bg
+                                <span class="tok">--b3-theme-surface</span>; overflow:hidden
+                            </td>
+                            <td>hover border-strong；展开 mix(primary 45%)</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-rowhead（新）</td>
+                            <td class="val">flex; center; gap:14px; padding:12px 18px; cursor:pointer</td>
+                            <td>五件套行头</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-date</td>
+                            <td class="val">flex:none; width:44px; 11px; color var(--wengu-faint); tabular</td>
+                            <td>同年 MM-DD / 跨年 YYYY-MM-DD；title 全量</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-set</td>
+                            <td class="val">flex:none; max-width:190px; 11px; on-surface-light; ellipsis</td>
+                            <td>displaySetName 剥「-题解」；title 保全名；组内视图省</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-item-stem</td>
+                            <td class="val">flex:1; 13.5px/600; 单行 ellipsis</td>
+                            <td>由 2 行 clamp 改单行</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-mini（新）</td>
+                            <td class="val">13×13 星；on 态 <span class="tok">--b3-card-warning-color</span></td>
+                            <td>历史自评回显；数据落点见差距清单 §7.b</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-count</td>
+                            <td class="val">
+                                11px/600; color <span class="tok">--b3-theme-error</span>; bg mix(13%); border mix(35%);
+                                999px; padding:1px 9px
+                            </td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-fchip（新）</td>
+                            <td class="val">
+                                height:28px; padding:0 14px; 999px; border <span class="tok">--b3-border-color</span>;
+                                12.5px
+                            </td>
+                            <td>on 态：primary-lightest + mix(primary 50%) 边 + primary 字 + 600（合规选中语言）</td>
+                        </tr>
+                        <tr>
+                            <td class="sel">.wengu-review-item-open（新）</td>
+                            <td class="val">
+                                border-top <span class="tok">--b3-border-color</span>; padding:14px 22px 18px; bg
+                                var(--wengu-sunken)
+                            </td>
+                            <td>sec / timeline 类名原样移入；操作行右对齐 gap 10</td>
+                        </tr>
                     </table>
                     <p class="caption">
-                        <b>缺失形态</b>：空态（上例虚线框）；「全部」聚合视图出题集名列、组内视图省同名列；无自评数据时迷你星整体不出。
+                        <b>缺失形态</b
+                        >：空态（上例虚线框）；「全部」聚合视图出题集名列、组内视图省同名列；无自评数据时迷你星整体不出。
                     </p>
                 </div>
             </section>
 
             <div class="foot">
                 施工稿 v1 · 2026-09-15 · 与 sidebar-gap-list.md 同口径（S/A/B/C 分级与令牌映射论证见彼文件）。<br />
-                本稿默认以 Neo+ 深色实测值渲染；右上「切换明暗验证态」翻转 body.light 变量组——规则层零改动即两态成立，即实现侧的验收方式。
-                页内 svg 均为替身示意，实现侧一律走 svgIcon 白名单 id（iconClock / iconSearch / iconRefresh / iconLeft / iconRight / iconDown / iconInfo / iconCheck / iconList / iconFile / iconFolder / iconStar）。
+                本稿默认以 Neo+ 深色实测值渲染；右上「切换明暗验证态」翻转 body.light
+                变量组——规则层零改动即两态成立，即实现侧的验收方式。 页内 svg 均为替身示意，实现侧一律走 svgIcon 白名单
+                id（iconClock / iconSearch / iconRefresh / iconLeft / iconRight / iconDown / iconInfo / iconCheck /
+                iconList / iconFile / iconFolder / iconStar）。
             </div>
         </div>
 
