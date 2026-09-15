@@ -758,6 +758,41 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       揭示后露自评钮、**先不记账**（对错由 `selfAssess` 给）；收卷模式下
       只置「已答」，交卷时由 `endRound` 补揭示 + 自评钮（否则交卷后这题
       既无答案也无自评入口，用户无法收口）。
+- **作答两段式确认**（Issue #105，20260915 用户真机反馈「防误触」）：
+  **点选只落选择态，提交一律由「确认答案」触发**——`DrillScreen.pick` 只调
+  `drill.pickLetter`，不再对单选/判断自动 `submit()`；`needConfirm` 覆盖
+  **所有可作答形态**（choice / judge / text / fill / plain），只有逐空
+  `slots`（无作答位）排除。选择/判断未选中任何项时确认钮 `disabled`
+  （`confirmDisabled`）；**文本/填空保持现行为**——空提交按原样出
+  「未作答」提示，不 disable。**提交链（`MobileAnswering.submit` /
+  `pickLetter`）零改动**（既有 `noAnswer` 空提交守卫与幂等口径照旧），
+  改动只落在组件层。
+    - 移动端/收卷两模式同口径；`mobileAnswerHint` 文案随之改为
+      「作答后按「确认答案」判分」/ "Answer, then tap Confirm to grade"。
+- **移动端页面图标以移动端 sprite 为准**：桌面有的 symbol（`iconGrid` /
+  `iconFlag` / `iconDoc`）在移动端页面样式表**不存在**，用了就是空白。
+  现用同义替换：答题卡 `iconList`、标不会/错题条 `iconBookmark`、
+  题集分组头 `iconFile`。新增移动端图标前先确认 symbol 在移动端 sprite 里。
+- ⚠️ **选项单项列表剥壳**（Issue #105，桌面/移动同链路同病）：部分题库的
+  `optionMd` 是列表形态（`- A. xxx` → `<ul><li><div class="p">…</div></li></ul>`），
+  `optionInline` 原先只剥单段落（`unwrapSingleBlock` 对顶层 `ul` 返 null），
+  整条列表（含**列表圆点**）渲进选项行 ⇒ 字母圆圈旁游离「•」+ 双重字母标。
+    - 新增导出纯函数 `ProtyleHost.unwrapSingleListItem`：**恰一个 `li` 且
+      li 内恰一个段落**才剥，多项列表（真语义清单）与 li 内多块（含嵌套
+      列表）一律原样返回；传入 null 原样透传。
+    - ⚠️ **两条剥壳是并行的顶层形态判定，不许串成两级**：
+      `unwrapSingleListItem` 对单段落输入原样透传（≠ 剥壳），故 `optionInline`
+      写成「列表剥壳命中即用、否则回落单段落剥壳」。串成
+      `unwrapSingleListItem(unwrapSingleBlock(block))` 会把列表这一支**短路掉**
+      （`unwrapSingleBlock` 对 ul 返 null → 内层直接 null）。
+    - ⚠️ **闭合标签定位不许假定贴串尾**：`renderMdHtml` 输出尾部带换行，
+      `endsWith("</ul>")` 判据会漏判整条链；按 `lastIndexOf` 取闭合标签
+      起点（其后再校验只余空白）。
+    - ⚠️ **`li` 开/闭合位都取 `exec` 的 `index`**（regex `exec` 的 index 恒落在
+      标签的 `<` 上）：开标签正文起点 = `index + m[0].length`、闭标签终点
+      = `index` 本身。给闭合位加长度会把 `</li>` 留在正文里（剥壳整链失效）。
+    - 单测在 `quiz/service/optionCompact.test.ts`（单项 ul/ol 剥、带属性标签剥、
+      多项不剥、li 内多块不剥，共 4 例）。
 - **i18n 不许硬编码**：`QuestionBody` 是纯展示件，**取词由壳经 `t` prop
   传入**（同 `QuizCard` 口径），组件内不持控制器也不写字面中文——首版
   判断/揭示区的「正确 / 错误 / 答案 / 你的选择 / 解析」全是硬编码中文，

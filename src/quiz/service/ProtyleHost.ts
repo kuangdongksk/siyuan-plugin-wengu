@@ -134,7 +134,13 @@ const OPT_W_M = 24;
  *  steps/slots 选项按钮与 match 候选池同用本函数分档。 */
 export function optionInline(disp: string): { body: string; tier: string } {
     const block = renderMdHtml(disp);
-    const inline = unwrapSingleBlock(block);
+    // 剥壳两条并行的顶层形态（互斥，都不中则整行独占）：单项列表壳
+    // （题库里 optionMd 常有 `- A. xxx` 列表形态，Issue #105——不作两级
+    // 嵌套串联：`unwrapSingleBlock` 对顶层 `ul` 返 null，串起来会把
+    // 列表这一支短路掉）→ 单段落壳。列表整条不剥会把列表圆点渲进选项行，
+    // 字母圆圈旁出现游离「•」+ 双重字母标。
+    const unwrapped = unwrapSingleListItem(block);
+    const inline = unwrapped === block ? unwrapSingleBlock(block) : unwrapped;
     if (inline === null) return { body: block, tier: "" };
     const w = estimateOptWidth(disp);
     return { body: inline, tier: w <= OPT_W_S ? "wengu-opt-s" : w <= OPT_W_M ? "wengu-opt-m" : "" };
@@ -167,6 +173,62 @@ export function unwrapSingleBlock(html: string): string | null {
         }
     }
     return null;
+}
+
+/** 剥壳（列表形态，Issue #105）：题干/选项的 markdown 常写成单项列表
+ *  （`- A. xxx`），渲染成 `<ul><li><div class="p">…</div></li></ul>`——此时
+ *  `unwrapSingleBlock` 对顶层 `ul` 返回 null，整条列表（含圆点）会渲进
+ *  选项行。本函数在**恰一个 li、且 li 内恰一个段落**时剥出段落内联正文；
+ *  多项列表（真语义清单）与 li 内多块（含嵌套列表）一律返回原串不动。
+ *  传入 null（上一级已剥壳）原样透传。 */
+export function unwrapSingleListItem(html: string | null): string | null {
+    if (html === null) return null;
+    const t = html.trim();
+    if (!t.startsWith("<ul") && !t.startsWith("<ol")) return html;
+    const tag = t.startsWith("<ul") ? "ul" : "ol";
+    const openEnd = t.indexOf(">");
+    if (openEnd < 0) return html;
+    // 开/闭合标签定位：渲染输出尾部可能有换行（renderMdHtml 不 trim），
+    // 不假定闭合标签贴串尾；闭合标签之前的内容才是列表正文。
+    const closeAt = t.lastIndexOf(`</${tag}>`);
+    if (closeAt < openEnd) return html;
+    const inner = t.slice(openEnd + 1, closeAt);
+    // 闭合标签之后只允许空白（防 `</ul>` 后面还拖着别的顶层块）。
+    if (t.slice(closeAt + `</${tag}>`.length).trim() !== "") return html;
+    // 顶层 li 扫描：exec 的 index 恒落在标签 "<" 上——开标签取其 index
+    // （列表正文里 li 之前的位置）、li 正文起点 = index + 标签长度、闭标签
+    // 取其 index（= li 正文终点）。恰一个 li 才剥；并列 li 与未闭合的畸形
+    // 一律原样返回。
+    let liDepth = 0;
+    let liOpen = -1;
+    let liStart = -1;
+    let liEnd = -1;
+    let liCount = 0;
+    const liRe = /<\/?li\b[^>]*>/g;
+    let m: RegExpExecArray | null;
+    while ((m = liRe.exec(inner))) {
+        if (m[0].startsWith("</")) {
+            liDepth -= 1;
+            if (liDepth === 0) {
+                liCount += 1;
+                liEnd = m.index;
+            }
+        } else if (liDepth === 0) {
+            liOpen = m.index;
+            liStart = m.index + m[0].length;
+            liDepth += 1;
+        } else {
+            liDepth += 1;
+        }
+    }
+    // 多项列表（liCount > 1）与畸形（liCount 0 / 未闭合）一律原样返回。
+    if (liCount !== 1 || liStart < 0 || liEnd < 0) return html;
+    // 单 li 必须吃掉整个列表正文：开标签之前与闭合标签之后都只剩空白。
+    if (inner.slice(0, liOpen).trim() !== "") return html;
+    const after = inner.slice(liEnd).replace(/^<\/li\b[^>]*>/, "");
+    if (after.trim() !== "") return html;
+    const stripped = unwrapSingleBlock(inner.slice(liStart, liEnd));
+    return stripped === null ? html : stripped;
 }
 
 /** 把一段 markdown（步骤引导语/选项）渲染为 HTML（畸形时退回纯文本）。 */

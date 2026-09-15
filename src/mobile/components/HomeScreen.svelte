@@ -88,7 +88,7 @@
                 {#each groupSetsByDoc(drill.ui.home.sets) as g (g.key)}
                     <div class="wengu-md-setgroup">
                         <div class="wengu-md-setgroup-head">
-                            {@html svgIcon("iconDoc")}{g.title}
+                            {@html svgIcon("iconFile")}{g.title}
                             <span class="wengu-md-setcount"
                                 >{fmt(t("mobileSetGroupCount"), { n: String(g.sets.length) })}</span
                             >
@@ -123,7 +123,9 @@
         </section>
 
         <div class="wengu-md-startrow">
-            <Button class="wengu-md-btn-solid" onclick={() => drill.start("fresh")}>{t("startDrill")}</Button>
+            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.start("fresh")}
+                >{t("startDrill")}</Button
+            >
         </div>
     {/if}
 </div>

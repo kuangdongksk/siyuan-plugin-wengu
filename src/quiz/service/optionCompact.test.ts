@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { estimateOptWidth } from "../../types";
-import { mdFragmentHtml, optionRowHtml, unwrapSingleBlock } from "./ProtyleHost";
+import { mdFragmentHtml, optionInline, optionRowHtml, unwrapSingleBlock, unwrapSingleListItem } from "./ProtyleHost";
 
 /**
  * 短选项紧凑排布（opt-compact，20260829；docs/option-compact-layout.md）：
@@ -89,5 +89,47 @@ describe("optionRowHtml：估宽档类（markdown-it 直跑）", () => {
         // 空行分段 → 两个顶层块 → 剥壳失败整行独占，同样不可编辑
         expect(optionRowHtml(1, "B. 行一\n\n行二")).not.toContain('contenteditable="true"');
         expect(mdFragmentHtml("题干 $x$")).not.toContain('contenteditable="true"');
+    });
+});
+
+/**
+ * 选项单项列表剥壳（Issue #105）：题库里 \`optionMd\` 常见形态是单项列表
+ * （\`- A. 都发挥引领和教化作用\`），渲染出 \`<ul><li><div class="p">…</div></li></ul>\`；
+ * 只剥单段落壳的旧链对顶层 \`ul\` 返回 null，整条列表（含列表圆点）渲进选项行
+ * ⇒ 字母圆圈旁游离「•」+ 双重字母标。恰一个 li 且 li 内恰一个段落才剥，
+ * 多项列表（真语义清单）与 li 内多块（含嵌套列表）一律不动。
+ */
+describe("unwrapSingleListItem：单项列表剥壳", () => {
+    /** 真机形态样本（MinerU 导入题库的英文/中文选项列表）。 */
+    const ulWrap = (inner: string) => `<ul>\n${inner}\n</ul>`;
+    const liP = (inner: string) => `<li><div class="p">${inner}</div></li>\n`;
+
+    it("单项 ul 剥出段落内联正文（列表圆点不再渲入选项行）", () => {
+        const html = ulWrap(liP("A. 都发挥引领和教化作用"));
+        expect(unwrapSingleListItem(html)).toBe("A. 都发挥引领和教化作用");
+        // 端到端：optionInline 对单项列表输入返回的 body 不含 <ul
+        expect(optionInline("- A. 都发挥引领和教化作用").body).not.toContain("<ul");
+    });
+
+    it("单项 ol 与带属性标签同样剥壳", () => {
+        expect(unwrapSingleListItem(`<ol class="list fn__flex">\n${liP("两处")}</ol>`)).toBe("两处");
+        expect(unwrapSingleListItem('<ul><li class="fn__flex"><div class="p fn__flex">甲</div></li></ul>')).toBe("甲");
+    });
+
+    it("多项列表不剥（真语义清单保留圆点）", () => {
+        const html = ulWrap(liP("甲") + liP("乙"));
+        expect(unwrapSingleListItem(html)).toBe(html);
+        expect(optionInline("- 甲\n- 乙").body).toContain("<ul");
+    });
+
+    it("li 内多块不剥（含嵌套列表的畸形形态原样保留）", () => {
+        const two = ulWrap(liP("甲") + liP("乙"));
+        expect(unwrapSingleListItem(two)).toBe(two);
+        const nested = ulWrap(`<li><div class="p">甲</div>${ulWrap(liP("乙"))}</li>`);
+        expect(unwrapSingleListItem(nested)).toBe(nested);
+        // 非列表输入原样透传（上一级已剥壳）
+        const pOnly = '<div class="p">甲</div>';
+        expect(unwrapSingleListItem(pOnly)).toBe(pOnly);
+        expect(unwrapSingleListItem(null)).toBeNull();
     });
 });
