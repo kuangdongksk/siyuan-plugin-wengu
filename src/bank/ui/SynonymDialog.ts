@@ -39,17 +39,19 @@ export async function openSynonymDialog(deps: SynonymDeps): Promise<void> {
     root.querySelector("[data-act='syn-cancel']")?.addEventListener("click", () => dialog.destroy());
     // 清空=两击确认（首击变红「确认清空」，3s 复原），清掉后关窗。
     // 武装态走公共底座 Armed（同专题/转换条口径，3s 自动复位）：armed 值
-    // 即按钮本身，apply 只管还原文案与类，复击判定在下方 listener。
+    // 即按钮本身，判据走类名（apply 是唯一写入者）。
+    // ⚠️ apply 必须**双向写态**：底座 `arm()` 进门先 `disarm()` 一次，单向
+    // apply（只管还原）会把首击刚置上的文案与类当场抹掉，复击永不成立
+    // （20260915 复核实测）。
     const clearBtn = root.querySelector<HTMLButtonElement>("[data-act='syn-clear']");
     const arm = new Armed<HTMLButtonElement>((btn) => {
-        if (!btn) return;
-        btn.textContent = t("synClear");
-        btn.classList.remove("wengu-syn-armed");
+        const target = btn ?? clearBtn;
+        if (!target) return;
+        target.textContent = btn ? t("synClearConfirm") : t("synClear");
+        target.classList.toggle("wengu-syn-armed", !!btn);
     });
     clearBtn?.addEventListener("click", () => {
         if (!clearBtn.classList.contains("wengu-syn-armed")) {
-            clearBtn.textContent = t("synClearConfirm");
-            clearBtn.classList.add("wengu-syn-armed");
             arm.arm(clearBtn);
             return;
         }

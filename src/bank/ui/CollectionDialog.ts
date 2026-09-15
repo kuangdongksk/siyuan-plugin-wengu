@@ -302,12 +302,19 @@ async function runCollectGen(
 
 /** 两击确认：首次点击变确认态（3s 复原），复击执行——不引入新弹窗。
  *  武装态走公共底座 Armed（同专题/SynonymDialog 口径）：armed 值即按钮
- *  本身，apply 只管复位（armed 只在复位时为 undefined）。 */
+ *  本身，判据走类名，apply 是状态唯一写入者。
+ *  ⚠️ apply 必须**双向写态**：底座 `arm()` 进门先 `disarm()` 一次，单向
+ *  apply（只管复位）会把首击刚置上的文案与类当场抹掉（`innerHTML` 还原
+ *  还会连确认文案一起吞掉），复击永不成立（20260915 复核实测）。 */
 function armConfirm(btn: HTMLButtonElement, confirmText: string, act: () => void): void {
     const arm = new Armed<HTMLButtonElement>((b) => {
-        if (!b) return;
-        b.classList.remove("wengu-col-armed");
-        b.innerHTML = svgIcon("iconClose");
+        if (b) {
+            b.classList.add("wengu-col-armed");
+            b.textContent = confirmText;
+            return;
+        }
+        btn.classList.remove("wengu-col-armed");
+        btn.innerHTML = svgIcon("iconClose");
     });
     btn.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -316,8 +323,6 @@ function armConfirm(btn: HTMLButtonElement, confirmText: string, act: () => void
             act();
             return;
         }
-        btn.classList.add("wengu-col-armed");
-        btn.textContent = confirmText;
         arm.arm(btn);
     });
 }
