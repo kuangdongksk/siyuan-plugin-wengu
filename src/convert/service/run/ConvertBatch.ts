@@ -21,6 +21,38 @@ import type { WenguMaterial, WenguQuestion } from "../../../types";
 import { KernelBlock } from "../../../siyuan/block";
 import { runSegment } from "./ConvertSegment";
 import type { SegmentBatch, SegmentDeps, SegmentResult } from "./ConvertSegment";
+import {
+    countMissingImages,
+    gate,
+    isBlankSource,
+    MAX_CONCURRENCY,
+    percentOf,
+    SHARDS_PER_WORKER,
+    TYPE_I18N,
+} from "./ConvertBatchTypes";
+
+import type {
+    BatchedResult,
+    ConvertProgress,
+    ConvertProgressRecord,
+    ResumeInfo,
+    SubmitPlan,
+} from "./ConvertBatchModel";
+
+/**
+ * 数据形态层原出口保留（跨模块与既有单测自本模块 import，纯 re-export 保签名）：
+ * 交付计划与四个载体的实际定义在 `./ConvertBatchModel`（20260915 拆出）。
+ */
+export type {
+    BatchedResult,
+    ConvertProgress,
+    ConvertProgressRecord,
+    ResumeInfo,
+    SubmitPlan,
+} from "./ConvertBatchModel";
+
+/** 源判空加固的原出口保留（既有单测自本模块 import，纯 re-export 保签名）。 */
+export { isBlankSource } from "./ConvertBatchTypes";
 
 /**
  * 分片并行转换编排（20260910，见 AGENTS.md「convert 域」）：逐段自推进的
@@ -43,163 +75,16 @@ import type { SegmentBatch, SegmentDeps, SegmentResult } from "./ConvertSegment"
  *    断点仍是单游标，终止「保留」的语义与串行时代完全一致；
  * 4. 每片首批顺带输出判定与题型（判定合并进首批生成，无独立检测轮）。
  *
+ * 常量/纯函数层在 `ConvertBatchTypes`（并发上限、源判空、百分比、闸门、
+ * 题型 i18n 键），**数据形态层在 `ConvertBatchModel`**（交付计划与四个跨模块
+ * 载荷，20260915 拆出压 500 行红线）；落库交付按家族惯例分 **plan/apply
+ * 两层**——`planSubmit` 只算（写库参数 / 题数 / 批号 / 新游标），
+ * `applySubmit` 照做（写库 + 落盘 + 改名 + 报进度），拆出时逐句搬运、
+ * 编排次序未动。
+ *
  * 并发度 = 1 时目标片数也是 1，逐字回到改造前的行为。增量重转换仍走确定性
  * 结构切块 + 指纹三态分类（SrcChunk/ConvertIncrement），不受本模块影响。
  */
-
-/** 同时最多跑几条片流水线（= 同时最多几个在途 AI 调用）。 */
-const MAX_CONCURRENCY = 4;
-
-/** 目标片数 = 并发度 × 该系数：片数略多于流水线数，让 worker 池消化片长
- *  不均（多出的片排队，避免某片超长变成尾巴）。 */
-const SHARDS_PER_WORKER = 2;
-
-/** 插图自检：源文档的图片行没被带进生成结果的条数（0=无缺，真机
- *  案例：AI 读不了图、把带图题整题跳过）。 */
-function countMissingImages(srcMd: string, outMd: string): number {
-    const srcImgs = new Set(srcMd.match(/!\[\]\([^)\s]+\)/g) ?? []);
-    const outImgs = new Set(outMd.match(/!\[\]\([^)\s]+\)/g) ?? []);
-    let n = 0;
-    for (const img of srcImgs) {
-        if (!outImgs.has(img)) n++;
-    }
-    return n;
-}
-
-/**
- * 源 kramdown 是否「空得只剩残渣」（Issue #42）：逐行剥掉 IAL 属性行与
- * 围栏标记行后，看还剩不剩实质性字符。
- *
- * ⚠️ **这不是空壳文档的判据主力**（复审实测校正，别当根因写）：
- * `getBlockKramdown` 回的文档根 IAL 一定带 `id="…"`，上面那条剥 id 的
- * 正则已经吃掉了它，`!kramdown.trim()` 早已把这批空壳挡住。本函数真正
- * 多挡的是**不带 id 的属性行**（`{: title="…"}` 这类分叉模板残渣）与
- * **空代码围栏**——它们同样会白烧一次 AI 调用。属加固，不是修复根因。
- *
- * 只做「有没有正文」的二值判定，**不改 kramdown 本体**——AI 出题用的是
- * 未改动的 `kramdown`，剥行只是判空的一次性视图。
- *
- * 导出仅为单测（转换主流程唯一消费点就在本文件）。
- */
-export function isBlankSource(md: string): boolean {
-    for (const line of md.split("\n")) {
-        const t = line
-            .replace(/^\s*(?:>\s*)?\{:[^}\n]*\}\s*$/, "") // 整行 IAL（含引用前缀）
-            .replace(/^\s*```.*$/, "") // 围栏开合标记（无正文的空代码块）
-            .trim();
-        if (t) return false;
-    }
-    return true;
-}
-
-/** 已读百分比（逐段模式的「批总数」事前未知，用原文消费比例做进度）。 */
-function percentOf(cursor: number, total: number): number {
-    if (total <= 0) return 100;
-    return Math.max(0, Math.min(100, Math.round((cursor / total) * 100)));
-}
-
-/** 片级闸门：片 i 的落库要等片 i-1 落库完成（见文件头注释第 3 点）。 */
-function gate(): { promise: Promise<void>; resolve: () => void } {
-    let resolve!: () => void;
-    const promise = new Promise<void>((r) => {
-        resolve = r;
-    });
-    return { promise, resolve };
-}
-
-/** 题型 i18n 键（完成消息展示首批报出的题型并集）。 */
-const TYPE_I18N: Record<QuestionType, string> = {
-    [QuestionType.Single]: "typeSingle",
-    [QuestionType.Multiple]: "typeMultiple",
-    [QuestionType.Judge]: "typeJudge",
-    [QuestionType.Fill]: "typeFill",
-    [QuestionType.Brief]: "typeBrief",
-    [QuestionType.Steps]: "typeSteps",
-    [QuestionType.Cloze]: "typeCloze",
-    [QuestionType.Match]: "typeMatch",
-    [QuestionType.Essay]: "typeEssay",
-    [QuestionType.Trans]: "typeTrans",
-};
-
-/** 转换进度回调（页内转换条/转换管理面板展示）。 */
-export interface ConvertProgress {
-    /** generating=逐段生成中；writing=收尾落盘中（detect 已随独立检测退役）。 */
-    phase: "detect" | "generating" | "writing";
-    /** 已落库批数（逐段模式=已落库的窗口数；batch=i 表示第 i 批刚落库）。 */
-    batch: number;
-    /** 总批数——批数由 AI 决定、事前未知，恒 0（展示走 readPct）。 */
-    total: number;
-    /** 已生成题数（累积）。 */
-    count: number;
-    /** 刚完成那批生成的题数（首批前为 0）。 */
-    lastBatch: number;
-    /** 已读原文百分比（并行下 = 各片进度之和，不落库也计入）。 */
-    readPct?: number;
-    /** 前置检测到的现成题数（判定已合并进首批生成，恒不提供）。 */
-    detected?: number;
-    /** 检测有分段计数失败，总数是下限（显示 N+）。 */
-    detectedTruncated?: boolean;
-    /** 刚完成那批的题目预览（渐进展示）。 */
-    newStems?: QuestionPreview[];
-    /** 本转换的题集 id（首批落库起有值；页签据此渐进呈现）。 */
-    setId?: string;
-    title?: string;
-    /** 已落库题目的累积解析视图（渐进预览直用，无内核 IO）。 */
-    questions?: WenguQuestion[];
-    /** 已落库材料的累积视图（材料组预览）。 */
-    materials?: WenguMaterial[];
-}
-
-/** 终止/失败保留的进度记录（prefs 持久化，重开思源后可继续生成）：
- *  已生成部分是题库里的真实记录（每批已 flush），记录只欠断点游标。
- *  分片并行下落库恒为按源顺序的连续前缀，断点因此仍是单游标。 */
-export interface ConvertProgressRecord {
-    /** 保留的（部分）题集 id。 */
-    setId?: string;
-    title: string;
-    /** 已生成覆盖到的源文档字符偏移（=续跑游标）。 */
-    offset: number;
-    /** 已完成批数 / 总批数（展示用；逐段模式两者都是**实际 AI 调用批数**，
-     *  含零产物批、不含纯标题跳过窗口——与 SegmentResult.batches 同口径）。 */
-    batches: number;
-    total: number;
-    /** 已生成题数。 */
-    count: number;
-    /** 批量转换（Issue #37）维度：本记录属于一个串行队列时才有值——索引
-     *  0 起、总篇数、队列标题（=根文档标题，面板总行展示「第 x/N 篇 ·
-     *  队列名」）、`rootId`（队列根文档 id，面板「继续生成」据此恢复
-     *  **整个队列**，Issue #62）。**只加不改名**：单篇转换的记录不带此键、
-     *  存量队列记录不带 rootId（「继续生成」退化为单篇续跑），装载侧照旧
-     *  （数据演进守则：optional + 无 backfill，不 bump version）。 */
-    batch?: { index: number; total: number; groupTitle?: string; rootId?: string };
-}
-
-/** 批式转换结果：done=全部完成；aborted=用户终止（已落库部分待抉择）。 */
-export interface BatchedResult {
-    status: "done" | "aborted" | "failed";
-    message: string;
-    /** 本转换的题集 id（有落库产物时）。 */
-    setId?: string;
-    title?: string;
-    count: number;
-    /** 已完成批数 / 总批数（口径=**实际 AI 调用批数**，含零产物批、不含
-     *  纯标题跳过窗口；与进度回调 ConvertProgress.batch「已落库批数」是两个
-     *  不同口径，见收口处注释）。 */
-    batches: number;
-    total: number;
-    /** 已生成覆盖到的源文档字符偏移（继续生成的断点）。 */
-    doneOffset: number;
-    /** 本次运行写入的题目 id（「全部丢弃」按它回收）。 */
-    writtenQids: string[];
-}
-
-/** 继续生成的入参：上次终止保留的进度（题集已在题库里，接续写入）。 */
-export interface ResumeInfo {
-    /** 已生成覆盖到的源文档偏移（续跑游标）。 */
-    offset: number;
-    /** 上次保留的（部分）题集 id。 */
-    setId?: string;
-}
 
 /** 分片并行转换主流程。终止时返回 aborted + 已写入 qid（待抉择）。 */
 export async function convertDocBatched(
@@ -334,12 +219,10 @@ export async function convertDocBatched(
     let userAborted = false;
     let flushedCursor = baseFrom; // 已落库的连续前缀末尾（续跑断点）
     const internal = new AbortController();
-    /** 本流程的「用户终止」总闸（唯一写入点）：置标记（收口判据）+
-     *  断在途 fetch + worker 池收口。页内停止钮（relayAbort）与 AI 会话
-     *  面板的「停止」（aiStopHandle 接线）走的是**同一个** abortFlow——
-     *  「面板点停 = 等价于页内停止」就是这条线，不是只断当前一笔 fetch。
-     *  ⚠️ 不能只调 internal.abort()：那会让收口判成「AI 失败」而非
-     *  「用户终止」（Issue #72 实现期踩到）。 */
+    /** 本流程的「用户终止」总闸（唯一写入点）：置标记 + 断在途 fetch +
+     *  worker 池收口。页内停止钮（relayAbort）与面板「停止」（aiStopHandle）
+     *  走的是同一个 abortFlow = 「面板点停 ≡ 页内停止」，不是只断一笔 fetch。
+     *  ⚠️ 不能只调 internal.abort()：收口会判成「AI 失败」（Issue #72）。 */
     const abortFlow = (): void => {
         userAborted = true;
         // 带 AI_STOPPED 理由：在途那笔据此记「停止」而非「失败」（Issue #88）。
@@ -367,16 +250,31 @@ export async function convertDocBatched(
         return percentOf(baseFrom + done, kramdown.length);
     };
 
-    /** 交付一批：等本片前驱落库完成 → 写入 → flush → 报进度。返回落库题数。 */
-    const submit = async (idx: number, batch: SegmentBatch): Promise<number> => {
-        if (idx > 0) await gates[idx - 1].promise; // 片序闸门（连续前缀）
-        if (internal.signal.aborted) return 0;
-        const linked = batch.byAlias ? applyKnowDrafts(batch.drafts, batch.byAlias) : 0;
-        knowLinked += linked;
+    /** 交付计划的**纯计算层**（audit #109 点名的 pair plan/apply 惯例：
+     *  本文件此前是家族里的唯一例外）。只读当前内存态，不调内核、不写库、
+     *  不发通知——批号与题数口径因此可直测（产物见 SubmitPlan）。 */
+    const planSubmit = (batch: SegmentBatch): SubmitPlan => {
         // 题集不存在即建（本次首个 submit），存在则续挂；两路都带
         // `subject`（**只填不改**：新建落首批报出的学科，续跑的存量题集
         // 首次补上、已带学科的不被覆写）。既有题集只在首批报出后补一次。
-        if (!setId || (genSubject && !subjectWritten)) {
+        // plan 侧的判据与 apply 侧一致：`open` 只决定 apply 是否走 openSet。
+        const open = !setId || (genSubject && !subjectWritten);
+        const nq = batch.drafts.filter((d) => !d.material).length;
+        // 行名任务名化（Issue #88）：批号（本批是全片第几批）与题数（本批
+        // 产出几道题）此刻才知道——AI 会话面板那行从此是「生成第 12 批
+        // · 8 题」而非类别名「转换」。**逐片批号**：片是并行单元，跨片
+        // 累加序不确定；片内序即用户读到的「第几批」，不会因并发漂移。
+        const retitle = batch.sid
+            ? fmt(t("aiRecordConvertBatch"), { i: String(batch.batchNo), n: String(nq) })
+            : undefined;
+        return { open, nq, nextCursor: Math.max(flushedCursor, batch.end), retitle };
+    };
+
+    /** 计划的**执行层**：写库 + 落盘 + 改名 + 报进度。返回本批落库题数。
+     *  编排次序与拆出前逐字一致（openSet → append → segs/整篇哈希 →
+     *  flush → 断点检查点 → 进度回调）。 */
+    const applySubmit = async (batch: SegmentBatch, plan: SubmitPlan): Promise<number> => {
+        if (plan.open) {
             setId = await writer.openSet({
                 setId,
                 title: info.title,
@@ -402,23 +300,11 @@ export async function convertDocBatched(
                 newStems.push(questionPreview(u.kd, qno));
             }
         }
-        const nq = batch.drafts.filter((d) => !d.material).length;
-        // 行名任务名化（Issue #88）：批号（本批是全片第几批）与题数（本批
-        // 产出几道题）此刻才知道——AI 会话面板那行从此是「生成第 12 批
-        // · 8 题」而非类别名「转换」。**逐片批号**：片是并行单元，跨片
-        // 累加序不确定；片内序即用户读到的「第几批」，不会因并发漂移。
-        if (batch.sid) {
-            aiSessions()?.retitle(
-                batch.sid,
-                fmt(t("aiRecordConvertBatch"), {
-                    i: String(batch.batchNo),
-                    n: String(nq),
-                })
-            );
-        }
-        count += nq;
+        if (batch.sid && plan.retitle) aiSessions()?.retitle(batch.sid, plan.retitle);
+        // 落库批数的推进（plan 算好、apply 照做；见 SubmitPlan）
+        count += plan.nq;
         flushedBatches++;
-        flushedCursor = Math.max(flushedCursor, batch.end);
+        flushedCursor = plan.nextCursor;
         // 源级哈希 + 分段边界表（Issue #74）：每批落库后记一段
         // `{s, e, h}`（e=**本批实际落库游标**，段首尾相接、连续覆盖
         // [0, flushedCursor]），并把整篇哈希写进题集——重导据此判「源未
@@ -426,7 +312,7 @@ export async function convertDocBatched(
         // 既有段表上**继续追加**、整篇哈希以续跑时的源为准覆写。
         // 放在 flush 前后都安全（同一份内存数据），取 flush 前写入以便
         // 与记录同批落盘。
-        const segSet = opts.bank.peek()?.sets?.[setId];
+        const segSet = setId ? opts.bank.peek()?.sets?.[setId] : undefined;
         if (segSet) {
             segSet.segs = advanceSegs(segSet.segs, batch.start, flushedCursor, kramdown);
             segSet.srcContentHash = hashContent(kramdown);
@@ -448,7 +334,7 @@ export async function convertDocBatched(
             batch: flushedBatches,
             total: 0,
             count,
-            lastBatch: nq,
+            lastBatch: plan.nq,
             readPct: readPct(),
             newStems,
             setId,
@@ -456,7 +342,19 @@ export async function convertDocBatched(
             questions: [...previewList],
             materials: [...previewMats],
         });
-        return nq;
+        return plan.nq;
+    };
+
+    /** 交付一批：等本片前驱落库完成 → plan → apply（落库/改名/报进度）。 */
+    const submit = async (idx: number, batch: SegmentBatch): Promise<number> => {
+        if (idx > 0) await gates[idx - 1].promise; // 片序闸门（连续前缀）
+        if (internal.signal.aborted) return 0;
+        const linked = batch.byAlias ? applyKnowDrafts(batch.drafts, batch.byAlias) : 0;
+        knowLinked += linked;
+        // 纯计算先定下写库参数/题数/批号，执行层照做（见 planSubmit 注释）。
+        // 注意 **先 plan 再 apply**：apply 内部的 openSet 会给 setId 铸新值，
+        // 落库目标一律读 apply 里**此刻**的 setId（不能把旧值传进来）。
+        return applySubmit(batch, planSubmit(batch));
     };
 
     /** 片执行依赖（每片一份 makeCall——stepCtx 是片内状态）。 */
