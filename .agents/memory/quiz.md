@@ -1,5 +1,35 @@
 # src/quiz/ —— 做题主流程
 
+- **对稿还原（Issue #135，20260915）**：侧栏/题号栏/头部统计条/题卡/chips/
+  自评五星按 `design/sidebar-gap-list.md` §0–§4 与 §7.a/b 逐值落地，规格锁在
+  `quiz/render/WorkspaceDesign.test.ts`（scss 真编译 + 组件 `?raw` 断言
+  **规则在场与值**，不钉分片落点——拆片是后续批次自由）。落点要点：
+    - **`--wengu-faint` / `--wengu-border-strong`** 定义在 `scss/base.scss`
+      顶部 `:root`（§0 派生档：b3 无「比 on-surface-light 再弱一档」的字色，
+      强调边同理），全仓复用（题号栏/侧栏/五星/chips 都吃它）。
+    - **题号栏三层结构**（`NumRailApp.svelte`）：常驻帽 `.wengu-nums-cap` /
+      自滚网格 `.wengu-nums-grid`（**滚动职责从 `.wengu-nums` 下放本层**，
+      帽与图例常驻不滚）/ 常驻图例（`revealed` 才补对错两项）。内滚窗
+      **不显滚动条**（用户 20260915 拍板；`scrollbar-width:none` +
+      `::-webkit-scrollbar`）。`--wengu-nums-max` 封顶逻辑不变——它在栏的
+      border-box 上，新增 12px 内衬天然计入。
+    - **样式拆片**（红线收口，§11.1）：题号栏 → `scss/nums.scss`、
+      考点行/五星 → `scss/card-extra.scss`、侧栏 → `scss/side.scss`。
+      三者都要在 `src/index.scss` 里 `@use`。
+    - **自评五星数据落点＝会话记录 `WenguSession.selfStars?: Record<qid,1..5>`**
+      （§7.b 方案 1，用户已拍板）：读写收口在 `flow/AnswerFlow.ts` 的
+      `selfStarsOf` / `setSelfStars`（**再点同值＝删键，不是写 0**——两态在
+      存储上必须可分），每次评分即 `host.persist()`。loader 侧零迁移
+      （旧会话无该键 ⇒ 全未评），**不 bump version**。题库沉淀（方案 2，
+      错题本迷你星回显）留后续迭代。
+    - **考点 chips 的防剧透闸**＝`.wengu-card.wengu-revealed`（挂 graded 会
+      在 after 未收卷时提前泄题，同 `.wengu-card-title` 口径）；整行不出而
+      非留白。点击出口＝`StatsViewAccess` 的考点视图（`searchKcapFor`，
+      经 `flow/SideMount.kcapSearchFor` 薄引用）；不传 `kcapSearch` ⇒ 降级
+      纯展示 chip（预览/复习等只读壳）。
+    - **侧栏 AI 入口**：`.wengu-side-ai` 经 `sideActFor` 的 `side-ai` 分支
+      落 `switchWorkspace("ai")`（rail 已存在的 AI 工作区，不新造面板通道）。
+
 - `index.ts` = QuizView 编排（546 行，压回基线；Issue #12 起记账镜像
   外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、
   右键弹窗动作外移 `service/DocActions.ts`）。**访问器表 + 编排职责

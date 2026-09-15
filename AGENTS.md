@@ -30,10 +30,13 @@
 - **例外（仍属「调度」范畴，本地可直接改并推送 `dev`）**：`.cnb/`、`.cnb.yml`、
   本文件的协作约定段 —— 它们是 NPC 运行所依赖的**调度基础设施**。
   **业务代码（`src/`、`tests/`、`docs/` 正式文档）没有例外，一律走云端。**
-- **CI 已替你做机械检查**（20260910 落地）：`.cnb.yml` 的 `$` 节点下配了
-  `quality-gate`，`push` 与 `pull_request` 都自动跑「格式 → eslint →
-  svelte-check → 测试」四件套（由快到慢，尽早失败）。审查 PR 时**先看 CI 结论**；
-  只有要复现失败、或怀疑它动了四件套覆盖不到的地方，才在独立目录重跑。
+- **CI 已替你做机械检查**（20260910 落地；20260915 #135 增第五项）：`.cnb.yml`
+  的 `$` 节点下配了 `quality-gate`，`push` 与 `pull_request` 都自动跑
+  「格式 → eslint → svelte-check → 行数红线 → 测试」（由快到慢，尽早失败）。
+  第五项 `pnpm check:lines` ＝「单文件 ≤500 行」（`scripts/check-line-limit.mjs`，
+  豁免表 `EXEMPTS` 即上限，只许减不许增）——原先这条只在规范里写着，
+  `quiz/index.ts` 静默从基线 574 长到 576 即教训。审查 PR 时**先看 CI 结论**；
+  只有要复现失败、或怀疑它动了五件套覆盖不到的地方，才在独立目录重跑。
   ⚠️ 四件套**不含 webpack 打包** —— 动了入口 / 依赖 / `webpack*.js` 时本地补一次
   `pnpm build`。
 - **审查 NPC 的 PR 时不要只信它的自述**：要重跑就拉分支到独立目录（如
@@ -129,7 +132,11 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
 - **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 基线豁免 574 行——20260826
   预览改版至 20260903 聚合/组链修复持续增长，访问器表+编排职责外移破坏内聚，改动它
   前后注意别再净增；见迁移文档 6-5 节与 20260903 审查。豁免＝上限，越线照算违规；
-  生成数据文件 `src/word/data/**` 豁免）。
+  生成数据文件 `src/word/data/**` 豁免）。**已设闸**（Issue #135）：
+  `pnpm check:lines`（`scripts/check-line-limit.mjs`）进 CI 五件套——豁免表
+  `EXEMPTS`＝「路径 → 上限（当前行数）」是唯一权威落点，改动前先跑一次；
+  超线就地按语义机械拆片（`scss/side.scss` / `card-extra.scss` / `nums.scss`
+  即 #135 从 base/card-render/cards 拆出的先例，零样式变更）。
 - **整页不滚动**（Issue #96，2026-09-15 起硬性规范，见 `docs/design-spec.md` §12
   / `docs/design-review.md` §〇 第 11 条）：面板高度一律适配宿主视口，长列表/详情收**面板内部的滚动窗**，
   工作区主区不出页面级滚动条。**技术要点与「谁是例外」见 `docs/design-spec.md`

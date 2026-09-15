@@ -1,0 +1,99 @@
+/* 题卡内的揭示后新增行（自 card-render.scss 按语义拆出，Issue #135
+   §11.1 红线收口；类名与规则逐字未改，仅换落点）：考点 chips 行
+   （§4.3/§7.a）与自评五星行（§4.4/§7.b）。 */
+
+/* ── 考点 chips 行（Issue #135 §4.3/§7.a，新增结构）──
+   位置：题干区之后、作答区之前（组件侧落点）。
+   **防剧透**：整行只在 `.wengu-card.wengu-revealed` 下渲染——考点名可暗示
+   解法方向；揭示前不渲染不占位（hidden 而非 visibility，避免留白暗示
+   「此处有考点」）。无考点（q.knowledge 与 q.chapter 都空）整行不出。 */
+.wengu-kcaps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wengu-kcaps-label {
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-kchip {
+  font-size: 12px;
+  color: var(--b3-theme-primary);
+  background: var(--b3-theme-primary-lightest);
+  border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 35%, transparent);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.wengu-kchip:hover {
+  background: color-mix(in srgb, var(--b3-theme-primary) 26%, transparent);
+}
+
+/* 降级纯展示（无检索目标）：不可点、无 hover 反馈 */
+.wengu-kchip.wengu-kchip-static {
+  cursor: default;
+}
+
+/* ── 自评五星行（Issue #135 §4.4/§7.b；交互形态改造，数据落点见
+   HistoryStore 的 WenguSession.selfStars）──
+   容器类 `.wengu-self` 与 `data-self` 契约、显示闸 `selfOn` 三者不变；
+   内部从「两枚对/错实底钮」改五星 radiogroup。 */
+.wengu-self {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.wengu-self-label {
+  font-size: 12.5px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-stars {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.wengu-star-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--b3-border-radius);
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--wengu-faint);
+  cursor: pointer;
+}
+
+.wengu-star-btn:hover {
+  background: var(--b3-list-hover);
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-star-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+/* 点亮态：稿金黄，落 b3 体系内最近的 warning 档（§0 论证——评分星的金黄
+   是跨产品惯例，且语义属「未掌握」警示谱系；primary 会丢金色惯例并与
+   选中态混淆） */
+.wengu-star-btn.on {
+  color: var(--b3-card-warning-color);
+}
+
+.wengu-self-hint {
+  font-size: 11px;
+  color: var(--wengu-faint);
+}

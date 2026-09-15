@@ -139,6 +139,9 @@ export function bindNumRail(
         showPast: boolean;
         /** 题集分组（多集合刷：组间横线分隔行，hover 展示题集标题）。 */
         setGroups: SetGroup[];
+        /** 已收卷/揭示（Issue #135 §2.9）：图例补「答对/答错」两项
+         *  （作答中不透对错时只留「当前/已答」）。 */
+        revealed?: boolean;
     }
 ): void {
     // 题号栏组件挂载：壳在 .wengu-body 里放 [data-nums-anchor] 锚
@@ -156,6 +159,7 @@ export function bindNumRail(
                     initialStates: list.map((q) => numState(q, opts.showPast).trim()),
                     title: opts.numsTitle,
                     setGroups: opts.setGroups,
+                    revealed: opts.revealed === true,
                 },
                 { anchor }
             ) as MountedSvelteApp<NumRailExports>;
@@ -222,8 +226,10 @@ export function bindNumRail(
         const headH = head.offsetHeight + 8;
         scroller.style.setProperty("--wengu-head-h", `${headH}px`);
         // 底部留白=滚动容器 padding-bottom + 题号栏自身 margin-bottom
-        // （都从布局实读，不猜数字）；栏内衬/列间距见 cards.scss——
-        // 间距全部由布局表达，JS 只测量不决定
+        // （都从布局实读，不猜数字）；栏内衬/列间距见 scss/nums.scss——
+        // 间距全部由布局表达，JS 只测量不决定。⚠️ 封顶是栏的**border-box**
+        // 高度，故 Issue #135 §2.1 新增的 12px 上下衬天然计入（同 2.2 的帽/
+        // 图例：它们挤的是网格层的 flex:1 配额，帽与图例常驻不滚）
         const padB = parseFloat(getComputedStyle(scroller).paddingBottom) || 8;
         const railM = nav ? parseFloat(getComputedStyle(nav).marginBottom) || 0 : 0;
         const max = `${Math.max(160, scroller.clientHeight - headH - padB - railM)}px`;

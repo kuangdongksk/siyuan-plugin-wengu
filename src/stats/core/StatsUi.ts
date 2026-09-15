@@ -34,6 +34,11 @@ export interface StatsUi {
     /** 详情页模型（该 tab 装载完成后就位；rounds 图表与评分记录表
      *  共用，AI 建议 prompt 也读它）。 */
     doc?: WenguDocStats;
+    /** 考点检索词（Issue #135 §7.a：题卡 `.wengu-kchip` 点击的落点）。
+     *  非空时详情页只列该考点的题（跨题集扫 library，见 StatsCtl.loadKcap）。 */
+    kcap?: string;
+    /** 考点检索结果（装载后就位；空数组=该考点无命中）。 */
+    kcapRows?: { docTitle: string; qid: string; stemSummary: string; wrongCount: number }[];
 }
 
 /** 初始态（$state 包装在 StatsApp 内完成；tab 初值由 attach 覆写）。 */

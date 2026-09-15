@@ -54,6 +54,8 @@ export interface AnswerHost {
     bankOverride?(qid: string, correct: boolean, detail?: { kind: "steps"; letters: string[]; oks: boolean[] }): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
+    /** 会话落库（自评五星即写即存；实现体 QuizView.persist 同款）。 */
+    persist?(): void;
     flushTime(): void;
     /** 当前题切换（题号导航/组内导航）：同步下标、逐题计时、线索行。
      *  可选——QuizView 之外的宿主（测试/预览壳）不实现即跳过同步。 */
@@ -135,6 +137,22 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
     revealCard(host, ctl, q, { submitted, ok });
     showQTime(host, ctl, q.id);
     checkAllDone(host);
+}
+
+/** 该题的自评星级（1..5；0/undefined=未评）。读会话记录，与 upsert 口径同源。
+ *  Issue #135 §7.b 方案 1：会话内轻量，「继续上次」/重开页签回显。 */
+export function selfStarsOf(host: AnswerHost, qid: string): number {
+    return host.currentSession()?.selfStars?.[qid] ?? 0;
+}
+
+/** 写自评星级（0=取消评分，直接删键——与 upsert 的「空值删键」形态一致）；
+ *  立即落库（用户显式动作，与自评对错同款的即时持久化语义）。 */
+export function setSelfStars(host: AnswerHost, qid: string, stars: number): void {
+    const s = host.currentSession();
+    if (!s) return;
+    if (stars > 0) s.selfStars = { ...(s.selfStars ?? {}), [qid]: stars };
+    else if (s.selfStars) delete s.selfStars[qid];
+    host.persist();
 }
 
 /** 自评按钮（brief 经 AI 判分后语义变为「改判」appealGrade）。 */

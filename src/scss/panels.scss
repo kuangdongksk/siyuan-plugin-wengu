@@ -15,27 +15,45 @@
    工作区面板无头部，均不参与）：负 margin 抵消 .wengu-main 的 8px
    padding 再自带同额内衬——吸顶行整宽不透明压住滚过的卡片，未吸顶
    时布局与原先完全一致 */
+/* 吸顶态（对稿 Issue #135 §3.1）：定高 46px、单行 nowrap、段距 14px、
+   左右内衬 22px。窄窗（<900px）兜底回 wrap（稿未画窄态，按现状兜底）——
+   ⚠️ 这是**桌面面板自适应**用 media query 的合法例外（规范 §7.1.2）。 */
 .wengu-main:not(.wengu-review-main):not(.wengu-ws-main) > .wengu-head:first-child {
   position: sticky;
   top: 0;
   z-index: 20;
   margin: -8px -8px 8px;
-  padding: 8px;
+  padding: 0 22px;
+  min-height: 46px;
+  gap: 14px;
+  flex-wrap: nowrap;
   box-sizing: border-box;
   background: var(--b3-theme-background);
   border-bottom: 1px solid var(--b3-border-color);
+}
+
+@media (max-width: 900px) {
+  .wengu-main:not(.wengu-review-main):not(.wengu-ws-main) > .wengu-head:first-child {
+    min-height: 0;
+    padding: 8px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 }
 
 /* 头部统计条的结构化分段（Issue #100）：段序 题集名 → 已刷/答对 →
    竖线 → 轮次成绩。题集名段用正文色加重，其余段次要色；段内数字
    加重 + tabular-nums（避免数字跳动）。颜色全走 b3 令牌。 */
 .wengu-head .wengu-head-seg {
+  font-size: 13px;
   color: var(--b3-theme-on-surface-light);
+  white-space: nowrap;
 }
 
 .wengu-head .wengu-head-seg.is-title {
   color: var(--b3-theme-on-background);
   font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .wengu-head .wengu-head-seg b {
@@ -45,22 +63,40 @@
 }
 
 /* 段间竖线（只在两侧都有内容时才由 renderSubheadHtml 插入） */
+/* 段间竖线（§3.3）：定高 16 居中（原为 stretch 满行高，46px 定高下过长） */
 .wengu-head .wengu-head-sep {
   flex: none;
-  align-self: stretch;
+  align-self: center;
   width: 1px;
-  margin: 2px 2px;
-  background: var(--b3-border-color);
+  height: 16px;
+  background: var(--wengu-border-strong);
 }
 
 /* 计时标签：SVG 图标 + 文本 */
+/* 计时（§3.4）：升正文色 + 600（原 on-surface-light 无字重，统计条里最不显眼） */
 .wengu-timer {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  color: var(--b3-theme-on-surface-light);
+  color: var(--b3-theme-on-surface);
+}
+
+/* 「进行中轮次」胶囊（§3.5，C 类可选增强）：模式切换器已裁撤，胶囊位
+   改作轮次指示（不复活切换器） */
+.wengu-head-mode {
+  flex: none;
+  font-size: 11px;
+  background: var(--wengu-well);
+  border: 1px solid var(--b3-border-color);
+  border-radius: 999px;
+  padding: 2px 10px;
+  color: var(--b3-theme-on-surface);
+  white-space: nowrap;
 }
 
 /* 全局图标尺寸（svgIcon 输出的内置 SVG symbol）。20260905 起
@@ -289,11 +325,16 @@
   color: var(--b3-theme-on-surface);
 }
 
-/* 「结束本次做题」：头部做题中出现的分段收卷按钮（大卷分次刷） */
+/* 「结束本次做题」：头部做题中出现的分段收卷按钮（大卷分次刷）。
+   对稿 Issue #135 §3.6：本面板唯一主操作（after 模式它是看答案的唯一出口），
+   变体在 QuizHeadApp 侧落 primary；几何 28 高 / 0 14px 内衬 / 12.5px。
+   阴影不取（思源按钮体系无阴影令牌、深色态不可见）。 */
 .wengu-end-round {
   flex: none;
-  padding: 2px 10px;
-  font-size: 12px;
+  height: 28px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 /* after 模式「交卷并查看答案」旁的提示：说清打卷时机，否则用户不知

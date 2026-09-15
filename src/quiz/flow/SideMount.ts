@@ -1,11 +1,13 @@
 import type { WenguDoc } from "../../types";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
+import type { WenguWorkspace } from "../render/RailMount";
 import SidePanelApp from "../components/SidePanelApp.svelte";
 import QuizHeadApp from "../components/QuizHeadApp.svelte";
 import type { CollectionFlow } from "../../bank";
 import { updateConvertBtn } from "../../convert";
-import type { WenguWorkspace } from "../render/RailMount";
+import { fmt } from "../../ui/shared";
 import type { BadMarkViewAccess } from "../service/BadMarkRegen";
+import { searchKcapFor, type StatsViewAccess } from "../../stats";
 
 /** 侧栏/头部按钮统一出口（act 名同 data-act）：SidePanelApp/QuizHeadApp
  *  的 onAct 回调经 SideViewAccess.sideAct 汇到这里分派——原来是
@@ -20,6 +22,8 @@ export interface SideActAccess {
     colFlowOf(): CollectionFlow;
     setSideCollapsed(collapsed: boolean): void;
     endRound(): void;
+    /** 切 AI 会话工作区（SidePanelApp 的 `.wengu-side-ai` 入口，Issue #135 §1.4）。 */
+    switchWorkspace(ws: WenguWorkspace): void;
     /** 「标记为错题」访问器（Issue #46；预览闸/徽标数/批量重转三合一，
      *  实现体见 service/BadMarkRegen）。 */
     badMark: BadMarkViewAccess;
@@ -49,6 +53,9 @@ export function sideActFor(v: SideActAccess): (act: string) => void {
                 break;
             case "end-round":
                 v.endRound();
+                break;
+            case "side-ai":
+                v.switchWorkspace("ai");
                 break;
             case "regen-bad":
                 v.badMark.regen();
@@ -85,6 +92,9 @@ export interface SideViewAccess {
     colFlowOf(): CollectionFlow;
     convertingOf(): boolean;
     setSideFilter(text: string): void;
+    /** 本轮序号（「第 N 轮 · 进行中」胶囊用；无进行中轮次回 0）。
+     *  可选——只读壳/测试壳不实现即回 0（胶囊不出）。 */
+    roundIndex?(): number;
     selectDoc(docId: string): void;
     setSideTreeOpen(open: string[]): void;
     /** 侧栏/头部按钮统一出口（act 名同 data-act）。 */
@@ -157,6 +167,10 @@ export function mountHeadFor(
         // 预览头部「批量重转标记的错题(N)」（Issue #46；N=0 不显示）
         showRegenBad: v.badMark.previewing() && v.badMark.count() > 0,
         badMarkCount: v.badMark.count(),
+        // 「第 N 轮 · 进行中」胶囊（Issue #135 §3.5，C 类可选增强）：模式
+        // 切换器已裁撤，胶囊位改作轮次指示（不复活切换器）；无进行中轮次
+        // （roundIndex=0）不出
+        roundModeLabel: roundIndex(v) > 0 ? fmt(v.t("headRoundRunning"), { n: String(roundIndex(v)) }) : undefined,
         onAct: (act: string) => v.sideAct(act),
     });
 }
@@ -175,4 +189,18 @@ function unmountHead(): void {
 export function detachSideHead(): void {
     unmountSide();
     unmountHead();
+}
+
+/** 题卡考点 chip 的检索出口（Issue #135 §7.a）：进统计面板的考点视图。
+ *  与 sideAct 同域（都是「视图动作的薄壳出口」），落此以保 `quiz/index.ts`
+ *  不净增（红线 §11.1，豁免额度即上限）。取柯里化形态——`QuizView` 的
+ *  访问器表按它直接落属性（无需再包一层 anonymous 箭头）。 */
+export const kcapSearchFor =
+    (v: StatsViewAccess): ((knowledge: string) => void) =>
+    (knowledge) =>
+        searchKcapFor(v, knowledge);
+
+/** 取轮次序号（视图能力可选——只读壳/测试壳不实现即回 0，胶囊不出）。 */
+function roundIndex(v: SideViewAccess): number {
+    return typeof v.roundIndex === "function" ? v.roundIndex() : 0;
 }

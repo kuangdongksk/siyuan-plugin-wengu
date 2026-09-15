@@ -1,5 +1,15 @@
 /* 温故刷题页签样式。 */
 
+/* ── 设计稿派生档（Issue #135 / design/sidebar-gap-list.md §0）──
+   b3 令牌体系缺下文两档，按官方令牌 color-mix 派生（明暗两态自动跟随）。
+   `--wengu-well` 同族但定义在 reading.scss（既有机制，不在此重复）。 */
+:root {
+  /* 稿 --faint 42%：b3 无更低文字档（比 on-surface-light 再弱一档） */
+  --wengu-faint: color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent);
+  /* 稿 --border2 36%：强调边（hover 描边 / 已答边 / 图例色块边） */
+  --wengu-border-strong: color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent);
+}
+
 /* 类上的 display 样式会盖过 hidden 属性的 UA display:none，显式关掉，
    否则自评按钮/答案揭示会在未作答时露出（真机踩坑）。b3-button 的
    inline-flex 同理压过 UA hidden（转换弹窗「终止生成/查看进行中的转换」
@@ -136,180 +146,6 @@
      压过它们——isolate 把整页 z 圈进自己的上下文，内部顺序不变，
      官方浮层永远在上（20260830 吸顶头盖住官方弹窗踩坑） */
   isolation: isolate;
-}
-
-/* ── 左侧文档目录 ── */
-.wengu-side {
-  flex: none;
-  width: 220px;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--b3-theme-surface);
-  overflow: hidden;
-}
-
-.wengu-side-collapsed {
-  display: none;
-}
-
-.wengu-side-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--b3-theme-surface);
-}
-
-/* 头部图标操作（刷新/设置/收起）：图标本体 + title 提示 */
-.wengu-side-headbtns {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 400;
-}
-
-/* 纯图标钮通用类（规范§〇4：无框、文字进 title）；wengu-side-iconbtn 是侧栏旧名，样式共用 */
-.wengu-iconbtn,
-.wengu-side-iconbtn {
-  padding: 3px 4px;
-  border: 0;
-  border-radius: var(--b3-border-radius);
-  background: none;
-  color: var(--b3-theme-on-surface-light);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.wengu-iconbtn:hover:not(:disabled),
-.wengu-side-iconbtn:hover {
-  background: var(--b3-theme-background-light);
-  color: var(--b3-theme-on-background);
-}
-
-.wengu-iconbtn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* 顶部工具区：搜索占一行；操作行 = 图标钮（统计/专题）+ AI 转习题弹性填充 */
-.wengu-side-tools {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border-bottom: 1px solid var(--b3-theme-surface);
-}
-
-/* 边框/背景/focus 走思源 b3-text-field；此处只收敛尺寸（min-width 防 flex 固有宽度溢出） */
-.wengu-side-search {
-  min-width: 0;
-  margin-top: 0;
-  font-size: 13px;
-}
-
-/* stretch 让图标钮高度自动对齐 b3-button，跨主题不掉队（间距 8px 入 §〇6 总则） */
-.wengu-side-actions {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.wengu-side-actions .wengu-side-iconbtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 7px;
-}
-
-.wengu-side-convert {
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
-  padding: 4px 8px;
-}
-
-.wengu-side-empty {
-  padding: 8px;
-}
-
-.wengu-side-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-
-.wengu-side-group {
-  margin-bottom: 6px;
-}
-
-.wengu-side-label {
-  padding: 2px 8px;
-  font-size: 12px;
-  color: var(--b3-theme-on-surface-light);
-  word-break: break-all;
-}
-
-.wengu-side-item {
-  padding: 4px 8px 4px 12px;
-  cursor: pointer;
-  border-left: 2px solid transparent;
-}
-
-.wengu-side-item:hover {
-  background: var(--b3-theme-background-light);
-}
-
-.wengu-side-active,
-.wengu-side-item.wengu-side-active:hover {
-  border-left-color: var(--b3-theme-primary);
-  background: var(--b3-theme-primary-lightest);
-}
-
-.wengu-side-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wengu-side-meta {
-  font-size: 12px;
-  color: var(--b3-theme-on-surface-light);
-}
-
-/* ── 树通用件（TreeList 共享组件 20260830：行壳走 SiYuan 原生
-   b3-list-item + --file-toggle-width，toggle 走 b3-list-item__toggle；
-   此处只留宿主 <ul> 重置 + 行主区 flex 容器）── */
-.wengu-tree-main {
-  flex: 1;
-  min-width: 0;
-}
-
-/* TreeList host 内所有 <ul>：清 UA 默认 list-style:disc 与
-   padding-inline-start:~40px（顶层 b3-list b3-list--background + 裸递归
-   子项一并兜），缩进由每行 liVars + toggle padding-left 接管。 */
-.wengu-tree ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* 刷题侧栏树（TreeList 化 20260830）：文档行=两行（标题+元信息，
-   align-items 抬到顶）、active 左侧高亮条（对齐旧 wengu-side-active 观感） */
-.wengu-side-body .wengu-kp-doc {
-  align-items: flex-start;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  cursor: pointer;
-  border-left: 2px solid transparent;
-}
-
-.wengu-side-body .wengu-kp-doc.b3-list-item--focus,
-.wengu-side-body .wengu-kp-doc.b3-list-item--focus:hover {
-  border-left-color: var(--b3-theme-primary);
-  background: var(--b3-theme-primary-lightest);
 }
 
 /* ── 主区 ── */

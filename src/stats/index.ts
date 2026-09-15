@@ -3,6 +3,7 @@ import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
 import StatsApp from "./components/StatsApp.svelte";
 import type { WeakCause, WeakTopRow } from "../bank/data/WeaknessStore";
 import type { WenguDoc, WenguQuestion } from "../types";
+import { statsCtl } from "./core/StatsCtl";
 
 /**
  * 统计面板编排（浮层，Svelte 化 20260830，四件套见 core/components/）：
@@ -86,6 +87,14 @@ export function openStatsPanel(deps: StatsPanelDeps): void {
     statsHost.className = "wengu-stats-wrap";
     deps.el.appendChild(statsHost);
     statsApp = mountSvelteApp(StatsApp, statsHost, { deps, onClose: destroyStatsPanel });
+}
+
+/** 按考点检索（Issue #135 §7.a）：打开统计浮层并直落考点视图。
+ *  面板未开时先开（沿 tab=doc 的直落口径）。 */
+export function searchKcapFor(v: StatsViewAccess, knowledge: string): void {
+    if (!knowledge) return;
+    if (!statsApp) openStatsPanelFor(v, "doc");
+    statsCtl.loadKcap(knowledge);
 }
 
 export function destroyStatsPanel(): void {

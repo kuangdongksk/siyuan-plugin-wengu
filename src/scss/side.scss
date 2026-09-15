@@ -1,0 +1,268 @@
+/* 刷题侧栏（自 base.scss 按语义拆出，Issue #135 §11.1 红线收口；
+   类名与规则逐字未改，仅换落点）。对稿还原见 design/sidebar-gap-list.md §1。 */
+
+/* ── 左侧文档目录 ── */
+/* 侧栏容器（对稿 Issue #135 §1.1）：280px、常规边、微沉底
+   （color-mix 混黑：深色=压暗一档、浅色=压灰一档，明暗两态同式）。 */
+.wengu-side {
+  flex: none;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--b3-border-color);
+  background: color-mix(in srgb, var(--b3-theme-background) 94%, black);
+  overflow: hidden;
+}
+
+.wengu-side-collapsed {
+  display: none;
+}
+
+/* 头部（§1.2）：无底边线（原 surface 细线在 280px 栏里显脏），
+   13px/600/ls .04em（原为继承 14px） */
+.wengu-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+/* 头部图标操作（刷新/设置/收起）：图标本体 + title 提示 */
+.wengu-side-headbtns {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 400;
+}
+
+/* 纯图标钮通用类（规范§〇4：无框、文字进 title）；wengu-side-iconbtn 是侧栏旧名，样式共用 */
+.wengu-iconbtn,
+.wengu-side-iconbtn {
+  padding: 3px 4px;
+  border: 0;
+  border-radius: var(--b3-border-radius);
+  background: none;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 侧栏头部图标钮（§1.2）：定尺寸 26×26 居中（原靠 padding 撑） */
+.wengu-side-head .wengu-side-iconbtn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wengu-iconbtn:hover:not(:disabled),
+.wengu-side-iconbtn:hover {
+  background: var(--b3-theme-background-light);
+  color: var(--b3-theme-on-background);
+}
+
+.wengu-iconbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 顶部工具区：搜索占一行；操作行 = 图标钮（统计/专题）+ AI 转习题弹性填充 */
+/* 工具区（§1.3）：边距 2px 12px 8px（分段边线退役——头部已无底边线，
+   再留一条会在窄栏里割裂）；行距 8px */
+.wengu-side-tools {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 12px 8px;
+}
+
+/* 边框/背景/focus 走思源 b3-text-field；此处只收敛尺寸（min-width 防 flex 固有宽度溢出） */
+.wengu-side-search {
+  min-width: 0;
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+/* stretch 让图标钮高度自动对齐 b3-button，跨主题不掉队（间距 8px 入 §〇6 总则） */
+.wengu-side-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* 等宽文字工具钮行（§1.4）：两钮 flex1 等宽，icon + 12px 文案 */
+.wengu-side-toolrow {
+  display: flex;
+  gap: 8px;
+}
+
+.wengu-side-tool {
+  flex: 1;
+  height: 30px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: none;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.wengu-side-tool:hover {
+  border-color: var(--wengu-border-strong);
+  color: var(--b3-theme-on-surface);
+  background: var(--b3-list-hover);
+}
+
+.wengu-side-tool svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: currentColor;
+}
+
+.wengu-side-convert {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 8px;
+}
+
+/* AI 讲解入口（§1.4 新增）：主色浅底长钮（h32），与次级工具钮区分 */
+.wengu-side-ai {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wengu-side-ai:hover {
+  background: color-mix(in srgb, var(--b3-theme-primary) 26%, transparent);
+  border-color: var(--b3-theme-primary);
+}
+
+.wengu-side-ai svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+}
+
+.wengu-side-empty {
+  padding: 8px;
+}
+
+.wengu-side-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.wengu-side-group {
+  margin-bottom: 6px;
+}
+
+.wengu-side-label {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--b3-theme-on-surface-light);
+  word-break: break-all;
+}
+
+/* 行（§1.5）：radius 6 + 5px 8px 内衬（原为左衬 12px + 左边条语言） */
+.wengu-side-item {
+  border-radius: var(--b3-border-radius);
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.wengu-side-item:hover {
+  background: var(--b3-list-hover);
+}
+
+/* 选中态（§1.6）：左条改「软底 + 内描边」语言——与题号栏当前题（§2.5）、
+   树行选中（下方 b3-list-item--focus）三处统一；选中行文字加重 */
+.wengu-side-active,
+.wengu-side-item.wengu-side-active:hover {
+  background: var(--b3-theme-primary-lightest);
+  box-shadow: inset 0 0 0 1.5px var(--b3-theme-primary);
+}
+
+.wengu-side-active .wengu-side-title {
+  font-weight: 600;
+}
+
+.wengu-side-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wengu-side-meta {
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 树行（§1.5）：不拆 TreeList（DOM 结构不动），用 SCSS 覆写达稿观感 */
+.wengu-tree .b3-list-item {
+  border-radius: var(--b3-border-radius);
+  padding: 5px 8px;
+}
+
+.wengu-tree .b3-list-item:hover {
+  background: var(--b3-list-hover);
+}
+
+/* ── 树通用件（TreeList 共享组件 20260830：行壳走 SiYuan 原生
+   b3-list-item + --file-toggle-width，toggle 走 b3-list-item__toggle；
+   此处只留宿主 <ul> 重置 + 行主区 flex 容器）── */
+.wengu-tree-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* TreeList host 内所有 <ul>：清 UA 默认 list-style:disc 与
+   padding-inline-start:~40px（顶层 b3-list b3-list--background + 裸递归
+   子项一并兜），缩进由每行 liVars + toggle padding-left 接管。 */
+.wengu-tree ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* 刷题侧栏树（TreeList 化 20260830）：文档行=两行（标题+元信息，
+   align-items 抬到顶）、active 左侧高亮条（对齐旧 wengu-side-active 观感） */
+.wengu-side-body .wengu-kp-doc {
+  align-items: flex-start;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  cursor: pointer;
+}
+
+/* 树行选中：思源原生 b3-list-item--focus；左条改内描边语言（与 §1.6 同款） */
+.wengu-side-body .wengu-kp-doc.b3-list-item--focus,
+.wengu-side-body .wengu-kp-doc.b3-list-item--focus:hover {
+  background: var(--b3-theme-primary-lightest);
+  box-shadow: inset 0 0 0 1.5px var(--b3-theme-primary);
+}

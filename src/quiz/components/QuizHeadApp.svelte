@@ -24,6 +24,7 @@
         showFinishHint,
         showRegenBad = false,
         badMarkCount = 0,
+        roundModeLabel = "",
     }: {
         t(key: string): string;
         sideCollapsed: boolean;
@@ -42,6 +43,8 @@
         showRegenBad?: boolean;
         /** 标记题数（跨卷全局；徽标文案用，0 时钮不显示）。 */
         badMarkCount?: number;
+        /** 「第 N 轮 · 进行中」胶囊文案（Issue #135 §3.5，C 类增强；空=不出） */
+        roundModeLabel?: string;
     } = $props();
 </script>
 
@@ -52,8 +55,10 @@
 {/if}
 {@html subheadHtml}
 {#if canEndRound}
+    <!-- 交卷钮是本区唯一主操作（Issue #135 §3.6；spec「一个面板至多一个
+         primary」此处即该一个）——after 模式下它是看答案的唯一出口 -->
     <Button
-        variant="outline"
+        variant="primary"
         class="wengu-end-round"
         data-act="end-round"
         title={t("endRoundHint")}
@@ -78,6 +83,9 @@
         {@html svgIcon("iconRefresh")}
         {t("regenBadMarkedBtn")}({badMarkCount})
     </Button>
+{/if}
+{#if roundModeLabel}
+    <span class="wengu-head-mode" data-head-mode>{roundModeLabel}</span>
 {/if}
 <span class="wengu-timer" data-timer title={t("totalTimeHint")}
     >{@html svgIcon("iconClock", "wengu-timer-icon")}<span data-timer-text>0:00</span></span

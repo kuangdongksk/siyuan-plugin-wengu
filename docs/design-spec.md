@@ -56,24 +56,24 @@
 以下是全仓 `var(--b3-*)` 的**完整集合**（31 个）。**新增令牌前先查本表**；
 不在表内的名字一律视为拼错，须先在真机 `getComputedStyle` 验非空再入表。
 
-| 令牌                                                             | 用途族                           | 官方出处    |
-| ---------------------------------------------------------------- | -------------------------------- | ----------- |
-| `--b3-theme-primary` / `-light` / `-lighter` / `-lightest`       | 主色四档                         | 官方主题 ✅ |
-| `--b3-theme-on-primary`                                          | 主色实底上的字色                 | 官方主题 ✅ |
-| `--b3-theme-background` / `-light`                               | 页面底                           | 官方主题 ✅ |
-| `--b3-theme-surface` / `--b3-theme-surface-lighter`              | 面板/卡面                        | 官方主题 ✅ |
-| `--b3-theme-on-background` / `-on-surface` / `-on-surface-light` | 三级文字色                       | 官方主题 ✅ |
-| `--b3-theme-success` / `--b3-theme-error`                        | 判分语义色                       | 官方主题 ✅ |
-| `--b3-card-info-background` / `-color`                           | 卡片语义色（信息）               | 官方主题 ✅ |
-| `--b3-card-success-background` / `-color`                        | 卡片语义色（成功）               | 官方主题 ✅ |
-| `--b3-card-warning-background` / `-color`                        | 卡片语义色（**警示：唯一来源**） | 官方主题 ✅ |
-| `--b3-card-error-background` / `-color`                          | 卡片语义色（失败）               | 官方主题 ✅ |
-| `--b3-border-color`                                              | 描边                             | 官方主题 ✅ |
-| `--b3-border-radius`(6px) / `-radius-b`(12px)                    | 圆角两档令牌                     | 官方主题 ✅ |
-| `--b3-dialog-shadow` / `--b3-point-shadow`                       | 阴影                             | 官方主题 ✅ |
-| `--b3-font-family` / `-code`                                     | 字体族                           | 官方主题 ✅ |
-| `--b3-list-hover`                                                | 列表 hover 底                    | 官方主题 ✅ |
-| `--b3-scroll-color`                                              | 滚动条                           | 官方主题 ✅ |
+| 令牌                                                             | 用途族                                                                    | 官方出处    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------- |
+| `--b3-theme-primary` / `-light` / `-lighter` / `-lightest`       | 主色四档                                                                  | 官方主题 ✅ |
+| `--b3-theme-on-primary`                                          | 主色实底上的字色                                                          | 官方主题 ✅ |
+| `--b3-theme-background` / `-light`                               | 页面底                                                                    | 官方主题 ✅ |
+| `--b3-theme-surface` / `--b3-theme-surface-lighter`              | 面板/卡面                                                                 | 官方主题 ✅ |
+| `--b3-theme-on-background` / `-on-surface` / `-on-surface-light` | 三级文字色                                                                | 官方主题 ✅ |
+| `--b3-theme-success` / `--b3-theme-error`                        | 判分语义色                                                                | 官方主题 ✅ |
+| `--b3-card-info-background` / `-color`                           | 卡片语义色（信息）                                                        | 官方主题 ✅ |
+| `--b3-card-success-background` / `-color`                        | 卡片语义色（成功）                                                        | 官方主题 ✅ |
+| `--b3-card-warning-background` / `-color`                        | 卡片语义色（**警示：唯一来源**；`-color` 自 #135 起由自评五星点亮态使用） | 官方主题 ✅ |
+| `--b3-card-error-background` / `-color`                          | 卡片语义色（失败）                                                        | 官方主题 ✅ |
+| `--b3-border-color`                                              | 描边                                                                      | 官方主题 ✅ |
+| `--b3-border-radius`(6px) / `-radius-b`(12px)                    | 圆角两档令牌                                                              | 官方主题 ✅ |
+| `--b3-dialog-shadow` / `--b3-point-shadow`                       | 阴影                                                                      | 官方主题 ✅ |
+| `--b3-font-family` / `-code`                                     | 字体族                                                                    | 官方主题 ✅ |
+| `--b3-list-hover`                                                | 列表 hover 底                                                             | 官方主题 ✅ |
+| `--b3-scroll-color`                                              | 滚动条                                                                    | 官方主题 ✅ |
 
 **卡片色族令牌基名**（`--b3-card-info` / `-success` / `-warning` / `-error`）
 是**例外形态**：思源只定义「基名‑后缀」，裸基名解不出来 ⇒ 整条背景失效
@@ -657,15 +657,22 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 
 ## 十一、结构红线
 
-1. **单文件 ≤500 行**（唯一豁免 `quiz/index.ts`，且豁免即上限）。
+1. **单文件 ≤500 行**（唯一豁免 `quiz/index.ts`，且豁免即上限）。**
+   ✅ 已设闸（Issue #135）**：`scripts/check-line-limit.mjs` + `pnpm check:lines`
+   进 CI 四件套之后（`.cnb.yml` 的 `check` 段）——豁免表 `EXEMPTS` 记「路径 →
+   上限（= 当前行数，只许减不许增）」，并反向警告「额度可收紧」（防「写了
+   豁免就不管」）。生成数据文件 `src/word/data/**` 整目录豁免。
    ⚠️ 豁免范围需明确：**生成数据文件豁免**（§9 E11）；
    **测试文件同受 ≤500**（视需要按 `describe` 分片）。
-   **❌ 待修**：`ConvertBatch.ts`(604) / `QuestionBank.ts`(531) /
-   `index.ts`(512) 三个文件超线（`english.scss`(564) 已于整改 F1 #127 拆片回线，
-   见 §13.5）。
-   **建议加一条极轻量单测**把红线变成 CI 会红的东西（10 行：扫
-   `src/**/*.{ts,svelte,scss}` 断言行长 ≤500 + 显式豁免额度常量）——
-   这是「拆一次压线后继续净增」的唯一根治手段。
+   **❌ 待修**（存量清单以 `scripts/check-line-limit.mjs` 的 `EXEMPTS` 表为准，
+   该表即唯一权威落点）：`ConvertBatch.ts`(503) / `SessionDetail.test.ts`(608) /
+   `MobileDrill.test.ts`(520)。
+   ✅ **闸门已落地**（Issue #135，见上）——`pnpm check:lines` 进 CI，
+   扫 `src/**/*.{ts,svelte,scss}` 断言行数 ≤ 上限（默认 500 / 豁免表额度）。
+   `english.scss`(564) 已于整改 F1 #127 拆片回线；`base.scss`(453→556→289) /
+   `card-render.scss`(425→514→417) / `cards.scss`(361→480→284) 三片因本单新增
+   规则破线，按语义拆出 `side.scss` / `card-extra.scss` / `nums.scss`
+   （§13.5 同款机械拆片，零样式变更）。
 2. **各域 `index.ts` 必须是编排入口，禁纯 re-export barrel**
    （判定：含实际逻辑/副作用）。
 3. **禁复制第二份组件/逻辑**（见 §9.1）。
@@ -755,19 +762,22 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 **未登记的按违规处理**（同 §9 口径）。新迁出的每一片、以及任何留共享片的
 「专属类族」，都要在此登记**绑定到哪个渲染函数 / 哪组组件**。
 
-| 共享片                                  | 绑定到（渲染源）                                                 | 留片理由               |
-| --------------------------------------- | ---------------------------------------------------------------- | ---------------------- |
-| `base.scss`                             | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                    | ① TS 渲染层 + 共享底座 |
-| `panels.scss`                           | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS | ①（47 类 TS 触达）     |
-| `cards.scss` / `card-render.scss`       | `CardHtml` / `CardMount` / `QuizCard` 组件族                     | ①（各 21~25 类）       |
-| `english.scss`                          | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`   | ①（27 类 TS 触达）     |
-| `english-gloss.scss`                    | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）        | ① + 跨组件复用         |
-| `reading.scss`                          | `GroupUnitApp` / `CardHtml`（原文高亮）                          | ①（19 类）             |
-| `preview.scss`                          | `PreviewFlow.ts`（无 Svelte 渲染源）                             | ①（19 类）             |
-| `rail.scss`                             | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                   | ② 跨面板共享           |
-| `words.scss` / `words-mobile.scss`      | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）  | ② + 对偶片须同批       |
-| `mobile-*.scss` / `mobile-english.scss` | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族       | ③ 基座 + 跨组件        |
-| `aipanel*.scss` / `aiflow.scss`         | `SessionPanelApp` / `SessionDetail` / `FlowBanner`               | ② 跨组件 + TS 触达     |
+| 共享片                                               | 绑定到（渲染源）                                                 | 留片理由                                       |
+| ---------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- |
+| `base.scss`                                          | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                    | ① TS 渲染层 + 共享底座                         |
+| `panels.scss`                                        | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS | ①（47 类 TS 触达）                             |
+| `cards.scss` / `card-render.scss`                    | `CardHtml` / `CardMount` / `QuizCard` 组件族                     | ①（各 21~25 类）                               |
+| `nums.scss`（#135 自 `cards.scss` 拆出）             | `NumRail.ts` 的 `[data-nums]` 契约 / `NumRailApp.svelte`         | ①（TS 侧 `data-nums` 触达）+ 红线拆片          |
+| `card-extra.scss`（#135 自 `card-render.scss` 拆出） | `QuizCard` 组件族的揭示后新增行（考点 chips / 自评五星）         | ① 红线拆片                                     |
+| `side.scss`（#135 自 `base.scss` 拆出）              | `SidePanelApp` / `TreeList`（侧栏树行覆写）                      | ①（`wengu-side-*` 由 TS/子组件渲染）+ 红线拆片 |
+| `english.scss`                                       | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`   | ①（27 类 TS 触达）                             |
+| `english-gloss.scss`                                 | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）        | ① + 跨组件复用                                 |
+| `reading.scss`                                       | `GroupUnitApp` / `CardHtml`（原文高亮）                          | ①（19 类）                                     |
+| `preview.scss`                                       | `PreviewFlow.ts`（无 Svelte 渲染源）                             | ①（19 类）                                     |
+| `rail.scss`                                          | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                   | ② 跨面板共享                                   |
+| `words.scss` / `words-mobile.scss`                   | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）  | ② + 对偶片须同批                               |
+| `mobile-*.scss` / `mobile-english.scss`              | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族       | ③ 基座 + 跨组件                                |
+| `aipanel*.scss` / `aiflow.scss`                      | `SessionPanelApp` / `SessionDetail` / `FlowBanner`               | ② 跨组件 + TS 触达                             |
 
 ### 13.4 试点结论（Issue #127，`startpanel.scss` → `StartPanelApp.svelte`）
 
