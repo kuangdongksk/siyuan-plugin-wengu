@@ -10,6 +10,8 @@ import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { esc, fmt } from "../../ui/shared";
+import { aiTitle } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
 import { knowRootsOf } from "../data/KnowRoots";
@@ -86,7 +88,10 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
         // 判定落同义表——同对词第二轮零 AI）
         let synLinked = 0;
         if (verified.missed.length > 0 && !stop.signal.aborted && lex.size > 0) {
-            const group = { id: newAiGroupId(), title: `同义判定 · ${verified.missed.length} 题` };
+            const group = {
+                id: newAiGroupId(),
+                title: aiTitle(t, "aiTitleSameJudge", { n: String(verified.missed.length) }),
+            };
             const syn = await runSynonymPhase({
                 bank,
                 lex,
@@ -111,7 +116,7 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
             const index = roots.length > 0 ? await buildKnowledgeIndex(roots, await knowTreesOf(bank)) : undefined;
             const useRoute = (index?.chapters.length ?? 0) > 0;
             // 动作分组（AI 会话面板树归并）：路由生成/自由生成分批挂同组
-            const group = { id: newAiGroupId(), title: `生成标签 · ${untagged.length} 题` };
+            const group = { id: newAiGroupId(), title: aiTitle(t, "aiTitleGenTags", { n: String(untagged.length) }) };
             if (useRoute) {
                 // 20260909 起按批两级路由替代逐题——一批一次调用、逐题指纹
                 // 缓存，未变的题重跑零 AI 调用
@@ -123,7 +128,7 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
                     call: (m) =>
                         agentChatOnce(m, modelId, AI_TIMEOUT.batch, stop.signal, {
                             kind: "route",
-                            title: `标签路由 · ${texts.length} 题`,
+                            title: aiTitle(t, "aiTitleTagRoute", { n: String(texts.length) }),
                             group,
                             onSid: stop.onSid,
                         }),
@@ -191,7 +196,7 @@ async function genFreeTags(
         try {
             const reply = await agentChatOnce(freeTagPrompt(list), modelId, AI_TIMEOUT.batch, stop.signal, {
                 kind: "tag",
-                title: `自由生成标签 · ${batch.length} 题`,
+                title: aiTitle(tKey, "aiTitleFreeTags", { n: String(batch.length) }),
                 group,
                 onSid: stop.onSid,
             });

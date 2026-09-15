@@ -1,4 +1,6 @@
 import { agentChatOnce, newAiGroupId, type AiAbort } from "../../ai/client";
+import { aiTitle } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { conceptPrompt, variantPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
@@ -41,7 +43,7 @@ export async function generateQuestion(
     modelId: string,
     abort?: AiAbort
 ): Promise<string> {
-    const track = { kind: "regen", title: `出题 · ${point.title}` };
+    const track = { kind: "regen", title: aiTitle(tKey, "aiTitleGen", { name: point.title }) };
     const kpId = point.key.startsWith("kp:") ? point.key.slice(3) : "";
     const section =
         mode === "concept" && kpId ? (await sectionKramdown(kpId)) || knowNodeText(await knowTreesOf(bank), kpId) : "";
@@ -77,7 +79,7 @@ export async function generateVariantOf(templateKramdown: string, modelId: strin
     return genWithVerify(
         variantPrompt(templateKramdown, "", typeOfKd(templateKramdown)),
         modelId,
-        { kind: "regen", title: "变式重练" },
+        { kind: "regen", title: aiTitle(tKey, "aiTitleVariant") },
         abort
     );
 }
@@ -104,7 +106,10 @@ async function genWithVerify(
     const kd = renderUnit(drafts[0]);
     const check = await agentChatOnce(verifyPrompt(kd), modelId, AI_TIMEOUT.mid, abort?.signal, {
         kind: track.kind,
-        title: `${track.title} · 自检`,
+        // ⚠️ 自检后缀是**语言相关写法**（中文「 · 自检」/ 英文「 · self-check」），
+        // 不能在代码里拼 `${track.title} · 自检`——那会把中文后缀钉死给英文环境
+        // （同规范 §8.6 对 `aiFlowSub` 的书名号口径）。
+        title: aiTitle(tKey, "aiTitleSelfCheck", { name: track.title }),
         group,
         ...(abort ? { onSid: abort.onSid } : {}),
     });

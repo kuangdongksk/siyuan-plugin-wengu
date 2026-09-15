@@ -125,7 +125,7 @@
                 </div>
             {/if}
             {#if view.retryable}
-                <Button type="button" variant="main" onclick={() => onRetry()}>{t("aiRetry")}</Button>
+                <Button type="button" variant="primary" onclick={() => onRetry()}>{t("aiRetry")}</Button>
             {/if}
         </div>
     {/if}

@@ -71,9 +71,10 @@
     margin-bottom: 9px;
   }
 
-  /* 主 CTA 实心（设计稿屏①②）：`b3-button--main` 只存在于桌面样式表，
-     移动端页面样式表没有这条规则 ⇒ variant="main" 观感落空。故自给实心
-     样式，全主题令牌、明暗自适应（Issue #105）。 */
+  /* 主 CTA 实心（设计稿屏①②）：`b3-button` 的基态主色实底只存在于桌面
+     样式表，移动端页面样式表没有这条规则 ⇒ `variant="primary"`（=裸
+     `b3-button`）在移动端观感落空。故自给实心样式，全主题令牌、明暗自适应
+     （Issue #105；规范 `docs/design-spec.md` §7.3）。 */
   .wengu-md-btn-solid {
     min-height: 48px;
     padding: 0 18px;

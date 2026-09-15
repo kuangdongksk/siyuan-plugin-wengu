@@ -3,7 +3,8 @@ import { agentChatOnce } from "../../ai/client";
 import { defaultAgentModelId } from "../../ai/models";
 import { wordReviewPrompt } from "../../ai/prompts/misc";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import { fmt } from "../../ui/shared";
+import { aiTitle, fmt } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import { wordLib } from "./WordLib";
 import { addPair } from "./WordConfusables";
 import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProgress } from "../core/WordStore";
@@ -92,7 +93,7 @@ async function analyzeBatch(
     // 互不阻塞（20260829 起走 agentChatOnce；20260830 全仓统一此通道）
     const reply = await agentChatOnce(wordReviewPrompt(inputs), defaultAgentModelId(), AI_TIMEOUT.mid, undefined, {
         kind: "word",
-        title: `单词复盘 · ${inputs.length} 词`,
+        title: aiTitle(tKey, "aiTitleWordReview", { n: String(inputs.length) }),
     });
     const byWord = new Map(inputs.map((e) => [e.w.toLowerCase(), e]));
     const items: { key: string; act: "up" | "keep" | "down"; tip?: string; confused?: string }[] = [];

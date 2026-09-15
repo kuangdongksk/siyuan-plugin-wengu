@@ -15,7 +15,7 @@ import { parseQuestionKramdown } from "../data/BankParse";
 import { recordOf, replaceRecordKramdown } from "../data/BankRegen";
 import { badMarkedQids, unmarkMany } from "../data/BadMark";
 import type { WenguQuestion } from "../../types";
-import { esc } from "../../ui/shared";
+import { aiTitle, esc } from "../../ui/shared";
 import { KernelBlock } from "../../siyuan/block";
 
 /**
@@ -171,7 +171,7 @@ async function runRegen(
         const stem16 = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16);
         const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, stop.signal, {
             kind: "regen",
-            title: `重新生成 · ${stem16}`,
+            title: aiTitle(deps.t, "aiTitleRegen", { name: stem16 }),
             onSid: stop.onSid,
         });
         const drafts = parseDrafts(reply).filter(hasStemPart);

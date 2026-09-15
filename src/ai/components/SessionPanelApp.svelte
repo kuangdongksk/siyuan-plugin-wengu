@@ -150,13 +150,25 @@
 
         <!-- kinds 过滤条与 hint 留在**卡外**（设计稿 S9 取舍：卡内只有
              「横幅 + 树 + 详情」三件纯度），故在卡壳之前。 -->
+        <!-- 选中态是**一等公民 chip**、不是主操作（规范 `docs/design-spec.md` §2.3）：
+             原 `variant={sel ? "main" : "outline"}` 落在 `b3-button--main` 这条
+             **不存在的类**上 ⇒ 选中与未选中视觉无差；改用 `variant="outline"`
+             打底 + `wengu-chip-on` 覆写（浅底 + 主色字 + 主色描边），与
+             `.wengu-col-armed` 同族复用既有的「主题色语言」，且与面板里
+             真正的主操作（详情错误态「重试」）明确区分。 -->
         <div class="wengu-ai-kinds">
-            <Button type="button" variant={ui.filter === "" ? "main" : "outline"} onclick={() => ctl.setFilter("")}
-                >{t("aiKindAll")}</Button
+            <Button
+                type="button"
+                variant="outline"
+                class={ui.filter === "" ? "wengu-chip-on" : ""}
+                onclick={() => ctl.setFilter("")}>{t("aiKindAll")}</Button
             >
             {#each kinds as k (k)}
-                <Button type="button" variant={ui.filter === k ? "main" : "outline"} onclick={() => ctl.setFilter(k)}
-                    >{kindLabel(k)}</Button
+                <Button
+                    type="button"
+                    variant="outline"
+                    class={ui.filter === k ? "wengu-chip-on" : ""}
+                    onclick={() => ctl.setFilter(k)}>{kindLabel(k)}</Button
                 >
             {/each}
         </div>

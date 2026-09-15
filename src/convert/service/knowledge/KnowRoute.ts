@@ -1,4 +1,6 @@
 import { agentChatOnce, type AiAbort, type AiSessionGroup } from "../../../ai/client";
+import { aiTitle } from "../../../ui/shared";
+import { tKey } from "../../../ui/Notify";
 import { AI_TIMEOUT } from "../../../ai/timeouts";
 import {
     batchChapterPrompt,
@@ -349,14 +351,14 @@ export function makeKnowAwareAi(opts: {
     const call = (message: string): Promise<string> =>
         agentChatOnce(message, opts.modelId, AI_TIMEOUT.quick, opts.signal, {
             kind: "route",
-            title: opts.label ? `路由 · ${opts.label}` : undefined,
+            title: opts.label ? aiTitle(tKey, "aiTitleRoute", { name: opts.label }) : undefined,
             group: opts.group,
             ...(opts.abort ? { onSid: opts.abort.onSid } : {}),
         });
     const generate = (prompt: string): Promise<string> =>
         agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.batch, opts.signal, {
             kind: "convert",
-            title: opts.label ? `转换 · ${opts.label}` : undefined,
+            title: opts.label ? aiTitle(tKey, "aiTitleConvert", { name: opts.label }) : undefined,
             group: opts.group,
             // ⚠️ 两条 onSid 链并存：`abort` 那条接停止（Issue #72），
             // `onGenerateSid` 那条接改名（Issue #88）——写成 `??` 二选一会

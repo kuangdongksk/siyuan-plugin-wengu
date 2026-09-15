@@ -1,4 +1,6 @@
 import { agentChatOnce } from "../../ai/client";
+import { aiTitle } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import {
     buildAppealPrompt,
@@ -26,9 +28,11 @@ import { normalizeCause } from "../../bank/data/WeaknessStore";
 
 /* ── brief 思路验证 ── */
 
-/** 会话登记标题：动作 · 题干前 16 字（AI 会话面板列表识别用）。 */
-const trackTitle = (label: string, q: WenguQuestion): string =>
-    `${label} · ${(q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16)}`;
+/** 会话登记标题：动作 · 题干前 16 字（AI 会话面板列表识别用）。
+ *  动作名走 i18n（Issue #120，规范 `docs/design-spec.md` §8.6）——
+ *  面板行名是用户可见主文案，硬编码中文会让英文环境整片中文。 */
+const trackTitle = (key: string, q: WenguQuestion): string =>
+    aiTitle(tKey, key, { name: (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16) });
 
 /** brief 判分三态：partial=方向对但有缺口（统计记错，展示单列）。 */
 export type BriefVerdictState = "right" | "partial" | "wrong";
@@ -55,7 +59,7 @@ export async function judgeBrief(q: WenguQuestion, mine: string, modelId: string
               : buildBriefPrompt(q, mine, thought);
     const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.quick, undefined, {
         kind: "judge",
-        title: trackTitle("判题", q),
+        title: trackTitle("aiTitleJudge", q),
     });
     return parseBriefVerdict(reply);
 }
@@ -114,7 +118,7 @@ export async function judgeClue(
         undefined,
         {
             kind: "judge",
-            title: trackTitle("线索复核", q),
+            title: trackTitle("aiTitleClueReview", q),
         }
     );
     const m = /CLUE\s*[:：]\s*(hit|near|miss|对|近似|错)/i.exec(reply);
@@ -140,7 +144,7 @@ export async function attributeWrongCauses(items: CauseItem[], modelId: string):
     const lines = items.map((it, i) => `${i + 1}|${it.stem}|我的答案：${it.mine}|正确答案：${it.answer}`).join("\n");
     const reply = await agentChatOnce(wrongCausesPrompt(lines), modelId, AI_TIMEOUT.quick, undefined, {
         kind: "judge",
-        title: `错因归因 · ${items.length} 题`,
+        title: aiTitle(tKey, "aiTitleCause", { n: String(items.length) }),
     });
     const out = new Map<string, WeakCause>();
     const jm = /\{[\s\S]*\}/.exec(reply);
@@ -179,7 +183,7 @@ export async function appealMethodStep(
 ): Promise<MethodAppealVerdict> {
     const reply = await agentChatOnce(buildAppealPrompt(q, step, chosen), modelId, AI_TIMEOUT.quick, undefined, {
         kind: "judge",
-        title: trackTitle("方法申诉", q),
+        title: trackTitle("aiTitleAppeal", q),
     });
     const m = /FEASIBLE\s*[:：]\s*(yes|no|true|false|是|否|可行|不可行)/i.exec(reply);
     if (!m) throw new Error("AI 未按格式返回复核");
@@ -216,7 +220,7 @@ export async function nextRealtimeStep(
 ): Promise<RealtimeStep> {
     const reply = await agentChatOnce(buildRealtimePrompt(q, history), modelId, AI_TIMEOUT.quick, undefined, {
         kind: "judge",
-        title: trackTitle("实时引导", q),
+        title: trackTitle("aiTitleRealtime", q),
     });
     return parseRealtimeStep(reply);
 }

@@ -1,4 +1,6 @@
 import { agentChatOnce, type AiAbort } from "../../../ai/client";
+import { aiTitle } from "../../../ui/shared";
+import { tKey } from "../../../ui/Notify";
 import { AI_TIMEOUT } from "../../../ai/timeouts";
 import { buildOutlinePrompt } from "../../../ai/prompts/convert";
 import { KernelQuery } from "../../../siyuan/query";
@@ -175,7 +177,7 @@ export async function generateKnowledgeOutline(
     if (!content.trim()) throw new Error("doc has no content");
     const reply = await agentChatOnce(buildOutlinePrompt(content), modelId, AI_TIMEOUT.long, signal, {
         kind: "outline",
-        title: `索引 · ${title}`,
+        title: aiTitle(tKey, "aiTitleOutline", { name: title }),
         ...(abort ? { onSid: abort.onSid } : {}),
     });
     const md = extractOutlineMd(reply);

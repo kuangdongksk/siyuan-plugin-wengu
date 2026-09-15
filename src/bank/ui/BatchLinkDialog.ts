@@ -8,7 +8,7 @@ import { classifyMatchFail, type KnowRouteFail, type MatchFailKind } from "../..
 import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formRow, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
-import { esc, fmt } from "../../ui/shared";
+import { aiTitle, esc, fmt } from "../../ui/shared";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowRootsOf } from "../data/KnowRoots";
 import { applyRefsToRecord, lexiconOfRoots, linkBankByText } from "../data/KnowLinkText";
@@ -94,7 +94,7 @@ async function runBatch(
         const fails: KnowRouteFail[] = [];
         const failCount = new Map<MatchFailKind, number>();
         const cache = routeCache();
-        const group = { id: newAiGroupId(), title: `批量关联 · ${p1.missed.length} 题` };
+        const group = { id: newAiGroupId(), title: aiTitle(t, "aiTitleBatchLink", { n: String(p1.missed.length) }) };
         // phase1.5：同义判定（Issue #3）——文本未命中的标签按批问 AI
         // 「是不是同一个知识点」，判定落同义表 + 当轮挂引用；表里已有的
         // 词对零 AI（第二轮重跑不再问）
@@ -129,7 +129,7 @@ async function runBatch(
                     call: (m) =>
                         agentChatOnce(m, modelId, AI_TIMEOUT.batch, stop.signal, {
                             kind: "route",
-                            title: `批量关联 · ${texts.length} 题`,
+                            title: aiTitle(t, "aiTitleBatchLink", { n: String(texts.length) }),
                             group,
                             onSid: stop.onSid,
                         }),

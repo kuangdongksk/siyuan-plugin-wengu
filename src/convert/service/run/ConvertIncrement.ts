@@ -1,4 +1,6 @@
 import { buildPrompt } from "../../../ai/prompts/convert";
+import { aiTitle } from "../../../ui/shared";
+import { tKey } from "../../../ui/Notify";
 import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
@@ -109,7 +111,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     // 动作分组（AI 会话面板树归并）：一次增量执行的路由/生成挂同组；
     // 标题带题集名，标题缺失退化用块数
     const label = run.title ?? `${run.chunks.length} 块`;
-    const group: AiSessionGroup = { id: newAiGroupId(), title: `增量补生成 · ${label}` };
+    const group: AiSessionGroup = { id: newAiGroupId(), title: aiTitle(tKey, "aiTitleIncrement", { name: label }) };
     // 生成 prompt 的题型先验：目标题集既有记录的题型并集（增量不跑
     // 前置检测，这比全量省规则；空集=全量兜底）
     const priorTypes = await setTypeUnion(run.bank, run.setId);

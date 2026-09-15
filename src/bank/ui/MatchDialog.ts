@@ -11,7 +11,7 @@ import { KernelDoc } from "../../siyuan/doc";
 import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
-import { esc, fmt } from "../../ui/shared";
+import { aiTitle, esc, fmt } from "../../ui/shared";
 import { parseQuestionKramdown } from "../data/BankParse";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 import { recordsOfDoc } from "../data/BankRegen";
@@ -133,7 +133,7 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
         if (index.chapters.length === 0) throw new Error(t("matchNoIndex"));
         const records = (await recordsOfDoc(bank, srcDocId)).slice();
         // 动作分组（AI 会话面板树归并）：本次匹配的路由调用挂同组
-        const group = { id: newAiGroupId(), title: `匹配 · ${records.length} 题` };
+        const group = { id: newAiGroupId(), title: aiTitle(t, "aiTitleMatch", { n: String(records.length) }) };
         let hit = 0;
         let miss = 0;
         let skip = 0;
@@ -176,7 +176,7 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
                 call: (m) =>
                     agentChatOnce(m, modelId, AI_TIMEOUT.batch, stop.signal, {
                         kind: "route",
-                        title: `匹配路由 · ${texts.length} 题`,
+                        title: aiTitle(t, "aiTitleMatchRoute", { n: String(texts.length) }),
                         group,
                         onSid: stop.onSid,
                     }),

@@ -21,6 +21,16 @@ export function initNotify(i18n: Record<string, string>): void {
     translate = (key) => i18n[key] || key;
 }
 
+/**
+ * 全局取词器（整改 E #120）：与 `notifyInfo/notifyError` 共用**同一份**
+ * 注入的 i18n，供「无宿主引用可取词」的深层模块用——典型场景是 AI 会话
+ * 记录 title 的拼装（`ui/shared.aiTitle`）：那些调用发生在 quiz/bank/
+ * convert/word 各域的服务层，拿不到 QuizView 的 `t`。
+ *
+ * ⚠️ 未接线（单测/早期启动）时回落到**键名**，与全仓 `i18n[k] || k` 同口径。
+ */
+export const tKey = (key: string): string => translate(key);
+
 const ERR_COOLDOWN_MS = 60_000;
 const lastErrAt = new Map<string, number>();
 

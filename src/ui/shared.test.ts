@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    aiTitle,
     Armed,
     dayKey,
     errText,
@@ -229,5 +230,27 @@ describe("SaveChain（串行落盘链，Issue #114 归拢新增锁）", () => {
         const first = chain.enqueue(() => Promise.reject(new Error("disk full")));
         await expect(first).rejects.toThrow("disk full"); // 本笔错误交回调用侧
         await expect(chain.enqueue(() => Promise.resolve("ok"))).resolves.toBe("ok");
+    });
+});
+
+describe("aiTitle（AI 会话记录标题总出口，Issue #120 / 规范 §8.6）", () => {
+    it("键 + 参数经取词器拼装", () => {
+        const t = (k: string): string => ({ aiTitleConvert: "转换 · {name}" })[k] ?? k;
+        expect(aiTitle(t, "aiTitleConvert", { name: "高等数学" })).toBe("转换 · 高等数学");
+    });
+
+    it("无参标题原样取词（动作名本身即完整文案）", () => {
+        const t = (k: string): string => ({ aiTitleVariant: "变式重练" })[k] ?? k;
+        expect(aiTitle(t, "aiTitleVariant")).toBe("变式重练");
+    });
+
+    it("缺词回落键名（与全仓 i18n[k] || k 同口径）——那是配置缺漏，不是本函数兜的形态", () => {
+        const t = (k: string): string => k;
+        expect(aiTitle(t, "aiTitleNope")).toBe("aiTitleNope");
+    });
+
+    it("缺参数时保留占位（fmt 的同款行为，宁可露出 {name} 也不静默吞掉）", () => {
+        const t = (): string => "转换 · {name}";
+        expect(aiTitle(t, "aiTitleConvert", {})).toBe("转换 · {name}");
     });
 });

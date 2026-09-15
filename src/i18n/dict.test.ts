@@ -1,0 +1,134 @@
+import { describe, expect, it } from "vitest";
+import zh from "./zh-CN.json";
+import en from "./en.json";
+
+/**
+ * i18n 字典门禁（Issue #120，规范 `docs/design-spec.md` §8.1 / §8.3 / §8.4）。
+ *
+ * 这组断言锁的是**静默降级**这条通道：插件取词是 `i18n[k] || k`，
+ * **缺键与空串值都会把键名直接渲染给用户**（truthy 回落），不报错。
+ * 故字典的四条不变量必须机器守住，而不是靠人工盘点：
+ *   1. 中英键集合相等（对称差 0）；
+ *   2. 零空值；
+ *   3. 占位符集合两语言对齐（`{n}` 只能对 `{n}`）；
+ *   4. 死键清零（动态键族除外，见下登记表）。
+ *
+ * ⚠️ 源文件扫描经 vitest 的 `?raw` 导入（本仓无 `@types/node`，
+ * 不用 `node:fs`，同 `SubheadHtml.test.ts` 的口径）。
+ */
+
+const ZH = zh as Record<string, string>;
+const EN = en as Record<string, string>;
+
+/** 动态键族登记表（规范 §8.3）：族名 + 数据源枚举出处。
+ *  ⚠️ 拼出来的键无法静态判定死活，**新增动态族必须在此登记**，
+ *  否则会被下面的死键断言误报（或真死键漏报）。 */
+const DYNAMIC_FAMILIES: { pattern: RegExp; source: string }[] = [
+    { pattern: /^weakCause/, source: "bank/data/WeaknessStore 的 WeakCause 枚举" },
+    { pattern: /^matchFail_/, source: "convert/service/knowledge/KnowRoute 的 MatchFailKind 枚举" },
+];
+
+const placeholders = (s: string): string =>
+    [...s.matchAll(/\{(\w+)\}/g)]
+        .map((m) => m[1])
+        .sort()
+        .join(",");
+
+/** 无参标题（动作名本身已是完整文案，如「变式重练」）。 */
+const NO_ARG_TITLES = ["aiTitleVariant"];
+
+describe("i18n 字典门禁", () => {
+    it("中英键集合相等（对称差 0）", () => {
+        const zk = Object.keys(ZH).sort();
+        const ek = Object.keys(EN).sort();
+        expect(zk.filter((k) => !(k in EN))).toEqual([]);
+        expect(ek.filter((k) => !(k in ZH))).toEqual([]);
+        expect(zk.length).toBe(ek.length);
+    });
+
+    it("零空值（缺键/空串都会把键名渲染给用户）", () => {
+        expect(Object.entries(ZH).filter(([, v]) => !String(v).trim())).toEqual([]);
+        expect(Object.entries(EN).filter(([, v]) => !String(v).trim())).toEqual([]);
+    });
+
+    it("占位符集合两语言对齐", () => {
+        const bad = Object.keys(ZH).filter((k) => placeholders(ZH[k]) !== placeholders(EN[k]));
+        expect(bad).toEqual([]);
+    });
+});
+
+describe("AI 会话记录标题 i18n（规范 §8.6）", () => {
+    it("aiTitle* 键族齐备且带 {name}/{n} 参数", () => {
+        const keys = Object.keys(ZH).filter((k) => k.startsWith("aiTitle"));
+        expect(keys.length).toBeGreaterThanOrEqual(23);
+        for (const k of keys) {
+            if (NO_ARG_TITLES.includes(k)) continue;
+            expect(ZH[k], k).toMatch(/\{(name|n)\}/);
+            expect(EN[k], k).toMatch(/\{(name|n)\}/);
+        }
+    });
+});
+
+/**
+ * 死键清零 + AI title 无硬编码：两条都要**扫全仓源码**。因无 `node:fs`，
+ * 用 vitest 的 `import.meta.glob` + `?raw` 把源码读进来（`eager` 同步可得）。
+ */
+const SRC = import.meta.glob("../**/*.{ts,svelte}", { query: "?raw", import: "default", eager: true }) as Record<
+    string,
+    string
+>;
+
+/** glob key 相对**本测试文件**（`./dict.test.ts` / `../ui/...`）——统一成
+ *  「相对 src/」的展示名；i18n 域自身的文件（字典 + 本测试）不进扫描面。 */
+const relOf = (k: string): string => (k.startsWith("./") ? `i18n/${k.slice(2)}` : k.replace(/^\.\.\//, ""));
+
+const SOURCE_FILES = Object.entries(SRC)
+    .filter(([k]) => !/\.json$/.test(k))
+    .filter(([k]) => !/^i18n(\/|$)/.test(relOf(k)))
+    .map(([k, v]) => [relOf(k), v] as const);
+
+describe("死键清零（规范 §8.4）", () => {
+    it("字典里的每个键都在源码里有引用（排除已登记的动态键族）", () => {
+        const code = SOURCE_FILES.map(([, v]) => v).join("\n");
+        const dead = Object.keys(ZH).filter((k) => {
+            if (DYNAMIC_FAMILIES.some((f) => f.pattern.test(k))) return false;
+            // 词边界命中即算「有引用」：字符串字面量、模板串、
+            // `this.i18n.xxx` 的属性式访问三种形态都落在 \b 上。
+            return !new RegExp(`\\b${k}\\b`).test(code);
+        });
+        expect(dead).toEqual([]);
+    });
+
+    it("动态键族登记表非空（新增动态族必须登记，否则上述断言会误报）", () => {
+        expect(DYNAMIC_FAMILIES.length).toBeGreaterThan(0);
+        for (const f of DYNAMIC_FAMILIES) expect(f.source.length).toBeGreaterThan(0);
+    });
+
+    it("扫描面非空 + 哨兵键能被判死（防「扫空即全绿」的假阳性）", () => {
+        expect(SOURCE_FILES.length).toBeGreaterThan(150);
+        const code = SOURCE_FILES.map(([, v]) => v).join("\n");
+        // 真键必命中、捏造键必落空 —— 两条一起证明扫描面确实读到了源码
+        expect(/\baiTitleConvert\b/.test(code)).toBe(true);
+        expect(/\b__definitely_not_a_real_key__\b/.test(code)).toBe(false);
+    });
+});
+
+describe("AI 会话 title 不再硬编码中文（规范 §8.6）", () => {
+    it('源码里没有 `title: "中文…"` 形态的会话标题', () => {
+        const hits: string[] = [];
+        for (const [rel, src] of SOURCE_FILES) {
+            if (/\.test\.ts$/.test(rel)) continue;
+            // prompt 常量区与示例数据不在「用户可见文案」范围
+            if (rel.startsWith("ai/prompts/") || rel.startsWith("word/data/")) continue;
+            src.split("\n").forEach((line, i) => {
+                if (/(^|\s)(title|label):\s*[`"'][^`"']*[\u4e00-\u9fa5]/.test(line)) {
+                    hits.push(`${rel}:${i + 1} ${line.trim()}`);
+                }
+            });
+        }
+        // 已知合法例外：SettingsDialog 的 title 是 `${pluginName} · ${t("settingsTitle")}`
+        // ——中文来自 t() 取词，不是硬编码；wordbook-meta 的 title 是**词书名**
+        // （数据，不是 UI 文案）。
+        expect(hits.filter((h) => !h.startsWith("ui/SettingsDialog") && !h.startsWith("word/data/"))).toEqual([]);
+    });
+});
