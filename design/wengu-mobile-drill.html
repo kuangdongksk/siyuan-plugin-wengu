@@ -102,26 +102,29 @@
                 flex-direction: column;
             }
 
-            /* ---- 应用内设计系统（思源笔记明亮主题） ---- */
+            /* ---- 应用内设计系统（跟随思源 b3 主题变量，亮色值仅作独立预览兜底；
+                 与 src/scss/mobile-*.scss 的取用口径一致） ---- */
             .screen {
-                --bg: #f4f6f8; /* 应用底 */
-                --card: #ffffff;
-                --ink: #242b33; /* 主文字 15.6:1 */
-                --ink-2: #59636e; /* 次要文字 ≈6:1 */
-                --ink-3: #8a94a0; /* 弱化图形，不承载正文 */
-                --line: #e3e7ec;
-                --line-2: #eef1f4;
-                --brand: #3575f0; /* 思源蓝：边框 / 进度 / 图标 */
-                --brand-deep: #2c63d9; /* 实心按钮底（白字 ≥4.5:1） */
-                --brand-press: #2455c0;
-                --brand-bg: #edf3fe;
-                --ok: #1f7a4d; /* 语义·对（含白字与前景双达标） */
-                --ok-line: #9ed3b7;
-                --ok-bg: #e8f5ee;
-                --bad: #c13a34; /* 语义·错 */
-                --bad-line: #efb9b5;
-                --bad-bg: #fbedeb;
-                --radius: 12px;
+                --bg: var(--b3-theme-background, #f4f6f8); /* 应用底 */
+                --card: var(--b3-theme-surface, #ffffff);
+                --ink: var(--b3-theme-on-background, #242b33); /* 主文字 */
+                --ink-body: var(--b3-theme-on-surface, #333b44); /* 卡上正文 */
+                --ink-2: var(--b3-theme-on-surface-light, #59636e); /* 次要文字 */
+                --ink-3: color-mix(in srgb, var(--b3-theme-on-surface-light, #8a94a0) 72%, transparent); /* 弱化图形 */
+                --line: var(--b3-border-color, #e3e7ec);
+                --line-2: color-mix(in srgb, var(--b3-border-color, #e3e7ec) 55%, transparent);
+                --brand: var(--b3-theme-primary, #3575f0); /* 主色：边框 / 进度 / 图标 */
+                --brand-deep: var(--b3-theme-primary, #2c63d9); /* 实心按钮底 */
+                --brand-press: color-mix(in srgb, var(--b3-theme-primary, #2455c0) 85%, #000);
+                --brand-bg: var(--b3-theme-primary-lightest, #edf3fe);
+                --on-brand: var(--b3-theme-on-primary, #ffffff); /* 实心色上的文字 */
+                --ok: var(--b3-theme-success, #1f7a4d); /* 语义·对 */
+                --ok-line: color-mix(in srgb, var(--b3-theme-success, #1f7a4d) 38%, transparent);
+                --ok-bg: color-mix(in srgb, var(--b3-theme-success, #1f7a4d) 10%, transparent);
+                --bad: var(--b3-theme-error, #c13a34); /* 语义·错 */
+                --bad-line: color-mix(in srgb, var(--b3-theme-error, #c13a34) 38%, transparent);
+                --bad-bg: color-mix(in srgb, var(--b3-theme-error, #c13a34) 8%, transparent);
+                --radius: var(--b3-border-radius-b, 12px);
                 --shadow: 0 1px 2px rgba(36, 43, 51, 0.04), 0 6px 16px -10px rgba(36, 43, 51, 0.1);
                 font-family:
                     -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
@@ -187,7 +190,7 @@
                 width: 128px;
                 height: 5px;
                 border-radius: 3px;
-                background: #c7cdd5;
+                background: var(--ink-3);
             }
             .app.no-home .homebar {
                 background: var(--bg);
@@ -218,7 +221,7 @@
                 height: 26px;
                 border-radius: 7px;
                 background: var(--brand-deep);
-                color: #fff;
+                color: var(--on-brand);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -289,7 +292,7 @@
                 transition: background 0.12s;
             }
             .iconbtn:active {
-                background: #e9edf2;
+                background: var(--bg);
             }
             .iconbtn:focus-visible {
                 outline: 2px solid var(--brand);
@@ -327,23 +330,23 @@
             }
             .btn-solid {
                 background: var(--brand-deep);
-                color: #fff;
-                box-shadow: 0 6px 14px -8px rgba(44, 99, 217, 0.55);
+                color: var(--on-brand);
+                box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--brand) 55%, transparent);
             }
             .btn-solid:active {
                 background: var(--brand-press);
             }
             .btn-solid.ok-solid {
                 background: var(--ok);
-                box-shadow: 0 6px 14px -8px rgba(31, 122, 77, 0.5);
+                box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--ok) 50%, transparent);
             }
             .btn-outline {
                 background: var(--card);
                 color: var(--ink);
-                border-color: #d6dbe1;
+                border-color: var(--line);
             }
             .btn-outline:active {
-                background: #f1f4f7;
+                background: var(--bg);
             }
             .btn-block {
                 width: 100%;
@@ -363,7 +366,7 @@
                 height: 44px;
                 padding: 0 16px;
                 border-radius: 22px;
-                border: 1px solid #d6dbe1;
+                border: 1px solid var(--line);
                 background: var(--card);
                 font-size: 14px;
                 font-weight: 600;
@@ -374,12 +377,12 @@
                 align-items: center;
             }
             .submit-chip:active {
-                background: #f1f4f7;
+                background: var(--bg);
             }
             .submit-chip.primary {
                 background: var(--brand-deep);
                 border-color: var(--brand-deep);
-                color: #fff;
+                color: var(--on-brand);
                 padding: 0 14px;
             }
             .submit-chip.primary:active {
@@ -412,7 +415,7 @@
             .pbar {
                 height: 6px;
                 border-radius: 3px;
-                background: #e7ebf0;
+                background: var(--line-2);
                 overflow: hidden;
             }
             .pbar > i {
@@ -428,8 +431,8 @@
             /* ============ 屏1 · 开刷面板 ============ */
             .resume-card {
                 margin-top: 12px;
-                background: linear-gradient(135deg, #ffffff 62%, #edf3fe 100%);
-                border: 1px solid #dce7fb;
+                background: linear-gradient(135deg, var(--card) 62%, var(--brand-bg) 100%);
+                border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
                 border-radius: var(--radius);
                 box-shadow: var(--shadow);
                 padding: 14px 14px 12px;
@@ -481,7 +484,7 @@
                 border-radius: 12px;
                 border: none;
                 background: var(--brand-deep);
-                color: #fff;
+                color: var(--on-brand);
                 font-size: 15px;
                 font-weight: 600;
                 font-family: inherit;
@@ -489,7 +492,7 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
-                box-shadow: 0 6px 14px -8px rgba(44, 99, 217, 0.55);
+                box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--brand) 55%, transparent);
             }
             .resume-btn:active {
                 background: var(--brand-press);
@@ -502,7 +505,7 @@
                 gap: 8px;
             }
             .mode {
-                border: 1.5px solid #dde2e8;
+                border: 1.5px solid var(--line);
                 border-radius: 11px;
                 background: var(--card);
                 padding: 10px 11px 9px;
@@ -530,7 +533,7 @@
                 width: 18px;
                 height: 18px;
                 border-radius: 50%;
-                border: 1.5px solid #c6cdd6;
+                border: 1.5px solid var(--line);
                 margin-bottom: 6px;
                 display: flex;
                 align-items: center;
@@ -550,19 +553,19 @@
                 width: 8px;
                 height: 8px;
                 border-radius: 50%;
-                background: #fff;
+                background: var(--card);
             }
             .mode:active {
-                background: #f1f4f7;
+                background: var(--bg);
             }
             .mode.on:active {
-                background: #e3edfd;
+                background: var(--brand-bg);
             }
 
             /* 本次题数 segmented */
             .seg {
                 display: flex;
-                background: #eef1f5;
+                background: var(--bg);
                 border-radius: 10px;
                 padding: 3px;
             }
@@ -635,7 +638,7 @@
                 border-bottom: none;
             }
             .set-item:active {
-                background: #f1f4f7;
+                background: var(--bg);
             }
             .set-row1 {
                 display: flex;
@@ -680,7 +683,7 @@
                 line-height: 1;
                 padding: 4px 7px;
                 border-radius: 6px;
-                background: #eef1f5;
+                background: var(--bg);
                 color: var(--ink-2);
             }
             .badge.doing {
@@ -712,7 +715,7 @@
             }
             .qtype.neutral {
                 color: var(--ink-2);
-                background: #eef1f5;
+                background: var(--bg);
             }
             .qsrc {
                 font-size: 12.5px;
@@ -780,7 +783,7 @@
                 width: 28px;
                 height: 28px;
                 border-radius: 50%;
-                border: 1.5px solid #c6cdd6;
+                border: 1.5px solid var(--line);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -795,7 +798,7 @@
                 min-width: 0;
             }
             .opt:active {
-                background: #f6f8fa;
+                background: var(--bg);
             }
             .opt.on {
                 border-color: var(--brand);
@@ -804,10 +807,10 @@
             .opt.on .key {
                 border-color: var(--brand);
                 background: var(--brand);
-                color: #fff;
+                color: var(--on-brand);
             }
             .opt.on:active {
-                background: #e2ecfc;
+                background: var(--brand-bg);
             }
             /* 判分后的锁定态 */
             .opts.locked .opt {
@@ -820,7 +823,7 @@
             .opt.right .key {
                 border-color: var(--ok);
                 background: var(--ok);
-                color: #fff;
+                color: var(--on-brand);
             }
             .opt.wrong-pick {
                 border-color: var(--bad);
@@ -829,7 +832,7 @@
             .opt.wrong-pick .key {
                 border-color: var(--bad);
                 background: var(--bad);
-                color: #fff;
+                color: var(--on-brand);
             }
             .opt.dim {
                 opacity: 0.55;
@@ -886,7 +889,7 @@
                 cursor: pointer;
             }
             .subtab:active {
-                background: #f1f4f7;
+                background: var(--bg);
                 color: var(--ink);
             }
             .subtab.flagged {
@@ -927,7 +930,7 @@
                 width: 8px;
                 height: 8px;
                 border-radius: 50%;
-                background: #d6dbe1;
+                background: var(--line);
             }
             .dots i.ok {
                 background: var(--ok);
@@ -958,7 +961,7 @@
                 text-align: left;
             }
             .mat-head:active {
-                background: #f6f8fa;
+                background: var(--bg);
             }
             .mat-head .mtit {
                 flex: 1;
@@ -1002,7 +1005,7 @@
                 font-family: Georgia, "Times New Roman", serif;
                 font-size: 15.5px;
                 line-height: 1.78;
-                color: #333b44;
+                color: var(--ink-body);
                 text-align: justify;
             }
             .mat-body p + p {
@@ -1010,8 +1013,8 @@
             }
             .mat-body p u {
                 text-decoration: none;
-                background: #fff6de;
-                box-shadow: 0 0.5px 0 #e8d48a inset;
+                background: var(--b3-card-warning-background, #fff6de);
+                box-shadow: 0 0.5px 0 var(--b3-card-warning-color, #e8d48a) inset;
             }
             .subq-tag {
                 display: flex;
@@ -1047,7 +1050,7 @@
                 left: -50%;
                 width: 100%;
                 height: 2px;
-                background: #e3e7ec;
+                background: var(--line);
             }
             .step:first-child::before {
                 display: none;
@@ -1060,7 +1063,7 @@
                 margin: 0 auto;
                 border-radius: 50%;
                 background: var(--card);
-                border: 2px solid #cdd3da;
+                border: 2px solid var(--line);
                 color: var(--ink-2);
                 display: flex;
                 align-items: center;
@@ -1071,7 +1074,7 @@
             .step.done .dot {
                 background: var(--ok);
                 border-color: var(--ok);
-                color: #fff;
+                color: var(--on-brand);
             }
             .step.done::before {
                 background: var(--ok-line);
@@ -1100,12 +1103,12 @@
             .step-hint {
                 margin-top: 12px;
                 background: var(--brand-bg);
-                border: 1px solid #d8e5fb;
+                border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent);
                 border-radius: 10px;
                 padding: 10px 12px;
                 font-size: 13.5px;
                 line-height: 1.6;
-                color: #2b4c86;
+                color: var(--brand);
                 display: flex;
                 gap: 8px;
                 align-items: flex-start;
@@ -1150,7 +1153,7 @@
                 gap: 6px;
                 padding: 8px 10px;
                 border-top: 1px solid var(--line-2);
-                background: #fafbfc;
+                background: var(--bg);
                 overflow-x: auto;
                 scrollbar-width: none;
             }
@@ -1174,7 +1177,7 @@
                 gap: 1px;
             }
             .ftool:active {
-                background: #f1f4f7;
+                background: var(--bg);
             }
             .ftool sup,
             .ftool sub {
@@ -1241,7 +1244,7 @@
                 border-radius: 15px;
                 font-size: 13.5px;
                 font-weight: 700;
-                color: #fff;
+                color: var(--on-brand);
                 background: var(--bad);
             }
             .verdict.good .v-badge {
@@ -1277,7 +1280,7 @@
                 cursor: pointer;
             }
             .exp-toggle:active {
-                background: #f6f8fa;
+                background: var(--bg);
             }
             .exp-toggle .chev {
                 transition: transform 0.18s;
@@ -1291,7 +1294,7 @@
                 padding: 2px 14px 14px;
                 font-size: 15px;
                 line-height: 1.75;
-                color: #333b44;
+                color: var(--ink-body);
             }
             .exp-wrap.open .exp-body {
                 display: block;
@@ -1304,7 +1307,7 @@
             }
             .kp button {
                 border: 1px solid var(--line);
-                background: #f7f9fb;
+                background: var(--bg);
                 border-radius: 14px;
                 height: 30px;
                 padding: 0 11px;
@@ -1315,7 +1318,7 @@
                 cursor: pointer;
             }
             .kp button:active {
-                background: #edf1f5;
+                background: var(--bg);
             }
 
             /* ============ 屏6 · 收卷模式 ============ */
@@ -1327,17 +1330,17 @@
                 margin: 10px 14px 0;
                 padding: 8px 12px;
                 background: var(--brand-bg);
-                border: 1px solid #d8e5fb;
+                border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent);
                 border-radius: 10px;
                 font-size: 12.5px;
-                color: #2b4c86;
+                color: var(--brand);
             }
             .mode-strip b {
                 font-weight: 700;
             }
             .mode-strip .pbar {
                 flex: 1;
-                background: #cfdffb;
+                background: color-mix(in srgb, var(--brand) 55%, transparent);
             }
             .mode-strip .pbar > i {
                 background: var(--brand);
@@ -1448,7 +1451,7 @@
                 border-bottom: none;
             }
             .wrong-item:active {
-                background: #f6f8fa;
+                background: var(--bg);
             }
             .wrong-item .wno {
                 flex: 0 0 auto;
@@ -1500,7 +1503,7 @@
                 cursor: pointer;
             }
             .more-link:active {
-                background: #f6f8fa;
+                background: var(--bg);
             }
 
             /* ============ 屏8 · 题号抽屉 ============ */
@@ -1536,7 +1539,7 @@
                 width: 40px;
                 height: 4.5px;
                 border-radius: 3px;
-                background: #d3d9e0;
+                background: var(--line);
                 margin: 4px auto 10px;
             }
             .sheet-head {
@@ -1585,7 +1588,7 @@
             }
             .lg-none {
                 background: var(--card);
-                border: 1.5px solid #c9d0d8;
+                border: 1.5px solid var(--line);
                 box-sizing: border-box;
             }
             .lg-cur {
@@ -1601,7 +1604,7 @@
             .cellno {
                 height: 44px;
                 border-radius: 10px;
-                border: 1.5px solid #d9dee4;
+                border: 1.5px solid var(--line);
                 background: var(--card);
                 font-family: inherit;
                 font-size: 14.5px;
@@ -1620,12 +1623,12 @@
             .cellno.ok {
                 background: var(--ok);
                 border-color: var(--ok);
-                color: #fff;
+                color: var(--on-brand);
             }
             .cellno.bad {
                 background: var(--bad);
                 border-color: var(--bad);
-                color: #fff;
+                color: var(--on-brand);
             }
             .cellno.cur {
                 border-color: var(--brand);
@@ -1701,14 +1704,14 @@
 
             /* 代码块排版（预留：思源笔记源文档可能含代码） */
             .codeblock {
-                background: #f5f7f9;
+                background: var(--bg);
                 border: 1px solid var(--line-2);
                 border-radius: 9px;
                 padding: 10px 12px;
                 font-family: ui-monospace, "Cascadia Code", Consolas, "JetBrains Mono", monospace;
                 font-size: 13px;
                 line-height: 1.7;
-                color: #364049;
+                color: var(--ink-body);
                 overflow-x: auto;
                 white-space: pre;
             }
@@ -1716,10 +1719,10 @@
                 color: #8a6fd1;
             } /* 关键字 */
             .codeblock .cs {
-                color: #1f7a4d;
+                color: var(--ok);
             } /* 字符串 */
             .codeblock .cc {
-                color: #8a94a0;
+                color: var(--ink-3);
             } /* 注释 */
 
             /* ============ 焦点可见性（触屏为主，保留键盘焦点环） ============ */
@@ -1943,7 +1946,7 @@
                         <div class="sysbar">
                             <span>9:41</span>
                             <span class="sysbar-r">
-                                <svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -1954,13 +1957,13 @@
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" />
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" />
                                 </svg>
                                 <svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
@@ -1970,11 +1973,11 @@
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" />
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" />
                                 </svg>
                             </span>
                         </div>
@@ -2165,7 +2168,7 @@
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -2175,13 +2178,13 @@
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -2190,11 +2193,11 @@
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -2307,7 +2310,7 @@
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -2317,13 +2320,13 @@
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -2332,11 +2335,11 @@
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -2451,7 +2454,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -2461,13 +2464,13 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -2476,11 +2479,11 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -2606,7 +2609,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -2616,13 +2619,13 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -2631,11 +2634,11 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -2759,7 +2762,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -2769,13 +2772,13 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -2784,11 +2787,11 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -2919,7 +2922,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -2929,13 +2932,13 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -2944,11 +2947,11 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -3043,7 +3046,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -3053,13 +3056,13 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -3068,11 +3071,11 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app">
@@ -3103,7 +3106,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                                 cy="79"
                                                 r="63"
                                                 fill="none"
-                                                stroke="#E7EBF0"
+                                                style="stroke: var(--line-2)"
                                                 stroke-width="13"
                                             />
                                             <circle
@@ -3111,7 +3114,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                                 cy="79"
                                                 r="63"
                                                 fill="none"
-                                                stroke="var(--brand)"
+                                                style="stroke: var(--brand)"
                                                 stroke-width="13"
                                                 stroke-linecap="round"
                                                 stroke-dasharray="340.4 395.8"
@@ -3144,7 +3147,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                                         width: 11px;
                                                         height: 11px;
                                                         border-radius: 50%;
-                                                        background: #c3cad3;
+                                                        background: var(--ink-3);
                                                         display: inline-block;
                                                     "
                                                 ></i
@@ -3232,7 +3235,7 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                         <div class="sysbar">
                             <span>9:41</span
                             ><span class="sysbar-r"
-                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="#242B33">
+                                ><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
                                     <rect x="0" y="7" width="3" height="4" rx="1" />
                                     <rect x="4.5" y="5" width="3" height="6" rx="1" />
                                     <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
@@ -3242,13 +3245,13 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                     height="11"
                                     viewBox="0 0 15 11"
                                     fill="none"
-                                    stroke="#242B33"
+                                    stroke="currentColor"
                                     stroke-width="1.5"
                                     stroke-linecap="round"
                                 >
                                     <path d="M1.5 4a9 9 0 0 1 12 0" />
                                     <path d="M3.8 6.4a5.6 5.6 0 0 1 7.4 0" />
-                                    <circle cx="7.5" cy="9" r="1.3" fill="#242B33" stroke="none" /></svg
+                                    <circle cx="7.5" cy="9" r="1.3" fill="currentColor" stroke="none" /></svg
                                 ><svg width="24" height="11" viewBox="0 0 24 11">
                                     <rect
                                         x="0.5"
@@ -3257,11 +3260,11 @@ printf(<span class="cs">"%d"</span>, s);</pre>
                                         height="10"
                                         rx="2.5"
                                         fill="none"
-                                        stroke="#242B33"
+                                        stroke="currentColor"
                                         opacity=".4"
                                     />
-                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="#242B33" />
-                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="#242B33" opacity=".4" /></svg
+                                    <rect x="2" y="2" width="13" height="7" rx="1.2" fill="currentColor" />
+                                    <path d="M21 3.5v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4" /></svg
                             ></span>
                         </div>
                         <div class="app" id="drawerApp">
