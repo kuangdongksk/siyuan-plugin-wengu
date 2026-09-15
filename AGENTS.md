@@ -1528,6 +1528,36 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   仍留在 rail.scss 供两片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
   设计稿的 `--ok-solid`/`--fail-solid`/`--accent-dim` 等语义令牌落成 b3 令牌 +
   `color-mix` 组合（同 aiflow.scss 口径）。
+- **整页不滚动（Issue #96，20260915；规范 `docs/design-review.md` §〇 第 11 条）**：
+  面板高度适配宿主视口，滚动收进面板**内部滚动窗**——**推翻 #93 的 gap-list
+  S4 取舍**（「卡随内容长、滚动交宿主页」与产品期望冲突：整页滚会把标题/hint/
+  kinds 过滤条/横幅一起带走，长清单下树列与详情失去固定视野）。四处咬合，
+  缺一环链就断（表现＝内滚窗不出现、整页照滚）：
+    - **宿主档位**（`ai/core/PanelFit.ts` 纯逻辑带单测 + `ai/SessionPanel.ts`）：
+      主区 `.wengu-ws-main` 的 `overflow-y:auto` 是**共用骨架**（其余工作区靠它
+      自滚）**一个字不动**；收内滚的面板经 `.wengu-ws-main--fit` 一档改写主区
+      （rail.scss：flex 列 + `overflow:hidden`）。**开关在挂载/卸载处配对**
+      （`mountAiSessionPanel` 开、`detachAiSessionPanel` 关）——主区容器是共享
+      骨架、随整壳重建，漏关会让下一块面板继承本档：开了档而不收内滚 ⇒ 内容被
+      `overflow:hidden` 切掉且**滚不到**，比「整页滚」更坏。「哪些工作区收内滚」
+      的判据在 `workspaceFits`（当前只有 ai），别在挂载点写死字符串。
+    - **高度链**（面板页根 → 卡 → 卡内两列，每级都要 `min-height:0`）：
+      `SessionPanelApp` 的面板页根挂 `.wengu-aipage`（flex 列 + `min-height:0`
+        - `height:100%`，卡外件全 `flex:none`），卡 `.wengu-aipanel` 是
+          `flex:1 1 auto; min-height:0`。⚠️ **grid 的行高必须显式分配**
+          （`grid-template-rows: auto minmax(0,1fr)`：横幅行按内容、两栏行吃剩余）
+          ——不写时隐式行是 auto，卡被内容撑长、两列没有「剩余高」，列内滚动窗
+          不出现（本单的隐蔽坑）。
+    - **内滚窗落在卡内两列**：`.wengu-aipanel-tree`（树）与 `.wengu-aipanel-pane`
+      （详情）各自 `min-height:0`、`overflow-y:auto`、`scrollbar-gutter:stable`、
+      `overscroll-behavior:contain`。卡外件（标题/hint/kinds 过滤条）与卡首横幅
+      （`.wengu-aiflow` 的 `grid-area:banner`）**常驻视野不滚走**。
+      `scrollbar-gutter: stable` 是给「有/无滚动条」两态留同位——树是窄列、
+      行内徽标贴右，缺它两种状态下行宽会跳一格。⚠️ `dbody` 的
+      `min-height:120px` 已放开（列内滚由 pane 承担，留着只会小窗口空撑）。
+    - ⚠️ **≤1000px 折单列时行高分配同步改**（`auto auto minmax(0,1fr)`）：
+      沿用「末行吃剩余」会把树行压成 0 高、清单整片消失；折列后树列给
+      `max-height:40vh` 的兜底（单列下清单不再是「列内滚窗」语义）。
 - **单流态横幅 bar 复核**：`ConvertFlow.barOf` 有 `readPct` 即出条，
   `bannerViewOf` 按「无 queue 才出 bar」分流——已被 `FlowBannerUi.test` 锁死，
   本单只复核、未改。
@@ -1547,6 +1577,12 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   前后注意别再净增；见迁移文档 6-5 节与 20260903 审查）。界面规范见
   `docs/design-review.md §〇`（图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml
   行样式）。
+- **整页不滚动**（Issue #96，2026-09-15 起硬性规范，见 `docs/design-review.md`
+  §〇 第 11 条）：面板高度一律适配宿主视口，长列表/详情收**面板内部的滚动窗**，
+  工作区主区不出页面级滚动条。技术要点＝「flex/`min-height:0` 链一路打通 +
+  grid 行高显式分配 + 主区经 `--fit` 档改写 + 内滚窗落在列上 + 列上留滚动条槽」。
+  落地样板＝AI 会话工作区（AGENTS.md 的 ai 域段）；**其余管理面板迁移不在本
+  规范当前的改造范围内**（规范是总则，存量面板自行排期）。
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器
   `class="fn__flex b3-label config__item wengu-formrow"`——思源运行时主题注入的
   `.b3-label` 单类选择器同特异性后定义会覆盖我们的 `.wengu-formrow { display:flex;
