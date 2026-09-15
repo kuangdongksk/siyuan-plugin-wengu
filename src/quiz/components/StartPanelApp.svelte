@@ -1,5 +1,6 @@
 <script lang="ts">
     import FormRow from "../../ui/FormRow.svelte";
+    import { svgIcon } from "../../ui/FormHtml";
     import Button from "../../ui/Button.svelte";
     import Select from "../../ui/Select.svelte";
     import { clampMinutes, fmt } from "../../ui/shared";
@@ -12,6 +13,11 @@
      * mountStartPanelFor）：四组选择一张表单——①上次进度（继续上次/
      * 重新开始，有未完成轮才出现）②刷题范围（全部/上轮错题/错题重刷）
      * ③答案展示 ④多步题模式 ⑤计时方式（含倒计时分钟）。
+     * Issue #100：结构照设计稿屏①——两张独立卡片（进度与范围 /
+     * 作答设置，卡头在卡内带小图标）+ 底部动作行；「开始刷题」是唯一
+     * 主操作（primary）。**「刷题范围」行恒渲染**（最少只有「全部题目」
+     * 一项），无错题时不再整卡消失；「上次进度（继续上次）」仍按未完成
+     * 轮条件渲染（逻辑口径不动）。
      * **继续上次 = 原样恢复**：选中后其余选项锁定并回显该轮原配置
      * （渲染值走 $derived，旧 bindStartPanel 的 setVal 重放消失）；
      * 切回重新开始恢复设置页默认值（progress 切换处理器显式重置，
@@ -94,98 +100,94 @@
 </script>
 
 <div class="wengu-start">
-    {#if model.unfinishedAnswered !== undefined || scopeOptions.length > 0}
-        <div class="config-group">
-            <div class="config-title">{t("progressScopeTitle")}</div>
-            <div class="config-items">
-                {#if model.unfinishedAnswered !== undefined}
-                    <FormRow
-                        label={t("progressTitle")}
-                        desc={fmt(t("continueHint"), { n: String(model.unfinishedAnswered ?? 0) })}
-                    >
-                        <Select
-                            class="b3-select fn__flex-center fn__size200"
-                            options={progressOptions}
-                            value={progress}
-                            onchange={(e) => onProgressChange(e.currentTarget.value)}
-                        />
-                    </FormRow>
-                {/if}
-                {#if scopeOptions.length > 0}
-                    <FormRow label={t("scopeTitle")} desc={t("scopeHint")}>
-                        <Select
-                            class="b3-select fn__flex-center fn__size200"
-                            options={scopeSelectOptions}
-                            disabled={cont}
-                            value={curScope}
-                            onchange={(e) => (scope = e.currentTarget.value)}
-                        />
-                    </FormRow>
-                {/if}
-            </div>
-        </div>
-    {/if}
-    <div class="config-group">
-        <div class="config-title">{t("runSettingsTitle")}</div>
-        <div class="config-items">
-            <FormRow label={t("revealTitle")} desc={t("revealHint")}>
+    <section class="wengu-start-card">
+        <h3 class="wengu-start-cardhead">
+            {@html svgIcon("iconList", "wengu-start-cardicon")}{t("progressScopeTitle")}
+        </h3>
+        {#if model.unfinishedAnswered !== undefined}
+            <FormRow
+                label={t("progressTitle")}
+                desc={fmt(t("continueHint"), { n: String(model.unfinishedAnswered ?? 0) })}
+            >
                 <Select
-                    class="b3-select fn__flex-center fn__size200"
-                    options={[
-                        { value: "instant", label: t("revealInstant") },
-                        { value: "after", label: t("revealAfter") },
-                    ]}
-                    disabled={cont}
-                    value={curReveal}
-                    onchange={(e) => (reveal = e.currentTarget.value === "after" ? "after" : "instant")}
+                    class="b3-select fn__flex-center wengu-start-ctl"
+                    options={progressOptions}
+                    value={progress}
+                    onchange={(e) => onProgressChange(e.currentTarget.value)}
                 />
             </FormRow>
-            <FormRow label={t("stepsModeTitle")} desc={t("stepsModeHint")}>
-                <Select
-                    class="b3-select fn__flex-center fn__size200"
-                    options={[
-                        { value: "offline", label: t("stepsModeOffline") },
-                        { value: "ai", label: t("stepsModeAi") },
-                    ]}
-                    disabled={cont}
-                    value={curSteps}
-                    onchange={(e) => (stepsMode = e.currentTarget.value === "ai" ? "ai" : "offline")}
-                />
-            </FormRow>
-            <FormRow label={t("timingTitle")} desc={t("timingHint")}>
-                <Select
-                    class="b3-select fn__flex-center fn__size200"
-                    options={[
-                        { value: "countUp", label: t("timingCountUp") },
-                        { value: "countdown", label: t("timingCountdown") },
-                        { value: "perQuestion", label: t("timingPerQuestion") },
-                        { value: "none", label: t("timingNone") },
-                    ]}
-                    disabled={cont}
-                    value={curTiming}
-                    onchange={(e) => (timing = e.currentTarget.value as WenguTimingMode)}
-                />
-            </FormRow>
-            <FormRow label={t("timingMinutes")} desc={t("timingMinutesHint")}>
-                <input
-                    class="b3-text-field fn__flex-center fn__size200"
-                    type="number"
-                    min="1"
-                    max="600"
-                    disabled={cont}
-                    value={curMinutes}
-                    onchange={(e) => (countdownMin = e.currentTarget.value)}
-                />
-            </FormRow>
-        </div>
-    </div>
+        {/if}
+        <FormRow label={t("scopeTitle")} desc={t("scopeHint")}>
+            <Select
+                class="b3-select fn__flex-center wengu-start-ctl"
+                options={scopeSelectOptions}
+                disabled={cont}
+                value={curScope}
+                onchange={(e) => (scope = e.currentTarget.value)}
+            />
+        </FormRow>
+    </section>
+    <section class="wengu-start-card">
+        <h3 class="wengu-start-cardhead">
+            {@html svgIcon("iconEye", "wengu-start-cardicon")}{t("runSettingsTitle")}
+        </h3>
+        <FormRow label={t("revealTitle")} desc={t("revealHint")}>
+            <Select
+                class="b3-select fn__flex-center wengu-start-ctl"
+                options={[
+                    { value: "instant", label: t("revealInstant") },
+                    { value: "after", label: t("revealAfter") },
+                ]}
+                disabled={cont}
+                value={curReveal}
+                onchange={(e) => (reveal = e.currentTarget.value === "after" ? "after" : "instant")}
+            />
+        </FormRow>
+        <FormRow label={t("stepsModeTitle")} desc={t("stepsModeHint")}>
+            <Select
+                class="b3-select fn__flex-center wengu-start-ctl"
+                options={[
+                    { value: "offline", label: t("stepsModeOffline") },
+                    { value: "ai", label: t("stepsModeAi") },
+                ]}
+                disabled={cont}
+                value={curSteps}
+                onchange={(e) => (stepsMode = e.currentTarget.value === "ai" ? "ai" : "offline")}
+            />
+        </FormRow>
+        <FormRow label={t("timingTitle")} desc={t("timingHint")}>
+            <Select
+                class="b3-select fn__flex-center wengu-start-ctl"
+                options={[
+                    { value: "countUp", label: t("timingCountUp") },
+                    { value: "countdown", label: t("timingCountdown") },
+                    { value: "perQuestion", label: t("timingPerQuestion") },
+                    { value: "none", label: t("timingNone") },
+                ]}
+                disabled={cont}
+                value={curTiming}
+                onchange={(e) => (timing = e.currentTarget.value as WenguTimingMode)}
+            />
+        </FormRow>
+        <FormRow label={t("timingMinutes")} desc={t("timingMinutesHint")}>
+            <input
+                class="b3-text-field fn__flex-center wengu-start-ctl"
+                type="number"
+                min="1"
+                max="600"
+                disabled={cont}
+                value={curMinutes}
+                onchange={(e) => (countdownMin = e.currentTarget.value)}
+            />
+        </FormRow>
+    </section>
     <div class="wengu-start-actions">
         {#if onPreview}
-            <Button variant="outline" onclick={() => onPreview?.()}>{t("previewEntry")}</Button>
+            <Button variant="outline" class="wengu-start-act" onclick={() => onPreview?.()}>{t("previewEntry")}</Button>
         {/if}
-        <Button variant="outline" onclick={start}>{t("startDrill")}</Button>
+        <Button variant="primary" class="wengu-start-act" onclick={start}>{t("startDrill")}</Button>
         {#if onReview}
-            <Button variant="outline" onclick={() => onReview?.()}>{t("reviewEntry")}</Button>
+            <Button variant="outline" class="wengu-start-act" onclick={() => onReview?.()}>{t("reviewEntry")}</Button>
         {/if}
     </div>
 </div>
