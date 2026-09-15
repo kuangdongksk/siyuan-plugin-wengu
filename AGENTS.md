@@ -233,6 +233,18 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、
   右键弹窗动作外移 `service/DocActions.ts`）。**访问器表 + 编排职责
   外移的两难仍在**：再加功能先看有没有能外移的成块职责，别再净增。
+- **开刷面板（首屏）照设计稿屏①：双卡片 + 唯一主操作**（Issue #100，20260915）：
+  `quiz/components/StartPanelApp.svelte` 是**纯展示层**——「进度与范围」/「作答设置」
+  两张独立卡片（卡头在卡内带小图标、行内缩归零走卡内衬 + 行间分隔线），
+  **「刷题范围」行恒渲染**（旧「未完成轮 **或** 有错题才出整卡」已废，最少只有
+  「全部题目」一项）；「上次进度（继续上次）」仍按未完成轮条件渲染（判据只看
+  `endedAt`，见上文）。「开始刷题」是**唯一** `variant="primary"`。动作行
+  `gap:14px` 是 §〇6「横向按钮行一律 8px」的**显式例外**（以设计稿为准，注释已写明）。
+  头部统计条（`render/CardHtml.renderSubheadHtml`）输出**结构化分段**：段序
+  题集名 → 已刷/答对 → 竖线 → 轮次成绩，数字加重 + `tabular-nums`，**竖线只在
+  两侧都有内容时才插**（不出现悬挂分隔符）；文案仍全部来自既有 i18n 键。
+  结构口径锁在 `render/SubheadHtml.test.ts` 的源级断言里（范围行在条件块之外、
+  primary 唯一、两卡两图标），改组件别绕过。
 - **揭示态 / 锁定态 / 记账态是三件事**（20260910 Issue #12，最易踩的语义坑）：
     - `ui.graded` = 记账已入（`allCardsGraded`/答满判据）；
     - `ui.locked` = 作答位禁用（**状态级**，重渲染后仍是闸）；
