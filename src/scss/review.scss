@@ -144,7 +144,7 @@
 
 .wengu-review-cause {
   font-size: 12px;
-  color: var(--b3-theme-warning);
+  color: var(--b3-card-warning-color);
 }
 
 /* 右侧详情：题目/时间线/答案/解析分节 */
@@ -224,7 +224,7 @@
 }
 
 .wengu-review-tl-partial {
-  color: var(--b3-theme-warning);
+  color: var(--b3-card-warning-color);
 }
 
 .wengu-review-tl-body {
@@ -245,7 +245,7 @@
 .wengu-review-tl-cause {
   margin-top: 2px;
   font-size: 12px;
-  color: var(--b3-theme-warning);
+  color: var(--b3-card-warning-color);
 }
 
 .wengu-review-detail-actions {
