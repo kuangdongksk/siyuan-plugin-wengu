@@ -60,6 +60,29 @@
   box-sizing: border-box;
 }
 
+/* ── 「整页不滚动」宿主墙（Issue #96；规范 docs/design-review.md §〇 第 11 条） ──
+   收内滚的面板经 `.wengu-ws-main--fit` 一档改写主区：**原始**
+   `.wengu-ws-main` 的 `overflow-y:auto` 是共用骨架（专题/知识/统计/学伴都
+   靠它自滚），一条都不动；这里只加一条**更高特异性**的覆写（双类选择器
+   0,2,0，稳过单类）。不开档 ⇒ 逐字节等同改造前。
+
+   为何要改主区：主区可滚 = 卡永远拿不到「剩余高」（flex 子项在可滚容器里
+   按内容量高），内滚窗不出现、整页照滚。改 flex 列 + `overflow:hidden` 后
+   高度链才有起点（主区 → 面板页根 → 卡 → 卡内两列，每级 `min-height:0`）。
+
+   开关在 `ai/core/PanelFit.ts`（类名常量 + `workspaceFits` 判定，带单测）
+   与 `ai/SessionPanel.ts`（挂载开、卸载关，配对不散落）；树/详情两列的
+   内滚规则在 aipanel.scss（同一改造的另一半）。 */
+.wengu-ws-main.wengu-ws-main--fit {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 管理面板页根（四个面板共用；不设 max-width：宽窗口下面板要占满主区，
+   可读性靠编辑器分栏与控件宽度保证）。收内滚者（AI 会话面板）在面板页根
+   上多挂 `.wengu-aipage`——「卡外件固定高、卡吃剩余高」的规则在
+   aipanel.scss 自己那一片里。 */
 .wengu-ws-page {
   /* 不设 max-width：宽窗口下面板要占满主区（860 上限曾造成
      「行没撑满」的观感），可读性靠编辑器分栏与控件宽度保证 */

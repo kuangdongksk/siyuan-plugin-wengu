@@ -41,14 +41,18 @@
      *  - **一体卡（S1/S2）**：`.wengu-aipanel` 用稿的 grid（292px + 1fr、卡面 +
      *    1px 边线 + 12px 圆角 + overflow:hidden），横幅 FlowBanner 移入卡内作
      *    跨栏首行（组件根 `.wengu-aiflow` 自身已无圆角/外围边框）；
-     *  - **树列（S3/S4）**：292px 列宽由 grid 接管（`.wengu-ai-side` 的固定宽
-     *    与裸 max-height 一并删），树列吃凹槽底 + 右边线 + 上下 padding；
+     *  - **树列（S3/S4；**滚动归 Issue #96 改口径**）：292px 列宽由 grid 接管
+     *    （`.wengu-ai-side` 的固定宽与裸 max-height 一并删），树列吃凹槽底 +
+     *    右边线 + 上下 padding，**长清单在列内自滚**（S4 的「滚动交宿主页」
+     *    取舍已推翻——整页滚会把卡外件与横幅一起带走）；
      *  - **行尾三件化（S5）**：叶行 = 点 + 任务名 + 徽标贴右，**行尾不常驻
      *    时间戳**（选中后详情日志首列即 HH:MM:SS），组行「N 条 · 时间」meta
      *    删，删除钮退回 hover 显隐（rail.scss 既有口径）；
      *  - **详情（S7/S8）**：详情头删常驻 meta 串（模型名折进 h3 的 title），
-     *    状态徽标贴右；主体自身滚动窗删（滚动交卡壳）。kinds 过滤条与 hint
-     *    留在卡外（S9 已拍板的取舍：卡内只留三件）。
+     *    状态徽标贴右；主体（`.wengu-aipanel-dbody`）自身不设滚动窗，**详情
+     *    列的滚动窗在 `.wengu-aipanel-pane` 上**（Issue #96：整页不滚动，
+     *    滚动收进面板内部——卡限高、两列各自内滚，卡外件与卡首横幅常驻）。
+     *    kinds 过滤条与 hint 留在卡外（S9 已拍板的取舍：卡内只留三件）。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -119,7 +123,12 @@
 {#if ui.phase === "loading"}
     <div class="wengu-ws-page"><div class="wengu-muted">{t("loading")}</div></div>
 {:else}
-    <div class="wengu-ws-page">
+    <!-- 面板页根 = 「卡外件 + 卡」的 flex 列（Issue #96）：标题/hint/kinds 过滤条
+         是固定高度的卡外件（flex:none，**常驻视野**、不随内容滚走），卡吃掉
+         剩余高度（flex:1 + min-height:0）。配合宿主主区的 `.wengu-ws-main--fit`
+         档（rail.scss，挂载时由 ai/SessionPanel.ts 打开）打通整条高度链
+         ⇒ **整页不滚动**，滚动收进卡内两列（树 / 详情各自内滚）。 -->
+    <div class="wengu-ws-page wengu-aipage">
         <div class="wengu-ws-title">
             <!-- 设计稿 .ai-tree-head 的「AI 会话 + badge--plain（组数）」与宿主
                  的面板标题栏**合并成一行**：照稿写进树头会在同一屏紧贴出两遍
@@ -155,7 +164,9 @@
         <!-- 一体卡（稿 .ai-panel，gap-list S1/S2）：横幅是卡内**跨栏首行**，
              下面 grid 两栏 = 树 292px + 详情 1fr。无在途流时横幅整条不渲染
              （那行高度自然归 0，两栏顶到卡首，无需 is-plain 分支）。 -->
-        <div class="wengu-aipanel">
+        <!-- data-ai-panel：卡壳的稳定钩子（真机验收脚本/样式探针按它取卡，
+             不依赖类名耦合；面板只此一处）。 -->
+        <div class="wengu-aipanel" data-ai-panel>
             <!-- 流级横幅（Issue #77 / #85）：多调用流的停止唯一入口；无在途流时整条不渲染 -->
             <FlowBanner {t} onDecide={() => v.convertAccess.revealConvertBar()} />
 
