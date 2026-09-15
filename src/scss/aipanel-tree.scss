@@ -1,0 +1,192 @@
+/* AI 会话面板 · 树列（自 scss/aipanel.scss 拆出，**单文件 ≤500 行硬约束**）：
+   补高度链（Issue #96）与详情改造（#98）后 aipanel.scss 已到 576 行，按仓库既有
+   做法（rail.scss 逼近红线时拆出 aiflow.scss、aipanel.scss 本身即自 rail.scss
+   拆出）把「② 树」整段单开一片。拆的是**文件边界不是职责**：类名仍
+   .wengu-aipanel-*，令牌与口径同源（色值一律 var(--b3-*) 全名，见 aipanel.scss
+   头注）。
+   ⚠️ 本片在 index.scss 里 @use 于 aipanel.scss **之后**（顺序不许调）：片内含
+   ≤1000px 折单列的 @media，它会覆写 .wengu-aipanel 的 grid-template-*，而那些
+   基础声明在 aipanel.scss——@media 不加特异性、仍是**源码序**决胜，本片排在
+   前面就会被基础规则反过来盖掉（窄窗口折单列失效）。 */
+/* ── ② 树（左栏；gap-list S3/S4/A1~A4；滚动归属见 Issue #96） ── */
+
+/* 树凹槽：grid 首列（292px 由卡壳的 grid-template-columns 管，这里**不写
+   width**——gap-list S3 的修法即「列宽由 grid 接管」）。凹槽底取
+   `--b3-theme-background`（映射表 surface-3 落点，比卡面深一档），
+   分隔交给右边线（两栏 gap 归 0）。**无**裸 max-height（后者由列内滚
+   `overflow-y:auto` 取代，见下）。 */
+.wengu-aipanel-tree {
+  grid-area: tree;
+  background: var(--b3-theme-background);
+  border-right: 1px solid var(--b3-border-color);
+  padding: 8px 0 12px;
+  min-width: 0;
+  /* 滚动归属（**Issue #96 推翻 gap-list S4**）：长清单列**自身内滚**。
+     稿的取舍（卡随内容长、滚动交宿主页）与产品约定冲突——整页滚动会把
+     标题/hint/过滤条/横幅一起滚走，树列与详情失去固定视野。故列内出
+     滚动窗：`min-height:0` 是链上的关键一环（缺它 grid 子项的自动最小
+     尺寸=内容高，列被撑长 ⇒ 本人内滚不出现）；`scrollbar-gutter:stable`
+     预留给滚动条，免得「有/无滚动条」两种状态下行宽跳动（树是窄列，行内
+     徽标又贴右，跳一格很明显）。 */
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* 组数徽标（设计稿 ai-tree-head 的 badge--plain）：与宿主标题栏同一行
+   （重复一行「AI 会话」是纯噪音，见 SessionPanelApp 注释）；动作钮仍贴右，
+   故徽标只占自己的位、不吃 margin-left:auto。字重由基形的 500 给
+   （gap-list B1：原 400 覆写删除）。 */
+.wengu-aipanel-gcount {
+  font-weight: 500;
+}
+
+/* 组行的字号/字色在下面 A2/A3 段按深度给（走 rail.scss 的 `.wengu-ai-name`
+   基类 + is-group / is-tg1 档）；**组行不渲染色点**（Issue #88 复审定论，
+   gap-list S5 亦要求）：设计稿 tg1/tg2 的子元素只有「caret + 名字」
+   （spec 6.2 的 `.tg1`/`.tg2` 规则里没有任何 dot 尺寸），且组行的聚合状态
+   是**状态词**（running/done/error）——拿它拼 `is-{status}` 与色名族
+   （run/done/fail）不同名，只会拼出无规则的死类，那个 8px 空位还会把 A1 的
+   正文起点 14/27px 顶到 29/42px。组内状态由叶子行的点/徽标逐条表达。 */
+
+/* 三级缩进 = 稿的**正文起点** 14 / 27 / 42px（gap-list A1）。宿主是共享
+   TreeList 的 li（`--file-toggle-width` 控 toggle 列宽、li 自身左内边距由
+   思源行壳给、toggle 的 depth×18px 内边距按 liVars 内联写死），这里把
+   两者都归到稿的档位——**只在本面板作用域内覆写，TreeList 本体不动**
+   （知识面板/侧栏树零回归）。
+
+   深度用**结构组合器**认（`.b3-list > li` / `> ul > li` / `> ul > li > ul >
+   li`，本面板最多三级），不去匹配内联 style 串——内联值一改（TreeList
+   换 INDENT）就静默失效。toggle 的内联 `padding-left`（depth×18px）只能
+   用 `!important` 压回（自定义属性管不到内联 padding）。 */
+/* 行壳左内边距归 0（缩进全部交给 toggle 列）、右 14px 保留（稿右内边距） */
+.wengu-aipanel-tree .b3-list-item {
+  padding-left: 0;
+  padding-right: 14px;
+}
+
+/* 行上下 padding 照稿三件套（gap-list A2）：tg1 3px / tg2 5px / leaf 6px
+   ——行高差异本身就是层级感的一半。 */
+.wengu-aipanel-tree .b3-list > li {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.wengu-aipanel-tree .b3-list > li > ul > li {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.wengu-aipanel-tree .b3-list > li > ul > li > ul > li {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* toggle 列是「左缘 → 正文起点」那一整段：内联的 depth×18px 内边距归 0，
+   caret 右对齐（贴着正文，即稿里 caret 紧邻标题的形态）。 */
+.wengu-aipanel-tree .b3-list > li > .b3-list-item__toggle,
+.wengu-aipanel-tree .b3-list > li > ul > li > .b3-list-item__toggle,
+.wengu-aipanel-tree .b3-list > li > ul > li > ul > li > .b3-list-item__toggle {
+  padding-left: 0 !important;
+  justify-content: flex-end;
+}
+
+/* toggle 列宽 = 稿的「左缘 → 正文起点」14 / 27 / 42px。
+   TreeList 的 liVars 把 `--file-toggle-width` 写成 **22 / 36 / 54px 的内联
+   自定义属性**——样式表声明要压过内联值，**必须 `!important`**（不带则这三
+   条全部静默失效，缩进照旧 22/36/54）。 */
+.wengu-aipanel-tree .b3-list > li {
+  --file-toggle-width: 14px !important;
+}
+
+.wengu-aipanel-tree .b3-list > li > ul > li {
+  --file-toggle-width: 27px !important;
+}
+
+.wengu-aipanel-tree .b3-list > li > ul > li > ul > li {
+  --file-toggle-width: 42px !important;
+}
+
+/* caret（折叠箭头）走 faint 档 + 10px + 9px 列宽（稿 .tg1 .caret） */
+.wengu-aipanel-tree .b3-list-item__arrow {
+  width: 9px;
+  height: 9px;
+  font-size: 10px;
+  color: color-mix(in srgb, var(--b3-theme-on-surface-light) 55%, transparent);
+}
+
+/* 行字号与三级字色（gap-list A2/A3）：
+     tg1 种类行  12px   + muted + 字距 0.02em
+     tg2 主题组行 12.5px + muted
+     leaf 叶行   12.5px + fg
+   三级层级靠**字号 + 字色**两级一起表达（原统一 13px/同色，读不出层级）。 */
+.wengu-aipanel-tree .wengu-ai-name.is-group {
+  font-size: 12.5px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 种类行（tg1）再叠字号与字距——此前该类**全仓零定义**，与叶行同浓 */
+.wengu-aipanel-tree .wengu-ai-name.is-group.is-tg1 {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.wengu-aipanel-tree .wengu-ai-name.is-leaf {
+  font-size: 12.5px;
+  color: var(--b3-theme-on-surface);
+}
+
+/* 点与名字的间距照稿（gap-list B3：原 `margin-right:2px`）：叶行
+   `.leaf { gap: 8px }` ⇒ **一律 8px**。组行不渲染色点（Issue #88 复审），
+   故无需「组 7px / 叶 8px」两档——叶行在树里可出现在任意深度（单条种类
+   上提=0、单条主题上提与无主题散行=1、主题组下=2），按深度分档只有深度 2
+   达标。 */
+.wengu-aipanel-tree .b3-list-item .wengu-aipanel-dot {
+  margin-right: 8px;
+}
+
+/* 叶子行徽标**贴右**（稿 .leaf .badge { margin-left:auto }；gap-list S5：
+   原 `margin-left:6px` 跟着名字走，40 条记录扫视列参差）。 */
+.wengu-aipanel-tree .b3-list-item .wengu-aipanel-badge {
+  margin-left: auto;
+}
+
+/* 组行行尾无任何元素（gap-list S5）：主题组行的行名自带组合名，不需要
+   「N 条 · 时间」meta。删除钮属功能件，退回 hover 显隐（rail.scss 既有
+   口径），不占常驻视觉位。 */
+.wengu-aipanel-tree .b3-list-item__action .b3-button {
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+/* hover 与选中态（gap-list B2）：hover 走思源原生 `--b3-list-hover`
+   （≈稿 --hover 8% 档）✔；选中底色对齐稿的 accent-dim **18% 档**
+   （原为原生 focus 底色），左侧 inset 2px 竖线保持（稿 leaf.is-selected）。 */
+.wengu-aipanel-tree .b3-list-item--focus {
+  background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent);
+  box-shadow: inset 2px 0 0 var(--b3-theme-primary);
+}
+
+/* ≤1000px 折单列（稿的 1000px 断点）：横幅/树/详情自上而下，树的分隔线
+   从右边线换到底边线。行高分配同步改：三行都吃**按内容**（auto），
+   卡整体交给 `.wengu-aipanel-pane` 那一层的列内滚动（见下）——
+   单列下若沿用「末行吃剩余高」，树行会被压成 0 高，清单整片消失。 */
+@media (max-width: 1000px) {
+  .wengu-aipanel {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "banner"
+      "tree"
+      "detail";
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .wengu-aipanel-tree {
+    border-right: 0;
+    border-bottom: 1px solid var(--b3-border-color);
+    /* 折单列后清单不再有「列内滚窗」的语义：高度给上限、超出才滚，
+       免得清单把详情挤出视野（窄窗口下这是最不坏的折法）。 */
+    max-height: 40vh;
+  }
+}

@@ -126,13 +126,19 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
           动；收内滚的面板经 `.wengu-ws-main--fit` 一档改写主区（flex 列 +
           `overflow:hidden`），**开/关在面板挂载/卸载处配对**（主区容器是
           共享骨架，漏关会让下一块面板继承本档 ⇒ 内容被切且滚不到）；
+          ⚠️ **开关只动本面板那一份骨架，禁 document 级全选**：`.wengu-ws-main`
+          在一个文档里不一定只有一份（另一个页签、后续新增的收内滚面板都可能
+          带一个），全局选择器会把**别人的**骨架一并改掉（那块面板不收内滚 ⇒
+          内容被切且滚不到），卸载的 `false` 同理会误关别人的档；目标元素一律
+          **只在本面板宿主子树内**确定，挂载时记下、卸载时按同一份收起；
         - **内滚窗落在「列」上**：卡 `overflow:hidden` + 两列各自
           `overflow-y:auto`；列上加 `scrollbar-gutter: stable`，免得
           「有/无滚动条」两态下行宽跳动（窄列 + 行尾贴右徽标尤其明显）；
         - **弹窗长内容同口径**：容器封顶（`max-height`）后由内容区自身滚
           （`wengu-dialog` 既有写法），不给页面级滚动。
     - **落地**：AI 会话工作区（Issue #96）＝首个按本条改造的面板
-      （`scss/rail.scss` 的 `--fit` 档 + `scss/aipanel.scss` 的卡/两列规则
+      （`scss/rail.scss` 的 `--fit` 档 + `scss/aipanel.scss`／`aipanel-tree.scss`
+      的卡/两列/详情规则 + `ai/core/PanelFit.ts` 的档位判定（纯逻辑带单测）
         - `ai/SessionPanel.ts` 的档位开关 + `ai/components/SessionPanelApp.svelte`
           的页面 flex 列）；**其余管理面板（专题/知识/统计/学伴）的迁移不在该
           条生效范围**——规范是总则，存量面板按其自有节奏迁移。
