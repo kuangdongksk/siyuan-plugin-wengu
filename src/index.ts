@@ -8,11 +8,9 @@ import { openWenguSetting } from "./ui/SettingsDialog";
 import type { WenguRevealMode, WenguTimingMode } from "./types";
 import { WeaknessStore } from "./bank/data/WeaknessStore";
 import { WordStore } from "./word/core/WordStore";
-import { mountWordView, type WordView } from "./word";
 import { companionCtl, initCompanion, mountCompanionGlobal, unmountCompanionGlobal } from "./companion";
 import { initWordLib } from "./word/service/WordLib";
 import { initNotify, notifyInfo } from "./ui/Notify";
-import { mountMobileDrill } from "./mobile";
 import { debounce, isMobileUi } from "./ui/shared";
 import { initRouteCache } from "./bank/data/RouteCache";
 import { aiSessions, initAiSessions } from "./ai/data/AiSessions";
@@ -21,54 +19,11 @@ import { initKnowSynonyms } from "./bank/data/KnowSynonyms";
 import { initKnowIndex } from "./bank/data/KnowIndex";
 import { aiSlotCapacityOf, setAiSlotCapacity } from "./ai/queue";
 import { knowJumpTarget, knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
-
-/** 插件图标集（addIcons 载荷）：形状取自思源官方图标集（litheness 包
- *  iconRiffCard / iconLanguage 的原始 path），以自有稳定 id 注册——不依赖
- *  运行环境 sprite 是否收录（iconLanguage 非核心图标，dock 里会渲染成空白）；
- *  id 保持不变，conf.json uiLayout 持久化的旧 dock 图标引用才能继续命中
- *  symbol（换图标只换形状不改 id，20260826 定论）。 */
-const WENGU_ICONS = `<symbol id="iconWengu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
-</symbol>
-<symbol id="iconWenguWords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
-</symbol>
-<symbol id="iconVolume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M11 5 6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.7a10 10 0 0 1 0 12.6"/>
-</symbol>`;
+import { WENGU_ICONS } from "./bootstrap/Icons";
+import { registerDocks, type WordDockConfig } from "./bootstrap/Docks";
 
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
-
-/** 单词复习页签 type（Dock 面板与兜底页签共用）。 */
-const TAB_WORDS = "wengu-words";
-
-/** 移动端刷题 dock 面板 type（Issue #59 起挂 dock；桌面不注册）。 */
-const TAB_MOBILE_DRILL = "wengu-mobile-drill";
-
-/** 单词面板的 Svelte 卸载函数（Dock 单例，模块级传递给 destroy 回调）。 */
-let wordUnmount: (() => void) | undefined;
-
-/** 移动端刷题面板的卸载函数（同 dock 单例口径）。 */
-let drillUnmount: (() => void) | undefined;
-
-/** 3.8.0 运行时的插件 Dock 注册入参（类型包 1.2.x 未收录，按运行时形状声明）。 */
-interface WordDockConfig {
-    type: string;
-    config: {
-        title: string;
-        icon: string;
-        index?: number;
-        hotkey?: string;
-        /** 内核 dock 布局必读字段（缺失会在 addDock 内部 startsWith 崩溃）。 */
-        position?: "LeftBottom" | "LeftTop" | "RightBottom" | "RightTop" | "BottomLeft" | "BottomRight";
-        size?: { width?: number; height?: number };
-    };
-    init: (custom: { element?: Element }) => void;
-    destroy?: () => void;
-    update?: () => void;
-    resize?: () => void;
-}
 
 /** 打开页签时记录的目标文档 id（addTab 回调读不到 Tab.data，用模块级传递）。 */
 let targetDocId = "";
@@ -161,15 +116,16 @@ export default class WenguPlugin extends Plugin {
     /**
      * 装载编排：**只留调用序 + 兜底 catch**（20260915 按域切注册器，
      * audit #109——原 512 行唯一无豁免的超线业务入口）。各注册段拆到
-     * 下面四个方法里，本方法只负责「先建后挂、先注入后消费」的顺序：
+     * 下面五个方法里，本方法只负责「先建后挂、先注入后消费」的顺序：
      *
      *  1. `loadSettings()` 读设置并注入落盘回调（后续各域都读它）；
      *  2. `initStores()` 初始化各持久化店（词书房 / 通知 / 路由缓存 /
      *     AI 会话 / 并发闸 / 知识哈希 / 同义词 / 知识索引）；
      *  3. `registerCompanion()` 学伴（全局悬浮层 + 事件收口）；
-     *  4. `registerUi()` 图标 / 顶栏 / dock（单词 + 移动端刷题）/ 右键注入
-     *     / ws-main 对账 / 刷题页签；
-     *  5. `bindGlobal()` document 级委托。
+     *  4. `bindGlobal()` document 级委托（拆出前就落在这里：紧跟学伴、
+     *     先于图标与其余 UI 注册）；
+     *  5. `registerUi()` 图标 / 顶栏 / dock（单词 + 移动端刷题）/ 右键注入
+     *     / ws-main 对账 / 刷题页签。
      *
      * ⚠️ 次序是硬的（内核 dock 与页签共用 type、通知须先于各存储 init、
      * 并发闸容量读设置项），拆方法时**逐段搬运、未调顺序**；兜底 catch
@@ -181,8 +137,8 @@ export default class WenguPlugin extends Plugin {
             await this.loadSettings();
             this.initStores();
             this.registerCompanion();
-            this.registerUi();
             this.bindGlobal();
+            this.registerUi();
         } catch (e) {
             // 装载期任一段抛错：插件停在半装载态（各段自带尽力而为兜底），
             // 但不能把异常漏给宿主——onload 抛错会让思源报「插件加载失败」
@@ -316,62 +272,25 @@ export default class WenguPlugin extends Plugin {
         });
     }
 
-    /** Dock 注册：单词复习面板（桌面 + 移动）+ 移动端刷题面板（仅移动）。
-     *  单词复习只走 Dock 面板（顶部入口与同名页签已删：addTab 与
-     *  addDock 注册同名 type 会让 dock 的 init 分发到页签实例，面板空白的
-     *  根因）。3.8.0 运行时支持，类型包未收录 → 局部声明。 */
+    /** Dock 注册（单词复习 / 移动端刷题）：实现体在 bootstrap/Docks.ts，
+     *  本方法只注入宿主能力——注册次序与「移动端只在移动端注册」的闸门
+     *  在那边逐字保留（20260915 拆出压 500 行红线）。 */
     private registerDocks(): void {
-        this.registerWordDock();
-        this.registerMobileDrillDock();
-    }
-
-    /** 单词复习 dock（桌面与移动都注册）。 */
-    private registerWordDock(): void {
-        const dockHost = this as unknown as { addDock?: (c: WordDockConfig) => unknown };
-        if (dockHost.addDock) {
-            dockHost.addDock({
-                type: TAB_WORDS,
-                config: {
-                    title: this.i18n.wordBtn || "背单词",
-                    icon: "iconWenguWords",
-                    index: 1000,
-                    hotkey: "",
-                    position: "RightBottom",
-                    size: { width: 360, height: 0 },
-                },
-                init: (custom) => this.mountWordView(custom),
-                // 卸载 Svelte 应用与计时器监听（旧版此处空置会泄漏）
-                destroy: () => {
-                    wordUnmount?.();
-                    wordUnmount = undefined;
-                },
-            });
-        }
-    }
-
-    /** 移动端刷题 dock（Issue #59）：思源移动端 openTab 是空桩，dock 是
-     *  插件面板唯一通道。**只在移动端注册**——桌面已由页签承担刷题，
-     *  重复注册会在桌面 dock 里多出一个面板（桌面零回归验收）。 */
-    private registerMobileDrillDock(): void {
-        const dockHost = this as unknown as { addDock?: (c: WordDockConfig) => unknown };
-        if (isMobileUi() && dockHost.addDock) {
-            dockHost.addDock({
-                type: TAB_MOBILE_DRILL,
-                config: {
-                    title: this.i18n.pluginName || "温故",
-                    icon: "iconWengu",
-                    index: 999,
-                    hotkey: "",
-                    position: "RightBottom",
-                    size: { width: 0, height: 0 },
-                },
-                init: (custom) => this.mountMobileDrillView(custom),
-                destroy: () => {
-                    drillUnmount?.();
-                    drillUnmount = undefined;
-                },
-            });
-        }
+        registerDocks({
+            i18n: this.i18n ?? {},
+            // addDock 是插件实例自带的内核通道（类型包 1.2.x 未收录运行时形状）：
+            // 就地转换后**绑定本实例**再转发——拆出前 `dockHost.addDock(...)`
+            // 的 dockHost 就是本实例，绑定丢失会让内核方法拿错 this。实例
+            // 没有该方法时传 undefined，Docks 侧的 `if (host.addDock)` 照旧拦住。
+            addDock: (this as unknown as { addDock?: (c: WordDockConfig) => unknown }).addDock?.bind(this),
+            alive: () => !!WenguPlugin.instance,
+            wordStore: () => this.getWordStore(),
+            // 共享设置对象：拆出后 settings 会成为快照，故取用时读活引用
+            settings: () => this.settings,
+            bank: () => this.bank(),
+            history: () => this.history(),
+            weakness: () => this.weakness(),
+        });
     }
 
     /** 事件订阅：知识文档右键注入（⑤）+ 内核 ws 事务对账。 */
@@ -540,31 +459,6 @@ export default class WenguPlugin extends Plugin {
             );
         }
         return this.wordStore;
-    }
-
-    /** 单词视图挂载（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。 */
-    private mountWordView(custom: { element?: Element }): void {
-        const el = custom.element as HTMLElement | undefined;
-        if (!el || !WenguPlugin.instance) return;
-        wordUnmount?.(); // dock init 重入（布局恢复竞态）先卸旧实例——否则旧 WordTimer 间隔器泄漏
-        const m = mountWordView(el, this.i18n ?? {}, this.getWordStore());
-        (custom as unknown as { wenguWordView?: WordView }).wenguWordView = m.view;
-        wordUnmount = m.unmount;
-    }
-
-    /** 移动端刷题面板挂载（dock init；与单词面板同位次）。 */
-    private mountMobileDrillView(custom: { element?: Element }): void {
-        const el = custom.element as HTMLElement | undefined;
-        if (!el || !WenguPlugin.instance) return;
-        drillUnmount?.(); // dock init 重入（布局恢复竞态）先卸旧实例，防计时器泄漏
-        const mounted = mountMobileDrill(el, {
-            i18n: this.i18n ?? {},
-            bank: this.bank(),
-            history: this.history(),
-            weakness: this.weakness(),
-            settings: this.settings,
-        });
-        drillUnmount = mounted.unmount;
     }
 
     /** 全局 AI 在途闸容量注入（Issue #76）：设置里的转换并行度即容量

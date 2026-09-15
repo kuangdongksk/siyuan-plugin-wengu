@@ -205,18 +205,6 @@ export function roundDefaults(reveal: WenguRevealMode, timer: TimerController): 
     };
 }
 
-/** 开轮状态写入面（原六个纯转发 setter 的合并形态）：QuizView 持一份，
- *  beginDrillFor 整块摊给 startRound——六个 setter 各写一个视图字段，
- *  并成对象后 index.ts 少 5 行、调用链零变化。 */
-export interface DrillStateHandle {
-    setList(list: WenguQuestion[]): void;
-    setRevealMode(mode: WenguRevealMode): void;
-    setActiveIdx(idx: number): void;
-    setStarted(flag: boolean): void;
-    setFinished(s: WenguSession | undefined): void;
-    setSession(s: WenguSession | undefined): void;
-}
-
 /** 开刷编排所需的视图能力（QuizView 用箭头属性实现，beginDrillFor 消费）。 */
 export interface DrillViewAccess {
     t: (key: string) => string;
@@ -228,9 +216,12 @@ export interface DrillViewAccess {
     fullListOf(): WenguQuestion[];
     docIdOf(): string;
     historyStore(): HistoryStore | undefined;
-    /** 开轮状态写入面（20260915 六个纯转发 setter 并成一份对象导出保
-     *  index.ts 不再净增；字段名与 startRound 的入参名逐字对应）。 */
-    readonly stateHandle: DrillStateHandle;
+    setQuizList(list: WenguQuestion[]): void;
+    setQuizRevealMode(mode: WenguRevealMode): void;
+    setActiveQIdx(idx: number): void;
+    setStartedFlag(v: boolean): void;
+    setFinishedSession(s: WenguSession | undefined): void;
+    setCurSession(s: WenguSession | undefined): void;
     renderQuizList(): void;
     updateTimerLabelNow(): void;
     /** 开刷后的收尾（视图自实现：重渲染/恢复已答/计时标签）。 */
@@ -273,8 +264,12 @@ export function beginDrillFor(v: DrillViewAccess, override?: { scope?: WenguRoun
             docId: v.docIdOf(),
             timer: v.timerController(),
             history: v.historyStore(),
-            // 写入面整块展开（对象只读、字段即函数，语义与六个 setter 同款）
-            ...v.stateHandle,
+            setList: (l) => v.setQuizList(l),
+            setRevealMode: (m) => v.setQuizRevealMode(m),
+            setActiveIdx: (i) => v.setActiveQIdx(i),
+            setStarted: (flag) => v.setStartedFlag(flag),
+            setFinished: (s) => v.setFinishedSession(s),
+            setSession: (s) => v.setCurSession(s),
             afterStart: () => v.afterStartHook(),
         },
         cfg ?? defaultRoundConfig(roundDefaults(v.currentRevealMode(), v.timerController())),
