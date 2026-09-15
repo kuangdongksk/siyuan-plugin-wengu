@@ -10,11 +10,16 @@
      * 视图模型在 core/SessionDetail（纯逻辑带单测），本组件**零判断**、
      * 只按字段渲染；类名走全局 scss（`.wengu-aipanel-*`），零 `<style>`。
      *
-     * 两处刻意的取舍（照稿但不丢功能）：
+     * 三处刻意的取舍（照稿但不丢功能）：
      *  - 摘要行的 `<em>` 强调位由**纯逻辑切好的段**（`parts`）驱动，组件不
      *    解析字符串——拆串拼 HTML 有注入面，分段数组没有；
      *  - 设计稿的日志行是「时间戳 + 摘要」形态，而面板的核心用途是**回看
-     *    产出**——故每行带回全文、点行展开（默认收起=设计稿形态，全文不丢）。
+     *    产出**——故每行带回全文、点行展开（Issue #98 起**默认展开**：多数
+     *    成功记录只有一轮，再点一下才看到产出是多余动作）；
+     *  - 展开态的正文按侧别**分块**（输入 / 输出各一块、标签由 core 侧取词
+     *    ——`segments`，组件不取词）：块序连排在行内，DOM 序保持 user 在前
+     *    （读屏与整段复制的阅读序=真实先后），块间距由 aipanel.scss 的
+     *    `margin-top` 给。**摘要行本身不动**，仍是一行一轮。
      */
     let {
         view,
@@ -28,11 +33,13 @@
         t: (k: string) => string;
     } = $props();
 
-    /** 展开全文的行下标集合（默认全部收起=设计稿形态；点行切换）。
-     *  换记录时由宿主换 key 重挂，展开态自然复位。 */
-    let openRows = $state<Record<number, boolean>>({});
+    /** 展开全文的行下标集合（Issue #98：**默认全部展开**——一般成功记录
+     *  只有一轮，再点一下才看到产出是多余动作；点行头仍可收起/展开，交互
+     *  本身不变）。集合里只记**被显式收起**的行：记录换 key 重挂时集合清空
+     *  ⇒ 新记录回到「全展开」，不需要看行数重算。 */
+    let closedRows = $state<Record<number, boolean>>({});
     const toggleRow = (i: number): void => {
-        openRows[i] = !openRows[i];
+        closedRows[i] = !closedRows[i];
     };
 </script>
 
@@ -53,11 +60,12 @@
         <ul class="wengu-aipanel-log">
             {#each view.rows as row, i (i)}
                 {@const canOpen = row.full !== ""}
+                {@const isOpen = canOpen && !closedRows[i]}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <li
                     class:is-error={row.isError}
-                    class:is-open={!!openRows[i]}
+                    class:is-open={isOpen}
                     class:is-clickable={canOpen}
                     onclick={() => canOpen && toggleRow(i)}
                 >
@@ -67,8 +75,13 @@
                             {#if seg.em}<em>{seg.text}</em>{:else}{seg.text}{/if}
                         {/each}
                     </span>
-                    {#if canOpen && openRows[i]}
-                        <pre class="wengu-aipanel-logfull">{row.full}</pre>
+                    {#if isOpen}
+                        {#each row.segments as seg, k (k)}
+                            <div class={`wengu-aipanel-logseg is-${seg.side}`}>
+                                <span class="wengu-aipanel-logsegl">{seg.label}</span>
+                                <pre class="wengu-aipanel-logfull">{seg.text}</pre>
+                            </div>
+                        {/each}
                     {/if}
                 </li>
             {/each}
@@ -84,7 +97,9 @@
         {/if}
     </div>
 
-    {#if view.ownNote || view.retryable}
+    <!-- 空脚不渲染（Issue #98）：无 own-note 且不可重试时整块不出——空容器
+         的 padding + border-top + 底色在已完成态看起来就是「下方空一块」 -->
+    {#if view.ownNote.length > 0 || view.retryable}
         <div class="wengu-aipanel-dfoot">
             {#if view.ownNote.length > 0}
                 <div class="wengu-aipanel-own">

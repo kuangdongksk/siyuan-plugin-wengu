@@ -490,11 +490,38 @@
   color: var(--b3-card-error-color);
 }
 
-/* 全文块：跨两列（grid-column 1/-1），等宽小字、可滚动、保留换行 */
-.wengu-aipanel-logfull {
+/* 展开态的一**块**正文（Issue #98）：输入 / 输出各一块，块头是 faint 档
+   小标签（同 logl 的第三档——标签与正文拉出层次，标签不抢产出）。
+   两块是**行内顺序内容**、不做卡片嵌套：块间只留白分隔，稿的 log 质感不变。
+   行高由内容给（输出块是面板核心用途，不设 max-height），滚动交详情列
+   （.wengu-aipanel-pane 的内滚窗，Issue #96）。 */
+.wengu-aipanel-logseg {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* 末块上收半行：首块与行头（时间戳 + 摘要）之间留一档呼吸，块间则收紧到
+   半档——两块本是一轮的进出两头，读起来该是一个整体。纯视觉微调，DOM 序
+   不动（user 块恒在前，见组件头注释）。 */
+.wengu-aipanel-logseg:last-child {
+  margin-top: -0.5em;
+}
+
+.wengu-aipanel-logsegl {
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--b3-theme-on-surface-light) 55%, transparent);
+}
+
+/* 正文块：等宽小字、可滚动、保留换行 */
+.wengu-aipanel-logfull {
   margin: 0;
-  max-height: 220px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
