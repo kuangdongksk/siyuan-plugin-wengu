@@ -52,9 +52,10 @@ export interface SwitchConfirmDeps {
     session: WenguSession;
     /** 本卷题数（进度实况的分母）。 */
     total: number;
-    /** 用户点了「继续切换」（Esc/遮罩/关闭钮都走 onStay）。 */
+    /** 用户点了「继续切换」。**唯一**会真的切上下文的分支。 */
     onGo(): void;
-    /** 用户点了「留在本卷」（安全默认；无需动作的调用方可不传）。 */
+    /** 「留在本卷」的钩子（安全默认）。可省——关闭弹窗本身即无副作用：
+     *  切换动作只挂在 `onGo` 上，故 Esc/遮罩/关闭钮天然等于「留在本卷」。 */
     onStay?(): void;
 }
 
@@ -91,7 +92,7 @@ export function openSwitchConfirm(d: SwitchConfirmDeps): void {
         // 右起第一 = 唯一主操作（规范 §2.2；位序即语义，勿调换）
         { id: "sw-stay", label: t("switchConfirmStay"), variant: "primary" },
     ];
-    const { dialog, root, destroy } = openWenguDialog({
+    const { root, destroy } = openWenguDialog({
         title: t("switchConfirmTitle"),
         width: "sm", // §5.1 收敛档：min(480px, calc(100vw - 32px))
         extraCls: "wengu-switch-confirm",
@@ -111,7 +112,10 @@ export function openSwitchConfirm(d: SwitchConfirmDeps): void {
         d.onGo();
     });
     root.querySelector("[data-act='sw-stay']")?.addEventListener("click", stay);
-    // Esc / 点遮罩 / 右上角关闭 = b3-dialog 的默认关闭路径（不经过任何
-    // 按钮回调）：显式兜一层「留在本卷」，防安全默认只在钮上成立
-    dialog.element.addEventListener("destroy", () => d.onStay?.());
+    // ⚠️ Esc / 点遮罩 / 右上角关闭 = b3-dialog 的默认关闭路径（不经过任何
+    // 按钮回调）——**不需要**额外挂事件兜底：切换动作只挂在 `sw-go` 的
+    // 回调上，弹窗一关就是「什么都没发生」＝留在本卷，安全默认由构造成立。
+    // （上一版挂的 `dialog.element` 上的 "destroy" 事件在思源 `Dialog`
+    // 里无任何依据——`siyuan.d.ts` 无此事件、全仓也只此一处用过——属凭空
+    // 发明的事件名，一旦宿主改实现就静默失效；它想兜的语义本来就已成立。）
 }

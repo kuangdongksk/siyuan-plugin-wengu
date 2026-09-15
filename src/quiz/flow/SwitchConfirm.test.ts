@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as sass from "sass";
 import { needsSwitchConfirm } from "./SwitchConfirm";
-import { switchGuardFor, switchTargetNameFor } from "./SideMount";
+import { guardOrRun, switchEntryOf, switchGuardFor, switchTargetNameFor, type SwitchEntry } from "./SideMount";
 import { actionClsOf, dialogWidth } from "../../ui/Dialog";
 import type { WenguSession } from "../service/HistoryStore";
 import type { WenguDialogAction } from "../../ui/Dialog";
@@ -173,7 +173,7 @@ describe("主钮位序（§2.2 右起第一＝唯一主操作）", () => {
     });
 });
 
-describe("视图层闸装配（SideMount.switchGuardFor，不触弹窗的直切路径）", () => {
+describe("视图层闸装配（SideMount：行 id → 上下文 id → 闸）", () => {
     /** 假宿主：只喂闸需要的三件套（弹窗路径需 DOM，此处只测直切分支）。 */
     function access(over: Partial<Parameters<typeof switchGuardFor>[0]> = {}): Parameters<typeof switchGuardFor>[0] {
         return {
@@ -193,19 +193,110 @@ describe("视图层闸装配（SideMount.switchGuardFor，不触弹窗的直切�
 
     it("不需要确认时直切（go 被调用、不触弹窗）", () => {
         let ran = 0;
-        switchGuardFor(access())("d2", () => void ran++);
+        switchGuardFor(access())(switchEntryOf("doc", "d2", () => void ran++));
         expect(ran).toBe(1);
+    });
+
+    it("⚠️ 行 id 与上下文 id 分口径：专题行加 col: 前缀，文档行原样", () => {
+        // 侧栏专题行传的是**裸** col id，而当前上下文用 docIdOf()（带 col:）表示；
+        // 直接比会「点当前专题行也弹窗」——两个 id 各归其位（上一版缺陷）
+        const col = switchEntryOf("col", "col-abcd", () => undefined);
+        expect(col.ctxId).toBe("col:col-abcd");
+        expect(col.rowId).toBe("col-abcd"); // 反查目标名仍用行 id
+        const doc = switchEntryOf("doc", "d9", () => undefined);
+        expect(doc.ctxId).toBe("d9");
+        expect(doc.rowId).toBe("d9");
+    });
+
+    it("⚠️ 点当前已选中的专题行不弹（同 id 早退在 col 模式同样成立）", () => {
+        let ran = 0;
+        const v = access({ guardCtx: () => ({ mode: "quiz", currentId: "col:col-abcd", total: 10 }) });
+        switchGuardFor(v)(switchEntryOf("col", "col-abcd", () => void ran++));
+        expect(ran).toBe(1); // 直切，不经弹窗
+    });
+
+    it("⚠️ 兜底方向：壳未实现 switchGuard 时必须照常切换（不能什么都不做）", () => {
+        // 上一版把挂载点的 onOpenDoc/onOpenCollection 换成了空函数，壳又没实现
+        // switchGuard ⇒ 兜底分支执行空函数 = 侧栏点行全哑。钉死方向。
+        let ran = 0;
+        const shell = {} as Parameters<typeof guardOrRun>[0];
+        guardOrRun(
+            shell,
+            switchEntryOf("doc", "d2", () => void ran++)
+        );
+        expect(ran).toBe(1);
+        // 实现了该能力时交它处置（这里它选择立即执行）
+        let ran2 = 0;
+        guardOrRun(
+            {
+                switchGuard: (e: SwitchEntry): void => e.go(),
+            } as unknown as Parameters<typeof guardOrRun>[0],
+            switchEntryOf("doc", "d3", () => void ran2++)
+        );
+        expect(ran2).toBe(1);
     });
 
     it("目标名解析：聚合行取 allExTitle、专题行取行标题、文档行取标题、兜底 id", () => {
         const a = access({
             colFlowOf: () =>
-                ({ rowsView: (): { id: string; title: string }[] => [{ id: "col:c1", title: "概率论" }] }) as never,
+                ({ rowsView: (): { id: string; title: string }[] => [{ id: "col-kp-x", title: "概率论" }] }) as never,
             docsOf: (): never[] => [{ id: "d2", title: "高数" } as never],
         });
         expect(switchTargetNameFor(a, "all")).toBe("allExTitle");
-        expect(switchTargetNameFor(a, "col:c1")).toBe("概率论");
+        expect(switchTargetNameFor(a, "col-kp-x")).toBe("概率论");
         expect(switchTargetNameFor(a, "d2")).toBe("高数");
         expect(switchTargetNameFor(a, "d9")).toBe("d9");
+    });
+});
+
+/**
+ * 装配链断言（⚠️ 上一版两处 P0 都栽在这里，故直接读源码文本钉死）：
+ * 闸只是「有人调用才会跑」的代码，链路两端必须都在场——
+ *   ① 生产主路径的壳（`QuizShell.sideQuizAccess`）必须把 `switchGuard` 接上；
+ *   ② 挂载点（`SideMount.mountSideFor`）的两个出口必须是「先过闸再执行」，
+ *      不许把执行体换成空函数（否则未实现该能力的壳点行全哑）。
+ * 这三条单测捕不到（真装配需 DOM + Svelte 实例），只能靠源码断言。
+ */
+describe("闸的装配链（源码断言，防静默断链）", () => {
+    const RAW = import.meta.glob("../render/QuizShell.ts", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+    }) as Record<string, string>;
+    const MOUNT_RAW = import.meta.glob("./SideMount.ts", {
+        query: "?raw",
+        import: "default",
+        eager: true,
+    }) as Record<string, string>;
+    const SHELL = RAW["../render/QuizShell.ts"] ?? "";
+    const MOUNT = MOUNT_RAW["./SideMount.ts"] ?? "";
+
+    it("壳访问器把 switchGuard 接到 switchGuardOf（缺席=生产路径永不弹）", () => {
+        expect(SHELL).toMatch(/switchGuard:\s*\(entry\)\s*=>\s*v\.switchGuardOf\(entry\)/);
+    });
+
+    it("两个切换出口都是 guardOrRun + 真执行体（不许空函数）", () => {
+        // prettier 会把长参数折行，故逐段断言（换行不参与语义）
+        expect(MOUNT).toContain('switchEntryOf("doc", id, () => v.selectDoc(id))');
+        expect(MOUNT).toContain('switchEntryOf("col", id, () => v.colFlowOf().switchTo(id))');
+        expect(MOUNT).toMatch(/onOpenDoc:[\s\S]{0,40}guardOrRun\(/);
+        expect(MOUNT).toMatch(/onOpenCollection:[\s\S]{0,40}guardOrRun\(/);
+        // 反向：不得再出现「出口是空执行体」的写法
+        expect(MOUNT).not.toMatch(/onOpenDoc:\s*\(\):\s*void\s*=>\s*undefined/);
+        expect(MOUNT).not.toMatch(/onOpenCollection:\s*\(\):\s*void\s*=>\s*undefined/);
+    });
+
+    it("滚轮/键盘同源：组件两路都经同一出口（组件不自行分流）", () => {
+        const SIDE =
+            (
+                import.meta.glob("../components/SidePanelApp.svelte", {
+                    query: "?raw",
+                    import: "default",
+                    eager: true,
+                }) as Record<string, string>
+            )["../components/SidePanelApp.svelte"] ?? "";
+        expect(SIDE).not.toContain("guard("); // 组件不认识闸，只调出口
+        expect(SIDE).toContain("onOpenCollection(c.id)");
+        expect(SIDE).toContain("onOpenCollection(AGGREGATE_ID)");
     });
 });

@@ -36,7 +36,6 @@
         onOpenDoc,
         onOpenCollection,
         onPersistOpen,
-        guard,
     }: {
         t(key: string): string;
         docs: WenguDoc[];
@@ -54,11 +53,6 @@
         onOpenDoc(docId: string): void;
         onOpenCollection(colId: string): void;
         onPersistOpen(open: string[]): void;
-        /** 切换入口的共闸（Issue #137 §7.d）：点**另一**题集/专题/聚合行
-         *  且当前轮次进行中时先弹二次确认，确认后才执行传入的动作。
-         *  组件层没有会话知识，判定与弹窗都在视图层（`onOpenDoc` /
-         *  `onOpenCollection` 是纯执行体，闸只包在外面）。 */
-        guard(id: string, go: () => void): void;
     } = $props();
 
     /** 文档行元信息串（题数 · 已刷 · 累计用时；与旧渲染逐字一致）。 */
@@ -134,7 +128,7 @@
     const allExCount = $derived(docs.reduce((n, d) => n + d.total, 0));
 
     const ontreeclick = (n: TreeListNode): void => {
-        if (n.id) guard(n.id, () => onOpenDoc(n.id));
+        if (n.id) onOpenDoc(n.id);
     };
     const persist = (_key: string, keys: Set<string>): void => onPersistOpen([...keys]);
     const search = (e: Event): void => {
@@ -219,8 +213,8 @@
                         title={c.title}
                         role="button"
                         tabindex="0"
-                        onclick={() => guard(c.id, () => onOpenCollection(c.id))}
-                        onkeydown={(e) => e.key === "Enter" && guard(c.id, () => onOpenCollection(c.id))}
+                        onclick={() => onOpenCollection(c.id)}
+                        onkeydown={(e) => e.key === "Enter" && onOpenCollection(c.id)}
                     >
                         <div class="wengu-side-title">{c.title}</div>
                         <div class="wengu-side-meta">{fmt(t("collectionCount"), { n: String(c.count) })}</div>
@@ -238,8 +232,8 @@
                     data-colid={AGGREGATE_ID}
                     role="button"
                     tabindex="0"
-                    onclick={() => guard(AGGREGATE_ID, () => onOpenCollection(AGGREGATE_ID))}
-                    onkeydown={(e) => e.key === "Enter" && guard(AGGREGATE_ID, () => onOpenCollection(AGGREGATE_ID))}
+                    onclick={() => onOpenCollection(AGGREGATE_ID)}
+                    onkeydown={(e) => e.key === "Enter" && onOpenCollection(AGGREGATE_ID)}
                 >
                     <div class="wengu-side-title">{t("allExTitle")}</div>
                     <div class="wengu-side-meta">{fmt(t("exerciseCount"), { n: String(allExCount) })}</div>
@@ -284,8 +278,8 @@
                             title={d.hPath || d.title}
                             role="button"
                             tabindex="0"
-                            onclick={() => guard(d.id, () => onOpenDoc(d.id))}
-                            onkeydown={(e) => e.key === "Enter" && guard(d.id, () => onOpenDoc(d.id))}
+                            onclick={() => onOpenDoc(d.id)}
+                            onkeydown={(e) => e.key === "Enter" && onOpenDoc(d.id)}
                         >
                             <div class="wengu-side-title">{d.title || d.id}</div>
                             <div class="wengu-side-meta">{docMeta(d)}</div>

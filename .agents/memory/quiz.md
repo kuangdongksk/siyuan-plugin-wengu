@@ -587,12 +587,29 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
       `mode === "quiz"` 且 targetId ≠ currentId 且 `session && !endedAt &&
 answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不弹）；
       空轮（answered=0）不弹；review/preview/study 不弹。
-    - **闸在视图层、不在组件层**：`SideMount.mountSideFor` 传给
-      `SidePanelApp` 的是**单个** `guard(id, go)` 回调（组件只调它、不再自己
-      分流 onOpenDoc/onOpenCollection——那两个 props 仍保留但已是空执行体，
-      只为过 svelte-check 的必填 props）。判定三件套（模式/上下文 id/题数）
-      与目标名**逐次现取**（`guardCtxFor(this)` / `switchTargetNameFor(this)`）：
-      挂载时预求值会把上一轮定格，闸就永远读不到点击那一刻。
+    - **闸在视图层、不在组件层**：组件**不认识闸**，仍照 dev 原样调
+      `onOpenDoc`/`onOpenCollection`；闸包在 `mountSideFor` 传给它的这两个
+      出口上（`onOpenDoc: (id) => guardOrRun(v, switchEntryOf("doc", id, () => v.selectDoc(id)))`）。
+      判定三件套（模式/上下文 id/题数）与目标名**逐次现取**
+      （`guardCtxFor(this)` / `switchTargetNameFor(this)`）：挂载时预求值会
+      把上一轮定格，闸就永远读不到点击那一刻。
+    - ⚠️⚠️ **两处断链坑（20260915 复核实锤，首版即栽在这里，单测全绿
+      但功能全程不通）**：
+        1. **链路两端都要在场**。闸只是「有人调用才跑」的代码——壳侧
+           （`QuizShell.sideQuizAccess`）必须把 `switchGuard` 接到
+           `QuizView.switchGuardOf`；挂载点的出口必须是
+           「`guardOrRun` + **真执行体**」。首版把两个出口写成
+           `(): void => undefined` 空函数、只加了个新 prop `guard`，而壳又
+           没实现 `switchGuard` ⇒ 兜底分支执行空函数 = **侧栏点任何行都
+           没反应**。`guardOrRun` 的兜底**方向必须是「照常切换」**，不能是
+           「什么都不做」——这条已钉进 `SwitchConfirm.test.ts` 的源码断言。
+        2. **行 id ≠ 上下文 id**。侧栏行 id 是裸的（文档行 `docId`、专题行
+           `col-xxxx`、聚合行 `all`），而「当前上下文」的规范口径来自
+           `QuizView.docIdOf()`（专题模式带 `col:` 前缀，同
+           `bank.colSessionId`）。首版拿行 id 直接比 ⇒ 点**当前已选中的
+           专题/聚合行**被判成「另一上下文」，弹窗照弹（同 id 早退失效）。
+           归位收口在 `SideMount.switchEntryOf(kind, rowId, go)`：
+           `ctxId`（判同异）与 `rowId`（反查目标名）**分字段**。
     - **反查名**：专题行取 `colFlow.rowsView()` 的 title、聚合行取
       `allExTitle`、文档行取 `docs` title、兜底 id（id 是底不是首选）。
     - `contextNameOf` / `switchGuard` 都是 `SideViewAccess` 的**可选**能力，

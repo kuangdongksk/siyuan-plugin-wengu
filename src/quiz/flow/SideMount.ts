@@ -102,9 +102,11 @@ export interface SideViewAccess {
     setSideTreeOpen(open: string[]): void;
     /** 侧栏两路切换入口的**共闸出口**（Issue #137 §7.d）：点击另一
      *  题集/专题/聚合行且当前轮次进行中（`!endedAt && answered > 0`）时
-     *  先弹二次确认，确认后才执行 `go()`。组件层无会话知识，故闸在
-     *  视图层——实现体见 {@link switchGuardFor}（本模块）。 */
-    switchGuard?(id: string, go: () => void): void;
+     *  先弹二次确认，确认后才执行 `entry.go()`。组件层无会话知识，故闸在
+     *  视图层——实现体见 {@link switchGuardFor}（本模块）。
+     *  可选：未实现的壳（只读壳/测试壳）由 {@link guardOrRun} 按「直切」
+     *  兜底——⚠️ 兜底方向必须是「照常切换」，不能是「什么都不做」。 */
+    switchGuard?(entry: SwitchEntry): void;
     /** 侧栏/头部按钮统一出口（act 名同 data-act）。 */
     sideAct(act: string): void;
 }
@@ -141,13 +143,21 @@ export function mountSideFor(v: SideViewAccess, workspace: WenguWorkspace): void
         sideTreeOpen: v.sideTreeOpenOf(),
         onAct: (act: string) => v.sideAct(act),
         onSearch: (text: string) => v.setSideFilter(text),
-        // 切换入口一律先过二次确认闸（Issue #137 §7.d）：两路（树内
-        // 文档行 / 专题与聚合行）共用同一口径——组件侧只看目标 id，
-        // 模式/会话/目标名三件套在闸内按需从视图侧拉取。
-        // ⚠️ 只有「另一上下文」会是闸的目标；点当前行由判定早退（同 id）
-        guard: (id: string, go: () => void) => guardOrRun(v, id, go),
-        onOpenDoc: (): void => undefined, // 执行体已并入 guard（组件只调 guard）
-        onOpenCollection: (): void => undefined,
+        // 切换入口两路（树内文档行 / 专题与聚合行）各自外包二次确认闸
+        // （Issue #137 §7.d）：组件层没有会话知识，闸只在**执行体外**加
+        // 一层判定——⚠️ 执行体必须留在原位（上一版把两个回调换成空函数、
+        // 只留新 prop，壳未实现新能力时 `guardOrRun` 走直切兜底 ⇒ 点行
+        // 无反应，静默断链）。
+        onOpenDoc: (id: string) =>
+            guardOrRun(
+                v,
+                switchEntryOf("doc", id, () => v.selectDoc(id))
+            ),
+        onOpenCollection: (id: string) =>
+            guardOrRun(
+                v,
+                switchEntryOf("col", id, () => v.colFlowOf().switchTo(id))
+            ),
         onPersistOpen: (open: string[]) => v.setSideTreeOpen(open),
     });
     sideApp = { app: mounted.app as unknown as SidePanelExports, unmount: mounted.unmount };
@@ -213,12 +223,33 @@ export const kcapSearchFor =
     (knowledge) =>
         searchKcapFor(v, knowledge);
 
+/** 侧栏一次切换点击（Issue #137 §7.d）：**上下文 id 与行 id / 动作三者
+ *  分开**——侧栏三处入口的行 id 口径不同（文档行=裸 `docId`；专题行=裸
+ *  `col-xxxx`；聚合行=`all`），而「当前上下文」的规范口径来自
+ *  `QuizView.docIdOf()`（专题模式带 `col:` 前缀，同 `bank.colSessionId`）。
+ *  ⚠️ 上一版把行 id 直接当上下文 id 比，点**当前已选中的专题/聚合行**会
+ *  被判成「另一上下文」而弹窗（同 id 早退失效）——两个 id 必须各归其位。 */
+export interface SwitchEntry {
+    /** 规范上下文 id（同 `docIdOf()` 口径）：判「是不是另一上下文」用它。 */
+    ctxId: string;
+    /** 侧栏行 id（目标名反查用）：专题/聚合行是裸 id，文档行=`docId`。 */
+    rowId: string;
+    /** 确认后执行的切换动作（未确认永不调用）。 */
+    go(): void;
+}
+
+/** 侧栏行 → {@link SwitchEntry}（行 id 归位到上下文口径的唯一落点）：
+ *  文档行原样，专题/聚合行加 `col:` 前缀（= `bank.colSessionId`）。 */
+export function switchEntryOf(kind: "doc" | "col", rowId: string, go: () => void): SwitchEntry {
+    return { ctxId: kind === "col" ? `col:${rowId}` : rowId, rowId, go };
+}
+
 /** 切换入口的共闸（Issue #137 §7.d）：按 {@link switchGuardFor} 判定，
  *  需确认则弹窗、确认后才切；视图能力未实现 `switchGuard` 的壳
  *  （只读壳/测试壳）按「直切」兜底——与改造前行为逐字一致。 */
-export function guardOrRun(v: SideViewAccess, id: string, go: () => void): void {
-    if (typeof v.switchGuard === "function") v.switchGuard(id, go);
-    else go();
+export function guardOrRun(v: SideViewAccess, entry: SwitchEntry): void {
+    if (typeof v.switchGuard === "function") v.switchGuard(entry);
+    else entry.go();
 }
 
 /** 二次确认闸的**装配体**（`SidePanelApp.guard` 的实现，视图侧一行转出）：
@@ -260,20 +291,27 @@ export interface SwitchCtxAccess {
  *
  *  ⚠️ 判据三件套（模式/会话/上下文）**逐次现取**——预求值会在挂载时把
  *  上一轮的 session 定格，闸就永远读不到「点击那一刻」。 */
-export function switchGuardFor(v: SwitchGuardAccess): (id: string, go: () => void) => void {
-    return (id, go) => {
+export function switchGuardFor(v: SwitchGuardAccess): (entry: SwitchEntry) => void {
+    return (entry) => {
         const ctx = v.guardCtx();
         const session = v.currentSession();
-        if (!needsSwitchConfirm({ mode: ctx.mode, session, targetId: id, currentId: ctx.currentId })) {
-            go();
+        if (
+            !needsSwitchConfirm({
+                mode: ctx.mode,
+                session,
+                targetId: entry.ctxId,
+                currentId: ctx.currentId,
+            })
+        ) {
+            entry.go();
             return;
         }
         openSwitchConfirm({
             t: v.t,
-            targetName: v.targetName(id),
+            targetName: v.targetName(entry.rowId),
             session: session as WenguSession,
             total: ctx.total,
-            onGo: go,
+            onGo: entry.go,
         });
     };
 }

@@ -398,7 +398,10 @@ formSwitch / formInput / formOption`；输入必挂 `b3-text-field`；
 - 首个受益者＝切换题集二次确认弹窗（`quiz/flow/SwitchConfirm`，
   设计稿 §5 / 差距清单 §7.d）：主钮「留在本卷」`primary` 居右起第一，
   次钮「继续切换」`outline`；**Esc / 遮罩 / 关闭钮 = 主钮语义**（安全
-  默认），由 `openSwitchConfirm` 显式兜（b3-dialog 默认关闭路径无回调）。
+  默认）——由**构造成立**：切换动作只挂在 `sw-go` 的回调上，弹窗无论
+  怎么关都等于「什么都没发生」＝留在本卷。⚠️ **别去挂 `destroy` 事件
+  兜底**（`siyuan` 的 `Dialog` 无此事件，属凭空发明的事件名；全仓仅此
+  一处用过，宿主一改实现就静默失效，而它想兜的语义本来就已成立）。
 - 动作行 `gap` 仍是 `base.scss` 的 `.wengu-dialog ~ .b3-dialog__action`
   一条 8px（§〇6 按钮行总则）。
 
