@@ -2,6 +2,34 @@
 
 ## v0.1.1 unreleased
 
+- **AI 会话面板按差距清单对稿还原，并回到单滚动窗形态**（20260915，
+  ai / scss 域，Issue #129）：照 `design/aipanel-gap-list.md` 与施工规格
+  `design/convert-stop-redesign-spec.html` 06 节逐条精修面板，同时**撤掉
+  #96 的收内滚档**——稿的形态是「一卡两栏、卡随内容长」（S4：两列都不设滚动窗），
+  与「两列各自内滚」相反。
+
+    - **滚动归属回单窗**：卡去 `flex:1/min-height:0` 与 `grid-template-rows`，
+      树列去 `overflow/min-height:0/scrollbar-gutter/max-height`（只留凹槽底 +
+      右边线 + 上下 padding），详情列同去、只留 surface 底与 `min-width:0`，
+      `.wengu-aipanel-dbody` 回到稿的 `min-height:120px`；滚动归宿主主区
+      `.wengu-ws-main` 的 `overflow-y:auto`（与外层面板壳一致）。`--fit` 档 +
+      `ai/core/PanelFit.ts`（含单测）与 `ai/SessionPanel.ts` 的 `fitHost` 整体退役
+      （留档就是死接线）。`docs/design-review.md` §〇11 与 AGENTS.md 同步标出
+      AI 面板这一例外（判据看稿不看规范条文）。
+    - **树头「N 组」按去重类别数**（单条种类不设层时数顶层节点会数少）。
+    - **详情头 meta 槽常空 + 状态徽标自吃 `margin-left:auto`**（S7 落法 a）：
+      模型名只在 h3 的 `title`，时间在日志首列；不再用 `.badge:last-child`
+      （槽非空时会落空、徽标被挤回中间）。
+    - **叶行行尾注记改为「间隙期形态」**（S5 的诚实近似）：登记簿只有记录级
+      `createdAt/endedAt`，「显示当前选中记录的时刻」会给出假时刻；故**未选中**
+      时出「MM-DD HH:MM · 类别」（新键 `aiRowMeta`，中英齐备），选中即整行让位
+      给详情，删除钮仍 hover 才显。
+    - **差距清单纠错**：尾注引用的 `aipanel-spec.html` 是笔误，改为实际文件名
+      `convert-stop-redesign-spec.html`；S4 补「执行定稿」指针。
+    - **回归锁**：新增 `ai/core/AiPanelGapRestore.test.ts`（组数口径 + 源级结构：
+      meta 槽常空、徽标走 `stbadge`、徽标 500 字重；样式侧用 `sass.compile`
+      编译产物断言——`?raw` 对 scss 恒空串）。
+
 - **桌面开刷面板同步设计稿屏①：双卡片 + 唯一主操作 + 统计条分段**（20260915，
   quiz / scss 域，Issue #100）：进文档的首屏（开刷面板）与设计稿
   `design/wengu-desktop-drill.html` 屏① 观感差距明显——单外盒窄面板（620px）、

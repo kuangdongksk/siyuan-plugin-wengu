@@ -100,10 +100,19 @@
              模型」meta 串，常驻视觉位让给状态徽标贴右） -->
         <h3 class="wengu-aipanel-dtitle" title={view.head.modelText}>{view.head.title}</h3>
         <span class="wengu-aipanel-badge is-plain">kind={view.head.kindText}</span>
-        <span class={`wengu-aipanel-badge is-${view.head.status.badgeCls}`}>
+        <!-- 状态徽标贴右（稿 .detail-head .badge { margin-left:auto }）——
+             ⚠️ 由**本元素自己**吃 auto，不用 `.badge:last-child`：后面的 meta
+             槽（下面那个 span）一旦非空，`:last-child` 就会落空、徽标被 meta
+             挤到中间（gap-list S7 的形态复发）。 -->
+        <span class={`wengu-aipanel-badge is-${view.head.status.badgeCls} wengu-aipanel-stbadge`}>
             {#if view.head.status.spin}<span class="wengu-aipanel-spin" aria-hidden="true"></span>{/if}
             {view.head.status.badgeText}
         </span>
+        <!-- meta 槽：**常空**（稿内无「时间 · 模型」meta 串，gap-list S7 落法 a）
+             ——时间在日志首列、模型名在 h3 的 title。空槽渲染成零高零宽的
+             span，只作结构占位（样式见 `.wengu-aipanel-dhead .wengu-aipanel-meta`，
+             非空时才占位）。 -->
+        <span class="wengu-aipanel-meta"></span>
     </div>
 
     <div class="wengu-aipanel-dbody">

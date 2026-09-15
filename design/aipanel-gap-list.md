@@ -77,11 +77,11 @@
 
 ### S4 树没有凹槽底色、没有右边线、没有容器 padding
 
-| 项       | 内容                                                                                                                                                                                                                                                                             |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 设计稿   | `.ai-tree { grid-area:tree; background:var(--surface-3); border-right:1px solid var(--border); padding:8px 0 12px; min-width:0 }`                                                                                                                                                |
-| 现状实现 | 无对应样式。树列透明背景、无边线；`.wengu-ai-side .wengu-ai-list { max-height:calc(100vh - 260px); overflow-y:auto; padding-right:2px }`（rail.scss）——上下无 padding，多出 max-height/overflow/padding-right                                                                    |
-| 修法     | 树列补：`background:var(--b3-theme-background)`（surface-3 落点）、`border-right:1px solid var(--b3-border-color)`、`padding:8px 0 12px`；`padding-right:2px` 删（右边线即界）；滚动移交卡壳或树列自身（`overflow-y:auto; min-height:0`），删裸 `max-height:calc(100vh - 260px)` |
+| 项       | 内容                                                                                                                                                                                                                                                                                                                                         |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 设计稿   | `.ai-tree { grid-area:tree; background:var(--surface-3); border-right:1px solid var(--border); padding:8px 0 12px; min-width:0 }`                                                                                                                                                                                                            |
+| 现状实现 | 无对应样式。树列透明背景、无边线；`.wengu-ai-side .wengu-ai-list { max-height:calc(100vh - 260px); overflow-y:auto; padding-right:2px }`（rail.scss）——上下无 padding，多出 max-height/overflow/padding-right                                                                                                                                |
+| 修法     | 树列补：`background:var(--b3-theme-background)`（surface-3 落点）、`border-right:1px solid var(--b3-border-color)`、`padding:8px 0 12px`；`padding-right:2px` 删（右边线即界）；删裸 `max-height:calc(100vh - 260px)`。**执行定稿（#129）**：稿内两列都不设滚动窗，滚动归宿主主区那**一扇**窗（单滚动窗）——「列内自滚 / 卡壳控高」两条都不落 |
 
 ### S5 树行尾元素与稿不符（徽标不贴右 + 多出时间戳/删除钮）
 
@@ -357,4 +357,4 @@
 
 ---
 
-_配套施工图见同目录 `aipanel-spec.html` 第 06 节（完整 CSS 规格表 + 存量回退形态 + 新数据形态对照）。_
+_配套施工图见同目录 `convert-stop-redesign-spec.html` 第 06 节（完整 CSS 规格表 + 存量回退形态 + 新数据形态对照）。_

@@ -925,5 +925,6 @@
   "aiCopyBlock": "Copy this block",
   "aiCopyTurn": "Copy full turn",
   "aiCopied": "Copied",
-  "aiCopyFail": "Copy failed — select manually"
+  "aiCopyFail": "Copy failed — select manually",
+  "aiRowMeta": "{time} · {kind}"
 }

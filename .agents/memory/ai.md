@@ -478,3 +478,31 @@
   `bannerViewOf` 按「无 queue 才出 bar」分流——已被 `FlowBannerUi.test` 锁死，
   本单只复核、未改。
 - **范围外**：六个批流的进度摘要上报（#79 遗留 B）仍不做。
+
+### AI 会话面板对稿精修（Issue #129，20260915；差距清单
+
+`design/aipanel-gap-list.md` + 施工规格 `design/convert-stop-redesign-spec.html` 06 节）
+
+- **执行定稿（与 #96 相反，务必先读这条）**：面板是**单滚动窗**——卡随内容长，
+  滚动归宿主主区 `.wengu-ws-main` 的 `overflow-y:auto`。稿里两列都没有滚动窗
+  （gap-list S4），所以**不造**二级滚动条：`.wengu-aipanel` 去 `flex:1/min-height:0`
+  与 `grid-template-rows`，`.wengu-aipanel-tree` / `.wengu-aipanel-pane` 去
+  `overflow/min-height:0/scrollbar-gutter`（树只留凹槽底+右边线+padding，详情列
+  只留 surface 底 + `min-width:0`），`.wengu-aipanel-dbody` 回到稿的
+  `min-height:120px`。`--fit` 档 + `ai/core/PanelFit.ts`（含单测）整体删除，
+  `ai/SessionPanel.ts` 的 `fitHost` 同步退役——**判据看稿不看规范条文**
+  （AGENTS.md 已同步标例外）。
+- ⚠️ **树头「N 组」按去重类别数算**（`new Set(recs.map(r => r.kind)).size`）：
+  稿的语义是种类数，而单条种类不设层（叶子直接上提）时 `tree.nodes.length` 会数少。
+- ⚠️ **详情头状态徽标贴右由它自己吃 `margin-left:auto`**（`.wengu-aipanel-stbadge`），
+  不能再写 `.badge:last-child`——徽标后面有个**常空的 meta 槽**（`<span
+class="wengu-aipanel-meta"></span>`，S7 留槽口径：稿内无「时间 · 模型」串，
+  非空才用），`:last-child` 会落空、徽标被挤回中间。两条都有源级锁
+  （`ai/core/AiPanelGapRestore.test.ts`；样式侧走 `sass.compile` 编译产物断言
+  ——`?raw` 对 scss 恒空串）。
+- ⚠️ **叶行行尾注记是「间隙期形态」**（见 SessionPanelApp 头注释）：S5 要求删
+  时间戳（时间在详情日志首列），但登记簿只有**记录级** `createdAt/endedAt`，
+  「显示当前选中记录的时刻」会给出**假时刻**（点开一条旧记录，行上显示的不是
+  它的时间）。故未选中时出「MM-DD HH:MM · 类别」（`aiRowMeta`，i18n 单模板），
+  选中即整行让位给详情；删除钮仍 hover 才显。等 `data/AiSessions.ts` 存下逐轮
+  时刻后，按 S5/S6 的终态收敛（时间戳只留详情日志列）。

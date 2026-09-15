@@ -41,18 +41,25 @@
      *  - **一体卡（S1/S2）**：`.wengu-aipanel` 用稿的 grid（292px + 1fr、卡面 +
      *    1px 边线 + 12px 圆角 + overflow:hidden），横幅 FlowBanner 移入卡内作
      *    跨栏首行（组件根 `.wengu-aiflow` 自身已无圆角/外围边框）；
-     *  - **树列（S3/S4；**滚动归 Issue #96 改口径**）：292px 列宽由 grid 接管
-     *    （`.wengu-ai-side` 的固定宽与裸 max-height 一并删），树列吃凹槽底 +
-     *    右边线 + 上下 padding，**长清单在列内自滚**（S4 的「滚动交宿主页」
-     *    取舍已推翻——整页滚会把卡外件与横幅一起带走）；
+     *  - **树列（S3/S4）：292px 列宽由 grid 接管（`.wengu-ai-side` 的固定宽
+     *    与裸 max-height 一并删），树列吃凹槽底 + 右边线 + 上下 padding，
+     *    **列内无滚动窗**（卡随内容长，滚动归宿主主区那一扇窗）；
      *  - **行尾三件化（S5）**：叶行 = 点 + 任务名 + 徽标贴右，**行尾不常驻
      *    时间戳**（选中后详情日志首列即 HH:MM:SS），组行「N 条 · 时间」meta
      *    删，删除钮退回 hover 显隐（rail.scss 既有口径）；
      *  - **详情（S7/S8）**：详情头删常驻 meta 串（模型名折进 h3 的 title），
-     *    状态徽标贴右；主体（`.wengu-aipanel-dbody`）自身不设滚动窗，**详情
-     *    列的滚动窗在 `.wengu-aipanel-pane` 上**（Issue #96：整页不滚动，
-     *    滚动收进面板内部——卡限高、两列各自内滚，卡外件与卡首横幅常驻）。
+     *    状态徽标贴右；主体（`.wengu-aipanel-dbody`）自身不设滚动窗，详情列
+     *    也没有——**卡随内容长，滚动归宿主主区**（单滚动窗形态，同 #92 的
+     *    稿口径：`.wengu-aipanel-pane` 只留 surface 底与 min-width:0）。
      *    kinds 过滤条与 hint 留在卡外（S9 已拍板的取舍：卡内只留三件）。
+     *
+     * **行尾弱注记（间隙期形态）**：叶行**不常驻**时间戳（gap-list S5）——
+     * 时间在选中后的详情日志首列。执行期发现登记簿只有记录级
+     * `createdAt`/`endedAt` 两个时刻，「显示当前选中记录的时刻」会给出
+     * **假时刻**（用户在 14:20 的运行中点开一条 09-12 的旧记录，行上显示的
+     * 不是它的时间），故落点在**未选中**时出「记录时间 · 类别」组合注记
+     * （与详情头的 kind 徽标同源、恒正确），选中即整行让位给详情。删除钮仍
+     * hover 才显（rail.scss 既有口径），不占常驻视觉位。
      */
     let { v }: { v: QuizView } = $props();
 
@@ -78,6 +85,9 @@
     };
     const kindLabel = (k: string): string => (KIND_KEYS[k] ? t(KIND_KEYS[k]) : k);
 
+    /** 两位补零（时间戳注记用）。 */
+    const p2 = (n: number): string => String(n).padStart(2, "0");
+
     const modelNames = new Map(listAiModels().map((m) => [m.id, m.name]));
     /** 模型显示名：设计稿 detail-head **无**「时间 · 模型」meta 串（gap-list
      *  S7），模型名折进 h3 的 `title` 悬停可见——信息不丢，常驻视觉位不占。 */
@@ -102,8 +112,17 @@
             decidable: sel ? decideEntryOf(flowOwnershipOf(sel)) : false,
         })
     );
-    /** 树头组数徽标（设计稿 badge--plain「3 组」）：树的顶层节点数。 */
-    const groupCount = $derived(tree.nodes.length);
+    /** 树头组数徽标（设计稿 badge--plain「3 组」）。稿的语义是**种类数**
+     *  （顶层一类一棵树）；单条种类不设层（叶子直接上提为顶层节点）时会数少，
+     *  故按登记记录的**去重类别数**算——「3 组」在树里恒有 3 个可辨识的组，
+     *  不留空壳层也数得准。 */
+    const groupCount = $derived(new Set(ui.recs.map((r) => r.kind)).size);
+
+    /** 行尾注记的时刻格式（MM-DD HH:MM，mono 弱注记位）。 */
+    const rowStamp = (ts: number): string => {
+        const d = new Date(ts);
+        return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    };
 
     /** 叶子行（会话）点击=选中切右栏；动作钮不触发（同知识面板口径）。 */
     const rowclick = (n: TreeListNode, e: MouseEvent): void => {
@@ -123,11 +142,10 @@
 {#if ui.phase === "loading"}
     <div class="wengu-ws-page"><div class="wengu-muted">{t("loading")}</div></div>
 {:else}
-    <!-- 面板页根 = 「卡外件 + 卡」的 flex 列（Issue #96）：标题/hint/kinds 过滤条
-         是固定高度的卡外件（flex:none，**常驻视野**、不随内容滚走），卡吃掉
-         剩余高度（flex:1 + min-height:0）。配合宿主主区的 `.wengu-ws-main--fit`
-         档（rail.scss，挂载时由 ai/SessionPanel.ts 打开）打通整条高度链
-         ⇒ **整页不滚动**，滚动收进卡内两列（树 / 详情各自内滚）。 -->
+    <!-- 面板页根 = 「卡外件 + 卡」的普通块列：标题/hint/kinds 过滤条与卡同在一列
+         流里，卡**随内容长**（长清单 ⇒ 长卡）；滚动归宿主主区的共用滚动窗
+         （`.wengu-ws-main` 的 overflow-y:auto，rail.scss）——单滚动窗形态，
+         没有 #96 的收内滚档与列内二级滚动条。 -->
     <div class="wengu-ws-page wengu-aipage">
         <div class="wengu-ws-title">
             <!-- 设计稿 .ai-tree-head 的「AI 会话 + badge--plain（组数）」与宿主
@@ -220,6 +238,16 @@
                                              40 条记录一眼看出哪批失败哪批成功 -->
                                         <span class="wengu-aipanel-dot is-{lv?.dotCls ?? 'done'}"></span>
                                         <span class="wengu-ai-name is-leaf">{lv?.name ?? n.name}</span>
+                                        <!-- 行尾弱注记（**仅未选中时**，见头注释「行尾弱注记」）：
+                                             时间取记录级真实时刻 + 类别章，选中后整行让位给详情 -->
+                                        {#if ui.selId !== n.id}
+                                            <span class="wengu-aipanel-meta"
+                                                >{fmt(t("aiRowMeta"), {
+                                                    time: rowStamp(tree.recByKey.get(n.key)?.createdAt ?? 0),
+                                                    kind: kindLabel(tree.recByKey.get(n.key)?.kind ?? ""),
+                                                })}</span
+                                            >
+                                        {/if}
                                         {#if lv}
                                             <span class={`wengu-aipanel-badge is-${lv.badgeCls}`}>
                                                 {#if lv.spin}
