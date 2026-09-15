@@ -35,6 +35,29 @@ describe("materialRulesFor：英语题型约定与词条保真段", () => {
     });
 });
 
+describe("protocolSpec · 选项顺序变体（Issue #123）", () => {
+    it("默认：要求「正确项写最前」（转换/加练链现行口径）", () => {
+        expect(protocolSpec([QuestionType.Single])).toContain("正确项写在最前");
+    });
+
+    it("keep：要求按原题顺序与字母，且不再出现「正确项写在最前」", () => {
+        const s = protocolSpec([QuestionType.Single], { order: "keep" });
+        expect(s).toContain("原题顺序与字母");
+        expect(s).not.toContain("正确项写在最前");
+    });
+
+    it("变体只换 @@P opt 那一行，其余段落逐字不变（含 undefined 全量兜底）", () => {
+        const strip = (s: string): string =>
+            s
+                .split("\n")
+                .filter((l) => !l.includes("正确项写在最前") && !l.includes("原题顺序与字母"))
+                .join("\n");
+        for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps, QuestionType.Multiple]]) {
+            expect(strip(protocolSpec(types, { order: "keep" }))).toBe(strip(protocolSpec(types)));
+        }
+    });
+});
+
 describe("protocolSpec / typeRulesFor / materialExamplesFor：类型裁剪", () => {
     it("undefined 兜底含 steps/steps-opt/slot-opt 全量部件说明", () => {
         const s = protocolSpec(undefined);

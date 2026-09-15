@@ -9,7 +9,25 @@ import { QuestionType } from "../../types";
  *
  * types=undefined 是**全量兜底**路径（检测失败/续跑无先验/题型未知），
  * 输出与题型化改造前逐字节一致——回退语义=旧行为，不引入新变量。
+ *
+ * 选项顺序另有**变体**（Issue #123）：默认（不带 opts）要求「正确项写在
+ * 最前、干扰项在后」，字母由渲染按序自动编、再由 OptionShuffle 洗牌消
+ * 剧透；**单题修复重生成**不能这么做——原题的解析/字母引用都按原顺序
+ * 写死了，重排选项会让「ans 字母」与「选项顺序」互相矛盾（真机落盘
+ * 坏答案的根因）。故 `opts: "keep"` 变体显式要求「沿用原题顺序与字母」，
+ * 其余调用方行为**逐字节不变**（PromptHygiene/convert 域测试锁着）。
  */
+
+/** 行协议选项顺序口径（Issue #123）：缺省=「正确项在最前、系统重排
+ *  字母」；"keep"=沿用原题顺序与字母（题内 ans/解析的字母引用随之自洽）。 */
+export type ProtocolOptsOrder = "" | "keep";
+
+/** @@P opt 行的写作约定：默认要求「正确项写在最前」（系统洗牌消剧透），
+ *  keep 变体要求沿用原题顺序与字母（见 ProtocolOptsOrder）。 */
+const OPT_LINE_DEFAULT =
+    "选项内容（只写内容不写字母——字母由系统按顺序自动编 A、B、C…；正确项写在最前，之后是干扰项，每个选项一个 @@P opt）";
+const OPT_LINE_KEEP =
+    "选项内容（按**原题顺序与字母**原样给出——A 就是 A、B 就是 B，不重排、不省略，每个选项一个 @@P opt）";
 
 /** 题型规范序（type 清单展示序）。 */
 const ALL_TYPES: QuestionType[] = [
@@ -69,14 +87,18 @@ const MATERIAL_TYPE_RULES: Partial<Record<QuestionType, string>> = {
 /** 行协议格式约定。types=undefined 时输出全量（与题型化改造前逐字节
  *  一致，兜底路径）；给定题型时部件说明与答案约定按题型裁剪，核心
  *  骨架（标记行/stem/opt/ans/sol 与材料组 body/trans/group/material）
- *  恒在——共享材料组与题型无关（阅读理解单选也挂材料）。 */
-export function protocolSpec(types?: QuestionType[]): string {
+ *  恒在——共享材料组与题型无关（阅读理解单选也挂材料）。
+ *  `opts.order="keep"`（Issue #123）**只替换 @@P opt 那一行的写作约定**，
+ *  其余段落逐字不变——转换/增量/出题链不传该参数，产物与改造前逐字节
+ *  相同。 */
+export function protocolSpec(types?: QuestionType[], opts?: { order?: ProtocolOptsOrder }): string {
+    const optLine = opts?.order === "keep" ? OPT_LINE_KEEP : OPT_LINE_DEFAULT;
     const head = `行协议格式（标记行必须顶格、独占一行；内容行原样书写，公式与图片行不需要任何转义）：
 @@Q type=题型 knowledge=考点 chapter=章节
 @@P stem
 题干文字（公式行内 $...$、块级 $$...$$ 独占一行；空行分段，也可写多个 @@P stem）
 @@P opt
-选项内容（只写内容不写字母——字母由系统按顺序自动编 A、B、C…；正确项写在最前，之后是干扰项，每个选项一个 @@P opt）
+${optLine}
 `;
     if (!types) {
         return `${head}@@P ans

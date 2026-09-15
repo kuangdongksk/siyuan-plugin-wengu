@@ -9,6 +9,8 @@ const replies: string[] = [];
 vi.mock("../../ai/client", () => ({
     agentChatOnce: async (): Promise<string> => replies.shift() ?? "",
     aiAbort: (): unknown => ({ signal: new AbortController().signal, onSid: (): void => undefined }),
+    // 重生成链把「重新生成」与「答案核查自检」挂同一组（Issue #123）
+    newAiGroupId: (): string => "g-test",
 }));
 vi.mock("../../ui/Notify", () => ({
     notifyError: vi.fn(),

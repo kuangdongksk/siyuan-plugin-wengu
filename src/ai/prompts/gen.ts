@@ -2,6 +2,7 @@ import type { QuestionType } from "../../types";
 import { QuestionType as QT } from "../../types";
 import { SINGLE_Q_NOTE } from "./common";
 import { protocolSpec } from "./protocol";
+import type { ProtocolOptsOrder } from "./protocol";
 
 /**
  * 单题生成族 prompt（20260910 自 bank 域 GenQuestion/RegenDialog/TagDialog
@@ -45,13 +46,19 @@ ${kd}`;
 
 /** 单题修复重生成 prompt（题卡「重新生成」：OCR 缺失/转换错误/答案算错）。
  *  材料三选一：原文块 kramdown > 知识点小节正文 > 无材料保守修复；
- *  type=原题题型（输出结构钉死为同题型，未知=undefined 走全量兜底）。 */
+ *  type=原题题型（输出结构钉死为同题型，未知=undefined 走全量兜底）。
+ *
+ *  `order`（Issue #123）：重生成链一律传 `"keep"`——选项沿用原题顺序与
+ *  字母，`@@P ans` 只写**修正后**的正确字母、解析里的字母引用与该顺序
+ *  一致。默认 ""（正确项写最前 + 系统重排）只留给转换/加练链，本 prompt
+ *  的默认值因此与改造前逐字节相同（顺序敏感的调用方必须显式传 keep）。 */
 export function buildRegenPrompt(
     kd: string,
     sourceBlock: string,
     section: string,
     note: string,
-    type?: QuestionType
+    type?: QuestionType,
+    order: ProtocolOptsOrder = ""
 ): string {
     const srcPart = sourceBlock ? `\n【修正后的原文（以此为准，插图占位还原成图片行进题干）】\n${sourceBlock}` : "";
     const secPart = !sourceBlock && section ? `\n【相关知识点小节（补全缺失数据的依据）】\n${section}` : "";
@@ -60,7 +67,7 @@ export function buildRegenPrompt(
 ${srcPart || secPart ? "以补充材料为准修正；没有依据的部分不要编造，宁可保守。" : "依据题目自身与解析保守修复。"}${notePart}
 要求：输出与原题相同的题型结构（客观题保持客观题）；公式行内 $...$、块级 $$...$$；题干依赖的插图以「〔插图:assets/…〕」占位出现时，必须还原成标准 markdown 图片行（半角 ! + 空方括号 + 冒号后完整原路径，示意形如 ![](插图原路径)）逐字保留进题干，不要原样输出占位；正确答案与解析必须自洽。
 ${SINGLE_Q_NOTE}
-${protocolSpec(type ? [type] : undefined)}
+${protocolSpec(type ? [type] : undefined, { order })}
 
 【原题 kramdown】
 ${kd}${srcPart}${secPart}${notePart}`;

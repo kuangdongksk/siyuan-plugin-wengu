@@ -515,6 +515,7 @@
   "regenBusy": "This question is already being regenerated",
   "regenDone": "Regenerated and banked",
   "regenNoRecord": "Question not in bank (convert first)",
+  "regenVerifyFailed": "Regenerated result failed self-check (options and answer disagree); nothing was written. Add a note and retry",
   "drillTitle": "Targeted practice",
   "drillHint": "Generate practice from weak points (wrong-question variants or concept checks), each AI-checked; results land in a collection.",
   "drillModeLabel": "Mode",

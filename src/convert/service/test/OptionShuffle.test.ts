@@ -121,6 +121,143 @@ describe("shuffleDraftOptions · 拆行 unpack（挤行选项）", () => {
     });
 });
 
+describe("shuffleDraftOptions · 解析字母同步改写（Issue #123）", () => {
+    it("解析里的裸字母词符按同一映射改写（正解指向正确答案）", () => {
+        const d = parseDrafts(
+            [
+                "@@Q type=single",
+                "@@P stem",
+                "下列说法正确的是？",
+                "@@P opt",
+                "甲方法",
+                "@@P opt",
+                "乙方法",
+                "@@P opt",
+                "丙方法",
+                "@@P ans",
+                "A",
+                "@@P sol",
+                "A 正确，B 与 C 都是干扰说法。",
+                "@@END",
+            ].join("\n")
+        )[0];
+        shuffleDraftOptions(d);
+        const ans = textsOf(d, "answer")[0];
+        const sol = textsOf(d, "solution")[0];
+        // 解析的正解字母必须与答案同步；另两个字母落在剩余选项上
+        const m = /^([A-C]) 正确，([A-C]) 与 ([A-C]) 都是干扰说法。$/.exec(sol);
+        expect(m?.[1]).toBe(ans);
+        expect([m?.[2], m?.[3]].sort()).toEqual(["A", "B", "C"].filter((x) => x !== ans).sort());
+    });
+
+    it("数学区间/行内代码里的字母不是选项字母，绝不动", () => {
+        const d = parseDrafts(
+            [
+                "@@Q type=single",
+                "@@P stem",
+                "题",
+                "@@P opt",
+                "甲",
+                "@@P opt",
+                "乙",
+                "@@P opt",
+                "丙",
+                "@@P ans",
+                "A",
+                "@@P sol",
+                "设 $A$ 为矩阵，`B` 是代码，故 A 正确。",
+                "@@END",
+            ].join("\n")
+        )[0];
+        shuffleDraftOptions(d);
+        const ans = textsOf(d, "answer")[0];
+        const sol = textsOf(d, "solution")[0];
+        expect(sol).toContain("$A$");
+        expect(sol).toContain("`B`");
+        expect(sol).toContain(`${ans} 正确`);
+    });
+
+    it("英文词内/所有格后的字母不当作选项字母引用", () => {
+        const d = parseDrafts(
+            [
+                "@@Q type=single",
+                "@@P stem",
+                "题",
+                "@@P opt",
+                "甲",
+                "@@P opt",
+                "乙",
+                "@@P opt",
+                "丙",
+                "@@P ans",
+                "A",
+                "@@P sol",
+                "students' A 与 BAD 里的字母不动，A 正确。",
+                "@@END",
+            ].join("\n")
+        )[0];
+        shuffleDraftOptions(d);
+        const sol = textsOf(d, "solution")[0];
+        expect(sol).toContain("students' A");
+        expect(sol).toContain("BAD");
+        expect(sol).toContain(`${textsOf(d, "answer")[0]} 正确`);
+    });
+
+    it("位置敏感措辞组跳过洗牌 → 解析原样（无失配，零改写）", () => {
+        const d = parseDrafts(
+            [
+                "@@Q type=single",
+                "@@P stem",
+                "题",
+                "@@P opt",
+                "甲",
+                "@@P opt",
+                "乙",
+                "@@P opt",
+                "以上都对",
+                "@@P ans",
+                "C",
+                "@@P sol",
+                "C 正确。",
+                "@@END",
+            ].join("\n")
+        )[0];
+        const before = d.parts.map((p) => `${p.name}:${p.text}`);
+        shuffleDraftOptions(d);
+        expect(d.parts.map((p) => `${p.name}:${p.text}`)).toEqual(before);
+    });
+
+    it("steps：每步解析的字母按该步自己的映射改写", () => {
+        const d = parseDrafts(
+            [
+                "@@Q type=steps steps=method",
+                "@@P stem",
+                "计算题",
+                "@@P step",
+                "第 1 步",
+                "@@P step-opt",
+                "洛必达",
+                "@@P step-opt",
+                "等价无穷小",
+                "@@P step-opt",
+                "泰勒展开",
+                "@@P step-ans",
+                "AB",
+                "@@P sol",
+                "A 与 B 都可行，C 不可行。",
+                "@@END",
+            ].join("\n")
+        )[0];
+        shuffleDraftOptions(d);
+        const ans = textsOf(d, "step-1-answer")[0];
+        const sol = textsOf(d, "solution")[0] ?? "";
+        const m = /^([A-C]) 与 ([A-C]) 都可行，([A-C]) 不可行。$/.exec(sol);
+        expect(m).not.toBeNull();
+        expect([m?.[1], m?.[2]].sort()).toEqual([...ans].sort());
+        expect(m?.[3]).toBe(["A", "B", "C"].filter((x) => !ans.includes(x))[0]);
+    });
+});
+
 describe("shuffleDraftOptions · steps", () => {
     it("每步选项各自洗且答案字母同步（method 步可行集合保持）", () => {
         const lines = [

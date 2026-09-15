@@ -515,6 +515,7 @@
   "regenBusy": "该题正在重新生成中",
   "regenDone": "已重新生成并入库",
   "regenNoRecord": "该题不在题库（先转换入库）",
+  "regenVerifyFailed": "重生成结果自检未通过（选项与答案对不上），本题未落盘；可补备注后重试",
   "drillTitle": "针对性加练",
   "drillHint": "针对薄弱点生成加练题（错题变式或概念辨析），每题 AI 自检、不过检丢弃，收进《薄弱加练》专题。",
   "drillModeLabel": "模式",
