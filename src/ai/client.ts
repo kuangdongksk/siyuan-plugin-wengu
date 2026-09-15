@@ -57,7 +57,10 @@ export function aiAbort(): AiAbort {
  *    「停止」，比不标更坏；
  *  - 超时是内部 controller abort 出来的，压根没断这个 signal。
  *  故约定：**业务侧凡「用户显式停止」都在 abort 时带上 AI_STOPPED**
- *  （转换族的 `abortFlow` 是唯一写入点）。理由缺失（旧调用方/不支持
+ *  （各多调用流的停止入口——转换族 `abortFlow`/`stopConvertRun`、增量
+ *  `relayStop`、面板 `aiAbort`/`abortAiSession`、AI 索引流三处，清单见
+ *  AGENTS.md「中止 ≠ 失败」；这里刻意不写「唯一写入点」，它随停止入口
+ *  增删而失真）。理由缺失（旧调用方/不支持
  *  `AbortSignal.reason` 的运行时）一律按失败处置——**宁可报失败，不可
  *  把失败说成停止**。
  */
