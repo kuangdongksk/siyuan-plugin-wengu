@@ -6,6 +6,7 @@ import type { QuizView } from "../../quiz";
 import { generateKnowledgeOutline } from "../../convert/service/knowledge/KnowOutline";
 import { expandKnowDocs, type KnowDocEntry } from "../../convert/service/knowledge/KnowledgeLink";
 import { notifyError, notifyInfo } from "../../ui/Notify";
+import { AI_STOPPED } from "../../ai/data/AiSessions";
 
 /**
  * 导入后自动补索引（Issue #2）的编排行为：整条链在 node 里跑到「起 AI」
@@ -211,5 +212,82 @@ describe("导入后自动补索引", () => {
         expect(notifyErrorMock).toHaveBeenCalledWith({ key: "notifyOutlineFail", vars: { msg: "provider boom" } });
         expect(ui.outlining).toBeUndefined();
         expect(ui.outlineErr).toContain("knowOutlineFail");
+    });
+});
+
+/**
+ * AI 索引流的用户停止必须带 `AI_STOPPED` 理由（Issue #88 复审补记）：
+ * 索引流是 #72 登记的第三条多调用流，它的三处停止（页内「再点=中止」、
+ * 面板点停的 `aiStopHandle` 接线、横幅停止钮）都走同一个自建 ctrl——
+ * 漏带理由时横幅说「已停止」、在途记录却落红色「失败」（与转换族曾经
+ * 的同款矛盾）。这里跑真实 `runOutlineFlow`（不 mock KnowOutlineFlow），
+ * 用 `generateKnowledgeOutline` 替身在每篇里就近读 `signal.reason`。
+ */
+describe("AI 索引流的停止必带 AI_STOPPED 理由", () => {
+    /** 记下每次归纳拿到的 signal（面板点停 / 页内中止都在其上验理由）。 */
+    const signals: AbortSignal[] = [];
+
+    beforeEach(() => {
+        signals.length = 0;
+    });
+
+    it("页内「再点=中止」：signal.reason 落 AI_STOPPED（不是裸 abort）", async () => {
+        const { ctl, ui } = makeCtl();
+        let held = (): void => undefined;
+        const mk = (id: string): Promise<{ count: number }> =>
+            id === NEW ? new Promise((resolve) => (held = () => resolve({ count: 1 }))) : Promise.resolve({ count: 1 });
+        genMock.mockImplementation((id: string, _m: string, signal?: AbortSignal) => {
+            if (signal) signals.push(signal);
+            return mk(id);
+        });
+        ctl.outline({ docId: NEW } as never); // 单篇：直接跑，占住坑位
+        await settle();
+        expect(ui.outlining).toBe(NEW);
+        ctl.outline({ docId: NEW } as never); // 再点 = 中止
+        expect(signals[0].aborted).toBe(true);
+        expect(signals[0].reason).toBe(AI_STOPPED); // 不带理由 ⇒ 记录落「失败」
+        held();
+        await settle();
+        expect(ui.outlining).toBeUndefined();
+    });
+
+    it("面板点停接线（aiStopHandle 的 stop）= 同一处理由带上的中止", async () => {
+        const { ctl } = makeCtl();
+        let abortHandle: { stop?(): void } | undefined;
+        genMock.mockImplementation(
+            (id: string, _m: string, signal?: AbortSignal, _b?: unknown, abort?: { stop?(): void }) => {
+                if (signal) signals.push(signal);
+                abortHandle = abort; // executeOutline 交给 generateKnowledgeOutline 的句柄
+                return new Promise((resolve) => setTimeout(() => resolve({ count: 1 }), 1));
+            }
+        );
+        ctl.outline({ docId: NEW } as never);
+        await settle();
+        expect(abortHandle?.stop).toBeDefined(); // 面板点停的落点（Issue #72）
+        abortHandle?.stop?.();
+        expect(signals[0].reason).toBe(AI_STOPPED); // 与页内同一处 ctrl、同一理由
+        await settle();
+    });
+
+    it("横幅停止钮（stopAiFlow）：真停到索引流、ctrl 理由落 AI_STOPPED", async () => {
+        const { runOutlineFlow } = await import("./KnowOutlineFlow");
+        const { resetAiFlow, stopAiFlow } = await import("../../ai/core/FlowRegistry");
+        resetAiFlow();
+        const ctrl = new AbortController();
+        const visited: string[] = [];
+        // 首篇执行中按横幅停止钮（面板上的实际动作）→ 逐篇循环必须退出
+        const run = await runOutlineFlow(
+            (k) => k,
+            ["a", "b", "c"],
+            ctrl,
+            async (id) => {
+                visited.push(id);
+                if (id === "a") stopAiFlow();
+                return 1;
+            }
+        );
+        expect(visited).toEqual(["a"]); // 停住整批，不是只断当前这一笔
+        expect(ctrl.signal.reason).toBe(AI_STOPPED); // 用户显式停止的理由（在途记录据此记「停止」）
+        expect(run.ok).toBe(1);
     });
 });

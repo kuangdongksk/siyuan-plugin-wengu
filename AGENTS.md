@@ -1467,10 +1467,20 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       「面板停止」与「被兄弟失败连坐断掉的其余 in-flight 调用」走的是**同一
       个** signal（编排层 `internal.abort()`），只看 aborted 会把后者也标成
       停止——用户明明失败了却看到「停止」，比不标更坏。故约定：**业务侧凡
-      用户显式停止，abort 时都带 `AI_STOPPED` 理由**（转换族 `abortFlow`、
-      `stopConvertRun`、增量 `relayStop`、`aiAbort()`/`abortAiSession` 四处
-      是全部写入点）；理由缺失（旧调用方/不支持 reason 的运行时）一律按失败
-      处置——**宁可报失败，不可把失败说成停止**。
+      用户显式停止，abort 时都带 `AI_STOPPED` 理由**（Issue #88 起重申——
+      全仓的 `abort()` 调用点只有「用户显式停止」这一类带理由，其余一律裸调：
+      本单是「**该带理由的都带上了**」而不是清单枚举）；理由缺失（旧调用方/
+      不支持 reason 的运行时）一律按失败处置——**宁可报失败，不可把失败说成
+      停止**。
+        - **带理由的用户停止路径**（新增任何「停止」入口都必须并入本组）：
+          转换族 `abortFlow`（= 页内停止与面板点停的唯一总闸）、
+          `stopConvertRun`、增量 `relayStop`、`aiAbort()`/`abortAiSession`
+          （面板停止的两种句柄形态），以及 **AI 索引流的三处**——
+          `KnowPanelCtl.outline` 的「再点=中止」、`executeOutline` 的
+          `aiStopHandle` 接线、`KnowOutlineFlow.runOutlineFlow` 的横幅停止
+          钮（三处同一个自建 `ctrl`）。⚠️ **别只改前两处漏掉横幅**：
+          索引流是 #72 登记的第三条多调用流，三处漏一处就有一条路径把用户
+          停止显示成红色「失败」。
     - **抉择入口只属转换族**（`FlowOwnership.decideEntryOf`）：保留/丢弃是
       转换条的动作，六个批流停下即停下——给它们出「前往页内转换条抉择」
       会把用户引到**另一条流**的入口。`SessionDetailView.decidable` 因此由

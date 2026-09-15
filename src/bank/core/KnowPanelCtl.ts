@@ -7,6 +7,7 @@ import { knowRootsOf, removeKnowRoot, setKnowRoots } from "../data/KnowRoots";
 import { knowTreesOf, pendingIndexIds } from "../data/KnowTrees";
 import { notifyError, notifyInfo, type NotifyMsg } from "../../ui/Notify";
 import { aiStopHandle } from "../../ai/client";
+import { AI_STOPPED } from "../../ai/data/AiSessions";
 import { runOutlineFlow, type OutlineFlowRun } from "./KnowOutlineFlow";
 import { openRelatedDialog } from "../ui/RelatedDialog";
 import { openMatchDialog } from "../ui/MatchDialog";
@@ -296,7 +297,7 @@ export class KnowPanelCtl {
         const bank = this.bank();
         if (!bank) return;
         if (this.ui.outlining === d.docId) {
-            this.outlineCtrl?.abort(); // 再点=中止（catch 复位状态）
+            this.outlineCtrl?.abort(AI_STOPPED); // 再点=中止（catch 复位状态）；理由见 isUserStopOf
             return;
         }
         if (this.ui.outlining) return; // 同时只跑一份（批量占同一坑位）
@@ -436,7 +437,7 @@ export class KnowPanelCtl {
                 this.v.aiModelId(),
                 ctrl.signal,
                 bank,
-                aiStopHandle(ctrl.signal, () => ctrl.abort())
+                aiStopHandle(ctrl.signal, () => ctrl.abort(AI_STOPPED))
             );
             return r.count;
         });
