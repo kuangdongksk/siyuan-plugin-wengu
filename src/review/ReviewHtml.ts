@@ -1,8 +1,8 @@
 import { svgIcon } from "../ui/FormHtml";
 import { mdFragmentHtml, optionRowHtml } from "../quiz/service/ProtyleHost";
 import type { WenguQuestion } from "../types";
-import type { ReviewAttempt } from "./core/ReviewUi";
-import { esc, fmt, fmtDateTime } from "../ui/shared";
+import type { ReviewAttempt, ReviewItem } from "./core/ReviewUi";
+import { displaySetName, esc, fmt, fmtDateTime, fmtDayShort, fmtFullDateTime } from "../ui/shared";
 import { weakCauseLabelKey } from "../bank/data/WeaknessStore";
 
 /**
@@ -29,10 +29,14 @@ export interface ReviewItemModel {
 /** 一个文档的错题分组（组头带「重刷本文档」）。 */
 export interface ReviewGroupModel {
     docId: string;
+    /** 组头/行头展示名（已过 displaySetName 剥「-题解」后缀，§7.e）。 */
     docTitle: string;
+    /** 源文档全名（悬停 title 用；显示层加工不损数据）。 */
+    docTitleFull: string;
     /** 未掌握数（重刷按钮的计数）。 */
     pending: number;
-    items: ReviewItemModel[];
+    /** 组内条目（ReviewCtl 聚合的完整条目——含 attempts，展开区直接消费）。 */
+    items: ReviewItem[];
 }
 
 /** 清单模型（组件 $derived 现算；文案层 t 在组件侧取）。 */
@@ -41,6 +45,10 @@ export interface ReviewListModel {
     total: number;
     pending: number;
     mastered: number;
+    /** 清单是否处于「全部文档」聚合视图（Issue #136 §5.3）：为真时行头
+     *  出题集名列（跨文档看必须知道题从哪来），按文档分组视图下组头已
+     *  表达归属 ⇒ 同名列省掉（同一列 190px 宽重复 N 遍纯属噪音）。 */
+    aggregated: boolean;
 }
 
 /**
@@ -53,7 +61,7 @@ export interface ReviewListModel {
  * 交集语义（先 qid 后 doc，纯合取，无隐含优先级）。
  */
 export function listReviewModel(
-    items: ReviewItemModel[],
+    items: ReviewItem[],
     filter: "all" | "pending" | "mastered",
     sort: "recent" | "count",
     docFilter: string,
@@ -75,7 +83,7 @@ export function listReviewModel(
             ? b.wrongCount - a.wrongCount || (b.lastWrongAt ?? 0) - (a.lastWrongAt ?? 0)
             : (b.lastWrongAt ?? 0) - (a.lastWrongAt ?? 0) || b.wrongCount - a.wrongCount
     );
-    const byDoc = new Map<string, ReviewItemModel[]>();
+    const byDoc = new Map<string, ReviewItem[]>();
     for (const it of filtered) {
         const arr = byDoc.get(it.docId) ?? [];
         arr.push(it);
@@ -83,16 +91,31 @@ export function listReviewModel(
     }
     const groups: ReviewGroupModel[] = [];
     for (const [docId, arr] of byDoc) {
+        // 展示名在此收口（§7.e）：一处加工，组头与行头同时生效；全名随行
+        // 带着供悬停 title 用，数据层原值不动。
+        const full = docTitleOf(docId);
         groups.push({
             docId,
-            docTitle: docTitleOf(docId),
+            docTitle: displaySetName(full),
+            docTitleFull: full,
             pending: arr.filter((x) => !x.mastered).length,
             items: arr,
         });
     }
     groups.sort((a, b) => (b.items[0]?.lastWrongAt ?? 0) - (a.items[0]?.lastWrongAt ?? 0));
     const pending = scoped.filter((x) => !x.mastered).length;
-    return { groups, total: scoped.length, pending, mastered: scoped.length - pending };
+    return { groups, total: scoped.length, pending, mastered: scoped.length - pending, aggregated: !docFilter };
+}
+
+/** 行头日期列文案（§5.3/§7.e）：同年 MM-DD、跨年 YYYY-MM-DD；无时间戳
+ *  （题库有错次但本页签无作答记录）出空串，列仍占位不塌陷。 */
+export function rowDateOf(ts: number | undefined, now?: number): string {
+    return ts ? fmtDayShort(ts, now) : "";
+}
+
+/** 行头日期列的悬停 title：全量时刻；无时间戳同款空串。 */
+export function rowDateTitle(ts: number | undefined): string {
+    return fmtFullDateTime(ts);
 }
 
 /** 详情模型（ReviewCtl 惰性 hydrate 后构建；html 均已 Lute 渲染）。 */

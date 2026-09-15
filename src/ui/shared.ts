@@ -131,11 +131,44 @@ export function clampMinutes(n: number): number {
     return Number.isFinite(n) && n >= 1 ? Math.min(600, Math.floor(n)) : 20;
 }
 
-/** 时间戳 → 「MM-DD HH:mm」（错题本清单/时间线用）。 */
-export function fmtDateTime(ts: number): string {
+/** 时间戳 → 展示串（错题本清单悬停/详情时间线用）：与**当前年**比较按位
+ *  分层——同年「MM-DD HH:mm」（列表滚动回看时最省位），跨年升
+ *  「YYYY-MM-DD HH:mm」（不带年会被误读成今年）。「今天/昨天」相对式不取：
+ *  相对基准随查看时刻漂移，长列表回看时反而不稳（Issue #136 §7.e）。
+ *  `now` 仅供单测注入，产品代码不传。 */
+export function fmtDateTime(ts: number, now: number = Date.now()): string {
     const d = new Date(ts);
     const p = (n: number) => String(n).padStart(2, "0");
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${fmtDayShort(ts, now)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** 时间戳 → 「MM-DD」/「YYYY-MM-DD」（错题本行头日期列）——跨年口径同
+ *  {@link fmtDateTime} 的日期段，两函数集中这里保证「一处收口」。 */
+export function fmtDayShort(ts: number, now: number = Date.now()): string {
+    const d = new Date(ts);
+    const p = (n: number) => String(n).padStart(2, "0");
+    const md = `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return d.getFullYear() === new Date(now).getFullYear() ? md : `${d.getFullYear()}-${md}`;
+}
+
+/** 题集名显示规则（Issue #136 §7.e）：**只剥结尾**的「-题解」后缀
+ *  （半角/短破折/长破折三种连字符 + 可选空白），锚定 `$`，不可跨行 ——路径中段的
+ *  连字符不伤（「03-习思想-题解」→「03-习思想」，
+ *  「考研数学强化通关330·线性代数-题解」→「考研数学强化通关330·线性代数」），
+ *  无后缀原样返回。**只在显示层加工**：悬停 title 一律保全名（用户要确认
+ *  源文档时能对上号），持久化数据里的 title 一个字不动。 */
+export function displaySetName(title: string): string {
+    return title.replace(/[-\u2013\u2014]\s*题解\s*$/u, "").trimEnd();
+}
+
+/** 时间戳 → 全量时刻「YYYY-MM-DD HH:mm」（悬停 title 用；错题本行头日期
+ *  只显示短式，全名靠悬停 —— 见 {@link fmtDayShort}）。非法/缺省值出空串
+ *  （不显示的工具时间戳没有展示意义，也别落成 1970）。 */
+export function fmtFullDateTime(ts?: number): string {
+    if (!ts) return "";
+    const d = new Date(ts);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 /** 本地日期 key（YYYY-MM-DD）：按日聚合/当日过滤共用（stats 与 companion

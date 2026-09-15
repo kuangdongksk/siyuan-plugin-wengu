@@ -8,16 +8,16 @@
     import { svgIcon } from "../../ui/FormHtml";
     import { fmt } from "../../ui/shared";
     import ReviewGroup from "./ReviewGroup.svelte";
-    import ReviewDetail from "./ReviewDetail.svelte";
     import Button from "../../ui/Button.svelte";
     import Select from "../../ui/Select.svelte";
 
     /**
-     * 错题本主区（四件套之一）：工具行（筛选/排序/概况/刷新）+ 左清单
-     * 右详情两栏。类名与旧字符串模板逐字一致（样式在全局 review.scss）。
+     * 错题本主区（四件套之一）：筛选行（状态胶囊组 + 排序下拉 + 行尾概况 +
+     * 刷新）+ 单列可展开清单（Issue #136 §5.1/§5.2，两栏 grid 退役）。
+     * 详情从常驻右栏移入行内展开区，故本组件不再渲染 ReviewDetail；
+     * 类名与旧字符串模板/样式的对应位置逐字保留（wengu-review-* 系）。
      * 控制器是模块级单例（外部域在视图外也要读写筛选/定位），attach/
-     * detach 承接视图重挂——旧实现 rerenderListOnly 只重绘清单块的
-     * 手法，现在筛选/排序变更天然走细粒度更新，下拉不重建。
+     * detach 承接视图重挂。
      */
     let { v }: { v: ReviewViewAccess } = $props();
 
@@ -31,6 +31,11 @@
     );
     // 相关题筛选徽标（Issue #44）：来自相关题弹窗「回顾」，一键取消回全部
     const qidFilterN = $derived(ui.qidFilter?.size ?? 0);
+    const FILTERS = $derived([
+        { value: "all", label: t("reviewFilterAll") },
+        { value: "pending", label: t("reviewFilterPending") },
+        { value: "mastered", label: t("reviewFilterMastered") },
+    ] as const);
 
     onMount(() => {
         reviewCtl.attach(ui, v);
@@ -40,17 +45,19 @@
 
 <div class="wengu-review">
     <div class="wengu-review-tools">
-        <Select
-            class="b3-select"
-            options={[
-                { value: "all", label: t("reviewFilterAll") },
-                { value: "pending", label: t("reviewFilterPending") },
-                { value: "mastered", label: t("reviewFilterMastered") },
-            ]}
-            title={t("reviewFilterTitle")}
-            value={ui.filter}
-            onchange={(e) => reviewCtl.setFilter(e.currentTarget.value as typeof ui.filter)}
-        />
+        <div class="wengu-review-fchips" role="group" aria-label={t("reviewFilterTitle")}>
+            {#each FILTERS as f (f.value)}
+                <button
+                    type="button"
+                    class="wengu-review-fchip{ui.filter === f.value ? ' on' : ''}"
+                    title={t("reviewFilterTitle")}
+                    aria-pressed={ui.filter === f.value}
+                    onclick={() => reviewCtl.setFilter(f.value)}
+                >
+                    {f.label}
+                </button>
+            {/each}
+        </div>
         <Select
             class="b3-select"
             options={[
@@ -61,13 +68,6 @@
             value={ui.sort}
             onchange={(e) => reviewCtl.setSort(e.currentTarget.value as typeof ui.sort)}
         />
-        <span class="wengu-muted wengu-review-summary"
-            >{fmt(t("reviewSummary"), {
-                n: String(m.total),
-                p: String(m.pending),
-                m: String(m.mastered),
-            })}</span
-        >
         {#if qidFilterN > 0}
             <span class="wengu-review-qidfilter" title={t("reviewQidFilterHint")}
                 >{fmt(t("reviewQidFilterBadge"), { n: String(qidFilterN) })}
@@ -76,24 +76,27 @@
                 ></span
             >
         {/if}
+        <span class="wengu-muted wengu-review-summary"
+            >{fmt(t("reviewSummary"), {
+                n: String(m.total),
+                p: String(m.pending),
+                m: String(m.mastered),
+            })}</span
+        >
         <Button class="wengu-side-iconbtn" title={t("quizRefresh")} onclick={() => void reviewCtl.refresh(true)}
             >{@html svgIcon("iconRefresh")}</Button
         >
     </div>
-    <div class="wengu-review-cols">
-        <div class="wengu-review-list">
-            {#if m.groups.length === 0}
-                <div class="wengu-muted wengu-review-empty">
-                    {m.total === 0 ? t("reviewEmpty") : t("reviewFilterEmpty")}
-                </div>
-            {:else}
-                {#each m.groups as g (g.docId)}
-                    <ReviewGroup group={g} />
-                {/each}
-            {/if}
-        </div>
-        <div class="wengu-review-detail">
-            <ReviewDetail />
-        </div>
+    <div class="wengu-review-list">
+        {#if m.groups.length === 0}
+            <div class="wengu-muted wengu-review-empty">
+                {m.total === 0 ? t("reviewEmpty") : t("reviewFilterEmpty")}
+            </div>
+        {:else}
+            <div class="wengu-review-detail-empty">{t("reviewPickHint")}</div>
+            {#each m.groups as g (g.docId)}
+                <ReviewGroup group={g} aggregated={m.aggregated} />
+            {/each}
+        {/if}
     </div>
 </div>
