@@ -42,6 +42,21 @@
       `service/QuizLoader.prefsSnapshotOf` ——视图侧只剩 `matSplit` 一个字段、
       `setMatCapRatio` 一个薄访问器、`persistPrefs` 三行。
       **后续再往 index.ts 加持久化字段，先照这个切法走，别硬塞。**
+    - **基准口径三条（复核二轮实测的三处静默失效，别改回去）**：
+      ① 上限 `matMaxPx` 的 `hostPx` ＝**材料区所在列**（`.wengu-main`）可用高，
+      不是材料区自身高——自指基准下放大必被 clamp 压回当前值（只能缩不能放）；
+      ② 比值分母/乘数 ＝**视口高**（0.16–0.75 与上限 75vh 同源），用列高做分母
+      时拖到上限得 ≈0.9、越界判脏 ⇒ 写盘静默丢失；
+      ③ 键盘起点 ＝**量算实值**（`capPx ?? matEl.clientHeight`），不是持久化
+      比值折算（未拖过时折算得 0，首键把材料区拍到下限）；映射收口纯函数
+      `nextMatCap`（带单测）。写侧 `clampMatRatio` 夹进区间、读侧
+      `normalizeMatRatio` 越界回默认（写=意图合法化，读=存量可信度检查）。
+    - **双击复位要「清内联 + 清库」**（`setMatCapRatio(undefined)` =
+      `MatSplitPrefs.write(undefined)` 显式清库）：只清内联的话下次装载按旧
+      比例折算回来，「复位」是假的。`write` 的 `undefined`（复位）与脏值
+      （被拒、不动已有值）是两回事。
+    - **`resize` 先重夹取再重量**（`reclampCap` → `syncMatScroll`）：窗口变矮时
+      内联 px 会越出 `min(75vh, 列高)` 上限（装载只折算一次）。
     - **内联变量写在 `.wengu-gmat` 自己身上**（`matEl.style.setProperty`）：
       `52vh` 定义在父级 `.wengu-gmat-host`（reading.scss），`var()` 由子级消费
       ——自身声明才压得过继承值。装载恢复（`restoreCap`）必须在**首帧量算前**
@@ -49,8 +64,11 @@
     - **拖动不触发 resize** ⇒ `pointerup` 的收尾里**必须手动补一次
       `syncMatScroll()`**（§7.c 明写；漏了渐隐会滞留在拖动前的高度）。同函数
       还摘 body 全局类（`.wengu-splitting` = 全局 row-resize + 禁选）。
-    - **手柄只在 `cap`（真的溢出）时渲染**（`{#if cap}`）：短材料没有可调的
-      高度，出手柄就是骗人；纯独立题卷结构上没这一层 ⇒ 零 DOM 变化。
+    - **手柄闸＝`!collapsed && (cap || capPx !== null)`**：短材料没可调高度，
+      出手柄就是骗人；独立题卷结构上没这一层 ⇒ 零 DOM 变化。`capPx !== null`
+      这条**不能省**——拖大后内容不再溢出 ⇒ `cap` 翻 0，只认 `cap` 的话手柄
+      当场卸载、用户再也缩不回来（棘轮死锁，复核实测）；`data-scroll-cap`
+      同闸（否则内联 px 没处生效）。
     - **材料区滚动条已改成「不显示」**（验收 5；`scrollbar-width:none` +
       `::-webkit-scrollbar{width:0}`，两条都要——只写一条在套壳内核里会露出来）。
       原先「hover 才显形」的细条口径作废。

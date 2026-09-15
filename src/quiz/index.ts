@@ -490,8 +490,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /* ── StatsViewAccess（openStatsPanelFor 消费）；ConvertViewAccess 在下 ── */
     readonly docsOf = (): WenguDoc[] => this.docs;
     readonly sideTreeOpenOf = (): string[] => this.sideTreeOpen;
-    /** AnswerHost.setMatCapRatio 实现体（守卫同 MatSplitPrefs.write）。 */
-    readonly setMatCapRatio = (ratio: number): void => void (this.matSplit.write(ratio) && this.persistPrefs());
+    /** AnswerHost.setMatCapRatio 实现体（undefined=复位清库，守卫同 write）。 */
+    readonly setMatCapRatio = (r: number | undefined): void => void (this.matSplit.write(r) && this.persistPrefs());
     readonly markReopenStats = (tab: "overview" | "doc") => (this.reopenStatsTab = tab);
     readonly switchDocSelect = (id: string): void => this.selectDoc(id);
     startPanelModel = () => startPanelModelFor(this);

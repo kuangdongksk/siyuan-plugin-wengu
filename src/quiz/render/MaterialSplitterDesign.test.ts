@@ -75,6 +75,7 @@ describe("§7.c 手柄结构与三态（验收 1）", () => {
         expect(drag).toContain("background: var(--b3-theme-primary)");
         expect(drag).not.toContain("color-mix");
         const global = bodyOf(ALL, "body.wengu-splitting {");
+        expect(global.length).toBeGreaterThan(0);
         expect(global).toContain("cursor: row-resize");
         expect(global).toContain("user-select: none");
     });
@@ -110,20 +111,34 @@ describe("§7.c 交互接线（验收 2）", () => {
         expect(tail).toContain("syncMatScroll()");
     });
 
-    it("双击复位 = 清内联变量回 52vh 默认", () => {
+    /** 独立文件中「双击复位」的正文（复位必须同时清内联与存储）。 */
+    const resetBody = (): string => {
+        const fn = GROUP.slice(GROUP.indexOf("const resetCap"));
+        return fn.slice(0, fn.indexOf("};"));
+    };
+
+    it("双击复位 = 清内联变量 + **清库**（只清内联的话装载会把旧比例折算回来）", () => {
         expect(GROUP).toContain("ondblclick={onSplitDbl}");
-        expect(GROUP).toContain('matEl?.style.removeProperty("--wengu-mat-cap")');
+        expect(resetBody()).toContain('matEl?.style.removeProperty("--wengu-mat-cap")');
+        expect(resetBody()).toContain("host.setMatCapRatio?.(undefined)");
     });
 
-    it("键盘 ArrowUp/Down ±24px、Home/End 到 min/max，且只走同一写值出口", () => {
+    it("键盘映射走纯函数 nextMatCap（±24px / min / max 在 MaterialSplitter.test.ts 锁）", () => {
         expect(GROUP).toContain("onkeydown={onSplitKey}");
-        expect(GROUP).toMatch(/ArrowUp"\)\s*next = from - MAT_STEP_PX/);
-        expect(GROUP).toMatch(/ArrowDown"\)\s*next = from \+ MAT_STEP_PX/);
-        expect(GROUP).toMatch(/Home"\)\s*next = 0/);
-        expect(GROUP).toMatch(/End"\)\s*next = max/);
-        expect(GROUP).toContain("MAT_STEP_PX");
+        expect(GROUP).toContain("nextMatCap(e.key, from, colHeight(), window.innerHeight)");
+        // 起点是量算实值：未拖过时不能按持久化比值折算起步（折算得 0 ⇒ 首键拍到下限）
+        expect(GROUP).toContain("capPx ?? matEl?.clientHeight ?? MAT_MIN_PX");
         // 键盘要拦默认行为（否则方向键把面板滚走）
         expect(GROUP).toContain("e.preventDefault()");
+    });
+
+    it("上限与比值的基准是**列**（.wengu-main），不是材料区自身高（自指=只能缩不能放）", () => {
+        expect(GROUP).toContain('closest<HTMLElement>(".wengu-main")');
+        expect(GROUP).toContain("const colHeight = (): number => colEl?.clientHeight || window.innerHeight");
+        // 三路都过 colHeight（applyCap 的量算 / 落库分母）
+        expect(GROUP).toContain("ratioOf(capPx, window.innerHeight)");
+        expect(GROUP).toMatch(/applyCap\(dragFrom\.h \+ \(e\.clientY - dragFrom\.y\), dragFrom\.col\)/);
+        expect(GROUP).toContain("col: colHeight()");
     });
 
     it("内联变量写在**材料区自身**（.wengu-gmat）：自身声明压过 host 继承的 52vh", () => {
@@ -144,9 +159,14 @@ describe("§7.c 交互接线（验收 2）", () => {
 });
 
 describe("§7.c 显示闸与持久化（验收 4/5）", () => {
-    it("手柄只在材料区真的溢出（cap）时渲染——短材料/独立题零 DOM 变化", () => {
-        expect(GROUP).toMatch(/\{#if cap\}[\s\S]*wengu-splitter[\s\S]*\{\/if\}/);
-        expect(GROUP).not.toContain('data-scroll-cap={cap || undefined}>\n        <div class="wengu-splitter"');
+    it("手柄闸：溢出或有用户高度才渲染（短材料/独立题默认零 DOM 变化）", () => {
+        expect(GROUP).toMatch(/\{#if !collapsed && \(cap \|\| capPx !== null\)\}[\s\S]*wengu-splitter[\s\S]*\{\/if\}/);
+        // 折叠态材料区 display:none ⇒ 手柄一并收起（不留孤立手柄）
+        expect(GROUP).toContain("{#if !collapsed &&");
+        // 限高属性同闸：拖大后 cap 翻 0 也必须留着（否则内联 px 没处生效 +
+        // 手柄卸载 ⇒ 棘轮死锁，用户缩不回来）
+        // 表达式以 prettier 稳定形态为准（它会去掉冗余括号）
+        expect(GROUP).toContain("data-scroll-cap={cap || capPx !== null || undefined}");
     });
 
     it("装载期恢复比例：undefined（从未拖过）⇒ 一个内联变量都不写", () => {
@@ -154,12 +174,19 @@ describe("§7.c 显示闸与持久化（验收 4/5）", () => {
         const body = fn.slice(0, fn.indexOf("};"));
         expect(body).toContain("normalizeMatRatio(m.matCapRatio)");
         expect(body).toContain("if (ratio === undefined");
-        expect(body).toContain("pxOfRatio(");
+        // 折算乘数与落库分母同源（视口高），越界回默认（不写内联）
+        expect(body).toContain("ratio * window.innerHeight");
     });
 
     it("落库走 host.setMatCapRatio（存比例不存像素）", () => {
         expect(GROUP).toContain("host.setMatCapRatio?.(ratio)");
-        expect(GROUP).toContain("ratioOf(capPx, hostHeight())");
+        expect(GROUP).toContain("ratioOf(capPx, window.innerHeight)");
+    });
+
+    it("resize 先重夹取再重量（窗口变矮后内联 px 不越 75vh 上限）", () => {
+        expect(GROUP).toContain("reclampCap");
+        expect(GROUP).toContain('addEventListener("resize", onViewportResize)');
+        expect(GROUP).toContain('removeEventListener("resize", onViewportResize)');
     });
 
     it("文案走 i18n（禁字面中文）", () => {
