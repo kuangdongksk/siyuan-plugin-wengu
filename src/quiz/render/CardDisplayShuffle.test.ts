@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { QuestionType, type WenguQuestion } from "../../types";
+import { LETTERS, QuestionType, toggleLetters, type WenguQuestion } from "../../types";
 import { isShufflable, shuffleForDisplay, shuffleListForDisplay } from "./CardDisplayShuffle";
 import { gradeQuestion, optionIsRight } from "../service/QuestionGrading";
 
@@ -115,7 +115,7 @@ describe("shuffleListForDisplay · 卷内顺序不变", () => {
             q({ id: "b", type: QuestionType.Judge, answer: "√" }),
             q({ id: "c", optionMd: ["丙", "丁"], answer: "B" }),
         ];
-        const out = shuffleListForDisplay(list, rng([0.9, 0.1]));
+        const out = shuffleListForDisplay(list, { rand: rng([0.9, 0.1]) });
         expect(out.map((x) => x.id)).toEqual(["a", "b", "c"]);
         expect(out[1]).toBe(list[1]); // 不可洗的题零改动
         expect(list[0].optionMd).toEqual(["甲", "乙"]); // 原件未被污染
@@ -135,5 +135,81 @@ describe("isShufflable", () => {
                 })
             )
         ).toBe(true);
+    });
+});
+
+describe("判分口径：答案侧与 toggleLetters 对齐（Issue #131 评审修正）", () => {
+    /** 用户点选走真实路径（升序串），答案侧也必须升序——否则多选必错判。 */
+    const click = (letters: string[], single: boolean): string =>
+        letters.reduce((acc, L) => toggleLetters(acc, L, single), "");
+
+    it("multiple：任意排列下「按点选顺序点对正确项」都判对", () => {
+        const base = q({ type: QuestionType.Multiple, optionMd: ["甲", "乙", "丙", "丁"], answer: "AD" });
+        for (let seed = 0; seed < 200; seed++) {
+            const x = shuffleForDisplay(base, rng([(seed % 7) / 7, (seed % 5) / 5, (seed % 3) / 3]));
+            const want = [...(x.answer ?? "")]; // 正确项字母（已升序）
+            // 用户按展示序点选：先点第 2 个再点第 1 个（乱序点选）
+            const clicked = click([...want].reverse(), false);
+            expect(gradeQuestion(x, clicked)).toBe(true);
+            // 少点 / 多点都判错（集合规模敏感）
+            expect(gradeQuestion(x, want[0]!)).toBe(false);
+        }
+    });
+
+    it("answer 恒为升序（与 toggleLetters 产物同形）", () => {
+        const base = q({ type: QuestionType.Multiple, optionMd: ["甲", "乙", "丙", "丁"], answer: "DA" });
+        for (let seed = 0; seed < 100; seed++) {
+            const x = shuffleForDisplay(base, rng([(seed % 7) / 7, (seed % 5) / 5]));
+            const ans = x.answer ?? "";
+            expect(ans).toBe([...ans].sort().join(""));
+        }
+    });
+
+    it("single：内容答案（非纯字母）不被 order/大小写动过", () => {
+        const base = q({ optionMd: ["$e$", "$e^2$", "$\\ln 2$"], answer: "$e^2$" });
+        const x = shuffleForDisplay(base, rng([0.9, 0.1]));
+        expect(x.answer).toBe("$e^2$");
+        // 内容答案按文本比对：所选项内容 = 答案内容 ⇒ 判对
+        const at = (x.optionMd ?? []).findIndex((t) => t === "$e^2$");
+        expect(gradeQuestion(x, LETTERS[at]!)).toBe(true);
+    });
+});
+
+describe("排列定种子：同轮恒定、换轮换序（Issue #131 评审修正）", () => {
+    const list = [q({ id: "a", optionMd: ["甲", "乙", "丙", "丁"], answer: "B" })];
+
+    it("同 (scope, id) 两次调用逐字相同（重渲染不跳序）", () => {
+        const first = shuffleListForDisplay(list, { scope: "s1" });
+        const again = shuffleListForDisplay(list, { scope: "s1" });
+        expect(again[0].optionMd).toEqual(first[0].optionMd);
+        expect(again[0].answer).toBe(first[0].answer);
+    });
+
+    it("恢复的旧字母仍指向当初那项（判分/描色自洽）", () => {
+        const first = shuffleListForDisplay(list, { scope: "s1" })[0];
+        const submitted = toggleLetters("", first.answer ?? "", true); // 用户点选正确项
+        const again = shuffleListForDisplay(list, { scope: "s1" })[0]; // 重渲染
+        expect(gradeQuestion(again, submitted)).toBe(true);
+        expect(optionIsRight(again, LETTERS.indexOf(first.answer ?? ""))).toBe(true);
+    });
+
+    it("换轮（新 scope）换排列，且换后答案仍指向同一选项文本", () => {
+        const picked = shuffleListForDisplay(list, { scope: "s1" })[0];
+        // 以「洗后的那一份」为基准：答案字母指到哪一项，文本就是哪一项
+        const wantText = picked.optionMd?.[LETTERS.indexOf((picked.answer ?? "").toUpperCase())];
+        const orders = new Set<string>();
+        for (const scope of ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"]) {
+            const x = shuffleListForDisplay(list, { scope })[0];
+            orders.add((x.optionMd ?? []).join("|"));
+            // 无论怎么洗，答案字母都指向同一份选项文本
+            expect(x.optionMd?.[LETTERS.indexOf((x.answer ?? "").toUpperCase())]).toBe(wantText);
+        }
+        expect(orders.size).toBeGreaterThan(1); // 换轮确实换序（消剧透）
+    });
+
+    it("恒等排列被重掷（进卡即换序，不出现「像没洗」）", () => {
+        // rng 恒返 0 ⇒ Fisher-Yates 得恒等排列；实现须重掷到非恒等
+        const x = shuffleForDisplay(q({ optionMd: ["甲", "乙"], answer: "A" }), () => 0);
+        expect(x.optionMd).not.toEqual(["甲", "乙"]);
     });
 });

@@ -544,25 +544,38 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
   原文位置、解析不含任何选项字母，见 convert 域）。
     - 落点 `render/CardDisplayShuffle.ts`（纯函数），两个调用点：
         1. `QuizShell.renderQuizShellFor` 里、`buildDrillUnits` **之前**：
-           `pv || v.progressive.active ? v.list : shuffleListForDisplay(v.list)`。
+           `pv || v.progressive.active ? v.list : shuffleListForDisplay(v.list, { scope: 会话 id })`。
            **预览模式与渐进呈现不洗**（预览要看死形态对照原文；渐进是生成
            产物直出、重渲染会跳序）；
-        2. `mobile/core/MobileDrill.start()`（含「继续上次」与
-           `retryWrong()`）——**移动端要洗**（20260915 审查定案，原稿「移动端
+        2. `mobile/core/MobileDrill.start()`（含「继续上次」）与
+           `retryWrong()`——**移动端要洗**（20260915 审查定案，原稿「移动端
            不在范围」作废）：移动端显示死形态时，新造题按协议「正确项写最前」
            恒为首位＝剧透。洗的同样是副本，`ui.fullList` 原件不动。
+    - ⚠️ **排列必须按 `(会话 id, 题 id)` 定种子**（20260915 评审修正）：
+      会话/题库只记**字母**（`submitted`/`lastAnswer`），排列表达式只在卡里。
+      若每次重渲染都 `Math.random()` 重掷（拉侧栏、改设置、收卷重渲、重开
+      页签、移动端重进），恢复出来的字母就指到**别的选项**上——表现为「说
+      答对却标红」「高亮错项」。故 `shuffleListForDisplay(list, { scope })`
+      内部按 FNV-1a+mulberry32 自定种子：同轮恒定（恢复自洽）、换轮换会话 id
+      即换序（消剧透仍成立）、会话 id 落盘（HistoryStore）⇒ 重开页签/移动端
+      重进也能复原同一排列（不靠内存缓存）。**`scope` 必须传会话 id**——
+      缺省 "" 是「尚未开轮」，只按题 id 定序 = 跨轮同序，消剧透失效。
+    - ⚠️ **恒等排列要重掷**：n=2 时恒等概率 1/2、n=3 时 1/6，原样呈现就是
+      「像没洗」；实现重掷 4 次 + 兜底首两位对调（确定性，不靠概率撞）。
+    - ⚠️ **答案侧必须升序**（20260915 评审，多选题必错级）：用户点选经
+      `types.toggleLetters` 恒得升序串，`gradeQuestion` 对纯字母答案是整串
+      相等比较 ⇒ 洗后答案若保持原顺序（实录 `answer="DC"`）则「点对也判错」。
+      `remapAnswer` 映射后 `.sort()`；非纯字母（内容答案）原样返回，
+      它按选项**文本**比对、与位置无关。
     - 洗的对象：顶层选项组（single/multiple，`q.answer` 字母随同一映射重写）、
       steps **每步**选项组（各步独立洗，`step.answer` 同步重写）；位置敏感
       措辞组跳过（`POSITION_SENSITIVE` 从 `convert/.../OptionShuffle` 复用，
       单一口径）。**cloze/match 不洗**：逐空答案在 `slot-k-answer`，match 的
       候选池与槽位顺序共用同一条 `q.answer` 字母串，洗池子=洗答案、跨空一致
       性无从保证。
-    - 洗的是**副本**（`{...q, optionMd}`）：`v.list` 原件不动，卷内顺序/题号/
-      材料链/会话记账全按原 id 走。⚠️ 副本带来的连带口径见 convert 域末尾
-      「卡 → 卷内下标一律按 id 反查」。
+    - 洗的是**副本**（`{...q, optionMd}`）：`v.list` / `ui.fullList` 原件不动，
+      卷内顺序/题号/材料链/会话记账全按原 id 走。⚠️ 副本带来的连带口径见
+      convert 域末尾「卡 → 卷内下标一律按 id 反查」。
     - 判分口径零改动：`gradeQuestion` 按字母比、`optionIsRight` 按 idx 找答案
       ——展示序变了、字母与选项的对应关系随之变，两者仍自洽（单测锁
-      「洗后答案字母指向同一选项文本」）。
-    - 移动端（`src/mobile/`）**口径与桌面同**：`MobileDrill.start()` 洗副本
-      （见上）。判据与其他面板一致——库/源文档是死形态，凡「做题」展示都必须
-      现洗；「预览」才看死形态。
+      「洗后答案字母指向同一选项文本」，另锁「同轮两次洗逐字相同」）。

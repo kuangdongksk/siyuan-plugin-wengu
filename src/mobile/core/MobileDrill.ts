@@ -230,16 +230,20 @@ export class MobileDrill {
             this.ui.setup.reveal = last.revealMode === "after" ? "after" : "instant";
             this.ui.setup.timing = last.mode;
             const ids = new Set(last.scopeIds ?? []);
+            // scope 传**该轮会话 id**（Issue #131 评审）：排列必须同轮恒定，
+            // 否则恢复出来的字母指到别的选项上（口径见 CardDisplayShuffle 文件头）
             this.ui.list = shuffleListForDisplay(
-                ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList]
+                ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList],
+                { scope: last.id }
             );
             this.ui.session = last;
         } else {
             const src =
                 this.ui.setup.count > 0 ? this.ui.fullList.slice(0, this.ui.setup.count) : [...this.ui.fullList];
-            this.ui.list = shuffleListForDisplay(src);
+            const sessionId = newSessionId(); // 会话 id 先铸：它同时是洗牌种子
+            this.ui.list = shuffleListForDisplay(src, { scope: sessionId });
             this.ui.session = {
-                id: newSessionId(),
+                id: sessionId,
                 docId,
                 startedAt: Date.now(),
                 mode: this.ui.setup.timing,
@@ -395,11 +399,13 @@ export class MobileDrill {
         const wrong = new Set(s.results.filter((r) => !r.ok).map((r) => baseQid(r.qid)));
         if (wrong.size === 0) return;
         const subset = this.ui.list.filter((q) => wrong.has(q.id));
-        // 错题再练是**新一轮**：同样现洗（洗的是新副本，作业见下）
-        this.ui.list = shuffleListForDisplay(subset);
+        // 错题再练是**新一轮**：同样现洗（洗的是新副本，作业见下）；scope
+        // 传新会话 id ⇒ 换轮换排列（消剧透），同轮重进仍恒定
+        const sessionId = newSessionId();
+        this.ui.list = shuffleListForDisplay(subset, { scope: sessionId });
         this.ui.setup.reveal = "instant";
         this.ui.session = {
-            id: newSessionId(),
+            id: sessionId,
             docId: this.ui.home.activeSetId,
             startedAt: Date.now(),
             mode: this.ui.setup.timing,

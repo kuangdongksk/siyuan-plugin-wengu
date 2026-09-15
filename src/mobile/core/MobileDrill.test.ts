@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initialMobileUi, MobileDrill, type MobileUi } from "./MobileDrill";
+import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
 import { QuestionType } from "../../types";
 import type { WenguQuestion } from "../../types";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
@@ -166,6 +167,26 @@ describe("展示层选项洗牌（Issue #131 P1：移动端要洗）", () => {
         await drill.submit();
         expect(drill.ui.cards[0].ok).toBe(true);
         expect(calls[0]).toMatchObject({ qid: "a", ok: true });
+    });
+
+    it("重进同一轮：排列恒定（恢复的字母仍指同一项）", () => {
+        const qs = [four("a"), four("b"), four("c")];
+        const { drill, ui } = armed({ questions: qs });
+        const firstOrder = drill.ui.list.map((x) => ({ id: x.id, opts: [...x.optionMd!], ans: x.answer }));
+        const sid = drill.ui.session!.id;
+        // 模拟「重进同一轮」：同一份 fullList + 同一会话 id 再洗一次
+        drill.ui.list = shuffleListForDisplay([...ui.fullList], { scope: sid });
+        expect(drill.ui.list.map((x) => ({ id: x.id, opts: [...x.optionMd!], ans: x.answer }))).toEqual(firstOrder);
+    });
+
+    it("换一轮：排列换（消剧透跨轮成立）", () => {
+        const qs = [four("a"), four("b"), four("c"), four("d")];
+        const orders = new Set<string>();
+        for (let i = 0; i < 8; i++) {
+            const { drill } = armed({ questions: qs.map((x) => ({ ...x })) });
+            orders.add(drill.ui.list.map((x) => `${x.id}:${x.optionMd!.join("")}`).join("|"));
+        }
+        expect(orders.size).toBeGreaterThan(1);
     });
 
     it("id 与卷内顺序不变（题号栏/会话快照按 id 走）", () => {

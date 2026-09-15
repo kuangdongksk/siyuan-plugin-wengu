@@ -26,7 +26,7 @@ describe("qIndexById · 洗牌后仍能定位", () => {
     it("洗过的副本卡按 id 落在原下标（身份比对会落空）", () => {
         const list = [q("a"), q("b"), q("c")];
         const h = host(list);
-        const cards = shuffleListForDisplay(list, () => 0.1);
+        const cards = shuffleListForDisplay(list, { rand: () => 0.1 });
         expect(cards[1]).not.toBe(list[1]); // 已是副本
         expect(list.indexOf(cards[1])).toBe(-1); // 身份比对落空（旧实现的坑）
         expect(qIndexById(h, cards[1].id)).toBe(1); // id 反查才是对的
