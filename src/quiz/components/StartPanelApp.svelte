@@ -204,7 +204,10 @@
    ⚠️ 迁入后 scoped：凡类名由**子组件渲染**（FormRow/Select/Button 内的
    `wengu-formrow` / `fn__flex-1` / `wengu-start-ctl` / `wengu-start-act`）或
    经 `{@html}` 注入（卡头图标的 `wengu-start-cardicon`）的，一律用
-   `:global()` 局部包裹——否则 scoped 哈希化后必然失配（选择器整条被删）。 */
+   `:global()` 局部包裹——否则 scoped 哈希化后必然失配（选择器整条被删）。
+   ⚠️ `:global()` 只许「套壳」：**选择器段序/段数/`>` 与迁移前 `startpanel.scss`
+   逐字一致**，不许借机补/删中间段（改了特异性照样编译通过、零 warning，
+   只在换主题时露馅）。`StartPanelStyle.test.ts` 的选择器名录闸钉死此条。 */
     .wengu-start {
         display: flex;
         flex-direction: column;
@@ -238,8 +241,10 @@
     }
 
     /* 图标类名经 {@html svgIcon(...)} 注入（TS 侧拼串），scoped 会失配 →
-   `:global()` 保其原样；哈希挂在同复合选择器的自有类 .wengu-start-cardhead 上 */
-    .wengu-start .wengu-start-cardhead > :global(.wengu-start-cardicon) {
+   `:global()` 只包住注入那一段，保留 `.wengu-start` 自有类做 scoped 锚点。
+   ⚠️ 选择器形态与迁移前 `startpanel.scss` 逐字一致（`.wengu-start .wengu-start-cardicon`），
+   不得补 `>` / `.wengu-start-cardhead` 等中间段——改形态即改特异性与作用面。 */
+    .wengu-start :global(.wengu-start-cardicon) {
         flex: none;
         /* svgIcon 自带 14px 属性，卡头图标按设计稿略放大一档 */
         width: 16px;
@@ -275,7 +280,7 @@
         font-weight: 600;
     }
 
-    .wengu-start :global(.wengu-formrow) :global(.b3-label__text) {
+    .wengu-start .wengu-start-card :global(.wengu-formrow) :global(.b3-label__text) {
         margin-top: 2px;
         font-size: 12px;
         font-weight: 400;

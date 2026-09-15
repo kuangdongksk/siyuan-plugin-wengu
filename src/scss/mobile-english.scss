@@ -1,6 +1,6 @@
 /* 英语题型移动端触屏适配（整改 F1 #127 自 english.scss 拆出，
    与四片 `mobile-*.scss` 同口径）。规则内容零改动；`index.scss` 注册在
-   其余 english 片之后（内含对前片类的覆写，靠后即安全）。
+   其余 english 片之后（内含对前片类的覆写，靠后即安全）。 */
 
 /* ── 移动端触屏适配（Issue #10）：只挂 `body.wengu-mobile`（挂载层
    ui/shared.markMobileUi 按 window.siyuan.mobile 打的标记类；桌面无此标记

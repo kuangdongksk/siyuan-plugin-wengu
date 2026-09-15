@@ -78,6 +78,36 @@ describe("StartPanelApp.svelte <style> · 开刷面板规格（Issue #100 / #127
         return hit;
     };
 
+    it("选择器名录与迁移前逐字一致（「类名逐字保留」的机器闸）", () => {
+        // 迁片只允许换「落点」+ 加 `:global()` 包裹，**不许改选择器形态**：
+        // 补一个 `>`、插一段 `.wengu-start-cardhead`、砍一段 `.wengu-start-card`
+        // 都不改类名，却会改特异性与作用面（深浅主题下表现不同），光靠
+        // 「类名还在」肉眼看不出来。故钉死整份名录（剥 `:global()` 后比对）。
+        // 名录 ＝ 迁移前 `src/scss/startpanel.scss` 的 12 条选择器，逐字。
+        const roster = deGlobal(sass.compileString(styleBody(SVELTE_SRC)).css)
+            .replace(/@charset[^;]+;/g, "")
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .match(/[^{}]+\{/g)!
+            .map((r) => r.slice(0, -1).trim().replace(/\s+/g, " "))
+            .filter((r) => r.includes("wengu"));
+        expect(roster.sort()).toEqual(
+            [
+                ".b3-label.wengu-formrow > .wengu-start-ctl",
+                ".wengu-start",
+                ".wengu-start .wengu-start-act",
+                ".wengu-start .wengu-start-card",
+                ".wengu-start .wengu-start-card .wengu-formrow",
+                ".wengu-start .wengu-start-card .wengu-formrow .b3-label__text",
+                ".wengu-start .wengu-start-card .wengu-formrow > .fn__flex-1",
+                ".wengu-start .wengu-start-card .wengu-formrow:last-of-type",
+                ".wengu-start .wengu-start-cardicon",
+                ".wengu-start .wengu-start-cardhead",
+                ".wengu-start .wengu-start-ctl",
+                ".wengu-start-actions",
+            ].sort()
+        );
+    });
+
     it("迁入组件后 scoped 未静默删条（零 unused 选择器）", () => {
         // `.wengu-start*` 的每一条规则都必须命中——子组件产物/`{@html}` 注入的
         // 类名若忘了 `:global()`，scoped 会把整条规则删掉并在此报警。

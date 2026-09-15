@@ -268,8 +268,9 @@ border-color: var(--b3-theme-primary); /* 与主操作实底明确区分 */
 
 **AI 会话面板密集刻度例外**：该面板的 `1/2/5/9px` 一排微间距是设计稿
 （`convert-stop-redesign.html`）要求，**单列「面板密集区特例」**，不强行同档。
-⚠️ 14px 有**两个**落点（`aiflow.scss` 的面板刻度、`startpanel.scss` 的设计稿
-例外），**两者都要在 §9 具名**，否则读规范时分不清哪个是例外。
+⚠️ 14px 有**两个**落点（`aiflow.scss` 的面板刻度、`StartPanelApp.svelte`
+`<style>` 的设计稿例外，原 `startpanel.scss` 已删——见 §9 E1），**两者都要在 §9
+具名**，否则读规范时分不清哪个是例外。
 
 **❌ 违反，待修（后续批次 F）**：`gap` 内非 4 倍数（`3/5/7/9/11/18px`）共
 **20 处**（`margin` / `padding` 内另有 39 处），逐处归位或进例外表。
@@ -713,10 +714,10 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 `AnnoFlow` / `KnowPicker` / `ModelPicker` / `WorkspaceShell` / `MdRender` /
 `FormHtml` / `SettingsDialog` 等拼 `innerHTML` 的 `.ts`。
 
-### 13.2 迁入组件 `<style>` 的三条硬约束
+### 13.2 迁入组件 `<style>` 的四条硬约束
 
-1. **类名逐字保留**（DOM 零变化）——`<style>` 里的选择器与迁移前 scss **逐字一致**，
-   只加 `:global()` 包裹（见下条）。
+1. **类名逐字保留**（DOM 零变化）——`<style>` 里的类名与迁移前 scss 逐字一致，
+   只加 `:global()` 包裹（**选择器形态**另有第 3 条）。
 2. **凡类名由子组件渲染 / `{@html}` 注入 / TS 外部写入的选择器，一律 `:global()`
    局部包裹**。Svelte `scoped` 只重写**模板里的静态类名**；下列形态不加 `:global()`
    会导致**整条规则被静默删掉**（`svelte-check` 的 `css_unused_selector` 会预警，
@@ -727,7 +728,11 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
     - TS 侧 `classList.add/remove`、`className = "wengu-…"` 写入的类。
       **正确写法**：`:global()` 只包住会失配的那一段，保留自有静态类做 scoped 锚点，
       例如 `.wengu-start .wengu-start-card :global(.wengu-formrow) { … }`。
-3. **构建通道**：组件 `<style>` 走 svelte-loader 的 `css:"injected"`
+3. **选择器形态逐字保留**（不只是类名）：段序、段数、`>` 与迁移前 scss **逐字一致**，
+   只允许把**会失配的那一段**套 `:global()`。**禁止为了让 scoped 命中而补/删中间段**
+   ——那会静默改特异性与作用面（本案 `cardicon` / `b3-label__text` 两条实测踩中，
+   修法与机器闸见 §13.4 坑 4）。
+4. **构建通道**：组件 `<style>` 走 svelte-loader 的 `css:"injected"`
    （**运行时注入** `<style id="svelte-xxxx">` 到 `head`），与全局 scss 的
    `MiniCssExtractPlugin` → `dist/index.css` **两条通道并存**。
    ∴ `pnpm build` 后**不要**指望在 `dist/index.css` 里 grep 到组件样式；
@@ -754,7 +759,7 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 
 ### 13.4 试点结论（Issue #127，`startpanel.scss` → `StartPanelApp.svelte`）
 
-**试点片选**：#110 审计判定最干净的一片（唯一消费者、零 TS 拼串触达、107 行）。
+**试点片选**：#110 审计判定最干净的一片（唯一消费者、零 TS 拼串触达，106 行）。
 
 **构建路径可用性（已验证）**：
 
@@ -765,21 +770,32 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 - 实测（`pnpm build` + 产物核对）：`dist/index.js` 内含
   `class="wengu-start svelte-xxxx"` 与完整 CSS 文本；`dist/index.css`
   **不再含** `wengu-start` 规则（符合「两通道并存」预期，非丢失）。
-- 14 条 scss 规则 → 编译产物 14 条**一条不少**（sass 与 Svelte 双编译核对）。
+- **12 条选择器 → 编译产物 12 条一条不少**（sass 与 Svelte 双编译核对）。
 
 **遇到的坑（写进 §13.2.2，后来者直接照抄修法）**：
 
-1. **`:global()` 是必需品，不是可选项**。`startpanel.scss` 的 14 条规则里有 **6 条**
-   命中「子组件渲染 / `{@html}` 注入」——涉及类名 `wengu-formrow` / `fn__flex-1` /
-   `b3-label__text` / `wengu-start-ctl` / `wengu-start-act` / `wengu-start-cardicon`
-   ⇒ 不加 `:global()` 就会被 scoped 整条删除。**迁片前先跑
-   `grep -c 'class="[^"]*{'` 与「传给子组件的 `class=`」清单定量。**
+1. **`:global()` 是必需品，不是可选项**。`startpanel.scss` 的 12 条选择器里有 **8 条**
+   命中「子组件渲染 / `{@html}` 注入」（涉 **6 个类名**：`wengu-formrow` /
+   `fn__flex-1` / `b3-label__text` / `wengu-start-ctl` / `wengu-start-act` /
+   `wengu-start-cardicon`；余 4 条 `wengu-start` / `-card` / `-cardhead` /
+   `-actions` 是自有静态类，不需包裹）⇒ 不加 `:global()` 就会被 scoped 整条删除。
+   **迁片前先跑 `grep -c 'class="[^"]*{'`（动态量）与「传给子组件的 `class=`」
+   清单（`:global()` 必需量）分别定量。**
 2. **`svelte-check` 的 `css_unused_selector` 是唯一静态安全网，但被门禁吞掉**
    （`check:svelte --threshold error`）。∴ 试点把「Svelte 真编译零 unused 选择器」
    写进了 `StartPanelStyle.test.ts`——**每迁一片都要带这条闸**，否则失配只在真机画面暴露。
 3. **规格断言不必丢**：sass 把 `:global(...)` 原样透传，故断言前做一次
    `:global(` 剥壳归一化即可**逐字沿用原规格断言**（本案 8 条规格断言一条未减，
-   另加 2 条迁移闸）。
+   另加 3 条迁移闸）。
+4. **「类名逐字保留」不等于「选择器逐字保留」——补中间段是隐形回归**（本案实测踩中）。
+   迁片时为了让 scoped 命中，容易顺手把 `.wengu-start .wengu-start-cardicon` 写成
+   `.wengu-start .wengu-start-cardhead > :global(.wengu-start-cardicon)`、把
+   `.a .card .row .text` 砍成 `.a .row .text`：**类名一个没少、没多**，故
+   「零 unused 选择器」闸与肉眼都放行，但**特异性与作用面已变**（0,2,0→0,3,0、
+   0,4,0→0,3,0），换主题 / 加层级即露馅。**修法＝选择器形态（段序、段数、`>`）
+   与迁移前逐字一致，只允许在失配的那一段套 `:global()`。**
+   ∴ 试点把**整份选择器名录**钉进 `StartPanelStyle.test.ts`（剥 `:global()` 后
+   与迁移前名录逐字比对）——**每迁一片都要抄这条闸**，见 §13.2.4。
 
 **后续批次建议**（对照 #110 纯度排序表，**同域串行、异域可并行**）：
 

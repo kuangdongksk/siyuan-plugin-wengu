@@ -89,6 +89,13 @@ const p = $derived(ui.progress!);
            **选择器**侧、运行时字符串原样输出，能命中。**模板里静态写死的类名也安全。**
            ∴ 迁片前先跑 `grep -c 'class="[^"]*{'`（动态量）与「传给子组件的 class=」清单
            （`:global()` 必需量）分别定量。权威口径见 `design-spec.md` §13.2。
+    - ⚠️ **第三个坑：`:global()` 只许「套壳」，不许借机改形态**（同单实测）。
+      为了让 scoped 命中，容易把 `.a .card .icon` 顺手写成
+      `.a .cardhead > :global(.icon)`、或把 `.a .card .row .text` 砍成 `.a .row .text`
+      ——**类名一个没增没减、`css_unused_selector` 也照样零**，但特异性与作用面
+      已经变了，换个主题或加层 DOM 才炸。**修法＝选择器段序/段数/`>` 与迁移前
+      逐字一致，只在失配那一段外套 `:global()`**；并把整份选择器名录钉进单测
+      （design-spec §13.4 坑 4 有完整修法）。
 4. **按钮点击冒泡到卡根**：推进按钮点完换卡后，同一次点击冒泡到卡根
    会把新卡误翻面。卡根 onclick 要忽略 `closest("button, input")` 来源。
 5. **焦点恢复要 `$effect` 手动对齐**旧 innerHTML 全量重绘的行为
@@ -430,7 +437,7 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   跨组件 / 移动基座 → 共享片并登记）收进 `docs/design-spec.md` **§十三**，
   本文件与 `AGENTS.md` 的旧口径「组件零 `<style>`」同步作废（§暗雷 3 扩写、
   「现状」段改写）。
-- **试点片**：`src/scss/startpanel.scss`(107) → `StartPanelApp.svelte` `<style>`。
+- **试点片**：`src/scss/startpanel.scss`(106) → `StartPanelApp.svelte` `<style>`。
   唯一消费者、零 TS 拼串触达，是审计 #110 判定最干净的一片。
   类名逐字保留（DOM 零变化）；6 组命中「子组件产物 / `{@html}` 注入」的选择器
   逐条 `:global()` 局部包裹（修法与定量口径见暗雷 3）。
@@ -442,8 +449,12 @@ ReviewDetail`；原 `index.ts` 瘦身为壳渲染+挂载编排+外部入口，
   非丢失）。
 - **断言改造**：`quiz/render/StartPanelStyle.test.ts` 由「编译独立 scss」改为
   「自 `?raw` 取组件 `<style>` → sass 真编译（`:global()` 剥壳归一化）+ Svelte
-  真编译零 `css_unused_selector`」双闸。**8 条规格断言一条未减**，另加 2 条
-  迁移闸（scoped 未删条 / injected 通道生效），并把「失配」从真机画面异常前移到单测。
+  真编译零 `css_unused_selector`」双闸。**8 条规格断言一条未减**，另加 3 条
+  迁移闸（scoped 未删条 / injected 通道生效 / **选择器名录逐字平价**），并把
+  「失配」与「形态漂移」两类事故都从真机画面异常前移到单测。
+  ⚠️ 名录闸是试点实测逼出来的：迁片时为了让 scoped 命中顺手补/删中间段
+  （`cardicon` 补 `.wengu-start-cardhead >`、`b3-label__text` 砍 `.wengu-start-card`）
+  ——**类名一个没变、零 unused 选择器照样绿，但特异性已改**，详见 design-spec §13.4 坑 4。
 - **红线顺带**：`english.scss`(564) 按语义机械拆片 → `english.scss`(408) +
   `english-gloss.scss`(108) + `mobile-english.scss`(60)，`index.scss` 同步注册。
   83 条规则集与拆分前**完全一致**（零样式变更），详见 design-spec §13.5。
