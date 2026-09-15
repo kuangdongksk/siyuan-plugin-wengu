@@ -658,6 +658,7 @@
   "aiTitleVariant": "Variant drill",
   "aiTitleSelfCheck": "{name} · self-check",
   "aiTitleRegen": "Regenerate · {name}",
+  "aiTitleRegenCheck": "Regenerate check · {name}",
   "aiTitleBatchLink": "Batch link · {n} questions",
   "aiTitleMatch": "Match · {n} questions",
   "aiTitleMatchRoute": "Match route · {n} questions",

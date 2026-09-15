@@ -185,10 +185,12 @@ async function runRegen(
         // prompt 用 keep 变体：选项沿用原题顺序与字母（Issue #123）
         const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note, q.type, "keep");
         const stem16 = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16);
-        const group = { id: newAiGroupId(), title: `重新生成 · ${stem16}` };
+        // 会话标题走 i18n（#122 起硬编码中文会被 dict.test 拦下），group.title 与之同一份
+        const groupTitle = aiTitle(deps.t, "aiTitleRegen", { name: stem16 });
+        const group = { id: newAiGroupId(), title: groupTitle };
         const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, stop.signal, {
             kind: "regen",
-            title: aiTitle(deps.t, "aiTitleRegen", { name: stem16 }),
+            title: groupTitle,
             group,
             onSid: stop.onSid,
         });
@@ -201,7 +203,7 @@ async function runRegen(
             // 文本定位不到（选项被改写）：独立会话 AI 自检，no 则整题放弃
             const check = await agentChatOnce(verifyPrompt(renderUnit(draft)), modelId, AI_TIMEOUT.mid, stop.signal, {
                 kind: "regen",
-                title: `${group.title} · 自检`,
+                title: aiTitle(deps.t, "aiTitleRegenCheck", { name: groupTitle }),
                 group,
                 onSid: stop.onSid,
             });

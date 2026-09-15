@@ -658,6 +658,7 @@
   "aiTitleVariant": "变式重练",
   "aiTitleSelfCheck": "{name} · 自检",
   "aiTitleRegen": "重新生成 · {name}",
+  "aiTitleRegenCheck": "重新生成自检 · {name}",
   "aiTitleBatchLink": "批量关联 · {n} 题",
   "aiTitleMatch": "匹配 · {n} 题",
   "aiTitleMatchRoute": "匹配路由 · {n} 题",
