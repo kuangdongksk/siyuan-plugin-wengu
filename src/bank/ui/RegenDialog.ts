@@ -1,8 +1,9 @@
 import { errText } from "./../../ui/shared";
-import { agentChatOnce, aiAbort, type AiAbort } from "../../ai/client";
+import { agentChatOnce, aiAbort, newAiGroupId, type AiAbort } from "../../ai/client";
 import { notifyError, notifyInfo } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
-import { buildRegenPrompt } from "../../ai/prompts/gen";
+import { buildRegenPrompt, verifyPrompt } from "../../ai/prompts/gen";
+import { reseatAnswer } from "../gen/RegenVerify";
 import { extractBlockId } from "../../convert/service/core/ConvertService";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
 import { shuffleDraftOptions } from "../../convert/service/draft/OptionShuffle";
@@ -27,6 +28,20 @@ import { KernelBlock } from "../../siyuan/block";
  * 20260905 起点击即关窗（用户定夺，弃「弹窗内转圈」阻塞态）：AI 后台
  * 跑，调用带 track 登记进 AI 会话面板（running→done 即实时进度），终态
  * 走思源通知；qid 防重入（关窗后同题再点不叠第二轮 AI）。
+ *
+ * **答案核查**（Issue #123，20260915 真机实录）：本链原先「解析→洗牌→
+ * 落盘」全程无核查，AI 按「正确项写最前」重排选项却照抄原题旧答案字母
+ * 时，坏答案直接入库。三条口径：
+ *   1. prompt 走 `order:"keep"`（选项沿用原题顺序与字母，见
+ *      `protocol.ts` 的 ProtocolOptsOrder），从源头消掉顺序冲突；
+ *   2. `reseatAnswer` 再用原题正确项**文本**在新选项里定位、按命中位置
+ *      校正 ans 字母（折行/标签/全角空白差异走 optionComparable 归一），
+ *      先校正再洗牌，字母映射保持自洽；
+ *   3. 文本定位不到（选项被改写）→ 走 `verifyPrompt` 独立会话自检
+ *      （口径同 `GenQuestion.genWithVerify`：同组、标「自检」后缀），
+ *      no 则整题放弃、**不落盘**（报错走既有 errText 通道）。
+ *  `runRegen` 是题卡单题与 RepairDialog 批量修复/regenBadMarkedRecords 的
+ *  共用入口，两入口同样受益（不需要两份实现）。
  */
 
 export interface RegenDeps {
@@ -167,17 +182,35 @@ async function runRegen(
             : kp
               ? (await sectionKramdown(kp.id)) || knowNodeText(await knowTreesOf(bank), kp.id)
               : "";
-        const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note, q.type);
+        // prompt 用 keep 变体：选项沿用原题顺序与字母（Issue #123）
+        const prompt = buildRegenPrompt(record.kramdown, sourceBlock, section, note, q.type, "keep");
         const stem16 = (q.stemMd ?? "").replace(/\s+/g, " ").trim().slice(0, 16);
+        // 会话标题走 i18n（#122 起硬编码中文会被 dict.test 拦下），group.title 与之同一份
+        const groupTitle = aiTitle(deps.t, "aiTitleRegen", { name: stem16 });
+        const group = { id: newAiGroupId(), title: groupTitle };
         const reply = await agentChatOnce(prompt, modelId, AI_TIMEOUT.long, stop.signal, {
             kind: "regen",
-            title: aiTitle(deps.t, "aiTitleRegen", { name: stem16 }),
+            title: groupTitle,
+            group,
             onSid: stop.onSid,
         });
         const drafts = parseDrafts(reply).filter(hasStemPart);
         if (drafts.length === 0) throw new Error(t("convertEmptyReply"));
-        shuffleDraftOptions(drafts[0]);
-        let kd = renderUnit(drafts[0]);
+        const draft = drafts[0];
+        // 核查：原题正确项文本 → 新选项位置 → 校正 ans 字母（先校正再洗牌）
+        const verdict = reseatAnswer(draft, q);
+        if (verdict.kind === "mismatch") {
+            // 文本定位不到（选项被改写）：独立会话 AI 自检，no 则整题放弃
+            const check = await agentChatOnce(verifyPrompt(renderUnit(draft)), modelId, AI_TIMEOUT.mid, stop.signal, {
+                kind: "regen",
+                title: aiTitle(deps.t, "aiTitleRegenCheck", { name: groupTitle }),
+                group,
+                onSid: stop.onSid,
+            });
+            if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) throw new Error(t("regenVerifyFailed"));
+        }
+        shuffleDraftOptions(draft);
+        let kd = renderUnit(draft);
         // 保留原容器的其余属性（q/type/steps/knowledge/chapter…），只换内容
         const oldIal = /\n(\{:[^\n]*custom-plugin-wengu-q="1"[^\n]*\})\s*$/.exec(record.kramdown)?.[1] ?? "";
         if (oldIal) {

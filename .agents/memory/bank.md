@@ -194,3 +194,34 @@
 - **知识小节哈希**（data/KnowHash，saveData("know-hash")）：包含式切段指纹，
   导入写基线、面板装载出 stale 徽标（基线自推进一次性提示），并进路由缓存
   indexGenOf——小节正文变更整表作废。
+
+- **重新生成的答案核查**（Issue #123，20260915 真机实录；`bank/gen/RegenVerify`）：
+  原链「解析 → 洗牌 → 落盘」**全程无核查**，叠加三个事实会静默落盘坏答案
+  ——① 共享行协议要求「正确项写最前」，AI 修复重生成时按协议重排选项却把
+  原题旧答案字母照抄进 `@@P ans`（实录：原题 ans=B，输出选项已把正确项挪到
+  首位、ans 仍是 B）；② `OptionShuffle.shuffleGroup` 信任 ans 字母定位正确项
+  并随洗牌重写 → 把原干扰项洗成「正确项」落盘；③ 解析里的「B 正确」同样是
+  旧字母引用，三处互相矛盾。
+    - **prompt 侧**：`buildRegenPrompt` 传 `protocolSpec(type, { order:"keep" })`
+      ——选项按**原题顺序与字母**输出、`@@P ans` 写修正后的正确字母。`protocolSpec`
+      的 keep 变体**只换 `@@P opt` 那一行**，其余段落逐字不变；默认（不传
+      opts）仍要求「正确项写在最前」，转换/增量/加练链**逐字节不变**
+      （PromptHygiene 与 convert 域测试锁着）。
+    - **核查侧**：`reseatAnswer(draft, q)` 在 `parseDrafts` 之后、洗牌之前，
+      用原题正确项**文本**（`q.optionMd` 按 `q.answer` 字母取）在新草稿选项里
+      定位（`optionComparable` 归一：折行/`- A.` 标签/全角空白都不影响命中），
+      命中即把 ans 改写为该选项字母（正确集合规模必须与原题正确项数一致，
+      多选少一项即判 mismatch）。判定三态：`ok`（字母已校正，含判断题 √/×
+      一致）/ `mismatch`（走 AI 自检）/ `skip`（无基准：原题无选项、答案非
+      字母、主观题）。
+    - **兜底侧**：`mismatch` → `verifyPrompt(renderUnit(draft))` 独立会话自检
+      （同 `GenQuestion.genWithVerify` 口径：`newAiGroupId` 同组、标「自检」
+      后缀、`AI_TIMEOUT.mid`），no 则 `throw new Error(t("regenVerifyFailed"))`
+      → 整题**不落盘**、走既有 errText 通知通道。
+    - **共用入口**：`runRegen` 是题卡单题「重新生成」、RepairDialog 批量修复
+      （题库体检结构损坏）与 `regenBadMarkedRecords` 三入口的共用实现，核查
+      自然覆盖全部（不需要第二份）。
+    - ⚠️ **重生成回复里解析写的旧字母救不了**：keep 序下解析若仍写「原题第 2
+      项的字母」，那是语义错误——位置映射（洗牌层）会把它当序位字母改到别处。
+      故洗牌层的解析改写**只保证「正确项写最前」协议链**（转换/加练）不失配，
+      重生成链靠上面两条兜底。
