@@ -929,5 +929,22 @@
   "aiCopyTurn": "复制整轮",
   "aiCopied": "已复制",
   "aiCopyFail": "复制失败，请手动选中",
-  "aiRowMeta": "{time} · {kind}"
+  "aiRowMeta": "{time} · {kind}",
+  "sideAiTitle": "打开 AI 讲解",
+  "sideAiBtn": "AI 讲解",
+  "kcapsLabel": "考点",
+  "kcapSearchTitle": "按该考点检索",
+  "selfStarsLabel": "自评掌握度",
+  "selfStarsAria": "{n} 星",
+  "selfStarsHint": "点击星级评价对本题的掌握程度，再点同星取消",
+  "statsKcapHead": "考点「{k}」· {n} 题",
+  "statsKcapClear": "返回常规视图",
+  "statsKcapNone": "本卷该考点下暂无题目",
+  "headRoundRunning": "第 {n} 轮 · 进行中",
+  "numsCap": "题号",
+  "numsMore": "…至 {n}",
+  "numsLegendCur": "当前题",
+  "numsLegendOk": "答对",
+  "numsLegendBad": "答错",
+  "numsLegendDone": "已答未揭示"
 }

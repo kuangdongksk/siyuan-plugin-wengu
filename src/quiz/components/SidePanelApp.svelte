@@ -170,17 +170,21 @@
             oninput={search}
         />
         <div class="wengu-side-actions">
-            <Button class="wengu-side-iconbtn" data-act="stats" title={t("statsTitle")} onclick={() => onAct("stats")}>
-                {@html svgIcon("iconInfo")}
-            </Button>
-            <Button
-                class="wengu-side-iconbtn"
-                data-act="collections"
-                title={t("collectionsBtn")}
-                onclick={() => onAct("collections")}
-            >
-                {@html svgIcon("iconList")}
-            </Button>
+            <!-- 等宽文字工具钮（Issue #135 §1.4）：stats/collections 从纯图标
+                 升「icon + 文案」；点击语义与 act 名不变 -->
+            <div class="wengu-side-toolrow">
+                <Button class="wengu-side-tool" data-act="stats" title={t("statsTitle")} onclick={() => onAct("stats")}>
+                    {@html svgIcon("iconInfo")} <span>{t("statsTitle")}</span>
+                </Button>
+                <Button
+                    class="wengu-side-tool"
+                    data-act="collections"
+                    title={t("collectionsBtn")}
+                    onclick={() => onAct("collections")}
+                >
+                    {@html svgIcon("iconList")} <span>{t("collectionsBtn")}</span>
+                </Button>
+            </div>
             <Button
                 variant="outline"
                 class="wengu-side-convert"
@@ -189,6 +193,12 @@
                 onclick={() => onAct("convert")}
             >
                 {@html svgIcon("iconSparkles")} <span data-convert-label>{t("convertBtn")}</span>
+            </Button>
+            <!-- AI 讲解入口（Issue #135 §1.4；稿有实现无的新增钮）：切 AI
+                 会话工作区。act 名 side-ai 由 SideMount.sideActFor 分派 -->
+            <Button class="wengu-side-ai" data-act="side-ai" title={t("sideAiTitle")} onclick={() => onAct("side-ai")}>
+                {@html svgIcon("iconSparkles")}
+                {t("sideAiBtn")}
             </Button>
         </div>
     </div>

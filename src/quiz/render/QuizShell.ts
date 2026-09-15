@@ -244,6 +244,9 @@ async function renderStaticChunked(
             v.mode === "quiz" && !v.progressive.active
                 ? restoreContextFor(v.list, v.currentSession(), v.revealMode)
                 : undefined,
+        // 考点 chips 的检索出口（Issue #135 §7.a）：进统计面板的考点视图。
+        // 不传 ⇒ chip 降级纯展示（预览/复习等只读壳不在统计视图里）
+        kcapSearch: v.kcapSearchOf,
     };
     // 节点口径：独立题单元=1 个题卡节点；组单元=组内题+材料。原只算
     // 组口径，纯独立题长卷全程显示「渲染中 0/0」（20260829 审查）。
@@ -320,6 +323,13 @@ function bindQuizFor(v: QuizView): void {
         showNums: v.settings?.showNums !== false,
         showPast: v.mode !== "preview" && v.settings?.showWrong !== false && v.revealMode === "instant",
         setGroups,
+        // 揭示态图例（Issue #135 §2.9）：instant 判分即揭示；after 收卷才揭示
+        // ——两条来路都要算：① 运行期（revealCard → markNumRailRevealed，
+        // 收卷不重建壳）；② 壳重建时（收卷后切工作区/折叠侧栏都走 renderList），
+        // 此时本轮已封卷（endedAt 已写）⇒ 初值直接给揭示档，否则图例会退回
+        // 「作答中」而卡片早已揭示（两处口径不一致）。
+        revealed: v.revealMode === "instant" || !!v.currentSession()?.endedAt,
+        t: v.t,
     });
 }
 

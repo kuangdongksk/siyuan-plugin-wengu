@@ -8,6 +8,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint . --fix --cache",
     "check:svelte": "svelte-check --tsconfig tsconfig.svelte.json --threshold error",
+    "check:lines": "node scripts/check-line-limit.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "run-p dev:kernel dev:app",

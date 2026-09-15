@@ -46,99 +46,6 @@
   padding-bottom: 48vh;
 }
 
-/* 题号竖列：跟随滚动吸顶（让位到吸顶头部之下，高度由 NumRail 实测写入），题多时自身可滚 */
-.wengu-nums {
-  flex: none;
-  position: sticky;
-  top: var(--wengu-head-h, 0);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  /* 内衬与主区同律 8px：首/末按钮不贴栏框边缘；列间距由 .wengu-body
-     的 gap 8px 表达。底部留白=自身 margin-bottom + 主区 padding-bottom
-     （叠加 16px，20260829 用户「底部加padding」；NumRail 实读计入封顶）。
-     封顶=NumRail 实测的 --wengu-nums-max（滚动可视区 − 吸顶头下缘 −
-     上述两项布局值，JS 只测量不决定），绑定前兜底走视口近似 */
-  margin-bottom: 8px;
-  padding: 8px 0;
-  max-height: var(--wengu-nums-max, calc(100vh - var(--wengu-head-h, 56px) - 40px));
-  box-sizing: border-box;
-  overflow-y: auto;
-}
-
-.wengu-num {
-  min-width: 24px;
-  height: 22px;
-  padding: 0 4px;
-  border: 1px solid transparent;
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-surface);
-  color: var(--b3-theme-on-surface);
-  font-size: 12px;
-  line-height: 20px;
-  text-align: center;
-  cursor: pointer;
-}
-
-.wengu-num:hover {
-  background: var(--b3-theme-background-light);
-}
-
-.wengu-num-active,
-.wengu-num.wengu-num-active:hover {
-  border-color: var(--b3-theme-primary);
-  color: var(--b3-theme-primary);
-  font-weight: 600;
-}
-
-.wengu-num-right,
-.wengu-num.wengu-num-right:hover {
-  background: color-mix(in srgb, var(--b3-theme-success) 14%, transparent);
-  color: var(--b3-theme-success);
-}
-
-.wengu-num-wrong,
-.wengu-num.wengu-num-wrong:hover {
-  background: color-mix(in srgb, var(--b3-theme-error) 14%, transparent);
-  color: var(--b3-theme-error);
-}
-
-/* after 模式：已作答未揭示（中性，不透对错） */
-.wengu-num-answered,
-.wengu-num.wengu-num-answered:hover {
-  background: var(--b3-theme-primary-lightest);
-  color: var(--b3-theme-primary);
-}
-
-/* 题集分隔横线（多集合刷：高数/线代、第一套卷…组间）：常态短线，
-   hover 伸展到栏宽（套标题走原生 title 提示；点击=滚到该套首题） */
-.wengu-num-gap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  margin: 2px 0;
-  padding: 2px 0;
-  cursor: pointer;
-}
-
-.wengu-num-gap-line {
-  width: 16px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--b3-theme-on-surface-light);
-  opacity: 0.45;
-  transition:
-    width 0.15s ease,
-    opacity 0.15s ease;
-}
-
-.wengu-num-gap:hover .wengu-num-gap-line {
-  width: calc(100% - 4px);
-  opacity: 0.9;
-}
-
 /* 正文题集标题行（与题号栏横线同源的分组表达）：短横 + 标题 + 题量 */
 .wengu-set-head {
   display: flex;
@@ -171,12 +78,15 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* 卡壳（对稿 Issue #135 §4.1）：改「浮起」语言——surface 底 + 常规边 +
+   大圆角（原为「凹进」：底色底 + surface 边 + 控件圆角）。阴影不取
+   （无令牌、深色态不可见；明暗一致性优先）。 */
 .wengu-card {
   padding: 16px;
   margin-bottom: 16px;
-  border: 1px solid var(--b3-theme-surface);
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-background);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius-b);
+  background: var(--b3-theme-surface);
   /* 点击题号 scrollIntoView 后别贴顶 */
   scroll-margin: 8px;
   /* 长卷视口优先（20260829）：屏外卡片跳过布局/绘制/分片填充引发的
@@ -201,9 +111,17 @@
   margin-bottom: 12px;
 }
 
+/* 卡头题号（§4.2）：胶囊化（原裸文本 primary/600） */
 .wengu-card-num {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
   font-weight: 600;
+  background: var(--b3-theme-primary-lightest);
   color: var(--b3-theme-primary);
+  border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 35%, transparent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -293,12 +211,17 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* 题型徽标（§4.2）：中性化胶囊（原 primary 系与题号胶囊抢主色） */
 .wengu-badge {
-  padding: 1px 6px;
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-primary-lightest);
-  color: var(--b3-theme-primary);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--wengu-well);
+  color: var(--b3-theme-on-surface);
+  border: 1px solid var(--b3-border-color);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .wengu-card-head .wengu-meta {

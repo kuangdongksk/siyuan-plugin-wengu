@@ -1,0 +1,199 @@
+/* 题号导航栏（自 cards.scss 按语义拆出，Issue #135 §11.1 红线收口；
+   类名与规则逐字未改，仅换落点）。`--wengu-nums-max` 由 render/NumRail
+   实测写入（滚动可视区 − 吸顶头下缘 − 底衬）。 */
+
+/* 题号竖列（对稿 Issue #135 §2）：跟随滚动吸顶（让位到吸顶头部之下，高度由
+   NumRail 实测写入）。结构三层——常驻题号帽 / 自滚网格 / 常驻图例；**栏宽
+   64px 与内衬固定**，滚动职责下放到 .wengu-nums-grid（见该段）。
+   底部留白=自身 margin-bottom + 主区 padding-bottom（叠加 16px，20260829
+   用户「底部加padding」；NumRail 实读计入封顶）。封顶=NumRail 实测的
+   --wengu-nums-max（滚动可视区 − 吸顶头下缘 − 上述两项布局值，JS 只测量
+   不决定；新增 12px 上下衬已计入该实测），绑定前兜底走视口近似。
+   内滚窗口径（用户 20260915 拍板）：**不显示滚动条**（scrollbar-width:none +
+   ::-webkit-scrollbar display:none），滚轮/键盘/拖动滚动能力照常保留。 */
+.wengu-nums {
+  flex: none;
+  position: sticky;
+  top: var(--wengu-head-h, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 64px;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding: 12px 10px;
+  max-height: var(--wengu-nums-max, calc(100vh - var(--wengu-head-h, 56px) - 40px));
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+.wengu-nums::-webkit-scrollbar {
+  display: none;
+}
+
+/* 题号帽「题号 N/M」：常驻不滚（可滚性由它表达） */
+.wengu-nums-cap {
+  flex: none;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  text-align: center;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.wengu-nums-cap b {
+  color: var(--b3-theme-on-surface);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「…至 N」省略行（题号超 60 才出，§2.8） */
+.wengu-nums-more {
+  flex: none;
+  font-size: 11px;
+  color: var(--wengu-faint);
+  text-align: center;
+  padding: 2px 0;
+}
+
+/* 自滚网格：题多时自滚的**唯一落点**（帽/图例常驻不滚）；滚动条隐藏 */
+.wengu-nums-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  align-content: start;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.wengu-nums-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.wengu-num {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  line-height: 26px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+.wengu-num:hover {
+  background: var(--b3-list-hover);
+  color: var(--b3-theme-on-surface);
+  border-color: var(--wengu-border-strong);
+}
+
+/* 当前题：与侧栏选中同款「软底 + 内描边」语言（用户 20260915 拍板，不登记例外） */
+.wengu-num-active,
+.wengu-num.wengu-num-active:hover {
+  background: var(--b3-theme-primary-lightest);
+  border-color: var(--b3-border-color);
+  color: var(--b3-theme-primary);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--b3-theme-primary);
+}
+
+.wengu-num-right,
+.wengu-num.wengu-num-right:hover {
+  background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+  border-color: color-mix(in srgb, var(--b3-theme-success) 42%, transparent);
+  color: var(--b3-theme-success);
+}
+
+.wengu-num-wrong,
+.wengu-num.wengu-num-wrong:hover {
+  background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+  border-color: color-mix(in srgb, var(--b3-theme-error) 42%, transparent);
+  color: var(--b3-theme-error);
+}
+
+/* after 模式：已作答未揭示（中性，不透对错；原 primary-lightest 与答对混淆） */
+.wengu-num-answered,
+.wengu-num.wengu-num-answered:hover {
+  background: color-mix(in srgb, var(--b3-theme-on-background) 14%, transparent);
+  border-color: var(--wengu-border-strong);
+  color: var(--b3-theme-on-surface);
+}
+
+/* 题集分隔横线（多集合刷：高数/线代、第一套卷…组间）：常态短线，
+   hover 伸展到栏宽（套标题走原生 title 提示；点击=滚到该套首题） */
+.wengu-num-gap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 2px 0;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.wengu-num-gap-line {
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--b3-theme-on-surface-light);
+  opacity: 0.45;
+  transition:
+    width 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.wengu-num-gap:hover .wengu-num-gap-line {
+  width: calc(100% - 4px);
+  opacity: 0.9;
+}
+
+/* 底部图例（§2.9）：多题集/揭示态才出；四态取色与上方各态实色一致
+   （当前=primary 实、对/错=语义浅底、已答=中性浅底） */
+.wengu-nums-legend {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  border-top: 1px solid var(--b3-border-color);
+  padding-top: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  text-align: left;
+}
+
+.wengu-nums-key {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  border: 1px solid var(--wengu-border-strong);
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+.wengu-nums-key.k-cur {
+  background: var(--b3-theme-primary);
+}
+
+.wengu-nums-key.k-ok {
+  background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+}
+
+.wengu-nums-key.k-bad {
+  background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+}
+
+.wengu-nums-key.k-done {
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 14%, transparent);
+}

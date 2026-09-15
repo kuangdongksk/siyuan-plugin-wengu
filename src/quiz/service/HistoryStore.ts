@@ -69,6 +69,16 @@ export interface WenguSession {
      * （只有用户显式选色才落库）、删除线索时同下标同步删。
      */
     clueColors?: Record<string, number[]>;
+    /**
+     * 各题**自评掌握度**（Issue #135 §7.b 方案 1：`qid → 1..5` 的最近一次
+     * 评分；用户再点同值星=取消 ⇒ 该键删除，故键存在即「已评」）。
+     *
+     * 落点选「会话内轻量」而非题库沉淀：不动题库 schema、不改 WeaknessStore
+     * 数据面（题库沉淀作后续迭代）；轮报告均值可据此字段接。
+     * 数据演进守则：optional、只加不改名、不 bump version、装载零迁移
+     * （旧会话没有此键 ⇒ 全部未评）。
+     */
+    selfStars?: Record<string, number>;
 }
 
 /** 插件存储（saveData("history")）里的会话历史。 */

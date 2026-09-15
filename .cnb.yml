@@ -43,8 +43,11 @@ $:
         # 注意第二项用 `pnpm exec eslint .` 而非 `pnpm lint` —— 后者是
         # `eslint . --fix --cache`，在 CI 里会把违规**直接改掉再退出 0**，
         # 门禁形同虚设。本地仍用 `pnpm lint` 自动修，两不冲突。
+        # `pnpm check:lines` = 单文件 ≤500 行红线（规范 §11.1，Issue #135
+        # 顺带把它从「文档里写着」变成「CI 会红」——`quiz/index.ts` 静默从
+        # 基线 574 长到 576 就是「口径有、闸门无」的实证）。
         - name: check
-          script: "pnpm format:check && pnpm exec eslint . && pnpm check:svelte && pnpm test"
+          script: "pnpm format:check && pnpm exec eslint . && pnpm check:svelte && pnpm check:lines && pnpm test"
 
   # PR：创建 / 重新打开 / 源分支 push 时跑同一套质量门
   pull_request:
@@ -55,7 +58,7 @@ $:
         - name: install
           script: "corepack enable && pnpm install --frozen-lockfile"
         - name: check
-          script: "pnpm format:check && pnpm exec eslint . && pnpm check:svelte && pnpm test"
+          script: "pnpm format:check && pnpm exec eslint . && pnpm check:svelte && pnpm check:lines && pnpm test"
 
   issue.comment@npc:
     default:

@@ -40,7 +40,7 @@ import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
-import { sideActFor } from "./flow/SideMount";
+import { kcapSearchFor, roundIndexFor, sideActFor } from "./flow/SideMount";
 import { relatedAccessFor } from "./flow/RelatedAccess";
 import type { RelatedViewAccess } from "../bank/ui/RelatedDialog";
 import { TimerController } from "./service/TimerController";
@@ -329,10 +329,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         else void ((this.pendingDrillScope = "wrongAll"), this.selectDoc(docId));
     };
 
-    /** 目录文档右键「重新导入」：实现见 DocOps（删旧题集+源讲义重转替换）。 */
+    /** 目录文档右键：重新导入 / 删除此题集（实现见 DocOps）。 */
     readonly reimportDocOf = (docId: string): void => reimportDocFrom(this, docId);
-
-    /** 目录题集右键「删除此题集」：实现见 DocOps（清题库记录/题集/材料+联动清理）。 */
     readonly removeSetOf = (docId: string): void => unregisterSetAsQuiz(this, docId);
 
     persistPrefs(): void {
@@ -346,7 +344,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         });
     }
 
-    /** 目录文档右键的弹窗类动作（实现体在 service/DocActions，压行数外移）。 */
+    /** 目录文档右键的弹窗类动作（实现体 service/DocActions，压行数外移）。 */
     private readonly docActionCtx: DocActionCtx = {
         docs: () => this.docs,
         bank: () => this.bank,
@@ -459,6 +457,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly addDocTotal = (add: number) => (this.docTotalSec += add);
     readonly finishNow = (): void => manualFinishRound(roundFinishCtx(this));
     readonly allRounds = (): WenguSession[] => this.rounds;
+    readonly roundIndex = (): number => roundIndexFor(this.rounds, this.session); // #135 §3.5 胶囊
     readonly finishedSession = (): WenguSession | undefined => this.finished;
     readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
     /** 手动收卷统一揭示（after 模式）：等静态分片全部挂载后按表揭示——
@@ -562,15 +561,14 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
 
     readonly openConvert = () => openConvertForView(this.convertAccess);
     /** 带预填打开转换弹窗（知识面板「转习题」：源/知识点根=该文档）。 */
-    readonly openConvertPrefilled = (docId: string, know: string) =>
+    readonly openConvertPrefilled = (docId: string, know: string): void =>
         openConvertForView(this.convertAccess, docId, know);
 
     /** 「标记为错题」/批量重转访问器（Issue #46；实现体 service/BadMarkRegen
      *  ——预览闸 / 徽标数 / 顶栏批量重转三合一，保 index.ts 不再净增）。 */
     readonly badMark = badMarkAccess(this);
 
-    /** 侧栏/头部按钮统一出口（6-5 Svelte 化后 SidePanelApp/QuizHeadApp
-     *  经 SideMount 的 onAct 汇到这里，act 名同 data-act；实现体在
-     *  flow/SideMount 的 sideActFor）。 */
+    /** 侧栏/头部按钮与题卡考点 chip 检索出口（#135 §7.a）；实现体 SideMount。 */
     readonly sideAct = sideActFor(this);
+    readonly kcapSearchOf = kcapSearchFor(this);
 }

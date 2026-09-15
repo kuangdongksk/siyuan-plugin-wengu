@@ -56,7 +56,31 @@
         >
     </div>
     <div class="wengu-stats-body" data-stats-body>
-        {#if ui.phase === "loading"}
+        {#if ui.kcap}
+            <!-- 考点检索视图（Issue #135 §7.a）：题卡考点 chip 的落点。
+                 最小可用语义——结果就地列在当前浮层，不切工作区。
+                 「全局考点 Tab」（跨题集/知识文档）属后续迭代。 -->
+            <div class="wengu-stats-sub">
+                {fmt(t("statsKcapHead"), { k: ui.kcap, n: String(ui.kcapRows?.length ?? 0) })}
+                <button class="wengu-kchip wengu-kchip-static" type="button" onclick={() => statsCtl.clearKcap()}>
+                    {t("statsKcapClear")}
+                </button>
+            </div>
+            {#if (ui.kcapRows ?? []).length > 0}
+                {#each ui.kcapRows ?? [] as w (w.qid)}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div class="wengu-stats-wrong" title={w.qid} onclick={() => statsCtl.enterReview(w.qid)}>
+                        <div class="wengu-stats-wrong-body">
+                            <div class="wengu-stats-wrong-stem">{w.stemSummary}</div>
+                            <div class="wengu-stats-wrong-meta">{w.docTitle}</div>
+                        </div>
+                    </div>
+                {/each}
+            {:else}
+                <div class="wengu-muted wengu-stats-empty">{t("statsKcapNone")}</div>
+            {/if}
+        {:else if ui.phase === "loading"}
             <div class="wengu-muted">{t("loading")}</div>
         {:else if ui.tab === "overview" && ui.overview}
             <StatsOverview model={ui.overview} docs={deps.docs} docId={deps.docId} />

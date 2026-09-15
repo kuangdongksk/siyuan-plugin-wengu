@@ -277,14 +277,6 @@
   background: var(--b3-theme-primary-lightest);
 }
 
-/* ── 自评与按钮变体 ── */
-.wengu-self {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 .wengu-btn:disabled {
   opacity: 0.5;
   cursor: default;

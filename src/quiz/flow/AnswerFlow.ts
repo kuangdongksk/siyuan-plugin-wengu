@@ -8,7 +8,7 @@ import type { TimerController } from "../service/TimerController";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { markNum } from "../render/FlowDom";
-import { markNumRailAnswered } from "../render/NumRail";
+import { markNumRailAnswered, markNumRailRevealed } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
 import type { CardCtl } from "../render/CardCtl";
 import type { WenguQuestion } from "../../types";
@@ -54,6 +54,8 @@ export interface AnswerHost {
     bankOverride?(qid: string, correct: boolean, detail?: { kind: "steps"; letters: string[]; oks: boolean[] }): void;
     /** 本轮完成（全部作答或手动收卷）：显示总结报告。 */
     roundComplete(): void;
+    /** 会话落库（自评五星即写即存；实现体 QuizView.persist 同款）。 */
+    persist?(): void;
     flushTime(): void;
     /** 当前题切换（题号导航/组内导航）：同步下标、逐题计时、线索行。
      *  可选——QuizView 之外的宿主（测试/预览壳）不实现即跳过同步。 */
@@ -135,6 +137,22 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
     revealCard(host, ctl, q, { submitted, ok });
     showQTime(host, ctl, q.id);
     checkAllDone(host);
+}
+
+/** 该题的自评星级（1..5；0/undefined=未评）。读会话记录，与 upsert 口径同源。
+ *  Issue #135 §7.b 方案 1：会话内轻量，「继续上次」/重开页签回显。 */
+export function selfStarsOf(host: AnswerHost, qid: string): number {
+    return host.currentSession()?.selfStars?.[qid] ?? 0;
+}
+
+/** 写自评星级（0=取消评分，直接删键——与 upsert 的「空值删键」形态一致）；
+ *  立即落库（用户显式动作，与自评对错同款的即时持久化语义）。 */
+export function setSelfStars(host: AnswerHost, qid: string, stars: number): void {
+    const s = host.currentSession();
+    if (!s) return;
+    if (stars > 0) s.selfStars = { ...(s.selfStars ?? {}), [qid]: stars };
+    else if (s.selfStars) delete s.selfStars[qid];
+    host.persist();
 }
 
 /** 自评按钮（brief 经 AI 判分后语义变为「改判」appealGrade）。 */
@@ -338,6 +356,10 @@ export function revealCard(
     r: { submitted: string; ok: boolean; verdict?: string; comment?: string }
 ): void {
     markNum(host, q, r.ok);
+    // 揭示即升图例档（Issue #135 §2.9）：instant 判分与 after 收卷
+    // （revealAll → 本函数）两路都过这里，题号栏图例据此补「答对/答错」。
+    // 组件不重建（收卷不换壳），故必须走响应态而不能只靠 props 初值。
+    markNumRailRevealed();
     // steps 卡揭示走自己的收口（答完出整题结果行、预览态不覆盖；
     // Issue #21 起 dunnoSteps 也过它）；此处只做揭示 + 题号描色
     if (hasSteps(q)) {

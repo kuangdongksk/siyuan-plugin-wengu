@@ -131,6 +131,9 @@ export interface CardInitCtx {
     locked: boolean;
     /** 恢复源（继续上轮/收卷重渲染）；预览与无会话不传。 */
     restore?: CardInitRestore;
+    /** 考点 chips 的检索出口（Issue #135 §7.a）：有=可点检索；无=降级
+     *  纯展示（不传时 chip 不出 click 语义，也不显示检索 title）。 */
+    kcapSearch?: (knowledge: string) => void;
 }
 
 /** 某 slots 题在会话里的逐空结果。 */

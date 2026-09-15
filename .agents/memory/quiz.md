@@ -1,5 +1,59 @@
 # src/quiz/ —— 做题主流程
 
+- **对稿还原（Issue #135，20260915）**：侧栏/题号栏/头部统计条/题卡/chips/
+  自评五星按 `design/sidebar-gap-list.md` §0–§4 与 §7.a/b 逐值落地，规格锁在
+  `quiz/render/WorkspaceDesign.test.ts`（scss 真编译 + 组件 `?raw` 断言
+  **规则在场与值**，不钉分片落点——拆片是后续批次自由）。落点要点：
+    - **`--wengu-faint` / `--wengu-border-strong`** 定义在 `scss/base.scss`
+      顶部 `:root`（§0 派生档：b3 无「比 on-surface-light 再弱一档」的字色，
+      强调边同理），全仓复用（题号栏/侧栏/五星/chips 都吃它）。
+    - **题号栏三层结构**（`NumRailApp.svelte`）：常驻帽 `.wengu-nums-cap` /
+      自滚网格 `.wengu-nums-grid`（**滚动职责从 `.wengu-nums` 下放本层**，
+      帽与图例常驻不滚）/ 常驻图例（`revealed` 才补对错两项）。内滚窗
+      **不显滚动条**（用户 20260915 拍板；`scrollbar-width:none` +
+      `::-webkit-scrollbar`）。`--wengu-nums-max` 封顶逻辑不变——它在栏的
+      border-box 上，新增 12px 内衬天然计入。
+    - **样式拆片**（红线收口，§11.1）：题号栏 → `scss/nums.scss`、
+      考点行/五星 → `scss/card-extra.scss`、侧栏 → `scss/side.scss`。
+      三者都要在 `src/index.scss` 里 `@use`。
+    - **自评五星数据落点＝会话记录 `WenguSession.selfStars?: Record<qid,1..5>`**
+      （§7.b 方案 1，用户已拍板）：读写收口在 `flow/AnswerFlow.ts` 的
+      `selfStarsOf` / `setSelfStars`（**再点同值＝删键，不是写 0**——两态在
+      存储上必须可分），每次评分即 `host.persist()`。loader 侧零迁移
+      （旧会话无该键 ⇒ 全未评），**不 bump version**。题库沉淀（方案 2，
+      错题本迷你星回显）留后续迭代。
+    - **考点 chips 的防剧透闸**＝`.wengu-card.wengu-revealed`（挂 graded 会
+      在 after 未收卷时提前泄题，同 `.wengu-card-title` 口径）；整行不出而
+      非留白。点击出口＝`StatsViewAccess` 的考点视图（`searchKcapFor`，
+      经 `flow/SideMount.kcapSearchFor` 薄引用）；不传 `kcapSearch` ⇒ 降级
+      纯展示 chip（预览/复习等只读壳）。
+    - **侧栏 AI 入口**：`.wengu-side-ai` 经 `sideActFor` 的 `side-ai` 分支
+      落 `switchWorkspace("ai")`（rail 已存在的 AI 工作区，不新造面板通道）。
+- **本轮复审纠偏（20260915 二轮，五处真机级；复审 PR #140 时逐条实测发现）**：
+    - **自评行是「加」不是「换」**：五星掌握度与既有「我答对了/我答错了」
+      **并列**在同一 `.wengu-self` 行内。删掉对错钮会一次打断三条链——
+      契约三点六的 brief **改判入口**、AI 判分失败**补账**（`judgeBriefAnswer`
+      catch 的 `showSelf`）、缺题型/答案的**降级自评**（`submitQuestion`
+      的非 objective 分支）。**五星只是新增维度，不承载记账**。
+    - **题号栏图例的揭示闸必须可运行期升级**：`revealed` 只作 props 初值
+      不够——after 收卷（`revealAll → revealCard`）发生在壳存活期间、不重建
+      组件，图例永远停在「作答中」。现走 `markNumRailRevealed()` 响应态，
+      并在 `revealCard` 里调用（instant/after 两路都过它）；壳重建那一路
+      的初值补 `|| !!currentSession()?.endedAt`（收卷后切工作区/折叠侧栏会
+      `renderList`，不补就退回「作答中」而卡片已揭示，两处口径打架）。
+    - **「第 N 轮」序号不能用 `rounds.length`**：它是装载时的历史快照，
+      `startRound` 只 upsert 落盘、不追加进数组 ⇒ 新轮少报一轮、
+      「继续上次」多报一轮。按 id 定位（`SideMount.roundIndexFor`，纯函数带测）。
+    - **考点 chip 首点会静默失效**：`StatsCtl.attach` 在组件 `onMount`（Svelte
+      排微任务）里，而「面板没开→顺手开→立刻检索」的那次 `loadKcap` 必早于
+      attach（`ui` 还是 undefined）⇒ 浮层开了却停在常规详情页。现以
+      `pendingKcap` 兜住，attach 时补做。
+    - **`kcaps` 必须去重**：`knowledge` 与 `chapter` 同串时，带值 key 的
+      `{#each kcaps as k (k)}` 会抛 `each_key_duplicate` **整卡崩**
+      （Svelte 内核对带值 key 撞键是硬抛，非警告）。
+    - **组件文案一律 `t()`**：题号帽/省略行/图例六处字面中文已清（英文环境
+      原样显示中文）；新增 i18n 键 `numsCap` / `numsMore` / `numsLegend*`。
+
 - `index.ts` = QuizView 编排（546 行，压回基线；Issue #12 起记账镜像
   外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、
   右键弹窗动作外移 `service/DocActions.ts`）。**访问器表 + 编排职责

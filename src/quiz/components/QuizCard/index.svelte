@@ -12,6 +12,7 @@
     import { decorateMaterialEntry } from "../../service/MaterialDecorate";
     import Button from "../../../ui/Button.svelte";
     import { markNumRailAnswered } from "../../render/NumRail";
+    import { selfStarsOf, setSelfStars } from "../../flow/AnswerFlow";
     import { hasSlots, hasSteps, isBriefLike, LETTERS, optionDisplayMd, QuestionType } from "../../../types";
     import type { WenguQuestion } from "../../../types";
     import type { AnswerHost } from "../../flow/AnswerFlow";
@@ -79,6 +80,29 @@
 
     let rootEl = $state<HTMLElement | undefined>(undefined);
     let protoEl = $state<HTMLElement | undefined>(undefined);
+
+    /** 考点 chips（Issue #135 §7.a）：数据源 q.knowledge（卡头 label 同源）
+     *  + chapter（章节名同档粒度，检索口两者都认）；多考点字段尚无=留位。
+     *  **去重**（Set）：`{#each}` 带值 key，knowledge 与 chapter 同串时
+     *  重复 key 会抛 each_key_duplicate（整卡崩），故先收敛。 */
+    const kcaps = [...new Set([q.knowledge, q.chapter].filter((k): k is string => !!k && k.trim() !== ""))];
+    /** 自评五星当前值（1..5，0=未评）；初值取自会话记录（改判/恢复回显）。 */
+    let stars = $state(selfStarsOf(host, q.id));
+    /** 点第 n 星=评 n；再点同值=取消（§7.b 交互）。 */
+    const rate = (n: number): void => {
+        stars = stars === n ? 0 : n;
+        setSelfStars(host, q.id, stars);
+    };
+    /** 键盘左右移动（radiogroup 语义；← 在 0 值时无动作）。 */
+    const starKey = (e: KeyboardEvent): void => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        const next = Math.min(5, Math.max(0, stars + (e.key === "ArrowRight" ? 1 : -1)));
+        if (next !== stars) {
+            stars = next;
+            setSelfStars(host, q.id, stars);
+        }
+    };
 
     onMount(() => {
         ctl.el = rootEl;
@@ -175,6 +199,28 @@
     {/if}
 {/snippet}
 
+<!-- 考点 chips 行（Issue #135 §4.3/§7.a）：**仅揭示后渲染**（防剧透，
+     整行不出而非留白）；组题在组内当前卡同位（本组件即组内卡）。
+     点击=按考点检索（视图层接既有统计入口；无目标降级纯展示）。 -->
+{#snippet kcapsRow()}
+    {#if kcaps.length > 0 && ui.revealed}
+        <div class="wengu-kcaps" data-kcaps>
+            <span class="wengu-kcaps-label">{t("kcapsLabel")}</span>
+            {#each kcaps as k (k)}
+                <button
+                    type="button"
+                    class="wengu-kchip{ctx.kcapSearch ? '' : ' wengu-kchip-static'}"
+                    data-kcap={k}
+                    title={ctx.kcapSearch ? t("kcapSearchTitle") : k}
+                    onclick={on && ctx.kcapSearch ? () => ctx.kcapSearch?.(k) : undefined}
+                >
+                    {k}
+                </button>
+            {/each}
+        </div>
+    {/if}
+{/snippet}
+
 <!-- 结果/提示行（steps/slots/普通卡尾部件） -->
 {#snippet tailRows()}
     <div
@@ -202,6 +248,7 @@
     {@render head(headObjective)}
     {#if hasSteps(q)}
         {@render protyle()}
+        {@render kcapsRow()}
         <CardStepsArea {ctl} {q} {t} {on} />
         {@render thoughtArea()}
         <!-- 作答行（Issue #21）：steps 多步题与普通卡同款「跳过 / 不会」
@@ -236,11 +283,13 @@
         {@render tailRows()}
     {:else if hasSlots(q)}
         {@render protyle()}
+        {@render kcapsRow()}
         <CardSlotsArea {ctl} {q} {t} {on} {letters} {pool} />
         {@render thoughtArea()}
         {@render tailRows()}
     {:else}
         {@render protyle()}
+        {@render kcapsRow()}
         <!-- 作答位：字母 chip 在选项行之后（先读选项、再作答）/ 判断按钮 /
              填空输入 / 简答·作文·翻译多行 -->
         {#if isChoice(q)}
@@ -342,8 +391,13 @@
         </div>
         {@render tailRows()}
         <div class="wengu-ai-comment" data-ai-comment hidden={!ui.aiComment}>{ui.aiComment}</div>
+        <!-- 自评行（`.wengu-self` + `data-self` + `selfOn` 三闸不动）：
+             ① 判对错/改判钮（既有功能，**不可删**——契约
+                `docs/question-block-contract.md` 三点六「原自评按钮保留为改判
+                入口」，且 AI 判分失败补账、缺题型/答案的降级自评都靠它记账）；
+             ② 新增五星掌握度（Issue #135 §4.4/§7.b，与对错是两个维度）。 -->
         <div class="wengu-self" data-self hidden={!ui.selfOn}>
-            <span>{ui.selfLabel}</span>
+            <span class="wengu-self-label">{ui.selfLabel}</span>
             <Button
                 class="wengu-btn"
                 variant="success"
@@ -362,6 +416,25 @@
                 {@html svgIcon("iconClose")}
                 {t("selfWrong")}
             </Button>
+            <span class="wengu-self-label">{t("selfStarsLabel")}</span>
+            <!-- 五星 radiogroup（Issue #135 §4.4/§7.b）：点第 n 星=评 n，
+                 再点同值=取消，已评可改；键盘左右移动 -->
+            <span class="wengu-stars" role="radiogroup" aria-label={t("selfStarsLabel")} onkeydown={starKey}>
+                {#each [1, 2, 3, 4, 5] as n (n)}
+                    <button
+                        type="button"
+                        class="wengu-star-btn{stars >= n ? ' on' : ''}"
+                        role="radio"
+                        aria-checked={stars === n}
+                        aria-label={fmt(t("selfStarsAria"), { n: String(n) })}
+                        disabled={!on}
+                        onclick={on ? () => rate(n) : undefined}
+                    >
+                        {@html svgIcon("iconStar")}
+                    </button>
+                {/each}
+            </span>
+            <span class="wengu-self-hint">{t("selfStarsHint")}</span>
         </div>
     {/if}
 </div>
