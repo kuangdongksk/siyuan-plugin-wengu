@@ -1545,9 +1545,14 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       转换条的动作，六个批流停下即停下——给它们出「前往页内转换条抉择」
       会把用户引到**另一条流**的入口。`SessionDetailView.decidable` 因此由
       宿主按流归属注入（与 `ownNote` 同口径），本模块不猜。
-- **样式在 `scss/aipanel.scss`（`.wengu-aipanel-*`，单开一片——rail.scss 与
-  aiflow.scss 都接近红线）**，`index.scss` 里 `@use`；`@keyframes wengu-ai-spin`
-  仍留在 rail.scss 供两片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
+- **样式在 `scss/aipanel.scss` + `scss/aipanel-tree.scss`（`.wengu-aipanel-*`，
+  拆两片——前者卡壳/状态语言/页根/详情，后者「② 树」整段；**20260915 按单文件
+  ≤500 行硬约束拆出**：补高度链（#96）与详情改造（#98）后 aipanel.scss 到 576 行，
+  口径同 rail.scss 逼近红线时把 aiflow.scss 单开一片的先例；拆的是**文件边界
+  不是职责**，类名与令牌同源）**，`index.scss` 里 `@use`（**本片须排在
+  aipanel.scss 之后**——片内含 ≤1000px 折单列的 `@media`，要覆写基础片里的
+  `grid-template-*`，`@media` 不加特异性、按源码序决胜）；`@keyframes wengu-ai-spin`
+  仍留在 rail.scss 供各片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
   设计稿的 `--ok-solid`/`--fail-solid`/`--accent-dim` 等语义令牌落成 b3 令牌 +
   `color-mix` 组合（同 aiflow.scss 口径）。
 - **整页不滚动（Issue #96，20260915；规范 `docs/design-review.md` §〇 第 11 条）**：
@@ -1563,6 +1568,15 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       骨架、随整壳重建，漏关会让下一块面板继承本档：开了档而不收内滚 ⇒ 内容被
       `overflow:hidden` 切掉且**滚不到**，比「整页滚」更坏。「哪些工作区收内滚」
       的判据在 `workspaceFits`（当前只有 ai），别在挂载点写死字符串。
+        - ⚠️ **开关只动本面板那一份骨架，禁 document 级全选**（20260915 复审修正）：
+          `.wengu-ws-main` 在一个文档里**不一定只有本面板一份**（另一个温故页签、
+          将来新增的收内滚面板都可能带一个）。全局 `querySelectorAll` 会把**别的
+          面板**的同名骨架一并改成 flex 列 + `overflow:hidden`——那块面板不收内滚，
+          内容被切且滚不到（正是上面点名要避免的坏形态）；卸载时的 `false` 同理会
+          把别人的档误关。故目标元素由纯函数 `fitTargetOf(root)` 定（宿主自身即主区
+          时就是它，否则只在**宿主子树内**下探一次、找不到就零动作），挂载时记下、
+          卸载时按同一份收起；`toggleFit` 只碰传进来的那一个元素。越界写法被
+          `PanelFit.test` 的假体记账断言挡下（旧实现会把「别人的一份」也打开）。
     - **高度链**（面板页根 → 卡 → 卡内两列，每级都要 `min-height:0`）：
       `SessionPanelApp` 的面板页根挂 `.wengu-aipage`（flex 列 + `min-height:0`
         - `height:100%`，卡外件全 `flex:none`），卡 `.wengu-aipanel` 是
