@@ -3,7 +3,11 @@ import {
     aiTitle,
     Armed,
     dayKey,
+    displaySetName,
     errText,
+    fmtDateTime,
+    fmtDayShort,
+    fmtFullDateTime,
     isLifecycleGone,
     isMobileUi,
     markMobileUi,
@@ -252,5 +256,65 @@ describe("aiTitle（AI 会话记录标题总出口，Issue #120 / 规范 §8.6�
     it("缺参数时保留占位（fmt 的同款行为，宁可露出 {name} 也不静默吞掉）", () => {
         const t = (): string => "转换 · {name}";
         expect(aiTitle(t, "aiTitleConvert", {})).toBe("转换 · {name}");
+    });
+});
+
+describe("displaySetName（题集名「-题解」后缀显示规则，Issue #136 §7.e）", () => {
+    it("只剥结尾后缀（三种连字符）", () => {
+        expect(displaySetName("概率论与数理统计-题解")).toBe("概率论与数理统计");
+        expect(displaySetName("高等数学–题解")).toBe("高等数学"); // 短破折
+        expect(displaySetName("数学分析—题解")).toBe("数学分析"); // 长破折
+        expect(displaySetName("线性代数 - 题解")).toBe("线性代数"); // 连字符 + 空格
+    });
+
+    it("中段连字符不伤（锚定 `$` 的回归锁）", () => {
+        expect(displaySetName("03-习思想-题解")).toBe("03-习思想");
+        expect(displaySetName("考研数学强化通关330·线性代数-题解")).toBe("考研数学强化通关330·线性代数");
+    });
+
+    it("无后缀原样返回；后缀不在结尾也不剥", () => {
+        expect(displaySetName("高数第一章")).toBe("高数第一章");
+        expect(displaySetName("题解-高数")).toBe("题解-高数"); // 后缀在首不在尾
+        expect(displaySetName("题解")).toBe("题解"); // 连字符都没有，不是后缀形态
+        expect(displaySetName("高数-题解集")).toBe("高数-题解集");
+    });
+
+    it("多后缀只剥一层（末位那层）", () => {
+        expect(displaySetName("高数-题解-题解")).toBe("高数-题解");
+    });
+});
+
+describe("日期短式口径（Issue #136 §7.e：同年 MM-DD / 跨年 YYYY-MM-DD）", () => {
+    const NOW = new Date(2026, 8, 15, 12, 0).getTime(); // 2026-09-15 12:00 本地
+
+    it("fmtDayShort：同年省年、跨年补年（含跨年边界两侧）", () => {
+        expect(fmtDayShort(new Date(2026, 8, 13, 21, 4).getTime(), NOW)).toBe("09-13");
+        expect(fmtDayShort(new Date(2026, 0, 1).getTime(), NOW)).toBe("01-01");
+        expect(fmtDayShort(new Date(2025, 11, 30, 9, 12).getTime(), NOW)).toBe("2025-12-30");
+        expect(fmtDayShort(new Date(2025, 11, 31, 23, 59).getTime(), NOW)).toBe("2025-12-31"); // 跨年前一刻
+        expect(fmtDayShort(new Date(2027, 0, 1, 0, 0).getTime(), NOW)).toBe("2027-01-01"); // 未来年也带年
+    });
+
+    it("fmtDateTime：同年 MM-DD HH:mm、跨年 YYYY-MM-DD HH:mm", () => {
+        expect(fmtDateTime(new Date(2026, 8, 13, 21, 4).getTime(), NOW)).toBe("09-13 21:04");
+        expect(fmtDateTime(new Date(2025, 11, 30, 9, 12).getTime(), NOW)).toBe("2025-12-30 09:12");
+    });
+
+    it("fmtDateTime 缺省 now 走当前年（产品调用路径不传第二参）", () => {
+        const ts = new Date(2026, 8, 13, 21, 4).getTime();
+        const yearOf = (s: string): string => (s.length === 11 ? String(new Date(ts).getFullYear()) : "跨年");
+        expect(yearOf(fmtDateTime(ts))).toBe(String(new Date(ts).getFullYear()));
+    });
+
+    it("fmtFullDateTime：全量时刻；无时间戳出空串（不落 1970）", () => {
+        expect(fmtFullDateTime(new Date(2026, 8, 13, 21, 4).getTime())).toBe("2026-09-13 21:04");
+        expect(fmtFullDateTime()).toBe("");
+        expect(fmtFullDateTime(0)).toBe("");
+    });
+
+    it("两函数日期段同源（悬停 title 与行头短式一致）", () => {
+        const ts = new Date(2025, 11, 30, 9, 12).getTime();
+        expect(fmtFullDateTime(ts).startsWith(fmtDayShort(ts, NOW))).toBe(true);
+        expect(fmtDateTime(ts, NOW).startsWith(fmtDayShort(ts, NOW))).toBe(true);
     });
 });

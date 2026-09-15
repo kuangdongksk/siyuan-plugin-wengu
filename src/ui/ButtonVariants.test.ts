@@ -2,6 +2,150 @@ import { describe, expect, it } from "vitest";
 import * as sass from "sass";
 
 /**
+ * 错题本单列可展开行的视觉规格断言（Issue #136 §5，设计稿
+ * `design/wengu-sidebar-redesign.html` ⑦ 区块 / 差距清单 §5 + §7.e）。
+ *
+ * 为什么落成断言：§5 的价值全在**逐值**（44px 日期列 / 190px 题集名 /
+ * 13.5px 单行题干 / 11px 胶囊 / 展开区微沉底），改样式时不看设计稿就会
+ * 悄悄漂移；规范 §〇5 要求「关键视觉规格必须落到断言」。scss 走
+ * **sass 真编译**再断言（同本文件上文的口径），并逐条核「零字面色值」。
+ */
+const reviewCss = (): string => sass.compile("src/scss/review.scss").css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** 取一条规则体：`} `切段后按「选择器行」精确匹配（避免前缀撞车，如
+ *  `.wengu-review-fchip` 命中 `.wengu-review-fchip:hover` / `.on`），
+ *  并跳过 hover/focus 段取基态。 */
+const ruleOf = (sel: string): string => {
+    const segs = reviewCss().split("}");
+    const seg = segs.find((r) => r.split("{")[0].trim() === sel && !r.includes(":hover") && !r.includes(":focus"));
+    expect(seg, `未找到 ${sel} 规则`).toBeTruthy();
+    return `${seg}}`;
+};
+
+describe("错题本单列可展开行（Issue #136 §5）", () => {
+    it("两栏 grid 退役：.wengu-review-cols 与右侧常驻详情不再出现", () => {
+        const css = reviewCss();
+        expect(css).not.toContain(".wengu-review-cols");
+        expect(css).not.toContain("grid-template-columns");
+        // 清单改单列满宽内滚窗，且隐藏原生滚动条（§5.6，能力保留）
+        const list = ruleOf(".wengu-review-list");
+        expect(list).toMatch(/overflow-y:\s*auto/);
+        expect(list).toMatch(/scrollbar-width:\s*none/);
+        expect(css).toMatch(/\.wengu-review-list::-webkit-scrollbar/);
+    });
+
+    it("条目升卡片壳：border/radius-b/surface 底/overflow hidden", () => {
+        const item = ruleOf(".wengu-review-item");
+        expect(item).toMatch(/border:\s*1px solid var\(--b3-border-color\)/);
+        expect(item).toMatch(/border-radius:\s*var\(--b3-border-radius-b\)/);
+        expect(item).toMatch(/background:\s*var\(--b3-theme-surface\)/);
+        expect(item).toMatch(/overflow:\s*hidden/);
+        // 展开/选中态走主色 45% 描边（浅底+描边语言，禁 primary 实底）
+        expect(ruleOf(".wengu-review-item.open,\n.wengu-review-item-cur")).toMatch(
+            /border-color:\s*color-mix\(in srgb,\s*var\(--b3-theme-primary\) 45%,\s*transparent\)/
+        );
+    });
+
+    it("行头五件套逐值：日期 44 / 题集名 190 / 题干 13.5·600·单行 / 错次胶囊", () => {
+        const head = ruleOf(".wengu-review-rowhead");
+        expect(head).toMatch(/display:\s*flex/);
+        expect(head).toMatch(/gap:\s*14px/);
+        expect(head).toMatch(/padding:\s*12px 18px/);
+        expect(head).toMatch(/cursor:\s*pointer/);
+
+        const date = ruleOf(".wengu-review-date");
+        // 44px 是同年 MM-DD 的列宽；跨年 YYYY-MM-DD 略宽 ⇒ min-width 垫底
+        // 宽容纳（不换行、不吃掉题集名）
+        expect(date).toMatch(/min-width:\s*44px/);
+        expect(date).toMatch(/white-space:\s*nowrap/);
+        expect(date).toMatch(/font-size:\s*11px/);
+        expect(date).toMatch(/font-variant-numeric:\s*tabular-nums/);
+
+        const set = ruleOf(".wengu-review-set");
+        expect(set).toMatch(/max-width:\s*190px/);
+        expect(set).toMatch(/text-overflow:\s*ellipsis/);
+        expect(set).toMatch(/white-space:\s*nowrap/);
+
+        const stem = ruleOf(".wengu-review-item-stem");
+        expect(stem).toMatch(/font-size:\s*13\.5px/);
+        expect(stem).toMatch(/font-weight:\s*600/);
+        expect(stem).toMatch(/white-space:\s*nowrap/);
+        expect(stem).not.toMatch(/-webkit-line-clamp/); // 2 行 clamp 已退役
+
+        const count = ruleOf(".wengu-review-count");
+        expect(count).toMatch(/color:\s*var\(--b3-theme-error\)/);
+        expect(count).toMatch(/border-radius:\s*999px/);
+        expect(count).toMatch(/padding:\s*1px 9px/);
+        expect(count).toMatch(/font-weight:\s*600/);
+    });
+
+    it("展开区：border-top + 14/22/18 + 微沉底；操作行右对齐 gap 10", () => {
+        const open = ruleOf(".wengu-review-item-open");
+        expect(open).toMatch(/border-top:\s*1px solid var\(--b3-border-color\)/);
+        expect(open).toMatch(/padding:\s*14px 22px 18px/);
+        expect(open).toMatch(/background:\s*color-mix\(in srgb,\s*var\(--b3-theme-background\) 94%,\s*black\)/);
+        const acts = ruleOf(".wengu-review-detail-actions");
+        expect(acts).toMatch(/justify-content:\s*flex-end/);
+        expect(acts).toMatch(/gap:\s*10px/);
+        expect(acts).toMatch(/margin-top:\s*14px/);
+    });
+
+    it("筛选行：状态胶囊 on 态=浅底+主色 50% 描边+600；概况右移行尾", () => {
+        const chip = ruleOf(".wengu-review-fchip");
+        expect(chip).toMatch(/height:\s*28px/);
+        expect(chip).toMatch(/padding:\s*0 14px/);
+        expect(chip).toMatch(/border-radius:\s*999px/);
+        expect(chip).toMatch(/font-size:\s*12\.5px/);
+        const on = ruleOf(".wengu-review-fchip.on");
+        expect(on).toMatch(/background:\s*var\(--b3-theme-primary-lightest\)/);
+        expect(on).toMatch(/color:\s*var\(--b3-theme-primary\)/);
+        expect(on).toMatch(/border-color:\s*color-mix\(in srgb,\s*var\(--b3-theme-primary\) 50%,\s*transparent\)/);
+        expect(on).toMatch(/font-weight:\s*600/);
+        expect(ruleOf(".wengu-review-summary")).toMatch(/margin-left:\s*auto/);
+    });
+
+    it("零字面色值（颜色只走令牌，唯一豁免是 94% 微沉底的 black 混合项）", () => {
+        for (const body of [
+            ruleOf(".wengu-review-item"),
+            ruleOf(".wengu-review-date"),
+            ruleOf(".wengu-review-set"),
+            ruleOf(".wengu-review-item-stem"),
+            ruleOf(".wengu-review-count"),
+            ruleOf(".wengu-review-fchip.on"),
+            ruleOf(".wengu-review-mini-star.on"),
+        ]) {
+            expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+        }
+    });
+
+    /**
+     * 空态提示条的**语义闸**（Issue #136 §5.1 复核）：稿要求
+     * 「`wengu-review-detail-empty` 空态文案保留（无选中时列表上方提示条）」
+     * ——关键词是**无选中时**。两栏时期它由 `ui.detail.phase === "empty"`
+     * 门控；改单列展开后若照抄结构而漏掉门控，提示条会**常驻**挂在清单
+     * 顶部（展开任一行的同时还在喊「点一题回看」），且文案里的「左侧清单」
+     * 指向的左右栏已退役。
+     * 故两道：①必须由 `ui.selQid` 门控；②文案不得再指向已退役的方向词。
+     */
+    it("空态提示条只在无选中时出，且文案不指向已退役的左右栏", () => {
+        const app = SRC["../review/components/ReviewApp.svelte"];
+        const at = app.indexOf("wengu-review-detail-empty");
+        expect(at).toBeGreaterThan(-1);
+        // ① 就近门控：提示条所在片段要带 selQid 判定
+        const near = app.slice(Math.max(0, at - 400), at + 200);
+        expect(near).toMatch(/selQid/);
+        expect(near).toMatch(/\{#if !ui\.selQid\}/);
+        // ② 文案侧（字典值，非键名）：单列形态下无「左栏」可言
+        const zh = JSON.parse(SRC_ZH) as Record<string, string>;
+        const en = JSON.parse(SRC_EN) as Record<string, string>;
+        expect(zh.reviewPickHint).not.toMatch(/左侧|左栏|左边/);
+        expect(en.reviewPickHint).not.toMatch(/on the left|left/i);
+        expect(zh.reviewPickHint.length).toBeGreaterThan(0);
+        expect(en.reviewPickHint.length).toBeGreaterThan(0);
+    });
+});
+
+/**
  * 按钮变体词表与「唯一主操作」的源级断言（Issue #120，规范
  * `docs/design-spec.md` §2.1 / §2.3）。
  *
@@ -24,6 +168,57 @@ const SRC = import.meta.glob("../**/*.{ts,svelte,scss}", {
 const relOf = (k: string): string => k.replace(/^\.\.\//, "").replace(/^\.\//, "ui/");
 
 const button = SRC["./Button.svelte"];
+
+/** i18n 字典原文（`?raw`，同 `SpecListings.test.ts` 口径）——文案断言
+ *  查**值**而非键名，故直接解析两份字典。 */
+const I18N = import.meta.glob("../i18n/*.json", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+const SRC_ZH = I18N["../i18n/zh-CN.json"];
+const SRC_EN = I18N["../i18n/en.json"];
+
+/**
+ * ⚠️ 悬空引用闸（Issue #136 复核）：`var(--wengu-*)` 是本仓自造档，
+ * 与 b3 官方令牌不同 —— **没有官方兜底**，未定义即整条声明在计算值期
+ * 失效、回落初始值（同规范 §1.2 的三处悬空令牌事故，`review.scss` 正是
+ * 那次被清零的文件之一）。本闸把「用了没人定义」变成 CI 会红的东西，
+ * 口径＝「定义面 ∈ 本仓 scss 编译产物的 `--wengu-*: 声明`」。
+ *
+ * 为什么必须真编译 scss：`?raw` 对 scss 在本仓 vitest 下恒空串
+ * （见上文注），编译产物才是真落进页面的东西。
+ */
+describe("自造令牌 --wengu-* 无悬空引用（规范 §1.2 反面教材防复发）", () => {
+    const SCSS = Object.keys(
+        import.meta.glob("../**/*.scss", { query: "?raw", import: "default", eager: true }) as Record<string, string>
+    );
+
+    /** 定义面：全仓 scss 里出现过的 `--wengu-x:` 声明（含组件内联 style 变量除外）。 */
+    const defined = new Set<string>();
+    for (const f of SCSS) {
+        const css = sass.compile(f.replace(/^\.\.\//, "src/")).css;
+        for (const m of css.matchAll(/(--wengu-[a-z0-9-]+)\s*:/g)) defined.add(m[1]);
+    }
+
+    it("定义面非空（防扫空即全绿）", () => {
+        expect(SCSS.length).toBeGreaterThan(15);
+        expect(defined.size).toBeGreaterThan(3);
+    });
+
+    it("每个 var(--wengu-*) 要么有人定义，要么带兜底值", () => {
+        const dangling: string[] = [];
+        for (const f of SCSS) {
+            const rel = f.replace(/^\.\.\//, "src/");
+            const css = sass.compile(rel).css;
+            // 只认「无兜底」形态：var(--x) 紧跟 `)`；var(--x, …) 由兜底自保
+            for (const m of css.matchAll(/var\(\s*(--wengu-[a-z0-9-]+)\s*\)/g)) {
+                if (!defined.has(m[1])) dangling.push(`${rel}: ${m[1]}`);
+            }
+        }
+        expect(dangling).toEqual([]);
+    });
+});
 
 describe("按钮变体词表（规范 §2.1）", () => {
     it("ButtonVariant 统一为 primary，不再有自造的 main", () => {

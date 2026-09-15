@@ -1,8 +1,16 @@
-/* 错题本（复习模式 M6）：左清单右详情两栏。
+/* 错题本（复习模式 M6）：单列可展开行（Issue #136 §5.1，两栏 grid 退役；
+   详情从常驻右栏移入行内展开区 .wengu-review-item-open）。
    数据与编排见 ReviewFlow/ReviewHtml；Neo 主题下须复查无横向滚动条。
-   头部模式切换器样式已删（2026-08-26，入口改开刷面板三按钮）。 */
+   头部模式切换器样式已删（2026-08-26，入口改开刷面板三按钮）。
 
-/* 复习模式接管主区：main 不滚，两栏各自滚 */
+   ⚠️ `--wengu-faint` / `--wengu-border-strong` 是设计稿派生档，**定义在
+   base.scss 顶部（Issue #135）**。本片按 §0 映射表消费，但两者**不保证同时
+   在仓**（#135 与本单并行），故一律带兜底值：派生式与 base.scss 写法逐字
+   相同，定义在时取变量、不在时用兜底，两种合并顺序下观感一致。
+   别去掉兜底——`--wengu-*` 没有 b3 官方兜底，悬空即整条声明失效
+   （规范 §1.2 反面教材；`ButtonVariants.test.ts` 有闸守着）。 */
+
+/* 复习模式接管主区：main 不滚，清单区自己滚 */
 .wengu-review-main {
   display: flex;
   flex-direction: column;
@@ -16,58 +24,89 @@
   flex-direction: column;
 }
 
+/* 筛选行（§5.2）：状态维胶囊组 + 排序维原生下拉 + 概况右移行尾 */
 .wengu-review-tools {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   padding: 4px 0 8px;
 }
 
+.wengu-review-fchips {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 状态筛选胶囊（§5.2）：浅底 + 主色 50% 描边 + 主色字 + 600 的选中语言
+   （与规范 §2.3 的「选中态禁 primary 实底」同款） */
+.wengu-review-fchip {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--b3-border-color);
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--b3-theme-on-surface);
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.wengu-review-fchip:hover {
+  background: var(--b3-list-hover);
+  border-color: var(--wengu-border-strong, color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent));
+}
+
+.wengu-review-fchip.on {
+  background: var(--b3-theme-primary-lightest);
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 50%, transparent);
+  color: var(--b3-theme-primary);
+  font-weight: 600;
+}
+
 .wengu-review-summary {
-  flex: 1;
+  margin-left: auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
 }
 
-.wengu-review-cols {
+/* 清单区：单列满宽内滚窗（§5.1）；滚动条隐藏（§5.6，滚轮/键盘/拖动能力
+   保留——可滚性由行数与分节标题表达） */
+.wengu-review-list {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
-  gap: 8px;
-}
-
-.wengu-review-list {
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
+  scrollbar-width: none;
 }
 
-.wengu-review-detail {
-  min-width: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+.wengu-review-list::-webkit-scrollbar {
+  display: none;
 }
 
 .wengu-review-detail-empty {
-  padding: 24px 0;
-  text-align: center;
+  padding: 0 0 8px;
+  font-size: 12px;
+  color: var(--wengu-faint, color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent));
 }
 
-/* 分组：组头（文档标题 + 重刷按钮）+ 条目 */
+/* 分组：组头（分节标题 + 重刷按钮；§5.3 降为 12px）+ 组内行 */
 .wengu-review-group {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .wengu-review-group-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--b3-border-color);
+  padding: 4px 2px;
 }
 
 .wengu-review-group-title {
@@ -86,68 +125,118 @@
   font-size: 12px;
 }
 
+/* 条目壳（§5.1）：升卡片（border/radius-b/surface 底），行头点击整行展开 */
 .wengu-review-item {
-  padding: 6px 8px;
-  border-radius: var(--b3-border-radius-b, 6px);
-  cursor: pointer;
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius-b);
+  background: var(--b3-theme-surface);
+  overflow: hidden;
+  margin-bottom: 9px;
 }
 
 .wengu-review-item:hover {
-  background: var(--b3-theme-surface);
+  border-color: var(--wengu-border-strong, color-mix(in srgb, var(--b3-theme-on-background) 34%, transparent));
 }
 
+.wengu-review-item.open,
 .wengu-review-item-cur {
-  background: var(--b3-theme-primary-lightest);
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+}
+
+/* 行头五件套（§5.3）：日期 44 / 题集名 max-190 / 题干 flex / 迷你星 / 错次 */
+.wengu-review-rowhead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  cursor: pointer;
+}
+
+.wengu-review-date {
+  flex: none;
+  /* 44px 是「同年 MM-DD」的列宽；跨年 YYYY-MM-DD（10 字符）比它略宽，
+     故用 min-width 垫底宽容纳（列不换行也不吃掉后面的题集名，
+     §7.e 跨年口径） */
+  min-width: 44px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--wengu-faint, color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent));
+  font-variant-numeric: tabular-nums;
+}
+
+.wengu-review-set {
+  flex: none;
+  max-width: 190px;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wengu-review-item-stem {
-  font-size: 12px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--b3-theme-on-surface);
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.wengu-review-item-meta {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--b3-theme-on-surface-light);
-}
-
-.wengu-review-item-tags {
-  margin-top: 4px;
-  display: flex;
-  gap: 6px;
+/* 迷你星（§5.3 结构占位）：13×13、点亮态 warning 色（跨产品评分星惯例） */
+.wengu-review-mini {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
   align-items: center;
 }
 
-.wengu-review-badge {
-  flex: none;
-  padding: 0 6px;
-  font-size: 12px;
-  line-height: 18px;
-  border-radius: 9px;
-  border: 1px solid var(--b3-border-color);
-  color: var(--b3-theme-on-surface-light);
+.wengu-review-mini-star {
+  display: inline-flex;
+  color: var(--wengu-faint, color-mix(in srgb, var(--b3-theme-on-background) 55%, transparent));
 }
 
-.wengu-review-badge-pending {
-  border-color: var(--b3-theme-error);
-  color: var(--b3-theme-error);
+.wengu-review-mini-star svg {
+  width: 13px;
+  height: 13px;
 }
 
-.wengu-review-badge-mastered {
-  border-color: var(--b3-theme-success);
-  color: var(--b3-theme-success);
-}
-
-.wengu-review-cause {
-  font-size: 12px;
+.wengu-review-mini-star.on {
   color: var(--b3-card-warning-color);
 }
 
-/* 右侧详情：题目/时间线/答案/解析分节 */
+/* 错次胶囊（§5.3）：error 语义色系（底 13% / 边 35%） */
+.wengu-review-count {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--b3-theme-error) 35%, transparent);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+/* 展开区（§5.4）：border-top + 微沉底（与侧栏同式，明暗两态成立） */
+.wengu-review-item-open {
+  border-top: 1px solid var(--b3-border-color);
+  padding: 14px 22px 18px;
+  background: color-mix(in srgb, var(--b3-theme-background) 94%, black);
+}
+
+/* 展开区元信息行（§5.4）：11px muted、gap 12 */
+.wengu-review-open-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 展开区详情：题目/时间线/答案/解析分节 */
 .wengu-review-detail-inner {
   display: flex;
   flex-direction: column;
@@ -250,7 +339,9 @@
 
 .wengu-review-detail-actions {
   display: flex;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 /* 统计总览「进错题本」按钮与错题行可点 */
