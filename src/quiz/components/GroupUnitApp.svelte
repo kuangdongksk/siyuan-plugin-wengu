@@ -17,6 +17,14 @@
         unregisterGroup,
     } from "../flow/MaterialFlow";
     import { fadeVisible, materialScrollCap } from "../flow/MaterialScroll";
+    import {
+        MAT_STEP_PX,
+        clampMatCap,
+        matMaxPx,
+        normalizeMatRatio,
+        pxOfRatio,
+        ratioOf,
+    } from "../flow/MaterialSplitter";
     import type { GroupUnitQ } from "../render/DrillUnits";
     import type { WenguMaterial } from "../../types";
     import QuizCardApp from "./QuizCard/index.svelte";
@@ -74,6 +82,97 @@
     /** 渐隐分界线可见（Issue #87 验收 1/2）：**只有「下方还有内容」才显示**，
      *  滚到底即消（判定 `MaterialScroll.fadeVisible`）。 */
     let fading = $state(false);
+
+    /* ── 可拖分隔条（Issue #138 §6.1/§7.c，交互语义按 antd Splitter）──
+       材料区高度从「固定 52vh」改为可由用户拖动决定。约束/比例折算全在
+       纯函数 `flow/MaterialSplitter`（带单测），本组件只做三件事：读事件
+       → 调纯函数 → 写内联 `--wengu-mat-cap`（px，优先级盖 52vh）。
+
+       ⚠️ 内联值只在**用户拖过**时存在：`m.matCapRatio === undefined` 且未
+       拖过 ⇒ 不写内联，CSS 的 52vh 默认生效（短材料/独立题零 DOM 变化）。 */
+    /** 用户当前拖出的高度（px；null=未拖过 ⇒ 走 CSS 默认比例）。 */
+    let capPx = $state<number | null>(null);
+    let dragging = $state(false);
+    let splitEl = $state<HTMLElement | undefined>(undefined);
+    let hostEl = $state<HTMLElement | undefined>(undefined);
+    /** 拖拽起点：指针 y 与当时的材料区高（antd Splitter 同款，算 delta 用）。 */
+    let dragFrom = { y: 0, h: 0 };
+
+    /** 材料区所在列的可用高（上限判据的一半；未挂载/未量算回 0 ⇒
+     *  `matMaxPx` 退化为 75vh 一条，不会写出 0 高）。 */
+    const hostHeight = (): number => hostEl?.clientHeight ?? 0;
+
+    /** 把高度意图写成内联变量（拖动/键盘/复位三路唯一出口）。 */
+    const applyCap = (px: number): void => {
+        const next = clampMatCap(px, hostHeight(), window.innerHeight);
+        capPx = next;
+        matEl?.style.setProperty("--wengu-mat-cap", `${next}px`);
+    };
+
+    /** 复位：清内联 ⇒ 回 CSS 的 52vh 默认（双击/键盘 End 前的「归零」语义），
+     *  并把比例也清掉（下次装载仍是默认，不是「拖到 52vh 那一刻的像素」）。 */
+    const resetCap = (): void => {
+        capPx = null;
+        matEl?.style.removeProperty("--wengu-mat-cap");
+        host.persist?.();
+        syncMatScroll();
+    };
+
+    /** 拖到/键到某个高度后落库（存比例不存像素，§7.c 持久化口径）。 */
+    const persistCap = (): void => {
+        if (capPx === null) return;
+        const ratio = ratioOf(capPx, hostHeight());
+        if (ratio === undefined) return;
+        host.setMatCapRatio?.(ratio);
+    };
+
+    const onSplitDown = (e: PointerEvent): void => {
+        if (!matEl) return;
+        dragFrom = { y: e.clientY, h: matEl.getBoundingClientRect().height };
+        dragging = true;
+        splitEl?.setPointerCapture(e.pointerId);
+        document.body.classList.add("wengu-splitting");
+        e.preventDefault();
+    };
+
+    const onSplitMove = (e: PointerEvent): void => {
+        if (!dragging) return;
+        applyCap(dragFrom.h + (e.clientY - dragFrom.y));
+    };
+
+    /** pointerup/pointercancel 共同收尾：释放 capture、摘全局拖动态、
+     *  落库，并**手动补一次滚动重算**——拖动不触发 resize 事件，
+     *  渐隐与 cap 判定会滞留在拖动前的高度（§7.c 明写）。 */
+    const onSplitUp = (e: PointerEvent): void => {
+        if (!dragging) return;
+        dragging = false;
+        if (splitEl?.hasPointerCapture(e.pointerId)) splitEl.releasePointerCapture(e.pointerId);
+        document.body.classList.remove("wengu-splitting");
+        persistCap();
+        syncMatScroll();
+    };
+
+    const onSplitDbl = (): void => resetCap();
+
+    /** 键盘可达（§7.c）：Arrow ±24px、Home/End 到 min/max。
+     *  End 走 max（顶格上限），Home 到 min 而不是「复位默认」——两个键
+     *  各自对应约束的两端，复位另有双击（antd Splitter 亦只给方向键）。 */
+    const onSplitKey = (e: KeyboardEvent): void => {
+        const hostPx = hostHeight();
+        const max = matMaxPx(hostPx, window.innerHeight);
+        const from = capPx ?? pxOfRatio(m.matCapRatio ?? 0, hostPx) ?? matEl?.clientHeight ?? 0;
+        let next: number | undefined;
+        if (e.key === "ArrowUp") next = from - MAT_STEP_PX;
+        else if (e.key === "ArrowDown") next = from + MAT_STEP_PX;
+        else if (e.key === "Home")
+            next = 0; // clamp 抬到 min
+        else if (e.key === "End") next = max;
+        if (next === undefined) return;
+        e.preventDefault(); // 别让方向键把面板滚起来
+        applyCap(next);
+        persistCap();
+        syncMatScroll();
+    };
     /** 组内上一题/下一题（滚到新卡）。 */
     const step = (dir: number): void => {
         const next = clampGroupQi(qi + dir, qs.length);
@@ -85,6 +184,18 @@
             block: "nearest",
             behavior: "smooth",
         });
+    };
+
+    /** 装载时恢复持久化比例（§7.c）：`ratio × host 高` 折算 px 写内联。
+     *  未拖过（`undefined`）/越界/壳未量算 ⇒ 一个内联变量都不写，
+     *  CSS 的 52vh 默认生效（短材料/独立题 DOM 逐字节不变）。 */
+    const restoreCap = (): void => {
+        const ratio = normalizeMatRatio(m.matCapRatio);
+        if (ratio === undefined || !matEl) return;
+        const px = pxOfRatio(ratio, hostHeight());
+        if (px === undefined) return;
+        capPx = clampMatCap(px, hostHeight(), window.innerHeight);
+        matEl.style.setProperty("--wengu-mat-cap", `${capPx}px`);
     };
 
     /** 量算材料区滚动能力（挂载后一次 + resize/折叠展开 + 每次滚动）：
@@ -125,7 +236,13 @@
             if (rootEl) renderMathWhenVisible(rootEl);
             // 限高内滚的首次量算：属性落定 → 布局 → 量算（装饰链已铺完，
             // scrollHeight 此时才是最终值）。`await tick()` 让首帧先见内容。
-            void tick().then(syncMatScroll);
+            // 同一 tick 里恢复持久化比例（§7.c：ratio × host 高 折算 px）——
+            // 必须在首帧量算前写好内联值，否则先按 52vh 量一遍再改，
+            // `cap`/`fading` 会留下一次闪烁级的错判。
+            void tick().then(() => {
+                restoreCap();
+                syncMatScroll();
+            });
         }
         // Issue #28：材料填充后过统一高亮后处理——装饰出口那次施工已把高亮
         // 与线索一并铺好，本调用在这里是**幂等**的 chips 行兜底（材料缺失/
@@ -168,11 +285,40 @@
             </Button>
         </span>
     </div>
-    <div class="wengu-gmat-host" data-scroll-cap={cap || undefined} data-scroll-fade={fading ? "" : undefined}>
+    <div
+        class="wengu-gmat-host"
+        data-scroll-cap={cap || undefined}
+        data-scroll-fade={fading ? "" : undefined}
+        bind:this={hostEl}
+    >
         <div class="wengu-gmat" data-mprotyle bind:this={matEl} onscroll={onMatScroll}>
             <span class="wengu-muted">…</span>
         </div>
     </div>
+    {#if cap}
+        <!-- 可拖分隔条（Issue #138 §7.c）：**只在材料区真的溢出（`cap`）时
+             出现**——短材料没有可调的高度，出手柄就是骗人（§0「短材料不出
+             手柄」）。`role="separator"` + `tabindex=0` = 键盘可达。 -->
+        <div
+            class="wengu-splitter"
+            data-act="mat-split"
+            role="separator"
+            aria-orientation="horizontal"
+            tabindex="0"
+            title={t("matSplitTitle")}
+            aria-label={t("matSplitTitle")}
+            bind:this={splitEl}
+            class:wengu-splitting={dragging}
+            onpointerdown={onSplitDown}
+            onpointermove={onSplitMove}
+            onpointerup={onSplitUp}
+            onpointercancel={onSplitUp}
+            ondblclick={onSplitDbl}
+            onkeydown={onSplitKey}
+        >
+            <i></i>
+        </div>
+    {/if}
     <div class="wengu-gqs">
         {#each qs as gq, i (gq.q.id)}
             <QuizCardApp q={gq.q} idx={gq.idx} {m} {ctx} {host} hidden={i !== qi} badMarked={badMarks.has(gq.q.id)} />

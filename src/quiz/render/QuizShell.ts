@@ -119,6 +119,9 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         showWrongBadge: !pv && v.settings?.showWrong !== false && v.revealMode !== "after",
         // 「标记为错题」钮只在预览模式渲染（Issue #46；做题模式不加）
         preview: pv,
+        // 材料/题目分隔条比例（Issue #138 §7.c）：undefined=从未拖过，
+        // 材料组不写内联内联值、回 CSS 的 52vh 默认（短材料/独立题零变化）
+        matCapRatio: v.matSplit.current,
     };
     // 已标记为错题的 qid 集合（Issue #46；卡头标记钮初态回灌；非预览不查——
     // 做题模式没有这个钮）。**同步读题库快照**（peek）：渲染路径不 await 查库

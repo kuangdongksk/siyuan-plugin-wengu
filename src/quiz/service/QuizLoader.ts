@@ -27,6 +27,8 @@ export interface QuizLoadDeps {
         lastConvertSteps?: boolean;
         lastConvertKnow?: string;
         convertProgress?: Record<string, ConvertProgressRecord>;
+        /** 材料区分隔条的比例（Issue #138 §7.c；存比例不存像素）。 */
+        matCapRatio?: number;
     };
     settings?: SettingsDialogShape;
     timer: TimerController;
@@ -63,6 +65,8 @@ export interface QuizLoadResult {
     lastConvertKnow: string;
     /** 未完成转换的进度（源文档 id → 记录），供「继续生成」。 */
     convertProgress: Record<string, ConvertProgressRecord>;
+    /** 阅读组分隔条比例（Issue #138 §7.c；undefined=从未拖过 ⇒ 回 52vh）。 */
+    matCapRatio: number | undefined;
     revealMode: WenguRevealMode;
     docTotalSec: number;
     loadError: string;
@@ -93,6 +97,7 @@ export async function loadQuizState(deps: QuizLoadDeps): Promise<QuizLoadResult>
         lastConvertSteps: deps.prefs.lastConvertSteps ?? deps.settings?.bigToSteps === true,
         lastConvertKnow: deps.prefs.lastConvertKnow ?? "",
         convertProgress: deps.prefs.convertProgress ?? {},
+        matCapRatio: deps.prefs.matCapRatio,
         revealMode: deps.settings?.defaultReveal === "after" ? "after" : "instant",
         docTotalSec: 0,
         loadError: "",
@@ -161,6 +166,34 @@ export interface WenguPrefsIo {
     lastConvertKnow?: string;
     /** 未完成的分批转换进度（源文档 id → 记录），供「继续生成」。 */
     convertProgress?: Record<string, ConvertProgressRecord>;
+    /** 阅读组材料/题目的分隔条比例（Issue #138 §7.c）：**存比例不存像素**
+     *  （0.16–0.75 小数）——换设备/换窗口高度稳。只加不改名，读侧夹取
+     *  收口在 MaterialSplitter.normalizeMatRatio（脏值=未拖过，回 52vh）。 */
+    matCapRatio?: number;
+}
+
+/** 视图 → prefs 快照（QuizView.persistPrefs 的实现体，20260915 自
+ *  `quiz/index.ts` 外移压红线：该文件豁免额度＝上限、只许减不许增）。
+ *  新增持久化键的落点都在这里——**加键不 bump version**，装载只认业务
+ *  字段存在性（数据演进守则）。`undefined` 的键整条缺席（不写 null）。 */
+export function prefsSnapshotOf(v: {
+    docId: string;
+    colFlow: { id(): string };
+    sideCollapsed: boolean;
+    sideTreeOpen: string[];
+    workspace: string;
+    matSplit: { snapshot(): { matCapRatio?: number } };
+    convertAccess: { prefsSnapshot(): Record<string, unknown> };
+}): WenguPrefsIo {
+    return {
+        docId: v.docId,
+        colId: v.colFlow.id(),
+        sideCollapsed: v.sideCollapsed,
+        sideTreeOpen: v.sideTreeOpen,
+        workspace: v.workspace,
+        ...v.matSplit.snapshot(),
+        ...v.convertAccess.prefsSnapshot(),
+    };
 }
 
 export async function loadPrefs(storage?: { load: () => Promise<unknown> }): Promise<WenguPrefsIo> {

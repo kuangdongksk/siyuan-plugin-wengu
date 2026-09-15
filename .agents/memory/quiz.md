@@ -29,6 +29,36 @@
       纯展示 chip（预览/复习等只读壳）。
     - **侧栏 AI 入口**：`.wengu-side-ai` 经 `sideActFor` 的 `side-ai` 分支
       落 `switchWorkspace("ai")`（rail 已存在的 AI 工作区，不新造面板通道）。
+- **阅读组可拖分隔条（Issue #138，20260915；§6.1 + §7.c）**：材料区高度
+  从「固定 52vh」改为可拖（antd Splitter 语义）。落点要点：
+    - **纯逻辑在 `quiz/flow/MaterialSplitter.ts`**（带单测）：约束
+      `MAT_MIN_PX=160` / `matMaxPx = min(75vh, host 高)` / `clampMatCap` /
+      `ratioOf`·`pxOfRatio` / `normalizeMatRatio`，另加持有物
+      **`MatSplitPrefs`**（`restore`/`write`/`snapshot`，夹取与「值未变不落盘」
+      守卫都在它里面）。
+    - **为什么多一个持有物类**：`quiz/index.ts` 的 574 行豁免**额度＝上限**
+      （#138 实测：直接往视图塞字段 + 读写守卫会顶破 590/577）。照
+      `ConvertAccess` 先例切片，同时把 `persistPrefs` 的快照组装外移
+      `service/QuizLoader.prefsSnapshotOf` ——视图侧只剩 `matSplit` 一个字段、
+      `setMatCapRatio` 一个薄访问器、`persistPrefs` 三行。
+      **后续再往 index.ts 加持久化字段，先照这个切法走，别硬塞。**
+    - **内联变量写在 `.wengu-gmat` 自己身上**（`matEl.style.setProperty`）：
+      `52vh` 定义在父级 `.wengu-gmat-host`（reading.scss），`var()` 由子级消费
+      ——自身声明才压得过继承值。装载恢复（`restoreCap`）必须在**首帧量算前**
+      写完内联，否则先按 52vh 量一遍再改，`cap`/`fading` 会闪一次错判。
+    - **拖动不触发 resize** ⇒ `pointerup` 的收尾里**必须手动补一次
+      `syncMatScroll()`**（§7.c 明写；漏了渐隐会滞留在拖动前的高度）。同函数
+      还摘 body 全局类（`.wengu-splitting` = 全局 row-resize + 禁选）。
+    - **手柄只在 `cap`（真的溢出）时渲染**（`{#if cap}`）：短材料没有可调的
+      高度，出手柄就是骗人；纯独立题卷结构上没这一层 ⇒ 零 DOM 变化。
+    - **材料区滚动条已改成「不显示」**（验收 5；`scrollbar-width:none` +
+      `::-webkit-scrollbar{width:0}`，两条都要——只写一条在套壳内核里会露出来）。
+      原先「hover 才显形」的细条口径作废。
+    - **i18n 键** `matSplitTitle`（手柄 title/aria-label）；规格锁在
+      `quiz/render/MaterialSplitterDesign.test.ts`（scss 真编译断言三态值 +
+      组件 `?raw` 断言接线 + Svelte 真编译零 unused 选择器）。
+      样式留 `scss/reading.scss`（§13.3 登记的共享片，① TS 触达）。
+
 - **本轮复审纠偏（20260915 二轮，五处真机级；复审 PR #140 时逐条实测发现）**：
     - **自评行是「加」不是「换」**：五星掌握度与既有「我答对了/我答错了」
       **并列**在同一 `.wengu-self` 行内。删掉对错钮会一次打断三条链——

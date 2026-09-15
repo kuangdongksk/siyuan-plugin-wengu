@@ -56,6 +56,10 @@ export interface AnswerHost {
     roundComplete(): void;
     /** 会话落库（自评五星即写即存；实现体 QuizView.persist 同款）。 */
     persist?(): void;
+    /** 写材料区分隔条比例（Issue #138 §7.c；**存比例不存像素**）。
+     *  实现体 QuizView.setMatCapRatio（落 prefs，非会话）。可选——测试/
+     *  预览壳不实现即不持久化（拖动仍生效，只是重开面板回默认）。 */
+    setMatCapRatio?(ratio: number): void;
     flushTime(): void;
     /** 当前题切换（题号导航/组内导航）：同步下标、逐题计时、线索行。
      *  可选——QuizView 之外的宿主（测试/预览壳）不实现即跳过同步。 */
