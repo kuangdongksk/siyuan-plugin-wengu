@@ -23,6 +23,28 @@ const realT =
     (k: string): string =>
         (dict[k] ?? k).replace(/\{(\w+)\}/g, (_, n: string) => (n === "flow" ? flowName : `{${n}}`));
 
+/**
+ * **幽灵键锁**用取词替身：与 `realT` 同译文，另**记账被请求过的键**。
+ *
+ * 插件的真取词口径是 `i18n[key] || key`（`quiz/index.ts` 的 `this.t`、
+ * `ui/SettingsDialog.ts`、`companion/core/CompanionCtl.ts` 同款）——
+ * **键不存在（或值为空串）时回落键名**。于是 `const tail = t("某键");
+ * if (tail) …` 这种「靠空值判不渲染」的写法会**把字面键名渲染进面板**：
+ * `if` 拿到的是 truthy 的键名本身。这正是本单第二处复审缺陷的形态
+ * （Issue #93）。
+ */
+const trackingT = (dict: Record<string, string>, flowName = "F"): { asked: string[]; t: (k: string) => string } => {
+    const asked: string[] = [];
+    const inner = realT(dict, flowName);
+    return {
+        asked,
+        t: (k: string): string => {
+            asked.push(k);
+            return inner(k);
+        },
+    };
+};
+
 /** 段拼成整串（成句断言的输入）。 */
 const join = (segs: { text: string }[]): string => segs.map((x) => x.text).join("");
 
@@ -111,13 +133,9 @@ describe("记录详情的流归属说明（停止钮白名单）", () => {
         const batch = flowOwnershipOf(rec("tag", "error", AI_STOPPED));
         expect(batch).toEqual({ kind: "stoppedBatch", flowKey: "aiFlowTitleTag" });
         // 六批流没有抉择入口 ⇒ **自有正文**（不指路转换条，那是另一条流的
-        // 入口）；批流支的收尾键为空串（真实 i18n 下不渲染），`t` 替身里
-        // 键名非空故仍出段——成句形态由下一条用例按真译文锁。
-        expect(ownershipSegsOf(t, batch).map((s) => s.text)).toEqual([
-            "aiOwnStoppedBatch",
-            "aiOwnStoppedBatchBody",
-            "aiOwnStoppedBatchTail",
-        ]);
+        // 入口）；批流支**不收尾、也不读收尾键**（故两段）——正文本身已是
+        // 一句完整交代（含句末收束）。成句形态由下一条用例按真译文锁。
+        expect(ownershipSegsOf(t, batch).map((s) => s.text)).toEqual(["aiOwnStoppedBatch", "aiOwnStoppedBatchBody"]);
     });
 
     /**
@@ -126,11 +144,11 @@ describe("记录详情的流归属说明（停止钮白名单）", () => {
      * 指令）。故这里拿**真实 i18n** 拼串，逐条断言：
      *  1. 停止态**不含停止指令**（「要停止请用…」/`use the … stop`）；
      *  2. 停止态**无空引号对、无不配对引号**；
-     *  3. 在途态的四段形态与配对引号照旧（防止修停止态时把它改坏）。
+     *  3. 在途态的四段形态与配对引号照旧（防止修停止态时把它改坏）；
+     *  4. **无幽灵键**：段拼接结果里不得出现任何被请求过的 i18n 键名
+     *     ——`t = i18n[k] || k` 的回落会把缺键/空值键的字面键名渲染给用户。
      */
-    it("拼成整句后：停止态不含停止指令、无空引号对；在途态引号仍配对", () => {
-        const zhT = realT(zh as Record<string, string>, zh.aiFlowTitleTag);
-        const enT = realT(en as Record<string, string>, en.aiFlowTitleTag);
+    it("拼成整句后：停止态不含停止指令、无空引号对、不泄漏键名；在途态引号仍配对", () => {
         const STOP_HINT = [/要停止请/, /不可单独中止/, /use the .*stop/i, /can't be stopped/i];
         const EMPTY_QUOTES = ["「」", "“”", "『』", '""', "''"];
         const PAIRS: [string, string][] = [
@@ -139,13 +157,23 @@ describe("记录详情的流归属说明（停止钮白名单）", () => {
             ["『", "』"],
         ];
 
-        for (const [name, tt] of [
-            ["zh", zhT],
-            ["en", enT],
-        ] as [string, (k: string) => string][]) {
+        for (const [name, dict] of [
+            ["zh", zh],
+            ["en", en],
+        ] as [string, Record<string, string>][]) {
             for (const kind of ["convert", "tag"] as const) {
                 const own = flowOwnershipOf(rec(kind, "error", AI_STOPPED));
-                const text = join(ownershipSegsOf(tt, own));
+                // 4) 幽灵键：请求过的每个键都必须真实在表且非空串——否则
+                //    `t = i18n[k] || k` 会回落键名，把它当正文渲染给用户。
+                const probe = trackingT(dict, dict.aiFlowTitleTag);
+                const segs = ownershipSegsOf(probe.t, own);
+                const text = join(segs);
+                expect(probe.asked.length, `${name}/${kind} 未请求任何键`).toBeGreaterThan(0);
+                for (const k of probe.asked) {
+                    expect(dict[k], `${name}/${kind} 幽灵键（缺失）: ${k}`).toBeTypeOf("string");
+                    expect(dict[k], `${name}/${kind} 幽灵键（空串，会被 || 回落成键名）: ${k}`).not.toBe("");
+                    expect(text, `${name}/${kind} 整串里泄漏了键名 ${k}`).not.toContain(k);
+                }
                 // 1) 不得给一条已停止的记录下停止指令（#88 两态语义）
                 for (const re of STOP_HINT) expect(text, `${name}/${kind} 含停止指令: ${text}`).not.toMatch(re);
                 // 2) 空引号对（accent 段被省后开/闭引号相撞的形态）
@@ -160,13 +188,15 @@ describe("记录详情的流归属说明（停止钮白名单）", () => {
             }
 
             // 在途态四段照旧：含停止指令（那正是它的职责）+ 引号配对
-            const inflight = join(ownershipSegsOf(tt, flowOwnershipOf(rec("convert"))));
+            const probe = trackingT(dict, dict.aiFlowTitleTag);
+            const inflight = join(ownershipSegsOf(probe.t, flowOwnershipOf(rec("convert"))));
             expect(inflight).toMatch(/stop|停止/i);
             for (const [open, close] of PAIRS) {
                 const a = inflight.split(open).length - 1;
                 const b = inflight.split(close).length - 1;
                 expect(a, `${name} 在途态引号不配对: ${inflight}`).toBe(b);
             }
+            for (const k of probe.asked) expect(dict[k], `${name} 在途态幽灵键: ${k}`).toBeTypeOf("string");
         }
     });
 
