@@ -60,14 +60,9 @@ export interface ExplainCtx {
     confused?: string;
 }
 
-/** 剥 md 记号的纯文本摘要（StatsService.plainText 同款规则的本地副本）。 */
-export function plainOf(md: string, max: number): string {
-    const s = md
-        .replace(/\s+/g, " ")
-        .replace(/[$*#`>|_~=]/g, "")
-        .trim();
-    return s.length > max ? `${s.slice(0, max)}…` : s;
-}
+/** 剥 md 记号的纯文本摘要——唯一实现在 `ui/shared.plainText`，
+ *  companion 侧沿用旧名 `plainOf`（跨域共享层收口，见 Issue #114）。 */
+export { plainText as plainOf } from "../../ui/shared";
 
 /** 台词/回复限长（防爆字）。 */
 export function clampText(s: string, max: number): string {

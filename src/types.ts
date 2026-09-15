@@ -39,6 +39,12 @@ export const AUTO_GRADE_TYPES: readonly QuestionType[] = [
     QuestionType.Fill,
 ];
 
+/** 客观题（有题型且有答案，可自动判分）；否则走自评流程。
+ *  唯一实现：桌面 CardHtml 与移动端 MobileAnswering 共用（禁复制第二份）。 */
+export function isObjective(q: WenguQuestion): boolean {
+    return q.type !== undefined && AUTO_GRADE_TYPES.includes(q.type) && !!q.answer;
+}
+
 /** type 属性别名映射：AI 偶发输出大小写/中文变体，读入时规整。 */
 const TYPE_ALIASES: Record<string, QuestionType> = {
     [QuestionType.Single]: QuestionType.Single,
@@ -314,6 +320,15 @@ function stripOptionLabel(md: string): string {
 
 /** 选项字母表，按 option 顺序对应 A、B、C…。 */
 export const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/** 选项字母点选后的新作答串：单选互斥（重选保持选中），多选可增删
+ *  （序保持升序）。唯一实现——桌面 AnswerFlow.pickLetter 与移动端
+ *  MobileAnswering.pickLetter 共用（守卫与判题分支留在各自调用侧）。 */
+export function toggleLetters(letters: string, letter: string, single: boolean): string {
+    if (single) return letter;
+    const next = letters.includes(letter) ? letters.split("").filter((c) => c !== letter) : [...letters, letter];
+    return next.sort().join("");
+}
 
 /** 一轮刷题的计时方式：正计时 / 倒计时 / 逐题计时 / 不计时。 */
 export type WenguTimingMode = "countUp" | "countdown" | "perQuestion" | "none";

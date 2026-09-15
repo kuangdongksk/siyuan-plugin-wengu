@@ -2,7 +2,7 @@ import { originDocIdOf, questionOf, qidHasBlock } from "../../bank/data/BankSets
 import { copyQuestionText } from "../../quiz/flow/PreviewFlow";
 import { stripIal } from "../../siyuan/kramdown";
 import type { BankRecord, QuestionBank } from "../../bank/data/QuestionBank";
-import { normalizeType } from "../../types";
+import { baseQid, normalizeType } from "../../types";
 import type { ReviewViewAccess } from "../index";
 import { renderDetailModel, renderTimelineHtml, type ReviewDetailModel } from "../ReviewHtml";
 import type { ReviewAttempt, ReviewItem, ReviewUi } from "./ReviewUi";
@@ -280,7 +280,7 @@ function mergeItems(records: BankRecord[], sessions: WenguSession[]): ReviewItem
     const timeline = new Map<string, ReviewAttempt[]>();
     for (const s of sessions) {
         for (const r of s.results) {
-            const qid = r.qid.split("#")[0];
+            const qid = baseQid(r.qid);
             const arr = timeline.get(qid) ?? [];
             arr.push({
                 ts: s.startedAt,

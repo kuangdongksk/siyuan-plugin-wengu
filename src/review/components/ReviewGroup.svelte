@@ -3,6 +3,7 @@
     import { REVIEW_CTX, type ReviewCtx } from "../core/ReviewUi";
     import type { ReviewGroupModel, ReviewItemModel } from "../ReviewHtml";
     import { fmt, fmtDateTime } from "../../ui/shared";
+    import { weakCauseLabelKey } from "../../bank/data/WeaknessStore";
     import Button from "../../ui/Button.svelte";
 
     /** 清单的一个文档分组：组头（标题 + 重刷本文档）+ 错题条目。 */
@@ -46,9 +47,7 @@
                     <span class="wengu-review-badge wengu-review-badge-pending">{t("reviewFilterPending")}</span>
                 {/if}
                 {#if it.cause}
-                    <span class="wengu-review-cause"
-                        >{t(`weakCause${it.cause[0].toUpperCase()}${it.cause.slice(1)}`)}</span
-                    >
+                    <span class="wengu-review-cause">{t(weakCauseLabelKey(it.cause))}</span>
                 {/if}
             </div>
         </div>

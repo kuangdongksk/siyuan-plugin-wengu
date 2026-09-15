@@ -3,6 +3,7 @@ import { agentChatOnce } from "../../ai/client";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import { buildQuizStats } from "../../stats/StatsService";
+import { dayKey } from "../../ui/shared";
 import type { WenguWordProgress } from "../../word/core/WordStore";
 import { buildStats as buildWordStats } from "../../word/core/WordStore";
 import { WenguExpr } from "../rules/Expressions";
@@ -81,12 +82,6 @@ export interface CompanionDeps {
         loadRaw(): Promise<unknown>;
         saveRaw(v: Record<string, ChatTurn[]>): Promise<unknown>;
     };
-}
-
-/** 本地日期 key（今日会话过滤，与 stats 域同规则）。 */
-function dayKeyOf(ts: number): string {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export class CompanionCtl {
@@ -391,9 +386,9 @@ export class CompanionCtl {
         let todayAnswered = 0;
         let todayCorrect = 0;
         let todayMin = 0;
-        const today = dayKeyOf(now);
+        const today = dayKey(now);
         for (const s of sessions) {
-            if (dayKeyOf(s.startedAt) !== today) continue;
+            if (dayKey(s.startedAt) !== today) continue;
             todayAnswered += s.answered;
             todayCorrect += s.correct;
             todayMin += s.elapsedSec / 60;

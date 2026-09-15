@@ -1,5 +1,6 @@
 import { KernelQuery } from "../../siyuan/query";
 import { byDocOrder, KernelBlock } from "../../siyuan/block";
+import { SaveChain } from "../../ui/shared";
 import { questionHash } from "./BankParse";
 
 /**
@@ -83,7 +84,7 @@ async function docSectionHashes(docId: string): Promise<Map<string, string>> {
 export class KnowHashStore {
     private data?: KnowHashData;
     private dirty = false;
-    private saveChain: Promise<unknown> = Promise.resolve();
+    private readonly saveChain = new SaveChain();
 
     constructor(
         private readonly loadRaw: () => Promise<unknown>,
@@ -164,9 +165,7 @@ export class KnowHashStore {
         const snap = this.data;
         this.dirty = false;
         const noop = (): void => undefined;
-        const run = this.saveChain.then(() => this.saveRaw(snap));
-        this.saveChain = run.then(noop, noop);
-        await run.then(noop, noop);
+        await this.saveChain.enqueue(() => this.saveRaw(snap)).then(noop, noop);
     }
 }
 

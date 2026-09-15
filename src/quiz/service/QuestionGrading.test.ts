@@ -6,6 +6,8 @@ import {
     optionIsRight,
     slotOptionIsRight,
     stepOptionIsRight,
+    verdictLabelKey,
+    verdictStatus,
 } from "./QuestionGrading";
 import type { WenguQuestion } from "../../types";
 import { QuestionType } from "../../types";
@@ -145,5 +147,21 @@ describe("optionIsRight · 描色判断", () => {
         const qq = q({ type: QuestionType.Single, answer: "$e^2$", optionMd: ["$e^x$", "$e^2$"] });
         expect(optionIsRight(qq, 1)).toBe(true);
         expect(optionIsRight(qq, 0)).toBe(false);
+    });
+});
+
+describe("verdictLabelKey / verdictStatus（Issue #114 归拢新增锁）", () => {
+    it("三态判词 → i18n 键；未知/缺省按 wrong 兜底", () => {
+        expect(verdictLabelKey("right")).toBe("correct");
+        expect(verdictLabelKey("partial")).toBe("verdictPartial");
+        expect(verdictLabelKey("wrong")).toBe("wrong");
+        expect(verdictLabelKey("")).toBe("wrong");
+        expect(verdictLabelKey("garbage")).toBe("wrong");
+    });
+    it("三态判词 → 结果行状态（icon/描色派生同口径）", () => {
+        expect(verdictStatus("right")).toBe("right");
+        expect(verdictStatus("partial")).toBe("partial");
+        expect(verdictStatus("wrong")).toBe("wrong");
+        expect(verdictStatus("garbage")).toBe("wrong");
     });
 });

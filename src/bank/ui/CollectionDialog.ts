@@ -1,4 +1,4 @@
-import { errText } from "./../../ui/shared";
+import { Armed, errText } from "./../../ui/shared";
 import { formOption, svgIcon } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { launchAiFlow } from "../../ai/flow";
@@ -300,24 +300,24 @@ async function runCollectGen(
     }
 }
 
-/** 两击确认：首次点击变确认态（3s 复原），复击执行——不引入新弹窗。 */
+/** 两击确认：首次点击变确认态（3s 复原），复击执行——不引入新弹窗。
+ *  武装态走公共底座 Armed（同专题/SynonymDialog 口径）：armed 值即按钮
+ *  本身，apply 只管复位（armed 只在复位时为 undefined）。 */
 function armConfirm(btn: HTMLButtonElement, confirmText: string, act: () => void): void {
-    let armed = false;
-    let timer = 0;
+    const arm = new Armed<HTMLButtonElement>((b) => {
+        if (!b) return;
+        b.classList.remove("wengu-col-armed");
+        b.innerHTML = svgIcon("iconClose");
+    });
     btn.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        if (armed) {
-            window.clearTimeout(timer);
+        if (btn.classList.contains("wengu-col-armed")) {
+            arm.disarm();
             act();
             return;
         }
-        armed = true;
         btn.classList.add("wengu-col-armed");
         btn.textContent = confirmText;
-        timer = window.setTimeout(() => {
-            armed = false;
-            btn.classList.remove("wengu-col-armed");
-            btn.innerHTML = svgIcon("iconClose");
-        }, 3000);
+        arm.arm(btn);
     });
 }

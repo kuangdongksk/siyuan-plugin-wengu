@@ -4,7 +4,7 @@
     import { modeLabel, type WenguDocStats } from "../StatsService";
     import { roundsOption } from "../StatsCharts";
     import { svgIcon } from "../../ui/FormHtml";
-    import { fmt, mmss } from "../../ui/shared";
+    import { fmt, mmss, ratePct } from "../../ui/shared";
     import { echart } from "./echart";
     import Button from "../../ui/Button.svelte";
 
@@ -49,7 +49,7 @@
                         <td>{dateLabel(r.startedAt)}</td>
                         <td>{modeLabel(r.mode)}</td>
                         <td>{r.correct}/{r.answered}</td>
-                        <td>{r.answered > 0 ? `${Math.round((r.correct / r.answered) * 100)}%` : "-"}</td>
+                        <td>{r.answered > 0 ? `${ratePct(r.correct, r.answered)}%` : "-"}</td>
                         <td>{mmss(r.elapsedSec)}</td>
                     </tr>
                 {/each}

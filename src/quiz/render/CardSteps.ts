@@ -1,11 +1,11 @@
 import { fmt } from "../../ui/shared";
 import type { WenguSessionResult } from "../service/HistoryStore";
 import { stepOptionIsRight } from "../service/QuestionGrading";
-import { mdFragmentHtml, optionInline } from "../service/ProtyleHost";
-import { LETTERS, optionDisplayMd } from "../../types";
+import { mdFragmentHtml } from "../service/ProtyleHost";
+import { LETTERS } from "../../types";
 import type { WenguQuestion, WenguStep } from "../../types";
 import { statusIcon } from "../../ui/FormHtml";
-import type { CardInitRestore, CardUi, OptSnap, StepUi } from "./CardState";
+import { optSnaps, type CardInitRestore, type CardUi, type StepUi } from "./CardState";
 
 /**
  * 多步（steps）卡的响应态构建与全步揭示落格（Issue #21 从 CardState
@@ -43,14 +43,6 @@ export function stepsSnapshotOf(results: WenguSessionResult[], qid: string, coun
         oks[r.k] = r.ok;
     }
     return { letters, oks };
-}
-
-/** 选项快照（渲染 html 预建，判分描色后补 mark）。 */
-function optSnaps(optionMd: string[]): OptSnap[] {
-    return optionMd.map((md, i) => {
-        const { body, tier } = optionInline(optionDisplayMd(md));
-        return { letter: LETTERS[i] ?? "", html: body, tier, mark: 0 as const };
-    });
 }
 
 /** 步选项描色（正确项绿、误选红；旧 paintOptions 语义）。 */

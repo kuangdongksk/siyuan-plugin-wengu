@@ -1,7 +1,7 @@
 import { statusIcon } from "../../ui/FormHtml";
 import { esc, fmt } from "../../ui/shared";
 import type { WenguSession, WenguSessionResult } from "../service/HistoryStore";
-import { optionIsRight, slotOptionIsRight } from "../service/QuestionGrading";
+import { optionIsRight, slotOptionIsRight, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { optionInline } from "../service/ProtyleHost";
 import { hasSlots, hasSteps, LETTERS, optionDisplayMd, QuestionType } from "../../types";
 import type { WenguQuestion, WenguRevealMode } from "../../types";
@@ -208,11 +208,7 @@ function initRestoredNormal(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): voi
         const verdict = r.verdict ?? (r.ok ? "right" : "wrong");
         ui.aiVerdict = verdict;
         if (r.comment) ui.aiComment = r.comment;
-        setResult(
-            ui,
-            verdict === "right" ? ctx.t("correct") : verdict === "partial" ? ctx.t("verdictPartial") : ctx.t("wrong"),
-            verdict === "right" ? "right" : verdict === "partial" ? "partial" : "wrong"
-        );
+        setResult(ui, ctx.t(verdictLabelKey(verdict)), verdictStatus(verdict));
         ui.selfOn = true;
         ui.selfLabel = ctx.t("rejudgeHint");
     }
@@ -258,8 +254,9 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
     );
 }
 
-/** 选项快照（渲染 html 预建，判分描色后补 mark）。 */
-function optSnaps(optionMd: string[]): OptSnap[] {
+/** 选项快照（渲染 html 预建，判分描色后补 mark）。唯一实现——
+ *  steps 步选项（CardSteps）与 cloze 当前空选项（本文件）共用。 */
+export function optSnaps(optionMd: string[]): OptSnap[] {
     return optionMd.map((md, i) => {
         const { body, tier } = optionInline(optionDisplayMd(md));
         return { letter: LETTERS[i] ?? "", html: body, tier, mark: 0 as const };

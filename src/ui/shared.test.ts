@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { errText, isLifecycleGone, isMobileUi, markMobileUi, MOBILE_CLASS } from "./shared";
+import {
+    dayKey,
+    errText,
+    isLifecycleGone,
+    isMobileUi,
+    markMobileUi,
+    MOBILE_CLASS,
+    plainText,
+    ratePct,
+    SaveChain,
+} from "./shared";
 
 describe("errText（思源前端裸对象拒绝 → 人读文案，修 [object Object] 直出）", () => {
     it("Error 取 message；空 message 回落 name", () => {
@@ -78,5 +88,53 @@ describe("isMobileUi / markMobileUi（Issue #10 环境探测）", () => {
         expect(el.classes.has(MOBILE_CLASS)).toBe(true);
         expect(markMobileUi(undefined)).toBe(true); // 无宿主也算移动端（调用方自行决定要不要宿主）
         clearWindow();
+    });
+});
+
+describe("dayKey / plainText / ratePct（Issue #114 归拢新增锁）", () => {
+    it("dayKey：本地日期 YYYY-MM-DD，月日补零", () => {
+        expect(dayKey(new Date(2026, 8, 15, 23, 59).getTime())).toBe("2026-09-15");
+        expect(dayKey(new Date(2026, 0, 5).getTime())).toBe("2026-01-05");
+    });
+    it("plainText：折叠空白、剥 md 记号、超长截断加省略号", () => {
+        expect(plainText("**bold**  and\n`code`", 40)).toBe("bold and code");
+        expect(plainText("a".repeat(50), 10)).toBe("aaaaaaaaaa…");
+        expect(plainText("短", 10)).toBe("短");
+    });
+    it("ratePct：四舍五入到整数、≤100 钳位、answered≤0 归 0", () => {
+        expect(ratePct(2, 3)).toBe(67);
+        expect(ratePct(1, 1)).toBe(100);
+        expect(ratePct(0, 5)).toBe(0);
+        expect(ratePct(5, 0)).toBe(0);
+        expect(ratePct(120, 100)).toBe(100); // 钳位（脏数据兜底）
+    });
+});
+
+describe("SaveChain（串行落盘链，Issue #114 归拢新增锁）", () => {
+    it("写盘严格串行：后一笔等前一笔 resolve 才开跑", async () => {
+        const chain = new SaveChain();
+        const order: string[] = [];
+        let release!: () => void;
+        const gate = new Promise<void>((r) => (release = r));
+        const first = chain.enqueue(async () => {
+            order.push("first-start");
+            await gate;
+            order.push("first-end");
+        });
+        const second = chain.enqueue(async () => {
+            order.push("second-start");
+        });
+        await Promise.resolve();
+        expect(order).toEqual(["first-start"]); // 第二笔被链住，未开跑
+        release();
+        await Promise.all([first, second]);
+        expect(order).toEqual(["first-start", "first-end", "second-start"]);
+    });
+
+    it("链面吞错保后续可排：前一笔 reject 不阻断后一笔", async () => {
+        const chain = new SaveChain();
+        const first = chain.enqueue(() => Promise.reject(new Error("disk full")));
+        await expect(first).rejects.toThrow("disk full"); // 本笔错误交回调用侧
+        await expect(chain.enqueue(() => Promise.resolve("ok"))).resolves.toBe("ok");
     });
 });

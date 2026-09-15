@@ -1,4 +1,5 @@
 import type { WenguSession } from "../quiz/service/HistoryStore";
+import { dayKey, plainText } from "../ui/shared";
 import type { WenguQuestion, WenguTimingMode } from "../types";
 
 /**
@@ -64,12 +65,6 @@ export interface WenguDocStats {
 const RECENT_ROUNDS = 20;
 const WRONG_LIMIT = 50;
 
-/** 本地日期 key（YYYY-MM-DD），streak 按日聚合用。 */
-function dayKey(ts: number): string {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function trendOf(sessions: WenguSession[], take: number): RoundTrendItem[] {
     return sessions.slice(-take).map((s, i) => ({
         n: sessions.length - Math.min(sessions.length, take) + i + 1,
@@ -110,15 +105,6 @@ export function buildQuizStats(sessions: WenguSession[], now = Date.now()): Weng
         streak,
         recent: trendOf(ordered, RECENT_ROUNDS),
     };
-}
-
-/** 剥 md 记号的纯文本摘要（题干/作答展示用）。 */
-function plainText(md: string, max: number): string {
-    const s = md
-        .replace(/\s+/g, " ")
-        .replace(/[$*#`>|_~=]/g, "")
-        .trim();
-    return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
 /** 单文档详情：轮次全量 + 错题清单（来自已 hydrate 的题目列表）。 */

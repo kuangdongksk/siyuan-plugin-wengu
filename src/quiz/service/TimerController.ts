@@ -1,3 +1,4 @@
+import { baseQid } from "../../types";
 import type { WenguTimingMode } from "../../types";
 import { mmss } from "../../ui/shared";
 
@@ -124,7 +125,7 @@ export class TimerController {
      *  提交取增量（各空之和=整题用时）：qSec 只按整题 id 累计，原样
      *  查带后缀的 key 恒 0（「steps 逐题秒数恒 0」挂账，20260829）。 */
     takeQuestionSec(qid: string): number {
-        const base = qid.split("#")[0];
+        const base = baseQid(qid);
         const cur = this.qSec.get(base) ?? 0;
         if (base === qid) return cur;
         const delta = Math.max(0, cur - (this.stepTaken.get(base) ?? 0));

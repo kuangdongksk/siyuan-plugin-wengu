@@ -1,11 +1,12 @@
 import { errText } from "./../../ui/shared";
 import { judgeBrief } from "../service/AiJudge";
+import { toggleLetters } from "../../types";
 import { isObjective } from "../render/CardHtml";
 import { stepsSnapshotOf, settleSteps } from "../render/CardSteps";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
-import { gradeQuestion } from "../service/QuestionGrading";
+import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { markNum } from "../render/FlowDom";
 import { markNumRailAnswered } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
@@ -73,15 +74,7 @@ export interface AnswerHost {
  *  守卫是「揭示/锁定」而非 graded——after 模式提交后仍可改（Issue #12）。 */
 export function pickLetter(ctl: CardCtl, letter: string): void {
     if (answeredFrozen(ctl)) return;
-    const ui = ctl.ui;
-    if (ctl.q.type === QuestionType.Single) {
-        ui.letters = letter;
-        return;
-    }
-    const next = ui.letters.includes(letter)
-        ? ui.letters.split("").filter((c) => c !== letter)
-        : [...ui.letters, letter];
-    ui.letters = next.sort().join("");
+    ctl.ui.letters = toggleLetters(ctl.ui.letters, letter, ctl.q.type === QuestionType.Single);
 }
 
 /** 判断题 √/× 点选（互斥即覆盖）。 */
@@ -430,15 +423,7 @@ function markNumAnswered(host: AnswerHost, q: WenguQuestion): void {
     markNumRailAnswered(host.questions().indexOf(q) + 1);
 }
 
-/** brief 三态的结果行文案。 */
+/** brief 三态的结果行文案（判词→键收口在 verdictLabelKey，esc 留调用侧）。 */
 function briefResultText(host: AnswerHost, verdict: string): string {
-    if (verdict === "right") return esc(host.t("correct"));
-    if (verdict === "partial") return esc(host.t("verdictPartial"));
-    return esc(host.t("wrong"));
-}
-
-type ResultStatus = "right" | "wrong" | "partial" | "warn";
-
-function verdictStatus(verdict: string): ResultStatus {
-    return verdict === "right" ? "right" : verdict === "partial" ? "partial" : "wrong";
+    return esc(host.t(verdictLabelKey(verdict)));
 }

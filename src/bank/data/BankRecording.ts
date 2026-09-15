@@ -1,3 +1,4 @@
+import { baseQid } from "../../types";
 import type { QuestionBank } from "./QuestionBank";
 
 /**
@@ -134,5 +135,5 @@ export async function addDocTime(bank: QuestionBank, docId: string, addSeconds: 
  *  可接受，与原「内核失败吞错」等位）。 */
 async function statRecordOf(bank: QuestionBank, qid: string) {
     const data = await bank.all();
-    return data.records[qid.split("#")[0]];
+    return data.records[baseQid(qid)];
 }

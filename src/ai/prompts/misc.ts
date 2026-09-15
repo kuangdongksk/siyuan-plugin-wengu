@@ -1,4 +1,5 @@
 import type { WenguDocStats } from "../../stats/StatsService";
+import { ratePct } from "../../ui/shared";
 import type { WordAiInput } from "../../word/service/WordAi";
 
 /**
@@ -46,7 +47,7 @@ export function buildStatsPrompt(s: WenguDocStats): string {
                     day: "2-digit",
                     hour: "2-digit",
                     minute: "2-digit",
-                })} ${r.correct}/${r.answered}(${r.answered > 0 ? Math.round((r.correct / r.answered) * 100) : 0}%) 用时${Math.round(
+                })} ${r.correct}/${r.answered}(${ratePct(r.correct, r.answered)}%) 用时${Math.round(
                     r.elapsedSec / 60
                 )}分钟`
         )

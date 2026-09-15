@@ -101,8 +101,9 @@ export function clearClueMarks(root: HTMLElement): void {
     }
 }
 
-/** 把一段文本节点区间包进 mark（自后向前切分，避免偏移失效）。 */
-function wrapRange(node: Text, start: number, end: number, style?: string): void {
+/** 把一段文本节点区间包进 mark（自后向前切分，避免偏移失效）。
+ *  唯一实现——`service/ClueDecorate` 的坐标施工链共用（Issue #114）。 */
+export function wrapRange(node: Text, start: number, end: number, style?: string): void {
     const text = node.nodeValue ?? "";
     if (start < 0 || end > text.length || start >= end) return;
     const target = node.splitText(start);

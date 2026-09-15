@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { QuestionType } from "./types";
+import type { WenguQuestion } from "./types";
 import {
+    baseQid,
     cleanStemMd,
+    isObjective,
     normAnswerText,
     normalizeAnswerMd,
     normalizeType,
@@ -10,6 +13,7 @@ import {
     parseDifficulty,
     parseStepKinds,
     splitOptionMd,
+    toggleLetters,
 } from "./types";
 
 /**
@@ -100,5 +104,28 @@ describe("选项展示与可比文本", () => {
         expect(optionComparable("1.5")).toBe("1.5");
         expect(optionComparable("0.5")).toBe("0.5");
         expect(optionComparable("1. 选项一")).toBe("选项一");
+    });
+});
+
+describe("baseQid / toggleLetters（Issue #114 归拢新增锁）", () => {
+    it("baseQid 剥 #k 后缀：普通题原样，多步/逐空题取题块 id", () => {
+        expect(baseQid("q1")).toBe("q1");
+        expect(baseQid("q1#2")).toBe("q1");
+        expect(baseQid("q1#0")).toBe("q1");
+    });
+    it("toggleLetters：单选互斥（重选保持选中），多选增删且序升序", () => {
+        expect(toggleLetters("", "A", true)).toBe("A");
+        expect(toggleLetters("A", "A", true)).toBe("A");
+        expect(toggleLetters("A", "C", true)).toBe("C");
+        expect(toggleLetters("", "B", false)).toBe("B");
+        expect(toggleLetters("B", "A", false)).toBe("AB"); // 增补后升序
+        expect(toggleLetters("AC", "A", false)).toBe("C"); // 再击取消
+    });
+    it("isObjective：有题型且有答案的自动判分族为真；缺答案/brief/steps 为假", () => {
+        expect(isObjective({ type: QuestionType.Single, answer: "A" } as WenguQuestion)).toBe(true);
+        expect(isObjective({ type: QuestionType.Fill, answer: "x" } as WenguQuestion)).toBe(true);
+        expect(isObjective({ type: QuestionType.Single } as WenguQuestion)).toBe(false); // 无答案
+        expect(isObjective({ type: QuestionType.Brief, answer: "x" } as WenguQuestion)).toBe(false);
+        expect(isObjective({ answer: "x" } as WenguQuestion)).toBe(false); // 无题型
     });
 });

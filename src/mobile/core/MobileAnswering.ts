@@ -1,6 +1,6 @@
 import type { WenguQuestion } from "../../types";
-import { AUTO_GRADE_TYPES, QuestionType, baseQid } from "../../types";
-import { gradeQuestion } from "../../quiz/service/QuestionGrading";
+import { baseQid, isObjective, QuestionType, toggleLetters } from "../../types";
+import { gradeQuestion, verdictLabelKey } from "../../quiz/service/QuestionGrading";
 import { judgeBrief } from "../../quiz/service/AiJudge";
 import { mirrorAnswer, mirrorOverride, mirrorRepeatAnswer } from "../../quiz/service/AnswerMirror";
 import { pushSessionAnswer } from "../../quiz/service/HistoryStore";
@@ -28,16 +28,9 @@ export function frozen(ui: MobileCardState): boolean {
     return ui.revealed || ui.locked;
 }
 
-/** 客观题（可自动判分）。 */
-function isObjective(q: WenguQuestion): boolean {
-    return q.type !== undefined && AUTO_GRADE_TYPES.includes(q.type) && !!q.answer;
-}
-
-/** AI 三态的结果行文案（与桌面 briefResultText 同口径）。 */
+/** AI 三态的结果行文案（与桌面 briefResultText 同口径，键收口 verdictLabelKey）。 */
 function verdictText(t: (k: string) => string, verdict: string): string {
-    if (verdict === "right") return t("correct");
-    if (verdict === "partial") return t("verdictPartial");
-    return t("wrong");
+    return t(verdictLabelKey(verdict));
 }
 
 export function qOf(d: MobileDrill): WenguQuestion | undefined {
@@ -61,14 +54,11 @@ export function pickLetter(d: MobileDrill, letter: string): void {
         return;
     }
     if (q.type === QuestionType.Single) {
-        ui.letters = letter;
         ui.judge = "";
+        ui.letters = toggleLetters(ui.letters, letter, true);
         return;
     }
-    const next = ui.letters.includes(letter)
-        ? ui.letters.split("").filter((c) => c !== letter)
-        : [...ui.letters, letter];
-    ui.letters = next.sort().join("");
+    ui.letters = toggleLetters(ui.letters, letter, false);
 }
 
 /** 文本作答（受控写回）。 */

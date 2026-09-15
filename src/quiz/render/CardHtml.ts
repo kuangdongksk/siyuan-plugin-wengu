@@ -1,4 +1,4 @@
-import { AUTO_GRADE_TYPES, QuestionType } from "../../types";
+import { isObjective, QuestionType } from "../../types";
 import type { WenguDoc, WenguQuestion } from "../../types";
 import { esc, fmt } from "../../ui/shared";
 
@@ -16,10 +16,7 @@ export function isChoice(q: WenguQuestion): boolean {
     return (q.type === QuestionType.Single || q.type === QuestionType.Multiple) && (q.optionMd?.length ?? 0) > 0;
 }
 
-/** 客观题（有题型且有答案，可自动判分）；否则走自评流程。 */
-export function isObjective(q: WenguQuestion): boolean {
-    return q.type !== undefined && AUTO_GRADE_TYPES.includes(q.type) && !!q.answer;
-}
+export { isObjective };
 
 /** 题号初始状态类：上次答对绿、答错红（持久化属性）。showPast=false
  *  （统一展示模式 / 设置关闭）时一律中性，不透历史对错。 */

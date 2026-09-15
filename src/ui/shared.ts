@@ -119,6 +119,31 @@ export function fmtDateTime(ts: number): string {
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** 本地日期 key（YYYY-MM-DD）：按日聚合/当日过滤共用（stats 与 companion
+ *  同规则；词域的 todayKey 是带默认参数的公开 API，口径同但签名不同，
+ *  不并入以免跨域大改）。 */
+export function dayKey(ts: number): string {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** 答对率 → 百分比整数（0~100 钳位；answered ≤ 0 归 0）。展示侧
+ *  的 `-` 空值/条形图最小高度等差异留在各自模板层，勿并入本函数。
+ *  唯一实现——轮次报告/统计图/文档榜/AI prompt 四处共用。 */
+export function ratePct(correct: number, answered: number): number {
+    if (answered <= 0) return 0;
+    return Math.min(100, Math.round((correct / answered) * 100));
+}
+
+/** 剥 md 记号的纯文本摘要（题干/作答展示用；唯一实现，胜在跨域共用）。 */
+export function plainText(md: string, max: number): string {
+    const s = md
+        .replace(/\s+/g, " ")
+        .replace(/[$*#`>|_~=]/g, "")
+        .trim();
+    return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
 /** 让出主线程一拍（静态分片渲染的帧预算 yield 用）：MessageChannel
  *  派发宏任务，不受后台页签定时器钳制——setTimeout(0) 在隐藏页签被
  *  钳到 ≥1s，长卷后台成像会被拖到分钟级（20260829 审查）。 */
@@ -157,6 +182,24 @@ export class Armed<T> {
         if (this.timer !== undefined) clearTimeout(this.timer);
         this.timer = undefined;
         this.apply(undefined);
+    }
+}
+
+/** 串行落盘链（十二店同构）：并发 saveData 撞「内核 fetchSyncPost 并发
+ *  互吞响应」会静默丢最后一份，故所有写盘排队串行。`enqueue` 返回本笔
+ *  的 promise——调用侧自行决定 await/吞错/记日志；链面吞错保后续可排
+ *  （`Armed` 同款：状态机下沉，宿主只管怎么处理结果）。
+ *
+ *  用法：`private readonly saveChain = new SaveChain();` 后每笔
+ *  `await this.saveChain.enqueue(() => this.saveRaw(snap))`。 */
+export class SaveChain {
+    private tail: Promise<unknown> = Promise.resolve();
+
+    enqueue<T>(write: () => Promise<T>): Promise<T> {
+        const run = this.tail.then(write);
+        const noop = (): void => undefined;
+        this.tail = run.then(noop, noop);
+        return run;
     }
 }
 
