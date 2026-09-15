@@ -132,10 +132,15 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   生成数据文件 `src/word/data/**` 豁免）。
 - **整页不滚动**（Issue #96，2026-09-15 起硬性规范，见 `docs/design-spec.md` §12
   / `docs/design-review.md` §〇 第 11 条）：面板高度一律适配宿主视口，长列表/详情收**面板内部的滚动窗**，
-  工作区主区不出页面级滚动条。技术要点＝「flex/`min-height:0` 链一路打通 +
-  grid 行高显式分配 + 主区经 `--fit` 档改写 + 内滚窗落在列上 + 列上留滚动条槽」。
-  落地样板＝AI 会话工作区（AGENTS.md 的 ai 域段）；**其余管理面板迁移不在本
-  规范当前的改造范围内**（规范是总则，存量面板自行排期）。
+  工作区主区不出页面级滚动条。**技术要点与「谁是例外」见 `docs/design-spec.md`
+  §12（唯一权威落点，本条不再复述，免得两处口径漂移）。**
+  ⚠️ **AI 会话面板是例外**（Issue #129，20260915）：该面板的**设计稿形态**是
+  「一卡两栏、卡随内容长」（gap-list S4：卡内两列都不设滚动窗/max-height），
+  与「两列各自内滚」正相反，故它退回**单滚动窗**（滚动归外层面板壳
+  `.wengu-ws-main` 的 `overflow-y:auto`），`--fit` 档与 `ai/core/PanelFit.ts`
+  已整体退役。**判据看稿不看规范条文**：被设计稿明确约束的面板，按稿落形态，
+  并在 `docs/design-spec.md` §12 登记例外。**其余管理面板（专题/知识/统计/
+  学伴）的迁移不在本规范当前的改造范围内**（规范是总则，存量面板自行排期）。
 - **CSS 特异性与思源主题**（20260827 踩坑）：formRow 行容器
   `class="fn__flex b3-label config__item wengu-formrow"`——思源运行时主题注入的
   `.b3-label` 单类选择器同特异性后定义会覆盖我们的 `.wengu-formrow { display:flex;

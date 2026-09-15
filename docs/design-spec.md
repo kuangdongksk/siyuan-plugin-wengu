@@ -675,6 +675,7 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 ## 十二、整页不滚动
 
 高度链要一路打通，滚动收进**面板内部的滚动窗**，工作区主区不出页面级滚动条。
+（⚠️ **有稿约束的面板按稿走**——AI 会话工作区是登记在案的例外，见下。）
 
 - **原则**：面板的「常驻件」（标题栏、说明 hint、过滤条/工具行）与「清单头」
   （在途流横幅）必须**钉在视野里**；用户滚的是清单与详情，不是面板本身。
@@ -685,10 +686,21 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
        且**只动本面板那一份骨架、禁 document 级全选**；
     4. 内滚窗落在**列**上，列加 `scrollbar-gutter: stable`；
     5. 弹窗长内容同口径（`max-height` 封顶 + 内容区自滚）。
-- **落地**：AI 会话工作区（Issue #96）＝首个达标面板。
-  **其余管理面板（专题/知识/统计/学伴）的迁移不在本条当前生效范围**——
-  规范是总则，存量面板按其自有节奏迁移。
-  ⚠️ 建议补一张「已达标 / 待迁移面板清单」，让后来者知道改哪块该套哪档。
+- ⚠️ **例外：AI 会话工作区不适用前四条**（Issue #129，20260915 执行定稿）。
+  该面板的**设计稿是权威**（`design/aipanel-gap-list.md` S4 / 施工规格 06 节）：
+  稿形态是「**一卡两栏、卡随内容长**」——`.ai-panel` 的卡内两列**都不设滚动窗**
+  （无 `max-height`、无 `overflow`），滚动交外层。故本面板退回**单滚动窗**：
+  滚动归外层面板壳 `.wengu-ws-main` 的 `overflow-y:auto`（四块管理面板共用的
+  那扇窗），**不造二级滚动条**。落地：`--fit` 档、判定模块 `ai/core/PanelFit.ts`
+  与 `ai/SessionPanel.ts` 的 `fitHost` **整体退役**（`rail.scss` 那一档同步删）。
+  **判据（后来者按此裁决）**：被设计稿明确约束的面板**按稿落形态**，并在本表
+  登记例外；**「判据看稿不看本规范条文」**。本条技术要点只对**无稿约束**的面板
+  生效（当前无在办项）。
+- **落地与清单**：
+    | 面板                      | 状态                           |
+    | ------------------------- | ------------------------------ |
+    | AI 会话（ai）             | **例外**（单滚动窗外壳，见上） |
+    | 专题 / 知识 / 统计 / 学伴 | 待迁移（不在本条当前生效范围） |
 
 ---
 
@@ -752,7 +764,7 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 | `english-gloss.scss`                    | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）        | ① + 跨组件复用         |
 | `reading.scss`                          | `GroupUnitApp` / `CardHtml`（原文高亮）                          | ①（19 类）             |
 | `preview.scss`                          | `PreviewFlow.ts`（无 Svelte 渲染源）                             | ①（19 类）             |
-| `rail.scss`                             | `RailApp` / 4 个面板骨架（`PanelFit.ts` TS 触达）                | ② 跨面板共享           |
+| `rail.scss`                             | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                   | ② 跨面板共享           |
 | `words.scss` / `words-mobile.scss`      | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）  | ② + 对偶片须同批       |
 | `mobile-*.scss` / `mobile-english.scss` | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族       | ③ 基座 + 跨组件        |
 | `aipanel*.scss` / `aiflow.scss`         | `SessionPanelApp` / `SessionDetail` / `FlowBanner`               | ② 跨组件 + TS 触达     |

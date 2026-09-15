@@ -14,8 +14,14 @@
       `.wengu-aipanel-dbody` 回到稿的 `min-height:120px`；滚动归宿主主区
       `.wengu-ws-main` 的 `overflow-y:auto`（与外层面板壳一致）。`--fit` 档 +
       `ai/core/PanelFit.ts`（含单测）与 `ai/SessionPanel.ts` 的 `fitHost` 整体退役
-      （留档就是死接线）。`docs/design-review.md` §〇11 与 AGENTS.md 同步标出
-      AI 面板这一例外（判据看稿不看规范条文）。
+      （留档就是死接线）。
+    - **规范同步（例外登记 + 清残留）**：`docs/design-spec.md` §12 是「整页不滚动」
+      的**唯一权威落点**，本次补「**AI 会话工作区为例外**」与「**判据看稿不看
+      规范条文**」两条裁决口径 + 面板落地清单表；`AGENTS.md` 该条改为只留指针
+      （不复述技术要点，免得两处漂移）；`docs/design-review.md` §〇11 加失效提示
+      （该文件是历史审查清单）；`ai` 域记忆里 #96 那段整体标为「**已退役、勿照改**」
+      ——`--fit` 档 / `PanelFit.ts` / `PanelFit.test` / `fitHost` / 两列的
+      `overflow`/`scrollbar-gutter`/`grid-template-rows` 已全部删除，引到即为死接线。
     - **树头「N 组」按去重类别数**（单条种类不设层时数顶层节点会数少）。
     - **详情头 meta 槽常空 + 状态徽标自吃 `margin-left:auto`**（S7 落法 a）：
       模型名只在 h3 的 `title`，时间在日志首列；不再用 `.badge:last-child`
