@@ -147,7 +147,7 @@ export async function openHealthDialog(deps: RepairDeps): Promise<void> {
     if (scan.regen.length > 0) actions.unshift({ id: "repair-regen", label: t("repairRegenBtn") });
     const { dialog, root } = openWenguDialog({
         title: t("repairTitle"),
-        width: "680px",
+        width: "lg",
         body,
         actions,
     });

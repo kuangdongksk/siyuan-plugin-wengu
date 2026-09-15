@@ -163,6 +163,47 @@
   max-height: calc(100vh - 200px);
 }
 
+/* 确认弹窗图标位（稿 §5：38×38 primary-lightest 底、圆角 10、内 18px 图标）。
+   ⚠️ b3-dialog 无图标位，需自绘——但只作**内容区首件**，外壳仍走 b3-dialog
+   体系（不自绘 veil/modal，稿的遮罩仅示意外壳气质）。类名由 TS 渲染层
+   `ui/Dialog.dialogIconHtml` 产出 ⇒ 属「TS 拼串触达」，样式留共享片。 */
+.wengu-dialog .wengu-dialog-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+  margin-bottom: 12px;
+}
+
+.wengu-dialog .wengu-dialog-ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 切换确认弹窗正文（稿 §5）：13.5px / 行高 1.75 / on-surface-light；
+   段间留白靠 1.75 行高 + 6px 上距（稿 d-d 与标题同段） */
+.wengu-switch-confirm .wengu-switch-body {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--b3-theme-on-surface-light);
+}
+
+/* 目标名超长时在正文内省略（稿「缺失形态」46ch），全名走 title——
+   inline-block + max-width 才能在行文里省略，不能撑破弹窗宽度 */
+.wengu-switch-confirm .wengu-switch-name {
+  display: inline-block;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--b3-theme-on-surface);
+}
+
 /* UI 标准第 6 条：弹窗底部操作行按钮间统一 8px（原生 b3-dialog__action
    无间距规则，多按钮贴死）。3.8.1 实际结构是
    container > body > (content.wengu-dialog + action)：action 是 wengu-dialog

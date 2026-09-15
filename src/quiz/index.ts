@@ -15,14 +15,13 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/run/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { notifyError, notifyInfo } from "../ui/Notify";
-import { mirrorAnswer, mirrorOverride, mirrorRepeatAnswer, mirrorResult } from "./service/AnswerMirror";
+import { mirrorOverride, mirrorResult, recordAnswerFor } from "./service/AnswerMirror";
 import type { BankMirrorDetail } from "./service/AnswerMirror";
 import { genTagsAction, variantDrillAction, type DocActionCtx } from "./service/DocActions";
 import { teardownView } from "./flow/Teardown";
 import { AnnoScopeCtl } from "./service/AnnoScopeCtl";
 import { CollectionFlow, colLoadContext } from "../bank";
 import type { HistoryStore, WenguSession } from "./service/HistoryStore";
-import { pushSessionAnswer } from "./service/HistoryStore";
 import { hideBar as hideAnnoBar, type AnnoCallbacks } from "./flow/AnnoFlow";
 import { clueAnchorsFor, refreshClueMarkFor, refreshClueRow } from "./flow/ClueFlow";
 import type { ClueAnchor } from "./service/MaterialDecorate";
@@ -41,7 +40,8 @@ import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
-import { kcapSearchFor, roundIndexFor, sideActFor } from "./flow/SideMount";
+// prettier-ignore
+import { guardCtxFor, kcapSearchFor, roundIndexFor, sideActFor, switchGuardFor, switchTargetNameFor } from "./flow/SideMount";
 import { relatedAccessFor } from "./flow/RelatedAccess";
 import type { RelatedViewAccess } from "../bank/ui/RelatedDialog";
 import { TimerController } from "./service/TimerController";
@@ -186,23 +186,12 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         submitted: string,
         ok: boolean,
         extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
-    ): void => {
-        const s = this.session;
-        if (!s) return;
-        const former = s.results.some((r) => r.qid === qid); // upsert 前先看是否重复提交
-        const sec = this.timer.takeQuestionSec(qid);
-        pushSessionAnswer(s, qid, submitted, ok, sec, this.timer.elapsed(), extra);
-        void this.history?.upsert(s);
-        // 题库统计镜像（薄壳在 service/AnswerMirror）：首答常规记账，重复提交
-        // （after 改答案）只覆写 lastAnswer/right 不动 attempts（Issue #12 B2）；
-        // qid#k 的逐空/逐步刻意跳过，整题由 bankMirror 补记
-        if (!qid.includes("#")) {
-            // 守空在 AnswerMirror 内部统一做（与另两个镜像入口同口径）
-            if (former) mirrorRepeatAnswer(this.bank, qid, submitted, ok);
-            else mirrorAnswer(this.bank, qid, submitted, ok);
-        }
-        notifyQuizAnswer(this, qid, submitted, ok, sec); // 看板娘事件（含错题讲解上下文）
-    };
+    ): void => recordAnswerFor(this, qid, submitted, ok, extra);
+    /** RecordAnswerHost 结构匹配（记账宿主三件 + 既有 historyStore，见 AnswerMirror）。 */
+    readonly takeSec = (qid: string): number => this.timer.takeQuestionSec(qid);
+    readonly elapsedSec = (): number => this.timer.elapsed();
+    readonly notifyAnswer = (qid: string, submitted: string, ok: boolean, sec: number): void =>
+        notifyQuizAnswer(this, qid, submitted, ok, sec);
 
     /** after 模式答满（未收卷）：一次性提示「可检查修改，结束后统一判卷」
      *  （Issue #12 B3；去重标记由 renderList 复位）。详见 renderList 注。 */
@@ -571,4 +560,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 侧栏/头部按钮与题卡考点 chip 检索出口（#135 §7.a）；实现体 SideMount。 */
     readonly sideAct = sideActFor(this);
     readonly kcapSearchOf = kcapSearchFor(this);
+    // 侧栏切换二次确认闸（#137 §7.d）：判定/弹窗 flow/SwitchConfirm、装配体 SideMount
+    readonly switchGuardOf = switchGuardFor(this);
+    readonly guardCtx = guardCtxFor(this);
+    readonly targetName = (id: string): string => switchTargetNameFor(this, id);
 }

@@ -3,11 +3,14 @@ import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
 import type { WenguWorkspace } from "../render/RailMount";
 import SidePanelApp from "../components/SidePanelApp.svelte";
 import QuizHeadApp from "../components/QuizHeadApp.svelte";
-import type { CollectionFlow } from "../../bank";
+import { type CollectionFlow } from "../../bank";
+import { AGGREGATE_ID } from "../../bank/data/BankSets";
 import { updateConvertBtn } from "../../convert";
 import { fmt } from "../../ui/shared";
 import type { BadMarkViewAccess } from "../service/BadMarkRegen";
 import { searchKcapFor, type StatsViewAccess } from "../../stats";
+import { needsSwitchConfirm, openSwitchConfirm } from "./SwitchConfirm";
+import type { WenguSession } from "../service/HistoryStore";
 
 /** 侧栏/头部按钮统一出口（act 名同 data-act）：SidePanelApp/QuizHeadApp
  *  的 onAct 回调经 SideViewAccess.sideAct 汇到这里分派——原来是
@@ -97,6 +100,11 @@ export interface SideViewAccess {
     roundIndex?(): number;
     selectDoc(docId: string): void;
     setSideTreeOpen(open: string[]): void;
+    /** 侧栏两路切换入口的**共闸出口**（Issue #137 §7.d）：点击另一
+     *  题集/专题/聚合行且当前轮次进行中（`!endedAt && answered > 0`）时
+     *  先弹二次确认，确认后才执行 `go()`。组件层无会话知识，故闸在
+     *  视图层——实现体见 {@link switchGuardFor}（本模块）。 */
+    switchGuard?(id: string, go: () => void): void;
     /** 侧栏/头部按钮统一出口（act 名同 data-act）。 */
     sideAct(act: string): void;
 }
@@ -133,8 +141,13 @@ export function mountSideFor(v: SideViewAccess, workspace: WenguWorkspace): void
         sideTreeOpen: v.sideTreeOpenOf(),
         onAct: (act: string) => v.sideAct(act),
         onSearch: (text: string) => v.setSideFilter(text),
-        onOpenDoc: (id: string) => v.selectDoc(id),
-        onOpenCollection: (id: string) => v.colFlowOf().switchTo(id),
+        // 切换入口一律先过二次确认闸（Issue #137 §7.d）：两路（树内
+        // 文档行 / 专题与聚合行）共用同一口径——组件侧只看目标 id，
+        // 模式/会话/目标名三件套在闸内按需从视图侧拉取。
+        // ⚠️ 只有「另一上下文」会是闸的目标；点当前行由判定早退（同 id）
+        guard: (id: string, go: () => void) => guardOrRun(v, id, go),
+        onOpenDoc: (): void => undefined, // 执行体已并入 guard（组件只调 guard）
+        onOpenCollection: (): void => undefined,
         onPersistOpen: (open: string[]) => v.setSideTreeOpen(open),
     });
     sideApp = { app: mounted.app as unknown as SidePanelExports, unmount: mounted.unmount };
@@ -199,6 +212,85 @@ export const kcapSearchFor =
     (v: StatsViewAccess): ((knowledge: string) => void) =>
     (knowledge) =>
         searchKcapFor(v, knowledge);
+
+/** 切换入口的共闸（Issue #137 §7.d）：按 {@link switchGuardFor} 判定，
+ *  需确认则弹窗、确认后才切；视图能力未实现 `switchGuard` 的壳
+ *  （只读壳/测试壳）按「直切」兜底——与改造前行为逐字一致。 */
+export function guardOrRun(v: SideViewAccess, id: string, go: () => void): void {
+    if (typeof v.switchGuard === "function") v.switchGuard(id, go);
+    else go();
+}
+
+/** 二次确认闸的**装配体**（`SidePanelApp.guard` 的实现，视图侧一行转出）：
+ *  组件层没有会话知识，判据所需的模式/会话/上下文三件套全在这里按需从
+ *  宿主拉取（`guardCtx()` / `currentSession()` **必须是函数**——挂载时
+ *  预求值会把上一轮的值定格，闸就永远读不到「点击那一刻」）。 */
+export interface SwitchGuardAccess {
+    /** 点击那一刻的上下文快照（见 {@link guardCtxFor}）。 */
+    guardCtx(): { mode: string; currentId: string; total: number };
+    /** 当前会话（`QuizView.currentSession()`）。 */
+    currentSession(): WenguSession | undefined;
+    /** 当前专题流（目标名解析用；`QuizView.colFlowOf()`）。 */
+    colFlowOf(): CollectionFlow;
+    /** 目标上下文名（专题/聚合行标题 / 文档标题）。 */
+    targetName(id: string): string;
+    t(key: string): string;
+    docsOf(): WenguDoc[];
+}
+
+/** 点击那一刻的上下文快照（模式 / 当前上下文 id / 本卷题数）：闸的三条
+ *  判据里除会话外都要**现取**——挂载时预求值会把上一轮的值定格。 */
+export function guardCtxFor(v: SwitchCtxAccess): () => { mode: string; currentId: string; total: number } {
+    return () => ({ mode: v.mode, currentId: v.docIdOf(), total: v.fullListOf().length });
+}
+
+/** 上下文快照的视图能力（`QuizView` 三个既有访问器直接结构匹配）。 */
+export interface SwitchCtxAccess {
+    /** 模式（`QuizView.mode` 字段；review/preview 不拦）。读的是**字段**
+     *  不是方法——`QuizView` 已有同名 `mode` 字段，别再添 `modeOf`。 */
+    mode: string;
+    /** 当前上下文 id（同 id 早退判据）。 */
+    docIdOf(): string;
+    /** 全量题表（弹窗进度实况的分母）。 */
+    fullListOf(): { id: string }[];
+}
+
+/** 侧栏切换入口的闸（Issue #137 §7.d）：判定→（需确认时）弹窗→确认后切。
+ *  `QuizView.switchGuardOf` 即本函数的实例（一行转出，压 index.ts 行数）。
+ *
+ *  ⚠️ 判据三件套（模式/会话/上下文）**逐次现取**——预求值会在挂载时把
+ *  上一轮的 session 定格，闸就永远读不到「点击那一刻」。 */
+export function switchGuardFor(v: SwitchGuardAccess): (id: string, go: () => void) => void {
+    return (id, go) => {
+        const ctx = v.guardCtx();
+        const session = v.currentSession();
+        if (!needsSwitchConfirm({ mode: ctx.mode, session, targetId: id, currentId: ctx.currentId })) {
+            go();
+            return;
+        }
+        openSwitchConfirm({
+            t: v.t,
+            targetName: v.targetName(id),
+            session: session as WenguSession,
+            total: ctx.total,
+            onGo: go,
+        });
+    };
+}
+
+/** 切换目标名（弹窗文案 `{目标名}`）：专题/聚合行取行标题（聚合行标题与
+ *  侧栏根行同键 `allExTitle`），文档行取标题、回落 id——id 是**兜底**不是
+ *  首选（弹窗要给用户认得出的名字）。 */
+export function switchTargetNameFor(v: SwitchGuardAccess, id: string): string {
+    if (id === AGGREGATE_ID) return v.t("allExTitle");
+    const row = v
+        .colFlowOf()
+        .rowsView()
+        .find((c) => c.id === id);
+    if (row) return row.title;
+    const doc = v.docsOf().find((d) => d.id === id);
+    return doc?.title || id;
+}
 
 /** 取轮次序号（视图能力可选——只读壳/测试壳不实现即回 0，胶囊不出）。 */
 function roundIndex(v: SideViewAccess): number {

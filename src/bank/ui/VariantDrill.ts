@@ -38,7 +38,7 @@ export function openVariantDrillDialog(deps: VariantDrillDeps, docId: string, do
     const { t } = deps;
     const { dialog, root } = openWenguDialog({
         title: t("variantDrillTitle"),
-        width: "520px",
+        width: "md", // 520 → §5.1 md 档（560）
         body: `
       <div class="wengu-muted">${esc(t("variantDrillHint"))}</div>
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">

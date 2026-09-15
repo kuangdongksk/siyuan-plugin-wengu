@@ -579,3 +579,26 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
     - 判分口径零改动：`gradeQuestion` 按字母比、`optionIsRight` 按 idx 找答案
       ——展示序变了、字母与选项的对应关系随之变，两者仍自洽（单测锁
       「洗后答案字母指向同一选项文本」，另锁「同轮两次洗逐字相同」）。
+
+- **切换题集二次确认弹窗**（Issue #137，20260915；差距清单 §7.d / 设计稿 §5）：
+  用户在长卷中途点侧栏换卷时先弹确认，**主钮＝「留在本卷」**（安全默认，
+  右起第一 primary），次钮「继续切换」outline；Esc/遮罩/关闭钮都落主钮语义。
+    - **判据纯函数** `quiz/flow/SwitchConfirm.needsSwitchConfirm`（带单测）：
+      `mode === "quiz"` 且 targetId ≠ currentId 且 `session && !endedAt &&
+answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不弹）；
+      空轮（answered=0）不弹；review/preview/study 不弹。
+    - **闸在视图层、不在组件层**：`SideMount.mountSideFor` 传给
+      `SidePanelApp` 的是**单个** `guard(id, go)` 回调（组件只调它、不再自己
+      分流 onOpenDoc/onOpenCollection——那两个 props 仍保留但已是空执行体，
+      只为过 svelte-check 的必填 props）。判定三件套（模式/上下文 id/题数）
+      与目标名**逐次现取**（`guardCtxFor(this)` / `switchTargetNameFor(this)`）：
+      挂载时预求值会把上一轮定格，闸就永远读不到点击那一刻。
+    - **反查名**：专题行取 `colFlow.rowsView()` 的 title、聚合行取
+      `allExTitle`、文档行取 `docs` title、兜底 id（id 是底不是首选）。
+    - `contextNameOf` / `switchGuard` 都是 `SideViewAccess` 的**可选**能力，
+      只读壳/测试壳不实现即按「直切」兜底（与改造前逐字同行为）。
+    - **顺带还债**：`quiz/index.ts` 的 `recordAnswer` 实现体整体外移进
+      `service/AnswerMirror.recordAnswerFor`（宿主能力 `RecordAnswerHost`：
+      `takeSec`/`elapsedSec`/`notifyAnswer`/`historyStore`/`bankStore`），
+      于是 index.ts 由 574 → 567 行，**豁免额度已同步收紧到 567**（只许减不许增）。
+      ⚠️ 记账链一条没删：会话 upsert → bank 镜像（首答/覆写分流）→ 学伴事件。

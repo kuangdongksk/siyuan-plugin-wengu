@@ -369,9 +369,14 @@ formSwitch / formInput / formOption`；输入必挂 `b3-text-field`；
 - **⚠️ 已知重复**：Svelte 宿主壳（`ConvertDialogApp` / `ConvertPanelApp`）
   手写同一串类名（内容形态不同，不走 `openWenguDialog`）——
   **改 `.wengu-dialog` 时两处同步**；建议抽 `wenguDialogClass()` 常量（后续批次）。
-- **宽度**：现状 7 档硬编码（480/520/560/620/640/680/780）。规范收敛为
-  三档 `sm 480` / `md 560` / `lg 680`，且 `width` 取 `min(档位, calc(100vw - 32px))`
-  防小屏顶满。**❌ 待修**。
+- **宽度**：规范三档 `sm 480` / `md 560` / `lg 680`，`width` 取
+  `min(档位, calc(100vw - 32px))` 防小屏顶满。**✅ 已修（Issue #137）**：
+  `openWenguDialog` 的 `width` 接受档名（`Dialog.dialogWidth` 归一，
+  裸 px 透传兼容存量），四处离群值已归位
+  （640→`lg`、620→`lg`、520→`md`）；`SettingsDialog` 的 `780px`（带
+  `height` 的双栏设置页）与两个 Svelte 宿主壳仍为显式字面值——
+  **改 `.wengu-dialog` 时两处同步**（`ui/Dialog.wenguDialogCls` 常量是
+  同源落点，手写壳改用即可）。
 
 ### 5.2 长内容封顶（✅ 达标）
 
@@ -383,10 +388,19 @@ formSwitch / formInput / formOption`；输入必挂 `b3-text-field`；
 转换/增量/索引等长任务的实时状态驻**页内转换条 + 流级横幅**
 （`scss/aiflow.scss`），弹窗点击即关。**弹窗内不得有长任务的进度条。**
 
-### 5.4 弹窗底部动作行（❌ 待修）
+### 5.4 弹窗底部动作行（✅ 已修，Issue #137）
 
-见 §2.2：右起第一钮为唯一主操作；`WenguDialogAction.variant` 需放宽到
-与 `ButtonVariant` 同源（至少补 `primary` / `text`）。
+见 §2.2：右起第一钮为唯一主操作。**变体已放宽**为与 `ButtonVariant`
+同源的四档（`primary` / `outline` / `text` / `cancel`，缺省 `cancel`）——
+`ui/Dialog.actionClsOf` 是唯一出口（`primary`＝裸 `b3-button` 主色实底）。
+**位序即语义**：调用方按「次钮在前、主钮在后」书写动作数组。
+
+- 首个受益者＝切换题集二次确认弹窗（`quiz/flow/SwitchConfirm`，
+  设计稿 §5 / 差距清单 §7.d）：主钮「留在本卷」`primary` 居右起第一，
+  次钮「继续切换」`outline`；**Esc / 遮罩 / 关闭钮 = 主钮语义**（安全
+  默认），由 `openSwitchConfirm` 显式兜（b3-dialog 默认关闭路径无回调）。
+- 动作行 `gap` 仍是 `base.scss` 的 `.wengu-dialog ~ .b3-dialog__action`
+  一条 8px（§〇6 按钮行总则）。
 
 ### 5.5 层级约定（✅ 达标，注释升格为条款）
 
@@ -632,6 +646,8 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 | E11 | 超长文件               | `src/word/data/phonetics-data.ts`(47148) / `words-p01..p16`              | **生成数据文件**，脚本产出、勿手改 | —      |
 | E12 | 超长文件               | `src/quiz/index.ts`(**576**，基线豁免)                                   | 编排内聚，**只许减不许增**         | —      |
 | E13 | 样式落点               | 组件 `<style>`（`css:"injected"` 运行时注入，非 `dist/index.css`）       | 组件独占样式随组件走（§13）        | —      |
+| E14 | 圆角 **10px**          | `base.scss` 的 `.wengu-dialog .wengu-dialog-ico`（弹窗图标位 38×38）     | §5 弹窗图标位（稿逐值）            | ✅ §5  |
+| E15 | 字号 **13.5px**        | `base.scss` 的 `.wengu-switch-confirm .wengu-switch-body`                | §5 弹窗正文（稿逐值）              | ✅ §5  |
 
 > ⚠️ **E12 的口径**：豁免**不是免死金牌**——`quiz/index.ts` 的基线是 574，
 > 现已 576（净增 2）。规范口径＝**豁免额度即上限**，越线照样算违规。
