@@ -503,11 +503,15 @@
   margin-top: 6px;
 }
 
-/* 末块上收半行：首块与行头（时间戳 + 摘要）之间留一档呼吸，块间则收紧到
-   半档——两块本是一轮的进出两头，读起来该是一个整体。纯视觉微调，DOM 序
-   不动（user 块恒在前，见组件头注释）。 */
-.wengu-aipanel-logseg:last-child {
-  margin-top: -0.5em;
+/* 块间收紧（Issue #98）：首块与行头（时间戳 + 摘要）之间留一档呼吸（连同
+   li.is-open 的 row-gap），后续块则**不再另加**间距——两块本是一轮的进出
+   两头，读起来该是一个整体。纯视觉微调，DOM 序不动（user 块恒在前，见组件
+   头注释）。
+   ⚠️ 判据必须写 `+ .wengu-aipanel-logseg`（**相邻块**）而**不是** `:last-child`
+   ——单块行（缺侧的尾轮/孤立 ai 轮）里首块**同时**是末块，`:last-child`
+   会把那唯一一块的留白一并收掉，标签直接顶上摘要行。 */
+.wengu-aipanel-logseg + .wengu-aipanel-logseg {
+  margin-top: 0;
 }
 
 .wengu-aipanel-logsegl {

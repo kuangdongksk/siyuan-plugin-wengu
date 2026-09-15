@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AiSessionRecord } from "../data/AiSessions";
 import { AI_INTERRUPTED, AI_STOPPED } from "../data/AiSessions";
-import { clockOf, detailViewOf, questionCountOf, type SessionLogSeg } from "./SessionDetail";
+import { canExpandRow, clockOf, detailViewOf, isRowOpen, questionCountOf, type SessionLogSeg } from "./SessionDetail";
 import { buildSessionTree } from "./SessionTree";
 
 /**
@@ -9,6 +9,8 @@ import { buildSessionTree } from "./SessionTree";
  * 轮次日志（时间戳 + 摘要，数字走 `<em>` 段）、归属备注 / 重试钮。
  * Issue #98 起行展开态按侧别分块（`segments` = 输入 / 输出两块，标签
  * 取词在 core 侧）——摘要行本身不动，仍是一行一轮的 S6 形态。
+ * 展开态的**开合判据也在 core 侧**（`canExpandRow` / `isRowOpen`）：组件
+ * 自持的 $state 挂不进 vitest，「默认展开」落在组件里就没有回归锁。
  * 断言落在**渲染侧真吃的字段**上。
  */
 
@@ -233,6 +235,42 @@ describe("轮次日志", () => {
         expect(v.rows[0].parts.map((x) => x.text).join("")).toBe("轮次 1 · 输入 3 字 → 输出 2 题");
         // 分块正文=两侧原文，标签与侧别一一对应
         expect(v.rows[0].segments.map((x) => `${x.side}:${x.text}`)).toEqual(["user:abc", "ai:@@Q 一\n@@Q 二\n"]);
+    });
+
+    it("默认展开（Issue #98）：空「已收起」集合 ⇒ 可展开行全开，不可展开行恒不开", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "a" },
+                    { role: "ai", text: "b" },
+                ],
+            }),
+            base
+        )!;
+        // 默认态：组件持有的「已收起」集合是空的 ⇒ 全部可展开行都展开
+        expect(isRowOpen(v.rows[0], {}, 0)).toBe(true);
+        // 用户点一下行头 = 只记这一行被收起，其余行不受影响
+        expect(isRowOpen(v.rows[0], { 0: true }, 0)).toBe(false);
+        // 不可展开的行（收口状态行）恒不展开——与开合状态无关
+        const err = detailViewOf(rec({ status: "error", error: "超时", turns: [{ role: "user", text: "q" }] }), base)!;
+        expect(canExpandRow(err.rows.at(-1)!)).toBe(false);
+        expect(isRowOpen(err.rows.at(-1)!, {}, err.rows.length - 1)).toBe(false);
+        expect(isRowOpen(err.rows.at(-1)!, { [err.rows.length - 1]: false }, err.rows.length - 1)).toBe(false);
+    });
+
+    it("可展开判据与分块同源：有块才有展开手势（不与 full 另判一遍）", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "a" },
+                    { role: "ai", text: "b" },
+                ],
+            }),
+            base
+        )!;
+        for (const row of v.rows) expect(canExpandRow(row)).toBe(row.segments.length > 0);
+        // 分块但 full 为空的行不存在（有块必有文），反之亦然——两条判据同义
+        for (const row of v.rows) expect(row.segments.length > 0).toBe(row.full !== "");
     });
 
     it("error 态把错误正文也摆进日志（日志是过程记录）；done 态不出进行态行", () => {

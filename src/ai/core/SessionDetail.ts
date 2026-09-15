@@ -149,6 +149,28 @@ function sidesOf(t: (k: string) => string, user: AiTurn | undefined, ai: AiTurn 
     return out;
 }
 
+/**
+ * 该行**可展开**吗（Issue #98）：展开态有正文才有手势——分块为空即无正文
+ * （收口的状态行，如错误行/停止行），与 `full === ""` 同义；判据只此
+ * 一处（组件不得另拿 `full` 再判一遍，两条判据分叉就是一个手势两种行为）。
+ */
+export function canExpandRow(row: SessionLogRow): boolean {
+    return row.segments.length > 0;
+}
+
+/**
+ * 该行**当前处于展开态**吗（Issue #98 的**默认展开**口径）：入参只记
+ * 「被用户显式**收起**的行」（组件状态），空集合 ⇒ 全部可展开行都展开
+ * ——重挂（换记录/刷新）即回全展开，不需要按行数重算，也没有「初始化时
+ * 遍历一遍行」的时机问题。不可展开的行恒为假（与开合状态无关）。
+ *
+ * 放在纯逻辑侧是为了让「默认展开」进单测：组件自持的 `$state` 在
+ * vitest 里挂不上（测试图不挂组件），口径落在组件里就等于没有回归锁。
+ */
+export function isRowOpen(row: SessionLogRow, closedRows: Readonly<Record<number, boolean>>, i: number): boolean {
+    return canExpandRow(row) && !closedRows[i];
+}
+
 /** 取词模板按 `{n}` 拆段：命中的那一段进 `<em>`（强调位在**模板**里，
  *  不靠代码猜哪几个字符是数字——中英两套模板的强调位各自由自己表达）。 */
 function segsOf(template: string, vars: Record<string, string>): SessionLogSeg[] {

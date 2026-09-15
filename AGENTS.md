@@ -1443,17 +1443,25 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       动作，故**默认全部展开**（多轮也全展开，详情列已有内滚兜底）；点行头仍可
       收起/展开，交互本身不变。组件侧记的是「被显式收起的行」集合
       （`closedRows`）——重挂即清空 ⇒ 新记录回到全展开，无需看行数重算。
+      ⚠️ **开合与可展开两条判据都在 core 侧**（`isRowOpen` / `canExpandRow`，
+      带单测）：组件自持的 `$state` 挂不进 vitest，判据留在组件里「默认展开」
+      就没有回归锁；两条判据只此一处，组件**不得**另拿 `full` 再判一遍
+      （分叉即一个手势两种行为）。
         - **展开后的正文按侧别分块**（`SessionLogRow.segments`：user 侧带
           `aiLogIn`「输入」、ai 侧带 `aiLogOut`「输出」，**两键中英同步加**）；
           缺侧的尾轮（或孤立 ai 轮）只出一块。**标签取词在 core 侧**——组件不取词
           （同 `parts` 的分段口径）。
         - ⚠️ **摘要行本身不动**：仍是一行一轮的 S6 形态，分块只在**行展开态**里做。
-        - ⚠️ **可展开判据取 `segments.length > 0`**，与 `full !== ""` 同义（收口的
-          状态行如错误行两者皆空 ⇒ 不出可展开手势）；`full` 保留为无标签兜底。
+        - ⚠️ **可展开判据 = `canExpandRow`（`segments.length > 0`）**，与 `full !== ""`
+          同义（收口的状态行如错误行两者皆空 ⇒ 不出可展开手势）；`full` 保留为
+          无标签兜底，判据不再有第二份。
         - ⚠️ **块序连排、DOM 序保持 user 在前**（读屏与整段复制的阅读序必须是
           真实先后）：行是单一 `grid` 容器，两个块各 `grid-column: 1/-1` 序连排；
-          块间距纯 `margin` 微调（`aipanel.scss` 的 `.wengu-aipanel-logseg` 与
-          `:last-child`）——**不许用 `order` 翻转 DOM 序**。
+          块间距纯 `margin` 微调（`aipanel.scss` 的 `.wengu-aipanel-logseg` +
+          相邻块选择器）——**不许用 `order` 翻转 DOM 序**。
+          ⚠️ **块间收紧必须写 `+ .wengu-aipanel-logseg`（相邻块），不是
+          `:last-child`**：单块行（缺侧的尾轮/孤立 ai 轮）里首块同时是末块，
+          `:last-child` 会把那唯一一块的留白一并收掉、标签直接顶上摘要行。
         - ⚠️ **输出块不设 `max-height`**（面板核心用途是回看产出），滚动交详情列
           既有的内滚窗（`.wengu-aipanel-pane`，Issue #96）。
     - ⚠️ **空脚不渲染**（Issue #98）： `ownNote` 为空且 `retryable` 为假时
