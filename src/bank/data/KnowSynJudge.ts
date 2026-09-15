@@ -1,4 +1,6 @@
 import { agentChatOnce } from "../../ai/client";
+import { aiTitle } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { synJudgePrompt, parseSynReply, SYN_BATCH_SIZE, SYN_LIST_CHARS } from "../../ai/prompts/synonyms";
 import type { BankRecord } from "./QuestionBank";
@@ -170,7 +172,7 @@ export async function judgeSynonyms(opts: {
         try {
             reply = await agentChatOnce(prompt, opts.modelId, AI_TIMEOUT.quick, opts.signal, {
                 kind: "route",
-                title: `同义判定 · ${batch.length} 对`,
+                title: aiTitle(tKey, "aiTitleSameJudgePairs", { n: String(batch.length) }),
                 group: opts.group,
                 onSid: opts.onSid,
             });

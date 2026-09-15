@@ -113,13 +113,19 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   （三类题卡+材料组壳逐单元 mount）、6-4b 作答态收敛（三写统一进卡内 CardUi 响应态）、
   6-5 侧栏/头部壳（SidePanelApp/QuizHeadApp，2026-08-31，quiz 域收官）。组件零
   `<style>`，类名与迁移前逐字一致走全局 scss；新域挂载一律用 `ui/mountApp.ts`。
+- **界面规范唯一权威落点＝`docs/design-spec.md`**（整改 E #120 收口成文，20260915；
+  令牌全名白名单 / 按钮层级 / 字号·间距·圆角阶梯 / 表单构件 / 弹窗浮层 / 图标
+  （含 sprite 合法 id 清单）/ 移动端专属 / 文案与 i18n / 例外登记表 / 与主题对抗 /
+  结构红线 / 整页不滚动）。**改任何 UI 前先读它**；`docs/design-review.md §〇`
+  保留作历史审查清单（条款已上收 design-spec，不删）。两条最常犯的：图标一律
+  `FormHtml.svgIcon`（禁 emoji 字符，排版符号 `→ · 「」` 豁免）；表单统一 FormHtml
+  行样式。
 - **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 基线豁免 574 行——20260826
   预览改版至 20260903 聚合/组链修复持续增长，访问器表+编排职责外移破坏内聚，改动它
-  前后注意别再净增；见迁移文档 6-5 节与 20260903 审查）。界面规范见
-  `docs/design-review.md §〇`（图标用 `FormHtml.svgIcon` 禁 emoji；表单统一 FormHtml
-  行样式）。
-- **整页不滚动**（Issue #96，2026-09-15 起硬性规范，见 `docs/design-review.md`
-  §〇 第 11 条）：面板高度一律适配宿主视口，长列表/详情收**面板内部的滚动窗**，
+  前后注意别再净增；见迁移文档 6-5 节与 20260903 审查。豁免＝上限，越线照算违规；
+  生成数据文件 `src/word/data/**` 豁免）。
+- **整页不滚动**（Issue #96，2026-09-15 起硬性规范，见 `docs/design-spec.md` §12
+  / `docs/design-review.md` §〇 第 11 条）：面板高度一律适配宿主视口，长列表/详情收**面板内部的滚动窗**，
   工作区主区不出页面级滚动条。技术要点＝「flex/`min-height:0` 链一路打通 +
   grid 行高显式分配 + 主区经 `--fit` 档改写 + 内滚窗落在列上 + 列上留滚动条槽」。
   落地样板＝AI 会话工作区（AGENTS.md 的 ai 域段）；**其余管理面板迁移不在本

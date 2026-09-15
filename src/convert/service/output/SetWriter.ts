@@ -2,6 +2,8 @@ import { GROUP_PREV } from "../../../siyuan/attrs";
 import type { QuestionBank, BankRecord } from "../../../bank/data/QuestionBank";
 import { mintMatId, mintQid, mintSetId, normalizeSubject, removeRecords } from "../../../bank/data/BankSets";
 import { parseQuestionKramdown, questionHash } from "../../../bank/data/BankParse";
+import { aiTitle } from "../../../ui/shared";
+import { tKey } from "../../../ui/Notify";
 import { renderUnit } from "../draft/QuestionDraft";
 import type { DraftUnit } from "../draft/QuestionDraft";
 import type { WenguMaterial, WenguQuestion } from "../../../types";
@@ -68,7 +70,7 @@ export class SetWriter {
             };
             data.collections.push({
                 id: `doc:${id}`,
-                title: `${opts.title}·源卷`,
+                title: aiTitle(tKey, "aiTitleSourceSet", { name: opts.title }),
                 qids: [],
                 origin: "manual",
                 createdAt: Date.now(),

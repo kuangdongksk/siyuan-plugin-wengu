@@ -123,7 +123,7 @@
         </section>
 
         <div class="wengu-md-startrow">
-            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.start("fresh")}
+            <Button variant="primary" class="wengu-md-btn-solid" onclick={() => drill.start("fresh")}
                 >{t("startDrill")}</Button
             >
         </div>

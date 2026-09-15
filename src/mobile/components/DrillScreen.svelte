@@ -161,12 +161,12 @@
             {t("mobilePrev")}
         </Button>
         {#if ui?.locked || ui?.revealed}
-            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.next()}>
+            <Button variant="primary" class="wengu-md-btn-solid" onclick={() => drill.next()}>
                 {t("mobileNext")}{@html svgIcon("iconRight")}
             </Button>
         {:else if needConfirm}
             <Button
-                variant="main"
+                variant="primary"
                 class="wengu-md-btn-solid"
                 disabled={confirmDisabled}
                 onclick={() => void drill.submit()}
@@ -174,7 +174,7 @@
                 {ui?.busy ? t("aiJudging") : t("mobileConfirm")}
             </Button>
         {:else}
-            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.next()}>
+            <Button variant="primary" class="wengu-md-btn-solid" onclick={() => drill.next()}>
                 {t("mobileNext")}{@html svgIcon("iconRight")}
             </Button>
         {/if}
@@ -194,7 +194,7 @@
         <p>{t("mobileConfirmEndBody")}</p>
         <div class="wengu-md-sheet-foot">
             <Button variant="outline" onclick={() => drill.cancelEnd()}>{t("cancel")}</Button>
-            <Button variant="main" class="wengu-md-btn-solid" onclick={() => drill.endRound()}
+            <Button variant="primary" class="wengu-md-btn-solid" onclick={() => drill.endRound()}
                 >{t("endRoundRevealBtn")}</Button
             >
         </div>

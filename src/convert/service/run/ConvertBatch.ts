@@ -1,4 +1,5 @@
-import { fmt } from "../../../ui/shared";
+import { aiTitle, fmt } from "../../../ui/shared";
+import { tKey } from "../../../ui/Notify";
 import { buildPrompt, type StepContext } from "../../../ai/prompts/convert";
 import { questionPreview } from "../draft/ConvertDetect";
 import type { QuestionPreview } from "../draft/ConvertDetect";
@@ -128,7 +129,10 @@ export async function convertDocBatched(
     const info = await getDocInfo(docId);
     if (!info?.notebook) return zero("failed", t("convertNoDoc"));
     // 动作分组（AI 会话面板树归并）：生成/路由挂同组
-    const trackGroup = opts.trackGroup ?? { id: newAiGroupId(), title: `转换 · ${info.title}` };
+    const trackGroup = opts.trackGroup ?? {
+        id: newAiGroupId(),
+        title: aiTitle(tKey, "aiTitleConvert", { name: info.title }),
+    };
     const kd = await KernelBlock.kramdown(docId);
     // 剥原文的块 id IAL 行（含引用前缀变体）：AI 出题用不到块 id，
     // 留着会被原样抄进解析/题干落成裸文本（真机踩坑）

@@ -73,6 +73,25 @@ export function fmt(template: string, vars: Record<string, string>): string {
     return template.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);
 }
 
+/** 取词器（`ui/Notify` 同款最小形状，避免这里反向依赖 quiz 域）。 */
+export type TFunc = (key: string) => string;
+
+/**
+ * AI 会话记录标题的**总出口**（整改 E #120，规范 `docs/design-spec.md` §8.6）：
+ * AI 面板左栏行名直接取 track/group 的 `title`，而 title 是**用户可见主文案**
+ * （#88「记录 title 任务名化」）——写死中文会让英文环境的整个面板变成中文。
+ *
+ * 口径：**业务域只传 i18n 键与参数，不传串**。此处集中拼装，` · ` 分隔符也
+ * 归这里（分隔符是排版约定，不该分散在各调用点），中英共用一个模板。
+ *
+ * `key` 缺省时回落到键名（与 `i18n[k] || k` 同口径）——那是**取词配置缺漏**，
+ * 不是本函数要兜的形态；调用点请一律传真实键。
+ */
+export function aiTitle(t: TFunc, key: string, vars?: Record<string, string>): string {
+    const base = t(key);
+    return vars ? fmt(base, vars) : base;
+}
+
 /** 富文本 HTML → 纯文本（<br> 转换行，转义实体经 DOM 解码）。 */
 export function htmlToText(html: string): string {
     const el = document.createElement("div");
