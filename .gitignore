@@ -1,7 +1,4 @@
 .idea
-.dsh
-.workbuddy
-.zcode
 node_modules
 .DS_Store
 .eslintcache
@@ -15,3 +12,4 @@ kernel.js
 .worktree/
 package-lock.json
 .pnpm-store/
+.playwright-mcp/
