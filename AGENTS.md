@@ -245,6 +245,14 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   两侧都有内容时才插**（不出现悬挂分隔符）；文案仍全部来自既有 i18n 键。
   结构口径锁在 `render/SubheadHtml.test.ts` 的源级断言里（范围行在条件块之外、
   primary 唯一、两卡两图标），改组件别绕过。
+  ⚠️ **样式落在 `src/scss/startpanel.scss`（本单自 `panels.scss` 拆出）**：
+  panels.scss 被本单 +117 行顶穿 500 行红线，`.wengu-start*` 整块迁出、`index.scss`
+  注册——**该片是屏①规格的唯一落点**，规格断言 `quiz/render/StartPanelStyle.test.ts`
+  同样钉在它上面（走 **sass 真编译**查尺寸/令牌；`?raw` 导 scss 在本仓 vitest 下
+  拿到空串，vitest 默认 css:false 把 CSS 类文件替成空模块）。行排版照稿
+  `.sr-t`/`.sr-d`＝13.5px/600 标题 + 12px 次要色描述，**按结构定位**
+  （`> .fn__flex-1` / `.b3-label__text`）——FormRow 的类名串是主题对抗的一部分
+  （svelte-migration §10），不许为取词/排版给它加专属类。
 - **揭示态 / 锁定态 / 记账态是三件事**（20260910 Issue #12，最易踩的语义坑）：
     - `ui.graded` = 记账已入（`allCardsGraded`/答满判据）；
     - `ui.locked` = 作答位禁用（**状态级**，重渲染后仍是闸）；
