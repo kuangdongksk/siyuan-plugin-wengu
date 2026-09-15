@@ -49,7 +49,7 @@
 
 ### 1.1 令牌白名单（本仓在用，逐个标注官方出处）
 
-以下是全仓 `var(--b3-*)` 的**完整集合**（32 个）。**新增令牌前先查本表**；
+以下是全仓 `var(--b3-*)` 的**完整集合**（31 个）。**新增令牌前先查本表**；
 不在表内的名字一律视为拼错，须先在真机 `getComputedStyle` 验非空再入表。
 
 | 令牌                                                             | 用途族                           | 官方出处    |
@@ -93,8 +93,9 @@
 > `--b3-theme-success` / `--b3-theme-error` 两个 theme 语义色，第三档
 > （近义/部分对）必须走 `--b3-card-warning-*`。这是最容易再犯的一条。
 
-**✅ 已修（整改 E #120）**：全仓 9 处悬空引用已清零
-（`cards.scss`、`english.scss`、`report.scss`、`review.scss`）。
+**✅ 已清零**：全仓 9 处悬空引用已清零（`cards.scss`、`english.scss`、
+`report.scss`、`review.scss`）——由 **PR #116 / `fcbe302`**（Ref #113）修掉；
+本单只把它校订成文并列为反面教材，**未改这 9 处代码**。
 
 ### 1.3 零字面色值与豁免
 
@@ -109,9 +110,18 @@
 - `scss/rail.scss:201` — `color: var(--b3-card-warning-color, #d97706);` 兜底是字面橙。该令牌是官方全名、本应存在，建议删兜底。
 - `stats/StatsCharts.ts:35/36/80/81/82` — echarts 侧 5 处字面兜底（`#3575f0` / `#888888` / `#65b84d`，全是思源默认主题色，Neo+ 暖调下与全站脱节）。规范口径：**JS 取色只允许 `cssVar(令牌)`，兜底为空/透明并接受降级**。另 `:81` 把 `--b3-card-info-color` 当「正确率」的绿色用，**语义应为 `--b3-card-success-color`**。
 
-### 1.4 校验手段
+### 1.4 校验手段（✅ 已落地断言，整改 E #120）
 
-审计 #111/#112 已跑通「抽出仓内 `var(--b3-*)` → 对官方 theme.css 全部 `--b3-*` 定义做差集」的核对脚本。建议落成一条**只读单测**（本仓已有 sass 真编译断言的先例），把 §1.1 白名单变成 CI 会红的东西。
+审计 #111/#112 已跑通「抽出仓内 `var(--b3-*)` → 对官方 theme.css 全部 `--b3-*` 定义做差集」的核对脚本。
+
+**✅ 已落地（整改 E #120）**：`src/ui/SpecListings.test.ts`（4 条）把 §1.1 / §6.2
+两张清单变成 **CI 会红**的东西——断言「**代码在用的每个 `--b3-*` 令牌 / sprite id
+都在规范清单内**」，令牌侧 scss 走 **sass 真编译**（`?raw` 读 scss 恒空串）、
+ts/svelte 走源码文本并**剥注释**（注释里复述写法不算在用，同 §8.4 的死键口径）。
+两条反向验证已跑：删清单里的在用 id / 往代码塞表外令牌，**确实变红**。
+
+⚠️ 一个已知的**宽松处**：端到端「对官方 theme.css 做差集」需联网，CI 里不跑；
+本单只锁「清单 ⊇ 代码在用」这一侧（清单滞后是实际发生过的缺陷）。
 
 ---
 
@@ -141,12 +151,14 @@
   **桌面端落到一条零命中的死类**、元素回落到 `.b3-button` 主色实底（视觉与
   `primary` 相同但语义重复），而**移动端页面样式表连基态主色都没有** ⇒ 观感落空。
 - **✅ 已修（整改 E #120）**：`ButtonVariant` 联合类型**删除 `main`**，全仓
-  `variant="main"` 一律改 `primary`（移动端 6 处 + AI 面板 2 处）。移动端
-  `.wengu-md-btn-solid` 的状态说明见 §7.3。
+  `variant="main"` 一律改 `primary`（移动端 5 处字面量：`DrillScreen` ×4 +
+  `HomeScreen` ×1；AI 面板 3 处：`SessionDetail` 1 处字面量 + `SessionPanelApp`
+  2 处表达式）。移动端 `.wengu-md-btn-solid` 的状态说明见 §7.3。
 - **默认值口径**：`Button` 的 `variant` 默认值 = **`outline`**（改动自整改 E #120）。
   原默认 `primary` 意味着「不写 variant 就拿到主色实底」，而 165 个调用点里
-  一半以上靠自绘类盖掉基态才没出事——**一旦新组件漏写且没自绘类，就静默
-  破坏「一个面板至多一个 primary」**。故默认取**最不可能违规**的那个档。
+  有 51 处未写 `variant`（隐式吃默认值），靠自绘类盖掉基态才没出事——
+  **一旦新组件漏写且没自绘类，就静默破坏「一个面板至多一个 primary」**。
+  故默认取**最不可能违规**的那个档。
   **`primary` 必须显式声明**。
     > 现状：默认值已改，但**全量显式化未做**（本次只保证不依赖默认值表达主操作）；
     > 存量「靠隐式 primary」的调用点归位挂后续批次 F。
@@ -206,7 +218,7 @@ border-color: var(--b3-theme-primary); /* 与主操作实底明确区分 */
 ### 3.1 字号（⚠️ 部分达标）
 
 现状实测（`src/scss/*.scss`，剔注释）：`font-size` **22 档 / 218 处**，
-其中 10~16px 区间挤了 **10 档**、半像素五档合计 45 处。
+其中 11~15.5px 区间挤了 **10 档**、半像素五档合计 45 处。
 对照设计稿（`wengu-desktop-drill.html` 的 `12.5/13/13.5/14/14.5/15/11.5/12px`）
 可确认：**12 / 12.5 / 13 / 13.5 / 11.5 这一族是稿里就有的**，属「规格」不是「漂移」——
 规范的动作是**固化 + 关闸**，不是推翻。
@@ -255,13 +267,14 @@ border-color: var(--b3-theme-primary); /* 与主操作实底明确区分 */
 ⚠️ 14px 有**两个**落点（`aiflow.scss` 的面板刻度、`startpanel.scss` 的设计稿
 例外），**两者都要在 §9 具名**，否则读规范时分不清哪个是例外。
 
-**❌ 违反，待修（后续批次 F）**：非 4 倍数的 `3/5/7/9/11/18px` 共 27 处逐处归位
-或进例外表。
+**❌ 违反，待修（后续批次 F）**：`gap` 内非 4 倍数（`3/5/7/9/11/18px`）共
+**20 处**（`margin` / `padding` 内另有 39 处），逐处归位或进例外表。
 
 ### 3.3 圆角（⚠️ 部分达标）
 
-现状：117 条 `border-radius*` 声明里 **裸 px 45 处 / 16 档**，与
-`var(--b3-border-radius[-b])`（39 + 11 处）**同语义混用**。
+现状：118 条 `border-radius*` 声明里，走令牌 55 处（`--b3-border-radius` 39 +
+`-radius-b` 11 + 带字面兜底 5）；**裸值 63 处**——其中单一 px 值 **46 处 / 16 档**，
+另有胶囊/圆形字面值 18 处（`50%`×14 / `999px`×3 / `99px`×1）——**同语义混用**。
 
 **圆角四档**：
 
@@ -407,25 +420,35 @@ formSwitch / formInput / formOption`；输入必挂 `b3-text-field`；
 ——所谓「移动端 sprite 差异」在 3.8.x **不成立**。**写错 id 桌面同样空白**，
 只是移动端先撞上。
 
-本仓现行 id 全表（26 个，含插件自注册 3 个）：
+本仓现行 id 全表（**31 个**＝官方 28 + 插件自注册 3；口径：`src/**/*.{ts,svelte}`
+里 `svgIcon("…")` / 字符串字面量与 `xlink:href="#…"` 的**并集**）：
 
 ```
-官方 sprite（23 个，可在 appearance/icons/index.html 或 litheness/icon.js 查到）：
+官方 sprite（28 个，可在 appearance/icons/index.html 或 litheness/icon.js 查到）：
 iconAdd iconBack iconBookmark iconBug iconCheck iconClock iconClose iconCopy iconDown
-iconEdit iconEye iconFile iconFolder iconInfo iconLeft iconLink iconList iconPlay
-iconRefresh iconRight iconSearch iconSettings iconSparkles iconStar iconTrashcan
+iconEdit iconEye iconFile iconFolder iconIndeterminateCheck iconInfo iconLeft iconLink
+iconList iconPlay iconRefresh iconRiffCard iconRight iconSearch iconSettings iconSparkles
+iconStar iconTags iconTrashcan
 插件自有（3 个，src/index.ts 的 addIcons 自注册，id 永不改）：
 iconWengu iconWenguWords iconVolume
 ```
+
+⚠️ **清单必须与代码同步**：`iconIndeterminateCheck`（`FormHtml.statusIcon` /
+`ReviewHtml` 的「部分正确」态）、`iconRiffCard`（`RelatedDialog` 的「相关刷题」）、
+`iconTags`（`ViewBindings` 的「生成标签」）三个在用 id 曾漏登记 —— 已核实在官方
+sprite 内（master 版 `appearance/icons/litheness/icon.js`，该版共 260 个 symbol）。
+**「在用但不在清单」＝清单没跟上代码**，属清单自身失效，不是代码违规。
 
 **硬口径**：
 
 1. **id 必须能在官方图标清单页或 `litheness/icon.js` 里查到**（自有 id 除外）；
 2. 插件级图标经 `addIcons` 用**自有稳定 id** 注册，形状抄官方 path；
    **id 永不改**——`conf.json uiLayout` 持久化了 dock 图标 id，启动恢复走存量数据；
-3. **合法图标清单维护成单一来源**，`svgIcon` 在 dev 构建下对白名单外的 id
-   `console.warn`，并加单测锁「全仓 `svgIcon("…")` 用到的每个 id 都在清单内」
-   （源级断言先例：`SubheadHtml.test.ts`）。**❌ 机制待建（后续批次）**。
+3. **合法图标清单维护成单一来源**：清单＝本节代码块，**单测锁「全仓在用的每个
+   id 都在清单内」已落地**（`src/ui/SpecListings.test.ts`，源头先例
+   `SubheadHtml.test.ts`）。⚠️ 尚缺的是 **dev 期诊断**——`svgIcon` 目前不校验入参，
+   写错 id 仍只在真机静默渲染空白（`IconIds.ts` 常量集 + `console.warn` 那半条
+   **❌ 机制待建（后续批次）**）。
 
 **历史教训（反面教材，20260914 已由 #106 修复）**：移动端曾用
 `iconGrid` / `iconFlag` / `iconDoc` —— 这三个 id **思源 sprite 里根本不存在**
@@ -466,7 +489,8 @@ iconWengu iconWenguWords iconVolume
 ### 7.2 触控与尺寸（⚠️ 部分达标）
 
 - **输入 ≥16px**（防 iOS 聚焦缩放）：`.wengu-md-input` 16px、单行输入行高 48px。
-- **触控 ≥44px**：现状主操作 44/46/48/52/60px 共 24 处；
+- **触控 ≥44px**：现状主操作 44/46/48/52/60px 共 **22 处**（`min-width`/
+  `min-height` 口径）；
   **⚠️ 有 11 处落在 40px**（`words-mobile.scss` 5 处 min-height + 1 处 min-width；
   `english.scss` 3 处 min-height + 2 处 min-width）。
   **规范定夺**：**主操作 ≥44px；次要/密集区 ≥40px**（`iconbtn` / `bookbtn` /
@@ -488,9 +512,10 @@ iconWengu iconWenguWords iconVolume
 全主题令牌（`--b3-theme-primary` / `--b3-theme-on-primary`）、明暗自适应、
 触区 48px、圆角 12px（= `--b3-border-radius-b` 档）。
 
-**✅ 已修（整改 E #120）**：6 处 `variant="main"` → `variant="primary"`
-（`DrillScreen.svelte` ×5、`HomeScreen.svelte` ×1）；配合 §2.1 删除 `main`，
-移动端不再有「落到不存在类名 / 落到无规则的基态」两种落空形态。
+**✅ 已修（整改 E #120）**：5 处 `variant="main"` 字面量 → `variant="primary"`
+（`DrillScreen.svelte` ×4、`HomeScreen.svelte` ×1；`SessionPanelApp.svelte`
+另有 2 处表达式，见 §2.3）；配合 §2.1 删除 `main`，移动端不再有
+「落到不存在类名 / 落到无规则的基态」两种落空形态。
 
 ### 7.4 正文与次级文本（⚠️ 部分达标，口径拆分）
 
@@ -503,7 +528,7 @@ iconWengu iconWenguWords iconVolume
 | **次要标签 / 徽标 / 图例 / 时间戳** | **≥12px** | 工具行、状态词、`<small>` 描述    |
 
 ❌ 待修（与在途改动面邻近，**建议错开排期**）：`mobile-answer.scss:166/261`、
-`mobile-drill.scss:197`、`mobile-home.scss:243/299` 五处**正文语义**元素仍是
+`mobile-drill.scss:197`、`mobile-home.scss:260/316` 五处**正文语义**元素仍是
 14/14.5px，应提到 15px。
 
 ### 7.5 未挂载路径的预防性适配（✅ 达标）
@@ -520,7 +545,7 @@ iconWengu iconWenguWords iconVolume
 
 ### 8.1 字典门禁（✅ 达标，写成验收条款）
 
-- **`zh-CN.json` 与 `en.json` 键集合必须相等**（现状 909 : 909，对称差 0）；
+- **`zh-CN.json` 与 `en.json` 键集合必须相等**（现状 921 : 921，对称差 0）；
 - **零空值**（插件取词是 `i18n[k] || k`，**缺键或空串值都会回落键名**
   ——真机表现＝把英文键名渲染给用户）；
 - **占位符集合两语言对齐**（`{n}`/`{c}`/`{a}`/`{x}`/`{y}`…）；
@@ -552,10 +577,16 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 ⚠️ 判定陷阱：`this.i18n.xxx` 的**属性式访问**（非 `t("key")`）在纯文本 grep 里
 看不见，必须单独扫；名字与局部变量/类字段同名时也易误判为「活」。
 
-**✅ 已修（整改 E #120）**：删 12 个死键（中英同步）——
-`typeMaterial` / `clueOnlyGroup` / `convertRefused` / `timeUp` / `wordBtn` /
+**✅ 已修（整改 E #120）**：删 **11** 个死键（中英同步）。字典键集本次变动：
+`909 - 11 + 23(aiTitle*) = 921`（见 §8.6）——
+`typeMaterial` / `clueOnlyGroup` / `convertRefused` / `timeUp` /
 `convertDetected` / `convertDetectedCount` / `convertTotalUnknown` /
 `convertBatchParallel` / `aiRoleUser` / `aiRoleAi` / `aiStop`。
+
+⚠️ **`wordBtn` 不在此列（被留下）**：#112 清单把它列为死键，但复核发现
+`src/index.ts:275` 有 **`this.i18n.wordBtn || "背单词"`** —— 正是本节警告的
+「属性式访问在纯文本 grep 里看不见」形态，它**是活键**。删键前必须把该形态
+单独扫一遍（本单已按此执行）。
 
 ### 8.5 组件内不得有字面中文（⚠️ 部分达标）
 
@@ -622,8 +653,8 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 1. **单文件 ≤500 行**（唯一豁免 `quiz/index.ts`，且豁免即上限）。
    ⚠️ 豁免范围需明确：**生成数据文件豁免**（§9 E11）；
    **测试文件同受 ≤500**（视需要按 `describe` 分片）。
-   **❌ 待修**：`ConvertBatch.ts`(600) / `english.scss`(564) /
-   `QuestionBank.ts`(534) / `index.ts`(512) 四个文件超线。
+   **❌ 待修**：`ConvertBatch.ts`(604) / `english.scss`(564) /
+   `QuestionBank.ts`(531) / `index.ts`(512) 四个文件超线。
    **建议加一条极轻量单测**把红线变成 CI 会红的东西（10 行：扫
    `src/**/*.{ts,svelte,scss}` 断言行长 ≤500 + 显式豁免额度常量）——
    这是「拆一次压线后继续净增」的唯一根治手段。
