@@ -1,5 +1,5 @@
 /* AI 会话面板 · 树列（自 scss/aipanel.scss 拆出，**单文件 ≤500 行硬约束**）：
-   补高度链（Issue #96）与详情改造（#98）后 aipanel.scss 已到 576 行，按仓库既有
+   详情改造（#98）与轮次块等增量后 aipanel.scss 已到 576 行，按仓库既有
    做法（rail.scss 逼近红线时拆出 aiflow.scss、aipanel.scss 本身即自 rail.scss
    拆出）把「② 树」整段单开一片。拆的是**文件边界不是职责**：类名仍
    .wengu-aipanel-*，令牌与口径同源（色值一律 var(--b3-*) 全名，见 aipanel.scss
@@ -8,30 +8,20 @@
    ≤1000px 折单列的 @media，它会覆写 .wengu-aipanel 的 grid-template-*，而那些
    基础声明在 aipanel.scss——@media 不加特异性、仍是**源码序**决胜，本片排在
    前面就会被基础规则反过来盖掉（窄窗口折单列失效）。 */
-/* ── ② 树（左栏；gap-list S3/S4/A1~A4；滚动归属见 Issue #96） ── */
+/* ── ② 树（左栏；gap-list S3/S4/A1~A4） ── */
 
 /* 树凹槽：grid 首列（292px 由卡壳的 grid-template-columns 管，这里**不写
    width**——gap-list S3 的修法即「列宽由 grid 接管」）。凹槽底取
    `--b3-theme-background`（映射表 surface-3 落点，比卡面深一档），
-   分隔交给右边线（两栏 gap 归 0）。**无**裸 max-height（后者由列内滚
-   `overflow-y:auto` 取代，见下）。 */
+   分隔交给右边线（两栏 gap 归 0）。**无**滚动窗、**无**裸 max-height
+   （gap-list S4：卡随内容长，滚动归宿主主区；行数本就有上限——登记簿
+   全局 150 条 / 单类 40 条，天花板约 3000px）。 */
 .wengu-aipanel-tree {
   grid-area: tree;
   background: var(--b3-theme-background);
   border-right: 1px solid var(--b3-border-color);
   padding: 8px 0 12px;
   min-width: 0;
-  /* 滚动归属（**Issue #96 推翻 gap-list S4**）：长清单列**自身内滚**。
-     稿的取舍（卡随内容长、滚动交宿主页）与产品约定冲突——整页滚动会把
-     标题/hint/过滤条/横幅一起滚走，树列与详情失去固定视野。故列内出
-     滚动窗：`min-height:0` 是链上的关键一环（缺它 grid 子项的自动最小
-     尺寸=内容高，列被撑长 ⇒ 本人内滚不出现）；`scrollbar-gutter:stable`
-     预留给滚动条，免得「有/无滚动条」两种状态下行宽跳动（树是窄列，行内
-     徽标又贴右，跳一格很明显）。 */
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  overscroll-behavior: contain;
 }
 
 /* 组数徽标（设计稿 ai-tree-head 的 badge--plain）：与宿主标题栏同一行
@@ -152,9 +142,21 @@
   margin-left: auto;
 }
 
-/* 组行行尾无任何元素（gap-list S5）：主题组行的行名自带组合名，不需要
-   「N 条 · 时间」meta。删除钮属功能件，退回 hover 显隐（rail.scss 既有
-   口径），不占常驻视觉位。 */
+/* 行尾弱注记（间隙期形态，见 SessionPanelApp 的头注释「间隙期」一节）：
+   叶行时间戳 + 删除钮同排——删除钮按 gap-list S5 退回 hover 显隐
+   （功能件不占常驻视觉位），时间戳是常驻的 mono 弱注记（稿 `.leaf .kind`
+   同位：`font:400 11px/1 var(--mono); color:var(--faint)`）。 */
+.wengu-aipanel-tree .wengu-aipanel-meta {
+  flex: none;
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+  /* faint 第三档（映射表 55% mix；与 log 时间戳同一档） */
+  color: color-mix(in srgb, var(--b3-theme-on-surface-light) 55%, transparent);
+  white-space: nowrap;
+}
+
 .wengu-aipanel-tree .b3-list-item__action .b3-button {
   padding: 0 4px;
   font-size: 12px;
@@ -169,9 +171,8 @@
 }
 
 /* ≤1000px 折单列（稿的 1000px 断点）：横幅/树/详情自上而下，树的分隔线
-   从右边线换到底边线。行高分配同步改：三行都吃**按内容**（auto），
-   卡整体交给 `.wengu-aipanel-pane` 那一层的列内滚动（见下）——
-   单列下若沿用「末行吃剩余高」，树行会被压成 0 高，清单整片消失。 */
+   从右边线换到底边线。行高一律按内容（auto）——卡随内容长，滚动归宿主
+   主区；树也不给 max-height（同 S4 口径，清单不被切在一个视口高里）。 */
 @media (max-width: 1000px) {
   .wengu-aipanel {
     grid-template-columns: 1fr;
@@ -179,14 +180,10 @@
       "banner"
       "tree"
       "detail";
-    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
   .wengu-aipanel-tree {
     border-right: 0;
     border-bottom: 1px solid var(--b3-border-color);
-    /* 折单列后清单不再有「列内滚窗」的语义：高度给上限、超出才滚，
-       免得清单把详情挤出视野（窄窗口下这是最不坏的折法）。 */
-    max-height: 40vh;
   }
 }

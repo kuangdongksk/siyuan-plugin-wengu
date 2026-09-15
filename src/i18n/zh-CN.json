@@ -925,5 +925,6 @@
   "aiCopyBlock": "复制本块",
   "aiCopyTurn": "复制整轮",
   "aiCopied": "已复制",
-  "aiCopyFail": "复制失败，请手动选中"
+  "aiCopyFail": "复制失败，请手动选中",
+  "aiRowMeta": "{time} · {kind}"
 }

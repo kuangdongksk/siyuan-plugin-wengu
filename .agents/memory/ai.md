@@ -334,8 +334,10 @@
           ⚠️ **块间收紧必须写 `+ .wengu-aipanel-logseg`（相邻块），不是
           `:last-child`**：单块行（缺侧的尾轮/孤立 ai 轮）里首块同时是末块，
           `:last-child` 会把那唯一一块的留白一并收掉、标签直接顶上摘要行。
-        - ⚠️ **输出块不设 `max-height`**（面板核心用途是回看产出），滚动交详情列
-          既有的内滚窗（`.wengu-aipanel-pane`，Issue #96）。
+        - ⚠️ **输出块不设 `max-height`**（面板核心用途是回看产出），长内容由
+          **宿主主区那一扇唯一的滚动窗**兜住（`.wengu-ws-main` 的
+          `overflow-y:auto`）——详情列**没有**内滚窗（#96 的收内滚已撤，
+          见本节末 #129 那条）。
     - ⚠️ **空脚不渲染**（Issue #98）： `ownNote` 为空且 `retryable` 为假时
       `.wengu-aipanel-dfoot` **整块不出**（连同 padding/border-top/底色）——空
       容器的色带在已完成态看起来就是「下方空一块」。在途/停止态的 own-note 与
@@ -435,46 +437,48 @@
   仍留在 rail.scss 供各片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
   设计稿的 `--ok-solid`/`--fail-solid`/`--accent-dim` 等语义令牌落成 b3 令牌 +
   `color-mix` 组合（同 aiflow.scss 口径）。
-- **整页不滚动（Issue #96，20260915；规范 `docs/design-review.md` §〇 第 11 条）**：
-  面板高度适配宿主视口，滚动收进面板**内部滚动窗**——**推翻 #93 的 gap-list
-  S4 取舍**（「卡随内容长、滚动交宿主页」与产品期望冲突：整页滚会把标题/hint/
-  kinds 过滤条/横幅一起带走，长清单下树列与详情失去固定视野）。四处咬合，
-  缺一环链就断（表现＝内滚窗不出现、整页照滚）：
-    - **宿主档位**（`ai/core/PanelFit.ts` 纯逻辑带单测 + `ai/SessionPanel.ts`）：
-      主区 `.wengu-ws-main` 的 `overflow-y:auto` 是**共用骨架**（其余工作区靠它
-      自滚）**一个字不动**；收内滚的面板经 `.wengu-ws-main--fit` 一档改写主区
-      （rail.scss：flex 列 + `overflow:hidden`）。**开关在挂载/卸载处配对**
-      （`mountAiSessionPanel` 开、`detachAiSessionPanel` 关）——主区容器是共享
-      骨架、随整壳重建，漏关会让下一块面板继承本档：开了档而不收内滚 ⇒ 内容被
-      `overflow:hidden` 切掉且**滚不到**，比「整页滚」更坏。「哪些工作区收内滚」
-      的判据在 `workspaceFits`（当前只有 ai），别在挂载点写死字符串。
-        - ⚠️ **开关只动本面板那一份骨架，禁 document 级全选**（20260915 复审修正）：
-          `.wengu-ws-main` 在一个文档里**不一定只有本面板一份**（另一个温故页签、
-          将来新增的收内滚面板都可能带一个）。全局 `querySelectorAll` 会把**别的
-          面板**的同名骨架一并改成 flex 列 + `overflow:hidden`——那块面板不收内滚，
-          内容被切且滚不到（正是上面点名要避免的坏形态）；卸载时的 `false` 同理会
-          把别人的档误关。故目标元素由纯函数 `fitTargetOf(root)` 定（宿主自身即主区
-          时就是它，否则只在**宿主子树内**下探一次、找不到就零动作），挂载时记下、
-          卸载时按同一份收起；`toggleFit` 只碰传进来的那一个元素。越界写法被
-          `PanelFit.test` 的假体记账断言挡下（旧实现会把「别人的一份」也打开）。
-    - **高度链**（面板页根 → 卡 → 卡内两列，每级都要 `min-height:0`）：
-      `SessionPanelApp` 的面板页根挂 `.wengu-aipage`（flex 列 + `min-height:0`
-        - `height:100%`，卡外件全 `flex:none`），卡 `.wengu-aipanel` 是
-          `flex:1 1 auto; min-height:0`。⚠️ **grid 的行高必须显式分配**
-          （`grid-template-rows: auto minmax(0,1fr)`：横幅行按内容、两栏行吃剩余）
-          ——不写时隐式行是 auto，卡被内容撑长、两列没有「剩余高」，列内滚动窗
-          不出现（本单的隐蔽坑）。
-    - **内滚窗落在卡内两列**：`.wengu-aipanel-tree`（树）与 `.wengu-aipanel-pane`
-      （详情）各自 `min-height:0`、`overflow-y:auto`、`scrollbar-gutter:stable`、
-      `overscroll-behavior:contain`。卡外件（标题/hint/kinds 过滤条）与卡首横幅
-      （`.wengu-aiflow` 的 `grid-area:banner`）**常驻视野不滚走**。
-      `scrollbar-gutter: stable` 是给「有/无滚动条」两态留同位——树是窄列、
-      行内徽标贴右，缺它两种状态下行宽会跳一格。⚠️ `dbody` 的
-      `min-height:120px` 已放开（列内滚由 pane 承担，留着只会小窗口空撑）。
-    - ⚠️ **≤1000px 折单列时行高分配同步改**（`auto auto minmax(0,1fr)`）：
-      沿用「末行吃剩余」会把树行压成 0 高、清单整片消失；折列后树列给
-      `max-height:40vh` 的兜底（单列下清单不再是「列内滚窗」语义）。
+- ~~**整页不滚动（Issue #96，20260915）**~~ → **已撤（Issue #129，20260915，见下节）**。
+  #96 曾把本面板收进「一个屏高 + 两列各自内滚」，**与设计稿正相反**。下面这段
+  是历史记录，**不要再照它改代码**；现行口径读本节末「AI 会话面板对稿精修
+  （Issue #129）」那一条（单滚动窗）。原方案（**已退役**）：
+  面板高度适配宿主视口、滚动收进卡内两列——**推翻 #93 的 gap-list S4 取舍**；
+  四处咬合：宿主档位（`ai/core/PanelFit.ts` + `.wengu-ws-main--fit` 改写主区
+  flex 列 + `overflow:hidden`，开关在挂载/卸载配对、只动本面板那一份、判据在
+  `workspaceFits`）、高度链（面板页根 → 卡 → 两列，每级 `min-height:0`）、
+  grid 行高显式分配（`auto minmax(0,1fr)`）、内滚窗落两列
+  （`overflow-y:auto` + `scrollbar-gutter:stable` + `overscroll-behavior:contain`）。
+  ⚠️ 这些类名/文件**现在都不存在了**（`--fit` 档、`PanelFit.ts`/`PanelFit.test`、
+  `fitHost`、两列的 `overflow`/`scrollbar-gutter`、`grid-template-rows` 全删）；
+  引到它们即为死接线。
 - **单流态横幅 bar 复核**：`ConvertFlow.barOf` 有 `readPct` 即出条，
   `bannerViewOf` 按「无 queue 才出 bar」分流——已被 `FlowBannerUi.test` 锁死，
   本单只复核、未改。
 - **范围外**：六个批流的进度摘要上报（#79 遗留 B）仍不做。
+
+### AI 会话面板对稿精修（Issue #129，20260915；差距清单
+
+`design/aipanel-gap-list.md` + 施工规格 `design/convert-stop-redesign-spec.html` 06 节）
+
+- **执行定稿（与 #96 相反，务必先读这条）**：面板是**单滚动窗**——卡随内容长，
+  滚动归宿主主区 `.wengu-ws-main` 的 `overflow-y:auto`。稿里两列都没有滚动窗
+  （gap-list S4），所以**不造**二级滚动条：`.wengu-aipanel` 去 `flex:1/min-height:0`
+  与 `grid-template-rows`，`.wengu-aipanel-tree` / `.wengu-aipanel-pane` 去
+  `overflow/min-height:0/scrollbar-gutter`（树只留凹槽底+右边线+padding，详情列
+  只留 surface 底 + `min-width:0`），`.wengu-aipanel-dbody` 回到稿的
+  `min-height:120px`。`--fit` 档 + `ai/core/PanelFit.ts`（含单测）整体删除，
+  `ai/SessionPanel.ts` 的 `fitHost` 同步退役——**判据看稿不看规范条文**
+  （AGENTS.md 已同步标例外）。
+- ⚠️ **树头「N 组」按去重类别数算**（`new Set(recs.map(r => r.kind)).size`）：
+  稿的语义是种类数，而单条种类不设层（叶子直接上提）时 `tree.nodes.length` 会数少。
+- ⚠️ **详情头状态徽标贴右由它自己吃 `margin-left:auto`**（`.wengu-aipanel-stbadge`），
+  不能再写 `.badge:last-child`——徽标后面有个**常空的 meta 槽**（`<span
+class="wengu-aipanel-meta"></span>`，S7 留槽口径：稿内无「时间 · 模型」串，
+  非空才用），`:last-child` 会落空、徽标被挤回中间。两条都有源级锁
+  （`ai/core/AiPanelGapRestore.test.ts`；样式侧走 `sass.compile` 编译产物断言
+  ——`?raw` 对 scss 恒空串）。
+- ⚠️ **叶行行尾注记是「间隙期形态」**（见 SessionPanelApp 头注释）：S5 要求删
+  时间戳（时间在详情日志首列），但登记簿只有**记录级** `createdAt/endedAt`，
+  「显示当前选中记录的时刻」会给出**假时刻**（点开一条旧记录，行上显示的不是
+  它的时间）。故未选中时出「MM-DD HH:MM · 类别」（`aiRowMeta`，i18n 单模板），
+  选中即整行让位给详情；删除钮仍 hover 才显。等 `data/AiSessions.ts` 存下逐轮
+  时刻后，按 S5/S6 的终态收敛（时间戳只留详情日志列）。
