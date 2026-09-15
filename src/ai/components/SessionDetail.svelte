@@ -89,7 +89,9 @@
                 <div class="wengu-aipanel-own">
                     <span class={`wengu-aipanel-dot is-${view.head.status.dotCls}`}></span>
                     <span>{view.ownNote}</span>
-                    {#if onDecide}
+                    <!-- 抉择入口只在**被停止**的记录上出（停止后的唯一收口动作）；
+                         在途记录的归属备注只指路「去哪停」，不出这个钮 -->
+                    {#if view.decidable && onDecide}
                         <Button type="button" variant="text" onclick={onDecide}>{t("aiFlowGotoDecide")}</Button>
                     {/if}
                 </div>

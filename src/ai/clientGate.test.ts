@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { agentChatContinued, agentChatOnce } from "./client";
 import { aiSlotUsage, setAiSlotCapacity } from "./queue";
-import { aiSessions, initAiSessions } from "./data/AiSessions";
+import { AI_STOPPED, aiSessions, initAiSessions } from "./data/AiSessions";
 
 /** 内核通道整体打桩：验证「两条对外通道都过全局在途闸」只需计数，
  *  不必真建 SSE（siyuan-stub 的 fetchSyncPost 抛错即 IO 覆盖不当）。 */
@@ -89,6 +89,57 @@ describe("全局在途闸接线（Issue #76：两条对外通道都取槽）", (
         await Promise.all(held);
         expect(aiSlotUsage()).toMatchObject({ used: 0, waiting: 0 });
         expect(state.peak).toBeLessThanOrEqual(2);
+    });
+
+    it("用户中止 → 记录记「停止」哨兵（不是红色失败）", async () => {
+        // 满载时排队的那笔被 signal 中止 ⇒ 走确定性中止路径（替身 fetch
+        // 不认信号，直发那条不会真断——排队中止才可复现）
+        const held = [agentChatOnce("m1", "", 30_000), agentChatOnce("m2", "", 30_000)];
+        const ctrl = new AbortController();
+        const stopped = agentChatOnce("m3", "", 30_000, ctrl.signal, { kind: "convert", title: "转换 · 卷名" });
+        // 用户停止 = 带 AI_STOPPED 理由的中止（裸 abort() 是不带理由的收口，
+        // 一律按失败处置——见 client 的 isUserStopOf）
+        ctrl.abort(AI_STOPPED);
+        await expect(stopped).rejects.toThrowError(/aborted/i);
+        const rec = aiSessions()
+            ?.list()
+            .find((r) => r.kind === "convert");
+        expect(rec?.status).toBe("error");
+        expect(rec?.error).toBe(AI_STOPPED); // 面板据此出停止态而非失败态
+        await Promise.all(held);
+    });
+
+    it("不带理由的中止（被兄弟失败连坐断掉）记失败，不误标「停止」", async () => {
+        const held = [agentChatOnce("m1", "", 30_000), agentChatOnce("m2", "", 30_000)];
+        const ctrl = new AbortController();
+        const cut = agentChatOnce("m3", "", 30_000, ctrl.signal, { kind: "convert", title: "转换 · 卷名" });
+        ctrl.abort(); // 裸 abort：等同「不是用户点的停止」
+        await expect(cut).rejects.toThrowError(/aborted/i);
+        const rec = aiSessions()
+            ?.list()
+            .find((r) => r.kind === "convert");
+        expect(rec?.status).toBe("error");
+        expect(rec?.error).not.toBe(AI_STOPPED);
+        await Promise.all(held);
+    });
+
+    it("真失败（服务端报错）仍记错误正文，不误记「停止」哨兵", async () => {
+        // 覆写替身 fetch：非 SSE 响应 + msg ⇒ agentChat 抛错，且此时流
+        // signal 未断（没有被中止）——必须走 fail 而不是 aborted。
+        vi.stubGlobal("fetch", async (url: string): Promise<Response> => {
+            if (String(url).includes("saveSession") || String(url).includes("removeSession")) {
+                return new Response(JSON.stringify({ code: 0 }), { status: 200 });
+            }
+            return new Response(JSON.stringify({ msg: "模型返回超时" }), { status: 200 });
+        });
+        const failed = agentChatOnce("m1", "", 30_000, undefined, { kind: "convert", title: "转换 · 卷名" });
+        await expect(failed).rejects.toThrowError(/模型返回超时/);
+        const rec = aiSessions()
+            ?.list()
+            .find((r) => r.kind === "convert");
+        expect(rec?.status).toBe("error");
+        expect(rec?.error).toBe("模型返回超时");
+        expect(rec?.error).not.toBe(AI_STOPPED);
     });
 
     it("排队可见性：满载时记录标 queued（面板显示「等待空闲通道…」），取到槽即清", async () => {

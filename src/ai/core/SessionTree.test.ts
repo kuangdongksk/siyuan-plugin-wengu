@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AiSessionRecord } from "../data/AiSessions";
-import { buildSessionTree, groupRowName, subjectOf } from "./SessionTree";
+import { buildSessionTree, groupRowName, leafStateOf, subjectOf } from "./SessionTree";
+import { AI_STOPPED } from "../data/AiSessions";
 
 /** 贴真格式的记录构造：组标题/标题=「{动作} · {主题}」（ConvertBatch
  *  同款）；opts.fullGroup 模拟检测类真实形态——组标题=文档、自身标题
@@ -172,7 +173,27 @@ describe("叶子行视图（Issue #88：状态点 + 任务名 + 状态徽标）"
         expect(d.leafViewByKey.get("r1")?.name).toBe(leafNode.name);
     });
 
-    it("队列等槽后缀只在 running 上出（done/error 挂「等待空闲通道」自相矛盾）", () => {
+    it("被停止的记录出「停止」态（琥珀 stopped），不与真失败混同", () => {
+        const t2 = (k: string): string => k;
+        const d = buildSessionTree(
+            [
+                { ...rec("s1", "convert", 20, { status: "error" }), error: AI_STOPPED } as never,
+                rec("f1", "convert", 10, { status: "error" }),
+            ],
+            "",
+            zhLabel,
+            t2
+        );
+        expect(d.leafViewByKey.get("s1")).toMatchObject({ dotCls: "stop", badgeCls: "stop", spin: false });
+        expect(d.leafViewByKey.get("f1")).toMatchObject({ dotCls: "fail", badgeCls: "fail" });
+        // 展示态折算（比 record.status 多一档）：error + 停止哨兵 = stop
+        expect(leafStateOf({ status: "error", error: AI_STOPPED } as never)).toBe("stop");
+        expect(leafStateOf({ status: "error", error: "超时" } as never)).toBe("fail");
+        expect(leafStateOf({ status: "running" } as never)).toBe("run");
+        expect(leafStateOf({ status: "done" } as never)).toBe("done");
+    });
+
+    it("排队等槽不在树行发后缀（设计稿叶子行只有「点 + 名 + 徽标」三件）", () => {
         const t2 = (k: string): string => k;
         const run = buildSessionTree(
             [{ ...rec("q", "judge", 1, { status: "running" }), queued: true } as never],
@@ -180,14 +201,8 @@ describe("叶子行视图（Issue #88：状态点 + 任务名 + 状态徽标）"
             zhLabel,
             t2
         );
-        expect(run.leafViewByKey.get("q")?.queuedNote).toBe("aiWaitingSlot");
-        const done = buildSessionTree(
-            [{ ...rec("q2", "judge", 1, { status: "done" }), queued: true } as never],
-            "",
-            zhLabel,
-            t2
-        );
-        expect(done.leafViewByKey.get("q2")?.queuedNote).toBe("");
+        expect(run.leafViewByKey.get("q")).toMatchObject({ dotCls: "run", spin: true });
+        expect(Object.keys(run.leafViewByKey.get("q")!)).not.toContain("queuedNote");
     });
 
     it("二级组行名=「类别 · 文档名」组合；种类级（无主题）只出类别名", () => {

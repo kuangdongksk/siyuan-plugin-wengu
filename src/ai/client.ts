@@ -3,7 +3,7 @@ import { EApi } from "../siyuan/api";
 import { authHeaders } from "../siyuan/files";
 import { sanitizeAiImages } from "./PromptHygiene";
 import { resolveModelId, listAiModels } from "./models";
-import { aiSessions, type AiTurn, type AiTrack } from "./data/AiSessions";
+import { AI_STOPPED, aiSessions, type AiTurn, type AiTrack } from "./data/AiSessions";
 import { notifyInfo } from "../ui/Notify";
 import { mintTsId } from "../types";
 import { acquireAiSlot, aiSlotUsage } from "./queue";
@@ -43,7 +43,26 @@ export interface AiAbort {
 
 export function aiAbort(): AiAbort {
     const ctrl = new AbortController();
-    return { signal: ctrl.signal, onSid: (sid) => stopBySid.set(sid, ctrl), stop: () => ctrl.abort() };
+    // 中止理由带 AI_STOPPED：**中止与失败靠它分辨**（见 isUserStopOf）
+    return { signal: ctrl.signal, onSid: (sid) => stopBySid.set(sid, ctrl), stop: () => ctrl.abort(AI_STOPPED) };
+}
+
+/**
+ * 该在途调用是否**因用户停止**而断（Issue #88）：判据是「signal 已断
+ * **且**中止理由为 {@link AI_STOPPED}」——**不能只看 signal.aborted**：
+ *  - 转换 / 增量族的「面板停止」走业务总闸 `internal.abort()`，而**同片
+ *    兄弟失败**（`runSegment` 报错后编排层 `internal.abort()` 收掉其余
+ *    in-flight 调用）走的是**同一个** signal——只看 aborted 会把「被兄弟
+ *    失败连坐断掉的那笔」也标成「已停止」，用户看到的是「失败了」却标
+ *    「停止」，比不标更坏；
+ *  - 超时是内部 controller abort 出来的，压根没断这个 signal。
+ *  故约定：**业务侧凡「用户显式停止」都在 abort 时带上 AI_STOPPED**
+ *  （转换族的 `abortFlow` 是唯一写入点）。理由缺失（旧调用方/不支持
+ *  `AbortSignal.reason` 的运行时）一律按失败处置——**宁可报失败，不可
+ *  把失败说成停止**。
+ */
+export function isUserStopOf(signal: AbortSignal | undefined): boolean {
+    return !!signal?.aborted && signal.reason === AI_STOPPED;
 }
 
 /**
@@ -66,7 +85,9 @@ export function abortAiSession(sid: string): boolean {
     if (!h) return false;
     stopBySid.delete(sid);
     if (typeof h === "function") h();
-    else h.abort();
+    // AbortController 形态同样带 AI_STOPPED 理由：面板点停**就是用户停止**
+    // （Issue #88），在途记录据此记「停止」而非把用户动作显示成失败。
+    else h.abort(AI_STOPPED);
     return true;
 }
 
@@ -331,7 +352,13 @@ export async function agentChatOnce(
         if (sessions && track) sessions.succeed(sid, reply);
         return reply;
     } catch (e) {
-        if (sessions && track) sessions.fail(sid, errText(e));
+        if (sessions && track) {
+            // 用户停止 → **停止态**（Issue #88：面板出琥珀色点 + stopped
+            // 徽标，与横幅「转换已停止」同口径）；其余（超时/网络/服务端
+            // 报错/被兄弟失败连坐）→ 失败态（判据见 isUserStopOf）。
+            if (isUserStopOf(signal)) sessions.aborted(sid);
+            else sessions.fail(sid, errText(e));
+        }
         throw e;
     } finally {
         release?.(); // 槽在收口（成功/失败/中止）释放，排队者按 FIFO 补位

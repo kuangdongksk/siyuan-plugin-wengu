@@ -68,13 +68,19 @@ const REPLY_Q = [
 
 /** AI 出口替身：复刻 client 的登记簿（onSid 回传记录 id → 记录停止句柄），
  *  并统计「没带 onSid 的调用」——那正是 Issue #72 的病灶。 */
-const ai = { calls: 0, noSid: 0, registry: new Map<string, () => void>() };
+const ai = { calls: 0, noSid: 0, registry: new Map<string, () => void>(), stopReasons: [] as unknown[] };
 vi.mock("../../../ai/client", () => ({
     newAiGroupId: () => "g-test",
     // 与 client.ts 同款：句柄值=停止回调（调用方给的流总闸）
     aiStopHandle: (signal: AbortSignal, stop: () => void) => ({
         signal,
-        onSid: (sid: string) => ai.registry.set(sid, stop),
+        // 登记停止句柄时就近观测：调停后读 signal.reason——真实实现里
+        // client 的 isUserStopOf 正是这么判的
+        onSid: (sid: string) =>
+            ai.registry.set(sid, () => {
+                stop();
+                ai.stopReasons.push((signal as AbortSignal & { reason?: unknown }).reason);
+            }),
     }),
     agentChatOnce: vi.fn(
         async (
@@ -125,6 +131,7 @@ beforeEach(() => {
     ai.calls = 0;
     ai.noSid = 0;
     ai.registry.clear();
+    ai.stopReasons = [];
 });
 
 describe("转换族面板「停止」接线（Issue #72）", () => {
@@ -163,6 +170,33 @@ describe("转换族面板「停止」接线（Issue #72）", () => {
         // 后不再续跑新 AI（否则会一直烧到源卷末尾）。每片 9 个窗口，若只是
         // 「断当前这一笔」而非整条流收口，调用数会继续涨。
         expect(ai.calls).toBeLessThan(6);
+    });
+
+    it("面板点停的中止带 AI_STOPPED 理由（在途那笔记「停止」而非「失败」）", async () => {
+        const bank = newBank();
+        const ctl = new AbortController();
+        let fired = false;
+        const r = await convertDocBatched("20260914000000-abcdefg", {
+            t: (k) => k,
+            modelId: "m",
+            fillToChoice: false,
+            bigToSteps: false,
+            parallel: 2,
+            signal: ctl.signal, // 页内信号全程不 abort：停只走「面板」这条线
+            bank,
+            onProgress: () => {
+                if (fired) return;
+                const last = [...ai.registry.values()].pop();
+                if (last) {
+                    fired = true;
+                    last(); // 面板点停 = abortAiSession(rec.id) 的实际动作
+                }
+            },
+        });
+        expect(r.status).toBe("aborted");
+        // 用户停止必须带理由（AI_STOPPED）：登记簿据此判「停止」而非「失败」
+        //——不带理由时与「被兄弟失败连坐断掉的那笔」形态完全相同
+        expect(ai.stopReasons).toContain("stopped");
     });
 
     it("页内停止钮不受影响（signal 中止仍是同一条 aborted 收口）", async () => {

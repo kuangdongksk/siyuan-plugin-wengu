@@ -20,7 +20,7 @@
  */
 
 import type { AiSessionRecord, AiTurn } from "../data/AiSessions";
-import { AI_INTERRUPTED } from "../data/AiSessions";
+import { AI_INTERRUPTED, AI_STOPPED } from "../data/AiSessions";
 import { leafViewOf, type SessionLeafView } from "./SessionTree";
 
 /** 详情头：任务名 + kind 徽标 + 状态徽标。 */
@@ -70,8 +70,12 @@ export interface SessionDetailView {
     ownNote: string;
     /** 错误正文（error 态；空=不出）。 */
     errorText: string;
-    /** 是否出重试钮（error 态）。 */
+    /** 是否出重试钮（真失败态；被停止的记录不出）。 */
     retryable: boolean;
+    /** 是否出「前往页内转换条抉择」入口（**只有「被停止的转换族记录」**）。
+     *  由宿主按流归属判定后注入（同 `ownNote` 口径，本模块不反向依赖流逻辑）：
+     *  抉择是转换族独有的收口动作，六个批流停下即停下、没有二选一。 */
+    decidable: boolean;
 }
 
 const p2 = (n: number): string => String(n).padStart(2, "0");
@@ -111,7 +115,13 @@ function segsOf(template: string, vars: Record<string, string>): SessionLogSeg[]
     return out;
 }
 
-/** 单轮 → 日志行（role 词与规模后缀都走这里，纯函数便于单测）。 */
+/**
+ * 单轮 → 日志行（role 词与规模后缀都走这里，纯函数便于单测）。
+ * `anchor` = 该轮**真实可推**的时刻锚（见 {@link detailViewOf} 的取法：
+ * user 轮=登记时刻、ai 轮=收口时刻）——**不按窗口均分编造中间时刻**：
+ * 登记簿没有单轮时间，编出来的数字看着精确却是假的（宁缺勿错口径同
+ * 「题数只出数得出来的」）。
+ */
 function rowOf(t: (k: string) => string, turn: AiTurn, anchor: number): SessionLogRow {
     if (turn.role === "user") {
         return {
@@ -147,21 +157,35 @@ export function detailViewOf(
         title?: string;
         modelText: string;
         ownNote: string;
+        /** 是否出抉择入口（宿主按流归属给；见 {@link SessionDetailView.decidable}）。 */
+        decidable: boolean;
     }
 ): SessionDetailView | undefined {
     if (!rec) return undefined;
     const { t } = opts;
     const leaf = leafViewOf(rec, opts.title ?? "", t);
     const anchor = rec.endedAt ?? rec.createdAt;
-    const rows = rec.turns.map((turn) => rowOf(t, turn, rec.createdAt));
-    // 失败轮：把错误正文也摆进日志（设计稿停止屏的末行正是
-    // 「收到整批停止指令 · …」——日志是**过程**记录，错误同理）
+    // 停止态=error 态里哨兵为 AI_STOPPED 的那条（succeed/retrying 会清
+    // error，故非 error 态不会残留该哨兵；显式带上 status 判据防脏盘）
+    const stopped = rec.status === "error" && rec.error === AI_STOPPED;
+    // 时间锚（只取**真实可推**的两个）：user 轮=登记时刻（begin 即发出，
+    // 就是 createdAt）；ai 轮=收口时刻（endedAt）。全用 createdAt 会让整条
+    // 时间线恒同一时刻（设计稿是 14:22:07 → 14:22:31 → 14:22:48 的推进），
+    // 而未收口（running）时 endedAt 缺位、回落 createdAt 即「只有起点」的
+    // 真实形态。
+    const rows = rec.turns.map((turn) =>
+        rowOf(t, turn, turn.role === "ai" ? (rec.endedAt ?? rec.createdAt) : rec.createdAt)
+    );
+    // 末行（收口）：把收口正文也摆进日志——设计稿停止屏的末行正是
+    // 「收到整批停止指令 · …」；日志是**过程**记录，错误同理。三种收口
+    // 各按其语义：中止=停止词（非红）、重载中断=中断词（非红）、
+    // 真失败=错误正文（红）。
     if (rec.status === "error" && rec.error) {
-        const interrupted = rec.error === AI_INTERRUPTED;
+        const text = stopped ? t("aiLogStopped") : rec.error === AI_INTERRUPTED ? t("aiInterrupted") : rec.error;
         rows.push({
             time: clockOf(anchor),
-            parts: [{ text: interrupted ? t("aiInterrupted") : rec.error, em: false }],
-            isError: !interrupted,
+            parts: [{ text, em: false }],
+            isError: !stopped && rec.error !== AI_INTERRUPTED,
             full: "",
         });
     }
@@ -175,8 +199,14 @@ export function detailViewOf(
         logLabel: t("aiLogLabel"),
         rows,
         pending: rec.status === "running" ? (rec.queued ? t("aiWaitingSlot") : t("aiSending")) : "",
-        ownNote: rec.status === "running" ? opts.ownNote : "",
-        errorText: rec.status === "error" && rec.error !== AI_INTERRUPTED ? rec.error : "",
-        retryable: rec.status === "error",
+        // 归属备注在「在途」与「被停止」两态都出：前者指路「要停止去哪」，
+        // 后者交代「随整批一起停、抉择入口只有一处」（设计稿 ai-panel-stopped
+        // 的 own-note 正是后者）。
+        ownNote: rec.status === "running" || stopped ? opts.ownNote : "",
+        errorText: rec.status === "error" && !stopped && rec.error !== AI_INTERRUPTED ? rec.error : "",
+        // 被停止的记录**不出重试钮**：它是整批流的一部分，单笔重跑会脱离
+        // 那条流（设计稿停止屏也没有重试，只有指路抉择的归属备注）。
+        retryable: rec.status === "error" && !stopped,
+        decidable: opts.decidable,
     };
 }

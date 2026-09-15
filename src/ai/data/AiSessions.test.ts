@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
     AI_INTERRUPTED,
+    AI_STOPPED,
     AI_SESSION_KIND_CAP,
     AI_SESSIONS_CAP,
     AiSessionStore,
@@ -299,6 +300,38 @@ describe("排队标记（Issue #76：全局在途闸的排队可见性）", () =
         expect(r.status).toBe("error");
         expect(r.error).toBe(AI_INTERRUPTED);
         expect(r.queued).toBeUndefined(); // 不留「已中断 · 等待空闲通道…」矛盾组合
+    });
+});
+
+describe("aborted（Issue #88：被停止的记录单独收口，不与真失败混同）", () => {
+    it("中止收口：status=error 但 error=AI_STOPPED 哨兵（面板据此出停止态）", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "convert", "生成第 1 批", "m1", "q");
+        s.aborted("s1");
+        const r = s.list()[0];
+        expect(r.status).toBe("error");
+        expect(r.error).toBe(AI_STOPPED);
+        expect(r.endedAt).toBeTypeOf("number");
+    });
+
+    it("仅 running 态可转（已收口的记录不被中止覆写，防错序双写）", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "convert", "t", "m1", "q");
+        s.succeed("s1", "reply");
+        s.aborted("s1");
+        expect(s.list()[0].error).toBeUndefined();
+        expect(s.list()[0].status).toBe("done");
+    });
+
+    it("重试翻案清掉停止哨兵（error→running→done 后不再残留停止态）", () => {
+        const s = new AiSessionStore(memStore().loadRaw, memStore().saveRaw);
+        s.begin("s1", "judge", "t", "m1", "q");
+        s.aborted("s1");
+        s.retrying("s1");
+        expect(s.list()[0].error).toBeUndefined();
+        s.succeed("s1", "ok");
+        expect(s.list()[0].status).toBe("done");
+        expect(s.list()[0].error).toBeUndefined();
     });
 });
 

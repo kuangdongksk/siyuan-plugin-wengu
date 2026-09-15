@@ -5,7 +5,7 @@
     import { SessionPanelCtl } from "../core/SessionPanelCtl";
     import { buildSessionTree, groupRowName } from "../core/SessionTree";
     import { detailViewOf } from "../core/SessionDetail";
-    import { flowOwnershipOf, ownershipTextOf } from "../core/FlowOwnership";
+    import { decideEntryOf, flowOwnershipOf, ownershipTextOf } from "../core/FlowOwnership";
     import { listAiModels } from "../models";
     import FlowBanner from "./FlowBanner.svelte";
     import SessionDetail from "./SessionDetail.svelte";
@@ -86,6 +86,7 @@
             title: sel ? (tree.leafViewByKey.get(sel.id)?.name ?? "") : "",
             modelText: sel ? modelName(sel.model) : "",
             ownNote: sel ? ownershipTextOf(t, flowOwnershipOf(sel)) : "",
+            decidable: sel ? decideEntryOf(flowOwnershipOf(sel)) : false,
         })
     );
     /** 树头组数徽标（设计稿 badge--plain「3 组」）：树的顶层节点数。 */
@@ -159,10 +160,13 @@
                                 {#snippet main(n)}
                                     {@const b = tree.branchByKey.get(n.key)}
                                     {#if b}
-                                        <!-- 二级组行（设计稿 tg2）=「类别 · 文档名」组合行；
-                                             种类级只出类别名（b.subject 缺位） -->
-                                        <span class="wengu-aipanel-dot is-{b.status}"></span>
-                                        <span class="wengu-ai-name{b.subject ? '' : ' wengu-ai-name-group'}"
+                                        <!-- 二级组行（设计稿 tg1/tg2）=「类别 · 文档名」组合行；
+                                             种类级只出类别名（b.subject 缺位）。
+                                             **组行不带状态点**：设计稿的色点与徽标只属于
+                                             叶子行（tg 行是「caret + 名字」），且 b.status 是
+                                             状态词（running/done/error）——拿它拼 is-{status}
+                                             与色名族（run/done/fail）不同名，只会拼出死规则。 -->
+                                        <span class={`wengu-aipanel-group ${b.subject ? "is-sub" : "is-kind"}`}
                                             >{groupRowName(b.kind, b.subject, kindLabel)}</span
                                         >
                                     {:else}

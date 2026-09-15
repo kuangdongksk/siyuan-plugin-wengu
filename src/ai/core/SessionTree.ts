@@ -1,4 +1,5 @@
 import type { AiSessionRecord } from "../data/AiSessions";
+import { AI_STOPPED } from "../data/AiSessions";
 import type { TreeListNode } from "../../ui/TreeListTypes";
 
 /**
@@ -22,7 +23,10 @@ export interface SessionBranchView {
     subject?: string;
     /** 分支下全部记录（头新尾旧；已过类别过滤）。 */
     recs: AiSessionRecord[];
-    /** 聚合状态：有 running 记 running，否则有 error 记 error，全 done 才 done。 */
+    /** 聚合状态：有 running 记 running，否则有 error 记 error，全 done 才 done。
+     *  ⚠️ 这是**状态词**（running/done/error），不是色类名——组行**不渲染色点**
+     *  （设计稿 tg1/tg2 只有「caret + 名字」，色点与徽标只属于叶子行），故
+     *  组件不上 `is-{status}` 这种拼法（状态词与色名族不同名，拼出来是死规则）。 */
     status: AiSessionRecord["status"];
     /** 分支时间戳=最新成员的 createdAt。 */
     createdAt: number;
@@ -174,39 +178,50 @@ export function buildSessionTree(
  * 词 / 徽标色 / 行名」一次算清，组件只按字段渲染（组件零判断）。
  */
 export interface SessionLeafView {
-    /** 状态点色类（`is-run` / `is-done` / `is-fail`）。 */
+    /** 状态点色类（`is-run` / `is-done` / `is-fail` / `is-stop`）。 */
     dotCls: string;
     /** 状态徽标色类（同上一组）。 */
     badgeCls: string;
-    /** 状态词（已取词：running / done / error）。 */
+    /** 状态词（已取词：进行中 / 已完成 / 失败 / 已停止）。 */
     badgeText: string;
     /** 徽标是否带转圈（只有 running）。 */
     spin: boolean;
     /** 行名（任务名；空则回落记录 title）。 */
     name: string;
-    /** 排队等槽后缀文案（running 且 queued 时非空）。 */
-    queuedNote: string;
 }
 
-/** 状态 → 三个色类与词键（设计稿的 dot 与 badge 一族共用同一组色名）。 */
-const STATUS_VIEW: Record<AiSessionRecord["status"], { cls: string; key: string; spin: boolean }> = {
-    running: { cls: "run", key: "aiStatusRunning", spin: true },
+/** 展示态（**比 record.status 多一档**）：记录只有 running/done/error 三态，
+ *  而「用户中止」在存档里与真失败同为 error（见 AI_STOPPED），展示上却是
+ *  设计稿 `ai-panel-stopped` 的琥珀色 stopped——故先折算成展示态再取色/取词。 */
+type LeafState = "run" | "done" | "fail" | "stop";
+
+/** 记录 → 展示态：error 且哨兵是 AI_STOPPED 即「停止」（不被中止/报错混同）。 */
+export function leafStateOf(r: AiSessionRecord): LeafState {
+    if (r.status === "running") return "run";
+    if (r.status === "done") return "done";
+    return r.error === AI_STOPPED ? "stop" : "fail";
+}
+
+/** 展示态 → 色类与词键（设计稿的 dot 与 badge 一族共用同一组色名）。 */
+const STATUS_VIEW: Record<LeafState, { cls: string; key: string; spin: boolean }> = {
+    run: { cls: "run", key: "aiStatusRunning", spin: true },
     done: { cls: "done", key: "aiStatusDone", spin: false },
-    error: { cls: "fail", key: "aiStatusError", spin: false },
+    fail: { cls: "fail", key: "aiStatusError", spin: false },
+    stop: { cls: "stop", key: "aiStatusStopped", spin: false },
 };
 
-/** 叶子行视图（见 {@link SessionLeafView}）；subject 在位时行名已剥尾随主题。 */
+/** 叶子行视图（见 {@link SessionLeafView}）；subject 在位时行名已剥尾随主题。
+ *  排队等槽（Issue #76）是**瞬时展示态**，不在树行里另发一个后缀（设计稿的
+ *  叶子行只有「点 + 任务名 + 徽标」三件）——它在详情正文的进行态行里出
+ *  （`SessionDetail.pending`），细粒度信息归右栏。 */
 export function leafViewOf(r: AiSessionRecord, name: string, t: (k: string) => string): SessionLeafView {
-    const v = STATUS_VIEW[r.status];
+    const v = STATUS_VIEW[leafStateOf(r)];
     return {
         dotCls: v.cls,
         badgeCls: v.cls,
         badgeText: t(v.key),
         spin: v.spin,
         name: name || r.title,
-        // 排队等槽（Issue #76）是**瞬时展示态**，只对 running 有意义——done/
-        // error 上挂「等待空闲通道」自相矛盾（hydrate 已清，防内存态误挂）
-        queuedNote: r.status === "running" && r.queued ? t("aiWaitingSlot") : "",
     };
 }
 

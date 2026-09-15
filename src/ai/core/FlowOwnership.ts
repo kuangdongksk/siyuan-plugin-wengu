@@ -15,10 +15,18 @@
  */
 
 import type { AiSessionRecord } from "../data/AiSessions";
+import { AI_STOPPED } from "../data/AiSessions";
 import { fmt } from "../../ui/shared";
 
-/** 流归属说明的形态：转换族 / 六批流（带流名）/ 单调用流（无说明）。 */
-export type FlowOwnership = { kind: "none" } | { kind: "convert" } | { kind: "batch"; flowKey: string };
+/** 流归属说明的形态：转换族 / 六批流（带流名）/ 单调用流（无说明）；
+ *  `stopped*` 两态=**已被停止**的记录（Issue #88 设计稿 ai-panel-stopped
+ *  屏的 own-note：不再指路「去哪停」，而是交代「已随整批停下、抉择在哪」）。 */
+export type FlowOwnership =
+    | { kind: "none" }
+    | { kind: "convert" }
+    | { kind: "batch"; flowKey: string }
+    | { kind: "stoppedConvert" }
+    | { kind: "stoppedBatch"; flowKey: string };
 
 /** 六批流 + 转换族的 kind 白名单（ai/data/AiSessions 的 kind 值）。
  *  convert=整卷/批量转换族（横幅带批次号）；其余六个=批流（横幅带流名）。
@@ -37,15 +45,35 @@ const BATCH_KINDS: Record<string, string> = {
  * 这个字段，硬凑「第 i 批」反而误导），转换族一律出通用口径文案。
  */
 export function flowOwnershipOf(rec: AiSessionRecord | undefined): FlowOwnership {
-    if (!rec || rec.status !== "running") return { kind: "none" };
-    if (CONVERT_KINDS.has(rec.kind)) return { kind: "convert" };
+    if (!rec) return { kind: "none" };
     const flowKey = BATCH_KINDS[rec.kind];
+    // 被停止（Issue #88）：error 态 + AI_STOPPED 哨兵。与在途态同一张
+    // 白名单——非多调用流（判分/伴学…）没有流级停止面，被中止也只当
+    // 普通失败，不出归属说明。
+    if (rec.status === "error" && rec.error === AI_STOPPED) {
+        if (CONVERT_KINDS.has(rec.kind)) return { kind: "stoppedConvert" };
+        return flowKey ? { kind: "stoppedBatch", flowKey } : { kind: "none" };
+    }
+    if (rec.status !== "running") return { kind: "none" };
+    if (CONVERT_KINDS.has(rec.kind)) return { kind: "convert" };
     return flowKey ? { kind: "batch", flowKey } : { kind: "none" };
+}
+
+/**
+ * 该归属形态**有无「抉择」入口**（Issue #88）：只有转换族有保留/丢弃抉择
+ * （设计稿 ai-panel-stopped 的归属备注指路「前往页内转换条抉择」）；六个
+ * 批流（匹配/标签/重出…）停下就是停下，没有二选一——给它们出这个钮会把
+ * 用户引到**转换条**，那是另一条流的入口。
+ */
+export function decideEntryOf(own: FlowOwnership): boolean {
+    return own.kind === "stoppedConvert";
 }
 
 /** 归属说明行的成品文案（i18n 已解析；单调用流返回空串=不渲染）。 */
 export function ownershipTextOf(t: (k: string) => string, own: FlowOwnership): string {
     if (own.kind === "convert") return t("convertStoppedHint");
     if (own.kind === "batch") return fmt(t("aiFlowOwningBatch"), { flow: t(own.flowKey) });
+    if (own.kind === "stoppedConvert") return t("aiOwnStoppedConvert");
+    if (own.kind === "stoppedBatch") return fmt(t("aiOwnStoppedBatch"), { flow: t(own.flowKey) });
     return "";
 }

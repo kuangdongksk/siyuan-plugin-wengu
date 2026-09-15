@@ -1,6 +1,7 @@
 import { fmt } from "../../ui/shared";
 import { beginAiFlow, endAiFlow, progressAiFlow } from "../../ai/core/FlowRegistry";
 import { flowBar } from "../../ai/core/FlowBannerUi";
+import { AI_STOPPED } from "../../ai/data/AiSessions";
 
 /**
  * AI 索引（归纳大纲）的流级横幅接线（Issue #77）：索引不由 ConvertRun 起
@@ -91,7 +92,7 @@ export async function runOutlineFlow(
     perDoc: (docId: string, onProgress: (done: number) => void) => Promise<number>
 ): Promise<OutlineFlowRun> {
     const run: OutlineFlowRun = { ok: 0, skip: 0, fail: 0, count: 0, lastErr: "" };
-    beginOutlineFlow(t, ids.length, () => ctrl.abort());
+    beginOutlineFlow(t, ids.length, () => ctrl.abort(AI_STOPPED));
     try {
         for (let i = 0; i < ids.length; i++) {
             if (ctrl.signal.aborted) break;

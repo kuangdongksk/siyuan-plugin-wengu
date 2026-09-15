@@ -10,6 +10,7 @@ import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/Ba
 import { knowTreesOf } from "../../../bank/data/KnowTrees";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import { aiStopHandle, newAiGroupId, type AiSessionGroup } from "../../../ai/client";
+import { AI_STOPPED } from "../../../ai/data/AiSessions";
 import { KernelBlock } from "../../../siyuan/block";
 import type { KnowSection, KnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { QuestionType } from "../../../types";
@@ -120,7 +121,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     // 直接调它），拿不到 startExclusiveConvertRun 的 controller 内部句柄。
     // run.signal 仍按原样转接（有 deps 在构造后才接线/中途触发的情形）。
     const stopCtrl = new AbortController();
-    const relayStop = (): void => stopCtrl.abort();
+    const relayStop = (): void => stopCtrl.abort(AI_STOPPED); // 理由见 client 的 isUserStopOf
     if (run.signal?.aborted) relayStop();
     else run.signal?.addEventListener("abort", relayStop);
     const callAi = makeKnowAwareAi({
