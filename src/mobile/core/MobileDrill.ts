@@ -210,16 +210,10 @@ export class MobileDrill {
 
     /* ── 开刷 ── */
 
-    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。
-     *
-     *  **展示层选项洗牌**（Issue #131 P1，20260915 审查）：本题与桌面
-     *  `QuizShell` 同口径——库/源文档是**死形态**（选项按原文顺序、答案
-     *  字母指向原文位置），消剧透在展示层进卡前现洗。移动端**必须洗**：
-     *  新造题按协议「正确项写最前」⇒ 不洗则正确项恒为首位，等于剧透
-     *  （原稿「移动端不在本规范范围」的判断已作废）。
-     *  洗的是 `shuffleListForDisplay` 出品的**新副本**：`ui.fullList`
-     *  原件不动，题号栏/记账/`scopeIds` 全按 id 走（`ui.list` 与 cards
-     *  同下标，副本不入库不回流）。 */
+    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。展示层选项洗牌
+     *  （Issue #131，口径见 CardDisplayShuffle 文件头）：与桌面同——死形态
+     *  入库，进卡前现洗。不洗则新造题正确项恒为首位（协议「写最前」）＝剧透。
+     *  `scope` 传会话 id（排列同轮恒定，否则恢复的字母指错项）；记账按 id 走。 */
     start(progress: "fresh" | "continue"): void {
         const docId = this.ui.home.activeSetId;
         if (!docId || this.ui.fullList.length === 0) return;
@@ -230,12 +224,8 @@ export class MobileDrill {
             this.ui.setup.reveal = last.revealMode === "after" ? "after" : "instant";
             this.ui.setup.timing = last.mode;
             const ids = new Set(last.scopeIds ?? []);
-            // scope 传**该轮会话 id**（Issue #131 评审）：排列必须同轮恒定，
-            // 否则恢复出来的字母指到别的选项上（口径见 CardDisplayShuffle 文件头）
-            this.ui.list = shuffleListForDisplay(
-                ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList],
-                { scope: last.id }
-            );
+            const picked = ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList];
+            this.ui.list = shuffleListForDisplay(picked, { scope: last.id });
             this.ui.session = last;
         } else {
             const src =
@@ -399,8 +389,7 @@ export class MobileDrill {
         const wrong = new Set(s.results.filter((r) => !r.ok).map((r) => baseQid(r.qid)));
         if (wrong.size === 0) return;
         const subset = this.ui.list.filter((q) => wrong.has(q.id));
-        // 错题再练是**新一轮**：同样现洗（洗的是新副本，作业见下）；scope
-        // 传新会话 id ⇒ 换轮换排列（消剧透），同轮重进仍恒定
+        // 错题再练是**新一轮**：同样现洗（副本，见 start）；scope 传新会话 id
         const sessionId = newSessionId();
         this.ui.list = shuffleListForDisplay(subset, { scope: sessionId });
         this.ui.setup.reveal = "instant";
