@@ -4,7 +4,6 @@ import { tKey } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { conceptPrompt, variantPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
-import { shuffleDraftOptions } from "../../convert/service/draft/OptionShuffle";
 import { sectionKramdown } from "../../convert/service/knowledge/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
 import { knowNodeText, knowTreesOf } from "../data/KnowTrees";
@@ -102,7 +101,10 @@ async function genWithVerify(
     });
     const drafts = parseDrafts(reply).filter(hasStemPart);
     if (drafts.length === 0) return "";
-    shuffleDraftOptions(drafts[0]);
+    // ⚠️ **不再洗牌**（Issue #131）：新造题的选项顺序由协议保证
+    // （「正确项写最前」→ 渲染按序编字母 ⇒ 正确项恒为 A），
+    // 消剧透改由**展示层**进卡 mount 前现洗（CardDisplayShuffle）——
+    // 库与源文档同为死形态，落库哈希/自检基线因此稳定。
     const kd = renderUnit(drafts[0]);
     const check = await agentChatOnce(verifyPrompt(kd), modelId, AI_TIMEOUT.mid, abort?.signal, {
         kind: track.kind,

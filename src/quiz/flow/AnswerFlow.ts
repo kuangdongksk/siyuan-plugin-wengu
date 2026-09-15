@@ -7,7 +7,7 @@ import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
-import { markNum } from "../render/FlowDom";
+import { markNum, qIndexById } from "../render/FlowDom";
 import { markNumRailAnswered, markNumRailRevealed } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
 import type { CardCtl } from "../render/CardCtl";
@@ -284,7 +284,9 @@ export async function revealAll(host: AnswerHost): Promise<void> {
  *  slots 逐空题维持现状不提供。 */
 export function skipQuestion(host: AnswerHost, q: WenguQuestion): void {
     const list = host.questions();
-    const idx = list.indexOf(q);
+    // 下标按 **id 反查**（Issue #131）：展示层洗牌给卡换的是副本对象，
+    // 身份比对会落空 → 「跳过」整条链静默失效（下一个编号算不出）。
+    const idx = qIndexById(host, q.id);
     if (idx < 0 || idx >= list.length - 1) return;
     const next = idx + 1;
     host.onActiveQ?.(next);
@@ -447,7 +449,7 @@ export function checkAllDone(host: AnswerHost): void {
 /** after 模式：已作答但尚未揭示的题，题号只标「已答」不透对错
  *  （写进题号栏组件响应态）。 */
 function markNumAnswered(host: AnswerHost, q: WenguQuestion): void {
-    markNumRailAnswered(host.questions().indexOf(q) + 1);
+    markNumRailAnswered(qIndexById(host, q.id) + 1);
 }
 
 /** brief 三态的结果行文案（判词→键收口在 verdictLabelKey，esc 留调用侧）。 */

@@ -8,6 +8,7 @@ import { setFallbackTitle } from "../../bank/data/BankSets";
 import { renderMainShell, renderSubheadHtml } from "./CardHtml";
 import type { CardHtmlModel } from "./CardParts";
 import { buildDrillUnits, buildSetGroups, type DrillUnit, type SetGroup } from "./DrillUnits";
+import { shuffleListForDisplay } from "./CardDisplayShuffle";
 import { readingShellScope, unitStartIdx, wrapPlanOf } from "../flow/ReadingScope";
 import { detachCardApps, mountDrillUnit } from "./CardMount";
 import { restoreContextFor, type CardInitCtx } from "./CardState";
@@ -93,7 +94,14 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     const pv = v.mode === "preview";
     const colMode = v.colFlow.isActive();
     const doc = colMode ? undefined : v.docs.find((d) => d.id === v.docId);
-    v.units = buildDrillUnits(v.list, v.materials);
+    // 展示层选项洗牌（Issue #131）：库/源文档=死形态（原文原序），消剧透
+    // 改在进卡前现洗——只换**卡内选项顺序**（答案字母随同一映射重写），
+    // 卷内顺序/题号/材料链不变。**预览模式不洗**（要看死形态对照原文），
+    // 渐进呈现（转换中）也不洗（生成产物即死形态、重渲染会跳序）。
+    // 洗的是副本（`v.list` 原件不动）——会话恢复/记账按 id 走，视图
+    // 快照与判分口径都不受影响。
+    const displayList = pv || v.progressive.active ? v.list : shuffleListForDisplay(v.list);
+    v.units = buildDrillUnits(displayList, v.materials);
     // 题集分组（多集合刷：题号栏横线 + 正文标题行；单题集一段=零装饰）。
     // 分组只切分视图——列表顺序是题集先后 × 集内原序，绝不重排。
     const setGroups = buildSetGroups(v.list, (id) => v.docs.find((d) => d.id === id)?.title || setFallbackTitle(id));

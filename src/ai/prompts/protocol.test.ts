@@ -35,8 +35,8 @@ describe("materialRulesFor：英语题型约定与词条保真段", () => {
     });
 });
 
-describe("protocolSpec · 选项顺序变体（Issue #123）", () => {
-    it("默认：要求「正确项写最前」（转换/加练链现行口径）", () => {
+describe("protocolSpec · 选项顺序变体（Issue #123；Issue #131 加 bank 条件规则）", () => {
+    it("默认：要求「正确项写最前」（新造题口径）", () => {
         expect(protocolSpec([QuestionType.Single])).toContain("正确项写在最前");
     });
 
@@ -46,15 +46,49 @@ describe("protocolSpec · 选项顺序变体（Issue #123）", () => {
         expect(s).not.toContain("正确项写在最前");
     });
 
+    it("bank（Issue #131）：逐题条件规则——原文有现成选项走原序、新造题走重排", () => {
+        const s = protocolSpec([QuestionType.Single], { bank: true });
+        expect(s).toContain("原题顺序与字母");
+        expect(s).toContain("正确项写在最前");
+        expect(s).toContain("逐题判断");
+    });
+
+    it("bank 优先于 order（两支语义已在条件规则里）", () => {
+        const s = protocolSpec([QuestionType.Single], { order: "keep", bank: true });
+        expect(s).toContain("逐题判断");
+    });
+
     it("变体只换 @@P opt 那一行，其余段落逐字不变（含 undefined 全量兜底）", () => {
+        // 剔除「按变体改动的那些行」：@@P opt 约定 + @@P sol 的 〔opt:X〕
+        // 标记约定（Issue #131 随 order/bank 一并生效）——其余行必须逐字
+        // 相同。
         const strip = (s: string): string =>
             s
                 .split("\n")
-                .filter((l) => !l.includes("正确项写在最前") && !l.includes("原题顺序与字母"))
+                .filter(
+                    (l) =>
+                        !l.includes("正确项写在最前") &&
+                        !l.includes("原题顺序与字母") &&
+                        !l.includes("逐题判断") &&
+                        !l.includes("〔opt:X〕")
+                )
                 .join("\n");
         for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps, QuestionType.Multiple]]) {
             expect(strip(protocolSpec(types, { order: "keep" }))).toBe(strip(protocolSpec(types)));
+            expect(strip(protocolSpec(types, { bank: true }))).toBe(strip(protocolSpec(types)));
         }
+    });
+
+    it("解析选项引用标记协议：只有显式要口径的调用方拿得到（默认不带）", () => {
+        for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps]]) {
+            expect(protocolSpec(types)).not.toContain("〔opt:X〕");
+            expect(protocolSpec(types, { order: "keep" })).toContain("〔opt:X〕");
+            expect(protocolSpec(types, { bank: true })).toContain("〔opt:X〕");
+        }
+    });
+
+    it("默认变体（新造题）不提「不得用裸字母指代选项」——加练/变式链路逐字节不变", () => {
+        expect(protocolSpec([QuestionType.Single])).not.toContain("不得用裸字母指代选项");
     });
 });
 

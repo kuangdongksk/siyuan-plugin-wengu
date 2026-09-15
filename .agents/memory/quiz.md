@@ -538,3 +538,26 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
       线索」（新增/删除）时把 `refreshClueMarkFor` 返回的逐位坐标持久化
       （`resolved` 与 `anchorsOf` **逐位对齐**，跳过的位占空）；渲染路径只读
       不写。该题从未升格则不建表。
+
+- **展示层选项洗牌**（Issue #131，20260915）：消剧透从「生成期洗牌」搬到
+  「展示期现洗」——库与题源文档是**死形态**（选项按原文顺序、答案字母指向
+  原文位置、解析不含任何选项字母，见 convert 域）。
+    - 落点 `render/CardDisplayShuffle.ts`（纯函数），**唯一调用点**是
+      `QuizShell.renderQuizShellFor` 里、`buildDrillUnits` **之前**：
+      `pv || v.progressive.active ? v.list : shuffleListForDisplay(v.list)`。
+      **预览模式与渐进呈现不洗**（预览要看死形态对照原文；渐进是生成产物
+      直出、重渲染会跳序）。
+    - 洗的对象：顶层选项组（single/multiple，`q.answer` 字母随同一映射重写）、
+      steps **每步**选项组（各步独立洗，`step.answer` 同步重写）；位置敏感
+      措辞组跳过（`POSITION_SENSITIVE` 从 `convert/.../OptionShuffle` 复用，
+      单一口径）。**cloze/match 不洗**：逐空答案在 `slot-k-answer`，match 的
+      候选池与槽位顺序共用同一条 `q.answer` 字母串，洗池子=洗答案、跨空一致
+      性无从保证。
+    - 洗的是**副本**（`{...q, optionMd}`）：`v.list` 原件不动，卷内顺序/题号/
+      材料链/会话记账全按原 id 走。⚠️ 副本带来的连带口径见 convert 域末尾
+      「卡 → 卷内下标一律按 id 反查」。
+    - 判分口径零改动：`gradeQuestion` 按字母比、`optionIsRight` 按 idx 找答案
+      ——展示序变了、字母与选项的对应关系随之变，两者仍自洽（单测锁
+      「洗后答案字母指向同一选项文本」）。
+    - 移动端（`src/mobile/`）**不在本规范范围**：它的列表与查找同源
+      （`ui.list` 一份对象），不洗即显示死形态，与预览同口径。

@@ -10,12 +10,22 @@ import { QuestionType } from "../../types";
  * types=undefined 是**全量兜底**路径（检测失败/续跑无先验/题型未知），
  * 输出与题型化改造前逐字节一致——回退语义=旧行为，不引入新变量。
  *
- * 选项顺序另有**变体**（Issue #123）：默认（不带 opts）要求「正确项写在
- * 最前、干扰项在后」，字母由渲染按序自动编、再由 OptionShuffle 洗牌消
- * 剧透；**单题修复重生成**不能这么做——原题的解析/字母引用都按原顺序
- * 写死了，重排选项会让「ans 字母」与「选项顺序」互相矛盾（真机落盘
- * 坏答案的根因）。故 `opts: "keep"` 变体显式要求「沿用原题顺序与字母」，
- * 其余调用方行为**逐字节不变**（PromptHygiene/convert 域测试锁着）。
+ * 选项顺序另有**变体**（Issue #123，20260915 Issue #131 收口）：
+ *   - 缺省（不带 opts）= **正确项写最前**（字母由渲染按序自动编、洗牌
+ *     消剧透由代码做）——只留给**新造题**（讲义/笔记出题、变式、概念
+ *     辨析/加练）；原文有现成题目（`opts.bank`）时必须走 keep 序。
+ *   - `opts: "keep"` = 沿用原题顺序与字母（题内 ans/解析的字母引用随之
+ *     自洽）：单题修复重生成、以及**整卷转换/增量重转换**的一题对一题。
+ *   - `opts.bank`（Issue #131）= 逐题条件规则：原文有现成题目走 keep 序、
+ *     新造题走「正确项写最前」——整卷转换既有题解（一题对一题）又有讲义
+ *     （按知识点出题）时，只有条件规则能同时覆盖。
+ *
+ * 解析里的选项引用另有**标记协议**（Issue #131）：凡指代选项一律写
+ * `〔opt:X〕`（全角方括号，与「〔插图:…〕」占位同款、与 kramdown IAL 的
+ * `{:` 无碰撞），不得用裸字母指代选项；非指代选项的大写字母（Plan A、
+ * 维生素 A）照常书写。落库前由 `OptionRefReplace` 换成选项文本——解析
+ * 因此**不含任何选项字母**，展示层洗牌只剩答案字母重映射一件事，英语域
+ * 也不会被裸 A 误伤。
  */
 
 /** 行协议选项顺序口径（Issue #123）：缺省=「正确项在最前、系统重排
@@ -28,6 +38,36 @@ const OPT_LINE_DEFAULT =
     "选项内容（只写内容不写字母——字母由系统按顺序自动编 A、B、C…；正确项写在最前，之后是干扰项，每个选项一个 @@P opt）";
 const OPT_LINE_KEEP =
     "选项内容（按**原题顺序与字母**原样给出——A 就是 A、B 就是 B，不重排、不省略，每个选项一个 @@P opt）";
+/** 逐题条件规则（整卷转换/增量：原文有的题走原序、新造的题走重排）。 */
+const OPT_LINE_BY_BANK =
+    "选项内容（每个选项一个 @@P opt）。选项顺序**逐题判断**：原文这道题**本来就有现成选项**时，按**原题顺序与字母**原样给出（A 就是 A、B 就是 B，不重排）；原文没有现成选项（讲义/笔记新造的题）时只写内容不写字母（字母由系统按顺序自动编），**正确项写在最前**、之后是干扰项";
+
+/** @@P sol 行的选项引用标记协议（Issue #131）：解析里凡指代选项一律写
+ *  `〔opt:X〕`，落库前由 OptionRefReplace 换成选项文本（解析因此不含
+ *  字母——展示层洗牌无需改写解析、英语域的裸 A 也不会被误伤）。 */
+const SOL_REF_RULE =
+    "解析中凡**指代选项**的地方（如「〔opt:B〕正确」「〔opt:A〕与〔opt:C〕均错误」）必须写全角方括号标记 〔opt:X〕（X 为该选项字母，一标记一字母），**不得用裸字母指代选项**；不是指代选项的大写字母（如 Plan A、维生素 A、型号 X）照常书写、不要加标记";
+
+/** 行协议头部（标注行 → @@P opt 约定 → 答案/解析约定与 @@END）拼装。
+ *  `withSolRule`=解析里带 `〔opt:X〕` 标记约定（Issue #131）。 */
+function headOf(optLine: string, withSolRule: boolean): string {
+    return `行协议格式（标记行必须顶格、独占一行；内容行原样书写，公式与图片行不需要任何转义）：
+@@Q type=题型 knowledge=考点 chapter=章节
+@@P stem
+题干文字（公式行内 $...$、块级 $$...$$ 独占一行；空行分段，也可写多个 @@P stem）
+@@P opt
+${optLine}
+@@P ans
+答案（单选/多选写字母如 B、AD；判断写 √ 或 ×；填空用 | 分隔多个可接受答案；简答/作文写要点或范文）
+@@P sol
+解析文字${
+        // 标记约定**独占一行**（Issue #131）：@@P opt 与 @@P sol 两行是
+        // 变体之间的全部差异，其余行逐字不变（测试按行 diff 锁着）
+        withSolRule ? `\n选项引用约定：${SOL_REF_RULE}` : ""
+    }
+@@END
+`;
+}
 
 /** 题型规范序（type 清单展示序）。 */
 const ALL_TYPES: QuestionType[] = [
@@ -88,25 +128,18 @@ const MATERIAL_TYPE_RULES: Partial<Record<QuestionType, string>> = {
  *  一致，兜底路径）；给定题型时部件说明与答案约定按题型裁剪，核心
  *  骨架（标记行/stem/opt/ans/sol 与材料组 body/trans/group/material）
  *  恒在——共享材料组与题型无关（阅读理解单选也挂材料）。
- *  `opts.order="keep"`（Issue #123）**只替换 @@P opt 那一行的写作约定**，
- *  其余段落逐字不变——转换/增量/出题链不传该参数，产物与改造前逐字节
- *  相同。 */
-export function protocolSpec(types?: QuestionType[], opts?: { order?: ProtocolOptsOrder }): string {
-    const optLine = opts?.order === "keep" ? OPT_LINE_KEEP : OPT_LINE_DEFAULT;
-    const head = `行协议格式（标记行必须顶格、独占一行；内容行原样书写，公式与图片行不需要任何转义）：
-@@Q type=题型 knowledge=考点 chapter=章节
-@@P stem
-题干文字（公式行内 $...$、块级 $$...$$ 独占一行；空行分段，也可写多个 @@P stem）
-@@P opt
-${optLine}
-`;
+ *
+ *  `opts.order`（Issue #123）与 `opts.bank`（Issue #131）**只替换 @@P opt
+ *  那一行的写作约定**，其余段落逐字不变。二者同时给出时 bank 优先
+ *  （条件规则已含两支语义）。解析的 `〔opt:X〕` 标记约定（SOL_REF_RULE）
+ *  随 `order` / `bank` 一并生效——只有显式声明了选项顺序口径的调用方才
+ *  拿得到它，出题/加练/知识点变式（默认重排、由系统洗牌）保持原样。 */
+export function protocolSpec(types?: QuestionType[], opts?: { order?: ProtocolOptsOrder; bank?: boolean }): string {
+    const optLine = opts?.bank ? OPT_LINE_BY_BANK : opts?.order === "keep" ? OPT_LINE_KEEP : OPT_LINE_DEFAULT;
+    const withSolRule = !!opts?.bank || opts?.order === "keep";
+    const head = headOf(optLine, withSolRule);
     if (!types) {
-        return `${head}@@P ans
-答案（单选/多选写字母如 B、AD；判断写 √ 或 ×；填空用 | 分隔多个可接受答案；简答/作文写要点或范文）
-@@P sol
-解析文字
-@@END
-其它部件：材料块正文 @@P body、参考译文 @@P trans；多步引导题（type=steps）每步依次 @@P step（步引导语）、@@P step-opt（该步选项）、@@P step-ans（该步答案），步号自动递增，整题解析仍用 @@P sol；完形/新题型每空依次 @@P slot-opt、@@P slot-ans，空号自动递增。@@Q 行还可带：difficulty=1~5（有明确难度线索才写）、steps=method|result|…（steps 题必带，按序声明每步类型）、group=prev（材料组小题，材料=文中紧邻其前的材料块）、material=1（共享材料块，搭配 @@P body/trans）。`;
+        return `${head}其它部件：材料块正文 @@P body、参考译文 @@P trans；多步引导题（type=steps）每步依次 @@P step（步引导语）、@@P step-opt（该步选项）、@@P step-ans（该步答案），步号自动递增，整题解析仍用 @@P sol；完形/新题型每空依次 @@P slot-opt、@@P slot-ans，空号自动递增。@@Q 行还可带：difficulty=1~5（有明确难度线索才写）、steps=method|result|…（steps 题必带，按序声明每步类型）、group=prev（材料组小题，材料=文中紧邻其前的材料块）、material=1（共享材料块，搭配 @@P body/trans）。`;
     }
     const inTypes = withBrief(types);
     const ans = inTypes
@@ -123,12 +156,10 @@ ${optLine}
     const stepsAttr = inTypes.includes(QuestionType.Steps)
         ? "、steps=method|result|…（steps 题必带，按序声明每步类型）"
         : "";
-    return `${head}@@P ans
-答案（${ans}）
-@@P sol
-解析文字
-@@END
-其它部件：材料块正文 @@P body、参考译文 @@P trans${stepPart}${slotPart}。@@Q 行还可带：difficulty=1~5（有明确难度线索才写）${stepsAttr}、group=prev（材料组小题，材料=文中紧邻其前的材料块）、material=1（共享材料块，搭配 @@P body/trans）。`;
+    return `${head.replace(
+        "答案（单选/多选写字母如 B、AD；判断写 √ 或 ×；填空用 | 分隔多个可接受答案；简答/作文写要点或范文）",
+        `答案（${ans}）`
+    )}其它部件：材料块正文 @@P body、参考译文 @@P trans${stepPart}${slotPart}。@@Q 行还可带：difficulty=1~5（有明确难度线索才写）${stepsAttr}、group=prev（材料组小题，材料=文中紧邻其前的材料块）、material=1（共享材料块，搭配 @@P body/trans）。`;
 }
 
 /** buildPrompt 规则 1：题型白名单 + 答案约定速记。types=undefined 时

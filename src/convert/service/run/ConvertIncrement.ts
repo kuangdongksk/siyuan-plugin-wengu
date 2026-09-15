@@ -6,7 +6,6 @@ import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
 import { foldGlossIntoDrafts } from "../gloss/GlossFold";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../source/SrcChunk";
-import { shuffleDraftOptions } from "../draft/OptionShuffle";
 import { SetWriter } from "../output/SetWriter";
 import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/BankSets";
 import { knowTreesOf } from "../../../bank/data/KnowTrees";
@@ -136,8 +135,10 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         //（逐块与块间都退出、已入库部分保留、重跑分类自愈），不是只断
         // 当前这一块 AI。
         abort: aiStopHandle(stopCtrl.signal, relayStop),
+        // bank=true（Issue #131）：增量重转换同样写题库——选项沿用原序
+        // 与字母、解析用 〔opt:X〕标记指代选项（见 ConvertBatch 同款注释）
         buildPrompt: (source, rule, list) =>
-            buildPrompt(source, run.fillToChoice, run.bigToSteps, rule, list, genTypes),
+            buildPrompt(source, run.fillToChoice, run.bigToSteps, rule, list, genTypes, undefined, true),
     });
     const writer = new SetWriter(run.bank);
     for (let i = 0; i < run.chunks.length; i++) {
@@ -166,9 +167,10 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         const drafts = parseDrafts(gen.reply);
         if (drafts.length === 0) out.empty++; // AI 判定无可转内容（例题/引言等筛选口径）
         // 词条行保真（Issue #30）：与逐段自推进同一条口径——本块的源文本里
-        // 认词条行补进材料尾部，`^{...}` 残渣落库前剥净
+        // 认词条行补进材料尾部，`^{...}` 残渣落库前剥净。
+        // ⚠️ **选项洗牌已撤**（Issue #131，与 ConvertSegment 同款）：
+        // 库=死形态（原序＋答案指向原字母），洗牌改到展示层现洗。
         foldGlossIntoDrafts(drafts, chunk.text);
-        drafts.forEach(shuffleDraftOptions);
         if (gen.byAlias && drafts.length > 0) out.knowLinked += applyKnowDrafts(drafts, gen.byAlias);
         const res = await writer.append(
             run.setId,

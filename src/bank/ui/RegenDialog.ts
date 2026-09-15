@@ -6,7 +6,6 @@ import { buildRegenPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { reseatAnswer } from "../gen/RegenVerify";
 import { extractBlockId } from "../../convert/service/core/ConvertService";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
-import { shuffleDraftOptions } from "../../convert/service/draft/OptionShuffle";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/knowledge/KnowRef";
@@ -209,7 +208,10 @@ async function runRegen(
             });
             if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) throw new Error(t("regenVerifyFailed"));
         }
-        shuffleDraftOptions(draft);
+        // ⚠️ **不再洗牌**（Issue #131）：重生成链已走 keep 序（选项沿用
+        // 原题顺序与字母，见 buildRegenPrompt 的 order="keep"），洗牌原本
+        // 就是恒等零动作；留着只会让「解析里的旧字母引用」被位置映射
+        // 二次改写。消剧透改由展示层进卡 mount 前现洗。
         let kd = renderUnit(draft);
         // 保留原容器的其余属性（q/type/steps/knowledge/chapter…），只换内容
         const oldIal = /\n(\{:[^\n]*custom-plugin-wengu-q="1"[^\n]*\})\s*$/.exec(record.kramdown)?.[1] ?? "";

@@ -271,3 +271,41 @@
       项写最前」协议的含义）。重生成链已改 keep 序（选项按原题顺序），此时
       映射恒等、改写零动作；**keep 序下解析仍写旧字母属语义错误，位置映射救
       不了**，由 `bank/gen/RegenVerify` 的核查 + AI 自检兜底（见 bank 域）。
+
+- **20260915 大转向：库=死形态，洗牌挪去展示层**（Issue #131，与 #123 同根
+  的第二/第三期）。#123 只给 regen 链接了核查（`reseatAnswer`），**转换链
+  仍在跑「正确项写最前 ＋ AI 抄原题字母」的自杀组合**：真机重转 220 条
+  draft 里 32 条答案字母已错（14.5%），落盘洗牌把错位忠实传播进库。定案
+  「库是死的、洗牌是函数、解析无选项字母」，四块咬合：
+    - **keep 序逐题条件规则**（`ai/prompts/protocol.ts` 的 `OPT_LINE_BY_BANK`）：
+      `protocolSpec(types, { bank: true })` 要求 AI **逐题判断**——原文这道题
+      本来就有现成选项 → 按原题顺序与字母原样给出；原文没有（讲义/笔记新造
+      题）→ 正确项写最前。整卷转换（`ConvertBatch` 的 makeCall）与增量重
+      转换（`ConvertIncrement`）都传 `bank=true`；出题/加练/变式链不传
+      （默认变体逐字节不变，prompt 测试锁着）。`order:"keep"`（regen 专用）
+      与 `bank` 并存时 `bank` 优先。
+    - **写库洗牌全部撤除**：`ConvertSegment`/`ConvertIncrement`/`GenQuestion`/
+      `RegenDialog` 四处 `shuffleDraftOptions` 调用点全删——bank 与题源文档
+      统一为**死形态**（选项按原文顺序、答案字母指向原文位置）。附带收益：
+      落库 kramdown 确定性（重转换 hash 稳定，不再每次随机洗一遍）。
+      ⚠️ `draft/OptionShuffle.ts` **实现与单测保留**（存量数据仍在用），
+      死形态下若在生成链上恢复调用 = 把死形态又洗乱，别再接线。
+    - **解析选项引用标记协议**（`draft/OptionRefReplace.ts`）：凡指代选项
+      一律写 `〔opt:X〕`（全角方括号，与「〔插图:…〕」同款、与 IAL `{:` 无
+      碰撞），**不得用裸字母指代选项**；非指代的大写字母（Plan A、维生素 A）
+      照常书写。落库前（SetWriter.append，**唯一落库出口**）把标记换成选项
+      文本（「」包裹）。X 非法（超选项数）→ 降级裸字母（丢标记不丢信息）；
+      数学环境内的标记**照常替换**（标记即显式意图，与 gloss 域 `^{}` 的
+      取舍相反）。协议只在显式要了顺序口径的调用方（`order`/`bank`）出现，
+      默认变体逐字节不含它。
+    - **挤行拆行接出**（`draft/OptionUnpack.ts`）：旧 `unpackPackedSingle`
+      是「格式规范 + 把答案改成 A」的合体，后者建立在「正确项在最前」假设
+      上——死形态下字母指向原文，改答案就是凭空判错。新函数**只拆行、不碰
+      答案字母**，接线同样在 SetWriter.append（两步都是纯函数、都不改调用方
+      手里的 draft）。
+    - ⚠️ **展示层洗牌换的是副本对象**（`quiz/render/CardDisplayShuffle.ts`
+      在 QuizShell 里 `buildDrillUnits` **之前**跑）：凡按 `indexOf(q)` /
+      身份比对做「题在整卷里的下标」的地方**必然落空**——本次顺修三处
+      （`FlowDom.markNum`、`AnswerFlow.skipQuestion`、`markNumAnswered`）
+      改为 `qIndexById(host, q.id)`。以后加任何「卡 → 卷内下标」的反查，
+      一律走 id，别用对象身份。
