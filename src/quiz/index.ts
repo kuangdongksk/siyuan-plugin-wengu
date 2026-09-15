@@ -36,7 +36,7 @@ import { loadPrefs, loadQuizState, savePrefs } from "./service/QuizLoader";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
-import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
+import { beginDrillFor, startPanelModelFor, type DrillStateHandle } from "./render/StartPanel";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
@@ -501,12 +501,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly fullListOf = (): WenguQuestion[] => this.fullList;
     readonly docIdOf = (): string => (this.colFlow.isActive() ? `col:${this.colFlow.id()}` : this.docId);
     readonly historyStore = (): HistoryStore | undefined => this.history;
-    readonly setQuizList = (l: WenguQuestion[]) => (this.list = l);
-    readonly setQuizRevealMode = (m: WenguRevealMode) => (this.revealMode = m);
-    readonly setActiveQIdx = (i: number) => (this.activeQIdx = i);
-    readonly setStartedFlag = (v: boolean) => (this.started = v);
-    readonly setFinishedSession = (s: WenguSession | undefined) => (this.finished = s);
-    readonly setCurSession = (s: WenguSession | undefined) => (this.session = s);
+    /** 开轮状态写入面（六个纯转发 setter 并成一份对象，见 DrillStateHandle）。 */
+    readonly stateHandle: DrillStateHandle = {
+        setList: (l) => (this.list = l),
+        setRevealMode: (m) => (this.revealMode = m),
+        setActiveIdx: (i) => (this.activeQIdx = i),
+        setStarted: (flag) => (this.started = flag),
+        setFinished: (s) => (this.finished = s),
+        setSession: (s) => (this.session = s),
+    };
     readonly renderQuizList = (): void => this.renderList();
     readonly rerenderView = (): void => this.renderList();
     readonly updateTimerLabelNow = (): void => this.timerBinder.updateLabel();

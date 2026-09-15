@@ -22,6 +22,21 @@ import { initKnowIndex } from "./bank/data/KnowIndex";
 import { aiSlotCapacityOf, setAiSlotCapacity } from "./ai/queue";
 import { knowJumpTarget, knowTreeByNode, knowTreesOf } from "./bank/data/KnowTrees";
 
+/** 插件图标集（addIcons 载荷）：形状取自思源官方图标集（litheness 包
+ *  iconRiffCard / iconLanguage 的原始 path），以自有稳定 id 注册——不依赖
+ *  运行环境 sprite 是否收录（iconLanguage 非核心图标，dock 里会渲染成空白）；
+ *  id 保持不变，conf.json uiLayout 持久化的旧 dock 图标引用才能继续命中
+ *  symbol（换图标只换形状不改 id，20260826 定论）。 */
+const WENGU_ICONS = `<symbol id="iconWengu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
+</symbol>
+<symbol id="iconWenguWords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+</symbol>
+<symbol id="iconVolume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11 5 6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.7a10 10 0 0 1 0 12.6"/>
+</symbol>`;
+
 /** 页签 type。openTab 的 custom.id 会拼成 plugin.name + type，addTab 用同 type 匹配。 */
 const TAB_RESULT = "wengu-tab";
 
@@ -143,8 +158,40 @@ export default class WenguPlugin extends Plugin {
         return this.bankStore;
     }
 
+    /**
+     * 装载编排：**只留调用序 + 兜底 catch**（20260915 按域切注册器，
+     * audit #109——原 512 行唯一无豁免的超线业务入口）。各注册段拆到
+     * 下面四个方法里，本方法只负责「先建后挂、先注入后消费」的顺序：
+     *
+     *  1. `loadSettings()` 读设置并注入落盘回调（后续各域都读它）；
+     *  2. `initStores()` 初始化各持久化店（词书房 / 通知 / 路由缓存 /
+     *     AI 会话 / 并发闸 / 知识哈希 / 同义词 / 知识索引）；
+     *  3. `registerCompanion()` 学伴（全局悬浮层 + 事件收口）；
+     *  4. `registerUi()` 图标 / 顶栏 / dock（单词 + 移动端刷题）/ 右键注入
+     *     / ws-main 对账 / 刷题页签；
+     *  5. `bindGlobal()` document 级委托。
+     *
+     * ⚠️ 次序是硬的（内核 dock 与页签共用 type、通知须先于各存储 init、
+     * 并发闸容量读设置项），拆方法时**逐段搬运、未调顺序**；兜底 catch
+     * 留在本方法（onload 抛错=插件半装载，不是崩溃）。
+     */
     async onload() {
         WenguPlugin.instance = this;
+        try {
+            await this.loadSettings();
+            this.initStores();
+            this.registerCompanion();
+            this.registerUi();
+            this.bindGlobal();
+        } catch (e) {
+            // 装载期任一段抛错：插件停在半装载态（各段自带尽力而为兜底），
+            // 但不能把异常漏给宿主——onload 抛错会让思源报「插件加载失败」
+            console.error("[wengu] onload 失败", e);
+        }
+    }
+
+    /** 读插件设置并注入落盘回调（对象引用共享给 QuizView，开关即时生效）。 */
+    private async loadSettings(): Promise<void> {
         try {
             const saved = (await this.loadData("settings")) as Partial<WenguSettings> | "" | null | undefined;
             if (saved && typeof saved === "object") this.settings = { ...this.settings, ...saved };
@@ -159,6 +206,10 @@ export default class WenguPlugin extends Plugin {
             // 实例的 410 生命周期闸等）漏成未捕获拒绝刷控制台
             this.saveData("settings", rest).catch((): void => undefined);
         };
+    }
+
+    /** 各持久化店初始化（设置读完后、任何 UI 挂载前）。 */
+    private initStores(): void {
         // 词书房（多词书，redesign §五）：内核文件通道，onload 先于任何
         // 单词面板挂载初始化
         initWordLib();
@@ -200,8 +251,11 @@ export default class WenguPlugin extends Plugin {
             load: () => this.loadData("know-index"),
             save: (v) => this.saveData("know-index", v),
         });
-        // 看板娘学伴（全局悬浮层挂 body，与页签渲染解耦；事件由各域收口
-        // 一行接入，20260828 定稿）
+    }
+
+    /** 看板娘学伴：全局悬浮层挂 body，与页签渲染解耦（事件由各域收口
+     *  一行接入，20260828 定稿）。 */
+    private registerCompanion(): void {
         initCompanion({
             i18n: this.i18n ?? {},
             settings: this.settings,
@@ -214,23 +268,20 @@ export default class WenguPlugin extends Plugin {
         });
         // 全局悬浮层（挂 body）：onload 尾声挂，onunload 卸——重载不叠影
         mountCompanionGlobal();
-        // 题干内嵌块引用（查看原文）：document 级委托一次接管静态渲染产出的引用 span
-        document.addEventListener("click", WenguPlugin.onBlockRefClick);
-        // 插件图标：形状取自思源官方图标集（litheness 包 iconRiffCard /
-        // iconLanguage 的原始 path），以自有稳定 id 注册——不依赖运行环境
-        // sprite 是否收录该图标（iconLanguage 非核心图标，dock 里会渲染成
-        // 空白）；id 保持不变，conf.json uiLayout 持久化的旧 dock 图标引用
-        // 才能继续命中 symbol（换图标只换形状不改 id，20260826 定论）
-        this
-            .addIcons(`<symbol id="iconWengu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
-</symbol>
-<symbol id="iconWenguWords" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
-</symbol>
-<symbol id="iconVolume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M11 5 6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.7a10 10 0 0 1 0 12.6"/>
-</symbol>`);
+    }
+
+    /** UI 注册段：图标 / 顶栏 / dock / 事件订阅 / 刷题页签。 */
+    private registerUi(): void {
+        this.addIcons(WENGU_ICONS);
+
+        this.registerTopbar();
+        this.registerDocks();
+        this.registerMenus();
+        this.registerQuizTab();
+    }
+
+    /** 顶栏「温故」按钮 → openTab 打开刷题页签（移动端分流提示）。 */
+    private registerTopbar(): void {
         this.addTopBar({
             icon: "iconWengu",
             title: this.i18n.pluginName,
@@ -263,10 +314,19 @@ export default class WenguPlugin extends Plugin {
                 view?.setDoc(targetDocId);
             },
         });
+    }
 
-        // 单词复习只走 Dock 面板（顶部入口与同名页签已删：addTab 与
-        // addDock 注册同名 type 会让 dock 的 init 分发到页签实例，
-        // 面板空白的根因）。3.8.0 运行时支持，类型包未收录 → 局部声明。
+    /** Dock 注册：单词复习面板（桌面 + 移动）+ 移动端刷题面板（仅移动）。
+     *  单词复习只走 Dock 面板（顶部入口与同名页签已删：addTab 与
+     *  addDock 注册同名 type 会让 dock 的 init 分发到页签实例，面板空白的
+     *  根因）。3.8.0 运行时支持，类型包未收录 → 局部声明。 */
+    private registerDocks(): void {
+        this.registerWordDock();
+        this.registerMobileDrillDock();
+    }
+
+    /** 单词复习 dock（桌面与移动都注册）。 */
+    private registerWordDock(): void {
         const dockHost = this as unknown as { addDock?: (c: WordDockConfig) => unknown };
         if (dockHost.addDock) {
             dockHost.addDock({
@@ -287,10 +347,13 @@ export default class WenguPlugin extends Plugin {
                 },
             });
         }
+    }
 
-        // 移动端刷题 dock（Issue #59）：思源移动端 openTab 是空桩，dock 是
-        // 插件面板唯一通道。**只在移动端注册**——桌面已由页签承担刷题，
-        // 重复注册会在桌面 dock 里多出一个面板（桌面零回归验收）。
+    /** 移动端刷题 dock（Issue #59）：思源移动端 openTab 是空桩，dock 是
+     *  插件面板唯一通道。**只在移动端注册**——桌面已由页签承担刷题，
+     *  重复注册会在桌面 dock 里多出一个面板（桌面零回归验收）。 */
+    private registerMobileDrillDock(): void {
+        const dockHost = this as unknown as { addDock?: (c: WordDockConfig) => unknown };
         if (isMobileUi() && dockHost.addDock) {
             dockHost.addDock({
                 type: TAB_MOBILE_DRILL,
@@ -309,7 +372,10 @@ export default class WenguPlugin extends Plugin {
                 },
             });
         }
+    }
 
+    /** 事件订阅：知识文档右键注入（⑤）+ 内核 ws 事务对账。 */
+    private registerMenus(): void {
         // 知识文档右键「温故：查相关题目」（⑤）：映射在插件数据里，本地反查
         this.eventBus.on("open-menu-content", this.onOpenMenuContent);
 
@@ -321,7 +387,10 @@ export default class WenguPlugin extends Plugin {
         // 文档后题库存量悬空、专题/材料静默空转（20260829 三轮审查）。
         // 串行内核调用、放后台不阻塞 UI。
         this.eventBus.on("ws-main", WenguPlugin.onWsReconcile);
+    }
 
+    /** 刷题页签（addTab）：init 建 QuizView、update 重渲染、destroy 回收。 */
+    private registerQuizTab(): void {
         this.addTab({
             type: TAB_RESULT,
             init(this: Custom | MobileCustom) {
@@ -365,6 +434,12 @@ export default class WenguPlugin extends Plugin {
         });
     }
 
+    /** document 级全局委托（onunload 配对摘除）：题干内嵌块引用（查看原文）
+     *  ——静态渲染是字符串管线，引用 span 只能带 data 标记由这里统一跳转。 */
+    private bindGlobal(): void {
+        document.addEventListener("click", WenguPlugin.onBlockRefClick);
+    }
+
     /** 卸载：全局悬浮层挂 body 不随页签回收，必须显式卸（重载不叠影）。 */
     onunload(): void {
         unmountCompanionGlobal();
@@ -372,8 +447,13 @@ export default class WenguPlugin extends Plugin {
         this.eventBus.off("ws-main", WenguPlugin.onWsReconcile);
         this.eventBus.off("open-menu-content", this.onOpenMenuContent);
         WenguPlugin.scheduleBankReconcile.cancel(); // 防抖窗口内的对账作废
-        aiSessions()?.flushNow(); // 登记簿去抖窗口内的尾笔立即落盘（重载不丢）
-        void this.bankStore?.flush(); // 题库 2s 防抖窗口内的作答记账尾笔（刷完题即重载不丢）
+        this.flushPending();
+    }
+
+    /** 去抖窗口内的尾笔立即落盘（重载/卸载不丢）。 */
+    private flushPending(): void {
+        aiSessions()?.flushNow(); // 登记簿
+        void this.bankStore?.flush(); // 题库 2s 防抖窗口内的作答记账
     }
 
     /** 文档右键菜单注入（onunload 需配对退订，故必须是命名方法——

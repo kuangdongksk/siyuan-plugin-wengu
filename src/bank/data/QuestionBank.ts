@@ -2,8 +2,7 @@ import { parseQuestionKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import type { BankKnowTree } from "./KnowTrees";
 import { knKey, normKn, pickStandardName } from "./KnowledgeNorm";
-import { notifyError } from "../../ui/Notify";
-import { errText, isLifecycleGone, SaveChain } from "../../ui/shared";
+import { BankPersist } from "./BankPersist";
 import { mintPrefixedId } from "../../types";
 
 /**
@@ -187,100 +186,40 @@ export interface KnowledgeRow {
     count: number;
 }
 
-const SAVE_DEBOUNCE_MS = 2000;
-
 export class QuestionBank {
-    private cache?: BankData;
-    private dirty = false;
-    /** 版本闩（数据演进守则，见 AGENTS.md）：盘上 version 大于本版已知
-     *  （1）= 更新版插件写的题库——本版不识别其形态，内存按空起步但
-     *  拒绝一切落盘，防两机插件版本错位时旧版覆写清库。 */
-    private foreign?: boolean;
-    private flushTimer?: number;
-    /** 串行落盘链（同 AiSessions/HistoryStore/RouteCache 模式）：防抖
-     *  flush 与关键节点直调 flush 可并发，两笔 saveData 在途且「先发后落」
-     *  时盘面会短暂回退旧态——排队串行封掉这个窗口（千级题库整写慢盘
-     *  在途可超 2s 防抖窗）。链面吞错保后续可排，错误在本笔 await 侧处理。 */
-    private readonly saveChain = new SaveChain();
+    /** 解析缓存（领域方法共用，见文件尾友元钩子）。 */
     private readonly parsedCache = new Map<string, { hash: string; parsed: ParsedQuestion }>();
+    /** 落盘链（装载/脏标记/版本闩/串行写，见 BankPersist）。 */
+    private readonly persist: BankPersist;
 
-    constructor(
-        private readonly loadRaw: () => Promise<unknown>,
-        private readonly saveRaw: (v: BankData) => Promise<unknown>
-    ) {}
+    constructor(loadRaw: () => Promise<unknown>, saveRaw: (v: BankData) => Promise<unknown>) {
+        this.persist = new BankPersist(loadRaw, saveRaw);
+    }
 
     /** 取缓存数据（装载/落盘/友元模块共用；读异常上抛不落缓存）。 */
     async all(): Promise<BankData> {
-        if (this.cache) return this.cache;
-        // 只把「读到的东西不是合法题库」当空；**读异常上抛不落缓存**——
-        // 原归空后任意 markDirty→flush 会把空 records/collections 覆写
-        // 落盘、千级题库静默清零（HistoryStore 同坑 20260828 已修，
-        // 20260829 三轮审查补齐本店与 WeaknessStore；loadRaw「文件不
-        // 存在」约定返回空串/undefined，进下方三元归空不受影响）
-        const data = (await this.loadRaw()) as BankData | "" | null | undefined;
-        const ver = data && typeof data === "object" ? (data as { version?: number }).version : undefined;
-        if (typeof ver === "number" && ver > 1) {
-            // 版本闩：数据来自更新版插件，停写保护（升级后自然解除）
-            this.foreign = true;
-            notifyError({ key: "notifyStoreForeign", vars: { store: "bank.json" } });
-            this.cache = emptyBankData();
-            return this.cache;
-        }
-        this.cache = data && typeof data === "object" && data.records ? data : emptyBankData();
-        for (const k of ["knowRoots", "folders", "knowHidden"] as const)
-            if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
-        if (!this.cache.docStats) this.cache.docStats = {};
-        if (!this.cache.sets) this.cache.sets = {};
-        if (!this.cache.materials) this.cache.materials = {};
-        if (!this.cache.knowTrees) this.cache.knowTrees = {};
-        return this.cache;
+        return this.persist.load();
     }
 
     /** 启动预热（首次 load 拉缓存；后续调用幂等）。 */
     async preload(): Promise<void> {
-        await this.all();
+        await this.persist.preload();
     }
 
     /** 已加载缓存的同步窥视（未就绪返回 undefined；UI 快照渲染用，
      *  load 流程 await preload 之后 renderList 的时序保证 cache 命中）。 */
     peek(): BankData | undefined {
-        return this.cache;
+        return this.persist.peek();
     }
 
     /** 供 BankMigrate 友元使用（入库与迁移编排）。 */
     markDirty(): void {
-        if (this.foreign) return; // 版本闩：停写保护
-        this.dirty = true;
-        if (this.flushTimer) window.clearTimeout(this.flushTimer);
-        this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
+        this.persist.markDirty();
     }
 
     /** 防抖落盘（销毁/关键节点也直接调）。 */
     async flush(): Promise<void> {
-        if (this.flushTimer) {
-            window.clearTimeout(this.flushTimer);
-            this.flushTimer = undefined;
-        }
-        if (!this.dirty || !this.cache || this.foreign) return;
-        this.dirty = false;
-        // 载荷取守卫后的活引用：saveRaw 调用瞬间才序列化，链上排到的每笔
-        // 写到的都是「它落笔那一刻」的最新内存态（不快照克隆——千级题库
-        // 克隆太贵，且晚笔带更新态正是我们要的次序语义）。
-        const cache = this.cache;
-        try {
-            await this.saveChain.enqueue(() => this.saveRaw(cache));
-        } catch (e) {
-            // 尽力而为：写失败保留脏标记并重排防抖——原只保留标记不清
-            // 定时器，得等下一次 markDirty 才会再试（20260829 审查）；
-            // 不再静默：落盘失败走思源通知（Notify 同文案 60s 冷却）。
-            // 但 3.8.2 起实例被 dispose（petal 重载/页签销毁竞态）后
-            // saveData 永久拒绝 410：旧实例残骸的预期失败，不弹不重排
-            // （弹了只是调试重载期的噪音），保留脏标记即止。
-            this.dirty = true;
-            if (isLifecycleGone(e)) return;
-            notifyError({ key: "notifySaveFailBank", vars: { msg: errText(e) } });
-            this.flushTimer = window.setTimeout((): void => void this.flush(), SAVE_DEBOUNCE_MS);
-        }
+        await this.persist.flush();
     }
 
     /** 作答镜像记账（全题型漏斗在 QuizView.recordAnswer；多步题 qid#k
@@ -511,21 +450,4 @@ function overlayStats(p: ParsedQuestion, r: BankRecord): ParsedQuestion {
     p.right = r.stats.right;
     p.lastAnswer = r.stats.lastAnswer;
     return p;
-}
-
-/** 空库起步形态（版本闩停写保护与坏数据归空共用）。 */
-function emptyBankData(): BankData {
-    return {
-        version: 1,
-        records: {},
-        collections: [],
-        migratedDocs: [],
-        hashed: {},
-        knowRoots: [],
-        folders: [],
-        knowHidden: [],
-        docStats: {},
-        sets: {},
-        materials: {},
-    };
 }
