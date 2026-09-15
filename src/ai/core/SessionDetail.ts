@@ -25,6 +25,10 @@
  *     running 的多调用流上出；错误态换错误正文（既有 `wengu-ai-err`）。
  *  3. **详情头的状态徽标与树叶子行同源**（同一个 `SessionLeafView` 的
  *     色类/词），两处不会各写一套状态词。
+ *  4. **展开态默认展开且分块**（Issue #98）：行展开后的正文按侧别分成
+ *     「输入」（user）/「输出」（ai）两块、各带 faint 档小标签；缺侧的尾轮
+ *     只出一块。**摘要行本身不动**（仍是一行一轮的 S6 形态）——分块只在
+ *     行展开态里做。设计稿三屏没有已完成态详情屏，此为稿外形态补全。
  */
 
 import type { AiSessionRecord, AiTurn } from "../data/AiSessions";
@@ -67,9 +71,24 @@ export interface SessionLogRow {
     isError: boolean;
     /** 该轮的**全文**（prompt / 回复原文）：设计稿的日志行是「时间戳 + 摘要」
      *  形态，但面板的核心用途是「回看产出」——全文不能丢，故随行带回、由
-     *  组件按需展开（默认收起，行即设计稿形态）。空=不可展开（无正文的
-     *  状态行，如错误行）。 */
+     *  组件按需展开（默认展开，Issue #98；空=不可展开的状态行，如错误行）。
+     *  **展开态的正文读 `segments`**，本字段是全文的无标签兜底（非成对侧
+     *  拼接口径不变）。 */
     full: string;
+    /** 展开态的**输入 / 输出分块**（Issue #98）：本轮 user 侧文本带「输入」
+     *  标签、ai 侧带「输出」标签，各成一块（缺侧的尾轮只出一块）。空数组=
+     *  不可展开（无正文的状态行），与 `full` 为空串同义。 */
+    segments: SessionLogSegment[];
+}
+
+/** 展开态的一**块**正文（Issue #98）：一个侧别 + 已取词的标签 + 该侧全文。 */
+export interface SessionLogSegment {
+    /** 侧别（供样式/断言用：user=输入、ai=输出）。 */
+    side: "user" | "ai";
+    /** 块标签（已取词，新键 aiLogIn / aiLogOut）。 */
+    label: string;
+    /** 该侧正文（原文，不截断）。 */
+    text: string;
 }
 
 /** 详情三段整体视图（无选中记录时 undefined）。 */
@@ -114,6 +133,20 @@ export function questionCountOf(text: string): number {
     const marks = text.match(/^[ \t]*@@Q\b/gm)?.length ?? 0;
     if (marks > 0) return marks;
     return text.match(/^[ \t]*\d{1,3}[.、)]\s*\S/gm)?.length ?? 0;
+}
+
+/**
+ * 一轮的**分块正文**（Issue #98）：user 侧=「输入」块、ai 侧=「输出」块
+ * ——成对轮两块、缺侧的尾轮（或孤立 ai 轮）只出一块。
+ *
+ * 标签是**新 i18n 键**（aiLogIn / aiLogOut，中英同步加），取词只在这一处：
+ * 组件不取词、也不猜哪块该叫什么（同 parts 的分段口径）。
+ */
+function sidesOf(t: (k: string) => string, user: AiTurn | undefined, ai: AiTurn | undefined): SessionLogSegment[] {
+    const out: SessionLogSegment[] = [];
+    if (user) out.push({ side: "user", label: t("aiLogIn"), text: user.text });
+    if (ai) out.push({ side: "ai", label: t("aiLogOut"), text: ai.text });
+    return out;
 }
 
 /** 取词模板按 `{n}` 拆段：命中的那一段进 `<em>`（强调位在**模板**里，
@@ -168,8 +201,10 @@ function rowOf(
         time: clockOf(anchor),
         parts: segsOf(t(key), vars),
         isError: false,
-        // 全文=本轮两侧原文拼接（面板的核心用途是回看产出，全文不能丢）
+        // 全文=本轮两侧原文拼接（面板的核心用途是回看产出，全文不能丢）；
+        // 展开态按侧别分块呈现（Issue #98）
         full: ai ? `${user.text}\n\n${ai.text}` : user.text,
+        segments: sidesOf(t, user, ai),
     };
 }
 
@@ -200,6 +235,7 @@ function rowsOf(t: (k: string) => string, turns: AiTurn[], anchorOf: (side: "use
                 parts: segsOf(t("aiLogTurnOut"), { y: String(turn.text.length) }),
                 isError: false,
                 full: turn.text,
+                segments: sidesOf(t, undefined, turn),
             });
         } else {
             // 连续 ai 轮（上一次已配对掉一个）：出「追加输出」行，不编新轮号
@@ -208,6 +244,7 @@ function rowsOf(t: (k: string) => string, turns: AiTurn[], anchorOf: (side: "use
                 parts: segsOf(t("aiLogTurnOut"), { y: String(turn.text.length) }),
                 isError: false,
                 full: turn.text,
+                segments: sidesOf(t, undefined, turn),
             });
         }
     }
@@ -256,6 +293,7 @@ export function detailViewOf(
             parts: [{ text, em: false }],
             isError: !stopped && rec.error !== AI_INTERRUPTED,
             full: "",
+            segments: [],
         });
     }
     return {

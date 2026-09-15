@@ -905,5 +905,7 @@
   "aiOwnStoppedBatch": "本记录随「{flow}」一起停止，已产出部分保留待抉择",
   "aiOwnStoppedBody": "；保留或丢弃只有一处入口——页内转换条（顶部横幅上也有直达它的入口）。",
   "aiOwnStoppedTail": "本详情不提供抉择与停止按钮。",
-  "aiOwnStoppedBatchBody": "；本详情不提供抉择与停止按钮，后续处置请在该流程自己的入口操作。"
+  "aiOwnStoppedBatchBody": "；本详情不提供抉择与停止按钮，后续处置请在该流程自己的入口操作。",
+  "aiLogIn": "输入",
+  "aiLogOut": "输出"
 }

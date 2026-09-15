@@ -7,6 +7,8 @@ import { buildSessionTree } from "./SessionTree";
 /**
  * 详情三段视图（Issue #88）：详情头（任务名 + kind 徽标 + 状态徽标）、
  * 轮次日志（时间戳 + 摘要，数字走 `<em>` 段）、归属备注 / 重试钮。
+ * Issue #98 起行展开态按侧别分块（`segments` = 输入 / 输出两块，标签
+ * 取词在 core 侧）——摘要行本身不动，仍是一行一轮的 S6 形态。
  * 断言落在**渲染侧真吃的字段**上。
  */
 
@@ -20,6 +22,8 @@ const TEMPLATES: Record<string, string> = {
     aiLogTurnInOut: "轮次 {n} · 输入 {x} 字 → 输出 {y} 字",
     aiLogTurnInOutQ: "轮次 {n} · 输入 {x} 字 → 输出 {q} 题",
     aiLogTurnOut: "输出 {y} 字",
+    aiLogIn: "输入",
+    aiLogOut: "输出",
     aiLogLabel: "轮次日志",
     aiInterrupted: "已中断（插件重载）",
     aiStatusStopped: "已停止",
@@ -187,6 +191,50 @@ describe("轮次日志", () => {
         expect(detailViewOf(rec({ turns: [{ role: "user", text: "abcdef" }] }), base)!.rows[0].full).toBe("abcdef");
     });
 
+    it("展开态的正文按侧别分块（Issue #98）：输入块 + 输出块，标签在纯逻辑侧取词", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "abcdef" },
+                    { role: "ai", text: "回复" },
+                ],
+            }),
+            base
+        )!;
+        expect(v.rows[0].segments).toEqual([
+            { side: "user", label: "输入", text: "abcdef" },
+            { side: "ai", label: "输出", text: "回复" },
+        ]);
+    });
+
+    it("缺侧的尾轮只出一块（单侧行不分块凑数）；不可展开的状态行没有块", () => {
+        // 只有 user 侧：输入一块
+        const tail = detailViewOf(rec({ turns: [{ role: "user", text: "abcd" }] }), base)!;
+        expect(tail.rows[0].segments).toEqual([{ side: "user", label: "输入", text: "abcd" }]);
+        // 孤立 ai 轮：输出一块
+        const lone = detailViewOf(rec({ turns: [{ role: "ai", text: "abc" }] }), base)!;
+        expect(lone.rows[0].segments).toEqual([{ side: "ai", label: "输出", text: "abc" }]);
+        // 收口的状态行（末行）无正文 ⇒ 无块，与 full 为空串同义（组件据此不出可展开手势）
+        const err = detailViewOf(rec({ status: "error", error: "超时", turns: [{ role: "user", text: "q" }] }), base)!;
+        expect(err.rows.at(-1)).toMatchObject({ full: "", segments: [] });
+    });
+
+    it("两块文本与摘要行共用同一份轮次数据（分块不另取数，摘要行本身不动）", () => {
+        const v = detailViewOf(
+            rec({
+                turns: [
+                    { role: "user", text: "abc" },
+                    { role: "ai", text: "@@Q 一\n@@Q 二\n" },
+                ],
+            }),
+            base
+        )!;
+        // 摘要行仍是 S6 的「一行一轮」（本单不动它）
+        expect(v.rows[0].parts.map((x) => x.text).join("")).toBe("轮次 1 · 输入 3 字 → 输出 2 题");
+        // 分块正文=两侧原文，标签与侧别一一对应
+        expect(v.rows[0].segments.map((x) => `${x.side}:${x.text}`)).toEqual(["user:abc", "ai:@@Q 一\n@@Q 二\n"]);
+    });
+
     it("error 态把错误正文也摆进日志（日志是过程记录）；done 态不出进行态行", () => {
         const v = detailViewOf(rec({ status: "error", error: "超时", turns: [{ role: "user", text: "q" }] }), base)!;
         expect(v.rows.at(-1)).toMatchObject({ isError: true, parts: [{ text: "超时", em: false }] });
@@ -310,6 +358,18 @@ describe("树叶子行与详情头同源", () => {
 });
 
 describe("三段收口（归属备注 / 进行态 / 重试）", () => {
+    it("空脚判据（Issue #98）：done 且非重试态下 ownNote 空 + retryable 假 ⇒ 组件不出 dfoot", () => {
+        // 组件按 `ownNote.length > 0 || retryable` 决定 dfoot 是否渲染（空容器
+        // 的 padding/border-top/底色在已完成态就是「下方空一块」），故这里锁
+        // 「已完成态这两个字段都是空的」——组件侧判据直接吃它俩。
+        const done = detailViewOf(rec({ status: "done", turns: [{ role: "user", text: "q" }] }), base)!;
+        expect(done.ownNote).toEqual([]);
+        expect(done.retryable).toBe(false);
+        // 反面：在途态有归属备注（出头栏）、真失败有重试钮（出头栏）
+        expect(detailViewOf(rec(), { ...base, ownNote: [{ text: "n", em: false }] })!.ownNote).toHaveLength(1);
+        expect(detailViewOf(rec({ status: "error", error: "超时" }), base)!.retryable).toBe(true);
+    });
+
     it("running：等槽态出「等待空闲通道」，否则出「思考中」", () => {
         expect(detailViewOf(rec(), base)!.pending).toBe("思考中…");
         expect(detailViewOf(rec({ queued: true } as never), base)!.pending).toBe("等待空闲通道…");
