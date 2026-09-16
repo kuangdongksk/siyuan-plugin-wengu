@@ -32,6 +32,12 @@ export interface AppendOut {
     questions: WenguQuestion[];
     /** 本次写入的材料（渐进预览直用）。 */
     materials: WenguMaterial[];
+    /** 本次**悬空降级**的小题数（Issue #148）：草稿写了 `group=prev` 但
+     *  写入时**前面没有任何材料块**（本批与既往批都没有）——不能静默悬空，
+     *  降级为**独立题**（不写 group 字段、解析视图也不带 group；读侧
+     *  `DrillUnits` 缺材料本来就按独立题渲染，此处把降级显式化并计数，
+     *  由编排层并进完成消息的警告）。 */
+    danglingGroup: number;
 }
 
 export class SetWriter {
@@ -103,7 +109,7 @@ export class SetWriter {
             for (const m of Object.values(data.materials)) if (m.setId === setId) seed = m.id;
             this.lastMaterialId = seed;
         }
-        const out: AppendOut = { qids: [], units: [], questions: [], materials: [] };
+        const out: AppendOut = { qids: [], units: [], questions: [], materials: [], danglingGroup: 0 };
         // 解析选项引用标记替换（Issue #131）：落库前的**最后一道**处理
         // （reseat 校正在上游做完）——把 `〔opt:X〕` 换成选项文本，解析
         // 因此不含任何选项字母。
@@ -146,7 +152,14 @@ export class SetWriter {
                 continue;
             }
             const qid = mintQid();
-            const group = draft.attrs.group === GROUP_PREV ? (this.lastMaterialId ?? "") : "";
+            // group=prev 悬空兜底（Issue #148）：材料=文中紧邻其前的材料块，
+            // 库里没有材料块时**不能静默悬空**——降级为独立题（group 字段
+            // 不写、解析视图不带 group，读侧 DrillUnits 本来就是这么渲染的）
+            // 并计数，由编排层报进完成消息。宁缺勿错：宁可让用户看到
+            // 「N 道题的共享材料缺失」，也不落一个指向不存在材料的 group。
+            const wantsPrev = draft.attrs.group === GROUP_PREV;
+            const group = wantsPrev ? (this.lastMaterialId ?? "") : "";
+            if (wantsPrev && !group) out.danglingGroup++;
             const attrs = { ...draft.attrs };
             delete attrs.group; // group 改由记录字段承载，不再进 kramdown IAL
             const kd = renderUnit({ ...draft, attrs }, { srcKey, srcHash });

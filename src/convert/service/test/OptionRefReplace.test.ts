@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { replaceDraftOptionRefs, replaceOptionRefs, replaceOptionRefsMap } from "../draft/OptionRefReplace";
+import { shuffleListForDisplay } from "../../../quiz/render/CardDisplayShuffle";
+import type { WenguQuestion } from "../../../types";
 import { parseDrafts, type DraftUnit } from "../draft/QuestionDraft";
 
 /**
@@ -218,5 +220,180 @@ describe("replaceOptionRefsMap · 整批", () => {
         const [twice] = replaceOptionRefsMap([once]);
         expect(solOf(twice)).toBe(solOf(once));
         expect(twice).toBe(once); // 无标记 ⇒ 原对象
+    });
+});
+
+/**
+ * Issue #148 追加评论：长选项的解析替换形态（**只截断，不带字母提示**）。
+ *
+ * 真机观感问题：英语阅读题的选项是完整英文长句，`OptionRefReplace` 把
+ * 解析里的 〔opt:X〕 替换成选项全文后，解析行超长难读（截图：解析末尾
+ * 「正确答案：〈60+ 字符英文整句〉」连占三行）。
+ *
+ * 口径：**超长才截断**（阈值 40 码点），短选项（政治题「维护封建统治」）
+ * 维持全文替换、逐字节与改造前一致；截断形态保留前 30 字 + 省略号。
+ *
+ * ⚠️ **为什么不补字母提示**（追加评论的备选形态「…（D）」，本单复核后
+ * 不采纳）：字母是**位置引用**，烘进解析文本后会随库内 PDF 固化在转换时
+ * 的位置；展示层 `CardDisplayShuffle` 进卡现洗选项时只重映射 `answer`、
+ * **不重写解析**（设计如此）——洗一次序，提示字母就指到**另一个选项**上。
+ * 本文件末组用真实洗牌函数锁死这条（自验缺陷的回归锁）。
+ */
+describe("长选项截断（Issue #148）", () => {
+    const LONG_OPTS = [
+        "A proposal to establish a new framework for international cooperation",
+        "The author argues that technology has reshaped the way we communicate",
+        "Governments should prioritize environmental protection over growth",
+        "Individuals are responsible for their own digital literacy",
+    ];
+
+    it("长选项：截断为「前 30 字…」形态，不带字母提示", () => {
+        const s = replaceOptionRefs("正确答案：〔opt:A〕。", LONG_OPTS);
+        expect(s).toBe(`正确答案：「${LONG_OPTS[0].slice(0, 30)}…」。`);
+        // 不再整句塞入：长度显著短于原文
+        expect(s.length).toBeLessThan(`正确答案：「${LONG_OPTS[0]}」。`.length);
+        expect(s).toContain("…");
+        // ⚠️ 截断形态**不含字母**：库内解析不得出现选项字母（冻结口径），
+        // 否则展示层洗牌后提示字母会指到别的选项上（见本文件末组）
+        expect(s).not.toMatch(/[（(][A-H][)）]/);
+        expect(s).not.toContain("（A）");
+    });
+
+    it("短选项：维持全文替换（逐字节与改造前一致，零回归）", () => {
+        expect(replaceOptionRefs("〔opt:B〕正确。", OPTS)).toBe("「加强思想教育和理论武装」正确。");
+        expect(replaceOptionRefs("〔opt:D〕错。", OPTS)).toBe("「全面从严治党」错。");
+        // 恰好等于阈值（40 码点）：不截断
+        const exact = "x".repeat(40);
+        expect(replaceOptionRefs("〔opt:A〕", [exact])).toBe(`「${exact}」`);
+        // 阈值 +1：截断
+        const over = "x".repeat(41);
+        expect(replaceOptionRefs("〔opt:A〕", [over])).toBe(`「${"x".repeat(30)}…」`);
+    });
+
+    it("各种短选项（中文政治题形态）不受影响", () => {
+        // 真机形态：政治真题的选项是短语（4~8 字），一字符都不要动
+        const SHORT_OPTS = ["维护封建统治", "加强思想教育", "以人民为中心", "全面从严治党"];
+        for (let i = 0; i < SHORT_OPTS.length; i++) {
+            expect(replaceOptionRefs(`〔opt:${"ABCD"[i]}〕`, SHORT_OPTS)).toBe(`「${SHORT_OPTS[i]}」`);
+        }
+    });
+
+    it("长选项组里各标记各认自己的选项文本（不串组）", () => {
+        const s = replaceOptionRefs("〔opt:A〕错，〔opt:C〕对，〔opt:D〕也错。", LONG_OPTS);
+        expect(s).toContain(`「${LONG_OPTS[0].slice(0, 30)}…」`);
+        expect(s).toContain(`「${LONG_OPTS[2].slice(0, 30)}…」`);
+        expect(s).toContain(`「${LONG_OPTS[3].slice(0, 30)}…」`);
+        expect(s).not.toContain(LONG_OPTS[1].slice(0, 30));
+    });
+
+    it("多步题：截断按**该步**选项组取文本（前瞻分支同款）", () => {
+        const longStep = [
+            "Take the limit by applying L'Hopital's rule repeatedly until the form resolves",
+            "Substitute the equivalent infinitesimal to simplify the numerator first",
+            "Factor out the common term and cancel it before evaluating the limit",
+        ];
+        const d: DraftUnit = {
+            material: false,
+            attrs: { type: "steps" },
+            parts: [
+                { name: "step-1-option-0", text: longStep[0] },
+                { name: "step-1-option-0", text: longStep[1] },
+                { name: "step-1-option-0", text: longStep[2] },
+                { name: "step-1-answer", text: "B" },
+                { name: "step-1-solution", text: "步解析 〔opt:B〕。" },
+                { name: "step-2-option-0", text: "第一步的答案" },
+                { name: "step-2-answer", text: "A" },
+                { name: "step-2-solution", text: "第二步解析 〔opt:A〕。" },
+            ],
+        };
+        const out = replaceDraftOptionRefs(d);
+        expect(stepSolOf(out, 1)).toBe(`步解析 「${longStep[1].slice(0, 30)}…」。`);
+        expect(stepSolOf(out, 2)).toBe("第二步解析 「第一步的答案」。"); // 短选项全文
+    });
+
+    it("码点口径：40 个非 BMP 字符（代理对）不误判为超长", () => {
+        // 40 个 emoji（str.length === 80）：按 code unit 判会误截断
+        const emoji = "🙂".repeat(40);
+        expect(replaceOptionRefs("〔opt:A〕", [emoji])).toBe(`「${emoji}」`);
+        const emoji41 = "🙂".repeat(41);
+        expect(replaceOptionRefs("〔opt:A〕", [emoji41])).toBe(`「${"🙂".repeat(30)}…」`);
+    });
+
+    it("题干与解析同一形态（两处共用同一条替换链）", () => {
+        const d: DraftUnit = {
+            material: false,
+            attrs: { type: "single" },
+            parts: [
+                { name: "stem", text: "原文说 〔opt:A〕，所以选（ ）" },
+                ...LONG_OPTS.map((o) => ({ name: "option-0", text: o })),
+                { name: "answer", text: "A" },
+                { name: "solution", text: "〔opt:A〕正确。" },
+            ],
+        };
+        const out = replaceDraftOptionRefs(d);
+        expect(out.parts[0].text).toBe(`原文说 「${LONG_OPTS[0].slice(0, 30)}…」，所以选（ ）`);
+        expect(solOf(out)).toBe(`「${LONG_OPTS[0].slice(0, 30)}…」正确。`);
+    });
+});
+
+/**
+ * 截断形态 × 展示层洗牌的**回归锁**（Issue #148 复核，自验缺陷）。
+ *
+ * 缺陷实录：追加评论把「字母提示」列为备选形态，首版实现照做——解析里写
+ * 「…（A）」。但卡内的选项是**洗过序**的（`CardDisplayShuffle` 只重映射
+ * `answer` 字母，不改解析文本），于是同一道题里：
+ *   - 「正确答案」那一行按洗后的 `answer` 字母给选项加色 → 指 A 项文本；
+ *   - 解析里的「（A）」还按**转换时**的序 → 指另一个选项。
+ * 5 个会话 5 次失配（每次都换排列 ⇒ 每次都错到别处），是真机可见的错误指代。
+ *
+ * 锁法：用**真实洗牌函数**。截断形态不含字母 ⇒ 洗牌前后解析逐字不变，
+ * 不变量「解析不指代任何位置」恒成立。
+ */
+describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", () => {
+    const LONG_OPTS = [
+        "A proposal to establish a new framework for international cooperation",
+        "The author argues that technology has reshaped the way we communicate",
+        "Governments should prioritize environmental protection over growth",
+        "Individuals are responsible for their own digital literacy",
+    ];
+
+    const [d0] = replaceOptionRefsMap([
+        {
+            material: false,
+            attrs: { type: "single" },
+            parts: [
+                { name: "stem", text: "题干" },
+                ...LONG_OPTS.map((o) => ({ name: "option-0", text: o })),
+                { name: "answer", text: "A" },
+                { name: "solution", text: "正确答案：〔opt:A〕。" },
+            ],
+        },
+    ]);
+
+    it("解析里的截断形态**不含任何字母**（洗牌无从失配的前提）", () => {
+        expect(solOf(d0)).toBe(`正确答案：「${LONG_OPTS[0].slice(0, 30)}…」。`);
+        expect(solOf(d0)).not.toMatch(/[（(][A-H][)）]/);
+    });
+
+    it("换会话洗牌：解析逐字不变，且答案字母仍指向同一选项文本", () => {
+        const base = {
+            id: "q1",
+            type: "single",
+            optionMd: LONG_OPTS,
+            answer: "A",
+            solutionMd: solOf(d0),
+        } as WenguQuestion;
+        const cjk = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const wantText = LONG_OPTS[0]; // 转换期正确项的文本（洗多少次都不该变）
+        const orders = new Set<string>();
+        for (const scope of ["s1", "s2", "s3", "s4", "s5"]) {
+            const x = shuffleListForDisplay([base], { scope })[0]!;
+            // ① 解析文本原样（无位置引用可失配）
+            expect(x.solutionMd).toBe(solOf(d0));
+            // ② 答案字母洗后仍指向原正确项的文本（判分/描色口径）
+            expect(x.optionMd![cjk.indexOf((x.answer ?? "").toUpperCase())]).toBe(wantText);
+            orders.add((x.optionMd ?? []).join("|"));
+        }
+        expect(orders.size).toBeGreaterThan(1); // 确实换了序（消剧透仍成立）
     });
 });

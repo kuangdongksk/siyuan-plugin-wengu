@@ -77,11 +77,22 @@ export interface IncrementOutcome {
     /** 零产物块数（纯标题块 + AI 判定无可转内容如例题/引言——这类块
      *  不入库即无指纹，每次重导都会重算为「新增」，终态里点明数量）。 */
     empty: number;
+    /** `group=prev` 悬空降级为独立题的题数（Issue #148 同款兜底：SetWriter
+     *  不写坏 group、读侧不悬空，但共享原文确实缺了——终态里点明）。 */
+    danglingGroups: number;
 }
 
 /** 执行增量：删旧 → 标记 → 逐块生成入库（串行；AI 走独立会话）。 */
 export async function convertIncremental(run: IncrementRun): Promise<IncrementOutcome> {
-    const out: IncrementOutcome = { aborted: false, added: 0, deleted: 0, staled: 0, knowLinked: 0, empty: 0 };
+    const out: IncrementOutcome = {
+        aborted: false,
+        added: 0,
+        deleted: 0,
+        staled: 0,
+        knowLinked: 0,
+        empty: 0,
+        danglingGroups: 0,
+    };
     if (run.signal?.aborted) {
         out.aborted = true;
         return out;
@@ -177,6 +188,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
             drafts.map((d) => ({ draft: d, srcKey: chunk.key, srcHash: chunk.hash }))
         );
         out.added += res.questions.length;
+        out.danglingGroups += res.danglingGroup; // 悬空 group=prev 降级计数（Issue #148）
         await run.bank.flush(); // 逐块落盘（中止自愈建立在已入库上）
     }
     run.onProgress?.({ done: run.chunks.length, total: run.chunks.length, count: out.added });
