@@ -100,7 +100,13 @@
         width: 100%;
     }
 
-    .wengu-word .wengu-word-entry {
+    /* ⚠️ `wengu-word-entry` 随 `class=` 传给 <Button> 子组件 ⇒ **拿不到本组件的
+       scoped hash**（Svelte 只重写模板里的静态类名），subject 段必须 :global()
+       包壳；否则整条静默失效——三张入口卡会退回裸 .b3-button 外观。
+       这正是 design-spec §13.2.2 第 1 条「class= 传给子组件」的形态，
+       而 §13.2.2 的 css_unused_selector 安全网在此**失明**（`.wengu-word-entry-muted`
+       兜底 div 是自有元素、带 hash，让选择器“看起来”有人用）——故另加断言兜底。 */
+    .wengu-word :global(.wengu-word-entry) {
         position: relative;
         display: flex;
         align-items: center;
@@ -217,18 +223,5 @@
         gap: 14px;
         padding: 18px;
         margin: auto 0;
-    }
-
-    .wengu-word .wengu-word-askreview .wengu-word-zh {
-        font-size: 13.5px;
-        line-height: 1.7;
-        color: var(--b3-theme-on-surface);
-    }
-
-    .wengu-word .wengu-word-askreview .wengu-word-actions {
-        width: 100%;
-        flex-direction: column;
-        gap: 8px;
-        margin-top: 2px;
     }
 </style>

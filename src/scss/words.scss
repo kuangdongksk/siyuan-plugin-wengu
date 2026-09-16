@@ -294,6 +294,23 @@
   border-color: var(--b3-theme-error);
 }
 
+/* 完成页动作行（稿⑦）：整宽竖排、主 CTA 在上。
+   `.wengu-word-actions` / `.b3-button` 是跨组件类（QuizCard / HomeScreen /
+   DoneScreen 共用）⇒ 按 design-spec §13.1② 留共享片（登记见同文档 §13.3）；
+   组件内只保留 `.wengu-word-done` 独占样式。 */
+.wengu-word .wengu-word-done .wengu-word-actions {
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  background: none;
+}
+
+.wengu-word .wengu-word-done .wengu-word-actions .b3-button {
+  width: 100%;
+  min-height: 36px;
+}
+
 /* ── 不背单词式两段流：选项/中文题面/反馈 ── */
 
 /* 看中文回想：中文大字题面 */

@@ -180,15 +180,67 @@ describe("Issue #153 · 双端界面美化规格", () => {
         expect(speaker).toMatch(/width: 96px/);
     });
 
-    it("移动端零 media query + 全部规则挂 .wengu-mobile 后代（无标记即不生效）", () => {
+    it("移动端零 media query + 全部规则挂 body.wengu-mobile 后代（无标记即不生效）", () => {
         expect(mobile).not.toMatch(/@media/);
-        const selectors = deGlobal(mobile)
+        // ⚠️ 前缀必须是 `body.wengu-mobile`（不只是 `.wengu-mobile`）：组件 <style>
+        //    走运行时注入、排在 dist/index.css 之后，同特异性下后者胜——裸标记类
+        //    会被组件内的桌面规则反压（#153 实测：移动端字号/行高整片失效）。
+        //    body 元素段把移动片抬到 0,4,1 起，才稳压组件样式。
+        expect(mobile).not.toContain(":global("); // Svelte 专有语法，全局片里原样输出即永不命中
+        const selectors = mobile
             .replace(/\/\*[\s\S]*?\*\//g, "")
             .match(/[^{}]+\{/g)!
             .map((r) => r.slice(0, -1).trim())
-            .filter((r) => r.startsWith(".") || r.startsWith(":"));
+            .filter((r) => r.startsWith("body") || r.startsWith(".") || r.startsWith(":"));
         expect(selectors.length).toBeGreaterThan(20);
-        expect(selectors.filter((s) => !s.includes(".wengu-mobile"))).toEqual([]);
+        expect(selectors.filter((s) => !s.startsWith("body.wengu-mobile"))).toEqual([]);
+    });
+
+    it("scoped 段不得落在「class= 传给子组件」的类名上（否则整条静默失效）", () => {
+        // ⚠️ #153 实测踩中的盲区：Svelte scoped 只给**模板里的静态类名**加 hash，
+        //    `<Button class="wengu-word-entry">` 的类名由子组件渲染 ⇒ 拿不到 hash，
+        //    `.wengu-word.svelte-x .wengu-word-entry:where(.svelte-x)` 永不命中。
+        //    更隐蔽的是 **css_unused_selector 在此失明**：同一类名若有自有元素用到
+        //    （如 `.wengu-word-entry-muted` 兜底 div 也挂 `wengu-word-entry`），
+        //    选择器就“看起来”有人用、零预警。故这里直接按**类名归属**判：
+        //    凡是 `class:` 交给子组件的类，其 subject 段必须 :global() 包壳。
+        for (const k of ["components/HomeScreen.svelte", "components/DoneScreen.svelte"]) {
+            const cli = compile(srcOf(k), { css: "injected", dev: false, generate: "client", filename: k });
+            const js = cli.js.code;
+            const hash = /hash: '(svelte-[\w]+)'/.exec(js)?.[1];
+            expect(hash).toBeTruthy();
+            const passedToChild = new Set<string>();
+            for (const m of js.matchAll(/\bclass: '([^']*)'/g))
+                for (const c of m[1].split(/\s+/)) if (c) passedToChild.add(c);
+            if (passedToChild.size === 0) continue; // 本组件没有 class= 传子组件的用法（DoneScreen）
+            const ext = compile(srcOf(k), { css: "external", dev: false, generate: "client", filename: k });
+            for (const rule of ext.css!.code.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{/g)) {
+                for (const sel of rule[1].split(",").map((x) => x.trim())) {
+                    for (const part of sel.split(/\s+|>/).filter(Boolean)) {
+                        if (!part.includes(`:where(.${hash})`)) continue; // :global() / 元素段，安全
+                        for (const c of [...part.matchAll(/\.([\w-]+)/g)].map((x) => x[1])) {
+                            if (c.startsWith("svelte-")) continue;
+                            expect(
+                                passedToChild.has(c),
+                                `${k} 的 scoped 段 .${c} 落在子组件渲染的元素上 ⇒ 永不命中，请 :global() 包壳 :: ${sel}`
+                            ).toBe(false);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    it("跨组件类不许在组件 <style> 里定义（否则运行时注入会反压移动片）", () => {
+        // design-spec §13.1②：`.wengu-word-actions` / `.b3-button` 被 ≥2 组件引用
+        // ⇒ 留共享片（components `<style>` 里的同族声明带 scoped hash、特异性更高，
+        //    且注入更晚，会把 words-mobile.scss 的移动规格整片压掉）。
+        const CROSS = ["wengu-word-actions", "b3-button", "wengu-word-zh", "wengu-word-card"];
+        for (const k of ["components/HomeScreen.svelte", "components/DoneScreen.svelte"]) {
+            // 先剥注释：说明文字里写类名（如「退回裸 .b3-button 外观」）不算定义。
+            const body = styleBody(srcOf(k)).replace(/\/\*[\s\S]*?\*\//g, "");
+            for (const c of CROSS) expect(body, `${k} 不应定义跨组件类 .${c}`).not.toMatch(new RegExp(`\\.${c}\\b`));
+        }
     });
 
     it("查词结果行：状态标签四态（未学灰 / 复习中主色 / 熟绿 / 太简单删除线）", () => {

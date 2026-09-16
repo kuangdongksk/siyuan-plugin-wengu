@@ -1,48 +1,25 @@
 /* 单词首页/统计/查词（words.scss 拆分）：入口卡、统计页、星标角标、
    「认成了」自述行、查词结果行。复习卡片流在 words.scss。 */
-/* 每日首页入口卡 */
-.wengu-word-entries {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: auto 0;
-  max-width: 420px;
+/* 每日首页入口卡族（.wengu-word-entries / -entry / -entry-title / -count /
+   -muted / -ico / -num / -main）已于 #153 整体迁入 `HomeScreen.svelte`
+   的 <style>（design-spec §13.1：单组件独占、类名不出现在 TS 拼串里），
+   本片不再重复定义——旧条目会被组件样式覆盖，留着只会误导后来者。 */
+
+/* 先复习确认层（稿②）：单卡居中，正文说明 + 主色实心 CTA。
+   `.wengu-word-zh` / `.wengu-word-actions` 均为跨组件类（QuizCard /
+   LookupScreen / DoneScreen 共用）⇒ 按 design-spec §13.1② 留共享片；
+   `.wengu-word-askreview` 容器本身由 HomeScreen 独占，走组件 <style>。 */
+.wengu-word .wengu-word-askreview .wengu-word-zh {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-word .wengu-word-askreview .wengu-word-actions {
   width: 100%;
-}
-
-.wengu-word-entry {
-  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 18px 20px;
-  border: 1px solid var(--b3-border-color);
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-surface);
-  cursor: pointer;
-  height: auto;
-  width: 100%;
-  text-align: left;
-}
-
-.wengu-word-entry:hover {
-  border-color: var(--b3-theme-primary);
-}
-
-.wengu-word-entry-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--b3-theme-on-background);
-}
-
-.wengu-word-entry-count {
-  font-size: 13px;
-  color: var(--b3-theme-on-surface-light);
-}
-
-.wengu-word-entry-muted {
-  cursor: default;
-  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 /* 统计页（稿⑦）：六格「大数字 + 小标签」网格 + 未来 7 天柱状图 */
@@ -135,9 +112,6 @@
 
 .wengu-stats-bar-count {
   font-variant-numeric: tabular-nums;
-}
-
-.wengu-stats-bar-count {
   font-size: 10px;
   color: var(--b3-theme-on-surface-light);
 }
@@ -196,10 +170,6 @@
   font-size: 12px;
   color: var(--b3-card-warning-color);
   margin-top: 4px;
-}
-
-.wengu-word-entry-star .wengu-word-entry-title {
-  color: var(--b3-theme-primary);
 }
 
 /* 查词结果行（稿⑧）：词条 + 状态标签两端对齐的实底行卡 */

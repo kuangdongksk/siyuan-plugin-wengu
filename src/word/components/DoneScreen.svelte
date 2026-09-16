@@ -57,18 +57,4 @@
         line-height: 1.6;
         color: var(--b3-theme-on-surface-light);
     }
-
-    /* 完成页动作行（稿⑦）：整宽竖排，主 CTA 在上 */
-    .wengu-word .wengu-word-done .wengu-word-actions {
-        width: 100%;
-        flex-direction: column;
-        gap: 8px;
-        margin-top: 6px;
-        background: none;
-    }
-
-    .wengu-word .wengu-word-done .wengu-word-actions :global(.b3-button) {
-        width: 100%;
-        min-height: 36px;
-    }
 </style>
