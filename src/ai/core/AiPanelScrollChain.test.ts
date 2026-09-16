@@ -37,6 +37,35 @@ function bodyOf(css: string, sel: string): string {
     return css.slice(open + 1, close);
 }
 
+/** 从 `grid-template-areas` 的值里数行数（每个引号串 = 一行；`"a b" "c d"` → 2）。 */
+function areaRowCount(v: string): number {
+    return (v.match(/"[^"]*"/g) ?? []).length;
+}
+
+/** 从 `grid-template-rows` 的值里数轨道数（`auto minmax(0, 1fr)` → 2）。
+    按括号配平切空白分隔的顶层词——`minmax(0, 1fr)` 内那个空格不算分隔。 */
+function trackCount(v: string): number {
+    let depth = 0;
+    let n = 0;
+    let inWord = false;
+    for (const ch of v.trim()) {
+        if (ch === "(") depth++;
+        else if (ch === ")") depth--;
+        if (depth === 0 && /\s/.test(ch)) inWord = false;
+        else if (!inWord) {
+            inWord = true;
+            n++;
+        }
+    }
+    return n;
+}
+
+/** 取某选择器规则体里的某条声明值（找不到返回 undefined）。 */
+function declOf(body: string, prop: string): string | undefined {
+    const m = body.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:([^;]+);`));
+    return m?.[1].trim();
+}
+
 let panel = "";
 let tree = "";
 let rail = "";
@@ -114,5 +143,34 @@ describe("§12 高度链：主区 → 面板页根 → 卡 → 卡内两列", ()
         const narrowCol = bodyOf(seg, ".wengu-aipanel-tree {");
         expect(narrowCol).toContain("border-bottom: 1px solid var(--b3-border-color)");
         expect(narrowCol).not.toContain("max-height: 40vh");
+    });
+
+    it("折单列的三行 areas 必须有等量行轨道（少一行 ⇒ 隐式 auto 把树列挤成 0）", () => {
+        // ⚠️ 这是 20260916 复查实测到的真回归点：基础片只声明 2 条行轨道
+        // （宽窗口的「横幅行 + 两栏行」），折单列换成 3 行 areas 后若不同步补
+        // 第 3 条轨道，第 3 行会退化成**隐式 auto** —— 详情行按内容长到卡高、
+        // 树行被挤成 0（900×800 实测树列仅剩 21px 内衬、可见行数 0，等于把树列
+        // 与它那扇滚动窗一起撤掉）。故这里断言两个作用域各自「areas 行数 =
+        // 行轨道数」，并把折单列那三行的分配钉死。
+        const base = bodyOf(panel, ".wengu-aipanel {");
+        const baseAreas = declOf(base, "grid-template-areas");
+        const baseRows = declOf(base, "grid-template-rows");
+        expect(baseAreas, "基础片缺 grid-template-areas").toBeTruthy();
+        expect(baseRows, "基础片缺 grid-template-rows").toBeTruthy();
+        expect(areaRowCount(baseAreas!)).toBe(2);
+        expect(trackCount(baseRows!)).toBe(areaRowCount(baseAreas!));
+
+        const seg = tree.slice(tree.indexOf("@media (max-width: 1000px)"));
+        const folded = bodyOf(seg, ".wengu-aipanel {");
+        const foldedAreas = declOf(folded, "grid-template-areas");
+        const foldedRows = declOf(folded, "grid-template-rows");
+        expect(foldedAreas, "折单列缺 grid-template-areas").toBeTruthy();
+        expect(areaRowCount(foldedAreas!)).toBe(3);
+        // 行轨道必须与 areas 等量（否则第 3 行是隐式 auto）
+        expect(foldedRows, "折单列没写 grid-template-rows（第 3 行会退化成隐式 auto）").toBeTruthy();
+        expect(trackCount(foldedRows!)).toBe(3);
+        // 分配口径：横幅按内容，树/详情两行各吃剩余高的一半（`auto auto 1fr`
+        // 会让树行按内容长满再把详情压成 0，故不许）
+        expect(foldedRows!.replace(/\s+/g, " ")).toBe("auto minmax(0, 1fr) minmax(0, 1fr)");
     });
 });

@@ -181,10 +181,21 @@
 }
 
 /* ≤1000px 折单列（稿的 1000px 断点）：横幅/树/详情自上而下，树的分隔线
-   从右边线换到底边线。**保持原有的内滚窗档**（Issue #146 定稿）：
-   三行都按内容（auto）——树、详情列与卡壳同高，各自列内滚（树列的滚动窗
-   在 `.wengu-aipanel-tree` 上、详情列的在 `.wengu-aipanel-pane` 上），折
-   单列后仍是「**卡内**滚动」，宿主主区不出页面级滚动条。 */
+   从右边线换到底边线。**保持原有的内滚窗档**（Issue #146 定稿）：横幅行按
+   内容，树与详情两行**各吃剩余高的一半**、各自列内滚（树列的滚动窗在
+   `.wengu-aipanel-tree` 上、详情列的在 `.wengu-aipanel-pane` 上），折单列后
+   仍是「**卡内**滚动」，宿主主区不出页面级滚动条。
+
+   ⚠️ **行高必须显式写满三行**（`auto minmax(0,1fr) minmax(0,1fr)`）：基础片的
+   `grid-template-rows` 只有**两个**值（对应宽窗口的「横幅行 + 两栏行」），本
+   @media 换成了**三行** areas —— 少写的第三行会退化成**隐式 `auto` 行**，于是
+   详情行按内容一路长到卡高、树行被挤成 0（实测 900×800 下树列只剩 21px 内衬、
+   可见行数 0），等于把树列与它那扇滚动窗一起撤掉。
+   ⚠️ 也**不能**用 `auto auto minmax(0,1fr)`（#96 当年那版）：树行是 auto 又会
+   按内容长满，详情行反被压成 0 —— 这对难兄难弟只有「两行各 `minmax(0,1fr)`」
+   在「长树 / 长详情 / 两边都长 / 一边为空」四种形态下都保住两扇窗（20260916
+   无头 Chromium 逐形态实测）。同理**不给树列 40vh 上限**（#146 否决项）。
+   锁在 `src/ai/core/AiPanelScrollChain.test.ts`。 */
 @media (max-width: 1000px) {
   .wengu-aipanel {
     grid-template-columns: 1fr;
@@ -192,6 +203,7 @@
       "banner"
       "tree"
       "detail";
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .wengu-aipanel-tree {
