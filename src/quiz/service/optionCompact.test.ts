@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateOptWidth } from "../../types";
+import { estimateOptWidth, optionDisplayMd } from "../../types";
 import { mdFragmentHtml, optionInline, optionRowHtml, unwrapSingleBlock, unwrapSingleListItem } from "./ProtyleHost";
 
 /**
@@ -131,5 +131,31 @@ describe("unwrapSingleListItem：单项列表剥壳", () => {
         const pOnly = '<div class="p">甲</div>';
         expect(unwrapSingleListItem(pOnly)).toBe(pOnly);
         expect(unwrapSingleListItem(null)).toBeNull();
+    });
+});
+
+/**
+ * 移动端与桌面同序剥标签（Issue #163）：`QuestionBody.svelte` 原先直调
+ * `optionInline(md)`，少剥一层 `optionDisplayMd` ⇒ `- A. A. ①③` 的列表
+ * 标记与两层标签全渲进正文，叠加按钮自画的字母键后真机出现
+ * `C D D xxxx`。本组锁「两端同一 md 的正文逐字相等」，缺一层即红。
+ */
+describe("optionRowHtml 与移动端渲染入口同正文（Issue #163）", () => {
+    /** 移动端 components/QuestionBody.svelte 的 options 派生（同一表达式）。 */
+    const mobileOption = (md: string) => optionInline(optionDisplayMd(md));
+
+    it("双标签选项：桌面正文与移动端正文一致，且不含列表标记/标签", () => {
+        for (const md of ["- A. A. ①③", "- B. B. ②③", "A. A. 甲", "(D) 丁"]) {
+            const desktop = optionRowHtml(0, md);
+            const mob = mobileOption(md).body;
+            expect(desktop).toContain(mob);
+            expect(mob).not.toContain("<ul");
+            expect(mob).not.toMatch(/[A-D]\s*[.、]/);
+        }
+    });
+
+    it("移动端少剥一层即为旧 bug 形态（反证：直调 optionInline 会残留标签）", () => {
+        expect(optionInline("- A. A. ①③").body).toContain("A. ①③");
+        expect(mobileOption("- A. A. ①③").body).toBe(optionInline(optionDisplayMd("- A. A. ①③")).body);
     });
 });
