@@ -299,10 +299,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.renderList();
     };
 
-    /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。
-     *  空轮闸在收卷唯一出口 `finishRoundGuarded` 里（Issue #147）——本入口与
-     *  `finishNow` 共用同一份判定，**别再各写一份**。报告已出态再点=总结视图
-     *  开关（`focusFinishedRound`；原先是 detach+重挂同一份报告，视觉零变化）。 */
+    /** 「结束本次做题」：批改已答部分并出报告（下次可从「继续上次」接着做）。
+     *  收卷唯一出口 `finishRoundGuarded`（#147，与 `finishNow` 共用，**别再
+     *  各写一份**）；空轮由它**静默关轮**不拦截（#155）。 */
     readonly endRound = (): void => {
         if (this.session) finishRoundGuarded(roundFinishCtx(this));
         else if (this.finished) focusFinishedRound(roundFinishCtx(this));
@@ -440,6 +439,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly roundIndex = (): number => roundIndexFor(this.rounds, this.session); // #135 §3.5 胶囊
     readonly finishedSession = (): WenguSession | undefined => this.finished;
+    readonly discardSessionNow = (): void => void (this.session = undefined); // #155 空轮关轮
     readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
     /** 手动收卷统一揭示（after 模式）：等静态分片全部挂载后按表揭示——
      *  在途分片未挂时直接揭示会漏卡，且卡片初始态按未收口渲染、恢复

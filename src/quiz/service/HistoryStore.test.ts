@@ -89,3 +89,49 @@ describe("pushSessionAnswer · upsert（Issue #12 B2 after 模式可改答案）
         expect([s.answered, s.correct]).toEqual([1, 1]);
     });
 });
+
+describe("removeSession（Issue #155 块 A：空轮关轮抹掉已落盘的那条）", () => {
+    it("删掉指定轮并落盘，其余轮不受影响", async () => {
+        const saved: string[][] = [];
+        const store = new HistoryStore(
+            async () => undefined,
+            async (h: { sessions: WenguSession[] }) => {
+                saved.push(h.sessions.map((x) => x.id));
+            }
+        );
+        await store.upsert(session("s1"));
+        await store.upsert(session("s2"));
+        await store.removeSession("s1");
+        expect((await store.docSessions("doc1")).map((s) => s.id)).toEqual(["s2"]);
+        expect(saved[saved.length - 1]).toEqual(["s2"]);
+    });
+
+    it("同 id 不存在时空操作（幂等，且不触发落盘）", async () => {
+        let saves = 0;
+        const store = new HistoryStore(
+            async () => undefined,
+            async () => {
+                saves++;
+            }
+        );
+        await store.upsert(session("s1"));
+        const before = saves;
+        await store.removeSession("nope");
+        expect(saves).toBe(before);
+        expect((await store.docSessions("doc1")).map((s) => s.id)).toEqual(["s1"]);
+    });
+
+    it("开轮即落盘的 0 作答记录，空轮关轮后被彻底抹掉（验收：history 里无该轮）", async () => {
+        // 复刻真链：startRound 一开轮就 upsert（未完成轮可继续的依托）——
+        // 空轮关轮必须把这条删掉，否则统计总览轮次数各多一轮
+        const store = new HistoryStore(
+            async () => undefined,
+            async () => undefined
+        );
+        const empty = session("empty-round");
+        await store.upsert(empty);
+        expect(await store.docSessions("doc1")).toHaveLength(1);
+        await store.removeSession(empty.id);
+        expect(await store.docSessions("doc1")).toEqual([]);
+    });
+});

@@ -175,6 +175,18 @@ export class HistoryStore {
         return [...h.sessions].sort((a, b) => a.startedAt - b.startedAt);
     }
 
+    /** 抹掉某一轮（空轮关轮用，Issue #155 块 A）：开轮（`StartPanel.startRound`）
+     *  即 upsert 一条 0 作答记录，空轮关轮必须把它删掉，否则「这轮没发生过」
+     *  不成立——统计总览的「轮次」与趋势图会把每次「打开就关」都算作一轮。
+     *  同 id 不存在时空操作（幂等）。 */
+    async removeSession(id: string): Promise<void> {
+        const h = await this.all();
+        const i = h.sessions.findIndex((s) => s.id === id);
+        if (i < 0) return;
+        h.sessions.splice(i, 1);
+        await this.enqueueSave(h);
+    }
+
     /** 删除一组文档的全部轮次（孤儿习题文档清理时联动调用）。 */
     async removeDocs(docIds: string[]): Promise<void> {
         if (docIds.length === 0) return;

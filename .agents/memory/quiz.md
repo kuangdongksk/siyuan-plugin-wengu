@@ -239,8 +239,16 @@ flex-direction:column}`）：`.wengu-main` 原是块级内滚窗（`base.scss`
       与 `render/RoundReportDom.test.ts`（极简 DOM 桩跑真行为：`scrollTop`
       判据、脉冲自摘、开关两态）。DOM 桩只实现被调到的 API——`innerHTML`/
       挂载/布局仍归 `RoundReport.view.test.ts`，别在桩里越界造断言。
-      `RoundReport.finishRoundGuarded` —— 空轮（`answered <= 0`）通知
-      `endRoundEmpty` + **不收卷**，非空轮进 `manualFinishRound`。
+      `RoundReport.finishRoundGuarded` —— 空轮（`answered <= 0`）**静默关轮**
+      （#155 块 A，原 #147 的「通知 `endRoundEmpty` + 不收卷」已被用户走查
+      推翻：打开题卷不想做就该能直接关掉），非空轮进 `manualFinishRound`。
+      关轮执行体 `closeEmptyRound` 五件：`history.removeSession` 抹掉**开轮时
+      已 upsert 的那条 0 作答记录**（只清内存 ⇒ 统计总览轮次数虚增）→
+      `discardSession`（清 session、不进 finished）→ `stopRound` →
+      退总结态/卸报告 → `rerenderView` 回开刷面板。⚠️ 末尾那次重画不能省：
+      `stopRound` 只翻 `started`、题卷壳是整壳重建的，不重建用户看到的还是
+      「一题没做 + 题卡锁死」的原状。i18n `endRoundEmpty` **键保留**——桌面
+      已无引用，但移动端 `MobileDrill.requestEnd` 仍取它（删了弹裸键名）。
       ⚠️ **别在入口层再写一份 `answered <= 0`**：原实现就是这么漏的——
       `finishNow` 直接 `manualFinishRound`，开倒计时的用户时间一到点「结束
       本轮」，一题没答也收卷出报告（静默、无报错）。新增收卷入口一律调守卫，

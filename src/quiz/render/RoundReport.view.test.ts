@@ -10,6 +10,7 @@ import SIDE_MOUNT from "../flow/SideMount.ts?raw";
  *  值，不钉分片再拆的自由）。 */
 const REPORT_SCSS = sass.compile("src/scss/report.scss").css.replace(/\/\*[\s\S]*?\*\//g, "");
 import SVELTE_SRC from "../components/RoundReportApp.svelte?raw";
+import TIME_BARS from "./TimeBars.ts?raw";
 import ZH from "../../i18n/zh-CN.json";
 import EN from "../../i18n/en.json";
 
@@ -96,9 +97,9 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
         expect(ROUND_REPORT).toMatch(
             /export function focusFinishedRound[\s\S]*?isSummaryView\(ctx\.el\)\) backToQuiz\(ctx\);[\s\S]*?enterSummaryView\(ctx\.el\)[\s\S]*?scrollReportTop\(ctx\.el\)[\s\S]*?pulseReport\(ctx\.el\)/
         );
-        // 三处通知：backToQuiz（收起支，与报告内钮共用）+ 本函数进态支 +
-        // showRoundReportNow 收卷链尾——收起支走 backToQuiz 后不再各写一份
-        expect(count(ROUND_REPORT, "onSummaryToggle?.()")).toBe(3);
+        // 四处通知：backToQuiz（收起支，与报告内钮共用）+ 本函数进态支 +
+        // showRoundReportNow 收卷链尾 + closeEmptyRound 空轮关轮（#155）
+        expect(count(ROUND_REPORT, "onSummaryToggle?.()")).toBe(4);
         // 报告节点已不在（整壳重建）⇒ 先补挂再切态，否则进的是空宿主
         // （题卷被 CSS 收起 + 报告又不在 ⇒ 整片空白）
         expect(ROUND_REPORT).toMatch(
@@ -135,8 +136,9 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
         // ⚠️ 报告内那个钮不许直调 exitSummaryView：少一次通知，头部文案就
         // 留在「返回题卷」不改（总结已收起、钮还在喊「返回题卷」＝文案说谎）
         expect(ROUND_REPORT).not.toMatch(/onBackToQuiz:\s*\(\)\s*=>\s*exitSummaryView/);
-        // exitSummaryView 只被 backToQuiz 调（定义 1 + 调用 1）
-        expect(count(ROUND_REPORT, "exitSummaryView(")).toBe(2);
+        // exitSummaryView 的调用点：backToQuiz（回题卷）+ closeEmptyRound
+        // （#155 空轮关轮收态）——定义 1 + 调用 2
+        expect(count(ROUND_REPORT, "exitSummaryView(")).toBe(3);
     });
 
     it("头部按钮随总结态换语义（返回题卷 / 查看总结 / 结束本次）", () => {
@@ -182,6 +184,80 @@ describe("总结面板高度自适应（Issue #147 追加 3）· 编译产物", 
             expect(Object.keys(ZH as Record<string, string>)).toContain(key);
             expect(Object.keys(EN as Record<string, string>)).toContain(key);
         }
+    });
+});
+
+describe("用时图分组聚合（Issue #155 块 B）· 源级", () => {
+    it("组装走纯函数 buildTimeBars，且两档形状一致（组件不按档分叉取明细）", () => {
+        expect(SVELTE_SRC).toMatch(/buildTimeBars\(barInputs, \{/);
+        // 逐题档也带 items（单元素）——两档同形状，组件只吃 items
+        expect(SVELTE_SRC).toMatch(/<div class="wengu-bar {b\.cls}" style="height:\{b\.h\}%"><\/div>/);
+        // 组件侧不再自己算 maxSec / 自己拼 4% 下限（口径全在纯函数里）
+        expect(SVELTE_SRC).not.toContain("maxSec");
+        // 用时图那条链里不许再自己压 4% 下限（历史得分图的 ratePct 不属本单）
+        expect(SVELTE_SRC).not.toMatch(/timeBars[\s\S]{0,400}Math\.max\(4,/);
+    });
+
+    it("组柱是可聚焦按钮（键盘可达）+ aria-expanded；再点收起", () => {
+        expect(SVELTE_SRC).toMatch(
+            /<button[\s\S]{0,200}data-bar-group[\s\S]{0,200}aria-expanded=\{expanded\.has\(i\)\}/
+        );
+        // 同一个 onclick 既展开又收起（toggleGroup），Enter/Space 是 button 原生行为
+        expect(SVELTE_SRC).toMatch(
+            /function toggleGroup\(i: number\)[\s\S]*?if \(next\.has\(i\)\) next\.delete\(i\);\s*else next\.add\(i\);/
+        );
+        expect(SVELTE_SRC).toMatch(/onclick=\{\(\) => toggleGroup\(i\)\}/);
+    });
+
+    it("组详情渲染在条形图正下方，逐题明细复用既有 title", () => {
+        expect(SVELTE_SRC).toMatch(/\{#if expanded\.size > 0\}/);
+        expect(SVELTE_SRC).toMatch(/data-bar-detail/);
+        expect(SVELTE_SRC).toMatch(/class="wengu-bar-detail-dot \{it\.cls\}"/);
+        expect(SVELTE_SRC).toMatch(/\{it\.title\}/);
+    });
+
+    it("组柱语义（阈值/分组粒度/组色/组高度）全在纯函数里锁死", () => {
+        expect(TIME_BARS).toContain("export const BAR_AGG_MAX = 60");
+        expect(TIME_BARS).toMatch(/if \(len <= BAR_AGG_MAX\) return 1;/);
+        expect(TIME_BARS).toMatch(/return Math\.ceil\(len \/ BAR_AGG_MAX\);/);
+        expect(TIME_BARS).toMatch(/group\.every\(\(x\) => x\.unanswered\)\) return "wengu-bar-muted"/);
+        expect(TIME_BARS).toMatch(/group\.some\(\(x\) => !x\.unanswered && x\.wrong\)\) return "wengu-bar-wrong"/);
+        expect(TIME_BARS).toMatch(/group\.some\(\(x\) => !x\.unanswered && x\.partial\)\) return "wengu-bar-partial"/);
+        expect(TIME_BARS).toMatch(
+            /const sec = group\.reduce\(\(sum, x\) => sum \+ \(x\.unanswered \? 0 : x\.sec\), 0\)/
+        );
+        expect(TIME_BARS).toMatch(
+            /cols\.forEach\(\(c, i\) => \(c\.h = Math\.max\(MIN_H, Math\.round\(\(secOf\[i\] \/ max\) \* 100\)\)\)\)/
+        );
+    });
+
+    it("组 title 是新 i18n 键 reportGroupTime，两个语言文件都有（尾键）", () => {
+        expect(SVELTE_SRC).toMatch(/t\("reportGroupTime"\)/);
+        for (const key of ["reportGroupTime"]) {
+            expect(Object.keys(ZH as Record<string, string>)).toContain(key);
+            expect(Object.keys(EN as Record<string, string>)).toContain(key);
+        }
+        // 新键放文件尾（并行单 #154 撞尾时的 rebase 判据）
+        const tail = (o: Record<string, string>): string => Object.keys(o).slice(-1)[0];
+        expect(tail(ZH as Record<string, string>)).toBe("reportGroupTime");
+        expect(tail(EN as Record<string, string>)).toBe("reportGroupTime");
+    });
+
+    it("组柱/明细样式：TS 拼串触达的 .wengu-bar-* 留共享片，组件独占的明细块进 <style>", () => {
+        // 色类由 render/TimeBars.ts 拼串产生 ⇒ 不能搬进组件 <style>
+        for (const cls of ["wengu-bar-muted", "wengu-bar-right", "wengu-bar-wrong", "wengu-bar-partial"])
+            expect(REPORT_SCSS).toContain(`.${cls}`);
+        // 组柱按钮外观取消 UA 默认（柱与逐题档逐像素同形）
+        expect(REPORT_SCSS).toMatch(/\.wengu-bar-hit \{[\s\S]*?padding: 0;/);
+        expect(REPORT_SCSS).toMatch(/\.wengu-bar-hit \{[\s\S]*?background: none;/);
+        // 展开态强调
+        // ⚠️ sass 编译会去掉属性值两端的引号（[aria-expanded=true]）
+        expect(REPORT_SCSS).toMatch(/\.wengu-bar-hit\[aria-expanded=true\] \.wengu-bar \{/);
+        // 明细块是组件独占（零 TS 触达）⇒ 编译产物里必须有
+        const out = compile(SVELTE_SRC, { css: "external", dev: false, filename: "RoundReportApp.svelte" });
+        const css = out.css?.code ?? "";
+        expect(css).toContain("wengu-bar-detail-list");
+        expect(css).toContain("wengu-bar-detail-dot");
     });
 });
 
