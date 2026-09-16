@@ -102,7 +102,7 @@
     - **组件文案一律 `t()`**：题号帽/省略行/图例六处字面中文已清（英文环境
       原样显示中文）；新增 i18n 键 `numsCap` / `numsMore` / `numsLegend*`。
 
-- `index.ts` = QuizView 编排（546 行，压回基线；Issue #12 起记账镜像
+- `index.ts` = QuizView 编排（565 行；Issue #12 起记账镜像
   外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、
   右键弹窗动作外移 `service/DocActions.ts`）。**访问器表 + 编排职责
   外移的两难仍在**：再加功能先看有没有能外移的成块职责，别再净增。
@@ -162,8 +162,16 @@
   由 `applyOverride` 统一）。加任何新记账通道都要过这条口径。
 - **答满不等于收卷**（after 模式）：`checkAllDone` 在 after 下只调
   `host.onAllAnswered`（视图侧一次性浮层提示，`renderList` 重置去重标记），
-  **不 revealAll**。收卷唯一入口是头部「交卷并查看答案」
-  （`endRound` → `manualFinishRound`）。instant 模式照旧 `roundComplete`。
+  **不 revealAll**。收卷入口两个、**闸只有一份**（Issue #147）：
+  头部「交卷并查看答案」（`endRound`）与倒计时归零时间条「结束本轮」
+  （`finishNow` ← `TimerBinder.showTimeUpBar` 的 `onFinish`）都走
+  `RoundReport.finishRoundGuarded` —— 空轮（`answered <= 0`）通知
+  `endRoundEmpty` + **不收卷**，非空轮进 `manualFinishRound`。
+  ⚠️ **别在入口层再写一份 `answered <= 0`**：原实现就是这么漏的——
+  `finishNow` 直接 `manualFinishRound`，开倒计时的用户时间一到点「结束
+  本轮」，一题没答也收卷出报告（静默、无报错）。新增收卷入口一律调守卫，
+  唯一性由 `render/RoundReport.contract.test` 源码级锁死。
+  instant 模式照旧 `roundComplete`。
   steps/slots 完成仍靠 `checkAllDone` 凑「全部 graded」信号，别整个删掉。
   ⚠️ 连带口径：**「未完成轮」判据只看 `endedAt`**（`StartPanel` 两处
   `unfinished`）——原先还要求 `answered < 题数`，那条只在 instant 下成立，
@@ -617,5 +625,6 @@ answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不�
     - **顺带还债**：`quiz/index.ts` 的 `recordAnswer` 实现体整体外移进
       `service/AnswerMirror.recordAnswerFor`（宿主能力 `RecordAnswerHost`：
       `takeSec`/`elapsedSec`/`notifyAnswer`/`historyStore`/`bankStore`），
-      于是 index.ts 由 574 → 567 行，**豁免额度已同步收紧到 567**（只许减不许增）。
+      于是 index.ts 由 574 → 567 行，**豁免额度已同步收紧到 567**（只许减不许增）；
+      Issue #147 空轮闸收口把入口层两处判定合进守卫，再降至 **565**（额度同步收）。
       ⚠️ 记账链一条没删：会话 upsert → bank 镜像（首答/覆写分流）→ 学伴事件。

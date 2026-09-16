@@ -11,6 +11,7 @@ import type { WeakCause, WeakTopRow, WeaknessStore } from "../../bank/data/Weakn
 import { openWeakDrill } from "../../bank/ui/WeakDrill";
 import { roundAggByQid } from "../../bank/data/WeaknessStore";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
+import { notifyInfo } from "../../ui/Notify";
 import RoundReportApp from "../components/RoundReportApp.svelte";
 
 /**
@@ -180,6 +181,30 @@ async function settleWeakness(
     } catch (_) {
         // 归因失败不影响报告（计数已本地落）
     }
+}
+
+/** 空轮不收卷（收卷**唯一**判定，见 {@link finishRoundGuarded}）：已回答数。 */
+export function emptyRound(s: WenguSession | undefined): boolean {
+    return !!s && s.answered <= 0;
+}
+
+/** 收卷**唯一**出口（Issue #147）：任一路径收卷都过这道空轮闸——
+ *  头部「结束本次」与倒计时归零时间条「结束本轮」原是两个入口各写一份
+ *  判定，后者（`finishNow`）漏写 ⇒ 开倒计时的用户时间到点「结束本轮」，
+ *  一题没答也收卷出报告。
+ *
+ *  **不许绕过**：收卷动作只有 `endRound` / `finishNow` 两路，两路都调它；
+ *  新增收卷入口前先读这条（`RoundReport.contract.test` 锁死本函数是
+ *  全仓唯一定义点、且两路都走它）。
+ *
+ *  非空轮无副作用——「答满自动收卷」`roundComplete` 是另一条链（answered
+ *  必然 >0），故不并入本闸。 */
+export function finishRoundGuarded(ctx: RoundFinishCtx): void {
+    if (emptyRound(ctx.session)) {
+        notifyInfo({ key: "endRoundEmpty" });
+        return;
+    }
+    manualFinishRound(ctx);
 }
 
 /** 手动收卷（倒计时归零选「结束本轮」）：after 模式先揭示已答，再报告。 */

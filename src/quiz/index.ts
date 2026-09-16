@@ -33,7 +33,7 @@ import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
 import { loadPrefs, loadQuizState, prefsSnapshotOf, savePrefs } from "./service/QuizLoader";
 import { MatSplitPrefs } from "./flow/MaterialSplitter";
-import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
+import { finishRoundGuarded, lockAllCards, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
@@ -301,14 +301,12 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。
      *  空轮不收卷但给通知（原静默返回像「点了没反应」）；报告已出的
      *  残留按钮再点=重展报告（头部组件不随 started 重挂，收卷后按钮
-     *  仍在，原二次点击静默成死钮——20260901 走查实锤）。 */
+     *  仍在，原二次点击静默成死钮——20260901 走查实锤）。
+     *  空轮闸在收卷唯一出口 `finishRoundGuarded` 里（Issue #147）——本入口
+     *  与 `finishNow` 共用同一份判定，**别再各写一份**。 */
     readonly endRound = (): void => {
         if (this.session) {
-            if (this.session.answered <= 0) {
-                notifyInfo({ key: "endRoundEmpty" });
-                return;
-            }
-            manualFinishRound(roundFinishCtx(this));
+            finishRoundGuarded(roundFinishCtx(this));
             return;
         }
         if (this.finished) showRoundReportNow(roundFinishCtx(this));
@@ -442,7 +440,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly docTotalSecOf = (): number => this.docTotalSec;
     readonly syncSession = (elapsed: number): void => void (this.session && (this.session.elapsedSec = elapsed));
     readonly addDocTotal = (add: number) => (this.docTotalSec += add);
-    readonly finishNow = (): void => manualFinishRound(roundFinishCtx(this));
+    readonly finishNow = (): void => finishRoundGuarded(roundFinishCtx(this)); // 同收卷闸（#147）
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly roundIndex = (): number => roundIndexFor(this.rounds, this.session); // #135 §3.5 胶囊
     readonly finishedSession = (): WenguSession | undefined => this.finished;
