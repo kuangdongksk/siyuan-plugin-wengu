@@ -6,7 +6,10 @@ import {
     buildReactPrompt,
     clampText,
     parseExprReply,
+    parseExprReply as _parseForLock,
     plainOf,
+    REACT_LINE_MAX,
+    REACT_LINE_WANT,
     type ChatTurn,
     type SessionProfile,
     type UserProfile,
@@ -74,10 +77,27 @@ describe("parseExprReply", () => {
         expect(parseExprReply("")).toBeUndefined();
     });
 
-    it("台词超长被截断", () => {
+    it("台词超长被截断（Issue #143 P3-7：截断按 REACT_LINE_MAX）", () => {
         const long = "很".repeat(60);
         const r = parseExprReply(`EXPRESSION: happy\nLINE: ${long}`);
-        expect(r?.line.length).toBeLessThanOrEqual(41);
+        expect(r?.line.length).toBeLessThanOrEqual(REACT_LINE_MAX + 1);
+        // 恰好 REACT_LINE_MAX 字不截断（余量是真余量，不是把合规输出砍尾）
+        const exact = "好".repeat(REACT_LINE_MAX);
+        expect(parseExprReply(`EXPRESSION: happy\nLINE: ${exact}`)?.line).toBe(exact);
+        // 超一字才截
+        const over = parseExprReply(`EXPRESSION: happy\nLINE: ${"好".repeat(REACT_LINE_MAX + 1)}`);
+        expect(over?.line.endsWith("…")).toBe(true);
+        expect(_parseForLock).toBe(parseExprReply); // 别名只为可读性，无第二实现
+    });
+
+    it("prompt 的要求值与截断值各有常量、且要求更紧（P3-7 收口）", () => {
+        const p2 = buildReactPrompt("团子", "温柔鼓励", "连错 3 题", s, u);
+        expect(p2).toContain(`LINE: <不超过${REACT_LINE_WANT}字，符合人设口吻>`);
+        // 逐字锁现值：改数字必须同时改测试（防悄悄漂移）
+        expect(REACT_LINE_WANT).toBe(30);
+        expect(REACT_LINE_MAX).toBe(40);
+        // 要求必须 ≤ 截断：反了就会把合规输出也砍出「…」
+        expect(REACT_LINE_WANT).toBeLessThan(REACT_LINE_MAX);
     });
 });
 

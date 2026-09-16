@@ -16,7 +16,7 @@ vi.mock("../../ai/client", () => ({
 }));
 
 import { attributeWrongCauses, judgeBrief, type CauseItem } from "./AiJudge";
-import { buildBriefPrompt } from "../../ai/prompts/judge";
+import { buildBriefPrompt, wrongCausesPrompt } from "../../ai/prompts/judge";
 import { QuestionType, type WenguQuestion } from "../../types";
 
 const q: WenguQuestion = {
@@ -164,5 +164,29 @@ describe("attributeWrongCauses · 批量归因", () => {
     it("完全无法解析时返回空表（收卷不因归因失败而崩）", async () => {
         ai.reply = "我无法判断。";
         expect((await attributeWrongCauses(items, "m")).size).toBe(0);
+    });
+});
+
+describe("归因输入行的竖线归属（Issue #143 P3-5）", () => {
+    it("prompt 明说竖线按位置切分、题干内的竖线是内容", () => {
+        const p = wrongCausesPrompt("1|求 $|x|$ 的导数|B|A");
+        expect(p).toContain("竖线按**位置**切分");
+        expect(p).toContain("题干（如绝对值 $|x|$、条件分隔）或答案里出现的竖线属于**内容**，不是分隔符");
+    });
+
+    it("题干带竖线时仍逐行原样拼入（拼行侧不转义，归属由 prompt 声明）", () => {
+        // 契约：拼行侧保持既有 `编号|题干|我的|正确` 形态不变，竖线不转义
+        // ——转义会动拼行约定并让 AI 面对 \| 这种陌生形态，故口径在 prompt
+        const p = wrongCausesPrompt("1|求 $|x|$ 的导数|B|A\n2|普通题|C|D");
+        expect(p).toContain("1|求 $|x|$ 的导数|B|A");
+        expect(p).toContain("2|普通题|C|D");
+        expect(p).not.toContain("\\|");
+    });
+
+    it("归因调用把该 prompt 原样发出（接线不改）", async () => {
+        ai.reply = '{"1":"计算失误"}';
+        await attributeWrongCauses([{ qid: "q1", stem: "求 $|x|$ 的导数", mine: "B", answer: "A" }], "m");
+        const { agentChatOnce } = await import("../../ai/client");
+        expect(vi.mocked(agentChatOnce).mock.calls.at(-1)?.[0]).toContain("竖线按**位置**切分");
     });
 });

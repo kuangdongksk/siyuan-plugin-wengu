@@ -306,6 +306,111 @@ describe("routeKnowledgeBatchDiag（20260909 批量两级路由）", () => {
         ]);
     });
 
+    it("扁平数组 = 格式偏差：整批归空 + onFormatError 上报（拒缓存）（P3-4）", async () => {
+        // AI 把三题编号并成一个数组：逐题归属不可信，旧实现会当「题 1 命中
+        // 1、题 2 命中 2…」固化进缓存——一次偏差永久毁掉整批
+        const seen: string[] = [];
+        let formatErrors = 0;
+        const out = await routeKnowledgeBatchDiag(
+            ["题目甲", "题目乙", "题目丙"],
+            INDEX,
+            {
+                call: async (msg) => {
+                    seen.push(msg);
+                    return '{"chapters":[1,2,3]}';
+                },
+            },
+            undefined,
+            () => formatErrors++
+        );
+        expect(out).toEqual([[], [], []]);
+        expect(formatErrors).toBe(1);
+        // 第一级就判废 ⇒ 不再调第二级
+        expect(seen).toHaveLength(1);
+    });
+
+    it("扁平数组出现在小节级：同样整批归空 + 上报", async () => {
+        let formatErrors = 0;
+        const out = await routeKnowledgeBatchDiag(
+            ["题目甲", "题目乙"],
+            INDEX,
+            {
+                call: async (msg) => (msg.includes("章节清单") ? '{"chapters":[[2],[2]]}' : '{"sections":[1,2]}'),
+            },
+            undefined,
+            () => formatErrors++
+        );
+        expect(out).toEqual([[], []]);
+        expect(formatErrors).toBe(1);
+    });
+
+    it("空数组 [] 不是格式偏差（AI 明确判零命中，照常缓存）", async () => {
+        let formatErrors = 0;
+        const out = await routeKnowledgeBatchDiag(
+            ["零命中题"],
+            INDEX,
+            { call: async () => '{"chapters":[]}' },
+            undefined,
+            () => formatErrors++
+        );
+        expect(formatErrors).toBe(0);
+        expect(out).toEqual([[]]);
+    });
+
+    it("空字符串形态的数组（[ ]）同样不判废", async () => {
+        let formatErrors = 0;
+        await routeKnowledgeBatchDiag(
+            ["零命中题"],
+            INDEX,
+            { call: async () => '{"chapters":[ ]}' },
+            undefined,
+            () => formatErrors++
+        );
+        expect(formatErrors).toBe(0);
+    });
+
+    it("正常逐题数组不触发 onFormatError（零命中仍是合法结果）", async () => {
+        let formatErrors = 0;
+        const out = await routeKnowledgeBatchDiag(
+            ["题目甲", "题目乙"],
+            INDEX,
+            {
+                call: async (msg) => (msg.includes("章节清单") ? '{"chapters":[[2],[]]}' : '{"sections":[[1],[]]}'),
+            },
+            undefined,
+            () => formatErrors++
+        );
+        expect(formatErrors).toBe(0);
+        expect(out).toEqual([[{ id: "s2a", title: "节2甲", path: "章2/节2甲" }], []]);
+    });
+
+    it("批量 prompt 明确要求每道题编号包在自己的方括号里（P3-4 文案）", async () => {
+        const seen: string[] = [];
+        await routeKnowledgeBatchDiag(["题目甲", "题目乙"], INDEX, {
+            call: async (msg) => {
+                seen.push(msg);
+                return msg.includes("章节清单") ? '{"chapters":[[2],[2]]}' : '{"sections":[[1],[1]]}';
+            },
+        });
+        expect(seen[0]).toContain("每道题的编号必须包在**自己的方括号**里");
+        expect(seen[1]).toContain("每道题的编号必须包在**自己的方括号**里");
+    });
+
+    it("回显骨架（AI 先抄格式再给真数组）：取到真数组而非骨架", async () => {
+        // AI 常见形态：先复述格式骨架、再给答案。旧实现贪心匹配到最后一个 `]`
+        // 侥幸能用；新实现取**首个**配平数组，故骨架必须能被正确跳过。
+        const out = await routeKnowledgeBatchDiag(["题目甲", "题目乙"], INDEX, {
+            call: async (msg) =>
+                msg.includes("章节清单")
+                    ? '格式是 {"chapters":[[编号,编号],[编号,编号]]}\n结果：{"chapters":[[2],[2]]}'
+                    : '格式是 {"sections":[[编号,编号]]}\n结果：{"sections":[[1],[1]]}',
+        });
+        expect(out).toEqual([
+            [{ id: "s2a", title: "节2甲", path: "章2/节2甲" }],
+            [{ id: "s2a", title: "节2甲", path: "章2/节2甲" }],
+        ]);
+    });
+
     it("章级失败：onFail 上报，整批空数组", async () => {
         const fails: KnowRouteFail[] = [];
         const out = await routeKnowledgeBatchDiag(

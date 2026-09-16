@@ -72,13 +72,43 @@ describe("buildPrompt", () => {
         expect(p).toContain("填空转选择");
         expect(p).toContain("多步引导题（type=steps）");
     });
-    it("逐段模式首批：要求判定三行 + 题型 + @@TO 定位约定", () => {
+    it("逐段模式首批：要求判定四行 + 题型 + @@TO 定位约定", () => {
         const p = buildPrompt("片段", false, false, "", "", undefined, { batch: 1, first: true });
         expect(p).toContain("TYPES:");
         expect(p).toContain("@@TO:");
         expect(p).toContain("第 1 批");
         expect(p).toContain("本批原文片段");
         expect(p).not.toContain("文档内容：");
+    });
+
+    it("首批判定行数自洽：正文说「四行」，verdictOf 就恰好产四行（P2-1）", () => {
+        const p = buildPrompt("片段", false, false, "", "", undefined, { batch: 1, first: true });
+        // 正文措辞（唯一权威宣称）：行数写错会让 SUBJECT 缺失静默退化学科判别
+        expect(p).toContain("先输出四行判定");
+        // 四个判定行键各出现一次；旧文案说「三行」而实发四行（含 SUBJECT）
+        const KEYS = ["CAN_CONVERT:", "REASON:", "TYPES:", "SUBJECT:"];
+        for (const k of KEYS) expect(p.split(k).length - 1, k).toBe(1);
+        // 逐字锁「四行」与实际行键数一致：从正文抽出的数字 === 键数
+        const claim = /先输出([一二三四五])行判定/.exec(p)?.[1];
+        expect({ 一: 1, 二: 2, 三: 3, 四: 4, 五: 5 }[claim ?? ""]).toBe(KEYS.length);
+        // 缺省（非逐段）两行判定不受影响：只有 CAN_CONVERT / REASON
+        const plain = buildPrompt("s");
+        expect(plain).toContain("先输出两行判定");
+        expect(plain).not.toContain("SUBJECT:");
+        expect(plain.split("CAN_CONVERT:").length - 1).toBe(1);
+    });
+
+    it("逐段后续批次：免判定行里也点名 SUBJECT（四行口径全列）", () => {
+        const p = buildPrompt("片段", false, false, "", "", [QT.Single], { batch: 3, first: false });
+        expect(p).toContain("CAN_CONVERT / REASON / TYPES / SUBJECT");
+    });
+
+    it("公式记法规则：行内/块级各一律，\\(…\\) 与 \\[ \\] 都改写（P3-9）", () => {
+        const p = buildPrompt("s");
+        expect(p).toContain("公式行内一律 $...$，块级一律 $$...$$");
+        expect(p).toContain("\\(...\\) 与 \\[ \\] 记法均改写");
+        // 旧口径只禁块级，行内 \\(…\\) 会漏网
+        expect(p).not.toContain("禁止使用 \\[ \\] 记法");
     });
     it("逐段模式后续批次：免判定行，仍带定位约定", () => {
         const p = buildPrompt("片段", false, false, "", "", [QT.Single], { batch: 3, first: false });

@@ -160,7 +160,8 @@ export function routeCache(): RouteCache | undefined {
  * routeKnowledgeBatchDiag（两级各一次调用），回来后**逐题写缓存条目**——
  * 保留逐题粒度，未变的题重跑零 AI 调用。返回逐题引用数组（与 texts 下标
  * 对齐；空=无命中）。onFail 语义与裸路由一致（AI 调用失败上报，失败结果
- * 不缓存，下次重跑再试）。signal 中止时桶间停手，已路由的题照常落库。
+ * 不缓存，下次重跑再试）；**回复格式偏差**（Issue #143 P3-4）同走不缓存。
+ * signal 中止时桶间停手，已路由的题照常落库。
  */
 export async function routeKnowledgeBatchCached(opts: {
     texts: string[];
@@ -198,10 +199,20 @@ export async function routeKnowledgeBatchCached(opts: {
         const group = misses.slice(s, s + size);
         const groupTexts = group.map((i) => opts.texts[i]);
         let groupFailed = false;
-        const sections = await routeKnowledgeBatchDiag(groupTexts, opts.index, { call: opts.call }, (f) => {
-            groupFailed = true; // 组失败不缓存；onFail 透传供弹窗汇总失败原因
-            opts.onFail?.(f);
-        });
+        const sections = await routeKnowledgeBatchDiag(
+            groupTexts,
+            opts.index,
+            { call: opts.call },
+            (f) => {
+                groupFailed = true; // 组失败不缓存；onFail 透传供弹窗汇总失败原因
+                opts.onFail?.(f);
+            },
+            // 格式偏差（编号并成扁平数组，Issue #143 P3-4）同走「组失败不缓存」：
+            // 当次归空，下次重跑再试——旧实现会把偏差按逐题顺序固化进缓存
+            () => {
+                groupFailed = true;
+            }
+        );
         for (let g = 0; g < group.length; g++) {
             const refs = (sections[g] ?? []).map((x) => ({ id: x.id, title: x.title }));
             results[group[g]] = refs;

@@ -64,6 +64,15 @@ export interface ExplainCtx {
  *  companion 侧沿用旧名 `plainOf`（跨域共享层收口，见 Issue #114）。 */
 export { plainText as plainOf } from "../../ui/shared";
 
+/** 反应类台词 LINE 的限长（Issue #143 P3-7）：prompt 侧「不超过 30 字」
+ *  与解析侧 `clampText(line, 40)` 原是两个写死的数、无互指。现同源——
+ *  **取解析侧的值**（40）而非 prompt 侧：prompt 的 30 是要求 AI 的目标长度，
+ *  40 是展示层气泡的容忍上限（留 10 字余量，AI 略超不截断成「…」）；把
+ *  要求提到 40 等于放任台词变长，把截断收到 30 会让合规输出也被砍尾。
+ *  故文案仍报要求值 {@link REACT_LINE_WANT}，截断用 {@link REACT_LINE_MAX}。 */
+export const REACT_LINE_WANT = 30;
+export const REACT_LINE_MAX = 40;
+
 /** 台词/回复限长（防爆字）。 */
 export function clampText(s: string, max: number): string {
     const t = s.replace(/\s+/g, " ").trim();
@@ -102,7 +111,7 @@ ${sessionBlock(s)}
 事件：${eventDesc}
 输出严格两行，格式之外不要输出任何文字：
 EXPRESSION: <上面枚举之一>
-LINE: <不超过30字，符合人设口吻>`;
+LINE: <不超过${REACT_LINE_WANT}字，符合人设口吻>`;
 }
 
 /** 解析两行协议；EXPRESSION 认不出或缺行返回 undefined（调用方保底）。 */
@@ -112,7 +121,7 @@ export function parseExprReply(reply: string): { expr: WenguExpr; line: string }
     if (!exprRaw || !lineRaw) return undefined;
     const expr = normalizeExpr(exprRaw[1]);
     if (!expr) return undefined;
-    return { expr, line: clampText(lineRaw[1], 40) };
+    return { expr, line: clampText(lineRaw[1], REACT_LINE_MAX) };
 }
 
 function explainBlock(e: ExplainCtx): string {

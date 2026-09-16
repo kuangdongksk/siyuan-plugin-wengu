@@ -1,3 +1,5 @@
+import { TAG_MAX_CHARS } from "./common";
+
 /**
  * 知识点同义词判定族 prompt（20260910，Issue #3）：文本精确层未命中的
  * 「题目 knowledge 标签 × 知识文档小节标题」词对按批送 AI 判同义
@@ -21,8 +23,10 @@ export const SYN_BATCH_SIZE = 15;
  *  同对词第二次才真的零 AI。只有病态大的词表才走截断保守分支。 */
 export const SYN_LIST_CHARS = 6000;
 
-/** 规范写法长度上限（防 AI 跑飞写进超长句，同 parseFreeTags 的 24 字意）。 */
-export const SYN_MAX_CHARS = 30;
+/** 规范写法长度上限（防 AI 跑飞写进超长句）。与自由标签同源（Issue #143
+ *  P3-6：原为 30，与 parseFreeTags 的 24 漂移）——同一份术语长度口径，
+ *  收口到 {@link TAG_MAX_CHARS}，本别名保留给既有调用点。 */
+export const SYN_MAX_CHARS = TAG_MAX_CHARS;
 
 /** 解析出的「明确不同义」哨兵（唯一该落表记否的判定）。 */
 export const SYN_DENY = "-";

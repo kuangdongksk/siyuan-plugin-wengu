@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { QuestionType } from "../../types";
-import { buildRegenPrompt, conceptPrompt, variantPrompt, verifyPrompt } from "./gen";
+import { buildRegenPrompt, conceptPrompt, freeTagPrompt, variantPrompt, verifyPrompt } from "./gen";
+import { TAG_MAX_CHARS } from "./common";
 
 /**
  * 单题生成族 prompt 的口径（Issue #131 P1，20260915 审查）：**解析标记
@@ -53,5 +54,62 @@ describe("加练/变式链的解析标记约定（P1）", () => {
         // verifyPrompt 的入参是**已渲染的题目 kramdown**（标记早被 OptionRefReplace
         // 换成选项文本），它自身不该出现任何 `` 约定——否则 AI 会被要求写标记
         expect(verifyPrompt('{{{row\n题干\n}}}\n{: custom-plugin-wengu-q="1"}')).not.toContain(SOL_RULE_MARK);
+    });
+});
+
+/**
+ * Issue #143 P2-2 / P2-3 / P3-6：prompt 审计三条 P2 + 限长常量收口。
+ * 分工：这里锁**产物文本**（备注出现次数、占位还原要求在不在场）；
+ * ConvertService.test 锁逐段判定行数，companion.test 锁 LINE 限长。
+ */
+describe("buildRegenPrompt 备注去重（P2-2）", () => {
+    it("备注全文恰好出现 1 次（原先要求段 + 模板尾各拼一遍）", () => {
+        const note = "第 3 步答案错了，其余保留";
+        const p = buildRegenPrompt("原题 kd", "原文块", "小节", note, QuestionType.Single, "keep");
+        expect(p.split(note).length - 1).toBe(1);
+        expect(p.split("【用户备注】").length - 1).toBe(1);
+    });
+
+    it("备注为空时整块不出现（不产生空标题）", () => {
+        const p = buildRegenPrompt("原题 kd", "", "", "");
+        expect(p).not.toContain("【用户备注】");
+    });
+
+    it("备注只在材料块之后出现一次——段落顺序不变（要求段仍在最前）", () => {
+        const note = "MARK-备注-1";
+        const p = buildRegenPrompt("原题 kd", "原文块", "", note);
+        const noteAt = p.indexOf(note);
+        // 备注块仍在开头导语之后、`要求：` 段之前（占位口径：改造前它在
+        // 要求段与模板尾各一份，删掉的是**模板尾那份**）
+        expect(noteAt).toBeGreaterThan(p.indexOf("请重出这一道题。"));
+        expect(noteAt).toBeLessThan(p.indexOf("要求：输出与原题相同的题型结构"));
+        // 模板尾不再挂备注：备注块之后紧接着的是 `要求：` 段
+        expect(noteAt + note.length).toBeLessThan(p.indexOf("要求：输出与原题相同的题型结构"));
+        expect(p.trimEnd().endsWith(note)).toBe(false);
+        // 无补充材料时产物末尾就是原题 kramdown（模板尾曾是备注的落点）
+        expect(buildRegenPrompt("原题 kd", "", "", note).trimEnd().endsWith("原题 kd")).toBe(true);
+    });
+});
+
+describe("variantPrompt 插图占位还原（P2-3）", () => {
+    it("带占位还原要求（与 buildRegenPrompt 同款文案在场）", () => {
+        const p = variantPrompt("原题 kd", "", QuestionType.Single);
+        // 发送侧 sanitizeAiImages 会把图片换成〔插图:…〕占位——不带还原
+        // 要求时带图题走变式链图片静默丢失
+        expect(p).toContain("〔插图:assets/…〕");
+        expect(p).toContain("必须还原成标准 markdown 图片行");
+        expect(p).toContain("不要原样输出占位");
+    });
+
+    it("题型未知（undefined 走全量兜底）时同样在场", () => {
+        expect(variantPrompt("原题 kd", "")).toContain("不要原样输出占位");
+    });
+});
+
+describe("自由标签限长收口（P3-6）", () => {
+    it("prompt 要求值与常量同源（不再写死 12）", () => {
+        const p = freeTagPrompt("1|题干");
+        expect(p).toContain(`不超过 ${TAG_MAX_CHARS} 字`);
+        expect(p).not.toContain("不超过 12 字");
     });
 });
