@@ -1,0 +1,160 @@
+/* 单词卡「作答态与详情」分片（自 words.scss 拆出，红线 §11.1：#153 按语义
+   机械拆片，零样式变更）：选项三态标色 / 词条详情 / 听音大喇叭 / 自述框 /
+   四点梯。绑定到 QuizCard.svelte 与 LookupScreen.svelte 的详情行。 */
+/* ── 仿不背单词:选项标色/词详情/拼写框 ── */
+
+.wengu-word-opt.is-correct {
+  border-color: var(--b3-theme-success);
+  color: var(--b3-theme-success);
+  background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+  font-weight: 600;
+}
+
+.wengu-word-opt.is-correct .wengu-word-optkey {
+  border-color: var(--b3-theme-success);
+  color: var(--b3-theme-success);
+}
+
+.wengu-word-opt.is-wrong {
+  border-color: var(--b3-theme-error);
+  color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+  font-weight: 600;
+}
+
+.wengu-word-opt.is-wrong .wengu-word-optkey {
+  border-color: var(--b3-theme-error);
+  color: var(--b3-theme-error);
+}
+
+.wengu-word-opt.is-dim {
+  opacity: 0.55;
+}
+
+/* 客观题作答后/回想翻面后的词详情区 */
+.wengu-word-detail {
+  width: 100%;
+  text-align: left;
+  border-top: 1px solid var(--b3-border-color);
+  padding-top: 10px;
+}
+
+.wengu-word-detail-word {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.wengu-word-detail-meaning {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: pre-line;
+  margin-top: 4px;
+  color: var(--b3-theme-on-surface);
+}
+
+.wengu-word-spell {
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  font-size: 16px;
+}
+
+/* ── 听音题（梯③）/ 看答案 / 详情发音（20260827 四步梯接线） ── */
+
+/* 题面中央大喇叭与详情行小喇叭共用形状，尺寸分档（稿④：主色软底大圆 +
+   外圈波纹环；详情行沿稿⑥ 的小喇叭不变） */
+.wengu-word-say {
+  position: relative;
+  width: 84px;
+  height: 84px;
+}
+
+.wengu-word-say::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  border: 1px solid var(--b3-theme-primary-light);
+  pointer-events: none;
+}
+
+.wengu-word-card .wengu-word-say:not(.wengu-word-detail-word *) {
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-word-say svg {
+  width: 32px;
+  height: 32px;
+}
+
+.wengu-word-detail-word .wengu-word-say {
+  width: 24px;
+  height: 24px;
+}
+
+.wengu-word-detail-word .wengu-word-say svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 「看答案」低存在感小字钮：误点即按错计（稿③ 小字描边钮） */
+.wengu-word-peek {
+  min-height: 26px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.wengu-word-detail-word {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 详情态（作答/翻面）内容从头部自然下排——20260828 用户定稿：
+   单词释义必须紧贴顶部；曾经试过的垂直居中已删（会在词与头部间
+   留大块空白）；剩余空间自然聚在 sticky 按钮行上方 */
+
+/* 新词梯进度点（仿不背单词词尾四点，20260828 用户定稿竖排）：
+   纵列贴词尾、总高与单词行同高（justify-content:space-between 撑满
+   align-self:stretch）；已过步实心浅色、当前步主色放大、未到步灰点。
+   listen 步词面隐藏时随题面一起隐去 */
+.wengu-word-text,
+.wengu-word-zh {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+.wengu-word-ladder {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+/* 四点梯（稿③⑤⑥）：已过步实心绿、当前步拉长成主色胶囊、未到步空心描边 */
+.wengu-word-ladder i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--b3-border-color);
+  background: transparent;
+}
+
+.wengu-word-ladder i.is-done {
+  background: var(--b3-theme-success);
+  border-color: var(--b3-theme-success);
+}
+
+.wengu-word-ladder i.is-cur {
+  width: 16px;
+  background: var(--b3-theme-primary);
+  border-color: var(--b3-theme-primary);
+}

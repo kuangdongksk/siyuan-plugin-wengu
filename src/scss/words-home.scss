@@ -45,7 +45,7 @@
   align-items: center;
 }
 
-/* 统计页 */
+/* 统计页（稿⑦）：六格「大数字 + 小标签」网格 + 未来 7 天柱状图 */
 .wengu-stats {
   display: flex;
   flex-direction: column;
@@ -56,37 +56,47 @@
 }
 
 .wengu-stats-row {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--b3-border-color);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius-b);
+  overflow: hidden;
 }
 
 .wengu-stats-cell {
   flex: 1;
-  border: 1px solid var(--b3-border-color);
-  border-radius: var(--b3-border-radius);
-  padding: 10px 8px;
+  background: var(--b3-theme-surface);
+  padding: 10px 6px;
   text-align: center;
 }
 
 .wengu-stats-num {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .wengu-stats-label {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--b3-theme-on-surface-light);
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .wengu-stats-sub {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.65;
   color: var(--b3-theme-on-surface-light);
 }
 
 .wengu-stats-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 12px;
+  font-weight: 600;
   margin-top: 4px;
 }
 
@@ -94,7 +104,7 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 110px;
+  height: 118px;
 }
 
 .wengu-stats-bar {
@@ -107,16 +117,24 @@
   gap: 2px;
 }
 
+/* 柱：今天实心主色（唯一高亮），其余主色弱化档 */
 .wengu-stats-bar-col {
   width: 100%;
-  max-width: 28px;
-  background: var(--b3-theme-primary);
-  opacity: 0.5;
-  border-radius: 3px 3px 0 0;
+  background: var(--b3-theme-primary-lighter);
+  border-radius: var(--b3-border-radius) var(--b3-border-radius) 0 0;
 }
 
 .wengu-stats-bar-today .wengu-stats-bar-col {
-  opacity: 0.9;
+  background: var(--b3-theme-primary);
+}
+
+.wengu-stats-bar-today .wengu-stats-bar-label {
+  color: var(--b3-theme-primary);
+  font-weight: 600;
+}
+
+.wengu-stats-bar-count {
+  font-variant-numeric: tabular-nums;
 }
 
 .wengu-stats-bar-count {
@@ -184,25 +202,71 @@
   color: var(--b3-theme-primary);
 }
 
-/* 查词:结果行(单词左,释义右)。行类挂 .wengu-word-lk——旧版用
-   data-act 属性选择器，Svelte 迁移后按钮无 data-act，flex 排版失效
-   释义 nowrap 撑破卡片出横向滚动条（20260827 真机实测）。
-   样式对齐思源文档树列表行：去原生按钮壳，ghost 悬停，零学习成本 */
+/* 查词结果行（稿⑧）：词条 + 状态标签两端对齐的实底行卡 */
 .wengu-word-opt.wengu-word-lk {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 7px 10px;
-  border: 0;
-  background: none;
+  min-height: 46px;
+  padding: 9px 11px;
+  border: 1px solid var(--b3-border-color);
+  background: var(--b3-theme-surface);
   font-weight: normal;
   text-align: left;
 }
 
-.wengu-word-opt.wengu-word-lk:hover {
+.wengu-word-opt.wengu-word-lk:hover:not(:disabled) {
+  border-color: var(--b3-theme-primary-light);
+  background: var(--b3-theme-primary-lightest);
+}
+
+/* 词条状态小标签（稿⑧ legend：未学灰 / 复习中主色 / 熟绿 / 太简单删除线）。
+   查词结果行与详情档位行共用，随 LookupScreen 走共享片（跨行复用）。 */
+.wengu-word-lk-tag {
+  margin-left: auto;
+  flex: none;
+}
+
+.wengu-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--b3-border-color);
   background: var(--b3-theme-background-light);
+  color: var(--b3-theme-on-surface-light);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wengu-tag.is-review {
+  border-color: var(--b3-theme-primary-light);
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+
+.wengu-tag.is-known {
+  border-color: color-mix(in srgb, var(--b3-theme-success) 38%, transparent);
+  background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+  color: var(--b3-theme-success);
+}
+
+.wengu-tag.is-easy {
+  text-decoration: line-through;
+}
+
+/* 查词详情档位行（稿⑧） */
+.wengu-word-statusrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
 }
 
 .wengu-word-lk-word {

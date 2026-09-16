@@ -79,3 +79,14 @@ export class LookupConfCtl {
         if (other) void navigator.clipboard?.writeText(askPrompt(idx, other));
     }
 }
+
+/** 词条状态档位（查词结果行小标签，稿⑧ legend 四态）。 */
+export type LookupStatus = "new" | "review" | "known" | "easy";
+
+/** 状态档位判定：太简单 > 熟 > 在学（有复习记录）> 未学。 */
+export function statusKindOf(p: WenguWordProgress, idx: number): LookupStatus {
+    const k = keyOf(idx);
+    if (p.simple[k]) return "easy";
+    if (p.familiar[k]) return "known";
+    return p.words[k] ? "review" : "new";
+}

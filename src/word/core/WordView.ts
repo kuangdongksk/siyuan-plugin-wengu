@@ -253,6 +253,11 @@ export class WordView {
         speakWord(wordLib().curBook().words[this.currentIdx].w);
     }
 
+    /** 念指定词条（查词详情朗读；同 playCurrentWord 的降级口径）。 */
+    speakWordAt(idx: number): void {
+        speakWord(wordLib().curBook().words[idx].w);
+    }
+
     grade(g: WordGrade): void {
         this.finishCard(g);
     }
