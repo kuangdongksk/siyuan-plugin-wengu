@@ -89,7 +89,13 @@
         <Button variant="outline" onclick={() => onBackToQuiz?.()}>{t("reportBackToQuiz")}</Button>
     {/if}
 </div>
-<div class="wengu-report-scroll">
+<!-- data-report-scroll 是**滚动窗的唯一钩子**（render/RoundReport.ts 的
+     reportScrolled/scrollReportTop 按它取元素）——桩与真件必须同一个：
+     原先只在编排层放了个空桩、组件渲染的窗没有该属性，而 Svelte 无 anchor
+     挂载是 append 到 host 末尾 ⇒ 两者并列，querySelector 命中的永远是那个
+     空桩：scrollTop 恒 0 ⇒「已滚离顶部」永不成立、scrollTo 打空、「重开总结
+     滚回顶部」静默失效。故属性落在**组件渲染的这个窗**上，编排层不再放桩。 -->
+<div class="wengu-report-scroll" data-report-scroll>
     <div class="wengu-report">
         <div class="wengu-start-title">{t("reportTitle")}</div>
         <div class="wengu-report-summary">

@@ -168,7 +168,7 @@ export function bindSummaryToggle(fn: (() => void) | undefined): void {
  *  且**绝不重挂报告**（重挂是原病灶，也是这份「零变化」的来源）。 */
 export function focusFinishedRound(ctx: RoundFinishCtx): void {
     if (!ctx.finished) return;
-    if (isSummaryView(ctx.el)) exitSummaryView(ctx.el);
+    if (isSummaryView(ctx.el)) backToQuiz(ctx);
     else {
         enterSummaryView(ctx.el);
         // 已在顶部就不白跳一次（脉冲仍给：它才是「我响应了」的可见反馈，
@@ -177,6 +177,19 @@ export function focusFinishedRound(ctx: RoundFinishCtx): void {
         else pulseReport(ctx.el);
     }
     onSummaryToggle?.(); // 头部按钮随态换语义（返回题卷 / 查看总结）
+}
+
+/** 收起总结 + 通知挂载方重画头部（**唯一**的「回题卷」执行体）：
+ *  「返回题卷」有两个入口——报告内那个钮（本文件挂载时传的 `onBackToQuiz`）
+ *  与头部那颗钮在总结态下的语义（`focusFinishedRound` 的收起支）。两者
+ *  **必须同一条路**：少一次 `onSummaryToggle` 头部文案就留在「返回题卷」
+ *  不改（总结已收起、钮却还在喊「返回题卷」= 文案说谎，再点下去又是重开
+ *  总结，与字面相反）。
+ *
+ *  ⚠️ 别在 `onBackToQuiz` 里直调 `exitSummaryView`：那只摘类、不通知。 */
+export function backToQuiz(ctx: RoundFinishCtx): void {
+    exitSummaryView(ctx.el);
+    onSummaryToggle?.();
 }
 
 /** 卸载轮次报告（renderQuizShellFor 整壳重建前与 QuizView.destroy 兜底）。 */
@@ -204,14 +217,17 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
         weakRows: ctx.weakness?.topSync(8) ?? [],
     };
     detachRoundReport();
-    // 报告滚动窗的存在与否决定「返回题卷」渲染与否（同一份 DOM 契约）：
-    // 根节点不参与隐藏类选择器，故桩在挂载前先放、挂载时由组件渲染进去
-    host.innerHTML = '<div class="wengu-report-scroll" data-report-scroll></div>';
+    // ⚠️ 别在这里放 `[data-report-scroll]` 空桩：Svelte mount 无 anchor 时
+    // append 到 host **末尾**，组件自己渲染的滚动窗会与桩**并列**，而
+    // reportScrolled/scrollReportTop 的 querySelector 只命中第一个（桩）
+    // ⇒ scrollTop 恒 0、「重开总结滚回顶部」静默失效。钩子属性跟着组件
+    // 渲染的那个窗走（RoundReportApp.svelte），这里只清宿主。
+    host.textContent = ""; // 挂载前清残留（detach 已卸组件，此为兜底）
     host.removeAttribute("hidden");
     reportApp = mountSvelteApp(RoundReportApp, host, {
         model,
         modelId: ctx.aiModelId,
-        onBackToQuiz: () => exitSummaryView(ctx.el),
+        onBackToQuiz: () => backToQuiz(ctx),
         onWeakDrill: (rows: WeakTopRow[]) => {
             if (ctx.weakness && ctx.bank)
                 openWeakDrill(

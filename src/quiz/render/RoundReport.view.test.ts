@@ -35,8 +35,8 @@ describe("收卷总结形态（Issue #147 追加 1）· 源级", () => {
     it("收卷链尾进总结态，且「返回题卷」走同一条出口", () => {
         // showRoundReportNow 挂完组件即 enterSummaryView（出总结=题卷收起）
         expect(ROUND_REPORT).toMatch(/enterSummaryView\(ctx\.el\);[\s\S]*?\n}/);
-        // 「返回题卷」经组件 prop 给出口，出口函数就是 exitSummaryView
-        expect(ROUND_REPORT).toMatch(/onBackToQuiz:\s*\(\)\s*=>\s*exitSummaryView\(ctx\.el\)/);
+        // 「返回题卷」经组件 prop 给出口，出口函数是 backToQuiz（含通知重画头部）
+        expect(ROUND_REPORT).toMatch(/onBackToQuiz:\s*\(\)\s*=>\s*backToQuiz\(ctx\)/);
         // 头/尾成对，摘类即回原状（题卷 DOM 不动——题卡是 Svelte 挂载物）
         expect(count(ROUND_REPORT, "function enterSummaryView")).toBe(1);
         expect(count(ROUND_REPORT, "function exitSummaryView")).toBe(1);
@@ -73,7 +73,7 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
     it("已出态点击是**总结视图开关**：两态都有可见反馈、绝不静默返回", () => {
         // 总结开着 ⇒ 收起回题卷；已在题卷 ⇒ 重开总结 + 滚回顶部（+ 脉冲）
         expect(ROUND_REPORT).toMatch(
-            /export function focusFinishedRound[\s\S]*?isSummaryView\(ctx\.el\)\) exitSummaryView[\s\S]*?enterSummaryView\(ctx\.el\)[\s\S]*?scrollReportTop\(ctx\.el\)[\s\S]*?pulseReport\(ctx\.el\)/
+            /export function focusFinishedRound[\s\S]*?isSummaryView\(ctx\.el\)\) backToQuiz\(ctx\)[\s\S]*?enterSummaryView\(ctx\.el\)[\s\S]*?scrollReportTop\(ctx\.el\)[\s\S]*?pulseReport\(ctx\.el\)/
         );
         // 头部文案随态换语义：开关后通知挂载方重挂头部
         expect(ROUND_REPORT).toMatch(/onSummaryToggle\?\.\(\)/);
@@ -88,6 +88,30 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
         expect(ROUND_REPORT).toMatch(/classList\.add\("wengu-report-pulse"\)/);
         expect(REPORT_SCSS).toMatch(/\.wengu-report-pulse \{[\s\S]*?animation:/);
         expect(REPORT_SCSS).toMatch(/@keyframes wengu-report-flash/);
+    });
+
+    it("「回题卷」两个入口同一条路（报告内钮与头部钮），都通知重画头部", () => {
+        // 唯一执行体 backToQuiz = 摘类 + 通知；两条入口都调它
+        expect(ROUND_REPORT).toMatch(
+            /export function backToQuiz\(ctx: RoundFinishCtx\): void \{\s*exitSummaryView\(ctx\.el\);\s*onSummaryToggle\?\.\(\);\s*\}/
+        );
+        expect(ROUND_REPORT).toMatch(/onBackToQuiz:\s*\(\)\s*=>\s*backToQuiz\(ctx\)/);
+        expect(ROUND_REPORT).toMatch(/isSummaryView\(ctx\.el\)\) backToQuiz\(ctx\)/);
+        // ⚠️ 报告内那个钮不许直调 exitSummaryView：少一次通知，头部文案就
+        // 留在「返回题卷」不改（总结已收起、钮还在喊「返回题卷」＝文案说谎）
+        expect(ROUND_REPORT).not.toMatch(/onBackToQuiz:\s*\(\)\s*=>\s*exitSummaryView/);
+        // exitSummaryView 只被 backToQuiz 调（定义 1 + 调用 1）
+        expect(count(ROUND_REPORT, "exitSummaryView(")).toBe(2);
+    });
+
+    it("滚动窗钩子只此一处、且落在组件渲染的窗上（桩会让判据恒假）", () => {
+        // 组件渲染的窗带 data-report-scroll（querySelector 的唯一命中）
+        expect(SVELTE_SRC).toMatch(/<div class="wengu-report-scroll" data-report-scroll>/);
+        // 编排层不许再放同属性空桩：Svelte 无 anchor 挂载 append 到 host 末尾，
+        // 桩与真件并列 ⇒ querySelector 命中空桩、scrollTop 恒 0、scrollTo 打空
+        expect(ROUND_REPORT).not.toMatch(/innerHTML = '<div class="wengu-report-scroll"/);
+        // 读取侧只两处（判滚动 / 滚回顶）；注释里那一处不算
+        expect(count(ROUND_REPORT, 'querySelector<HTMLElement>("[data-report] [data-report-scroll]")')).toBe(2);
     });
 
     it("头部按钮随总结态换语义（返回题卷 / 查看总结 / 结束本次）", () => {
