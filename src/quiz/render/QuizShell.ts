@@ -17,7 +17,7 @@ import { refreshAllClueMarks } from "../flow/ClueFlow";
 import { bindNumRail, detachNumRail } from "./NumRail";
 import { decoratePreview } from "../flow/PreviewFlow";
 import { badMarkedSet } from "../../bank/data/BadMark";
-import { detachRoundReport } from "./RoundReport";
+import { bindSummaryToggle, detachRoundReport } from "./RoundReport";
 import { STATIC_FRAME_BUDGET_MS } from "../service/ProtyleHost";
 import { detachRail, mountRailFor, RAIL_ANCHOR_HTML } from "./RailMount";
 import { detachStartPanel, mountStartPanelFor } from "./StartPanel";
@@ -65,6 +65,9 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
     detachReviewApp(); // 复习主区同款（Svelte 化 20260830）
     detachStartPanel(); // 开刷面板同款（Svelte 化 20260830）
     detachRoundReport(); // 轮次报告同款（Svelte 化 20260830）
+    // 总结态变更回调随旧壳一起作废（闭包握的是旧 subhead/canEndRound；
+    // 新壳落定时按本批参数重绑，见下方 bindSummaryToggle）
+    bindSummaryToggle(undefined);
     detachRail(); // 工作区 rail 同款（Svelte 化 20260830）
     detachNumRail(); // 题号栏同款（Svelte 化 20260830）
     detachSideHead(); // 侧栏/头部同款（Svelte 化 6-5；原 SideTreeMount 并入侧栏）
@@ -88,6 +91,7 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         // 次头部待刷/已掌握计数经 reviewHeadSummary 喂 QuizHeadApp
         mountSideFor(sideReviewAccess(v), "drill");
         mountHeadFor(sideReviewAccess(v), "drill", reviewHeadSummary(v.t), false);
+        // 复习壳不挂总结（无收卷链），回调不绑（上一步已清空旧闭包）
         return;
     }
     if (v.mode !== "quiz" && v.mode !== "preview") return;
@@ -187,8 +191,22 @@ export function renderQuizShellFor(v: QuizView): Promise<void> | undefined {
         ? `<span class="wengu-muted">${esc(v.colFlow.activeTitle() ?? "")} · ${esc(String(v.list.length))}</span>`
         : renderSubheadHtml({ t: v.t, doc, listCount: v.list.length, rounds: v.rounds });
     mountSideFor(sideQuizAccess(v), "drill");
-    mountHeadFor(sideQuizAccess(v), "drill", subhead, v.started && !pv, v.revealMode === "after");
-    v.timerBinder.updateLabel();
+    // 收卷后头部按钮**继续在**（不 disabled）：已出报告态点它 = 收起总结
+    // 回题卷 / 重开总结并滚回顶部（Issue #147 追加 2，`endRound` 的
+    // finished 分支）——原判断只看 started，收卷即置 false ⇒ 钮消失，
+    // 「点了没反应」的另一半根因。
+    const canEndRound = (v.started || !!v.finishedSession()) && !pv;
+    const after = v.revealMode === "after";
+    // 头部重挂（壳落定 / 总结态开关各一次）：组件 props 驱动、无全局 store
+    // 约定，重挂是本仓既有的刷新手段。⚠️ 重挂后计时器标签位是空的（组件
+    // 只产壳、文本由 TimerBinder 命令式写），故**重挂必补一次 updateLabel**
+    // ——收卷后计时已停，不补就永久空着。
+    const remountHead = (): void => {
+        mountHeadFor(sideQuizAccess(v), "drill", subhead, canEndRound, after);
+        v.timerBinder.updateLabel();
+    };
+    remountHead(); // 内含 updateLabel（计时器标签是命令式钩子，重挂必补）
+    bindSummaryToggle(remountHead);
     // 包装计划（纯判定在 ReadingScope.wrapPlanOf）：逐单元给出包装序号，
     // 段下标按 buildSetGroups 的 start 现算（与标题行落位同一口径）
     const segOfUnit = v.units.map((u) => {

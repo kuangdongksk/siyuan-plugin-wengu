@@ -33,7 +33,8 @@ import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
 import { loadPrefs, loadQuizState, prefsSnapshotOf, savePrefs } from "./service/QuizLoader";
 import { MatSplitPrefs } from "./flow/MaterialSplitter";
-import { finishRoundGuarded, lockAllCards, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
+// prettier-ignore
+import { finishRoundGuarded, focusFinishedRound, lockAllCards, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
@@ -299,17 +300,12 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     };
 
     /** 「结束本次做题」：批改已答部分并出本轮报告（大卷分次刷；下次「继续上次」接着做）。
-     *  空轮不收卷但给通知（原静默返回像「点了没反应」）；报告已出的
-     *  残留按钮再点=重展报告（头部组件不随 started 重挂，收卷后按钮
-     *  仍在，原二次点击静默成死钮——20260901 走查实锤）。
-     *  空轮闸在收卷唯一出口 `finishRoundGuarded` 里（Issue #147）——本入口
-     *  与 `finishNow` 共用同一份判定，**别再各写一份**。 */
+     *  空轮闸在收卷唯一出口 `finishRoundGuarded` 里（Issue #147）——本入口与
+     *  `finishNow` 共用同一份判定，**别再各写一份**。报告已出态再点=总结视图
+     *  开关（`focusFinishedRound`；原先是 detach+重挂同一份报告，视觉零变化）。 */
     readonly endRound = (): void => {
-        if (this.session) {
-            finishRoundGuarded(roundFinishCtx(this));
-            return;
-        }
-        if (this.finished) showRoundReportNow(roundFinishCtx(this));
+        if (this.session) finishRoundGuarded(roundFinishCtx(this));
+        else if (this.finished) focusFinishedRound(roundFinishCtx(this));
     };
 
     /** 复习模式组头「重刷本文档」：切做题 + scope=wrongAll 直落开轮。 */

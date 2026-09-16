@@ -13,15 +13,67 @@
 /* ── 一轮总结报告 ── */
 .wengu-report {
   max-width: 620px;
-  margin: 12px auto;
+  /* 报告块本身不设内滚窗：高度自适应内容，滚动归 __scroll（见下）——
+     原先只居中不定高，1 轮历史时「历史轮次得分率」下方留大片空白
+     （真机截图实证） */
+  margin: 0 auto;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border: 1px solid var(--b3-theme-surface);
-  border-radius: var(--b3-border-radius);
-  background: var(--b3-theme-background);
 }
+
+/* 收卷总结视图（Issue #147 追加 1）：出总结 = 题卷收起、总结独占。
+   报告区撑满主区剩余高度，滚动收进 __scroll；「返回题卷」后整套类
+   摘除，DOM 与样式逐字节回原状（追加 2 的已出态点击也走这条出口）。
+
+   ⚠️ `.wengu-main` 是**块级的内滚窗**（base.scss：flex:1 + overflow-y:auto），
+   故本态先把它改造成 flex 列——否则 [data-report] 的 flex:1 无父可依、
+   撑不开也不敢滚（整页照滚，#96 失效）。overflow 留 auto：题卷态它是
+   主滚窗，总结态子元素撑不出高度时它仍兜底（两道窗不并存，总结态里
+   内层 __scroll 才是主滚窗）。 */
+.wengu-main.wengu-summary-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.wengu-main.wengu-summary-view [data-report] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wengu-main.wengu-summary-view .wengu-report {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+}
+
+.wengu-main.wengu-summary-view .wengu-body,
+.wengu-main.wengu-summary-view [data-status],
+.wengu-main.wengu-summary-view [data-timeup-slot] {
+  display: none;
+}
+
+/* 报告区自身的滚动窗（#96 口径：面板不把页面撑出滚动条，内滚窗落在
+   总结上）。⚠️ 只在收卷总结视图里生效——追加 2 的「滚回报告顶部」
+   要一个真的能滚的宿主，题卷态下报告本身是内容高度 */
+.wengu-report-scroll {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wengu-main.wengu-summary-view .wengu-report-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* 「返回题卷」操作行（唯一一个自绘的操作行）已随 RoundReportApp 迁进
+   组件 <style>（design-spec §13.1 ①：组件独占、零 TS 触达），此处不留规则。 */
 
 .wengu-report-summary {
   display: flex;
@@ -29,7 +81,10 @@
   gap: 10px;
 }
 
+/* 各区块高度随数据量自适应（追加 3）：flex 列不伸展、按内容定高——
+   1 轮历史时历史得分区就是一行 4px 高的小条 + 标签，不留空白 */
 .wengu-report-chart {
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -119,4 +174,28 @@
   border-left: 3px solid var(--b3-theme-primary-light);
   border-radius: var(--b3-border-radius);
   background: var(--b3-theme-background-light);
+}
+
+/* 已出报告态点「结束本次」的可见反馈之一（Issue #147 追加 2）：报告已
+   滚离顶部时滚回顶部并叠一次高亮脉冲——「跳回顶部 + 闪一下」，与禁用
+   按钮的既定原则不冲突（钮始终可点）。脉冲类由 scrollReportTop 加，
+   animationend 自摘（幂等：连点只重启动画） */
+.wengu-report-pulse {
+  animation: wengu-report-flash 0.9s ease-out 1;
+}
+
+@keyframes wengu-report-flash {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+/* 动效偏好收窄（对齐 aipanel.scss 的 prefers-reduced-motion 口径） */
+@media (prefers-reduced-motion: reduce) {
+  .wengu-report-pulse {
+    animation: none;
+  }
 }

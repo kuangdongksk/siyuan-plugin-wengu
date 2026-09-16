@@ -178,15 +178,28 @@ export function mountHeadFor(
     if (workspace !== "drill") return;
     const host = v.el.querySelector<HTMLElement>("[data-head-host]");
     if (!host) return;
+    // 「结束本次」文案随**总结视图态**换语义（Issue #147 追加 1 尾句）：
+    // 总结态下本轮已收卷，这个钮不再是「又一次结束本轮」（那本就无意义），
+    // 而是总结视图的开关——总结开着=「返回题卷」，收起后=「查看总结」。
+    // ⚠️ 判据取**报告已出**（finished 态）而非 summary 类：类只描述主区
+    // 形态，头部读不到视图状态机；报告 [data-report] 的 hidden 就是它。
+    const summaryOpen = !!v.el.querySelector<HTMLElement>(".wengu-main.wengu-summary-view");
+    const reportShown = !!v.el.querySelector<HTMLElement>("[data-report]:not([hidden])");
+    const endRoundLabel = summaryOpen
+        ? "reportBackToQuiz"
+        : reportShown
+          ? "reportShowSummary"
+          : afterMode
+            ? "endRoundRevealBtn"
+            : "endRoundBtn";
     // 宿主为壳内空占位（data-head-host），组件片段即 .wengu-head 直接内容
     headApp = mountSvelteApp(QuizHeadApp, host, {
         t: v.t,
         sideCollapsed: v.sideCollapsedOf(),
         subheadHtml,
         canEndRound,
-        // after 模式收卷＝交卷看答案（用户唯一能结束编辑窗口的入口）
-        endRoundLabel: afterMode ? "endRoundRevealBtn" : "endRoundBtn",
-        showFinishHint: canEndRound && afterMode,
+        endRoundLabel,
+        showFinishHint: canEndRound && afterMode && !reportShown,
         // 预览头部「批量重转标记的错题(N)」（Issue #46；N=0 不显示）
         showRegenBad: v.badMark.previewing() && v.badMark.count() > 0,
         badMarkCount: v.badMark.count(),

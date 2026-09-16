@@ -952,5 +952,7 @@
   "switchConfirmBody": "This round is still unfinished: {n}/{N} answered, {time} elapsed. Your progress is kept — you can resume it from the start panel. “{name}” will open.",
   "switchConfirmStay": "Stay here",
   "switchConfirmGo": "Switch anyway",
-  "colMore": "More"
+  "colMore": "More",
+  "reportBackToQuiz": "Back to questions",
+  "reportShowSummary": "View summary"
 }
