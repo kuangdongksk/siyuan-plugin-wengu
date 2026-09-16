@@ -102,7 +102,7 @@
     - **组件文案一律 `t()`**：题号帽/省略行/图例六处字面中文已清（英文环境
       原样显示中文）；新增 i18n 键 `numsCap` / `numsMore` / `numsLegend*`。
 
-- `index.ts` = QuizView 编排（546 行，压回基线；Issue #12 起记账镜像
+- `index.ts` = QuizView 编排（561 行；Issue #12 起记账镜像
   外移 `service/AnswerMirror.ts`、销毁清单外移 `flow/Teardown.ts`、
   右键弹窗动作外移 `service/DocActions.ts`）。**访问器表 + 编排职责
   外移的两难仍在**：再加功能先看有没有能外移的成块职责，别再净增。
@@ -162,13 +162,95 @@
   由 `applyOverride` 统一）。加任何新记账通道都要过这条口径。
 - **答满不等于收卷**（after 模式）：`checkAllDone` 在 after 下只调
   `host.onAllAnswered`（视图侧一次性浮层提示，`renderList` 重置去重标记），
-  **不 revealAll**。收卷唯一入口是头部「交卷并查看答案」
-  （`endRound` → `manualFinishRound`）。instant 模式照旧 `roundComplete`。
-  steps/slots 完成仍靠 `checkAllDone` 凑「全部 graded」信号，别整个删掉。
-  ⚠️ 连带口径：**「未完成轮」判据只看 `endedAt`**（`StartPanel` 两处
-  `unfinished`）——原先还要求 `answered < 题数`，那条只在 instant 下成立，
-  after 答满未交卷的轮会被判成「已完成」而无法「继续上次」改答案。
-  `lockAllCardsNow` 是**状态级 + DOM 级双管**（`ui.locked` 是真闸）。
+  **不 revealAll**。收卷入口两个、**闸只有一份**（Issue #147）：
+  头部「交卷并查看答案」（`endRound`）与倒计时归零时间条「结束本轮」
+  （`finishNow` ← `TimerBinder.showTimeUpBar` 的 `onFinish`）都走
+- **收卷总结视图（Issue #147 追加 1/2/3，20260916）**：收卷出总结 =
+  **题卷收起、总结独占**。三条要一起读，动一条先看另两条。
+    - **形态走主区状态类，不做「收题卷容器」**：`.wengu-main` 加
+      `wengu-summary-view`（`RoundReport.enterSummaryView/exitSummaryView`），
+      CSS 全在 `scss/report.scss` 且**全用子选择器**（`.wengu-main.类
+[data-report]` / `.wengu-body` / `[data-timeup-slot]`）——类只挂主区、
+      不外溢到题卡内部。⚠️ **别去 unmount 题卡**：题卡是 Svelte 挂载物，
+      卸了再挂会丢 Protyle 锚与在途分片（`renderStaticChunked` 的代数守卫
+      会作废整批）；藏起来不动 DOM 最稳，摘类即逐字节回原状。
+    - **主区本态必须转 flex 列**（`.wengu-main.wengu-summary-view{display:flex;
+flex-direction:column}`）：`.wengu-main` 原是块级内滚窗（`base.scss`
+      `flex:1;overflow-y:auto`），不转的话 `[data-report]` 的 `flex:1` 无父可依
+      ⇒ 撑不开也不敢滚，整页照滚（#96 失效）。
+    - **追加 3 的滚动窗落在报告自己身上**（`.wengu-report-scroll`，只在本态
+      开 `overflow-y:auto`）：这是「报告区自身内滚」的直接落点，也是追加 2
+      「滚回报告顶部」能成立的前提（题卷态下报告是内容高度、不可滚）。
+      各区块 `flex:none` 按内容定高（1 轮历史 = 一条 4px 小条 + 标签）；
+      ⚠️ **卡片本身也是 `flex:none`**（撑满整屏的只有 `.wengu-report-scroll`）
+      ——设计稿同为「容器滚、卡片内容高」。卡片设 `flex:1` 会被强压成容器高：
+      内容矮则卡片底部留看不见的空白（追加 3 的观感来源之一），内容高则
+      溢出卡片盒、滚动窗量不到它（长报告滚不到底）。
+    - ⚠️⚠️ **报告滚动窗只能有一个，且标记由组件渲染**（20260916 复核实锤）：
+      `data-report-scroll` 写在 `RoundReportApp.svelte` 里，TS 侧只经
+      `REPORT_SCROLL_SEL` 查询。**别再在挂载前 `host.innerHTML` 放同标记的桩**
+      ——那会在宿主里多出一个空节点：总结态两个 `.wengu-report-scroll` 各吃
+      `flex:1` ⇒ 面板被劈成「一半空白 + 一半报告」，且 `querySelector` 命中的
+      是排在前面的空桩（`scrollTop` 恒 0）⇒「滚回顶部」静默失效。
+      机制：Svelte `mount` 未传 anchor 时把组件 append 到宿主**末尾**
+      （`render.js: _mount` 的 `target.appendChild`），桩与真件必然**并列**。
+      ⚠️ 行为测试用自建 DOM 桩，**查不出这种「真实 DOM 形态与桩模型不一致」**
+      （旧桩就是照「桩+组件窗」两条搭的，把 bug 一起测绿了），故由源码级断言
+        - `RoundReportDom.test` 里「复现旧形态 ⇒ 回顶确实失效」的反证兜住。
+    - **「回题卷」两个入口必须同一条路**（`RoundReport.backToQuiz`：摘类 + 通知重画
+      头部）：报告内那个钮与头部那颗钮在总结态下的语义各是一条**入口**，但**执行体
+      只有一个**。任一路只摘类不发通知 ⇒ 头部文案留在「返回题卷」不改（总结已收起、
+      钮还在喊「返回题卷」＝文案说谎，再点下去又是重开总结，与字面相反）。
+    - ⚠️ **进/退总结态必须与报告宿主显隐成对**（同一函数里改，别分散）：
+      `enterSummaryView` 加类 + 摘 `hidden`；`exitSummaryView` 摘类 + 设回
+      `hidden`。**只摘类**⇒「返回题卷」后报告卡仍压在卷首（没真收起）；
+      **只设 hidden**⇒本片给 `[data-report]` 上了 `display:flex`，作者样式压过
+      UA 的 `[hidden]{display:none}`，报告照显——故 report.scss 里有
+      `[data-report][hidden]{display:none}` 这条显式关掉（同 base/panels 既有条）。
+    - ⚠️ **「报告已出」的判据是报告卡在不在**（`[data-report] .wengu-report`），
+      **不是宿主的 `hidden`**：显隐是总结视图态的从属量（退态会设回 hidden），
+      拿它当「已出」⇒「返回题卷」后头部读成「还没收卷」、文案退回「结束本次」。
+    - **追加 2：已出态点击 = 总结视图开关，绝不重挂报告**。原实现
+      `if (this.finished) showRoundReportNow(...)` 是 detach + 重挂同一份报告
+      ——**视觉零变化** ⇒ 用户观感「点了没反应」。现走
+      `RoundReport.focusFinishedRound`：总结开着 ⇒ 收起回题卷；已在题卷 ⇒
+      重开总结 + 滚回顶部 + 叠一次 `wengu-report-pulse` 高亮（animationend
+      自摘，连点幂等）。**报告块不重挂**是硬约束（重挂正是「零变化」的来源）。
+    - ⚠️ **已出态重进总结：报告节点可能已被卸掉**（整壳重建：`renderQuizShellFor`
+      开头 `detachRoundReport`，而 `finished` 仍留着）——此时不补挂就是「题卷被
+      CSS 收起 + 空宿主」＝**整片空白**，比「零变化」更糟。故 `focusFinishedRound`
+      进态前先判 `[data-report] .wengu-report` 在不在，不在则经 `mountReportNode`
+      按报告模型补挂一次（**不走收卷链**：不重复落库/停表/AI 归因）。收卷链与补挂
+      共用这一个挂载点，用时快照在**停表前**取。
+    - **头部按钮随态换语义**：`mountHeadFor` 按
+      `summaryOpen / reportReady / afterMode` 三档取
+      `reportBackToQuiz` / `reportShowSummary` / `endRoundRevealBtn` /
+      `endRoundBtn`，**不禁用**（项目原则「停止键别 disabled」）。
+      `canEndRound` 必须含 `!!v.finishedSession()`——原先只看 `started`，
+      收卷即置 false ⇒ 钮直接消失，「点了没反应」的另一半根因。
+      切换时经 `bindSummaryToggle` 回调**重挂头部**（本仓无全局 store 约定，
+      重挂是既有刷新手段）；⚠️ 重挂后计时器标签会空一拍，故 QuizShell 里
+      `mountHeadFor` 之后紧跟的 `v.timerBinder.updateLabel()` **顺序不能动**；
+      整壳重建时 `bindSummaryToggle(undefined)` 清掉旧闭包（闭包握旧 subhead）。
+    - **after 模式照样进总结态**：`revealAll` 尾段就是 `host.roundComplete()`
+      → `showRoundReportNow` ⇒ 同一条链，无分叉。用户看揭示答案要点一次
+      「返回题卷」（头部钮或报告内钮，同一条出口）。
+    - 规格锁在 `render/RoundReport.view.test.ts`（源级 + Svelte/sass 真编译）
+      与 `render/RoundReportDom.test.ts`（极简 DOM 桩跑真行为：`scrollTop`
+      判据、脉冲自摘、开关两态）。DOM 桩只实现被调到的 API——`innerHTML`/
+      挂载/布局仍归 `RoundReport.view.test.ts`，别在桩里越界造断言。
+      `RoundReport.finishRoundGuarded` —— 空轮（`answered <= 0`）通知
+      `endRoundEmpty` + **不收卷**，非空轮进 `manualFinishRound`。
+      ⚠️ **别在入口层再写一份 `answered <= 0`**：原实现就是这么漏的——
+      `finishNow` 直接 `manualFinishRound`，开倒计时的用户时间一到点「结束
+      本轮」，一题没答也收卷出报告（静默、无报错）。新增收卷入口一律调守卫，
+      唯一性由 `render/RoundReport.contract.test` 源码级锁死。
+      instant 模式照旧 `roundComplete`。
+      steps/slots 完成仍靠 `checkAllDone` 凑「全部 graded」信号，别整个删掉。
+      ⚠️ 连带口径：**「未完成轮」判据只看 `endedAt`**（`StartPanel` 两处
+      `unfinished`）——原先还要求 `answered < 题数`，那条只在 instant 下成立，
+      after 答满未交卷的轮会被判成「已完成」而无法「继续上次」改答案。
+      `lockAllCardsNow` 是**状态级 + DOM 级双管**（`ui.locked` 是真闸）。
 - **跳过是「没来过」**：`skipQuestion` 不记账不锁卡不揭示，只
   `onActiveQ` + `focusQuestion` 滚到下一题；末题零动作。「不会」才记账
   （`submitted=""`，objective 与 brief 都直接判错，brief **不调 AI**）。
@@ -617,5 +699,7 @@ answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不�
     - **顺带还债**：`quiz/index.ts` 的 `recordAnswer` 实现体整体外移进
       `service/AnswerMirror.recordAnswerFor`（宿主能力 `RecordAnswerHost`：
       `takeSec`/`elapsedSec`/`notifyAnswer`/`historyStore`/`bankStore`），
-      于是 index.ts 由 574 → 567 行，**豁免额度已同步收紧到 567**（只许减不许增）。
+      于是 index.ts 由 574 → 567 行，**豁免额度已同步收紧到 567**（只许减不许增）；
+      Issue #147 空轮闸收口把入口层两处判定合进守卫，再降至 **565**；同单扩围三项把总结视图出口
+      外移（`focusFinishedRound`），最终 **561**（额度同步收）。
       ⚠️ 记账链一条没删：会话 upsert → bank 镜像（首答/覆写分流）→ 学伴事件。

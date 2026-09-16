@@ -952,5 +952,7 @@
   "switchConfirmBody": "本卷还有未交卷的进度：已答 {n}/{N} 题，计时 {time}。切换后进度不会丢失，可从开刷面板「继续上次」回到本卷。将打开「{name}」。",
   "switchConfirmStay": "留在本卷",
   "switchConfirmGo": "继续切换",
-  "colMore": "更多"
+  "colMore": "更多",
+  "reportBackToQuiz": "返回题卷",
+  "reportShowSummary": "查看总结"
 }
