@@ -1,0 +1,3247 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>温故单词 · 双端界面美化高保真原型</title>
+        <style>
+            /* ============================================================
+   1. 设计令牌 —— 跟随思源 b3 主题，亮色为精确值，暗色为自适应分支
+   ============================================================ */
+            :root {
+                --b3-theme-background: #f4f6f8;
+                --b3-theme-surface: #ffffff;
+                --b3-theme-on-background: #242b33;
+                --b3-theme-on-surface: #333b44;
+                --b3-theme-on-surface-light: #59636e;
+                --b3-border-color: #e3e7ec;
+                --b3-theme-primary: #3575f0;
+                --b3-theme-primary-lightest: #edf3fe;
+                --b3-theme-primary-light: #cfe0fd;
+                --b3-theme-primary-soft: #a9c6fb;
+                --b3-theme-on-primary: #ffffff;
+                --b3-success: #4caf50;
+                --b3-error: #d23f31;
+                --b3-warning: #d9a717;
+
+                --ok-bg: #eef7ee;
+                --ok-bd: #bfe3c1;
+                --ok-fg: #2f7a33;
+                --err-bg: #fdeeec;
+                --err-bd: #f3c8c3;
+                --err-fg: #9c3126;
+                --warn-bg: #fdf6e3;
+                --warn-bd: #f0dfa8;
+                --warn-fg: #6b5310;
+                --mute-bg: #eef1f5;
+                --mute-bd: #e0e5ec;
+                --mute-fg: #667079;
+
+                --r-card: 12px;
+                --r-btn: 8px;
+                --r-opt: 10px;
+                --r-pill: 999px;
+                --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.06);
+                --shadow-2: 0 2px 8px rgba(20, 30, 50, 0.07), 0 1px 2px rgba(20, 30, 50, 0.05);
+                --font:
+                    -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial,
+                    sans-serif;
+                --canvas: #23272e;
+                --canvas-line: rgba(255, 255, 255, 0.1);
+                --canvas-dim: #98a3b2;
+            }
+            /* 暗色自适应分支：令牌已就绪；画布内各屏以 .theme-light 锁定亮色面板 */
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --b3-theme-background: #1c2025;
+                    --b3-theme-surface: #242a31;
+                    --b3-theme-on-background: #e8ebef;
+                    --b3-theme-on-surface: #d3d9e0;
+                    --b3-theme-on-surface-light: #9aa4b0;
+                    --b3-border-color: #333b44;
+                    --b3-theme-primary: #6b9bff;
+                    --b3-theme-primary-lightest: #1e2a42;
+                    --b3-theme-primary-light: #2b3f66;
+                    --b3-theme-on-primary: #0f1216;
+                }
+            }
+            .theme-light {
+                --b3-theme-background: #f4f6f8;
+                --b3-theme-surface: #ffffff;
+                --b3-theme-on-background: #242b33;
+                --b3-theme-on-surface: #333b44;
+                --b3-theme-on-surface-light: #59636e;
+                --b3-border-color: #e3e7ec;
+                --b3-theme-primary: #3575f0;
+                --b3-theme-primary-lightest: #edf3fe;
+                --b3-theme-primary-light: #cfe0fd;
+                --b3-theme-primary-soft: #a9c6fb;
+                --b3-theme-on-primary: #ffffff;
+            }
+
+            /* ============================================================
+   2. 画布与 deck 骨架（横向滚动，屏内无滚动条）
+   ============================================================ */
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: var(--canvas);
+                color: #eef1f5;
+                font-family: var(--font);
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+            .deck {
+                display: flex;
+                align-items: flex-start;
+                gap: 52px;
+                padding: 40px 48px 72px;
+                overflow-x: auto;
+                overflow-y: visible;
+            }
+            .deck-head {
+                flex: 0 0 auto;
+                width: 236px;
+                padding-top: 6px;
+            }
+            .deck-head .brand {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 11px;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: #8d99a8;
+                font-weight: 600;
+            }
+            .deck-head .brand i {
+                width: 8px;
+                height: 8px;
+                border-radius: 999px;
+                background: var(--b3-theme-primary);
+                box-shadow: 0 0 0 4px rgba(53, 117, 240, 0.18);
+            }
+            .deck-head h1 {
+                margin: 18px 0 0;
+                font-size: 27px;
+                line-height: 1.32;
+                font-weight: 650;
+                color: #fff;
+                letter-spacing: 0;
+            }
+            .deck-head .lede {
+                margin: 14px 0 0;
+                font-size: 12.5px;
+                line-height: 1.8;
+                color: var(--canvas-dim);
+            }
+            .deck-head .tokens {
+                margin-top: 22px;
+                padding-top: 18px;
+                border-top: 1px solid var(--canvas-line);
+                display: flex;
+                flex-direction: column;
+                gap: 11px;
+            }
+            .deck-head .token-row {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                font-size: 11.5px;
+                color: var(--canvas-dim);
+            }
+            .deck-head .sw {
+                width: 15px;
+                height: 15px;
+                border-radius: 5px;
+                flex: 0 0 auto;
+                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+            }
+            .deck-head .token-row b {
+                color: #dfe5ed;
+                font-weight: 600;
+            }
+
+            .seg {
+                display: flex;
+                flex-direction: column;
+                gap: 26px;
+                flex: 0 0 auto;
+            }
+            .seg-head {
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+            }
+            .seg-eyebrow {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                align-self: flex-start;
+                height: 22px;
+                padding: 0 10px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.07);
+                border: 1px solid var(--canvas-line);
+                font-size: 10.5px;
+                font-weight: 650;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #aab4c2;
+            }
+            .seg-head h2 {
+                margin: 0;
+                font-size: 17px;
+                font-weight: 650;
+                color: #fff;
+                letter-spacing: 0.01em;
+            }
+            .seg-head p {
+                margin: 0;
+                font-size: 12px;
+                color: #8d99a8;
+                line-height: 1.6;
+            }
+            .row {
+                display: flex;
+                align-items: flex-start;
+                gap: 30px;
+            }
+
+            .slot {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+                flex: 0 0 auto;
+            }
+            .caption {
+                max-width: 360px;
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+            }
+            .caption .cap-top {
+                display: flex;
+                align-items: baseline;
+                gap: 9px;
+            }
+            .caption .no {
+                font-size: 15px;
+                line-height: 1;
+                color: var(--b3-theme-primary);
+            }
+            .caption h3 {
+                margin: 0;
+                font-size: 13px;
+                font-weight: 650;
+                color: #fff;
+                letter-spacing: 0.01em;
+            }
+            .caption p {
+                margin: 0;
+                font-size: 11.5px;
+                line-height: 1.75;
+                color: #8d99a8;
+            }
+            .caption p b {
+                color: #c3cbd6;
+                font-weight: 600;
+            }
+
+            /* 画布上的状态说明（组件样张三态） */
+            .legend {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding: 11px 12px;
+                border-radius: 11px;
+                background: rgba(255, 255, 255, 0.045);
+                border: 1px solid var(--canvas-line);
+            }
+            .legend .legend-title {
+                font-size: 10px;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: #7f8b9a;
+                font-weight: 650;
+            }
+            .legend .legend-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 7px;
+            }
+            .mini-opt {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 24px;
+                padding: 0 9px;
+                border-radius: 8px;
+                font-size: 11px;
+                font-weight: 600;
+                background: #fff;
+                border: 1px solid var(--b3-border-color);
+                color: var(--b3-theme-on-surface);
+            }
+            .mini-opt .dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 999px;
+                border: 1px solid var(--b3-border-color);
+                display: grid;
+                place-items: center;
+            }
+            .mini-opt.is-correct {
+                background: var(--ok-bg);
+                border-color: var(--ok-bd);
+                color: var(--ok-fg);
+            }
+            .mini-opt.is-wrong {
+                background: var(--err-bg);
+                border-color: var(--err-bd);
+                color: var(--err-fg);
+            }
+            .mini-opt.is-dim {
+                background: #fff;
+                border-color: #dfe4ea;
+                color: var(--mute-fg);
+            }
+            .mini-opt.is-primary {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary);
+                color: #2557c0;
+            }
+
+            /* ============================================================
+   3. 图标
+   ============================================================ */
+            .svg-sprite {
+                position: absolute;
+                width: 0;
+                height: 0;
+                overflow: hidden;
+            }
+            .ic {
+                width: 16px;
+                height: 16px;
+                display: block;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.7;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                flex: 0 0 auto;
+            }
+            .ic-xs {
+                width: 12px;
+                height: 12px;
+                stroke-width: 2;
+            }
+            .ic-sm {
+                width: 14px;
+                height: 14px;
+            }
+            .ic-md {
+                width: 18px;
+                height: 18px;
+            }
+            .ic-lg {
+                width: 26px;
+                height: 26px;
+                stroke-width: 1.6;
+            }
+            .ic-xl {
+                width: 40px;
+                height: 40px;
+                stroke-width: 1.5;
+            }
+            .ic--fill {
+                fill: currentColor;
+                stroke: none;
+            }
+
+            /* ============================================================
+   4. 桌面屏 · 面板与通用元件
+   ============================================================ */
+            .panel {
+                width: 360px;
+                min-height: 560px;
+                flex: 0 0 auto;
+                background: var(--b3-theme-background);
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.07);
+                box-shadow:
+                    0 20px 44px rgba(0, 0, 0, 0.34),
+                    0 2px 0 rgba(255, 255, 255, 0.03) inset;
+                padding: 14px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                color: var(--b3-theme-on-surface);
+                overflow: hidden;
+            }
+            .panel--center {
+                justify-content: center;
+            }
+
+            .head {
+                flex: 0 0 auto;
+            }
+            .head-top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                min-height: 28px;
+            }
+            .app-title {
+                font-size: 16px;
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+                letter-spacing: 0.01em;
+            }
+            .head-actions {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+            }
+            .head-sub {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                margin-top: 7px;
+            }
+            .book-switch {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 6px 3px 7px;
+                border: 1px solid transparent;
+                border-radius: var(--r-pill);
+                background: var(--mute-bg);
+                font-family: inherit;
+                font-size: 11.5px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface);
+                cursor: pointer;
+                white-space: nowrap;
+            }
+            .book-switch:hover {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary-light);
+                color: #2557c0;
+            }
+            .stat-line {
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+                white-space: nowrap;
+                letter-spacing: 0.01em;
+                font-variant-numeric: tabular-nums;
+            }
+            .stat-line b {
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+                font-variant-numeric: tabular-nums;
+            }
+
+            .icon-btn {
+                width: 30px;
+                height: 30px;
+                flex: 0 0 auto;
+                border: 1px solid transparent;
+                border-radius: var(--r-btn);
+                background: transparent;
+                color: var(--b3-theme-on-surface-light);
+                display: grid;
+                place-items: center;
+                cursor: pointer;
+                font-family: inherit;
+                transition:
+                    background 0.14s,
+                    color 0.14s,
+                    border-color 0.14s;
+            }
+            .icon-btn:hover {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary-light);
+                color: #2557c0;
+            }
+            .icon-btn:active {
+                background: var(--b3-theme-primary-light);
+            }
+            .icon-btn:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 1px;
+            }
+            .icon-btn.is-on {
+                color: #c99116;
+                background: #fdf6e3;
+                border-color: #f0dfa8;
+            }
+
+            .ai-bar {
+                flex: 0 0 auto;
+                display: flex;
+                align-items: flex-start;
+                gap: 8px;
+                background: var(--b3-theme-primary-lightest);
+                border: 1px solid #dbe7fd;
+                border-radius: var(--r-opt);
+                padding: 9px 10px;
+                font-size: 11.5px;
+                line-height: 1.55;
+                color: #24509f;
+            }
+            .ai-bar .ic {
+                color: var(--b3-theme-primary);
+                margin-top: 1px;
+            }
+
+            /* 入口大卡 */
+            .entries {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                flex: 1 1 auto;
+            }
+            .entry {
+                position: relative;
+                flex: 1 1 auto;
+                min-height: 82px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                text-align: left;
+                padding: 13px 14px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-card);
+                box-shadow: var(--shadow-1);
+                cursor: pointer;
+                font-family: inherit;
+                transition:
+                    border-color 0.14s,
+                    box-shadow 0.14s,
+                    background 0.14s;
+            }
+            .entry:hover {
+                border-color: #cfd9e6;
+                box-shadow: var(--shadow-2);
+            }
+            .entry:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 2px;
+            }
+            .entry--primary {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary-light);
+            }
+            .entry--primary:hover {
+                background: #e4eefe;
+                border-color: #b9d1fb;
+            }
+            .entry--primary::before {
+                content: "";
+                position: absolute;
+                left: -1px;
+                top: 14px;
+                bottom: 14px;
+                width: 3px;
+                border-radius: var(--r-pill);
+                background: var(--b3-theme-primary);
+            }
+            .entry-ico {
+                width: 36px;
+                height: 36px;
+                flex: 0 0 auto;
+                border-radius: 11px;
+                display: grid;
+                place-items: center;
+                background: var(--mute-bg);
+                color: var(--b3-theme-on-surface-light);
+            }
+            .entry--primary .entry-ico {
+                background: #fff;
+                color: var(--b3-theme-primary);
+                box-shadow: 0 1px 2px rgba(53, 117, 240, 0.14);
+            }
+            .entry-txt {
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+            }
+            .entry-txt b {
+                font-size: 13.5px;
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+                letter-spacing: 0.01em;
+            }
+            .entry-txt span {
+                font-size: 11.5px;
+                color: var(--b3-theme-on-surface-light);
+                line-height: 1.55;
+            }
+            .entry-num {
+                margin-left: auto;
+                text-align: right;
+                flex: 0 0 auto;
+            }
+            .entry-num b {
+                display: block;
+                font-size: 21px;
+                line-height: 1.05;
+                font-weight: 650;
+                font-variant-numeric: tabular-nums;
+                color: var(--b3-theme-on-background);
+                letter-spacing: -0.01em;
+            }
+            .entry--primary .entry-num b {
+                color: var(--b3-theme-primary);
+            }
+            .entry-num span {
+                font-size: 10.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+
+            /* 卡片 */
+            .card {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-card);
+                box-shadow: var(--shadow-1);
+                padding: 14px;
+            }
+            .card-top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+            }
+            .mode-label {
+                font-size: 11.5px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface-light);
+                letter-spacing: 0.02em;
+            }
+            .tool-group {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+            }
+            .tool-group .icon-btn {
+                width: 26px;
+                height: 26px;
+            }
+
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                height: 20px;
+                padding: 0 8px;
+                border-radius: var(--r-pill);
+                font-size: 10.5px;
+                font-weight: 650;
+                white-space: nowrap;
+                border: 1px solid transparent;
+            }
+            .chip--err {
+                background: var(--err-bg);
+                border-color: var(--err-bd);
+                color: var(--err-fg);
+            }
+            .chip--warn {
+                background: var(--warn-bg);
+                border-color: var(--warn-bd);
+                color: var(--warn-fg);
+            }
+            .chip--ok {
+                background: var(--ok-bg);
+                border-color: var(--ok-bd);
+                color: var(--ok-fg);
+            }
+            .chip--mute {
+                background: var(--mute-bg);
+                border-color: var(--mute-bd);
+                color: var(--mute-fg);
+            }
+            .chip--primary {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary-light);
+                color: #2557c0;
+            }
+
+            .word-row {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+            }
+            .word {
+                font-size: 27px;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+                color: var(--b3-theme-on-background);
+                line-height: 1.2;
+            }
+            .ladder {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                margin-left: auto;
+            }
+            .ladder i {
+                display: block;
+                width: 6px;
+                height: 6px;
+                border-radius: var(--r-pill);
+                border: 1.5px solid #c6ccd5;
+                background: transparent;
+            }
+            .ladder i.done {
+                background: var(--ok-fg);
+                border-color: var(--ok-fg);
+            }
+            .ladder i.now {
+                width: 16px;
+                background: var(--b3-theme-primary);
+                border-color: var(--b3-theme-primary);
+            }
+            .phonetic {
+                font-size: 12.5px;
+                color: var(--b3-theme-on-surface-light);
+                letter-spacing: 0.01em;
+            }
+            .def {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface);
+            }
+
+            .prompt-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+            }
+            .prompt {
+                font-size: 11.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .link-btn {
+                height: 26px;
+                padding: 0 10px;
+                border-radius: var(--r-btn);
+                border: 1px solid var(--b3-border-color);
+                background: var(--b3-theme-surface);
+                color: var(--b3-theme-on-surface-light);
+                font-family: inherit;
+                font-size: 11.5px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .link-btn:hover {
+                background: #f1f4f8;
+                border-color: #cfd7e2;
+                color: var(--b3-theme-on-background);
+            }
+            .link-btn:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 1px;
+            }
+
+            /* 选项行 */
+            .options {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .opt {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 44px;
+                padding: 10px 11px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-opt);
+                font-family: inherit;
+                font-size: 13px;
+                font-weight: 500;
+                color: var(--b3-theme-on-surface);
+                text-align: left;
+                cursor: pointer;
+                transition:
+                    border-color 0.14s,
+                    background 0.14s,
+                    color 0.14s;
+            }
+            .opt .key {
+                width: 22px;
+                height: 22px;
+                flex: 0 0 auto;
+                border-radius: var(--r-pill);
+                border: 1px solid var(--b3-border-color);
+                background: var(--b3-theme-background);
+                display: grid;
+                place-items: center;
+                font-size: 11px;
+                font-weight: 650;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .opt:hover,
+            .opt.is-hover {
+                border-color: var(--b3-theme-primary);
+                background: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-on-background);
+            }
+            .opt:hover .key,
+            .opt.is-hover .key {
+                border-color: var(--b3-theme-primary);
+                background: #fff;
+                color: var(--b3-theme-primary);
+            }
+            .opt:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 1px;
+            }
+            .opt.is-correct {
+                border-color: var(--b3-success);
+                background: var(--ok-bg);
+                color: var(--ok-fg);
+                font-weight: 600;
+            }
+            .opt.is-correct .key {
+                border-color: var(--b3-success);
+                background: #fff;
+                color: var(--ok-fg);
+            }
+            .opt.is-wrong {
+                border-color: var(--b3-error);
+                background: var(--err-bg);
+                color: var(--err-fg);
+                font-weight: 600;
+            }
+            .opt.is-wrong .key {
+                border-color: var(--b3-error);
+                background: #fff;
+                color: var(--err-fg);
+            }
+            .opt.is-dim {
+                border-color: #e6eaf0;
+                background: #fdfdfe;
+                color: var(--mute-fg);
+            }
+            .opt.is-dim .key {
+                border-color: #e0e5ec;
+                color: var(--mute-fg);
+            }
+
+            .progress {
+                height: 4px;
+                border-radius: var(--r-pill);
+                background: #e6eaf0;
+                overflow: hidden;
+            }
+            .progress i {
+                display: block;
+                height: 100%;
+                border-radius: var(--r-pill);
+                background: var(--b3-theme-primary);
+            }
+            .card-progress {
+                margin-top: auto;
+                display: flex;
+                align-items: center;
+                gap: 9px;
+            }
+            .card-progress .progress {
+                flex: 1 1 auto;
+            }
+            .card-progress span {
+                font-size: 10.5px;
+                font-weight: 650;
+                color: var(--b3-theme-on-surface-light);
+                font-variant-numeric: tabular-nums;
+            }
+
+            /* 听音大喇叭 */
+            .listen-face {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+                padding: 6px 0 2px;
+            }
+            .speaker-circle {
+                position: relative;
+                width: 84px;
+                height: 84px;
+                border-radius: var(--r-pill);
+                border: 0;
+                background: var(--b3-theme-primary-lightest);
+                color: var(--b3-theme-primary);
+                display: grid;
+                place-items: center;
+                cursor: pointer;
+            }
+            .speaker-circle::after {
+                content: "";
+                position: absolute;
+                inset: -9px;
+                border-radius: var(--r-pill);
+                border: 1px solid var(--b3-theme-primary-light);
+            }
+            .speaker-circle:hover {
+                background: #e4eefe;
+            }
+            .speaker-circle:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 4px;
+            }
+
+            /* 自评档位 */
+            .grade-row {
+                display: flex;
+                gap: 8px;
+                margin-top: auto;
+            }
+            .grade {
+                flex: 1 1 0;
+                min-height: 38px;
+                border-radius: var(--r-btn);
+                background: var(--b3-theme-surface);
+                font-family: inherit;
+                font-size: 12px;
+                font-weight: 650;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+            }
+            .grade em {
+                font-style: normal;
+                font-size: 10.5px;
+                opacity: 0.75;
+                font-variant-numeric: tabular-nums;
+            }
+            .grade--ok {
+                border: 1px solid var(--ok-bd);
+                color: var(--ok-fg);
+                background: var(--ok-bg);
+            }
+            .grade--ok:hover {
+                border-color: var(--b3-success);
+                background: #e4f3e5;
+            }
+            .grade--warn {
+                border: 1px solid var(--warn-bd);
+                color: var(--warn-fg);
+                background: var(--warn-bg);
+            }
+            .grade--warn:hover {
+                border-color: var(--b3-warning);
+                background: #fbf0d6;
+            }
+            .grade--err {
+                border: 1px solid var(--err-bd);
+                color: var(--err-fg);
+                background: var(--err-bg);
+            }
+            .grade--err:hover {
+                border-color: var(--b3-error);
+                background: #fbe3e0;
+            }
+            .grade:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 2px;
+            }
+
+            /* 详情翻面 */
+            .note-card {
+                background: var(--warn-bg);
+                border: 1px solid var(--warn-bd);
+                border-radius: var(--r-opt);
+                padding: 10px 11px;
+                font-size: 11.5px;
+                line-height: 1.7;
+                color: var(--warn-fg);
+            }
+            .ai-line {
+                display: flex;
+                align-items: flex-start;
+                gap: 7px;
+                font-size: 11.5px;
+                line-height: 1.6;
+                color: #24509f;
+            }
+            .ai-line .ic {
+                color: var(--b3-theme-primary);
+                margin-top: 2px;
+            }
+            .feedback {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                flex-wrap: wrap;
+                background: var(--err-bg);
+                border: 1px solid var(--err-bd);
+                border-radius: var(--r-opt);
+                padding: 9px 11px;
+                font-size: 11.5px;
+                color: var(--err-fg);
+            }
+            .feedback b {
+                font-weight: 650;
+            }
+            .feedback span {
+                color: #8f4a41;
+            }
+            .writeback {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                margin-top: auto;
+            }
+            .writeback label {
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .input {
+                width: 100%;
+                height: 34px;
+                padding: 0 11px;
+                border-radius: var(--r-btn);
+                border: 1px solid var(--b3-border-color);
+                background: var(--b3-theme-surface);
+                font-family: inherit;
+                font-size: 12.5px;
+                color: var(--b3-theme-on-background);
+            }
+            .input::placeholder {
+                color: #98a1ac;
+            }
+            .input:hover {
+                border-color: #cfd7e2;
+            }
+            .input:focus {
+                outline: none;
+                border-color: var(--b3-theme-primary);
+                box-shadow: 0 0 0 3px var(--b3-theme-primary-lightest);
+            }
+            .btn-row {
+                display: flex;
+                gap: 8px;
+            }
+            .btn {
+                min-height: 36px;
+                padding: 0 15px;
+                border-radius: var(--r-btn);
+                border: 1px solid transparent;
+                font-family: inherit;
+                font-size: 12.5px;
+                font-weight: 650;
+                letter-spacing: 0.02em;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+            }
+            .btn--block {
+                flex: 1 1 0;
+                width: 100%;
+            }
+            .btn--primary {
+                background: var(--b3-theme-primary);
+                color: var(--b3-theme-on-primary);
+                box-shadow: 0 1px 2px rgba(53, 117, 240, 0.3);
+            }
+            .btn--primary:hover {
+                background: #2a63d8;
+                color: #fff;
+                box-shadow: 0 2px 6px rgba(53, 117, 240, 0.34);
+            }
+            .btn--primary:active {
+                background: #2356c2;
+            }
+            .btn--ghost {
+                background: var(--b3-theme-surface);
+                color: var(--b3-theme-on-surface);
+                border-color: var(--b3-border-color);
+            }
+            .btn--ghost:hover {
+                background: #f1f4f8;
+                border-color: #cfd7e2;
+                color: var(--b3-theme-on-background);
+            }
+            .btn--text {
+                background: transparent;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .btn--text:hover {
+                color: #2557c0;
+                background: var(--b3-theme-primary-lightest);
+            }
+            .btn:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 2px;
+            }
+
+            /* 完成页 / 统计页 */
+            .card--done {
+                align-items: flex-start;
+                gap: 6px;
+                flex: 0 0 auto;
+            }
+            .done-title {
+                font-size: 20px;
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+                letter-spacing: -0.01em;
+            }
+            .done-sub {
+                font-size: 12px;
+                color: var(--b3-theme-on-surface-light);
+                line-height: 1.6;
+            }
+            .card--stats {
+                gap: 12px;
+            }
+            .card-title {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                font-size: 12.5px;
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+            }
+            .card-title .ic {
+                color: var(--b3-theme-on-surface-light);
+            }
+            .stat-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1px;
+                background: var(--b3-border-color);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-opt);
+                overflow: hidden;
+            }
+            .stat-cell {
+                background: var(--b3-theme-surface);
+                padding: 10px 6px;
+                text-align: center;
+            }
+            .stat-cell b {
+                display: block;
+                font-size: 19px;
+                line-height: 1.1;
+                font-weight: 650;
+                font-variant-numeric: tabular-nums;
+                color: var(--b3-theme-on-background);
+                letter-spacing: -0.01em;
+            }
+            .stat-cell b em {
+                font-style: normal;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--b3-theme-on-surface-light);
+                margin-left: 1px;
+            }
+            .stat-cell span {
+                display: block;
+                margin-top: 4px;
+                font-size: 10.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .stat-note {
+                font-size: 11px;
+                line-height: 1.65;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .stat-note b {
+                color: var(--b3-theme-on-surface);
+                font-weight: 650;
+                font-variant-numeric: tabular-nums;
+            }
+            .chart-block {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                margin-top: auto;
+            }
+            .chart {
+                display: flex;
+                align-items: flex-end;
+                gap: 6px;
+                --max: 45;
+            }
+            .chart-item {
+                flex: 1 1 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 5px;
+                min-width: 0;
+            }
+            .bar-val {
+                font-size: 10px;
+                font-weight: 650;
+                color: var(--b3-theme-on-surface-light);
+                font-variant-numeric: tabular-nums;
+            }
+            .bar-track {
+                width: 100%;
+                height: 78px;
+                display: flex;
+                align-items: flex-end;
+                background: #f0f3f7;
+                border-radius: 6px;
+                overflow: hidden;
+            }
+            .bar {
+                width: 100%;
+                height: calc(var(--v) / var(--max) * 100%);
+                background: var(--b3-theme-primary-soft);
+                border-radius: 6px 6px 0 0;
+            }
+            .bar--now {
+                background: var(--b3-theme-primary);
+            }
+            .bar-x {
+                font-size: 10px;
+                color: var(--b3-theme-on-surface-light);
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .chart-item.is-now .bar-x {
+                color: #2557c0;
+                font-weight: 650;
+            }
+
+            /* 查词 */
+            .search-box {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                height: 38px;
+                padding: 0 11px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-opt);
+                box-shadow: var(--shadow-1);
+                color: var(--b3-theme-on-surface-light);
+            }
+            .search-box input {
+                flex: 1 1 auto;
+                min-width: 0;
+                border: 0;
+                outline: none;
+                background: transparent;
+                font-family: inherit;
+                font-size: 12.5px;
+                color: var(--b3-theme-on-background);
+            }
+            .search-box input::placeholder {
+                color: #98a1ac;
+            }
+            .search-box:focus-within {
+                border-color: var(--b3-theme-primary);
+                box-shadow: 0 0 0 3px var(--b3-theme-primary-lightest);
+            }
+            .result-list {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .result {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 9px 11px;
+                min-height: 46px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-opt);
+                cursor: pointer;
+                text-align: left;
+                font-family: inherit;
+            }
+            .result:hover {
+                border-color: var(--b3-theme-primary-light);
+                background: #fbfcff;
+            }
+            .result.is-active {
+                border-color: var(--b3-theme-primary);
+                background: var(--b3-theme-primary-lightest);
+            }
+            .result:focus-visible {
+                outline: 2px solid var(--b3-theme-primary);
+                outline-offset: 1px;
+            }
+            .result .r-main {
+                min-width: 0;
+            }
+            .result .r-word {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--b3-theme-on-background);
+            }
+            .result .r-ph {
+                font-size: 10.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .result .tag {
+                margin-left: auto;
+            }
+            .tag {
+                display: inline-flex;
+                align-items: center;
+                height: 20px;
+                padding: 0 8px;
+                border-radius: var(--r-pill);
+                font-size: 10.5px;
+                font-weight: 650;
+                white-space: nowrap;
+                border: 1px solid transparent;
+            }
+            .tag--new {
+                background: var(--mute-bg);
+                border-color: var(--mute-bd);
+                color: var(--mute-fg);
+            }
+            .tag--review {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary-light);
+                color: #2557c0;
+            }
+            .tag--known {
+                background: var(--ok-bg);
+                border-color: var(--ok-bd);
+                color: var(--ok-fg);
+            }
+            .tag--easy {
+                background: var(--mute-bg);
+                border-color: var(--mute-bd);
+                color: var(--mute-fg);
+                text-decoration: line-through;
+            }
+            .status-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 11px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .status-row b {
+                font-weight: 650;
+                color: var(--b3-theme-on-surface);
+                font-variant-numeric: tabular-nums;
+            }
+            .word-line {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .word-line .word {
+                font-size: 22px;
+            }
+            .divider {
+                height: 1px;
+                background: var(--b3-border-color);
+            }
+            .action-row {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+
+            /* ============================================================
+   5. 移动屏 · 390×844 手机框
+   ============================================================ */
+            .slot--phone {
+                width: 390px;
+            }
+            .phone {
+                width: 390px;
+                height: 844px;
+                flex: 0 0 auto;
+                border-radius: 46px;
+                padding: 10px;
+                background: #0e1116;
+                box-shadow:
+                    0 26px 60px rgba(0, 0, 0, 0.46),
+                    0 0 0 1px rgba(255, 255, 255, 0.09);
+            }
+            .phone-screen {
+                width: 100%;
+                height: 100%;
+                border-radius: 37px;
+                overflow: hidden;
+                position: relative;
+                background: var(--b3-theme-background);
+                color: var(--b3-theme-on-surface);
+                display: flex;
+                flex-direction: column;
+            }
+            .statusbar {
+                flex: 0 0 auto;
+                height: 46px;
+                display: flex;
+                align-items: flex-end;
+                justify-content: space-between;
+                padding: 0 26px 6px;
+                font-size: 12.5px;
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+            }
+            .statusbar .sb-right {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .statusbar .sb-right svg {
+                width: 15px;
+                height: 15px;
+                display: block;
+            }
+            .phone-body {
+                flex: 1 1 auto;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                padding: 4px 16px 0;
+                overflow: hidden;
+            }
+            .home-indicator {
+                flex: 0 0 auto;
+                height: 26px;
+                display: grid;
+                place-items: center;
+            }
+            .home-indicator span {
+                width: 126px;
+                height: 5px;
+                border-radius: 999px;
+                background: rgba(36, 43, 51, 0.28);
+            }
+
+            .m-topbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                min-height: 46px;
+            }
+            .m-title {
+                font-size: 19px;
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+                letter-spacing: 0.01em;
+            }
+            .icon-btn--lg {
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+            }
+            .icon-btn--lg .ic {
+                width: 19px;
+                height: 19px;
+            }
+
+            .m-headcard {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 12px 13px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: var(--r-card);
+                box-shadow: var(--shadow-1);
+            }
+            .book-switch--lg {
+                font-size: 13.5px;
+                padding: 6px 10px 6px 11px;
+                background: var(--mute-bg);
+            }
+            .stat-line--lg {
+                font-size: 12px;
+            }
+
+            .m-entries {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                flex: 1 1 auto;
+            }
+            .m-entry {
+                position: relative;
+                flex: 1 1 auto;
+                min-height: 88px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 16px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: 14px;
+                box-shadow: var(--shadow-1);
+                font-family: inherit;
+                text-align: left;
+                cursor: pointer;
+            }
+            .m-entry--primary {
+                background: var(--b3-theme-primary-lightest);
+                border-color: var(--b3-theme-primary-light);
+            }
+            .m-entry--primary::before {
+                content: "";
+                position: absolute;
+                left: -1px;
+                top: 16px;
+                bottom: 16px;
+                width: 3px;
+                border-radius: 999px;
+                background: var(--b3-theme-primary);
+            }
+            .m-entry:active {
+                border-color: var(--b3-theme-primary);
+            }
+            .m-entry .entry-ico {
+                width: 44px;
+                height: 44px;
+                border-radius: 13px;
+            }
+            .m-entry .entry-txt b {
+                font-size: 15.5px;
+            }
+            .m-entry .entry-txt span {
+                font-size: 12.5px;
+            }
+            .m-entry .entry-num b {
+                font-size: 27px;
+            }
+            .m-entry .entry-num span {
+                font-size: 11.5px;
+            }
+
+            .m-mode {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+            }
+            .m-mode .mode-label {
+                font-size: 12.5px;
+            }
+            .opt--lg {
+                min-height: 52px;
+                font-size: 14.5px;
+                padding: 12px 13px;
+                border-radius: 12px;
+            }
+            .opt--lg .key {
+                width: 32px;
+                height: 32px;
+                font-size: 13px;
+                border-width: 1.5px;
+            }
+            .m-card {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                background: var(--b3-theme-surface);
+                border: 1px solid var(--b3-border-color);
+                border-radius: 16px;
+                box-shadow: var(--shadow-1);
+                padding: 16px;
+                overflow: hidden;
+            }
+            .m-word {
+                font-size: 34px;
+            }
+            .m-progress {
+                flex: 0 0 auto;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding: 0 0 12px;
+            }
+            .m-progress-top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-size: 11.5px;
+                color: var(--b3-theme-on-surface-light);
+            }
+            .m-progress-top b {
+                font-weight: 650;
+                color: var(--b3-theme-on-background);
+                font-variant-numeric: tabular-nums;
+            }
+            .progress--lg {
+                height: 8px;
+            }
+            .progress--bleed {
+                margin: 0 -16px;
+                border-radius: 0;
+                width: calc(100% + 32px);
+            }
+            .m-speaker {
+                position: relative;
+                width: 96px;
+                height: 96px;
+                border-radius: 999px;
+                border: 0;
+                cursor: pointer;
+                background: var(--b3-theme-primary);
+                color: #fff;
+                display: grid;
+                place-items: center;
+                box-shadow: 0 8px 20px rgba(53, 117, 240, 0.32);
+            }
+            .m-speaker::after {
+                content: "";
+                position: absolute;
+                inset: -12px;
+                border-radius: 999px;
+                border: 1.5px solid var(--b3-theme-primary-light);
+            }
+            .m-listen {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 16px;
+            }
+            .m-actionbar {
+                flex: 0 0 auto;
+                display: flex;
+                gap: 10px;
+                padding: 12px 0 6px;
+                border-top: 1px solid var(--b3-theme-border, var(--b3-border-color));
+            }
+            .btn--lg {
+                min-height: 48px;
+                font-size: 15px;
+                border-radius: 12px;
+                flex: 1 1 0;
+            }
+            .m-stat-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .m-stat-grid .stat-cell {
+                padding: 13px 6px;
+            }
+            .m-stat-grid .stat-cell b {
+                font-size: 25px;
+            }
+            .m-stat-grid .stat-cell span {
+                font-size: 11.5px;
+                margin-top: 5px;
+            }
+            .m-chart {
+                --max: 45;
+                gap: 7px;
+            }
+            .m-chart .bar-track {
+                height: 118px;
+                border-radius: 8px;
+            }
+            .m-chart .bar {
+                border-radius: 8px 8px 0 0;
+            }
+            .m-chart .bar-val {
+                font-size: 11.5px;
+            }
+            .m-chart .bar-x {
+                font-size: 11px;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- ===== 图标符号（全部内联 SVG，无 emoji） ===== -->
+        <svg class="svg-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+            <symbol id="i-gear" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                ></path>
+            </symbol>
+            <symbol id="i-stats" viewBox="0 0 24 24"><path d="M5 20v-6M11 20V6M17 20v-9M3 20h18"></path></symbol>
+            <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"></path></symbol>
+            <symbol id="i-search" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="M20 20l-3.6-3.6"></path>
+            </symbol>
+            <symbol id="i-spark" viewBox="0 0 24 24">
+                <path d="M11 3.2l1.9 5 5 1.9-5 1.9-1.9 5-1.9-5-5-1.9 5-1.9z" fill="currentColor" stroke="none"></path>
+                <path
+                    d="M18.6 15.4l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"
+                    fill="currentColor"
+                    stroke="none"
+                ></path>
+            </symbol>
+            <symbol id="i-star" viewBox="0 0 24 24">
+                <path d="M12 3.6l2.6 5.3 5.8.9-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.2-4.1 5.8-.9z"></path>
+            </symbol>
+            <symbol id="i-home" viewBox="0 0 24 24">
+                <path d="M4 10.4L12 4l8 6.4V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"></path>
+            </symbol>
+            <symbol id="i-speaker" viewBox="0 0 24 24">
+                <path d="M11 5L6.6 9H3v6h3.6L11 19z"></path>
+                <path d="M15.2 8.8a4.6 4.6 0 0 1 0 6.4"></path>
+                <path d="M18.2 6a8.6 8.6 0 0 1 0 12"></path>
+            </symbol>
+            <symbol id="i-trash" viewBox="0 0 24 24">
+                <path
+                    d="M4 7h16M10 11v6M14 11v6M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L18 7M9.5 7V4.6h5V7"
+                ></path>
+            </symbol>
+            <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L20 6.5"></path></symbol>
+            <symbol id="i-cross" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></symbol>
+            <symbol id="i-list" viewBox="0 0 24 24">
+                <path d="M9 6h11M9 12h11M9 18h11"></path>
+                <path d="M4.6 6h.01M4.6 12h.01M4.6 18h.01" stroke-width="2.4"></path>
+            </symbol>
+            <symbol id="i-refresh" viewBox="0 0 24 24">
+                <path d="M20 12a8 8 0 1 1-2.4-5.7"></path>
+                <path d="M20 4.4V10h-5.6"></path>
+            </symbol>
+            <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.2v13.6M5.2 12h13.6"></path></symbol>
+            <symbol id="i-edit" viewBox="0 0 24 24">
+                <path d="M4 20h4L20 8l-4-4L4 16z"></path>
+                <path d="M14.5 5.5l4 4"></path>
+            </symbol>
+        </svg>
+
+        <main class="deck" data-od-id="canvas-deck">
+            <!-- ===== 画布标题 ===== -->
+            <div class="deck-head" data-od-id="canvas-title">
+                <span class="brand"><i></i>温故 · Word Review</span>
+                <h1>温故单词<br />双端界面美化原型</h1>
+                <p class="lede">
+                    思源笔记插件「温故」背单词模块。桌面 Dock 窄面板 8 屏 + 移动端 6
+                    屏，信息架构不变，仅做层级、主色节奏、数字与状态的现代化升级。
+                </p>
+                <div class="tokens">
+                    <div class="token-row">
+                        <span class="sw" style="background: #3575f0"></span>主色 <b>--b3-theme-primary</b>
+                    </div>
+                    <div class="token-row">
+                        <span class="sw" style="background: #4caf50"></span>正确 / 熟 <b>#4caf50</b>
+                    </div>
+                    <div class="token-row">
+                        <span class="sw" style="background: #d23f31"></span>错误 / 误认 <b>#d23f31</b>
+                    </div>
+                    <div class="token-row">
+                        <span class="sw" style="background: #d9a717"></span>易混 / 模糊 <b>#d9a717</b>
+                    </div>
+                    <div class="token-row"><span class="sw" style="background: #f4f6f8"></span>背景 <b>#f4f6f8</b></div>
+                    <div class="token-row"><span class="sw" style="background: #e3e7ec"></span>描边 <b>#e3e7ec</b></div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+       桌面段
+       ============================================================ -->
+            <section class="seg" id="desktop" data-od-id="seg-desktop">
+                <div class="seg-head">
+                    <span class="seg-eyebrow">Desktop</span>
+                    <h2>桌面端 · Dock 窄面板 360px</h2>
+                    <p>卡片 12px 圆角 / 按钮 8px / 选项行 10px / 阴影 0 1px 3px rgba(0,0,0,.06)</p>
+                </div>
+                <div class="row">
+                    <!-- ① 首页 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-home">
+                            <div class="head">
+                                <div class="head-top">
+                                    <div class="app-title">温故单词</div>
+                                    <div class="head-actions">
+                                        <button class="icon-btn" type="button" aria-label="设置">
+                                            <svg class="ic"><use href="#i-gear" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="统计">
+                                            <svg class="ic"><use href="#i-stats" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="head-sub">
+                                    <button class="book-switch" type="button">
+                                        考研核心词<svg class="ic ic-xs"><use href="#i-chevron" /></svg>
+                                    </button>
+                                    <div class="stat-line">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>168</b> · 明天 <b>45</b>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="ai-bar" data-od-id="dock-home-ai">
+                                <svg class="ic ic-sm"><use href="#i-spark" /></svg>
+                                <span>AI 已分析 3 个误认词，复习时间已按建议重排</span>
+                            </div>
+
+                            <div class="entries">
+                                <button class="entry entry--primary" type="button" data-od-id="home-entry-review">
+                                    <span class="entry-ico"
+                                        ><svg class="ic ic-md"><use href="#i-refresh" /></svg
+                                    ></span>
+                                    <span class="entry-txt"><b>复习</b><span>今天到期</span></span>
+                                    <span class="entry-num"><b>30</b><span>个</span></span>
+                                </button>
+                                <button class="entry" type="button" data-od-id="home-entry-new">
+                                    <span class="entry-ico"
+                                        ><svg class="ic ic-md"><use href="#i-plus" /></svg
+                                    ></span>
+                                    <span class="entry-txt"><b>新学</b><span>还剩 168 个未学</span></span>
+                                    <span class="entry-num"><b>168</b><span>个</span></span>
+                                </button>
+                                <button class="entry" type="button" data-od-id="home-entry-star">
+                                    <span class="entry-ico"
+                                        ><svg class="ic ic-md"><use href="#i-star" /></svg
+                                    ></span>
+                                    <span class="entry-txt"><b>星标</b><span>重点词，过一遍</span></span>
+                                    <span class="entry-num"><b>12</b><span>个</span></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">①</span>
+                                <h3>首页</h3>
+                            </div>
+                            <p>
+                                两行头部：标题 + 幽灵图标钮；词书切换与统计小字同行。AI
+                                消息条用主色浅底。「全书已学完，只剩到期复习」态不展示（当前剩 168 个）。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ② 先复习确认层 -->
+                    <div class="slot">
+                        <div class="panel panel--center theme-light" data-od-id="dock-review-confirm">
+                            <div class="card" style="flex: 0 0 auto; gap: 14px; padding: 18px">
+                                <span
+                                    class="entry-ico"
+                                    style="
+                                        width: 40px;
+                                        height: 40px;
+                                        border-radius: 12px;
+                                        background: var(--b3-theme-primary-lightest);
+                                        color: var(--b3-theme-primary);
+                                    "
+                                >
+                                    <svg class="ic ic-md"><use href="#i-refresh" /></svg>
+                                </span>
+                                <p
+                                    style="
+                                        margin: 0;
+                                        font-size: 13.5px;
+                                        line-height: 1.7;
+                                        color: var(--b3-theme-on-surface);
+                                    "
+                                >
+                                    今天还有
+                                    <b style="font-variant-numeric: tabular-nums">30</b> 个到期复习，建议先复习再学新词
+                                </p>
+                                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 2px">
+                                    <button class="btn btn--primary btn--block" type="button">去复习</button>
+                                    <button class="btn btn--ghost btn--block" type="button">仍学新词</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">②</span>
+                                <h3>先复习确认层</h3>
+                            </div>
+                            <p>单卡居中，正文说明 + 主色实心「去复习」+ 弱化「仍学新词」，一屏只有一个主 CTA。</p>
+                        </div>
+                    </div>
+
+                    <!-- ③ 刷卡 · 看单词选意思 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-quiz-meaning">
+                            <div class="head">
+                                <div class="head-top">
+                                    <div class="app-title">温故单词</div>
+                                    <div class="head-actions">
+                                        <span class="chip chip--err">错 2 次</span>
+                                        <button class="icon-btn" type="button" aria-label="查词">
+                                            <svg class="ic"><use href="#i-search" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="AI 助手">
+                                            <svg class="ic"><use href="#i-spark" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="head-sub">
+                                    <button class="book-switch" type="button">
+                                        考研核心词<svg class="ic ic-xs"><use href="#i-chevron" /></svg>
+                                    </button>
+                                    <div class="stat-line">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-top">
+                                    <span class="mode-label">看单词选意思</span>
+                                    <div class="tool-group">
+                                        <button class="icon-btn" type="button" aria-label="星标">
+                                            <svg class="ic"><use href="#i-star" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="回到首页">
+                                            <svg class="ic"><use href="#i-home" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="word-row">
+                                    <span class="word">abandon</span>
+                                    <span class="ladder" title="梯进度 1/4"
+                                        ><i class="now"></i><i></i><i></i><i></i
+                                    ></span>
+                                </div>
+                                <div class="phonetic">/əˈbændən/</div>
+
+                                <div class="prompt-row">
+                                    <span class="prompt">选出正确答案(1-4)</span>
+                                    <button class="link-btn" type="button">看答案</button>
+                                </div>
+
+                                <div class="options">
+                                    <button class="opt" type="button"><span class="key">A</span>v. 放弃；抛弃</button>
+                                    <button class="opt" type="button"><span class="key">B</span>n. 狂热；爱好</button>
+                                    <button class="opt is-hover" type="button">
+                                        <span class="key">C</span>v. 加速；促进
+                                    </button>
+                                    <button class="opt is-dim" type="button">
+                                        <span class="key">D</span>adj. 荒谬的
+                                    </button>
+                                </div>
+
+                                <div class="card-progress">
+                                    <div class="progress"><i style="width: 35%"></i></div>
+                                    <span>35%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">③</span>
+                                <h3>刷卡 · 看单词选意思（梯①）</h3>
+                            </div>
+                            <p>
+                                梯进度第 1 点为主色胶囊，其余空心。第 3 条选项展示 hover 高亮态（主色描边 +
+                                主色浅底）。卡底细进度条 35%。
+                            </p>
+                        </div>
+                        <div class="legend">
+                            <span class="legend-title">选项行三态</span>
+                            <div class="legend-row">
+                                <span class="mini-opt is-correct"
+                                    ><span class="dot"
+                                        ><svg class="ic" style="width: 8px; height: 8px; stroke-width: 3">
+                                            <use href="#i-check" /></svg></span
+                                    >正确</span
+                                >
+                                <span class="mini-opt is-wrong"
+                                    ><span class="dot"
+                                        ><svg class="ic" style="width: 8px; height: 8px; stroke-width: 3">
+                                            <use href="#i-cross" /></svg></span
+                                    >错误</span
+                                >
+                                <span class="mini-opt is-dim">未选</span>
+                                <span class="mini-opt is-primary">hover</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ④ 刷卡 · 听音选义 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-quiz-listen">
+                            <div class="head">
+                                <div class="head-top">
+                                    <div class="app-title">温故单词</div>
+                                    <div class="head-actions">
+                                        <span class="chip chip--err">错 2 次</span>
+                                        <button class="icon-btn" type="button" aria-label="查词">
+                                            <svg class="ic"><use href="#i-search" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="AI 助手">
+                                            <svg class="ic"><use href="#i-spark" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="head-sub">
+                                    <button class="book-switch" type="button">
+                                        考研核心词<svg class="ic ic-xs"><use href="#i-chevron" /></svg>
+                                    </button>
+                                    <div class="stat-line">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-top">
+                                    <span class="mode-label">听音选义</span>
+                                    <div class="tool-group">
+                                        <button class="icon-btn" type="button" aria-label="星标">
+                                            <svg class="ic"><use href="#i-star" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="回到首页">
+                                            <svg class="ic"><use href="#i-home" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="listen-face">
+                                    <button class="speaker-circle" type="button" aria-label="播放发音">
+                                        <svg class="ic ic-xl"><use href="#i-speaker" /></svg>
+                                    </button>
+                                    <span class="phonetic">/əˈbændən/</span>
+                                </div>
+
+                                <div class="options">
+                                    <button class="opt" type="button"><span class="key">A</span>v. 放弃；抛弃</button>
+                                    <button class="opt" type="button"><span class="key">B</span>n. 狂热；爱好</button>
+                                    <button class="opt" type="button"><span class="key">C</span>v. 加速；促进</button>
+                                    <button class="opt" type="button"><span class="key">D</span>adj. 荒谬的</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">④</span>
+                                <h3>刷卡 · 听音选义（梯③）</h3>
+                            </div>
+                            <p>词面区换成主色浅底大圆喇叭（外圈波纹环），音标居中。梯进度在本步隐藏，不给拼写线索。</p>
+                        </div>
+                    </div>
+
+                    <!-- ⑤ 刷卡 · 看英文回想 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-quiz-recall">
+                            <div class="head">
+                                <div class="head-top">
+                                    <div class="app-title">温故单词</div>
+                                    <div class="head-actions">
+                                        <span class="chip chip--err">错 2 次</span>
+                                        <button class="icon-btn" type="button" aria-label="查词">
+                                            <svg class="ic"><use href="#i-search" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="AI 助手">
+                                            <svg class="ic"><use href="#i-spark" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="head-sub">
+                                    <button class="book-switch" type="button">
+                                        考研核心词<svg class="ic ic-xs"><use href="#i-chevron" /></svg>
+                                    </button>
+                                    <div class="stat-line">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-top">
+                                    <span class="mode-label">看英文回想</span>
+                                    <div class="tool-group">
+                                        <button class="icon-btn" type="button" aria-label="星标">
+                                            <svg class="ic"><use href="#i-star" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="回到首页">
+                                            <svg class="ic"><use href="#i-home" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="listen-face" style="gap: 16px">
+                                    <span class="word" style="font-size: 32px">abandon</span>
+                                    <span class="ladder" style="margin: 0" title="梯进度 4/4"
+                                        ><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i
+                                    ></span>
+                                    <span class="prompt" style="text-align: center; max-width: 230px; line-height: 1.7"
+                                        >心里回想后按档位（空格 / 点卡可先看答案）</span
+                                    >
+                                </div>
+
+                                <div class="grade-row">
+                                    <button class="grade grade--ok" type="button">认识 <em>(1)</em></button>
+                                    <button class="grade grade--warn" type="button">模糊 <em>(2)</em></button>
+                                    <button class="grade grade--err" type="button">不认识 <em>(3)</em></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑤</span>
+                                <h3>刷卡 · 看英文回想（梯④）</h3>
+                            </div>
+                            <p>
+                                全回忆态。梯进度第 4 点为主色当前胶囊，前三点已完成（实心绿）。三档自评分别用绿 / 黄 /
+                                红描边，只作状态色，不铺面积。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑥ 词卡详情翻面态 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-card-detail">
+                            <div class="head">
+                                <div class="head-top">
+                                    <div class="app-title">温故单词</div>
+                                    <div class="head-actions">
+                                        <span class="chip chip--err">错 2 次</span>
+                                        <button class="icon-btn" type="button" aria-label="查词">
+                                            <svg class="ic"><use href="#i-search" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="AI 助手">
+                                            <svg class="ic"><use href="#i-spark" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="head-sub">
+                                    <button class="book-switch" type="button">
+                                        考研核心词<svg class="ic ic-xs"><use href="#i-chevron" /></svg>
+                                    </button>
+                                    <div class="stat-line">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-top">
+                                    <span class="mode-label">看单词选意思</span>
+                                    <div class="tool-group">
+                                        <button class="icon-btn is-on" type="button" aria-label="已星标">
+                                            <svg class="ic ic--fill"><use href="#i-star" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="回到首页">
+                                            <svg class="ic"><use href="#i-home" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="word-row">
+                                    <span class="word">abandon</span>
+                                    <span class="ladder" title="梯进度 4/4 完成"
+                                        ><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i
+                                    ></span>
+                                    <button
+                                        class="icon-btn"
+                                        type="button"
+                                        aria-label="朗读"
+                                        style="width: 26px; height: 26px"
+                                    >
+                                        <svg class="ic ic-sm"><use href="#i-speaker" /></svg>
+                                    </button>
+                                </div>
+                                <div class="phonetic">/əˈbændən/</div>
+                                <div class="def">v. 放弃；抛弃</div>
+
+                                <div><span class="chip chip--warn">曾认成: abundant</span></div>
+
+                                <div class="note-card">
+                                    abandon 指彻底放弃；abundant 是形容词「丰富的」——词根不同：band（控制）vs
+                                    und（溢出）
+                                </div>
+
+                                <div class="ai-line">
+                                    <svg class="ic ic-sm"><use href="#i-spark" /></svg>
+                                    <span>AI 提示：你在 revolution/evolution 上也犯过同类混淆</span>
+                                </div>
+
+                                <div class="feedback">
+                                    <svg class="ic ic-sm" style="stroke-width: 2.2"><use href="#i-cross" /></svg>
+                                    <b>答错了</b>
+                                    <span>你选的是：abundant 丰富的</span>
+                                </div>
+
+                                <div class="writeback">
+                                    <label for="wb-1">把 abandon 认成了…(选填)</label>
+                                    <input class="input" id="wb-1" type="text" placeholder="例如：abundant" />
+                                </div>
+
+                                <div class="btn-row">
+                                    <button class="btn btn--primary" type="button" style="flex: 1 1 auto">
+                                        下一个
+                                    </button>
+                                    <button class="btn btn--ghost" type="button">记错了</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑥</span>
+                                <h3>词卡详情翻面态（答错后）</h3>
+                            </div>
+                            <p>
+                                梯进度全部完成（实心绿）。易混胶囊与辨析小卡用黄系，反馈行用红系；「自述框」收集误认路径再喂给
+                                AI。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑦ 完成页 + 统计页 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-done-stats">
+                            <div class="card card--done" data-od-id="dock-done">
+                                <div class="done-title">今日已完成</div>
+                                <div class="done-sub">
+                                    新学 <b style="font-variant-numeric: tabular-nums">12</b> 词 · 复习
+                                    <b style="font-variant-numeric: tabular-nums">30</b> 词，明天再来
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 8px;
+                                        width: 100%;
+                                        margin-top: 6px;
+                                    "
+                                >
+                                    <button class="btn btn--primary btn--block" type="button">再过 5 个生词</button>
+                                    <button class="btn btn--ghost btn--block" type="button">回到首页</button>
+                                </div>
+                            </div>
+
+                            <div class="card card--stats" data-od-id="dock-stats">
+                                <div class="card-title">
+                                    <svg class="ic ic-sm"><use href="#i-stats" /></svg>学习统计
+                                </div>
+                                <div class="stat-grid">
+                                    <div class="stat-cell"><b>232</b><span>已学</span></div>
+                                    <div class="stat-cell"><b>168</b><span>剩余</span></div>
+                                    <div class="stat-cell"><b>89</b><span>巩固中</span></div>
+                                    <div class="stat-cell"><b>12</b><span>今日新学</span></div>
+                                    <div class="stat-cell"><b>30</b><span>今日复习</span></div>
+                                    <div class="stat-cell">
+                                        <b>6<em>天</em></b
+                                        ><span>连续打卡</span>
+                                    </div>
+                                </div>
+                                <div class="stat-note">
+                                    误认词 <b>8</b> 个(待AI辨析 <b>3</b>) · 熟 <b>21</b> · 星标 <b>12</b> · 太简单
+                                    <b>4</b>
+                                </div>
+
+                                <div class="chart-block">
+                                    <div class="card-title">
+                                        <svg class="ic ic-sm"><use href="#i-list" /></svg>未来 7 天到期分布
+                                    </div>
+                                    <div class="chart" role="img" aria-label="未来 7 天到期分布柱状图">
+                                        <div class="chart-item is-now">
+                                            <span class="bar-val">30</span>
+                                            <div class="bar-track">
+                                                <div class="bar bar--now" style="--v: 30"></div>
+                                            </div>
+                                            <span class="bar-x">今</span>
+                                        </div>
+                                        <div class="chart-item">
+                                            <span class="bar-val">45</span>
+                                            <div class="bar-track"><div class="bar" style="--v: 45"></div></div>
+                                            <span class="bar-x">明</span>
+                                        </div>
+                                        <div class="chart-item">
+                                            <span class="bar-val">28</span>
+                                            <div class="bar-track"><div class="bar" style="--v: 28"></div></div>
+                                            <span class="bar-x">09-18</span>
+                                        </div>
+                                        <div class="chart-item">
+                                            <span class="bar-val">36</span>
+                                            <div class="bar-track"><div class="bar" style="--v: 36"></div></div>
+                                            <span class="bar-x">09-19</span>
+                                        </div>
+                                        <div class="chart-item">
+                                            <span class="bar-val">22</span>
+                                            <div class="bar-track"><div class="bar" style="--v: 22"></div></div>
+                                            <span class="bar-x">09-20</span>
+                                        </div>
+                                        <div class="chart-item">
+                                            <span class="bar-val">41</span>
+                                            <div class="bar-track"><div class="bar" style="--v: 41"></div></div>
+                                            <span class="bar-x">09-21</span>
+                                        </div>
+                                        <div class="chart-item">
+                                            <span class="bar-val">17</span>
+                                            <div class="bar-track"><div class="bar" style="--v: 17"></div></div>
+                                            <span class="bar-x">09-22</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑦</span>
+                                <h3>完成页 + 统计页（合并展示）</h3>
+                            </div>
+                            <p>
+                                完成卡与统计卡上下合并。六格数字用 tabular-nums 大字号；柱高由
+                                <b>--v / --max</b> 计算，今天柱实心主色高亮。今 / 明为实测值，后 5
+                                天为按记忆曲线的预测值。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑧ 查词屏 -->
+                    <div class="slot">
+                        <div class="panel theme-light" data-od-id="dock-search">
+                            <div class="head">
+                                <div class="head-top">
+                                    <div class="app-title">查词</div>
+                                    <div class="head-actions">
+                                        <button class="icon-btn" type="button" aria-label="列表">
+                                            <svg class="ic"><use href="#i-list" /></svg>
+                                        </button>
+                                        <button class="icon-btn" type="button" aria-label="设置">
+                                            <svg class="ic"><use href="#i-gear" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label class="search-box" data-od-id="dock-search-box">
+                                <svg class="ic ic-sm"><use href="#i-search" /></svg>
+                                <input type="text" placeholder="搜索单词或中文释义…" aria-label="搜索单词或中文释义" />
+                            </label>
+
+                            <div class="result-list">
+                                <button class="result is-active" type="button">
+                                    <span class="r-main"
+                                        ><span class="r-word">abandon</span><span class="r-ph"> /əˈbændən/</span></span
+                                    >
+                                    <span class="tag tag--review">复习中</span>
+                                </button>
+                                <button class="result" type="button">
+                                    <span class="r-main"
+                                        ><span class="r-word">abundant</span
+                                        ><span class="r-ph"> /əˈbʌndənt/</span></span
+                                    >
+                                    <span class="tag tag--known">熟</span>
+                                </button>
+                            </div>
+
+                            <div class="card" data-od-id="dock-search-detail">
+                                <div class="status-row">
+                                    档位 <b>3</b> · 复习中<span class="tag tag--review" style="margin-left: auto"
+                                        >复习中</span
+                                    >
+                                </div>
+                                <div class="word-row">
+                                    <span class="word" style="font-size: 22px">abandon</span>
+                                    <span class="phonetic">/əˈbændən/</span>
+                                    <button
+                                        class="icon-btn"
+                                        type="button"
+                                        aria-label="朗读"
+                                        style="width: 26px; height: 26px"
+                                    >
+                                        <svg class="ic ic-sm"><use href="#i-speaker" /></svg>
+                                    </button>
+                                </div>
+                                <div class="def">v. 放弃；抛弃</div>
+                                <div class="divider"></div>
+                                <div class="action-row">
+                                    <button class="icon-btn is-on" type="button" aria-label="星标">
+                                        <svg class="ic ic--fill"><use href="#i-star" /></svg>
+                                    </button>
+                                    <button class="icon-btn" type="button" aria-label="标熟">
+                                        <svg class="ic"><use href="#i-check" /></svg>
+                                    </button>
+                                    <button class="icon-btn" type="button" aria-label="移到太简单">
+                                        <svg class="ic"><use href="#i-trash" /></svg>
+                                    </button>
+                                </div>
+                                <label class="writeback" for="note-1" style="margin-top: 0">
+                                    <input
+                                        class="input"
+                                        id="note-1"
+                                        type="text"
+                                        placeholder="单词笔记：词根/助记/例句…"
+                                    />
+                                </label>
+                                <button
+                                    class="btn btn--primary"
+                                    type="button"
+                                    style="align-self: flex-start; min-height: 32px; padding: 0 14px"
+                                >
+                                    保存
+                                </button>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑧</span>
+                                <h3>查词屏</h3>
+                            </div>
+                            <p>
+                                常驻搜索框 + 匹配列表（行内状态小标签）+
+                                选中词条详情卡（档位、朗读、星标/标熟/移除、笔记与保存）。
+                            </p>
+                        </div>
+                        <div class="legend">
+                            <span class="legend-title">词条状态标签</span>
+                            <div class="legend-row">
+                                <span class="tag tag--new">未学</span>
+                                <span class="tag tag--review">复习中</span>
+                                <span class="tag tag--known">熟</span>
+                                <span class="tag tag--easy">太简单</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================
+       移动段
+       ============================================================ -->
+            <section class="seg" id="mobile" data-od-id="seg-mobile">
+                <div class="seg-head">
+                    <span class="seg-eyebrow">Mobile</span>
+                    <h2>移动端 · 390 × 844</h2>
+                    <p>触控目标 ≥ 44px / 正文 ≥ 15px / 不依赖 hover，状态与操作全部前置到可见层</p>
+                </div>
+                <div class="row">
+                    <!-- ⑨ 首页 -->
+                    <div class="slot slot--phone">
+                        <div class="phone">
+                            <div class="phone-screen theme-light" data-od-id="mob-home">
+                                <div class="statusbar">
+                                    <span>9:41</span>
+                                    <span class="sb-right">
+                                        <svg viewBox="0 0 22 18" aria-hidden="true">
+                                            <path
+                                                d="M2 12h3v5H2zM7.5 9h3v8h-3zM13 5.5h3V17h-3zM18.5 2h3v15h-3z"
+                                                fill="currentColor"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 24 18" aria-hidden="true">
+                                            <path
+                                                d="M12 15.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"
+                                                fill="currentColor"
+                                            ></path>
+                                            <path
+                                                d="M7.6 11.4a6.3 6.3 0 0 1 8.8 0M4.4 8.2a11 11 0 0 1 15.2 0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 26 14" aria-hidden="true">
+                                            <rect
+                                                x="1"
+                                                y="1"
+                                                width="20"
+                                                height="12"
+                                                rx="3.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.4"
+                                            ></rect>
+                                            <rect x="3" y="3" width="13" height="8" rx="2" fill="currentColor"></rect>
+                                            <path
+                                                d="M23.4 5v4"
+                                                stroke="currentColor"
+                                                stroke-width="1.8"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </div>
+
+                                <div class="phone-body">
+                                    <div class="m-topbar">
+                                        <div class="m-title">温故单词</div>
+                                        <button class="icon-btn icon-btn--lg" type="button" aria-label="设置">
+                                            <svg class="ic"><use href="#i-gear" /></svg>
+                                        </button>
+                                    </div>
+
+                                    <div class="m-headcard">
+                                        <button class="book-switch book-switch--lg" type="button">
+                                            考研核心词<svg class="ic ic-xs"><use href="#i-chevron" /></svg>
+                                        </button>
+                                        <div class="stat-line stat-line--lg">
+                                            新 <b>12</b> · 复 <b>30</b> · 剩 <b>168</b> · 明天 <b>45</b>
+                                        </div>
+                                    </div>
+
+                                    <div class="m-entries">
+                                        <button class="m-entry m-entry--primary" type="button">
+                                            <span class="entry-ico"
+                                                ><svg class="ic ic-md"><use href="#i-refresh" /></svg
+                                            ></span>
+                                            <span class="entry-txt"><b>复习</b><span>今天到期</span></span>
+                                            <span class="entry-num"><b>30</b><span>个</span></span>
+                                        </button>
+                                        <button class="m-entry" type="button">
+                                            <span class="entry-ico"
+                                                ><svg class="ic ic-md"><use href="#i-plus" /></svg
+                                            ></span>
+                                            <span class="entry-txt"><b>新学</b><span>还剩 168 个未学</span></span>
+                                            <span class="entry-num"><b>168</b><span>个</span></span>
+                                        </button>
+                                        <button class="m-entry" type="button">
+                                            <span class="entry-ico"
+                                                ><svg class="ic ic-md"><use href="#i-star" /></svg
+                                            ></span>
+                                            <span class="entry-txt"><b>星标</b><span>重点词，过一遍</span></span>
+                                            <span class="entry-num"><b>12</b><span>个</span></span>
+                                        </button>
+                                    </div>
+
+                                    <div class="ai-bar" style="flex: 0 0 auto">
+                                        <svg class="ic ic-sm"><use href="#i-spark" /></svg>
+                                        <span>AI 已分析 3 个误认词，复习时间已按建议重排</span>
+                                    </div>
+                                </div>
+
+                                <div class="home-indicator"><span></span></div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑨</span>
+                                <h3>首页</h3>
+                            </div>
+                            <p>
+                                顶栏收成单行；词书名与统计合并为一张浅色头卡；三张全宽入口大卡行高 ≥ 88px，数字 27px
+                                tabular-nums。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑩ 刷卡 · 看单词选意思 -->
+                    <div class="slot slot--phone">
+                        <div class="phone">
+                            <div class="phone-screen theme-light" data-od-id="mob-quiz-meaning">
+                                <div class="statusbar">
+                                    <span>9:41</span>
+                                    <span class="sb-right">
+                                        <svg viewBox="0 0 22 18" aria-hidden="true">
+                                            <path
+                                                d="M2 12h3v5H2zM7.5 9h3v8h-3zM13 5.5h3V17h-3zM18.5 2h3v15h-3z"
+                                                fill="currentColor"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 24 18" aria-hidden="true">
+                                            <path
+                                                d="M12 15.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"
+                                                fill="currentColor"
+                                            ></path>
+                                            <path
+                                                d="M7.6 11.4a6.3 6.3 0 0 1 8.8 0M4.4 8.2a11 11 0 0 1 15.2 0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 26 14" aria-hidden="true">
+                                            <rect
+                                                x="1"
+                                                y="1"
+                                                width="20"
+                                                height="12"
+                                                rx="3.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.4"
+                                            ></rect>
+                                            <rect x="3" y="3" width="13" height="8" rx="2" fill="currentColor"></rect>
+                                            <path
+                                                d="M23.4 5v4"
+                                                stroke="currentColor"
+                                                stroke-width="1.8"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </div>
+
+                                <div class="phone-body">
+                                    <div class="m-topbar">
+                                        <div class="m-title">温故单词</div>
+                                        <div style="display: flex; align-items: center; gap: 4px">
+                                            <span class="chip chip--err">错 2 次</span>
+                                            <button class="icon-btn icon-btn--lg" type="button" aria-label="查词">
+                                                <svg class="ic"><use href="#i-search" /></svg>
+                                            </button>
+                                            <button class="icon-btn icon-btn--lg" type="button" aria-label="AI 助手">
+                                                <svg class="ic"><use href="#i-spark" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="stat-line stat-line--lg" style="padding-left: 2px">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+
+                                    <div class="m-card">
+                                        <div class="m-mode">
+                                            <span class="mode-label">看单词选意思</span>
+                                            <div class="tool-group">
+                                                <button class="icon-btn icon-btn--lg" type="button" aria-label="星标">
+                                                    <svg class="ic"><use href="#i-star" /></svg>
+                                                </button>
+                                                <button
+                                                    class="icon-btn icon-btn--lg"
+                                                    type="button"
+                                                    aria-label="回到首页"
+                                                >
+                                                    <svg class="ic"><use href="#i-home" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="word-row">
+                                            <span class="word m-word">abandon</span>
+                                            <span class="ladder" title="梯进度 1/4"
+                                                ><i class="now"></i><i></i><i></i><i></i
+                                            ></span>
+                                        </div>
+                                        <div class="phonetic" style="font-size: 14px">/əˈbændən/</div>
+
+                                        <div class="prompt-row">
+                                            <span class="prompt" style="font-size: 12.5px">选出正确答案(1-4)</span>
+                                            <button class="link-btn" type="button" style="min-height: 32px">
+                                                看答案
+                                            </button>
+                                        </div>
+
+                                        <div class="options">
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">A</span>v. 放弃；抛弃
+                                            </button>
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">B</span>n. 狂热；爱好
+                                            </button>
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">C</span>v. 加速；促进
+                                            </button>
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">D</span>adj. 荒谬的
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="m-progress">
+                                        <div class="m-progress-top"><span>本轮进度</span><b>35%</b></div>
+                                        <div class="progress progress--lg"><i style="width: 35%"></i></div>
+                                    </div>
+                                </div>
+
+                                <div class="home-indicator"><span></span></div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑩</span>
+                                <h3>刷卡 · 看单词选意思</h3>
+                            </div>
+                            <p>
+                                全宽选项行高 52px、序号圆徽标 32px；底部换成 8px 主色实心大进度条，不依赖 hover
+                                也能读出状态。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑪ 刷卡 · 听音选义 -->
+                    <div class="slot slot--phone">
+                        <div class="phone">
+                            <div class="phone-screen theme-light" data-od-id="mob-quiz-listen">
+                                <div class="statusbar">
+                                    <span>9:41</span>
+                                    <span class="sb-right">
+                                        <svg viewBox="0 0 22 18" aria-hidden="true">
+                                            <path
+                                                d="M2 12h3v5H2zM7.5 9h3v8h-3zM13 5.5h3V17h-3zM18.5 2h3v15h-3z"
+                                                fill="currentColor"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 24 18" aria-hidden="true">
+                                            <path
+                                                d="M12 15.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"
+                                                fill="currentColor"
+                                            ></path>
+                                            <path
+                                                d="M7.6 11.4a6.3 6.3 0 0 1 8.8 0M4.4 8.2a11 11 0 0 1 15.2 0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 26 14" aria-hidden="true">
+                                            <rect
+                                                x="1"
+                                                y="1"
+                                                width="20"
+                                                height="12"
+                                                rx="3.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.4"
+                                            ></rect>
+                                            <rect x="3" y="3" width="13" height="8" rx="2" fill="currentColor"></rect>
+                                            <path
+                                                d="M23.4 5v4"
+                                                stroke="currentColor"
+                                                stroke-width="1.8"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </div>
+
+                                <div class="phone-body">
+                                    <div class="m-topbar">
+                                        <div class="m-title">温故单词</div>
+                                        <div style="display: flex; align-items: center; gap: 4px">
+                                            <span class="chip chip--err">错 2 次</span>
+                                            <button class="icon-btn icon-btn--lg" type="button" aria-label="跳回首页">
+                                                <svg class="ic"><use href="#i-home" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="stat-line stat-line--lg" style="padding-left: 2px">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+
+                                    <div class="m-card">
+                                        <div class="m-mode"><span class="mode-label">听音选义</span></div>
+
+                                        <div class="m-listen">
+                                            <button class="m-speaker" type="button" aria-label="播放发音">
+                                                <svg class="ic" style="width: 44px; height: 44px; stroke-width: 1.6">
+                                                    <use href="#i-speaker" />
+                                                </svg>
+                                            </button>
+                                            <span class="phonetic" style="font-size: 15px">/əˈbændən/</span>
+                                        </div>
+
+                                        <div class="options">
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">A</span>v. 放弃；抛弃
+                                            </button>
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">B</span>n. 狂热；爱好
+                                            </button>
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">C</span>v. 加速；促进
+                                            </button>
+                                            <button class="opt opt--lg" type="button">
+                                                <span class="key">D</span>adj. 荒谬的
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="home-indicator"><span></span></div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑪</span>
+                                <h3>刷卡 · 听音选义</h3>
+                            </div>
+                            <p>喇叭升级为视觉主角：96px 主色实心圆 + 白色图标，外圈波纹环；音标居中，选项同 ⑩。</p>
+                        </div>
+                    </div>
+
+                    <!-- ⑫ 词卡详情翻面态 -->
+                    <div class="slot slot--phone">
+                        <div class="phone">
+                            <div class="phone-screen theme-light" data-od-id="mob-card-detail">
+                                <div class="statusbar">
+                                    <span>9:41</span>
+                                    <span class="sb-right">
+                                        <svg viewBox="0 0 22 18" aria-hidden="true">
+                                            <path
+                                                d="M2 12h3v5H2zM7.5 9h3v8h-3zM13 5.5h3V17h-3zM18.5 2h3v15h-3z"
+                                                fill="currentColor"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 24 18" aria-hidden="true">
+                                            <path
+                                                d="M12 15.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"
+                                                fill="currentColor"
+                                            ></path>
+                                            <path
+                                                d="M7.6 11.4a6.3 6.3 0 0 1 8.8 0M4.4 8.2a11 11 0 0 1 15.2 0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 26 14" aria-hidden="true">
+                                            <rect
+                                                x="1"
+                                                y="1"
+                                                width="20"
+                                                height="12"
+                                                rx="3.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.4"
+                                            ></rect>
+                                            <rect x="3" y="3" width="13" height="8" rx="2" fill="currentColor"></rect>
+                                            <path
+                                                d="M23.4 5v4"
+                                                stroke="currentColor"
+                                                stroke-width="1.8"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </div>
+
+                                <div class="phone-body">
+                                    <div class="m-topbar">
+                                        <div class="m-title">温故单词</div>
+                                        <div style="display: flex; align-items: center; gap: 4px">
+                                            <span class="chip chip--err">错 2 次</span>
+                                            <button class="icon-btn icon-btn--lg" type="button" aria-label="AI 助手">
+                                                <svg class="ic"><use href="#i-spark" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="stat-line stat-line--lg" style="padding-left: 2px">
+                                        新 <b>12</b> · 复 <b>30</b> · 剩 <b>156</b> · 明天 <b>45</b>
+                                    </div>
+
+                                    <div class="m-card" style="gap: 10px; padding: 14px">
+                                        <div class="m-mode">
+                                            <span class="mode-label">看单词选意思</span>
+                                            <div class="tool-group">
+                                                <button
+                                                    class="icon-btn icon-btn--lg is-on"
+                                                    type="button"
+                                                    aria-label="已星标"
+                                                >
+                                                    <svg class="ic ic--fill"><use href="#i-star" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="word-row">
+                                            <span class="word m-word">abandon</span>
+                                            <span class="ladder" title="梯进度 4/4 完成"
+                                                ><i class="done"></i><i class="done"></i><i class="done"></i
+                                                ><i class="done"></i
+                                            ></span>
+                                        </div>
+                                        <div class="word-line">
+                                            <span class="phonetic" style="font-size: 14px">/əˈbændən/</span>
+                                            <button
+                                                class="icon-btn icon-btn--lg"
+                                                type="button"
+                                                aria-label="朗读"
+                                                style="width: 38px; height: 38px"
+                                            >
+                                                <svg class="ic ic-md"><use href="#i-speaker" /></svg>
+                                            </button>
+                                        </div>
+                                        <div class="def" style="font-size: 16px">v. 放弃；抛弃</div>
+
+                                        <div>
+                                            <span class="chip chip--warn" style="height: 24px; font-size: 11.5px"
+                                                >曾认成: abundant</span
+                                            >
+                                        </div>
+
+                                        <div
+                                            class="note-card"
+                                            style="font-size: 12.5px; line-height: 1.7; padding: 9px 10px"
+                                        >
+                                            abandon 指彻底放弃；abundant 是形容词「丰富的」——词根不同：band（控制）vs
+                                            und（溢出）
+                                        </div>
+
+                                        <div class="ai-line" style="font-size: 12px">
+                                            <svg class="ic ic-sm"><use href="#i-spark" /></svg>
+                                            <span>AI 提示：你在 revolution/evolution 上也犯过同类混淆</span>
+                                        </div>
+
+                                        <div class="feedback" style="font-size: 12px; padding: 8px 10px">
+                                            <svg class="ic ic-sm" style="stroke-width: 2.2">
+                                                <use href="#i-cross" />
+                                            </svg>
+                                            <b>答错了</b>
+                                            <span>你选的是：abundant 丰富的</span>
+                                        </div>
+
+                                        <div class="writeback" style="gap: 5px">
+                                            <label for="m-wb">把 abandon 认成了…(选填)</label>
+                                            <input
+                                                class="input"
+                                                id="m-wb"
+                                                type="text"
+                                                style="height: 44px; font-size: 14px"
+                                                placeholder="例如：abundant"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="m-actionbar">
+                                        <button class="btn btn--ghost btn--lg" type="button">记错了</button>
+                                        <button class="btn btn--primary btn--lg" type="button">下一个</button>
+                                    </div>
+                                </div>
+
+                                <div class="home-indicator"><span></span></div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑫</span>
+                                <h3>词卡详情翻面态</h3>
+                            </div>
+                            <p>
+                                全宽排版，正文 ≥ 13px、输入框 44px；自评与「下一个 / 记错了」收进底部固定操作条，按钮
+                                48px 高。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑬ 统计页 -->
+                    <div class="slot slot--phone">
+                        <div class="phone">
+                            <div class="phone-screen theme-light" data-od-id="mob-stats">
+                                <div class="statusbar">
+                                    <span>9:41</span>
+                                    <span class="sb-right">
+                                        <svg viewBox="0 0 22 18" aria-hidden="true">
+                                            <path
+                                                d="M2 12h3v5H2zM7.5 9h3v8h-3zM13 5.5h3V17h-3zM18.5 2h3v15h-3z"
+                                                fill="currentColor"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 24 18" aria-hidden="true">
+                                            <path
+                                                d="M12 15.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"
+                                                fill="currentColor"
+                                            ></path>
+                                            <path
+                                                d="M7.6 11.4a6.3 6.3 0 0 1 8.8 0M4.4 8.2a11 11 0 0 1 15.2 0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 26 14" aria-hidden="true">
+                                            <rect
+                                                x="1"
+                                                y="1"
+                                                width="20"
+                                                height="12"
+                                                rx="3.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.4"
+                                            ></rect>
+                                            <rect x="3" y="3" width="13" height="8" rx="2" fill="currentColor"></rect>
+                                            <path
+                                                d="M23.4 5v4"
+                                                stroke="currentColor"
+                                                stroke-width="1.8"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </div>
+
+                                <div class="phone-body">
+                                    <div class="m-topbar">
+                                        <div class="m-title">学习统计</div>
+                                        <button class="icon-btn icon-btn--lg" type="button" aria-label="回到首页">
+                                            <svg class="ic"><use href="#i-home" /></svg>
+                                        </button>
+                                    </div>
+
+                                    <div class="card" style="flex: 0 0 auto">
+                                        <div class="stat-grid m-stat-grid">
+                                            <div class="stat-cell"><b>232</b><span>已学</span></div>
+                                            <div class="stat-cell"><b>168</b><span>剩余</span></div>
+                                            <div class="stat-cell"><b>89</b><span>巩固中</span></div>
+                                            <div class="stat-cell"><b>12</b><span>今日新学</span></div>
+                                            <div class="stat-cell"><b>30</b><span>今日复习</span></div>
+                                            <div class="stat-cell">
+                                                <b>6<em>天</em></b
+                                                ><span>连续打卡</span>
+                                            </div>
+                                        </div>
+                                        <div class="stat-note" style="font-size: 12px">
+                                            误认词 <b>8</b> 个(待AI辨析 <b>3</b>) · 熟 <b>21</b> · 星标 <b>12</b> ·
+                                            太简单 <b>4</b>
+                                        </div>
+                                    </div>
+
+                                    <div class="card" style="flex: 1 1 auto">
+                                        <div class="card-title" style="font-size: 13.5px">
+                                            <svg class="ic ic-sm"><use href="#i-list" /></svg>未来 7 天到期分布
+                                        </div>
+                                        <div
+                                            class="chart m-chart"
+                                            role="img"
+                                            aria-label="未来 7 天到期分布柱状图"
+                                            style="margin-top: auto"
+                                        >
+                                            <div class="chart-item is-now">
+                                                <span class="bar-val">30</span>
+                                                <div class="bar-track">
+                                                    <div class="bar bar--now" style="--v: 30"></div>
+                                                </div>
+                                                <span class="bar-x">今</span>
+                                            </div>
+                                            <div class="chart-item">
+                                                <span class="bar-val">45</span>
+                                                <div class="bar-track"><div class="bar" style="--v: 45"></div></div>
+                                                <span class="bar-x">明</span>
+                                            </div>
+                                            <div class="chart-item">
+                                                <span class="bar-val">28</span>
+                                                <div class="bar-track"><div class="bar" style="--v: 28"></div></div>
+                                                <span class="bar-x">09-18</span>
+                                            </div>
+                                            <div class="chart-item">
+                                                <span class="bar-val">36</span>
+                                                <div class="bar-track"><div class="bar" style="--v: 36"></div></div>
+                                                <span class="bar-x">09-19</span>
+                                            </div>
+                                            <div class="chart-item">
+                                                <span class="bar-val">22</span>
+                                                <div class="bar-track"><div class="bar" style="--v: 22"></div></div>
+                                                <span class="bar-x">09-20</span>
+                                            </div>
+                                            <div class="chart-item">
+                                                <span class="bar-val">41</span>
+                                                <div class="bar-track"><div class="bar" style="--v: 41"></div></div>
+                                                <span class="bar-x">09-21</span>
+                                            </div>
+                                            <div class="chart-item">
+                                                <span class="bar-val">17</span>
+                                                <div class="bar-track"><div class="bar" style="--v: 17"></div></div>
+                                                <span class="bar-x">09-22</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="home-indicator"><span></span></div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑬</span>
+                                <h3>统计页</h3>
+                            </div>
+                            <p>
+                                六格数字 3×2 网格、数字 25px；柱状图占满宽，柱高由
+                                <b>--v / --max</b> 计算，每根柱都有分类与数值标签。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ⑭ 查词屏 -->
+                    <div class="slot slot--phone">
+                        <div class="phone">
+                            <div class="phone-screen theme-light" data-od-id="mob-search">
+                                <div class="statusbar">
+                                    <span>9:41</span>
+                                    <span class="sb-right">
+                                        <svg viewBox="0 0 22 18" aria-hidden="true">
+                                            <path
+                                                d="M2 12h3v5H2zM7.5 9h3v8h-3zM13 5.5h3V17h-3zM18.5 2h3v15h-3z"
+                                                fill="currentColor"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 24 18" aria-hidden="true">
+                                            <path
+                                                d="M12 15.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"
+                                                fill="currentColor"
+                                            ></path>
+                                            <path
+                                                d="M7.6 11.4a6.3 6.3 0 0 1 8.8 0M4.4 8.2a11 11 0 0 1 15.2 0"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.6"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                        <svg viewBox="0 0 26 14" aria-hidden="true">
+                                            <rect
+                                                x="1"
+                                                y="1"
+                                                width="20"
+                                                height="12"
+                                                rx="3.4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.4"
+                                            ></rect>
+                                            <rect x="3" y="3" width="13" height="8" rx="2" fill="currentColor"></rect>
+                                            <path
+                                                d="M23.4 5v4"
+                                                stroke="currentColor"
+                                                stroke-width="1.8"
+                                                stroke-linecap="round"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </div>
+
+                                <div class="phone-body">
+                                    <div class="m-topbar" style="min-height: 40px">
+                                        <div class="m-title" style="font-size: 17px">查词</div>
+                                    </div>
+
+                                    <label class="search-box" style="height: 46px; border-radius: 12px">
+                                        <svg class="ic ic-md"><use href="#i-search" /></svg>
+                                        <input
+                                            type="text"
+                                            style="font-size: 14.5px"
+                                            placeholder="搜索单词或中文释义…"
+                                            aria-label="搜索单词或中文释义"
+                                        />
+                                    </label>
+
+                                    <div class="result-list">
+                                        <button
+                                            class="result is-active"
+                                            type="button"
+                                            style="min-height: 48px; padding: 11px 12px"
+                                        >
+                                            <span class="r-main"
+                                                ><span class="r-word" style="font-size: 15px">abandon</span
+                                                ><span class="r-ph"> /əˈbændən/</span></span
+                                            >
+                                            <span class="tag tag--review">复习中</span>
+                                        </button>
+                                        <button
+                                            class="result"
+                                            type="button"
+                                            style="min-height: 48px; padding: 11px 12px"
+                                        >
+                                            <span class="r-main"
+                                                ><span class="r-word" style="font-size: 15px">abundant</span
+                                                ><span class="r-ph"> /əˈbʌndənt/</span></span
+                                            >
+                                            <span class="tag tag--known">熟</span>
+                                        </button>
+                                        <button
+                                            class="result"
+                                            type="button"
+                                            style="min-height: 48px; padding: 11px 12px"
+                                        >
+                                            <span class="r-main"
+                                                ><span class="r-word" style="font-size: 15px">abandonment</span
+                                                ><span class="r-ph"> /əˈbændənmənt/</span></span
+                                            >
+                                            <span class="tag tag--new">未学</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="card" style="flex: 1 1 auto">
+                                        <div class="status-row" style="font-size: 12.5px">
+                                            档位 <b>3</b> · 复习中<span
+                                                class="tag tag--review"
+                                                style="margin-left: auto"
+                                                >复习中</span
+                                            >
+                                        </div>
+                                        <div class="word-row">
+                                            <span class="word" style="font-size: 26px">abandon</span>
+                                            <span class="phonetic" style="font-size: 13.5px">/əˈbændən/</span>
+                                            <button
+                                                class="icon-btn icon-btn--lg"
+                                                type="button"
+                                                aria-label="朗读"
+                                                style="width: 40px; height: 40px"
+                                            >
+                                                <svg class="ic ic-md"><use href="#i-speaker" /></svg>
+                                            </button>
+                                        </div>
+                                        <div class="def" style="font-size: 15.5px">v. 放弃；抛弃</div>
+                                        <div class="divider"></div>
+                                        <div class="action-row" style="gap: 8px">
+                                            <button class="icon-btn icon-btn--lg is-on" type="button" aria-label="星标">
+                                                <svg class="ic ic--fill"><use href="#i-star" /></svg>
+                                            </button>
+                                            <button class="icon-btn icon-btn--lg" type="button" aria-label="标熟">
+                                                <svg class="ic"><use href="#i-check" /></svg>
+                                            </button>
+                                            <button class="icon-btn icon-btn--lg" type="button" aria-label="移到太简单">
+                                                <svg class="ic"><use href="#i-trash" /></svg>
+                                            </button>
+                                        </div>
+                                        <input
+                                            class="input"
+                                            type="text"
+                                            style="height: 44px; font-size: 14px; margin-top: auto"
+                                            placeholder="单词笔记：词根/助记/例句…"
+                                            aria-label="单词笔记"
+                                        />
+                                        <button
+                                            class="btn btn--primary"
+                                            type="button"
+                                            style="align-self: flex-start; min-height: 40px; padding: 0 18px"
+                                        >
+                                            保存
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="home-indicator"><span></span></div>
+                            </div>
+                        </div>
+                        <div class="caption">
+                            <div class="cap-top">
+                                <span class="no">⑭</span>
+                                <h3>查词屏</h3>
+                            </div>
+                            <p>
+                                顶部搜索框常驻（46px），结果列表行高 ≥ 48px
+                                且状态标签常显；详情卡承载档位、朗读、星标/标熟/移除与笔记保存。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </body>
+</html>
