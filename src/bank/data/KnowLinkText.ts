@@ -1,3 +1,4 @@
+import { TAG_MAX_CHARS } from "../../ai/prompts/common";
 import { expandKnowDocs, type KnowledgeIndex } from "../../convert/service/knowledge/KnowledgeLink";
 import { injectKnowledgeRefs, stripKnowledgeRefs } from "../../convert/service/knowledge/KnowRef";
 import { normalizeKnowledge } from "./KnowledgeNorm";
@@ -161,7 +162,9 @@ export async function applyTagToRecord(
 }
 
 /** AI 自由标签输出解析（纯函数）：`N|标签` 行 → qid 无关的编号→标签
- *  映射；`N|-` 表示该题无合适标签（跳过）。标签截 24 字防跑飞。 */
+ *  映射；`N|-` 表示该题无合适标签（跳过）。标签截 {@link TAG_MAX_CHARS}
+ *  字防跑飞——与 prompt 侧 {@link freeTagPrompt} 的「不超过 N 字」同源
+ *  （Issue #143 P3-6 收口，原先 12/24/30 三处各写一遍）。 */
 export function parseFreeTags(reply: string): Map<number, string> {
     const out = new Map<number, string>();
     for (const m of reply.matchAll(/^\s*(\d+)\s*[|｜:：]\s*(.+?)\s*$/gm)) {
@@ -169,7 +172,7 @@ export function parseFreeTags(reply: string): Map<number, string> {
         const tag = m[2].trim();
         if (!Number.isFinite(n) || n < 1) continue;
         if (tag === "-" || tag === "－") continue;
-        out.set(n, tag.slice(0, 24));
+        out.set(n, tag.slice(0, TAG_MAX_CHARS));
     }
     return out;
 }

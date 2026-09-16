@@ -109,6 +109,39 @@
       概念/变式/重生成/自检/自由标签，单题场景题型已知按题裁剪。route：章小节×
       单批批量四联 + knowRule 插槽，路由上限常量随 prompt 落此。judge：判分族+
       轮报分析 + byBaseQid。misc / companion。
+    - **prompt 审计收口**（Issue #143，20260916；#132 全量只读审计的 P2/P3 落地）：
+        - **限长常量收口** `common.TAG_MAX_CHARS = 24`——「知识点标签/术语」
+          长度口径原先 12（`freeTagPrompt` prompt 文案）/ 24（`parseFreeTags`
+          截断）/ 30（`SYN_MAX_CHARS`）各写一遍。现 prompt 侧要求与解析侧
+          截断**同源**（`SYN_MAX_CHARS = TAG_MAX_CHARS` 保留作文档别名）。
+          ⚠️ 加新的「不超过 N 字」要求时**别写死数字**，引该常量并注释互指。
+        - companion 的 **LINE 限长是两个值不是漂移**：`REACT_LINE_WANT=30`
+          （prompt 要求值）/ `REACT_LINE_MAX=40`（气泡容忍上限，留余量避免
+          合规输出被砍尾）。两者**不许合并**——收到 30 会让 AI 略超即出「…」，
+          提到 40 等于放任台词变长。
+        - **P2 三条**：①`buildPrompt` 首批判定正文改为「四行」
+          （CAN_CONVERT/REASON/TYPES/SUBJECT，原写「三行」而 `verdictOf` 实发
+          四行）；②`buildRegenPrompt` 的【用户备注】原先在要求段与模板尾**各
+          拼一遍**，现只留要求段那份；③`variantPrompt` 补插图占位还原要求
+          （发送侧 `sanitizeAiImages` 已把图换成〔插图:…〕，缺这句带图题走
+          变式链**图片静默丢失**）。
+        - ⚠️ **route 批量回复的扁平数组判废**（`parseBatchNums` 返回
+          `number[][] | undefined`）：AI 偶尔把所有编号并成一个数组
+          （`{"chapters":[1,2,3]}`），逐题归属全丢——旧实现按内层 `[…]` 顺序
+          取值会当「题 1 命中 1、题 2 命中 2…」**永久固化进 RouteCache**。
+          现判废并透传 `onFormatError` ⇒ `RouteCache` 置组失败 ⇒ **不落缓存**。
+          三个易错点：①取数组必须**括号配平**（非贪心会在嵌套首个 `]` 截断）；
+          ②必须取**最后一个**配平数组（AI 常先复述 prompt 里的格式骨架）；
+          ③**空数组 `[]` 是合法零命中、照常缓存**，只有「含内容的扁平数组」
+          才判废。
+        - **P3 其余**：`wrongCausesPrompt` 明说竖线**按位置切分**、题干内竖线
+          是内容（拼行侧刻意不转义：转义要动既有约定且让 AI 面对陌生的 `\|`）；
+          退役的两个 prompt 构建器死代码删除并由 `ai/prompts/convert.test.ts`
+          **源级扫描**（vite `?raw` glob，`src/` 无 @types/node）锁「零命中」。
+          ⚠️ **守卫文件自身也不能出现被查标识符的字面量**：验收口径是
+          `grep -rn "<名字>" src/` **零命中**，守卫里把名字写成字面量会让这条
+          grep 永远非零、口径无从成立——测试文件里用运行时拼装
+          （`["a","b"].join("")`）拿名字，断言效力不变。
     - **生题题型化**（20260910）：前置检测 TYPES 行顺带报题型（parseTypes 中英
       别名容错、分段并集），buildPrompt 只拼在场题型规则（数学卷不再带英语四类
       约定）；续跑/增量跳过检测时用题集既有记录题型并集（BankSets.setTypeUnion

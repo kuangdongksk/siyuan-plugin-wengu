@@ -56,11 +56,47 @@ function parseNums(reply: string, max: number): number[] {
     return out;
 }
 
+/** 取回复里**最后一段**配平的 JSON 数组原文（`keyRe` 是 `"chapters":` 这类
+ *  键前缀）。为什么必须配平 + 取末尾两件事：
+ *
+ *  - **配平**：非贪心匹配会在嵌套数组的首个 `]` 处截断（`[[1],[3]]` 只取到
+ *    `[[1]`），逐题归属随即错位；
+ *  - **取末尾**：AI 常先复述 prompt 里的格式骨架再给结果
+ *    （`格式是 {"chapters":[[编号,编号]]}
+结果：{"chapters":[[2],[2]]}`），
+ *    骨架同样配平但**不含数字**，取首个就会拿到骨架 ⇒ 整批判废。
+ *
+ *  字符串内的方括号不参与计数——本协议里只有数字与方括号，不处理字符串
+ *  转义（AI 越界输出即判废，宁漏勿错）。返回 undefined = 找不到配平数组。 */
+function lastBracketArrays(s: string, keyRe: RegExp): string | undefined {
+    let found: string | undefined;
+    for (const km of s.matchAll(keyRe)) {
+        const i = km.index + km[0].length;
+        if (s[i] !== "[") continue;
+        let depth = 0;
+        for (let j = i; j < s.length; j++) {
+            if (s[j] === "[") depth++;
+            else if (s[j] === "]" && --depth === 0) {
+                found = s.slice(i, j + 1);
+                break;
+            }
+        }
+    }
+    return found;
+}
+
 /** 批量路由回复里抽逐题编号：解析 `{"chapters":[[1,2],[3]]}` /
  *  `{"sections":[[…],[…]]}`——外层数组第 i 个元素对应第 i 道题。按 count
  *  补零（AI 少输出时补空数组、多输出截断），每元素内保序去重限界 [1,max]。
- *  批量回复不走裸数字兜底（会把各题编号并成一个扁列表，归属全乱）。 */
-function parseBatchNums(reply: string, max: number, count: number): number[][] {
+ *  批量回复不走裸数字兜底（会把各题编号并成一个扁列表，归属全乱）。
+ *
+ *  **扁平数组 = 格式偏差，整批判废**（Issue #143 P3-4）：AI 偶尔把所有
+ *  编号并成一个数组（`{"chapters":[1,2,3]}`）——逐题归属全丢，旧实现按
+ *  内层 `[…]` 顺序取值会把它当「第 1 题命中 1、第 2 题命中 2、第 3 题
+ *  命中 3」**永久固化到缓存**（`RouteCache` 逐题写条目），一次格式偏差
+ *  毁掉整批。故顶层数组里若**不含任何嵌套数组**（元素全是数字）即判废：
+ *  返回 undefined，调用方当次归空且**不写缓存**（下次重跑再试）。 */
+function parseBatchNums(reply: string, max: number, count: number): number[][] | undefined {
     const pick = (nums: number[]): number[] => {
         const out: number[] = [];
         for (const n of nums) {
@@ -69,10 +105,21 @@ function parseBatchNums(reply: string, max: number, count: number): number[][] {
         return out;
     };
     const out: number[][] = Array.from({ length: count }, (): number[] => []);
-    const m = /"(?:chapters|sections)"\s*:\s*(\[[\s\S]*\])/.exec(reply);
-    if (!m) return out;
+    // 取**最后一个**配平数组：AI 常先复述 prompt 里的格式骨架再给结果
+    // （骨架不含数字但也配平），首个数组会是骨架——旧实现贪心匹配到末尾
+    // 最后一个 `]` 恰好取到结果数组，本实现显式保留该口径。
+    const top = lastBracketArrays(reply, /"(?:chapters|sections)"\s*:\s*/g);
+    if (!top) return out;
+    // 判据：**顶层数组里有没有嵌套数组**——去首尾方括号后看内容里还有没有
+    // `[`。扁平形态（元素全是数字，如 [1,2,3]）下逐题归属不可信 ⇒ 判废
+    // （见上「扁平数组 = 格式偏差」）；有嵌套则是逐题分组形态，放行。
+    // ⚠️ **空数组 `[]` 是合法结果**（AI 明确判「这批一个都不沾」）不是偏差：
+    // 它该照常缓存（RouteCache「AI 明确判零命中的空结果也缓存」用例锁死），
+    // 故只对**含内容**的扁平数组判废。
+    const inner = top.slice(1, -1).trim();
+    if (inner !== "" && !inner.includes("[")) return undefined;
     let idx = 0;
-    for (const inner of m[1].matchAll(/\[([\d\s,]*)\]/g)) {
+    for (const inner of top.matchAll(/\[([\d\s,]*)\]/g)) {
         if (idx >= count) break;
         const nums = inner[1]
             .split(",")
@@ -234,12 +281,18 @@ export async function routeKnowledgeDiag(
  * chunks 下标对齐；零命中=空数组）。任一级调用失败调 onFail 并返回整批
  * 空数组（逐题降级未命中，不缓存）；单题零命中是合法结果（AI 明确判无），
  * 空数组照常缓存。
+ *
+ *  `onFormatError`（Issue #143 P3-4）：回复**格式偏差**（编号并成一个扁平
+ *  数组、逐题归属不可信）与「零命中」要分开——前者当次同样归空，但调用方
+ *  **必须拒写缓存**（`RouteCache` 收此回调置组失败标记），否则一次偏差
+ *  永久固化。与 onFail 同款透传，不改变降级语义。
  */
 export async function routeKnowledgeBatchDiag(
     chunks: string[],
     index: KnowledgeIndex,
     deps: KnowRouteDeps,
-    onFail?: (f: KnowRouteFail) => void
+    onFail?: (f: KnowRouteFail) => void,
+    onFormatError?: () => void
 ): Promise<KnowSection[][]> {
     const n = chunks.length;
     const results: KnowSection[][] = Array.from({ length: n }, (): KnowSection[] => []);
@@ -257,6 +310,11 @@ export async function routeKnowledgeBatchDiag(
             return results;
         }
         const numsPerQ = parseBatchNums(reply, index.chapters.length, n);
+        if (!numsPerQ) {
+            // 扁平数组：逐题归属不可信 ⇒ 整批归空且不落缓存（下次重跑）
+            onFormatError?.();
+            return results;
+        }
         perQChapters = numsPerQ.map((nums) => nums.map((num) => index.chapters[num - 1]));
     }
 
@@ -292,6 +350,10 @@ export async function routeKnowledgeBatchDiag(
         return results;
     }
     const secNumsPerQ = parseBatchNums(reply2, kept.length, n);
+    if (!secNumsPerQ) {
+        onFormatError?.();
+        return results;
+    }
     for (let i = 0; i < n; i++) {
         for (const num of secNumsPerQ[i].slice(0, MAX_SECTIONS)) {
             const s = kept[num - 1];

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseSynReply, synJudgePrompt, SYN_BATCH_SIZE, SYN_DENY, SYN_LIST_CHARS, SYN_MAX_CHARS } from "./synonyms";
+import { TAG_MAX_CHARS } from "./common";
 
 describe("synJudgePrompt（批量同义判定）", () => {
     it("编号标签行 + **共用**编号小节清单；批量上限常量可用", () => {
@@ -52,5 +53,15 @@ describe("parseSynReply（判定行解析，三态）", () => {
     it("空输出 / 非法编号 → 空映射（调用方按未判定处理）", () => {
         expect(parseSynReply("没有合适项")).toEqual(new Map());
         expect(parseSynReply("0|洛必达\n-1|导数").size).toBe(0);
+    });
+});
+
+describe("限长口径收口（Issue #143 P3-6）", () => {
+    it("SYN_MAX_CHARS 与 TAG_MAX_CHARS 同源（原先 30 与 24 各写一遍）", () => {
+        expect(SYN_MAX_CHARS).toBe(TAG_MAX_CHARS);
+    });
+
+    it("超长截断按收口后的常量走", () => {
+        expect(parseSynReply(`1|${"概".repeat(TAG_MAX_CHARS + 20)}`).get(1)?.length).toBe(TAG_MAX_CHARS);
     });
 });

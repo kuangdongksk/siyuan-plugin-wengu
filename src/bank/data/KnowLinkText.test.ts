@@ -9,6 +9,7 @@ import {
 } from "./KnowLinkText";
 import { QuestionBank, type BankData, type BankRecord } from "./QuestionBank";
 import { synKey, type KnowSynonymsData } from "./KnowSynonyms";
+import { TAG_MAX_CHARS } from "../../ai/prompts/common";
 
 // QuestionBank.markDirty 走 window.setTimeout 防抖（浏览器全局），node
 // 测试环境补一个直通桩——flush 落到 saveRaw 桩，无副作用
@@ -267,5 +268,11 @@ describe("parseFreeTags（AI 自由标签输出解析）", () => {
 
     it("空输出 → 空映射", () => {
         expect(parseFreeTags("没有合适标签")).toEqual(new Map());
+    });
+});
+
+describe("自由标签限长与 prompt 同源（Issue #143 P3-6）", () => {
+    it("截断长度 === TAG_MAX_CHARS（原先解析侧写死 24、prompt 侧写死 12）", () => {
+        expect(parseFreeTags(`1|${"标".repeat(TAG_MAX_CHARS + 20)}`).get(1)?.length).toBe(TAG_MAX_CHARS);
     });
 });

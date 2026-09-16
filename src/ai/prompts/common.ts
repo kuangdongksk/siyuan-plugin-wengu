@@ -13,3 +13,11 @@ export const CAUSE_LIST = "概念不清/计算失误/方法选择错/公式记�
 
 /** 单题生成的输出约束句（出题概念/变式/单题重生成三处共用）。 */
 export const SINGLE_Q_NOTE = "只输出一道题的行协议（格式如下），格式之外不要输出任何文字。";
+
+/** 知识点标签/术语（自由标签、同义规范写法）长度上限，Issue #143 P3-6：
+ *  三处限长口径原为 24/30/12 漂移，现收口到本常量——prompt 侧「不超过
+ *  N 字」的要求与解析侧 `slice(0, N)` 截断**必须同值**（截断宽于要求会
+ *  放任 AI 跑飞，截断窄于要求会把合规输出也砍尾）。生成处见 `gen.freeTagPrompt`，
+ *  解析处见 `bank/data/KnowLinkText.parseFreeTags` 与
+ *  `ai/prompts/synonyms.parseSynReply`。 */
+export const TAG_MAX_CHARS = 24;

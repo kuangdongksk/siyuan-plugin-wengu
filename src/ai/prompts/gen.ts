@@ -1,6 +1,6 @@
 import type { QuestionType } from "../../types";
 import { QuestionType as QT } from "../../types";
-import { SINGLE_Q_NOTE } from "./common";
+import { SINGLE_Q_NOTE, TAG_MAX_CHARS } from "./common";
 import { protocolSpec } from "./protocol";
 import type { ProtocolOptsOrder } from "./protocol";
 
@@ -25,10 +25,15 @@ ${section}`;
 }
 
 /** 变式出题 prompt（知识点变式/按题变式重练共用，模板=原题 kramdown；
- *  type=原题题型（未知=undefined 走全量协议兜底）。 */
+ *  type=原题题型（未知=undefined 走全量协议兜底）。
+ *
+ *  插图占位（Issue #143 P2-3）：模板里的图已由发送侧 `sanitizeAiImages`
+ *  换成「〔插图:assets/…〕」占位行，与 buildRegenPrompt 同款要求**必须
+ *  还原成图片行**——否则带图题的变式链图片静默丢失。 */
 export function variantPrompt(template: string, statLine: string, type?: QuestionType): string {
     return `你是考研刷题的变式出题助手。以原题为模板，改数字/换条件/反向提问出一道同知识点的变式题。
 要求：结构、题型与原题一致；新数据必须凑巧（答案干净可验算）；正确答案与解析自洽完整。
+题干依赖的插图以「〔插图:assets/…〕」占位出现时，必须还原成标准 markdown 图片行（半角 ! + 空方括号 + 冒号后完整原路径，示意形如 ![](插图原路径)）逐字保留进题干，不要原样输出占位。
 ${SINGLE_Q_NOTE}
 ${protocolSpec(type ? [type] : undefined)}
 
@@ -70,12 +75,15 @@ ${SINGLE_Q_NOTE}
 ${protocolSpec(type ? [type] : undefined, { order })}
 
 【原题 kramdown】
-${kd}${srcPart}${secPart}${notePart}`;
+${kd}${srcPart}${secPart}`;
 }
 
-/** 自由标签生成 prompt（无知识文档时的整批生成：编号题干节选 → 编号|标签行）。 */
+/** 自由标签生成 prompt（无知识文档时的整批生成：编号题干节选 → 编号|标签行）。
+ *  限长口径收口 {@link TAG_MAX_CHARS}（Issue #143 P3-6：原写死 12 字，
+ *  而解析侧 {@link parseFreeTags} 按 24 字截断——要求比截断窄是安全的，
+ *  但两份数字各写一遍必漂移；现同源，注释互指）。 */
 export function freeTagPrompt(list: string): string {
-    return `你是刷题库的知识点标注器。下面是编号题目的题干节选。给每道题标一个最贴切的知识点标签：不超过 12 字、沿用题目原文的术语、不造新词、不同题可以同标签。
+    return `你是刷题库的知识点标注器。下面是编号题目的题干节选。给每道题标一个最贴切的知识点标签：不超过 ${TAG_MAX_CHARS} 字、沿用题目原文的术语、不造新词、不同题可以同标签。
 输出格式（每题一行，格式之外不要输出任何文字；没有合适标签的题输出 编号|-）：
 1|标签
 2|标签
