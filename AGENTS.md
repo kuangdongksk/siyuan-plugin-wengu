@@ -51,8 +51,8 @@
 
 双远端：`origin` = GitHub（历史存档），`cnb` = CNB（云原生构建，NPC 开发在这边跑）。
 CNB 仓库：<https://cnb.cool/bianchao777/sasa/siyuan-plugin-wengu>
-  （20260916 由 `sasa1107/open-source/si-yuan/` 转移至此；**提及路径跟随仓库
-  路径**，转移后旧路径提及永久失效、零流水线零报错）
+（20260916 由 `sasa1107/open-source/si-yuan/` 转移至此；**提及路径跟随仓库
+路径**，转移后旧路径提及永久失效、零流水线零报错）
 
 - **`dev` 是长期开发分支，`main` 只作稳定发布分支。拉分支、提 PR、合并，
   三处都必须是 `dev`。**
