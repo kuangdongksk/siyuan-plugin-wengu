@@ -1,5 +1,5 @@
 /* AI 会话面板 · 树列（自 scss/aipanel.scss 拆出，**单文件 ≤500 行硬约束**）：
-   详情改造（#98）与轮次块等增量后 aipanel.scss 已到 576 行，按仓库既有
+   补高度链（Issue #96）与详情改造（#98）后 aipanel.scss 已到 576 行，按仓库既有
    做法（rail.scss 逼近红线时拆出 aiflow.scss、aipanel.scss 本身即自 rail.scss
    拆出）把「② 树」整段单开一片。拆的是**文件边界不是职责**：类名仍
    .wengu-aipanel-*，令牌与口径同源（色值一律 var(--b3-*) 全名，见 aipanel.scss
@@ -8,20 +8,30 @@
    ≤1000px 折单列的 @media，它会覆写 .wengu-aipanel 的 grid-template-*，而那些
    基础声明在 aipanel.scss——@media 不加特异性、仍是**源码序**决胜，本片排在
    前面就会被基础规则反过来盖掉（窄窗口折单列失效）。 */
-/* ── ② 树（左栏；gap-list S3/S4/A1~A4） ── */
+/* ── ② 树（左栏；gap-list S3/S4/A1~A4；滚动归属见 Issue #96 / #146） ── */
 
 /* 树凹槽：grid 首列（292px 由卡壳的 grid-template-columns 管，这里**不写
    width**——gap-list S3 的修法即「列宽由 grid 接管」）。凹槽底取
    `--b3-theme-background`（映射表 surface-3 落点，比卡面深一档），
-   分隔交给右边线（两栏 gap 归 0）。**无**滚动窗、**无**裸 max-height
-   （gap-list S4：卡随内容长，滚动归宿主主区；行数本就有上限——登记簿
-   全局 150 条 / 单类 40 条，天花板约 3000px）。 */
+   分隔交给右边线（两栏 gap 归 0）。**无**裸 max-height（后者由列内滚
+   `overflow-y:auto` 取代，见下）。 */
 .wengu-aipanel-tree {
   grid-area: tree;
   background: var(--b3-theme-background);
   border-right: 1px solid var(--b3-border-color);
   padding: 8px 0 12px;
   min-width: 0;
+  /* 滚动归属（**Issue #96 / #146**）：长清单列**自身内滚**。稿的取舍
+     （卡随内容长、滚动交宿主页）与产品约定冲突——整页滚动会把标题/hint/
+     过滤条/横幅一起滚走（规范 §12：常驻件必须钉在视野里）。故列内出滚动窗：
+     `min-height:0` 是链上的关键一环（缺它 grid 子项的自动最小尺寸=内容高，
+     列被撑长 ⇒ 本人内滚不出现、整页照滚）；`scrollbar-gutter:stable` 预留给
+     滚动条，免得「有/无滚动条」两种状态下行宽跳动（树是窄列，行内徽标又
+     贴右，跳一格很明显）。 */
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 /* 组数徽标（设计稿 ai-tree-head 的 badge--plain）：与宿主标题栏同一行
@@ -171,8 +181,21 @@
 }
 
 /* ≤1000px 折单列（稿的 1000px 断点）：横幅/树/详情自上而下，树的分隔线
-   从右边线换到底边线。行高一律按内容（auto）——卡随内容长，滚动归宿主
-   主区；树也不给 max-height（同 S4 口径，清单不被切在一个视口高里）。 */
+   从右边线换到底边线。**保持原有的内滚窗档**（Issue #146 定稿）：横幅行按
+   内容，树与详情两行**各吃剩余高的一半**、各自列内滚（树列的滚动窗在
+   `.wengu-aipanel-tree` 上、详情列的在 `.wengu-aipanel-pane` 上），折单列后
+   仍是「**卡内**滚动」，宿主主区不出页面级滚动条。
+
+   ⚠️ **行高必须显式写满三行**（`auto minmax(0,1fr) minmax(0,1fr)`）：基础片的
+   `grid-template-rows` 只有**两个**值（对应宽窗口的「横幅行 + 两栏行」），本
+   @media 换成了**三行** areas —— 少写的第三行会退化成**隐式 `auto` 行**，于是
+   详情行按内容一路长到卡高、树行被挤成 0（实测 900×800 下树列只剩 21px 内衬、
+   可见行数 0），等于把树列与它那扇滚动窗一起撤掉。
+   ⚠️ 也**不能**用 `auto auto minmax(0,1fr)`（#96 当年那版）：树行是 auto 又会
+   按内容长满，详情行反被压成 0 —— 这对难兄难弟只有「两行各 `minmax(0,1fr)`」
+   在「长树 / 长详情 / 两边都长 / 一边为空」四种形态下都保住两扇窗（20260916
+   无头 Chromium 逐形态实测）。同理**不给树列 40vh 上限**（#146 否决项）。
+   锁在 `src/ai/core/AiPanelScrollChain.test.ts`。 */
 @media (max-width: 1000px) {
   .wengu-aipanel {
     grid-template-columns: 1fr;
@@ -180,6 +203,7 @@
       "banner"
       "tree"
       "detail";
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .wengu-aipanel-tree {

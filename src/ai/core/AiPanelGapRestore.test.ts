@@ -17,6 +17,10 @@ import type { AiSessionRecord } from "../data/AiSessions";
  * 另有一条纯逻辑锁：树头「N 组」= **去重类别数**（稿的语义是种类数），
  * 单条种类不设层时数叶子会把组数数少。
  *
+ * ⚠️ **高度链（整页不滚动）不属本单**：`#129` 曾把「单滚动窗」钉在本文件里，
+ * Issue #146 已把面板恢复成 #96 的整页不滚动形态，相关断言挪进
+ * `AiPanelScrollChain.test.ts`（两单口径相反，混在一处只会互相打架）。
+ *
  * 样式侧走 `sass` 真编译（`?raw` 对 scss 恒空串，同 `SpecListings.test` 口径）。
  */
 

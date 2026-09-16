@@ -2,6 +2,48 @@
 
 ## v0.1.1 unreleased
 
+- **修复：AI 会话工作区整页不滚动回归——恢复高度链并复位 `--fit` 宿主档**
+  （20260916，ai / scss 域，Issue #146）：真机走查又见全屏滚动条——根因是
+  `#129` 对稿还原时把 #96 的高度链（含宿主档与挂载开关）整体删掉，换成
+  「卡随内容长、滚动归宿主主区」的单滚动窗形态。
+
+    - **宿主权回复位**：`.wengu-ws-main--fit`（flex 列 + `overflow:hidden`）回
+      `scss/rail.scss`；**原始骨架** `.wengu-ws-main` 的 `overflow-y:auto` 一个字
+      不动（另三块面板靠它自滚）。开关在 `ai/SessionPanel.ts` 的挂载/卸载处**配对**
+      （`fitHost(workspaceFits("ai"), root)` / 卸载 `fitHost(false)`，漏关会让下一块
+      面板的内容被 `overflow:hidden` 切掉且滚不到）；判定 `workspaceFits` /
+      `fitTargetOf` / `toggleFit` 回 `ai/core/PanelFit.ts`（**只动本面板那一份骨架，
+      禁 document 级全选**，越界写法被假体记账单测挡下）。
+    - **高度链恢复**：`.wengu-aipage` flex 列 + `min-height:0` + `height:100%`
+      （卡外件标题/hint/过滤条一律 `flex:none`，钉在视野里）→ `.wengu-aipanel`
+      `flex:1 1 auto` + `min-height:0` + `grid-template-rows:auto minmax(0,1fr)`
+      → 卡内两列 `min-height:0`。
+    - **内滚窗落两列**：`.wengu-aipanel-tree` 与 `.wengu-aipanel-pane` 各自
+      `overflow-y:auto` + `scrollbar-gutter:stable` + `overscroll-behavior:contain`；
+      `.wengu-aipanel-dbody` 维持稿的「无 max-height/无 overflow」，并放开
+      `min-height:120px` 下限高（滚动窗在列上，内容侧不需要留身高）。
+      **折单列（≤1000px）不给树列定高上限**（40vh 那档会把清单与自己那扇滚动窗
+      一起撤掉 ⇒ 必出页面级滚动条）：横幅行按内容，树/详情两行各吃剩余高的一半
+      （`grid-template-rows: auto minmax(0,1fr) minmax(0,1fr)`）、各列自滚。
+    - **复查补修（20260916，无头 Chromium 实测）**：折单列把 `grid-template-areas`
+      从 2 行换成 3 行，而 `grid-template-rows` 仍只声明 2 条轨道 ⇒ **第 3 行退化成
+      隐式 `auto`**，详情行按内容长到卡高、**树行被挤成 0**（900×800 实测：树列只剩
+      21px 内衬、可见行数 0）——等于把树列与它那扇滚动窗一起撤掉。现补三条轨道
+      （`auto` + 两条 `minmax(0, 1fr)`）；同时排除 `auto auto minmax(0, 1fr)`
+      那一版（树行 auto 长满后会把详情压成 0）。回归锁 `AiPanelScrollChain.test.ts`
+      新增「areas 行数 = 行轨道数」与分配口径断言（已用两种坏写法做变异验证，均能红）。
+    - **`#129` 的视觉逐值保留**：一体卡骨架、树列/详情列排版、横幅、轮次日志块与
+      复制钮全部不动——本单只改「高度从哪来、滚在哪滚」。为此 `#129` 测试里唯一
+      与高度链冲突的断言（详情头 meta 槽的「无内滚窗 + 120px 下限」口径）移除，
+      其余断言（组数口径、meta 槽常空、徽标自吃 auto / 500 字重）原样保留。
+    - **规范同步**：`docs/design-spec.md` §12 撤掉「AI 会话工作区例外」登记，改回
+      四条技术要点 + 「档位按工作区白名单开」与「挂了链而不开档 = 内滚窗不出现」
+      两类坏形态；`AGENTS.md` 同步；`ai` 域记忆把 #129 那段标成「口径已改口」。
+    - **回归锁**：新增 `ai/core/AiPanelScrollChain.test.ts`（`sass` 真编译断言链上
+      每一级在场且取值正确：宿主档双类选择器、页根 flex 列、卡 `flex:1` + 行高
+      分配、两列内滚窗、折单列不给 40vh 上限）与 `ai/core/PanelFit.test.ts`
+      （白名单判定、骨架定位、开关只碰传进来的那一个元素、挂载/卸载配对源码级锁）。
+
 - **AI 会话面板按差距清单对稿还原，并回到单滚动窗形态**（20260915，
   ai / scss 域，Issue #129）：照 `design/aipanel-gap-list.md` 与施工规格
   `design/convert-stop-redesign-spec.html` 06 节逐条精修面板，同时**撤掉

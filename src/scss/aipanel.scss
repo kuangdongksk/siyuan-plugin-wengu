@@ -29,22 +29,44 @@
   grid-template-areas:
     "banner banner"
     "tree detail";
+  /* 行高分配（Issue #96 / #146）：横幅行按内容（auto），两栏行吃**剩余高**。
+     不写的话 grid 隐式行高是 auto ⇒ 卡被内容撑长、两列没有「剩余高」，列内
+     滚动窗不出现（整页不滚动的主干）。横幅不渲染时那行高度自然归 0。 */
+  grid-template-rows: auto minmax(0, 1fr);
   background: var(--b3-theme-surface);
   border: 1px solid var(--b3-border-color);
   border-radius: 12px;
   overflow: hidden;
+  /* 卡吃面板页剩余高（`.wengu-aipage` 是 flex 列；`min-height:0` 让卡可以
+     比内容矮——缺它 flex 子项的自动最小尺寸会把卡撑到内容高）。 */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* 无在途流时横幅整条不渲染 ⇒ 那行高度归 0，两栏顶到卡首，无需 is-plain。
    （`.is-plain` 的 areas 改写只在树/详情要跨行时才有意义，本面板不跨行。） */
 
-/* ── ⓪½ 面板页根（卡外件 + 卡） ──
-   卡**随内容长**（长清单 ⇒ 长卡），滚动归宿主主区 `.wengu-ws-main` 的
-   `overflow-y:auto`（共用骨架，一个字不动）。`.wengu-aipage` 只是卡外件与
-   卡之间的普通块壳：标题/hint/kinds 过滤条与卡同在一列流里，不需要任何
-   高度链或 flex 档——长卡照常把主区撑出可滚高度。 */
+/* ── ⓪½ 面板页根 = 卡外件 + 卡（Issue #96 / #146 高度链的中间一环） ──
+   `.wengu-aipage` 是 SessionPanelApp 的面板页根类（宿主 `.wengu-ws-main`
+   同挂 `--fit` 档改 flex 列 + overflow:hidden，见 rail.scss 与
+   ai/SessionPanel.ts 的 fitHost）。
+   这里把「卡外件固定高、卡吃剩余高」表达完：标题/hint/kinds 过滤条都是
+   flex:none 的固定件（**常驻视野**，各自不滚），卡 `flex:1 min-height:0`
+   （规则在下面 `.wengu-aipanel`）——`.wengu-aipage` 自身与 `min-height:0`
+   一起把高度链从主区传到卡：缺任一级，卡都拿不到「剩余高」。 */
 .wengu-aipage {
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* 卡外件一律不伸缩、不被压扁（标题行/hint/kinds 过滤条）。 */
+.wengu-aipage > .wengu-ws-title,
+.wengu-aipage > .wengu-muted,
+.wengu-aipage > .wengu-ai-kinds {
+  flex: none;
 }
 
 /* ── ① 状态语言（色点 / 徽标，与横幅同一个色名族：run/done/fail/skip/stop/queued） ── */
@@ -160,17 +182,29 @@
 
 /* ── ③ 详情（右栏；gap-list S7/S8/A5~A7/B7） ── */
 
-/* 详情列：稿 .ai-detail（flex column + surface 底 + min-width:0）；
-   列**不自带滚动窗**（gap-list S8）——卡随内容长，滚动归宿主主区。 */
+/* 详情列：稿 .ai-detail（flex column + surface 底 + min-width:0）。
+   长内容收**列内滚动窗**（Issue #96 / #146）：卡随内容长会出页面级滚动条，
+   与规范 §12 冲突——列自身滚，详情头/尾留在视野里。`scrollbar-gutter:stable`
+   预留给滚动条（树是窄列、详情头徽标又贴右，有/无滚动条两种状态会跳一格）。
+   ⚠️ 折单列时 pane 的 `grid-area` 是 detail ⇒ 就是**卡内**的详情滚动窗，
+   不是页面级滚动。 */
 .wengu-aipanel-pane {
   grid-area: detail;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
   background: var(--b3-theme-surface);
 }
 
 .wengu-aipanel-detail {
   display: flex;
   flex-direction: column;
+  /* ⚠️ **不要**给这里 `min-height:0`（Issue #96）：详情列的内滚窗在
+     `.wengu-aipanel-pane` 上，而本行是**滚动内容**（auto 高 = 内容高，
+     撑出多少就滚多少）。加上 `min-height:0` 会把本行按父高压缩，长日志
+     被截掉且无处可滚——「滚动内容不得设可压缩下限」是这对父子关系的口径。 */
 }
 
 .wengu-aipanel-dhead {
@@ -215,10 +249,10 @@
 .wengu-aipanel-dbody {
   padding: 13px 16px;
   flex: 1 1 auto;
-  /* 稿的 `.detail-body` 只有 padding + 下限高：**无** max-height、**无**
-     overflow（gap-list S8 —— 原实现那两行是偏差，已删）。列不再收内滚
-     （见上），120px 下限是稿的字面值、短内容时给详情一块体面留白。 */
-  min-height: 120px;
+  /* 无自带滚动窗（gap-list S8）：滚动交**列**（`.wengu-aipanel-pane`，
+     Issue #96 / #146）——稿内无 max-height/overflow，本体照旧不设。
+     `min-height` 从 120px 放开：详情列内滚时，短内容的下限高只会让面板
+     在小窗口里空撑（列内滚动窗已由 pane 承担，不需要内容侧留身高）。 */
 }
 
 /* 标签与时间戳都是**第三档 faint**（映射表：on-surface-light 55% 档；
@@ -292,8 +326,8 @@
 /* 展开态的一**块**正文（Issue #98）：输入 / 输出各一块，块头是 faint 档
    小标签（同 logl 的第三档——标签与正文拉出层次，标签不抢产出）。
    两块是**行内顺序内容**、不做卡片嵌套：块间只留白分隔，稿的 log 质感不变。
-   行高由内容给（输出块是面板核心用途，**不设 max-height**；长内容由宿主
-   主区那扇唯一的滚动窗兜住——单滚动窗形态，见 rail.scss）。 */
+   行高由内容给（输出块是面板核心用途，**不设 max-height**），滚动交详情列
+   （`.wengu-aipanel-pane` 的内滚窗，Issue #96 / #146）。 */
 .wengu-aipanel-logseg {
   grid-column: 1 / -1;
   display: flex;

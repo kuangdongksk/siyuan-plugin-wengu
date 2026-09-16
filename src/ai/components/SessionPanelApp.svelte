@@ -42,15 +42,14 @@
      *    1px 边线 + 12px 圆角 + overflow:hidden），横幅 FlowBanner 移入卡内作
      *    跨栏首行（组件根 `.wengu-aiflow` 自身已无圆角/外围边框）；
      *  - **树列（S3/S4）：292px 列宽由 grid 接管（`.wengu-ai-side` 的固定宽
-     *    与裸 max-height 一并删），树列吃凹槽底 + 右边线 + 上下 padding，
-     *    **列内无滚动窗**（卡随内容长，滚动归宿主主区那一扇窗）；
+     *    与裸 max-height 一并删），树列吃凹槽底 + 右边线 + 上下 padding；
+     *    长清单收**列内滚动窗**（整页不滚动，Issue #96 / #146）；
      *  - **行尾三件化（S5）**：叶行 = 点 + 任务名 + 徽标贴右，**行尾不常驻
      *    时间戳**（选中后详情日志首列即 HH:MM:SS），组行「N 条 · 时间」meta
      *    删，删除钮退回 hover 显隐（rail.scss 既有口径）；
      *  - **详情（S7/S8）**：详情头删常驻 meta 串（模型名折进 h3 的 title），
-     *    状态徽标贴右；主体（`.wengu-aipanel-dbody`）自身不设滚动窗，详情列
-     *    也没有——**卡随内容长，滚动归宿主主区**（单滚动窗形态，同 #92 的
-     *    稿口径：`.wengu-aipanel-pane` 只留 surface 底与 min-width:0）。
+     *    状态徽标贴右；主体（`.wengu-aipanel-dbody`）自身不设滚动窗——滚动交
+     *    **列**（`.wengu-aipanel-pane` 的内滚窗，Issue #96 / #146）。
      *    kinds 过滤条与 hint 留在卡外（S9 已拍板的取舍：卡内只留三件）。
      *
      * **行尾弱注记（间隙期形态）**：叶行**不常驻**时间戳（gap-list S5）——
@@ -142,10 +141,11 @@
 {#if ui.phase === "loading"}
     <div class="wengu-ws-page"><div class="wengu-muted">{t("loading")}</div></div>
 {:else}
-    <!-- 面板页根 = 「卡外件 + 卡」的普通块列：标题/hint/kinds 过滤条与卡同在一列
-         流里，卡**随内容长**（长清单 ⇒ 长卡）；滚动归宿主主区的共用滚动窗
-         （`.wengu-ws-main` 的 overflow-y:auto，rail.scss）——单滚动窗形态，
-         没有 #96 的收内滚档与列内二级滚动条。 -->
+    <!-- 面板页根 = 「卡外件固定高 + 卡吃剩余高」（Issue #96 / #146 高度链的
+         中间一环）：标题/hint/kinds 过滤条 flex:none 钉在视野里，长清单与长
+         详情收在卡内两列各自的滚动窗里——宿主主区不出页面级滚动条（宿主档
+         `.wengu-ws-main--fit` 由 ai/SessionPanel.ts 的 fitHost 在挂载/卸载处
+         配对开关，规则见 scss/rail.scss 与 scss/aipanel.scss）。 -->
     <div class="wengu-ws-page wengu-aipage">
         <div class="wengu-ws-title">
             <!-- 设计稿 .ai-tree-head 的「AI 会话 + badge--plain（组数）」与宿主
