@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { estimateOptWidth, optionDisplayMd } from "../../types";
 import { mdFragmentHtml, optionInline, optionRowHtml, unwrapSingleBlock, unwrapSingleListItem } from "./ProtyleHost";
 
@@ -138,24 +138,42 @@ describe("unwrapSingleListItem：单项列表剥壳", () => {
  * 移动端与桌面同序剥标签（Issue #163）：`QuestionBody.svelte` 原先直调
  * `optionInline(md)`，少剥一层 `optionDisplayMd` ⇒ `- A. A. ①③` 的列表
  * 标记与两层标签全渲进正文，叠加按钮自画的字母键后真机出现
- * `C D D xxxx`。本组锁「两端同一 md 的正文逐字相等」，缺一层即红。
+ * `C D D xxxx`。本组锁死这条链路。
+ *
+ * ⚠️ **必须读组件真源码**（`?raw`，同 `SessionDetailCopy.test.ts` /
+ * `CollectionPanelApp.svelte.test.ts` 口径）：只断言「把
+ * `optionInline(optionDisplayMd(md))` 抄一遍的结果」是同义反复——
+ * 实测把组件改回 `optionInline(md)` 照样全绿，锁不住回归（本单复核发现）。
+ * 组件不进单测（挂载内核不在范围内），故取源级断言 + 行为断言两件套。
  */
-describe("optionRowHtml 与移动端渲染入口同正文（Issue #163）", () => {
-    /** 移动端 components/QuestionBody.svelte 的 options 派生（同一表达式）。 */
-    const mobileOption = (md: string) => optionInline(optionDisplayMd(md));
+describe("QuestionBody.svelte 与 optionRowHtml 同序剥标签（Issue #163）", () => {
+    let src = "";
+    beforeAll(async () => {
+        src = (await import("../../mobile/components/QuestionBody.svelte?raw")).default;
+    });
 
-    it("双标签选项：桌面正文与移动端正文一致，且不含列表标记/标签", () => {
-        for (const md of ["- A. A. ①③", "- B. B. ②③", "A. A. 甲", "(D) 丁"]) {
+    /** 组件里 options 派生那一行（源级，缺一层即红）。 */
+    const optionsExpr = () =>
+        src.slice(src.indexOf("const options ="), src.indexOf("const rightLetters")).replace(/\s+/g, " ");
+
+    it("组件选项正文先过 optionDisplayMd 再进 optionInline（与 optionRowHtml 同序）", () => {
+        expect(src).toContain("optionDisplayMd");
+        expect(optionsExpr()).toContain("optionInline(optionDisplayMd(md))");
+        // 反证：直调 optionInline（旧 bug 形态）不得出现在该派生里
+        expect(optionsExpr()).not.toMatch(/optionInline\(md\)/);
+    });
+
+    it("同一 md 下组件正文与桌面 optionRowHtml 正文逐字一致", () => {
+        for (const md of ["- A. A. ①③", "- B. B. ②③", "A. A. 甲", "(D) 丁", "A）甲"]) {
             const desktop = optionRowHtml(0, md);
-            const mob = mobileOption(md).body;
+            const mob = optionInline(optionDisplayMd(md)).body;
             expect(desktop).toContain(mob);
             expect(mob).not.toContain("<ul");
-            expect(mob).not.toMatch(/[A-D]\s*[.、]/);
+            expect(mob).not.toMatch(/[A-D]\s*[.、）]/);
         }
     });
 
-    it("移动端少剥一层即为旧 bug 形态（反证：直调 optionInline 会残留标签）", () => {
+    it("旧 bug 形态可复现（反证：直调 optionInline 残留列表标记与标签）", () => {
         expect(optionInline("- A. A. ①③").body).toContain("A. ①③");
-        expect(mobileOption("- A. A. ①③").body).toBe(optionInline(optionDisplayMd("- A. A. ①③")).body);
     });
 });

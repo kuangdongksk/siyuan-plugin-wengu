@@ -313,8 +313,10 @@ export function estimateOptWidth(text: string): number {
     return w;
 }
 
-/** 前导字母标签：A. / A、 / A： / A) / (A) / （A）… */
-const OPTION_LABEL_RE = /^\s*(?:\([A-Za-z]\)|（[A-Za-z]）|[A-Za-z]\s*[.、．:：)])\s*/;
+/** 前导字母标签：A. / A、 / A： / A) / A） / (A) / （A）…
+ *  半角与全角收尾括号都要收（Issue #163 验收 2 明确点了 `A）`）：题库里
+ *  「（A）甲」与「A）甲」是同一层标签的两种写法，只认半角会漏剥。 */
+const OPTION_LABEL_RE = /^\s*(?:\([A-Za-z]\)|（[A-Za-z]）|[A-Za-z]\s*[.、．:：)）])\s*/;
 
 /** 连续前导字母标签的剥层上限（Issue #163）。真实题库的政治五套题主流
  *  形态是**双标签**（`- A. A. ①③`，实测双标签 2411 行 vs 单标签 1108 行），

@@ -107,6 +107,10 @@ describe("选项展示与可比文本", () => {
         expect(optionDisplayMd("A. A. 甲")).toBe("甲");
         expect(optionDisplayMd("C、C、丙")).toBe("丙");
         expect(optionDisplayMd("(D)（D）丁")).toBe("丁");
+        // 半角/全角收尾括号都要剥（Issue #163 验收 2 点名的 `A）` 形态）
+        expect(optionDisplayMd("A）甲")).toBe("甲");
+        expect(optionDisplayMd("- A. A）甲")).toBe("甲");
+        expect(optionDisplayMd("- A）A. 甲")).toBe("甲");
         expect(optionDisplayMd("- A. A. A. A. 甲")).toBe("A. 甲"); // 封顶 3 层
         // 单标签、无标签零回归；标签后是正文时只在标签层剥
         expect(optionDisplayMd("- A. 甲")).toBe("甲");
