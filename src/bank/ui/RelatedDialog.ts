@@ -150,7 +150,7 @@ function mountDialog(ctx: RelatedCtx): void {
     }).join("");
     const { dialog, root } = openWenguDialog({
         title: t("relatedTitle"),
-        width: "640px",
+        width: "lg", // 640 → §5.1 lg 档（680）
         body: `
       <div class="wengu-muted">${svgIcon("iconSearch")} ${esc(t("relatedHint"))}</div>
       <div class="wengu-related-acts">${acts}</div>

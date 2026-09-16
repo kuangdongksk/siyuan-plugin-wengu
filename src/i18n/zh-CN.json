@@ -947,5 +947,9 @@
   "numsLegendOk": "答对",
   "numsLegendBad": "答错",
   "numsLegendDone": "已答未揭示",
-  "matSplitTitle": "拖动调整材料区高度，双击复位"
+  "matSplitTitle": "拖动调整材料区高度，双击复位",
+  "switchConfirmTitle": "切换题集？",
+  "switchConfirmBody": "本卷还有未交卷的进度：已答 {n}/{N} 题，计时 {time}。切换后进度不会丢失，可从开刷面板「继续上次」回到本卷。将打开「{name}」。",
+  "switchConfirmStay": "留在本卷",
+  "switchConfirmGo": "继续切换"
 }

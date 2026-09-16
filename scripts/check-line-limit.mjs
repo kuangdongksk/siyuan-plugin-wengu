@@ -19,7 +19,7 @@ const LIMIT = 500;
 
 /** 豁免表：路径（posix 相对仓库根）→ 上限（= 当前行数，只许减不许增）。 */
 const EXEMPTS = new Map([
-    ["src/quiz/index.ts", 574], // 编排内聚，访问器表+编排职责外移破坏内聚（#135 已压回 574）
+    ["src/quiz/index.ts", 567], // 编排内聚，访问器表+编排职责外移破坏内聚（#137 起记账外移后为 567）
     // 存量超线（规范 §11.1「❌ 待修」清单，未在 #135 改动面内）——额度＝当前行数，只许减不许增
     ["src/ai/core/SessionDetail.test.ts", 608],
     ["src/convert/service/run/ConvertBatch.ts", 503],

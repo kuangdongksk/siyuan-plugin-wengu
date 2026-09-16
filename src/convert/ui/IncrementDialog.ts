@@ -118,7 +118,7 @@ export function openIncrementDialog(deps: {
     }
     const { dialog, root } = openWenguDialog({
         title: t("incrTitle"),
-        width: "620px",
+        width: "lg", // 620 → §5.1 lg 档（680）
         body: `
       ${summary}
       ${rows.join("")}

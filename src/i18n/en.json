@@ -947,5 +947,9 @@
   "numsLegendOk": "Correct",
   "numsLegendBad": "Wrong",
   "numsLegendDone": "Answered",
-  "matSplitTitle": "Drag to resize the passage; double-click to reset"
+  "matSplitTitle": "Drag to resize the passage; double-click to reset",
+  "switchConfirmTitle": "Switch exercise set?",
+  "switchConfirmBody": "This round is still unfinished: {n}/{N} answered, {time} elapsed. Your progress is kept — you can resume it from the start panel. “{name}” will open.",
+  "switchConfirmStay": "Stay here",
+  "switchConfirmGo": "Switch anyway"
 }

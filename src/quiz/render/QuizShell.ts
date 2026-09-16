@@ -367,6 +367,11 @@ function sideQuizAccess(v: QuizView): import("../flow/SideMount").SideViewAccess
         convertingOf: () => v.convertingOf(),
         setSideFilter: (text) => v.setSideFilter(text),
         selectDoc: (id) => v.selectDoc(id),
+        // 侧栏切换二次确认闸（#137 §7.d）：⚠️ 必须在这里接上——挂载点的
+        // 两个出口回调已改为「先过闸再执行」，本字段缺席时
+        // `guardOrRun` 走直切兜底（另两路仍然可用），但**生产主路径
+        // 就永远不弹**（上一版即漏了这行，闸全程是死代码）。
+        switchGuard: (entry) => v.switchGuardOf(entry),
         setSideTreeOpen: (open) => {
             v.sideTreeOpen = open;
             v.persistPrefs();
