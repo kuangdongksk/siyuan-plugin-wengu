@@ -9,74 +9,47 @@
    1. 设计令牌 —— 跟随思源 b3 主题，亮色为精确值，暗色为自适应分支
    ============================================================ */
             :root {
-                --b3-theme-background: #f4f6f8;
-                --b3-theme-surface: #ffffff;
-                --b3-theme-on-background: #242b33;
-                --b3-theme-on-surface: #333b44;
-                --b3-theme-on-surface-light: #59636e;
-                --b3-border-color: #e3e7ec;
-                --b3-theme-primary: #3575f0;
-                --b3-theme-primary-lightest: #edf3fe;
-                --b3-theme-primary-light: #cfe0fd;
-                --b3-theme-primary-soft: #a9c6fb;
-                --b3-theme-on-primary: #ffffff;
-                --b3-success: #4caf50;
-                --b3-error: #d23f31;
-                --b3-warning: #d9a717;
+                /* Neo+ 深色暖调实测值（design/theme-tokens-neo.md，思源 3.8.3 + Neo+ 运行实测） */
+                --b3-theme-background: #272e33; /* 页面底 · 深蓝灰 */
+                --b3-theme-surface: #364852; /* 卡面 · 青灰 */
+                --b3-theme-on-background: #d3cab4; /* 正文 · 暖米色（不是纯白） */
+                --b3-theme-on-surface: #d3cab4;
+                --b3-theme-on-surface-light: rgba(211, 202, 180, 0.66); /* 次要文字 */
+                --b3-border-color: rgba(226, 218, 197, 0.2); /* 暖沙色低透明 */
+                --b3-theme-primary: #c5866a; /* 主色 · 陶土橙 */
+                --b3-theme-primary-lightest: rgba(197, 134, 106, 0.16); /* 主色软底 */
+                --b3-theme-primary-light: rgba(197, 134, 106, 0.4); /* 主色弱化描边 */
+                --b3-theme-primary-soft: rgba(197, 134, 106, 0.55);
+                --b3-theme-on-primary: #fdf6ef; /* 主色上的近白暖字 */
+                --b3-success: #9ec98a;
+                --b3-error: #e07a6f;
+                --b3-warning: #e3c06b;
 
-                --ok-bg: #eef7ee;
-                --ok-bd: #bfe3c1;
-                --ok-fg: #2f7a33;
-                --err-bg: #fdeeec;
-                --err-bd: #f3c8c3;
-                --err-fg: #9c3126;
-                --warn-bg: #fdf6e3;
-                --warn-bd: #f0dfa8;
-                --warn-fg: #6b5310;
-                --mute-bg: #eef1f5;
-                --mute-bd: #e0e5ec;
-                --mute-fg: #667079;
+                --ok-bg: rgba(158, 201, 138, 0.13);
+                --ok-bd: rgba(158, 201, 138, 0.38);
+                --ok-fg: #9ec98a;
+                --err-bg: rgba(224, 122, 111, 0.13);
+                --err-bd: rgba(224, 122, 111, 0.38);
+                --err-fg: #f2a199;
+                --warn-bg: rgba(227, 192, 107, 0.13);
+                --warn-bd: rgba(227, 192, 107, 0.38);
+                --warn-fg: #e8c979;
+                --mute-bg: rgba(226, 218, 197, 0.08);
+                --mute-bd: rgba(226, 218, 197, 0.2);
+                --mute-fg: rgba(211, 202, 180, 0.6);
 
                 --r-card: 12px;
                 --r-btn: 8px;
                 --r-opt: 10px;
                 --r-pill: 999px;
-                --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.06);
-                --shadow-2: 0 2px 8px rgba(20, 30, 50, 0.07), 0 1px 2px rgba(20, 30, 50, 0.05);
+                --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.3);
+                --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
                 --font:
                     -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial,
                     sans-serif;
-                --canvas: #23272e;
-                --canvas-line: rgba(255, 255, 255, 0.1);
-                --canvas-dim: #98a3b2;
-            }
-            /* 暗色自适应分支：令牌已就绪；画布内各屏以 .theme-light 锁定亮色面板 */
-            @media (prefers-color-scheme: dark) {
-                :root {
-                    --b3-theme-background: #1c2025;
-                    --b3-theme-surface: #242a31;
-                    --b3-theme-on-background: #e8ebef;
-                    --b3-theme-on-surface: #d3d9e0;
-                    --b3-theme-on-surface-light: #9aa4b0;
-                    --b3-border-color: #333b44;
-                    --b3-theme-primary: #6b9bff;
-                    --b3-theme-primary-lightest: #1e2a42;
-                    --b3-theme-primary-light: #2b3f66;
-                    --b3-theme-on-primary: #0f1216;
-                }
-            }
-            .theme-light {
-                --b3-theme-background: #f4f6f8;
-                --b3-theme-surface: #ffffff;
-                --b3-theme-on-background: #242b33;
-                --b3-theme-on-surface: #333b44;
-                --b3-theme-on-surface-light: #59636e;
-                --b3-border-color: #e3e7ec;
-                --b3-theme-primary: #3575f0;
-                --b3-theme-primary-lightest: #edf3fe;
-                --b3-theme-primary-light: #cfe0fd;
-                --b3-theme-primary-soft: #a9c6fb;
-                --b3-theme-on-primary: #ffffff;
+                --canvas: #20262b; /* 画布底 · 比应用底深一档 */
+                --canvas-line: rgba(226, 218, 197, 0.12);
+                --canvas-dim: rgba(211, 202, 180, 0.55);
             }
 
             /* ============================================================
@@ -92,7 +65,7 @@
             }
             body {
                 background: var(--canvas);
-                color: #eef1f5;
+                color: #e7e1d3;
                 font-family: var(--font);
                 line-height: 1.5;
                 -webkit-font-smoothing: antialiased;
@@ -118,7 +91,7 @@
                 font-size: 11px;
                 letter-spacing: 0.14em;
                 text-transform: uppercase;
-                color: #8d99a8;
+                color: rgba(211, 202, 180, 0.55);
                 font-weight: 600;
             }
             .deck-head .brand i {
@@ -126,14 +99,14 @@
                 height: 8px;
                 border-radius: 999px;
                 background: var(--b3-theme-primary);
-                box-shadow: 0 0 0 4px rgba(53, 117, 240, 0.18);
+                box-shadow: 0 0 0 4px rgba(197, 134, 106, 0.18);
             }
             .deck-head h1 {
                 margin: 18px 0 0;
                 font-size: 27px;
                 line-height: 1.32;
                 font-weight: 650;
-                color: #fff;
+                color: #f3eee2;
                 letter-spacing: 0;
             }
             .deck-head .lede {
@@ -162,10 +135,10 @@
                 height: 15px;
                 border-radius: 5px;
                 flex: 0 0 auto;
-                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+                box-shadow: inset 0 0 0 1px rgba(226, 218, 197, 0.25);
             }
             .deck-head .token-row b {
-                color: #dfe5ed;
+                color: rgba(211, 202, 180, 0.85);
                 font-weight: 600;
             }
 
@@ -188,25 +161,25 @@
                 height: 22px;
                 padding: 0 10px;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.07);
+                background: rgba(226, 218, 197, 0.08);
                 border: 1px solid var(--canvas-line);
                 font-size: 10.5px;
                 font-weight: 650;
                 letter-spacing: 0.1em;
                 text-transform: uppercase;
-                color: #aab4c2;
+                color: rgba(211, 202, 180, 0.55);
             }
             .seg-head h2 {
                 margin: 0;
                 font-size: 17px;
                 font-weight: 650;
-                color: #fff;
+                color: #f3eee2;
                 letter-spacing: 0.01em;
             }
             .seg-head p {
                 margin: 0;
                 font-size: 12px;
-                color: #8d99a8;
+                color: rgba(211, 202, 180, 0.55);
                 line-height: 1.6;
             }
             .row {
@@ -241,17 +214,17 @@
                 margin: 0;
                 font-size: 13px;
                 font-weight: 650;
-                color: #fff;
+                color: #f3eee2;
                 letter-spacing: 0.01em;
             }
             .caption p {
                 margin: 0;
                 font-size: 11.5px;
                 line-height: 1.75;
-                color: #8d99a8;
+                color: rgba(211, 202, 180, 0.55);
             }
             .caption p b {
-                color: #c3cbd6;
+                color: rgba(226, 218, 197, 0.8);
                 font-weight: 600;
             }
 
@@ -262,14 +235,14 @@
                 gap: 8px;
                 padding: 11px 12px;
                 border-radius: 11px;
-                background: rgba(255, 255, 255, 0.045);
+                background: rgba(226, 218, 197, 0.05);
                 border: 1px solid var(--canvas-line);
             }
             .legend .legend-title {
                 font-size: 10px;
                 letter-spacing: 0.12em;
                 text-transform: uppercase;
-                color: #7f8b9a;
+                color: rgba(211, 202, 180, 0.45);
                 font-weight: 650;
             }
             .legend .legend-row {
@@ -286,7 +259,7 @@
                 border-radius: 8px;
                 font-size: 11px;
                 font-weight: 600;
-                background: #fff;
+                background: #3f515c;
                 border: 1px solid var(--b3-border-color);
                 color: var(--b3-theme-on-surface);
             }
@@ -309,14 +282,14 @@
                 color: var(--err-fg);
             }
             .mini-opt.is-dim {
-                background: #fff;
-                border-color: #dfe4ea;
+                background: rgba(226, 218, 197, 0.06);
+                border-color: rgba(226, 218, 197, 0.16);
                 color: var(--mute-fg);
             }
             .mini-opt.is-primary {
                 background: var(--b3-theme-primary-lightest);
                 border-color: var(--b3-theme-primary);
-                color: #2557c0;
+                color: #b5765c;
             }
 
             /* ============================================================
@@ -376,10 +349,10 @@
                 flex: 0 0 auto;
                 background: var(--b3-theme-background);
                 border-radius: 16px;
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                border: 1px solid rgba(226, 218, 197, 0.1);
                 box-shadow:
                     0 20px 44px rgba(0, 0, 0, 0.34),
-                    0 2px 0 rgba(255, 255, 255, 0.03) inset;
+                    0 2px 0 rgba(226, 218, 197, 0.04) inset;
                 padding: 14px;
                 display: flex;
                 flex-direction: column;
@@ -437,7 +410,7 @@
             .book-switch:hover {
                 background: var(--b3-theme-primary-lightest);
                 border-color: var(--b3-theme-primary-light);
-                color: #2557c0;
+                color: #b5765c;
             }
             .stat-line {
                 font-size: 11px;
@@ -472,7 +445,7 @@
             .icon-btn:hover {
                 background: var(--b3-theme-primary-lightest);
                 border-color: var(--b3-theme-primary-light);
-                color: #2557c0;
+                color: #b5765c;
             }
             .icon-btn:active {
                 background: var(--b3-theme-primary-light);
@@ -482,9 +455,9 @@
                 outline-offset: 1px;
             }
             .icon-btn.is-on {
-                color: #c99116;
-                background: #fdf6e3;
-                border-color: #f0dfa8;
+                color: #e8c979;
+                background: rgba(227, 192, 107, 0.14);
+                border-color: rgba(227, 192, 107, 0.38);
             }
 
             .ai-bar {
@@ -493,12 +466,12 @@
                 align-items: flex-start;
                 gap: 8px;
                 background: var(--b3-theme-primary-lightest);
-                border: 1px solid #dbe7fd;
+                border: 1px solid rgba(197, 134, 106, 0.35);
                 border-radius: var(--r-opt);
                 padding: 9px 10px;
                 font-size: 11.5px;
                 line-height: 1.55;
-                color: #24509f;
+                color: #a56a52;
             }
             .ai-bar .ic {
                 color: var(--b3-theme-primary);
@@ -533,7 +506,7 @@
                     background 0.14s;
             }
             .entry:hover {
-                border-color: #cfd9e6;
+                border-color: rgba(226, 218, 197, 0.3);
                 box-shadow: var(--shadow-2);
             }
             .entry:focus-visible {
@@ -545,8 +518,8 @@
                 border-color: var(--b3-theme-primary-light);
             }
             .entry--primary:hover {
-                background: #e4eefe;
-                border-color: #b9d1fb;
+                background: rgba(197, 134, 106, 0.12);
+                border-color: rgba(197, 134, 106, 0.5);
             }
             .entry--primary::before {
                 content: "";
@@ -569,9 +542,9 @@
                 color: var(--b3-theme-on-surface-light);
             }
             .entry--primary .entry-ico {
-                background: #fff;
+                background: rgba(197, 134, 106, 0.18);
                 color: var(--b3-theme-primary);
-                box-shadow: 0 1px 2px rgba(53, 117, 240, 0.14);
+                box-shadow: 0 1px 2px rgba(197, 134, 106, 0.14);
             }
             .entry-txt {
                 min-width: 0;
@@ -681,7 +654,7 @@
             .chip--primary {
                 background: var(--b3-theme-primary-lightest);
                 border-color: var(--b3-theme-primary-light);
-                color: #2557c0;
+                color: #b5765c;
             }
 
             .word-row {
@@ -707,7 +680,7 @@
                 width: 6px;
                 height: 6px;
                 border-radius: var(--r-pill);
-                border: 1.5px solid #c6ccd5;
+                border: 1.5px solid rgba(226, 218, 197, 0.35);
                 background: transparent;
             }
             .ladder i.done {
@@ -753,8 +726,8 @@
                 cursor: pointer;
             }
             .link-btn:hover {
-                background: #f1f4f8;
-                border-color: #cfd7e2;
+                background: #2c3c45;
+                border-color: rgba(211, 202, 180, 0.65);
                 color: var(--b3-theme-on-background);
             }
             .link-btn:focus-visible {
@@ -810,7 +783,7 @@
             .opt:hover .key,
             .opt.is-hover .key {
                 border-color: var(--b3-theme-primary);
-                background: #fff;
+                background: rgba(226, 218, 197, 0.1);
                 color: var(--b3-theme-primary);
             }
             .opt:focus-visible {
@@ -825,7 +798,7 @@
             }
             .opt.is-correct .key {
                 border-color: var(--b3-success);
-                background: #fff;
+                background: rgba(158, 201, 138, 0.12);
                 color: var(--ok-fg);
             }
             .opt.is-wrong {
@@ -836,23 +809,23 @@
             }
             .opt.is-wrong .key {
                 border-color: var(--b3-error);
-                background: #fff;
+                background: rgba(224, 122, 111, 0.12);
                 color: var(--err-fg);
             }
             .opt.is-dim {
-                border-color: #e6eaf0;
-                background: #fdfdfe;
+                border-color: rgba(226, 218, 197, 0.16);
+                background: #2c3c45;
                 color: var(--mute-fg);
             }
             .opt.is-dim .key {
-                border-color: #e0e5ec;
+                border-color: rgba(226, 218, 197, 0.14);
                 color: var(--mute-fg);
             }
 
             .progress {
                 height: 4px;
                 border-radius: var(--r-pill);
-                background: #e6eaf0;
+                background: rgba(226, 218, 197, 0.16);
                 overflow: hidden;
             }
             .progress i {
@@ -907,7 +880,7 @@
                 border: 1px solid var(--b3-theme-primary-light);
             }
             .speaker-circle:hover {
-                background: #e4eefe;
+                background: rgba(197, 134, 106, 0.12);
             }
             .speaker-circle:focus-visible {
                 outline: 2px solid var(--b3-theme-primary);
@@ -947,7 +920,7 @@
             }
             .grade--ok:hover {
                 border-color: var(--b3-success);
-                background: #e4f3e5;
+                background: rgba(158, 201, 138, 0.12);
             }
             .grade--warn {
                 border: 1px solid var(--warn-bd);
@@ -956,7 +929,7 @@
             }
             .grade--warn:hover {
                 border-color: var(--b3-warning);
-                background: #fbf0d6;
+                background: rgba(227, 192, 107, 0.12);
             }
             .grade--err {
                 border: 1px solid var(--err-bd);
@@ -965,7 +938,7 @@
             }
             .grade--err:hover {
                 border-color: var(--b3-error);
-                background: #fbe3e0;
+                background: rgba(224, 122, 111, 0.12);
             }
             .grade:focus-visible {
                 outline: 2px solid var(--b3-theme-primary);
@@ -988,7 +961,7 @@
                 gap: 7px;
                 font-size: 11.5px;
                 line-height: 1.6;
-                color: #24509f;
+                color: #a56a52;
             }
             .ai-line .ic {
                 color: var(--b3-theme-primary);
@@ -1010,7 +983,7 @@
                 font-weight: 650;
             }
             .feedback span {
-                color: #8f4a41;
+                color: #f2a199;
             }
             .writeback {
                 display: flex;
@@ -1034,10 +1007,10 @@
                 color: var(--b3-theme-on-background);
             }
             .input::placeholder {
-                color: #98a1ac;
+                color: rgba(211, 202, 180, 0.5);
             }
             .input:hover {
-                border-color: #cfd7e2;
+                border-color: rgba(211, 202, 180, 0.65);
             }
             .input:focus {
                 outline: none;
@@ -1070,15 +1043,15 @@
             .btn--primary {
                 background: var(--b3-theme-primary);
                 color: var(--b3-theme-on-primary);
-                box-shadow: 0 1px 2px rgba(53, 117, 240, 0.3);
+                box-shadow: 0 1px 2px rgba(197, 134, 106, 0.3);
             }
             .btn--primary:hover {
-                background: #2a63d8;
-                color: #fff;
-                box-shadow: 0 2px 6px rgba(53, 117, 240, 0.34);
+                background: #b5765c;
+                color: var(--b3-theme-on-primary);
+                box-shadow: 0 2px 6px rgba(197, 134, 106, 0.34);
             }
             .btn--primary:active {
-                background: #2356c2;
+                background: #a56a52;
             }
             .btn--ghost {
                 background: var(--b3-theme-surface);
@@ -1086,8 +1059,8 @@
                 border-color: var(--b3-border-color);
             }
             .btn--ghost:hover {
-                background: #f1f4f8;
-                border-color: #cfd7e2;
+                background: #2c3c45;
+                border-color: rgba(211, 202, 180, 0.65);
                 color: var(--b3-theme-on-background);
             }
             .btn--text {
@@ -1095,7 +1068,7 @@
                 color: var(--b3-theme-on-surface-light);
             }
             .btn--text:hover {
-                color: #2557c0;
+                color: #b5765c;
                 background: var(--b3-theme-primary-lightest);
             }
             .btn:focus-visible {
@@ -1211,7 +1184,7 @@
                 height: 78px;
                 display: flex;
                 align-items: flex-end;
-                background: #f0f3f7;
+                background: rgba(226, 218, 197, 0.1);
                 border-radius: 6px;
                 overflow: hidden;
             }
@@ -1231,7 +1204,7 @@
                 white-space: nowrap;
             }
             .chart-item.is-now .bar-x {
-                color: #2557c0;
+                color: #b5765c;
                 font-weight: 650;
             }
 
@@ -1259,7 +1232,7 @@
                 color: var(--b3-theme-on-background);
             }
             .search-box input::placeholder {
-                color: #98a1ac;
+                color: rgba(211, 202, 180, 0.5);
             }
             .search-box:focus-within {
                 border-color: var(--b3-theme-primary);
@@ -1285,7 +1258,7 @@
             }
             .result:hover {
                 border-color: var(--b3-theme-primary-light);
-                background: #fbfcff;
+                background: #2c3c45;
             }
             .result.is-active {
                 border-color: var(--b3-theme-primary);
@@ -1329,7 +1302,7 @@
             .tag--review {
                 background: var(--b3-theme-primary-lightest);
                 border-color: var(--b3-theme-primary-light);
-                color: #2557c0;
+                color: #b5765c;
             }
             .tag--known {
                 background: var(--ok-bg);
@@ -1387,7 +1360,7 @@
                 background: #0e1116;
                 box-shadow:
                     0 26px 60px rgba(0, 0, 0, 0.46),
-                    0 0 0 1px rgba(255, 255, 255, 0.09);
+                    0 0 0 1px rgba(226, 218, 197, 0.12);
             }
             .phone-screen {
                 width: 100%;
@@ -1614,10 +1587,10 @@
                 border: 0;
                 cursor: pointer;
                 background: var(--b3-theme-primary);
-                color: #fff;
+                color: var(--b3-theme-on-primary);
                 display: grid;
                 place-items: center;
-                box-shadow: 0 8px 20px rgba(53, 117, 240, 0.32);
+                box-shadow: 0 8px 20px rgba(197, 134, 106, 0.32);
             }
             .m-speaker::after {
                 content: "";
@@ -1746,19 +1719,21 @@
                 </p>
                 <div class="tokens">
                     <div class="token-row">
-                        <span class="sw" style="background: #3575f0"></span>主色 <b>--b3-theme-primary</b>
+                        <span class="sw" style="background: #c5866a"></span>主色 <b>--b3-theme-primary</b>
                     </div>
                     <div class="token-row">
-                        <span class="sw" style="background: #4caf50"></span>正确 / 熟 <b>#4caf50</b>
+                        <span class="sw" style="background: #9ec98a"></span>正确 / 熟 <b>#9ec98a</b>
                     </div>
                     <div class="token-row">
-                        <span class="sw" style="background: #d23f31"></span>错误 / 误认 <b>#d23f31</b>
+                        <span class="sw" style="background: #e07a6f"></span>错误 / 误认 <b>#e07a6f</b>
                     </div>
                     <div class="token-row">
-                        <span class="sw" style="background: #d9a717"></span>易混 / 模糊 <b>#d9a717</b>
+                        <span class="sw" style="background: #e3c06b"></span>易混 / 模糊 <b>#e3c06b</b>
                     </div>
-                    <div class="token-row"><span class="sw" style="background: #f4f6f8"></span>背景 <b>#f4f6f8</b></div>
-                    <div class="token-row"><span class="sw" style="background: #e3e7ec"></span>描边 <b>#e3e7ec</b></div>
+                    <div class="token-row"><span class="sw" style="background: #272e33"></span>背景 <b>#272e33</b></div>
+                    <div class="token-row">
+                        <span class="sw" style="background: rgba(226, 218, 197, 0.2)"></span>描边 <b>暖沙 0.2</b>
+                    </div>
                 </div>
             </div>
 
@@ -1769,12 +1744,12 @@
                 <div class="seg-head">
                     <span class="seg-eyebrow">Desktop</span>
                     <h2>桌面端 · Dock 窄面板 360px</h2>
-                    <p>卡片 12px 圆角 / 按钮 8px / 选项行 10px / 阴影 0 1px 3px rgba(0,0,0,.06)</p>
+                    <p>卡片 12px 圆角 / 按钮 8px / 选项行 10px / 阴影 0 1px 3px rgba(0,0,0,.3)</p>
                 </div>
                 <div class="row">
                     <!-- ① 首页 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-home">
+                        <div class="panel" data-od-id="dock-home">
                             <div class="head">
                                 <div class="head-top">
                                     <div class="app-title">温故单词</div>
@@ -1840,7 +1815,7 @@
 
                     <!-- ② 先复习确认层 -->
                     <div class="slot">
-                        <div class="panel panel--center theme-light" data-od-id="dock-review-confirm">
+                        <div class="panel panel--center" data-od-id="dock-review-confirm">
                             <div class="card" style="flex: 0 0 auto; gap: 14px; padding: 18px">
                                 <span
                                     class="entry-ico"
@@ -1882,7 +1857,7 @@
 
                     <!-- ③ 刷卡 · 看单词选意思 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-quiz-meaning">
+                        <div class="panel" data-od-id="dock-quiz-meaning">
                             <div class="head">
                                 <div class="head-top">
                                     <div class="app-title">温故单词</div>
@@ -1982,7 +1957,7 @@
 
                     <!-- ④ 刷卡 · 听音选义 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-quiz-listen">
+                        <div class="panel" data-od-id="dock-quiz-listen">
                             <div class="head">
                                 <div class="head-top">
                                     <div class="app-title">温故单词</div>
@@ -2045,7 +2020,7 @@
 
                     <!-- ⑤ 刷卡 · 看英文回想 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-quiz-recall">
+                        <div class="panel" data-od-id="dock-quiz-recall">
                             <div class="head">
                                 <div class="head-top">
                                     <div class="app-title">温故单词</div>
@@ -2113,7 +2088,7 @@
 
                     <!-- ⑥ 词卡详情翻面态 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-card-detail">
+                        <div class="panel" data-od-id="dock-card-detail">
                             <div class="head">
                                 <div class="head-top">
                                     <div class="app-title">温故单词</div>
@@ -2212,7 +2187,7 @@
 
                     <!-- ⑦ 完成页 + 统计页 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-done-stats">
+                        <div class="panel" data-od-id="dock-done-stats">
                             <div class="card card--done" data-od-id="dock-done">
                                 <div class="done-title">今日已完成</div>
                                 <div class="done-sub">
@@ -2314,7 +2289,7 @@
 
                     <!-- ⑧ 查词屏 -->
                     <div class="slot">
-                        <div class="panel theme-light" data-od-id="dock-search">
+                        <div class="panel" data-od-id="dock-search">
                             <div class="head">
                                 <div class="head-top">
                                     <div class="app-title">查词</div>
@@ -2434,7 +2409,7 @@
                     <!-- ⑨ 首页 -->
                     <div class="slot slot--phone">
                         <div class="phone">
-                            <div class="phone-screen theme-light" data-od-id="mob-home">
+                            <div class="phone-screen" data-od-id="mob-home">
                                 <div class="statusbar">
                                     <span>9:41</span>
                                     <span class="sb-right">
@@ -2544,7 +2519,7 @@
                     <!-- ⑩ 刷卡 · 看单词选意思 -->
                     <div class="slot slot--phone">
                         <div class="phone">
-                            <div class="phone-screen theme-light" data-od-id="mob-quiz-meaning">
+                            <div class="phone-screen" data-od-id="mob-quiz-meaning">
                                 <div class="statusbar">
                                     <span>9:41</span>
                                     <span class="sb-right">
@@ -2679,7 +2654,7 @@
                     <!-- ⑪ 刷卡 · 听音选义 -->
                     <div class="slot slot--phone">
                         <div class="phone">
-                            <div class="phone-screen theme-light" data-od-id="mob-quiz-listen">
+                            <div class="phone-screen" data-od-id="mob-quiz-listen">
                                 <div class="statusbar">
                                     <span>9:41</span>
                                     <span class="sb-right">
@@ -2783,7 +2758,7 @@
                     <!-- ⑫ 词卡详情翻面态 -->
                     <div class="slot slot--phone">
                         <div class="phone">
-                            <div class="phone-screen theme-light" data-od-id="mob-card-detail">
+                            <div class="phone-screen" data-od-id="mob-card-detail">
                                 <div class="statusbar">
                                     <span>9:41</span>
                                     <span class="sb-right">
@@ -2940,7 +2915,7 @@
                     <!-- ⑬ 统计页 -->
                     <div class="slot slot--phone">
                         <div class="phone">
-                            <div class="phone-screen theme-light" data-od-id="mob-stats">
+                            <div class="phone-screen" data-od-id="mob-stats">
                                 <div class="statusbar">
                                     <span>9:41</span>
                                     <span class="sb-right">
@@ -3080,7 +3055,7 @@
                     <!-- ⑭ 查词屏 -->
                     <div class="slot slot--phone">
                         <div class="phone">
-                            <div class="phone-screen theme-light" data-od-id="mob-search">
+                            <div class="phone-screen" data-od-id="mob-search">
                                 <div class="statusbar">
                                     <span>9:41</span>
                                     <span class="sb-right">
