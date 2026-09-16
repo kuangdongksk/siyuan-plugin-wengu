@@ -57,20 +57,23 @@
       组格状态取组内**最差**（错 > 已答 > 未答 > 对）——点进去就是那道错的；
     - **会话结果必须先按块 id 归并**（多步/逐空题记的是 `qid#k`）——不归并
       会把一道多步题算成 N 道，统计与格子全错位。
-- **空轮静默关轮（Issue #158，对齐桌面 #155 块 A）**：移动端有**独立的收卷
-  守卫**（`MobileDrill.requestEnd`），#155 只改了桌面 `finishRoundGuarded`，
-  移动端原样停在 #147 的旧拦截口径（通知 `endRoundEmpty` + 不收卷），
-  「进来不想做、直接关掉」被挡（用户原话不分端）。
-    - 现 `requestEnd` 的 `answered <= 0` 分支调 `MobileDrill.closeEmptyRound()`
-      （收卷生命周期在 `core/MobileRound.ts`，函数式友元，同
-      `MobileAnswering` 口径），**与桌面 `RoundReport.closeEmptyRound` 同语义**
-      按本域状态机落地：抹 `history.removeSession`（`start` 已 upsert 的 0 作答
-      记录）→ 停表 → 退态（清 session/cards/confirmEnd）→ 回开刷面板 +
-      重探测未完成轮。⚠️ 判据 `answered <= 0` 与桌面**是有意的两处重复**
-      （本域拿不到桌面 `ctx`），改一处必须同步另一处。
-    - ⚠️ **两处「空轮」口径不同名不同物**：`emptyRound(桌面)` 与移动端
-      `requestEnd` 分支是两条链；而 `src/mobile/core/MobileDrill.ts` 里的
-      `emptyRound` 旧写法属于本域。
+- **空轮静默关轮（Issue #158，对齐桌面 #155 块 A）**：移动端有**独立的收卷守卫**
+  （`MobileDrill.requestEnd`），#155 只改了桌面 `finishRoundGuarded`，移动端原样停在
+  #147 的旧拦截口径（通知 `endRoundEmpty` + 不收卷），「进来不想做、直接关掉」被挡
+  （用户原话不分端）。
+    - 现 `requestEnd` 的 `answered <= 0` 分支调 `MobileRound.closeEmptyRound(this)`
+      ——收卷生命周期在 `core/MobileRound.ts`，函数式友元（同 `MobileAnswering`
+      口径；**不是** `MobileDrill` 的方法）。**与桌面 `RoundReport.closeEmptyRound`
+      同语义**按本域状态机落地：清 session/resume + 抹 `history.removeSession`
+      （`start` 已 upsert 的 0 作答记录）→ 停表 → 退态（清
+      cards/list/elapsedSec/confirmEnd/drawer/matOpen）→ 回开刷面板
+      （`screen="home"`）+ 重探测未完成轮。⚠️ 判据 `answered <= 0` 与桌面
+      **是有意的两处重复**（本域拿不到桌面 `ctx`），改一处必须同步另一处。
+    - ⚠️ **移动端没有 `emptyRound` 这个符号**：判据就内联在 `requestEnd` 一处
+      （与桌面 `emptyRound(ctx.session)` 是两条链、不同名不同物）；入口也**只有
+      `requestEnd` 一个**（`DrillScreen` 交卷钮 / `NumDrawer`「交卷」都调它）。
+      别在别处再写第二份 `answered <= 0`——写在 `closeEmptyRound` 里同样违规，
+      契约测试会数源码里该表达式的出现次数。
     - **i18n `endRoundEmpty` 已删（中英各一处）**——移动端对齐后全仓零引用，
       按 design-spec §8.4 死键口径两语言同删；契约锁在
       `quiz/render/RoundReport.contract.test.ts`（源级断言 + 字典零残留）。

@@ -247,8 +247,9 @@ flex-direction:column}`）：`.wengu-main` 原是块级内滚窗（`base.scss`
       `discardSession`（清 session、不进 finished）→ `stopRound` →
       退总结态/卸报告 → `rerenderView` 回开刷面板。⚠️ 末尾那次重画不能省：
       `stopRound` 只翻 `started`、题卷壳是整壳重建的，不重建用户看到的还是
-      「一题没做 + 题卡锁死」的原状。i18n `endRoundEmpty` **键保留**——桌面
-      已无引用，但移动端 `MobileDrill.requestEnd` 仍取它（删了弹裸键名）。
+      「一题没做 + 题卡锁死」的原状。i18n `endRoundEmpty` **已删（中英各一处）**
+      ——#158 把移动端 `MobileDrill.requestEnd` 也对齐到同一语义后全仓零引用，
+      按 design-spec §8.4 死键口径两语言同删（本域口径见 `mobile.md`）。
       ⚠️ **别在入口层再写一份 `answered <= 0`**：原实现就是这么漏的——
       `finishNow` 直接 `manualFinishRound`，开倒计时的用户时间一到点「结束
       本轮」，一题没答也收卷出报告（静默、无报错）。新增收卷入口一律调守卫，
