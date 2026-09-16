@@ -1,3 +1,4 @@
+import { fmt } from "../../../ui/shared";
 import { QuestionType } from "../../../types";
 
 /**
@@ -68,6 +69,60 @@ export function gate(): { promise: Promise<void>; resolve: () => void } {
         resolve = r;
     });
     return { promise, resolve };
+}
+
+/**
+ * 完成消息的四段自检警告拼接（Issue #148 抽出；纯函数、可直测）。
+ *
+ * 四段都是「静默成功但内容缺失」的兜底点名，各自独立计数、各自可为 0：
+ *  - `convertImagesMissing` 源插图未随题带入（AI 读不了图整题跳过）；
+ *  - `convertBatchEmpty` 某批无产出（对应源段被跳过）；
+ *  - `convertAnchorLost` 某批未报定位（窗口末尾残题可能漏）；
+ *  - `convertGroupDangling`（Issue #148）`group=prev` 悬空降级为独立题
+ *    ——共享原文缺失，题会「分开」在卡里。
+ *
+ * 拼接口径：非零才有该段（零值不产生空白前缀），各段前导一个空格，顺序
+ * 固定（与改造前逐字节一致）。`t` 由调用方注入（转换域取词器）。
+ */
+export function warnSuffixOf(t: (k: string) => string, counts: WarnCounts): string {
+    const parts: string[] = [];
+    for (const [key, n] of [
+        ["convertImagesMissing", counts.missingImages],
+        ["convertBatchEmpty", counts.emptyBatches],
+        ["convertAnchorLost", counts.anchorMiss],
+        ["convertGroupDangling", counts.danglingGroups],
+    ] as const) {
+        if (n > 0) parts.push(` ${fmt(t(key), { n: String(n) })}`);
+    }
+    return parts.join("");
+}
+
+/** {@link warnSuffixOf} 的四项计数。 */
+export interface WarnCounts {
+    missingImages: number;
+    emptyBatches: number;
+    anchorMiss: number;
+    danglingGroups: number;
+}
+
+/**
+ * 完成消息的正文拼装（Issue #148 自 `ConvertBatch` 抽出压行数红线）：
+ * 「题型清单 · 知识点反链数」+ 四段自检警告。两段主题都有值才拼主题
+ * （`·` 分隔），警告按 {@link warnSuffixOf} 逐段前导空格。
+ */
+export function doneMessageOf(
+    t: (k: string) => string,
+    head: { types?: QuestionType[]; knowLinked: number },
+    /** 插图自检的原料（源文与产出），计数在内部算——调用方少拼一行。 */
+    md: { src: string; out: string },
+    warn: Omit<WarnCounts, "missingImages">
+): string {
+    const parts: string[] = [];
+    if (head.types && head.types.length > 0) {
+        parts.push(fmt(t("convertTypeList"), { types: head.types.map((x) => t(TYPE_I18N[x])).join("、") }));
+    }
+    if (head.knowLinked > 0) parts.push(fmt(t("convertKnowCount"), { n: String(head.knowLinked) }));
+    return parts.join(" · ") + warnSuffixOf(t, { ...warn, missingImages: countMissingImages(md.src, md.out) });
 }
 
 /** 题型 i18n 键（完成消息展示首批报出的题型并集）。 */

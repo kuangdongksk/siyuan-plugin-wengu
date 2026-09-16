@@ -202,3 +202,72 @@ describe("SetWriter · 20260903 审查修复", () => {
         expect(data().collections.find((c) => c.id === `doc:${setId}`)).toBeUndefined();
     });
 });
+
+/**
+ * Issue #148 验收 3：`group=prev` 悬空兜底。
+ *
+ * 真机实录（英语真题聚合文档）：第 1 批只有文章正文、AI 没出材料块，第 2
+ * 批 5 道真题全写 `group=prev`——引用悬空。现状行为是 `lastMaterialId` 为
+ * 空 ⇒ 记录**不写 group 字段**（读侧 DrillUnits 缺材料本就按独立题渲染），
+ * 但**静默**：用户只看到「题目分开了」而不知原因。
+ *
+ * 兜底口径两条（本组锁死）：
+ *  ① 降级为**独立题**——不写 group、解析视图也不带 group（不是静默悬空）；
+ *  ② **计数** `AppendOut.danglingGroup`，由编排层并进完成消息的警告。
+ */
+describe("SetWriter · group=prev 悬空兜底（Issue #148）", () => {
+    it("前面没有任何材料块：降级为独立题（不写 group）并计数", async () => {
+        const { bank, data } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "真题卷" });
+        const out = await w.append(setId, [
+            { draft: question({ type: "cloze", group: "prev" }) },
+            { draft: question({ type: "cloze", group: "prev" }) },
+        ]);
+        expect(out.danglingGroup).toBe(2);
+        expect(out.questions.every((q) => q.group === undefined)).toBe(true); // 解析视图不悬空
+        for (const qid of out.qids) expect(data().records[qid]!.group).toBeUndefined();
+    });
+
+    it("有材料块时不算悬空；同批材料在前也正常挂靠", async () => {
+        const { bank, data } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "英语卷" });
+        const out = await w.append(setId, [
+            { draft: material() },
+            { draft: question({ type: "cloze", group: "prev" }) },
+        ]);
+        expect(out.danglingGroup).toBe(0);
+        expect(data().records[out.qids[0]].group).toBe(out.materials[0].id);
+    });
+
+    it("不写 group 的普通题不计数（判据是「写了 prev 却没材料」，不是「有无材料」）", async () => {
+        const { bank } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "卷" });
+        const out = await w.append(setId, [{ draft: question() }, { draft: question() }]);
+        expect(out.danglingGroup).toBe(0);
+    });
+
+    it("跨批：前批出了材料后批 group=prev 正常挂靠，零悬空", async () => {
+        const { bank, data } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "英语卷" });
+        const first = await w.append(setId, [{ draft: material() }]);
+        const second = await w.append(setId, [{ draft: question({ type: "cloze", group: "prev" }) }]);
+        expect(first.danglingGroup).toBe(0);
+        expect(second.danglingGroup).toBe(0);
+        expect(data().records[second.qids[0]].group).toBe(first.materials[0].id);
+    });
+
+    it("冷启动播种命中库内既有材料时不算悬空（增量/续跑接管口径）", async () => {
+        const { bank, data } = newBank();
+        const w1 = new SetWriter(bank);
+        const setId = await w1.openSet({ title: "英语卷" });
+        const seeded = await w1.append(setId, [{ draft: material() }]);
+        const w2 = new SetWriter(bank);
+        const out = await w2.append(setId, [{ draft: question({ type: "cloze", group: "prev" }) }]);
+        expect(out.danglingGroup).toBe(0);
+        expect(data().records[out.qids[0]].group).toBe(seeded.materials[0].id);
+    });
+});

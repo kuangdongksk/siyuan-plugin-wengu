@@ -261,3 +261,69 @@ describe("增量重转换面板「停止」接线", () => {
         expect(res.added).toBeLessThan(chunks.length); // 未跑完剩余块
     });
 });
+
+/**
+ * 增量链的 `group=prev` 悬空计数（Issue #148 同款兜底）：增量逐块生成，
+ * 块间可能因源结构（块级切分把「文章」与「题目」切成两块）出现「小题块
+ * 先到、材料块后到」——SetWriter 不写坏 group、读侧不悬空，但共享原文
+ * 缺失要能**被点到名**，否则用户只看到「题目分开了」。
+ *
+ * 本用例把 AI 替身换成「整卷只回 group=prev 的小题、从不回材料块」，
+ * 走真 `convertIncremental` 链，断言 `danglingGroups` 如实计数。
+ */
+describe("增量链 · 悬空 group=prev 计数（Issue #148）", () => {
+    it("AI 只回 group=prev 小题、从不回材料块：计数逐块累加", async () => {
+        const bank = newBank();
+        const setId = await new SetWriter(bank).openSet({ title: "真题卷" });
+        // 仅本用例临时换替身：材料块缺席 ⇒ 每道 prev 小题都该计入悬空
+        const { agentChatOnce } = await import("../../../ai/client");
+        const prevReply = [
+            "CAN_CONVERT: yes",
+            "REASON: 真题",
+            "@@Q type=cloze group=prev",
+            "@@P stem",
+            "According to the passage, the author suggests that（ ）",
+            "@@P slot-opt",
+            "选项甲",
+            "@@P slot-opt",
+            "选项乙",
+            "@@P slot-ans",
+            "A",
+            "@@END",
+        ].join("\n");
+        // 全部调用都回同一份「无材料块的 prev 小题」回复（两块的替换一致）
+        // agentChatOnce 回**回复字符串本体**（reply 包装在 makeKnowAwareAi 里）
+        vi.mocked(agentChatOnce).mockImplementation(
+            async (
+                _m: string,
+                _id: string,
+                _to: number,
+                _sig?: AbortSignal,
+                track?: { onSid?: (s: string) => void }
+            ) => {
+                ai.calls++;
+                track?.onSid?.("sid-" + ai.calls);
+                return prevReply as never;
+            }
+        );
+        const chunks = [
+            { key: "H:Text1/#0", hash: "h1", offset: 0, text: "文章正文段落。".repeat(40) },
+            { key: "H:Text1/#1", hash: "h2", offset: 100, text: "真题题干段落。".repeat(40) },
+        ];
+        const res = await convertIncremental({
+            deleteQids: [],
+            staleQids: [],
+            chunks,
+            setId,
+            bank,
+            title: "真题卷",
+            modelId: "m",
+            fillToChoice: false,
+            bigToSteps: false,
+        });
+        expect(res.added).toBeGreaterThan(0);
+        expect(res.danglingGroups).toBe(res.added); // 无一挂上材料：全部降级
+        // 落库侧不悬空：记录不带 group（读侧按独立题渲染，不是坏指针）
+        for (const r of Object.values((await bank.all()).records)) expect(r.group).toBeUndefined();
+    });
+});

@@ -9,7 +9,7 @@ import type { DraftUnit } from "./QuestionDraft";
  *
  * 落库前（**reseat 校正之后、renderUnit 之前**）把每个标记换成该选项的
  * **文本**（全角引号「」包裹、多个标记自然连排）。这样解析里不再含任何
- * 选项字母，两件事同时成立：
+ * 选项字母（长选项只**截断**、不补字母，见下），两件事同时成立：
  *   1. 展示层洗牌只剩「答案字母重映射」一件事，不需要再改解析
  *      （存量数据的解析字母改写仍由 OptionShuffle ③ 承担）；
  *   2. 英语域不会被裸 A 误伤——AI 想指选项就得显式加标记，没加的一律
@@ -33,6 +33,25 @@ import type { DraftUnit } from "./QuestionDraft";
  *  生效，不会退回拍平错位），同时它对存量/非常规数据里的 `step-k-*`
  *  解析也是正确行为。
  *
+ * **长选项截断形态**（Issue #148 追加评论）：英语阅读题的选项是完整英文
+ * 长句，整句塞进解析会让「正确答案：〈60+ 字符英文整句〉」连占三行（真机
+ * 截图）。故超过 {@link LONG_OPT} 码点的选项只保留前 {@link HEAD_KEEP} 字
+ * 加省略号（`「A proposal to establish…」`）——解析行可读优先；短选项
+ * （政治题「维护封建统治」之类）维持全文替换，逐字节与改造前一致。
+ *  ⚠️ **截断后不补字母提示**（追加评论的备选形态之一，此处不采纳）。理由
+ *  两条，都是硬约束：
+ *    1. 字母是**位置引用**，与本模块的冻结口径「库内解析不含任何选项字母」
+ *       正面对撞（见上：库/源文档是**死形态**，选项按原文顺序）。字母提示
+ *       一旦烘进解析文本，就随库里那份文本固化在**转换时的位置**上；
+ *    2. 而展示层 `CardDisplayShuffle` 进卡前按会话现洗选项、只重映射
+ *       `answer` 字母、**不重写解析文本**（设计如此，见该模块文件头）。
+ *       于是一旦洗牌换序，提示字母就指向**另一个选项**——卡上「正确答案」
+ *       高亮的是一项、解析里的「（D）」指着另一项，属**用户可见的错误指代**，
+ *       且每换一轮会话都可能错到别处。
+ *  故这里只截断、不带字母：**截断后的前 30 字本身即指代**（选项互异），
+ *  且卡内「正确答案是哪个选项」另由 `answer` 字母 + 描色呈现（`solutionMd`
+ *  与 `answer` 是两个部件），不需要解析文本再带一份字母。
+ *
  * 降级口径：X 非法（超出**该组**选项数 / 不是 A–H）→ 标记整体降级为
  * **裸字母 X**（丢标记不丢信息，宁可读起来突兀也不静默删字）；数学环境
  * （`$…$`/`$$…$$`、行内/围栏代码）内的标记**照常替换**——标记即显式
@@ -42,6 +61,32 @@ import type { DraftUnit } from "./QuestionDraft";
 
 /** 选项引用标记：全角〔opt:X〕，X 单字母（大小写都认）。 */
 const MARK_RE = /〔opt:([A-Za-z])〕/g;
+
+/** 长选项截断阈值（Issue #148 追加评论）：超过此长度的选项文本不再整句
+ *  塞进解析——英语阅读题的选项是完整英文长句，全文替换会让解析行连占三
+ *  行（真机截图）。
+ *  ⚠️ 用 `Array.from` 数**码点**、不用 `str.length`：阈值是「观感字符数」
+ *  口径，`"…".length === 1` 但 emoji/代理对与部分汉字扩展区算两码元，
+ *  按 code unit 判会把 39 个字符的长句误判成超长（或反之）。 */
+const LONG_OPT = 40;
+
+/** 截断后保留的可见字符数（与阈值无关：**先判长、再截断**，截到 30 字
+ *  + 省略号）。 */
+const HEAD_KEEP = 30;
+
+/** 选项文本的解析展示形态（Issue #148）：
+ *  - 短选项（≤ {@link LONG_OPT} 码点）→ **全文**（政治题「维护封建统治」
+ *    等原样，逐字节与改造前一致）；
+ *  - 长选项（英语阅读整句）→ **截断 + 省略号**，形如
+ *    「A proposal to establish…」——解析行可读优先。
+ *  ⚠️ **不带字母提示**（不写「…（D）」）：字母是位置引用，会被展示层洗牌
+ *  洗成**错误指代**（该模块不重写解析文本），也与「库内解析不含选项字母」
+ *  的冻结口径冲突——详见模块头注释。 */
+function displayText(text: string): string {
+    const chars = Array.from(text);
+    if (chars.length <= LONG_OPT) return text;
+    return `${chars.slice(0, HEAD_KEEP).join("")}…`;
+}
 
 /** 选项组键（与 CardDisplayShuffle 的分组口径一致）：`""`=顶层，
  *  `step-k`=多步题第 k 步。
@@ -69,11 +114,11 @@ function groupTexts(d: DraftUnit, key: string): string[] {
     return d.parts.filter((p) => groupOf(p.name) === key).map((p) => p.text.trim());
 }
 
-/** 把一处标记换成选项文本；X 非法时降级为裸字母。 */
+/** 把一处标记换成选项文本（长选项截断）；X 非法时降级为裸字母。 */
 function replacement(ch: string, opts: string[]): string {
     const i = LETTERS.indexOf(ch.toUpperCase());
     const text = i >= 0 ? opts[i] : undefined;
-    return text ? `「${text}」` : ch.toUpperCase();
+    return text ? `「${displayText(text)}」` : ch.toUpperCase();
 }
 
 /** 替换一段文本里的全部选项引用标记（无标记原样返回，逐字节不变）。 */

@@ -22,15 +22,7 @@ import type { WenguMaterial, WenguQuestion } from "../../../types";
 import { KernelBlock } from "../../../siyuan/block";
 import { runSegment } from "./ConvertSegment";
 import type { SegmentBatch, SegmentDeps, SegmentResult } from "./ConvertSegment";
-import {
-    countMissingImages,
-    gate,
-    isBlankSource,
-    MAX_CONCURRENCY,
-    percentOf,
-    SHARDS_PER_WORKER,
-    TYPE_I18N,
-} from "./ConvertBatchTypes";
+import { gate, isBlankSource, MAX_CONCURRENCY, percentOf, SHARDS_PER_WORKER, doneMessageOf } from "./ConvertBatchTypes";
 
 import type {
     BatchedResult,
@@ -214,8 +206,10 @@ export async function convertDocBatched(
      *  口径）。AI 批可能零产物而不发 submit，故它与收口的「AI 调用批数」
      *  不是一回事——两者必须各累各的，混用即双重累计。 */
     let flushedBatches = 0;
-    let emptyBatches = 0; // AI 批返回可解析题目数为 0 的批数（完成消息附警告）
-    let anchorMiss = 0; // @@TO 缺失/定位失败的批数（兜底推进，可能漏窗口末尾残题）
+    // 自检计数（完成消息附警告）：空批 / 定位失败 / **悬空 group=prev**（#148）
+    let emptyBatches = 0;
+    let anchorMiss = 0;
+    let danglingGroups = 0;
     let refused = ""; // 首片首批判定「不能出题」的原因（零产物收口时用）
     let firstError = "";
     /** 学科是否已落库（Issue #83；首批报出后写一次，后续批次不再重复调） */
@@ -295,6 +289,7 @@ export async function convertDocBatched(
         writtenQids.push(...out.qids);
         previewList.push(...out.questions);
         previewMats.push(...out.materials);
+        danglingGroups += out.danglingGroup; // 悬空 group=prev 降级（Issue #148）
         const newStems: QuestionPreview[] = [];
         let qno = count;
         for (const u of out.units) {
@@ -475,22 +470,17 @@ export async function convertDocBatched(
         }
         return zero("failed", refused || t("convertNoQuestions"));
     }
-    // 插图自检：完成消息里附警告提示重新转换
-    const missingImgs = countMissingImages(kramdown, generatedKds.join("\n\n"));
-    const imgWarn = missingImgs > 0 ? ` ${fmt(t("convertImagesMissing"), { n: String(missingImgs) })}` : "";
-    // 批级空产出自检：AI 某批返回空/不可解析时对应源段被跳过——静默
-    // 「成功」漏题难排查，完成消息附警告（复用 imgWarn 拼接模式）
-    const emptyWarn = emptyBatches > 0 ? ` ${fmt(t("convertBatchEmpty"), { n: String(emptyBatches) })}` : "";
-    // 定位失败自检：兜底推进可能跳过窗口末尾残题，同样要点名
-    const anchorWarn = anchorMiss > 0 ? ` ${fmt(t("convertAnchorLost"), { n: String(anchorMiss) })}` : "";
-    const doneMsg: string[] = [];
-    if (genTypes && genTypes.length > 0) {
-        doneMsg.push(fmt(t("convertTypeList"), { types: genTypes.map((x) => t(TYPE_I18N[x])).join("、") }));
-    }
-    if (knowLinked > 0) doneMsg.push(fmt(t("convertKnowCount"), { n: String(knowLinked) }));
+    // 完成消息 =「题型 · 知识点数」+ 自检警告（插图/空批/定位/**悬空
+    // group=prev**，Issue #148）；拼接体是纯函数 doneMessageOf（单测直锁）。
+    const message = doneMessageOf(
+        t,
+        { types: genTypes, knowLinked },
+        { src: kramdown, out: generatedKds.join("\n\n") },
+        { emptyBatches, anchorMiss, danglingGroups }
+    );
     return {
         status: "done",
-        message: doneMsg.join(" · ") + imgWarn + emptyWarn + anchorWarn,
+        message,
         setId: setId!,
         title: info.title,
         count,

@@ -124,3 +124,57 @@ describe("buildPrompt", () => {
         expect(p).toContain("文档内容：");
     });
 });
+
+/**
+ * Issue #148：英语真题聚合文档「题目分开了」的两条 prompt 口径。
+ *
+ * 真机实录：第 1 批片段只有文章正文（题目在后批），AI 判为讲义路径、
+ * 自造 8 题且不出材料块；第 2 批 5 道真题全部写 group=prev 引用「文中
+ * 紧邻其前的材料块」——引用悬空。根因是「一题对一题 vs 讲义出题」按
+ * **单批片段**判定，AI 对「这是后面真题的材料」没有意识。
+ *
+ * 两条口径各锁一组行级断言：
+ * ① 语篇判定（4.2）——文章正文即使本批无配套题也照出材料块、不得自造题；
+ * ② 真题优先去重（4.1）——有现成真题时不得为同一语篇/考点再造题。
+ * 另锁规则 7 的**悬空禁止**（本批之前没有材料块时要先补材料块）。
+ */
+describe("buildPrompt · 语篇材料块判定与真题优先（Issue #148）", () => {
+    it("4.2 语篇判定：文章正文一律出材料块、明确禁止自造题", () => {
+        const p = buildPrompt("s");
+        expect(p).toContain("4.2 **语篇（文章正文）一律出材料块，不得自造题**");
+        // 判定特征：真题风格来源行/标题
+        for (const feat of ["Text 1", "Part A", "逐题细解", "逐句精讲"]) expect(p, feat).toContain(feat);
+        // 「本片段没看到配套题目也必须出材料块」——这正是真机漏掉的判定
+        expect(p).toContain("即使本片段没看到配套题目，也必须按材料输出");
+        // 材料块协议与「不得自造题」同句
+        expect(p).toContain("@@Q material=1 + @@P body");
+        expect(p).toContain("绝不允许为它自造题");
+        // 判定顺序（先认语篇、再看配套题）与规则 7 的挂靠口径对齐
+        expect(p).toContain("先按特征认出语篇（本批即可出材料块），再看本批有没有配套真题");
+        expect(p).toContain("小题写 group=prev 挂靠该材料块");
+    });
+
+    it("4.1 真题优先去重：有现成真题时不得为同一语篇/考点自造题", () => {
+        const p = buildPrompt("s");
+        expect(p).toContain("4.1 **真题优先（去重硬口径）**");
+        expect(p).toContain("以真题为准");
+        expect(p).toContain("**不得**再为同一语篇/同一考点自造题");
+        // 自造题的适用面收窄到「完全没有现成题目的语篇/章节」（防误伤纯讲义）
+        expect(p).toContain("自造题**只用于完全没有现成题目的语篇/章节**");
+    });
+
+    it("规则 7 悬空禁止：本批之前没有材料块时要先补材料块，不写裸 group", () => {
+        const p = buildPrompt("s");
+        expect(p).toContain("悬空禁止");
+        expect(p).toContain("先补它的材料块（@@Q material=1 + @@P body）再写小题");
+        expect(p).toContain("先材料、后小题");
+        // 原口径不丢（分批时只有材料/只有题目仍照常输出）
+        expect(p).toContain("分批转换时若本批只有材料没有题目、或只有题目没有材料，仍照常输出");
+    });
+
+    it("新口径不误伤纯讲义/纯习题册：第 4 条一题对一题与讲义出题原文口径仍在", () => {
+        const p = buildPrompt("s");
+        expect(p).toContain("必须**一题对一题**");
+        expect(p).toContain("只有原文是讲义/笔记（无现成题目）时才按知识点出题");
+    });
+});

@@ -300,7 +300,13 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
             // 题库写入由 convertIncremental 逐块 flush；中止/失败已入库
             // 部分自带指纹，重跑分类即跳过（自愈）
             if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
-            const tail = res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "";
+            // 零产物 + 悬空 group=prev 两段收尾点名（Issue #148：后者静默
+            // 降级会让「题目分开了」重现却无从察觉）
+            const tail =
+                (res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "") +
+                (res!.danglingGroups > 0
+                    ? ` ${esc(fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) }))}`
+                    : "");
             ev.onStatus(
                 esc(
                     fmt(res!.aborted ? t("incrAborted") : t("incrDone"), {
@@ -318,7 +324,11 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                         a: String(res!.added),
                         d: String(res!.deleted),
                         s: String(res!.staled),
-                    }) + (res!.empty > 0 ? ` ${fmt(t("incrEmpty"), { n: String(res!.empty) })}` : "")
+                    }) +
+                        (res!.empty > 0 ? ` ${fmt(t("incrEmpty"), { n: String(res!.empty) })}` : "") +
+                        (res!.danglingGroups > 0
+                            ? ` ${fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) })}`
+                            : "")
                 );
             await v.reloadView();
         });
