@@ -156,7 +156,7 @@
   "knowPickClear": "Clear",
   "convertKnowCount": "{n} questions linked to knowledge points",
   "collectionsTitle": "Collections",
-  "collectionsBtn": "Manage collections: collect questions by knowledge point / delete",
+  "collectionsBtn": "Collections",
   "collectionCount": "{n} questions",
   "collectHint": "Check knowledge points (with question counts) to gather covered questions into a new collection",
   "collectTitlePlaceholder": "Title; use / for folders (e.g. Calculus/Limits/LHopital)",
@@ -956,5 +956,6 @@
   "switchConfirmGo": "Switch anyway",
   "colMore": "More",
   "reportBackToQuiz": "Back to questions",
-  "reportShowSummary": "View summary"
+  "reportShowSummary": "View summary",
+  "collectionsBtnHint": "Manage collections: collect questions by knowledge point / delete"
 }

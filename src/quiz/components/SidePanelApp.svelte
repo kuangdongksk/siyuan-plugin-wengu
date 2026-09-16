@@ -171,7 +171,9 @@
         />
         <div class="wengu-side-actions">
             <!-- 等宽文字工具钮（Issue #135 §1.4）：stats/collections 从纯图标
-                 升「icon + 文案」；点击语义与 act 名不变 -->
+                 升「icon + 文案」；点击语义与 act 名不变。钮面取短键
+                 collectionsBtn（四个字），完整描述句下沉 title=collectionsBtnHint
+                 ——Issue #154：18 字描述句当钮面会把两钮挤断（#145 修错位置） -->
             <div class="wengu-side-toolrow">
                 <Button class="wengu-side-tool" data-act="stats" title={t("statsTitle")} onclick={() => onAct("stats")}>
                     {@html svgIcon("iconInfo")} <span>{t("statsTitle")}</span>
@@ -179,7 +181,7 @@
                 <Button
                     class="wengu-side-tool"
                     data-act="collections"
-                    title={t("collectionsBtn")}
+                    title={t("collectionsBtnHint")}
                     onclick={() => onAct("collections")}
                 >
                     {@html svgIcon("iconList")} <span>{t("collectionsBtn")}</span>
