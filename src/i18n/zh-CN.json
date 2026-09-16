@@ -946,5 +946,6 @@
   "numsLegendCur": "当前题",
   "numsLegendOk": "答对",
   "numsLegendBad": "答错",
-  "numsLegendDone": "已答未揭示"
+  "numsLegendDone": "已答未揭示",
+  "matSplitTitle": "拖动调整材料区高度，双击复位"
 }

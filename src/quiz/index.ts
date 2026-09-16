@@ -32,7 +32,8 @@ import { ProtyleHost } from "./service/ProtyleHost";
 import { renderListFor } from "./render/QuizShell";
 import type { QuestionBank } from "../bank/data/QuestionBank";
 import type { WenguPrefsIo } from "./service/QuizLoader";
-import { loadPrefs, loadQuizState, savePrefs } from "./service/QuizLoader";
+import { loadPrefs, loadQuizState, prefsSnapshotOf, savePrefs } from "./service/QuizLoader";
+import { MatSplitPrefs } from "./flow/MaterialSplitter";
 import { lockAllCards, manualFinishRound, roundFinishCtx, showRoundReportNow } from "./render/RoundReport";
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
@@ -73,6 +74,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     sideFilter = "";
     /** 侧栏树展开的路径集合（S2：默认第一层，prefs 持久化）。 */
     sideTreeOpen: string[] = [];
+    /** 阅读组材料/题目分隔条比例（Issue #138 §7.c；守卫见 MaterialSplitter）。 */
+    readonly matSplit = new MatSplitPrefs();
     private pendingDoc: { id: string; title: string } | undefined;
     list: WenguQuestion[] = [];
     private fullList: WenguQuestion[] = [];
@@ -333,15 +336,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly reimportDocOf = (docId: string): void => reimportDocFrom(this, docId);
     readonly removeSetOf = (docId: string): void => unregisterSetAsQuiz(this, docId);
 
+    /** prefs 落盘（快照组装外移 service/QuizLoader.prefsSnapshotOf，压红线）。 */
     persistPrefs(): void {
-        savePrefs(this.storage, {
-            docId: this.docId,
-            colId: this.colFlow.id(),
-            sideCollapsed: this.sideCollapsed,
-            sideTreeOpen: this.sideTreeOpen,
-            workspace: this.workspace,
-            ...this.convertAccess.prefsSnapshot(),
-        });
+        savePrefs(this.storage, prefsSnapshotOf(this));
     }
 
     /** 目录文档右键的弹窗类动作（实现体 service/DocActions，压行数外移）。 */
@@ -397,6 +394,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         this.sideCollapsed = r.sideCollapsed;
         this.workspace = normalizeWorkspace(r.workspace);
         this.convertAccess.restore(r);
+        this.matSplit.restore(r.matCapRatio); // 分隔条比例（读侧夹取，脏值=未拖过）
         this.revealMode = r.revealMode;
         this.started = false;
         this.activeQIdx = 0;
@@ -492,6 +490,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     /* ── StatsViewAccess（openStatsPanelFor 消费）；ConvertViewAccess 在下 ── */
     readonly docsOf = (): WenguDoc[] => this.docs;
     readonly sideTreeOpenOf = (): string[] => this.sideTreeOpen;
+    /** AnswerHost.setMatCapRatio 实现体（undefined=复位清库，守卫同 write）。 */
+    readonly setMatCapRatio = (r: number | undefined): void => void (this.matSplit.write(r) && this.persistPrefs());
     readonly markReopenStats = (tab: "overview" | "doc") => (this.reopenStatsTab = tab);
     readonly switchDocSelect = (id: string): void => this.selectDoc(id);
     startPanelModel = () => startPanelModelFor(this);

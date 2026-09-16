@@ -17,4 +17,8 @@ export interface CardHtmlModel {
     /** 预览模式（Issue #46）：卡头「标记为错题」钮只在预览下渲染
      *  （做题模式不加）。缺省 undefined=非预览。 */
     preview?: boolean;
+    /** 阅读组材料/题目的分隔条比例（Issue #138 §7.c）：undefined=用户
+     *  从未拖过 ⇒ 组件不写内联 `--wengu-mat-cap`，回 CSS 的 52vh 默认。
+     *  读写收口在 flow/MaterialSplitter（存比例不存像素）。 */
+    matCapRatio?: number;
 }

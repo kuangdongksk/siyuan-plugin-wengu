@@ -48,21 +48,18 @@
   overflow-y: auto;
   /* 触屏惯性滚动（移动端触屏口径）——桌面无副作用（滚轮不走这条） */
   -webkit-overflow-scrolling: touch;
+  /* 滚动条：**不显示**（Issue #138 验收 5，自 #135 题号栏同款口径）——
+     材料区最忌常驻一条粗滚动条压着正文右缘，而「还能往下滚」这件事已由
+     下缘渐隐分界线表达，再挂一条条是重复信息。滚动能力本身不受影响
+     （滚轮/触屏/键盘都能滚）。 */
+  scrollbar-width: none;
 }
 
-/* 滚动条：不自造轮子，直接给思源内核同款细滚动条形态——`:hover` 才显形，
-   静止时隐去（材料区最忌常驻一条粗滚动条压着正文右缘）。 */
+/* 同一条的 WebKit 腿（思源内嵌 Chromium；只写 `scrollbar-width` 时
+   WebKit 系仍会露出条——两套写法是必需，不是冗余）。 */
 .wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat::-webkit-scrollbar {
-  width: 6px;
-}
-
-.wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat::-webkit-scrollbar-thumb {
-  background-color: transparent;
-  border-radius: 3px;
-}
-
-.wengu-reading .wengu-gmat-host[data-scroll-cap] .wengu-gmat:hover::-webkit-scrollbar-thumb {
-  background-color: var(--b3-scroll-color, var(--b3-border-color));
+  width: 0;
+  height: 0;
 }
 
 /* 渐隐分界线（验收 1/2）：悬于材料区下缘，向**上**渐隐——上缘透明、
@@ -144,6 +141,70 @@
    收起态残留的「不限高/无渐隐」不会留到展开后（Issue #87 验收 3）。 */
 .wengu-reading .wengu-gunit[data-collapsed] .wengu-gmat {
   padding: 0;
+}
+
+/* ── 材料/题目可拖分隔条（Issue #138 §6.1/§7.c，交互语义按 antd Splitter）──
+   材料区限高原是固定 52vh，本单起由用户拖动决定。手柄**只在材料区真的
+   溢出时**才渲染（组件 `{#if cap}`）——短材料没有可调的高度，出手柄就是
+   骗人（§0「短材料不出手柄」；独立题卷结构上根本没有这一层，零 DOM 变化）。
+
+   热区与内芯分两层：`.wengu-splitter` 本体 6px 高、向外出血 4px（`margin`
+   负值）⇒ **实际命中 14px**（antd Splitter 同款手感，且不占掉布局高度）；
+   视觉只有正中一根 56×2 的内芯 `<i>`（`pointer-events` 天然跟父级走，
+   内芯不挡命中）。`touch-action:none` 是必需的：触屏上不写它，浏览器会
+   把手势判成滚动、`pointermove` 中途被 cancel（拖到一半停住）。 */
+.wengu-reading .wengu-splitter {
+  flex: none;
+  height: 6px;
+  margin: 0 -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  touch-action: none;
+  /* 手柄要压住材料区下缘的渐隐覆盖层（`::after` 是绝对定位的提示层），
+     否则热区上缘的拖动会被那条层截胡 */
+  position: relative;
+  z-index: 2;
+}
+
+.wengu-reading .wengu-splitter > i {
+  display: block;
+  width: 56px;
+  height: 2px;
+  border-radius: 999px;
+  /* 常态弱内芯：比描边再弱一档的「可拖」暗示，不抢正文视线 */
+  background: color-mix(in srgb, var(--b3-theme-on-surface-light) 30%, transparent);
+  transition: background 0.15s;
+}
+
+/* hover / 键盘聚焦：主色半透明（键盘可达的可见反馈，§7.c 三态之二） */
+.wengu-reading .wengu-splitter:hover > i,
+.wengu-reading .wengu-splitter:focus-visible > i {
+  background: color-mix(in srgb, var(--b3-theme-primary) 50%, transparent);
+}
+
+/* 拖动中（组件挂 `class:wengu-splitting`）：主色实色——指针已经按住，
+   这一档是「你正在改它」的确认 */
+.wengu-reading .wengu-splitter.wengu-splitting > i {
+  background: var(--b3-theme-primary);
+}
+
+/* 拖动期间挂 body 的全局态（组件加/摘）：整个面板统一 row-resize 指针并
+   禁掉文本选择——不然按住拖动会沿途把正文选成一整片蓝色。`!important`
+   是为了压过正文自身的 `cursor: text`（selection 那两条原本就带它）。 */
+body.wengu-splitting {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+/* `focus-visible` 的默认轮廓在 6px 手柄上会糊成一圈，内芯变色已足够表达
+   焦点；但**不许 `outline: none` 了事**（键盘用户失去位置感）——留一条细
+   主色环。 */
+.wengu-reading .wengu-splitter:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 60%, transparent);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 
 /* ── 题卡区：8/12/16/20 阶梯 ── */

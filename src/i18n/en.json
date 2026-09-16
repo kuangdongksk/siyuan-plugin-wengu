@@ -946,5 +946,6 @@
   "numsLegendCur": "Current",
   "numsLegendOk": "Correct",
   "numsLegendBad": "Wrong",
-  "numsLegendDone": "Answered"
+  "numsLegendDone": "Answered",
+  "matSplitTitle": "Drag to resize the passage; double-click to reset"
 }
