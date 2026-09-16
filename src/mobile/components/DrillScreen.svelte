@@ -1,6 +1,7 @@
 <script lang="ts">
     import { getContext } from "svelte";
     import { svgIcon } from "../../ui/FormHtml";
+    import { fmt } from "../../ui/shared";
     import Button from "../../ui/Button.svelte";
     import { MOBILE_DRILL_CTX, type MobileDrill } from "../core/MobileCtx";
     import { answerKindOf, answeredPct, drawerCells, isMultiSelect, typeLabelKey } from "../core/MobileModel";
@@ -196,6 +197,24 @@
             <Button variant="outline" onclick={() => drill.cancelEnd()}>{t("cancel")}</Button>
             <Button variant="primary" class="wengu-md-btn-solid" onclick={() => drill.endRound()}
                 >{t("endRoundRevealBtn")}</Button
+            >
+        </div>
+    </div>
+{/if}
+
+<!-- 交卷确认弹层第二态（Issue #164）：存在「已选未确认」的题时交卷——
+     两模式（即时/收卷）同口径，复用同一弹层机制。绝不允许静默丢弃。 -->
+{#if drill.ui.endPickedN !== null}
+    <div class="wengu-md-scrim" role="presentation" onclick={() => drill.cancelEnd()}></div>
+    <div class="wengu-md-sheet wengu-md-confirm" role="dialog" aria-label={t("mobileEndPickedTitle")}>
+        <div class="wengu-md-sheet-head">
+            <b>{t("mobileEndPickedTitle")}</b>
+        </div>
+        <p>{fmt(t("mobileEndPickedBody"), { n: String(drill.ui.endPickedN) })}</p>
+        <div class="wengu-md-sheet-foot">
+            <Button variant="outline" onclick={() => drill.goConfirmEndPicked()}>{t("mobileEndPickedGo")}</Button>
+            <Button variant="primary" class="wengu-md-btn-solid" onclick={() => void drill.endNowPicked()}
+                >{t("mobileEndPickedNow")}</Button
             >
         </div>
     </div>

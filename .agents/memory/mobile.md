@@ -78,6 +78,40 @@
       按 design-spec §8.4 死键口径两语言同删；契约锁在
       `quiz/render/RoundReport.contract.test.ts`（源级断言 + 字典零残留）。
       别把键加回来，也不要新造同义键。
+- **交卷不得静默丢弃「已选未确认」**（Issue #164，#105 × #158 的组合陷阱）：
+  用户按「点选项=已答」的心智刷完直接交卷 → `answered` 仍是 0（#105 只落选择态）
+  → 被判空轮 → `closeEmptyRound` 连开轮 upsert 一起抹掉，**无报告、无提示、
+  history 零痕迹**。修法两条：
+    - **判据收口**：`MobileAnswering.isPickedUnconfirmed` 是「已选未确认」的
+      **唯一实现**（按 `answerKindOf` 形态分派：choice→`letters`、judge→`judge`、
+      text/fill→`mine`，且 `!graded/!revealed/!locked/!selfOn`；slots/plain
+      不算——移动端没有「去确认」这个出口）。**别在第二处再写一份选择态判定**，
+      契约测试会数落点（`RoundReport.contract.test.ts` 的「判据单一实现」例）。
+    - **交卷给明确去向**：`requestEnd` 分流次序**不许挪**——① 有已选未确认
+      （>0）先弹第二态弹层（`ui.endPickedN`，即使/收卷两模式同口径），
+      ② 再判 `answered <= 0` 静默关轮（真·空轮 #158 **零回归**），③ 正常收卷。
+      弹层两钮：「去确认」定位到第一道该类题（选择态原样保留）、「按当前已选
+      交卷」把这批已选走**既有提交链**（`MobileAnswering.submitPickedUnconfirmed`
+      → `submit`：判分/会话 upsert/题库镜像全在那条链上，**不新开第二条记账
+      路径**）后收卷出报告。
+    - **守卫整体外移 `core/MobileEndGuard.ts`**（函数式友元，同 `MobileAnswering`
+      口径）：`MobileDrill.ts` 无豁免、500 行红线，说明一写就长；`MobileDrill`
+      只剩转发（`requestEnd` / `goConfirmEndPicked` / `endNowPicked` 三个入口）。
+      ⚠️ 移动端收卷入口**仍只有 `requestEnd` 一个**，转发不等于多开入口。
+    - ⚠️ **`endNowPicked` 里别先清 `endPickedN` 再补记**：清了之后补记路上的
+      任何一次 `requestEnd` 都会把整轮判成空轮再抹一遍（本单首版就栽在这，
+      补记→清态→收卷的顺序不能换）。收卷走 `endRound()` 直调——用户已在弹层上
+      表态，再回 `requestEnd` 会多弹一次确认；即时模式补记末题会由
+      `checkAllDone` 自动收卷，故那句加 `endedAt` 判据防重复收卷。
+    - 禁区照旧：桌面链（`finishRoundGuarded`）不动；`closeEmptyRound` **执行体**
+      语义不变（只升级调用侧判据，别往里塞 `endPickedN = null` 之类的写入，
+      契约测试会扫执行体）；`endRound` 的揭示/镜像编排不动。
+    - 用例在 `mobile/core/MobileDrillEndGuard.test.ts`（装配件仍走
+      `MobileDrillHarness.ts`）：只点选→交卷不关轮+弹层、补记与逐题确认**逐字
+      同账**（会话 results/answered/correct + 题库镜像全等）、去确认回题、
+      真·空轮仍静默关轮、多选部分勾选同口径，另加「形态口径」参数化例。
+      ⚠️ 用例取正确字母一律按**洗牌后的视图**（`drill.ui.list[i].answer`），
+      别写死 `"A"`（#131 洗牌后正确项位置随机）。
 - **样式一律挂 `.wengu-mobile` 后代选择器**（`scss/mobile-{home,drill,
 answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi` 打。
   **桌面不带标记 ⇒ 一条不生效**（实测桌面 CSS 前缀逐字节不变，移动端块

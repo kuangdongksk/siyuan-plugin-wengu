@@ -2,6 +2,38 @@
 
 ## v0.1.1 unreleased
 
+- **修复：移动端交卷不再静默丢弃「已选未确认」的作答**（20260916，mobile /
+  quiz / i18n 域，Issue #164）：#105 两段式确认（点选只落选择态、提交一律由
+  「确认答案」触发）与 #158 空轮判据（`answered <= 0` → `closeEmptyRound`）
+  各管一半，组合起来就成了陷阱——用户按「点选项＝已答」的心智刷完直接点
+  「交卷」，`answered` 仍是 0 ⇒ 整轮被判空轮 ⇒ `closeEmptyRound` 连开轮
+  upsert 一起抹掉：无报告、无提示、history 零痕迹、题库零镜像。
+
+    - **判据收口**：新增 `MobileAnswering.isPickedUnconfirmed` 作为「已选未
+      确认」的**唯一实现**（按 `answerKindOf` 形态分派：choice→`letters`、
+      judge→`judge`、text/fill→`mine`，且 `!graded/!revealed/!locked/!selfOn`；
+      slots/plain 无「去确认」出口故不计入）。全仓只有它一份选择态判定。
+    - **交卷给明确去向**：`requestEnd` 分流次序固定为「已选未确认 → 第二态
+      弹层 / 空轮 → 静默关轮 / 其余 → 正常收卷」。新弹层（即时与收卷两模式
+      同口径，复用既有 `confirmEnd` 弹层机制）告知「还有 {n} 题已选择未确认」，
+      两钮：**「去确认」**定位到第一道该类题（选择态原样保留）、**「按当前
+      已选交卷」**把这批已选走**既有提交链**补记（`submit`：判分 / 会话
+      upsert / 题库镜像，不新开第二条记账路径）后收卷出报告。
+    - **真·空轮零回归**：零作答零选择仍走 #158 静默关轮，不开弹层。
+    - **收卷守卫整体外移** `mobile/core/MobileEndGuard.ts`（函数式友元，同
+      `MobileAnswering` 口径）：`MobileDrill.ts` 无豁免、500 行红线，说明一
+      写就长；编排类只剩三个转发入口（`requestEnd` / `goConfirmEndPicked` /
+      `endNowPicked`），**收卷入口仍只有 `requestEnd` 一个**。
+    - **禁区照旧**：桌面链（`finishRoundGuarded`）零改动、
+      `MobileRound.closeEmptyRound` 执行体语义不变（只升级调用侧判据）、
+      `endRound` 的揭示/镜像编排不动。
+    - 用例 `mobile/core/MobileDrillEndGuard.test.ts`（15 例）：不关轮+弹层、
+      补记与逐题确认**逐字同账**（会话 results/answered/correct + 题库镜像全
+      等）、去确认回题、即时模式混合态、真·空轮仍静默关轮、多选部分勾选；
+      契约测试同步扩「判据单一实现」与「第二态弹层接线齐」两例。
+    - i18n 新增 4 键中英成对（`mobileEndPickedTitle` / `Body` / `Go` / `Now`，
+      题数走 `{n}` 占位符 + `ui/shared.fmt`），无硬编码中文。
+
 - **修复：选项字母标签连续剥层，移动端展示口径对齐桌面**（20260916，quiz /
   mobile / types 域，Issue #163）：题库 `optionMd` 普遍自带字母标签，而
   `stripOptionLabel` 原先**只剥一层**——双标签形态（`- A. A. ①③`）在桌面

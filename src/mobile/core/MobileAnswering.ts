@@ -28,6 +28,50 @@ export function frozen(ui: MobileCardState): boolean {
     return ui.revealed || ui.locked;
 }
 
+/** 「已选未确认」判据（**唯一实现**，Issue #164）：这道题已经进入可作答
+ *  形态且落了选择/输入，但**还没按「确认答案」**（两段式确认，Issue #105
+ *  ——点选只落选择态，提交一律由确认钮触发）。
+ *
+ *  ⚠️ **别在第二处再写一份**：交卷守卫（`MobileEndGuard.requestEnd`）拿它
+ *  分流空轮、`goConfirmEndPicked` 拿它定位第一道该类题；两处各写一份选择态
+ *  判定必漂（本单的根因就是「两段式确认」与「空轮判据只认 answered」两套
+ *  口径各自为政）。契约测试会数全仓该判据的落点。
+ *
+ *  口径按 `answerKindOf` 的形态分派（与提交链 `submittedOf` 同源）：
+ *  - choice / judge：对应选择态非空且未判分；
+ *  - text / fill：输入区非空白且未判分（空提交本就走「未作答」提示）；
+ *  - slots（逐空题移动端无作答位）/ plain（无题型兜底，无「选择」可确认）
+ *    / 挂起未揭示的兜底题（`selfOn`）都不算——它们没有「去确认」这个出口。
+ *  `graded`（及 `revealed`/`locked`）为真即已记账，不再重复计入。 */
+export function isPickedUnconfirmed(q: WenguQuestion, ui: MobileCardState): boolean {
+    if (ui.graded || ui.revealed || ui.locked || ui.selfOn) return false;
+    const kind = answerKindOf(q);
+    if (kind === "choice") return ui.letters.trim() !== "";
+    if (kind === "judge") return ui.judge.trim() !== "";
+    if (kind === "text" || kind === "fill") return ui.mine.trim() !== "";
+    return false;
+}
+
+/** 「已选未确认」补记（**走既有提交链**，Issue #164）：用户按「点选项=已答」
+ *  的心智刷完直接交卷时，把这批已选按**正常提交流程**补记——提交 / 判分 /
+ *  记账（会话 upsert + 题库镜像）全在 {@link submit} 里，此处只做逐题推进，
+ *  **不新开第二条记账路径**（禁区别碰）。
+ *
+ *  两模式（即时 / 收卷）同口径：交卷是用户显式表态（弹层上点的「按当前已选
+ *  交卷」），这批已选就该按原样记进去；模式差异只落在 `submit` 内部（即时判分
+ *  即锁定+揭示，收卷只记「已答」、揭示留到收卷）。
+ *  逐题 `await`（交卷可能触发一次 AI 判分，必须等它落账再收卷）。
+ *  调用侧 `MobileEndGuard.endNowPicked`。 */
+export async function submitPickedUnconfirmed(d: MobileDrill): Promise<void> {
+    for (let i = 0; i < d.ui.list.length; i++) {
+        const q = d.ui.list[i];
+        const ui = d.ui.cards[i];
+        if (!q || !ui || !isPickedUnconfirmed(q, ui)) continue;
+        d.ui.qIdx = i;
+        await submit(d);
+    }
+}
+
 /** AI 三态的结果行文案（与桌面 briefResultText 同口径，键收口 verdictLabelKey）。 */
 function verdictText(t: (k: string) => string, verdict: string): string {
     return t(verdictLabelKey(verdict));
