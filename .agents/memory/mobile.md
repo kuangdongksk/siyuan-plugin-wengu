@@ -57,6 +57,24 @@
       组格状态取组内**最差**（错 > 已答 > 未答 > 对）——点进去就是那道错的；
     - **会话结果必须先按块 id 归并**（多步/逐空题记的是 `qid#k`）——不归并
       会把一道多步题算成 N 道，统计与格子全错位。
+- **空轮静默关轮（Issue #158，对齐桌面 #155 块 A）**：移动端有**独立的收卷
+  守卫**（`MobileDrill.requestEnd`），#155 只改了桌面 `finishRoundGuarded`，
+  移动端原样停在 #147 的旧拦截口径（通知 `endRoundEmpty` + 不收卷），
+  「进来不想做、直接关掉」被挡（用户原话不分端）。
+    - 现 `requestEnd` 的 `answered <= 0` 分支调 `MobileDrill.closeEmptyRound()`
+      （收卷生命周期在 `core/MobileRound.ts`，函数式友元，同
+      `MobileAnswering` 口径），**与桌面 `RoundReport.closeEmptyRound` 同语义**
+      按本域状态机落地：抹 `history.removeSession`（`start` 已 upsert 的 0 作答
+      记录）→ 停表 → 退态（清 session/cards/confirmEnd）→ 回开刷面板 +
+      重探测未完成轮。⚠️ 判据 `answered <= 0` 与桌面**是有意的两处重复**
+      （本域拿不到桌面 `ctx`），改一处必须同步另一处。
+    - ⚠️ **两处「空轮」口径不同名不同物**：`emptyRound(桌面)` 与移动端
+      `requestEnd` 分支是两条链；而 `src/mobile/core/MobileDrill.ts` 里的
+      `emptyRound` 旧写法属于本域。
+    - **i18n `endRoundEmpty` 已删（中英各一处）**——移动端对齐后全仓零引用，
+      按 design-spec §8.4 死键口径两语言同删；契约锁在
+      `quiz/render/RoundReport.contract.test.ts`（源级断言 + 字典零残留）。
+      别把键加回来，也不要新造同义键。
 - **样式一律挂 `.wengu-mobile` 后代选择器**（`scss/mobile-{home,drill,
 answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi` 打。
   **桌面不带标记 ⇒ 一条不生效**（实测桌面 CSS 前缀逐字节不变，移动端块

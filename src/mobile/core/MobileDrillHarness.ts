@@ -94,19 +94,23 @@ export function fakeBank() {
 
 export function fakeHistory() {
     const upserts: WenguSession[] = [];
+    /** 被抹掉的会话 id（空轮静默关轮必须删开轮时 upsert 的那条，Issue #158）。 */
+    const removes: string[] = [];
+    const SESSIONS: WenguSession[] = [];
     const store = {
         upsert: async (s: WenguSession): Promise<void> => void upserts.push(s),
-        docSessions: async (): Promise<WenguSession[]> => [],
+        removeSession: async (id: string): Promise<void> => void removes.push(id),
+        docSessions: async (): Promise<WenguSession[]> => SESSIONS,
         preload: async (): Promise<void> => undefined,
     };
-    return { store: store as never, upserts };
+    return { store: store as never, upserts, removes, SESSIONS };
 }
 
 /** 建一个控制器（ui 深代理在真机由壳组件创建；单测里给普通对象即可）。 */
 export function make(over: Partial<Parameters<typeof buildDeps>[0]> = {}) {
-    const { ui, deps, calls, upserts } = buildDeps(over);
+    const { ui, deps, calls, upserts, removes, SESSIONS } = buildDeps(over);
     const drill = new MobileDrill(ui, deps);
-    return { drill, ui, calls, upserts };
+    return { drill, ui, calls, upserts, removes, SESSIONS };
 }
 
 /** 拼 deps（真机由壳组件给；单测给假 bank/history）。 */
@@ -117,7 +121,7 @@ export function buildDeps(
     } = {}
 ) {
     const { bank, calls } = fakeBank();
-    const { store, upserts } = fakeHistory();
+    const { store, upserts, removes, SESSIONS } = fakeHistory();
     const ui: MobileUi = initialMobileUi();
     const deps: MobileDeps = {
         i18n: {},
@@ -125,16 +129,16 @@ export function buildDeps(
         history: (over.history as never) ?? store,
         settings: { showNums: true },
     };
-    return { ui, deps, calls, upserts };
+    return { ui, deps, calls, upserts, removes, SESSIONS };
 }
 
 /** 构造一个已装载的会话（绕过内核装载链，直接摆好本轮状态）。 */
 export function armed(over: { reveal?: "instant" | "after"; questions?: WenguQuestion[] } = {}) {
-    const { drill, ui, calls, upserts } = make();
+    const { drill, ui, calls, upserts, removes, SESSIONS } = make();
     const list = over.questions ?? [q("a"), q("b")];
     ui.home = { loading: false, error: "", sets: [], activeSetId: "set1", activeSetTitle: "卷一" };
     ui.fullList = list;
     ui.setup.reveal = over.reveal ?? "instant";
     drill.start("fresh");
-    return { drill, ui, calls, upserts, list };
+    return { drill, ui, calls, upserts, removes, SESSIONS, list };
 }

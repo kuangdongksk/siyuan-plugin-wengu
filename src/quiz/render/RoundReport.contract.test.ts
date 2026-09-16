@@ -5,6 +5,7 @@ import ROUND_REPORT from "./RoundReport.ts?raw";
 import QUIZ_INDEX from "../index.ts?raw";
 import TIMER_BINDER from "../service/TimerBinder.ts?raw";
 import MOBILE_DRILL from "../../mobile/core/MobileDrill.ts?raw";
+import MOBILE_ROUND from "../../mobile/core/MobileRound.ts?raw";
 import ZH from "../../i18n/zh-CN.json";
 import EN from "../../i18n/en.json";
 
@@ -136,15 +137,37 @@ describe("闸下沉收口为唯一出口（Issue #147 · 源码级）", () => {
         expect(QUIZ_INDEX).not.toMatch(/answered\s*<=\s*0/);
     });
 
-    it("endRoundEmpty 键保留：桌面侧已无引用，但移动端仍取它（#154 死键口径）", () => {
-        // 桌面：空轮改静默关轮 ⇒ 这条不再弹（#155 块 A）
+    it("移动端空轮同样静默关轮（Issue #158）：键已删、全仓零引用", () => {
+        // 移动端有**独立的收卷守卫**（不经桌面 finishRoundGuarded）：#155 只改了
+        // 桌面，移动端原样停在 #147 的「通知 endRoundEmpty + 不收卷」⇒ #158 对齐。
+        // 对齐后此键才满足「全仓零引用」，故两语言同删（design-spec §8.4 死键口径）。
         expect(ROUND_REPORT).not.toContain("endRoundEmpty");
         expect(QUIZ_INDEX).not.toContain("endRoundEmpty");
-        // ⚠️ **不许删键**：移动端 `MobileDrill.requestEnd` 仍走它（本单战区外）。
-        // 删了取词回落 `i18n[k] || k` ⇒ 真机弹裸键名「endRoundEmpty」。
-        // 删键的前置条件是「全仓零引用」，届时两语言同删（design-spec §8.4）。
-        expect(MOBILE_DRILL).toContain('notifyInfo({ key: "endRoundEmpty" })');
-        expect(Object.keys(ZH as Record<string, string>)).toContain("endRoundEmpty");
-        expect(Object.keys(EN as Record<string, string>)).toContain("endRoundEmpty");
+        expect(Object.keys(ZH as Record<string, string>)).not.toContain("endRoundEmpty");
+        expect(Object.keys(EN as Record<string, string>)).not.toContain("endRoundEmpty");
+        // ⚠️ 注释里复述键名不算引用：按 §8.4 口径剥注释后再判（源码文本）
+        const code = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+        expect(code(MOBILE_DRILL)).not.toContain("endRoundEmpty");
+        expect(code(MOBILE_ROUND)).not.toContain("endRoundEmpty");
+    });
+
+    it("移动端空轮分支落在 closeEmptyRound 上（不再 notifyInfo）", () => {
+        expect(MOBILE_DRILL).not.toContain("notifyInfo");
+        expect(MOBILE_DRILL).toMatch(/closeEmptyRound\(this\)/);
+        // 空轮判据仍只在 requestEnd 一处（不许第二份入口判定）：注释里复述写法
+        // 不算引用，故先剥注释再数（同上面 §8.4 的口径）
+        const drillCode = MOBILE_DRILL.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+        expect(drillCode.split("answered <= 0").length - 1).toBe(1);
+    });
+
+    it("移动端空轮执行体与桌面同四步：抹落盘记录 → 停表 → 退态 → 回开刷面板", () => {
+        const body = /export function closeEmptyRound[\s\S]*?\n}/.exec(MOBILE_ROUND)?.[0] ?? "";
+        expect(body).not.toBe("");
+        expect(body).toContain("history?.removeSession(dropped)");
+        expect(body).toContain("d.stopTicker()");
+        expect(body).toContain('d.ui.screen = "home"');
+        expect(body).toContain("selectSet(d.ui.home.activeSetId, { silent: true })");
+        // 判据不在这里再写一份
+        expect(body).not.toContain("answered <= 0");
     });
 });
