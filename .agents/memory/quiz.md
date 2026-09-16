@@ -181,25 +181,49 @@ flex-direction:column}`）：`.wengu-main` 原是块级内滚窗（`base.scss`
     - **追加 3 的滚动窗落在报告自己身上**（`.wengu-report-scroll`，只在本态
       开 `overflow-y:auto`）：这是「报告区自身内滚」的直接落点，也是追加 2
       「滚回报告顶部」能成立的前提（题卷态下报告是内容高度、不可滚）。
-      各区块 `flex:none` 按内容定高（1 轮历史 = 一条 4px 小条 + 标签）。
+      各区块 `flex:none` 按内容定高（1 轮历史 = 一条 4px 小条 + 标签）；
+      ⚠️ **卡片本身也是 `flex:none`**（撑满整屏的只有 `.wengu-report-scroll`）
+      ——设计稿同为「容器滚、卡片内容高」。卡片设 `flex:1` 会被强压成容器高：
+      内容矮则卡片底部留看不见的空白（追加 3 的观感来源之一），内容高则
+      溢出卡片盒、滚动窗量不到它（长报告滚不到底）。
+    - ⚠️⚠️ **报告滚动窗只能有一个，且标记由组件渲染**（20260916 复核实锤）：
+      `data-report-scroll` 写在 `RoundReportApp.svelte` 里，TS 侧只经
+      `REPORT_SCROLL_SEL` 查询。**别再在挂载前 `host.innerHTML` 放同标记的桩**
+      ——那会在宿主里多出一个空节点：总结态两个 `.wengu-report-scroll` 各吃
+      `flex:1` ⇒ 面板被劈成「一半空白 + 一半报告」，且 `querySelector` 命中的
+      是排在前面的空桩（`scrollTop` 恒 0）⇒「滚回顶部」静默失效。
+      机制：Svelte `mount` 未传 anchor 时把组件 append 到宿主**末尾**
+      （`render.js: _mount` 的 `target.appendChild`），桩与真件必然**并列**。
+      ⚠️ 行为测试用自建 DOM 桩，**查不出这种「真实 DOM 形态与桩模型不一致」**
+      （旧桩就是照「桩+组件窗」两条搭的，把 bug 一起测绿了），故由源码级断言
+        - `RoundReportDom.test` 里「复现旧形态 ⇒ 回顶确实失效」的反证兜住。
+    - **「回题卷」两个入口必须同一条路**（`RoundReport.backToQuiz`：摘类 + 通知重画
+      头部）：报告内那个钮与头部那颗钮在总结态下的语义各是一条**入口**，但**执行体
+      只有一个**。任一路只摘类不发通知 ⇒ 头部文案留在「返回题卷」不改（总结已收起、
+      钮还在喊「返回题卷」＝文案说谎，再点下去又是重开总结，与字面相反）。
+    - ⚠️ **进/退总结态必须与报告宿主显隐成对**（同一函数里改，别分散）：
+      `enterSummaryView` 加类 + 摘 `hidden`；`exitSummaryView` 摘类 + 设回
+      `hidden`。**只摘类**⇒「返回题卷」后报告卡仍压在卷首（没真收起）；
+      **只设 hidden**⇒本片给 `[data-report]` 上了 `display:flex`，作者样式压过
+      UA 的 `[hidden]{display:none}`，报告照显——故 report.scss 里有
+      `[data-report][hidden]{display:none}` 这条显式关掉（同 base/panels 既有条）。
+    - ⚠️ **「报告已出」的判据是报告卡在不在**（`[data-report] .wengu-report`），
+      **不是宿主的 `hidden`**：显隐是总结视图态的从属量（退态会设回 hidden），
+      拿它当「已出」⇒「返回题卷」后头部读成「还没收卷」、文案退回「结束本次」。
     - **追加 2：已出态点击 = 总结视图开关，绝不重挂报告**。原实现
       `if (this.finished) showRoundReportNow(...)` 是 detach + 重挂同一份报告
       ——**视觉零变化** ⇒ 用户观感「点了没反应」。现走
       `RoundReport.focusFinishedRound`：总结开着 ⇒ 收起回题卷；已在题卷 ⇒
       重开总结 + 滚回顶部 + 叠一次 `wengu-report-pulse` 高亮（animationend
       自摘，连点幂等）。**报告块不重挂**是硬约束（重挂正是「零变化」的来源）。
-    - **⚠️ 滚动窗钩子只有一处，且在组件渲染的那个 div 上**（`data-report-scroll`）：
-      编排层**别放同属性空桩** —— Svelte `mount` 未传 anchor 时把组件 append 到
-      宿主**末尾**（`render.js: _mount` 的 `target.appendChild`），桩与真件会**并列**，
-      而 `reportScrolled` / `scrollReportTop` 的 `querySelector` 只命中第一个（桩）
-      ⇒ `scrollTop` 恒 0、「重开总结滚回顶部」静默失效（行为测试用自建 DOM 桩，
-      查不出这种「真实 DOM 形态与桩模型不一致」的错，故由源码级断言兜住）。
-    - **「回题卷」两个入口必须同一条路**（`RoundReport.backToQuiz`：摘类 + 通知重画
-      头部）：报告内那个钮与头部那颗钮在总结态下的语义各是一条**入口**，但**执行体
-      只有一个**。任一路只摘类不发通知 ⇒ 头部文案留在「返回题卷」不改（总结已收起、
-      钮还在喊「返回题卷」＝文案说谎，再点下去又是重开总结，与字面相反）。
+    - ⚠️ **已出态重进总结：报告节点可能已被卸掉**（整壳重建：`renderQuizShellFor`
+      开头 `detachRoundReport`，而 `finished` 仍留着）——此时不补挂就是「题卷被
+      CSS 收起 + 空宿主」＝**整片空白**，比「零变化」更糟。故 `focusFinishedRound`
+      进态前先判 `[data-report] .wengu-report` 在不在，不在则经 `mountReportNode`
+      按报告模型补挂一次（**不走收卷链**：不重复落库/停表/AI 归因）。收卷链与补挂
+      共用这一个挂载点，用时快照在**停表前**取。
     - **头部按钮随态换语义**：`mountHeadFor` 按
-      `summaryOpen / reportShown / afterMode` 三档取
+      `summaryOpen / reportReady / afterMode` 三档取
       `reportBackToQuiz` / `reportShowSummary` / `endRoundRevealBtn` /
       `endRoundBtn`，**不禁用**（项目原则「停止键别 disabled」）。
       `canEndRound` 必须含 `!!v.finishedSession()`——原先只看 `started`，

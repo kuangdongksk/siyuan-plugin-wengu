@@ -45,6 +45,15 @@ class FakeEl {
         this[ATTRS].add(name);
         return this;
     }
+    setAttribute(name: string): void {
+        this[ATTRS].add(name);
+    }
+    removeAttribute(name: string): void {
+        this[ATTRS].delete(name);
+    }
+    hasAttribute(name: string): boolean {
+        return this[ATTRS].has(name);
+    }
     add(...kids: FakeEl[]): this {
         for (const k of kids) {
             k.parent = this;
@@ -99,7 +108,8 @@ function shell(): { root: FakeEl; main: FakeEl; scroll: FakeEl; report: FakeEl }
     const report = new FakeEl();
     report.classList.add("wengu-report");
     const scroll = new FakeEl().attr("data-report-scroll").add(report);
-    const host = new FakeEl().attr("data-report").add(scroll);
+    // host 初值即 hidden（CardHtml 的 `<div data-report hidden>`）
+    const host = new FakeEl().attr("data-report").attr("hidden").add(scroll);
     const body = new FakeEl();
     body.classList.add("wengu-body");
     const main = new FakeEl();
@@ -120,6 +130,18 @@ describe("收卷总结视图（Issue #147 追加 1）", () => {
         expect(main.classList.contains("wengu-summary-view")).toBe(true);
         exitSummaryView(asRoot(root));
         expect(isSummaryView(asRoot(root))).toBe(false);
+    });
+
+    it("总结态与报告宿主显隐**成对**：进态摘 hidden、退态设回 hidden", () => {
+        // 只摘类不设 hidden ⇒「返回题卷」后报告卡仍压在卷首（没真收起）；
+        // 只设 hidden 不摘类 ⇒ CSS 特异性压过 [hidden]，报告照显
+        const { root, report } = shell();
+        const host = report.parent?.parent as FakeEl; // scroll.report -> host
+        expect(host.hasAttribute("hidden")).toBe(true);
+        enterSummaryView(asRoot(root));
+        expect(host.hasAttribute("hidden")).toBe(false);
+        exitSummaryView(asRoot(root));
+        expect(host.hasAttribute("hidden")).toBe(true);
     });
 
     it("类挂在 **.wengu-main** 上（不是报告块）——CSS 选择器前缀同源", () => {
@@ -176,5 +198,29 @@ describe("滑回总结顶部 + 高亮脉冲（Issue #147 追加 2）", () => {
         scrollReportTop(asRoot(root));
         // 打到滚动窗（[data-report-scroll]）上，而非 .wengu-main
         expect(scroll.scrolls.length).toBe(1);
+    });
+
+    it("旧形态（桩 + 组件窗并存）下回顶确实失效——这是那条源码闸的行为侧证据", () => {
+        // 复原病灶形态：宿主里先放一个空的 [data-report-scroll] 桩，组件那
+        // 个真窗排在它后面（Svelte 无 anchor 挂载 append 到 host 末尾）。
+        // 两个 `.wengu-report-scroll` 都吃总结态的 `flex:1` ⇒ 面板被劈成
+        // 「一半空白 + 一半报告」；更要命的是 querySelector 命中的是**排在前
+        // 面的空桩**：翻真窗的 scrollTop 判不出「已滚离顶部」、scrollTo 也
+        // 打不到真窗 ⇒「重开总结滚回顶部」静默失效。
+        const real = new FakeEl();
+        real.classList.add("wengu-report");
+        const realScroll = new FakeEl().attr("data-report-scroll").add(real);
+        const stub = new FakeEl().attr("data-report-scroll"); // 空桩，排在前
+        const host = new FakeEl().attr("data-report").add(stub, realScroll);
+        const main = new FakeEl();
+        main.classList.add("wengu-main");
+        main.add(host);
+        const root = new FakeEl().add(main);
+
+        realScroll.scrollTop = 300; // 真窗明明已滚离顶部
+        expect(reportScrolled(asRoot(root))).toBe(false); // 却判成「贴顶」
+        scrollReportTop(asRoot(root));
+        expect(realScroll.scrolls).toEqual([]); // 回顶也没打到真窗
+        // 故修法是**别造那个桩**（标记唯一来源＝组件），由源码闸兜住
     });
 });

@@ -157,9 +157,8 @@
 
 <!-- 样式绑定（design-spec §13）：本行是本组件独占、零 TS 拼串触达的自绘
      构件 → 写进组件 <style>（svelte-loader css:"injected" 运行时注入）。
-     其余 .wengu-report* 类由 render/RoundReport.ts 的 innerHTML 桩与隐藏
-     类选择器触达 ⇒ 留共享片 scss/report.scss；.wengu-report-scroll 同款
-     （滚动窗须存在，才让追加 2 能判「报告是否已滚离顶部」）。 -->
+     其余 .wengu-report* 类由 render/RoundReport.ts 的隐藏类选择器触达 ⇒
+     留共享片 scss/report.scss；.wengu-report-scroll 同款（见上方滚动窗钩子注）。 -->
 <style>
     .wengu-report-acts {
         display: flex;

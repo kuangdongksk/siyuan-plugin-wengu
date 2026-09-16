@@ -44,9 +44,21 @@
   flex-direction: column;
 }
 
+/* 作者样式的 display 会盖过 UA 的 [hidden]{display:none}（同 base.scss /
+   panels.scss 的既有踩坑条）：本片给 [data-report] 上了 display:flex，
+   故必须显式关掉一次——否则「收起总结」设回 hidden 也照显。有这条，
+   隐显就只认 hidden、与总结态类谁先谁后无关。 */
+[data-report][hidden] {
+  display: none;
+}
+
+/* ⚠️ 卡片**按内容定高**（flex:none），撑满整屏的只有它外面那个滚动窗
+   （.wengu-report-scroll）——设计稿同为「容器滚、卡片内容高」（.report
+   里 align-items:start）。反过来把卡片设成 flex:1 会强行把它压成容器高：
+   内容是矮的就在卡片底部留一段看不见的空白（追加 3 的观感来源之一），
+   内容是高的则溢出卡片盒、滚动窗量不到它（长报告滚不到底）。 */
 .wengu-main.wengu-summary-view .wengu-report {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   margin: 0;
 }
 

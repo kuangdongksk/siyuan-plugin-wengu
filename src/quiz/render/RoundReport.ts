@@ -116,20 +116,48 @@ export function isSummaryView(el: HTMLElement): boolean {
     return !!el.querySelector<HTMLElement>(".wengu-main")?.classList.contains("wengu-summary-view");
 }
 
+/** 报告宿主的显隐（`hidden` 属性是**唯一判据**，CardHtml 初值即 hidden）。
+ *  ⚠️ 必须与总结视图类**成对**操作，缺一都不成立：
+ *  - 只摘类不设回 hidden ⇒「返回题卷」后报告卡仍压在卷首（题卷上方挂着
+ *    一份总结，观感上并没真收起，追加 2 的「收起总结」也就没有落点）；
+ *  - 只设 hidden 不摘类 ⇒ CSS 里 `.wengu-main.… [data-report] { display:flex }`
+ *    的特异性压过 UA 的 `[hidden] { display:none }`，报告照显（隐藏失效）。 */
+function showReportHost(el: HTMLElement, visible: boolean): void {
+    const host = el.querySelector<HTMLElement>("[data-report]");
+    if (!host) return;
+    if (visible) host.removeAttribute("hidden");
+    else host.setAttribute("hidden", "");
+}
+
 /** 出总结：题卷收起、总结独占（收卷链尾调一次）。 */
 export function enterSummaryView(el: HTMLElement): void {
     el.querySelector<HTMLElement>(".wengu-main")?.classList.add("wengu-summary-view");
+    showReportHost(el, true);
 }
 
-/** 收起总结、回到题卷（追加 1 的「返回题卷」与追加 2 的已出态点击共用）。 */
+/** 收起总结、回到题卷（追加 1 的「返回题卷」与追加 2 的已出态点击共用）：
+ *  摘类**并收起报告宿主**——题卷态下报告不该再占卷首（否则「收起了总结」
+ *  只是题卷又冒了出来，报告卡还在上面挂着，「查看总结 / 返回题卷」这一对
+ *  语义就永远对不上）。宿主不卸载：重进只需再摘一次 hidden，报告整挂整卸
+ *  的代价（AI 输出区、滚动位置）得以保留。 */
 export function exitSummaryView(el: HTMLElement): void {
     el.querySelector<HTMLElement>(".wengu-main")?.classList.remove("wengu-summary-view");
+    showReportHost(el, false);
 }
+
+/** 报告滚动窗的选择器（**全仓唯一取用点**，Issue #147 回归）：
+ *  窗口是组件 `RoundReportApp.svelte` 渲染的那个 `[data-report-scroll]`。
+ *  ⚠️ 别再在挂载前用 `host.innerHTML` 放一个**同标记的桩**——那会在宿主
+ *  里多出一个空节点：总结态两个 `.wengu-report-scroll` 都吃 `flex:1`
+ *  ⇒ 面板被劈成「一半空白 + 一半报告」，且 `querySelector` 命中的是
+ *  排在前面的空桩（`scrollTop` 恒 0）⇒「滚回总结顶部」静默失效。
+ *  标记由组件自己渲染，查询经本常量走（见 `RoundReport.view.test` 的闸）。 */
+const REPORT_SCROLL_SEL = "[data-report] [data-report-scroll]";
 
 /** 报告区是否已滚离顶部（成员方法，不在本文件做类型收窄——TS 认
  *  `Element.scrollTop`；jsdom/内核都给该字段，缺省按 0 兜底）。 */
 export function reportScrolled(el: HTMLElement): boolean {
-    const scroller = el.querySelector<HTMLElement>("[data-report] [data-report-scroll]");
+    const scroller = el.querySelector<HTMLElement>(REPORT_SCROLL_SEL);
     const node: { scrollTop?: unknown } | null = scroller;
     const top = node?.scrollTop;
     return typeof top === "number" ? top > 4 : false;
@@ -137,7 +165,7 @@ export function reportScrolled(el: HTMLElement): boolean {
 
 /** 报告区滚回顶部（叠加一次高亮脉冲，见 scss/report.scss）。 */
 export function scrollReportTop(el: HTMLElement): void {
-    el.querySelector<HTMLElement>("[data-report] [data-report-scroll]")?.scrollTo({ top: 0 });
+    el.querySelector<HTMLElement>(REPORT_SCROLL_SEL)?.scrollTo({ top: 0 });
     pulseReport(el);
 }
 
@@ -164,19 +192,29 @@ export function bindSummaryToggle(fn: (() => void) | undefined): void {
  *  总结开着 ⇒ 收起回题卷；已在题卷 ⇒ 重开总结并滚回顶部（叠一次高亮）。
  *
  *  ⚠️ 原实现是 detach + 重挂同一份报告：**视觉零变化** ⇒ 用户观感
- *  「点了没反应」（真机实证）。本函数保证**每一态都有可见反馈**，
- *  且**绝不重挂报告**（重挂是原病灶，也是这份「零变化」的来源）。 */
+ *  「点了没反应」（真机实证）。故正常路径**只切视图态、不重挂**。
+ *  **唯一例外＝报告节点已不在**（整壳重建设 `detachRoundReport`，而
+ *  `finished` 仍留着）：此时不补挂就是「收起题卷 + 空宿主」＝整片空白，
+ *  比零变化更糟，故按报告模型补挂一次（{@link mountReportNode}，不走
+ *  收卷链，不重复落库/停表/AI 归因）。 */
 export function focusFinishedRound(ctx: RoundFinishCtx): void {
     if (!ctx.finished) return;
+    // 收起支走 backToQuiz（摘类 + 通知重画头部）——与报告内那颗钮同一条路
     if (isSummaryView(ctx.el)) backToQuiz(ctx);
     else {
+        // 报告节点已不在（整壳重建）⇒ 先补挂再切态（见上注：不补就是空白）
+        if (!ctx.el.querySelector<HTMLElement>("[data-report] .wengu-report")) {
+            const host = ctx.el.querySelector<HTMLElement>("[data-report]");
+            if (!host) return;
+            mountReportNode(ctx, ctx.finished, host);
+        }
         enterSummaryView(ctx.el);
         // 已在顶部就不白跳一次（脉冲仍给：它才是「我响应了」的可见反馈，
         // 光靠「总结又出现了」在快速连点下不易分辨）
         if (reportScrolled(ctx.el)) scrollReportTop(ctx.el);
         else pulseReport(ctx.el);
+        onSummaryToggle?.(); // 头部按钮随态换语义（返回题卷 / 查看总结）
     }
-    onSummaryToggle?.(); // 头部按钮随态换语义（返回题卷 / 查看总结）
 }
 
 /** 收起总结 + 通知挂载方重画头部（**唯一**的「回题卷」执行体）：
@@ -198,24 +236,10 @@ export function detachRoundReport(): void {
     reportApp = undefined;
 }
 
-/** 一轮完成：收卷 + 挂载总结报告（总用时/用时图/得分图 + AI 分析入口）。 */
-export function showRoundReportNow(ctx: RoundFinishCtx): void {
-    const s = ctx.session ?? ctx.finished;
-    const host = ctx.el.querySelector<HTMLElement>("[data-report]");
-    if (!s || !host) return;
-    const totalSec = ctx.timer.elapsed();
-    const overtime = ctx.timer.inOvertime ? ctx.timer.overtimeSec : 0;
-    ctx.finishSession();
-    ctx.stopRound();
-    const model: RoundReportModel = {
-        t: ctx.t,
-        session: s,
-        list: ctx.list,
-        rounds: roundsWithCurrent(ctx.rounds, s),
-        totalSec,
-        overtimeSec: overtime,
-        weakRows: ctx.weakness?.topSync(8) ?? [],
-    };
+/** 把报告**挂进宿主**（唯一挂载点，收卷链与「补挂」两路共用）。
+ *  model 可外部传入（收卷时用**停表前**取的用时快照）；不给则按当前
+ *  计时器现算（补挂路径：表已停，elapsed() 即终值）。 */
+function mountReportNode(ctx: RoundFinishCtx, s: WenguSession, host: HTMLElement, model?: RoundReportModel): void {
     detachRoundReport();
     // ⚠️ 别在这里放 `[data-report-scroll]` 空桩：Svelte mount 无 anchor 时
     // append 到 host **末尾**，组件自己渲染的滚动窗会与桩**并列**，而
@@ -223,9 +247,9 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
     // ⇒ scrollTop 恒 0、「重开总结滚回顶部」静默失效。钩子属性跟着组件
     // 渲染的那个窗走（RoundReportApp.svelte），这里只清宿主。
     host.textContent = ""; // 挂载前清残留（detach 已卸组件，此为兜底）
-    host.removeAttribute("hidden");
+    // 显隐交给 enterSummaryView 统一切（单一权威，别在这儿各做一份）
     reportApp = mountSvelteApp(RoundReportApp, host, {
-        model,
+        model: model ?? reportModelOf(ctx, s),
         modelId: ctx.aiModelId,
         onBackToQuiz: () => backToQuiz(ctx),
         onWeakDrill: (rows: WeakTopRow[]) => {
@@ -242,6 +266,32 @@ export function showRoundReportNow(ctx: RoundFinishCtx): void {
                 );
         },
     });
+}
+
+/** 收卷/补挂共用的报告模型（用时取**当时**计时器值）。 */
+function reportModelOf(ctx: RoundFinishCtx, s: WenguSession): RoundReportModel {
+    return {
+        t: ctx.t,
+        session: s,
+        list: ctx.list,
+        rounds: roundsWithCurrent(ctx.rounds, s),
+        totalSec: ctx.timer.elapsed(),
+        overtimeSec: ctx.timer.inOvertime ? ctx.timer.overtimeSec : 0,
+        weakRows: ctx.weakness?.topSync(8) ?? [],
+    };
+}
+
+/** 一轮完成：收卷 + 挂载总结报告（总用时/用时图/得分图 + AI 分析入口）。 */
+export function showRoundReportNow(ctx: RoundFinishCtx): void {
+    const s = ctx.session ?? ctx.finished;
+    const host = ctx.el.querySelector<HTMLElement>("[data-report]");
+    if (!s || !host) return;
+    // ⚠️ 模型（含用时快照）必须在**停表前**取：finishSession/stopRound 之后
+    // 计时器已终结，再算就偏差（补挂路径无此问题——那时表本就是停的）
+    const model = reportModelOf(ctx, s);
+    ctx.finishSession();
+    ctx.stopRound();
+    mountReportNode(ctx, s, host, model);
     /* 报告宿主在卷首（头部之下，renderMainShell）：收卷即见，不再依赖
        scrollIntoView——题卡 content-visibility 折叠屏外高度，smooth/
        nearest 常误判「已在视口」一步不滚（20260901 走查实锤）。

@@ -37,6 +37,12 @@ describe("收卷总结形态（Issue #147 追加 1）· 源级", () => {
         expect(ROUND_REPORT).toMatch(/enterSummaryView\(ctx\.el\);[\s\S]*?\n}/);
         // 「返回题卷」经组件 prop 给出口，出口函数是 backToQuiz（含通知重画头部）
         expect(ROUND_REPORT).toMatch(/onBackToQuiz:\s*\(\)\s*=>\s*backToQuiz\(ctx\)/);
+        // 显隐与视图态成对：只摘类 ⇒ 报告卡仍压在卷首（没真收起）
+        expect(ROUND_REPORT).toMatch(/export function enterSummaryView[\s\S]*?showReportHost\(el, true\)/);
+        expect(ROUND_REPORT).toMatch(/export function exitSummaryView[\s\S]*?showReportHost\(el, false\)/);
+        // 本片给 [data-report] 上了 display:flex ⇒ 必须显式关掉一次 hidden
+        // （作者 display 压过 UA 的 [hidden]{display:none}），否则收起后仍照显
+        expect(REPORT_SCSS).toMatch(/\[data-report\]\[hidden\] \{[\s\S]*?display: none;/);
         // 头/尾成对，摘类即回原状（题卷 DOM 不动——题卡是 Svelte 挂载物）
         expect(count(ROUND_REPORT, "function enterSummaryView")).toBe(1);
         expect(count(ROUND_REPORT, "function exitSummaryView")).toBe(1);
@@ -60,6 +66,21 @@ describe("收卷总结形态（Issue #147 追加 1）· 源级", () => {
     });
 });
 
+describe("报告滚动窗唯一性（Issue #147 回归）· 源级", () => {
+    it("标记由组件渲染，TS 侧不再放同标记的桩", () => {
+        // 曾用挂载前 innerHTML 放 [data-report-scroll] 桩，组件又渲染一个
+        // ⇒ 两个 flex:1 窗把面板劈成半空白，且 query 命中的是空桩
+        // （scrollTop 恒 0）⇒「滚回总结顶部」静默失效
+        expect(ROUND_REPORT).not.toMatch(/innerHTML\s*=\s*['"`][^'"`]*data-report-scroll/);
+        expect(SVELTE_SRC).toMatch(/<div class="wengu-report-scroll" data-report-scroll>/);
+        // 渲染点只有一处（注疏里的提及不算）
+        expect(count(SVELTE_SRC, '<div class="wengu-report-scroll" data-report-scroll>')).toBe(1);
+        // 查询一律经常量走（单一口径）
+        expect(ROUND_REPORT).toMatch(/const REPORT_SCROLL_SEL = "\[data-report\] \[data-report-scroll\]"/);
+        expect(count(ROUND_REPORT, "REPORT_SCROLL_SEL")).toBe(3); // 定义 1 + 用 2
+    });
+});
+
 describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级", () => {
     it("endRound 的 finished 分支改走 focusFinishedRound，不再重挂报告", () => {
         expect(QUIZ_INDEX).toMatch(/else if \(this\.finished\) focusFinishedRound\(roundFinishCtx\(this\)\)/);
@@ -73,8 +94,22 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
     it("已出态点击是**总结视图开关**：两态都有可见反馈、绝不静默返回", () => {
         // 总结开着 ⇒ 收起回题卷；已在题卷 ⇒ 重开总结 + 滚回顶部（+ 脉冲）
         expect(ROUND_REPORT).toMatch(
-            /export function focusFinishedRound[\s\S]*?isSummaryView\(ctx\.el\)\) backToQuiz\(ctx\)[\s\S]*?enterSummaryView\(ctx\.el\)[\s\S]*?scrollReportTop\(ctx\.el\)[\s\S]*?pulseReport\(ctx\.el\)/
+            /export function focusFinishedRound[\s\S]*?isSummaryView\(ctx\.el\)\) backToQuiz\(ctx\);[\s\S]*?enterSummaryView\(ctx\.el\)[\s\S]*?scrollReportTop\(ctx\.el\)[\s\S]*?pulseReport\(ctx\.el\)/
         );
+        // 三处通知：backToQuiz（收起支，与报告内钮共用）+ 本函数进态支 +
+        // showRoundReportNow 收卷链尾——收起支走 backToQuiz 后不再各写一份
+        expect(count(ROUND_REPORT, "onSummaryToggle?.()")).toBe(3);
+        // 报告节点已不在（整壳重建）⇒ 先补挂再切态，否则进的是空宿主
+        // （题卷被 CSS 收起 + 报告又不在 ⇒ 整片空白）
+        expect(ROUND_REPORT).toMatch(
+            /focusFinishedRound[\s\S]*?\[data-report\] \.wengu-report"[\s\S]*?mountReportNode\(ctx, ctx\.finished, host\)/
+        );
+        // 补挂**不走收卷链**（不重复落库/停表/AI 归因）：只在
+        // focusFinishedRound 体内取断言——全文尾部另有 manualFinishRound
+        // 调 showRoundReportNow（那条是正路，不算越界）
+        const focusBody = /export function focusFinishedRound[\s\S]*?\n}/.exec(ROUND_REPORT)?.[0] ?? "";
+        expect(focusBody).not.toBe("");
+        expect(focusBody).not.toContain("showRoundReportNow");
         // 头部文案随态换语义：开关后通知挂载方重挂头部
         expect(ROUND_REPORT).toMatch(/onSummaryToggle\?\.\(\)/);
         expect(QUIZ_SHELL).toMatch(/bindSummaryToggle\(remountHead\)/);
@@ -104,19 +139,16 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
         expect(count(ROUND_REPORT, "exitSummaryView(")).toBe(2);
     });
 
-    it("滚动窗钩子只此一处、且落在组件渲染的窗上（桩会让判据恒假）", () => {
-        // 组件渲染的窗带 data-report-scroll（querySelector 的唯一命中）
-        expect(SVELTE_SRC).toMatch(/<div class="wengu-report-scroll" data-report-scroll>/);
-        // 编排层不许再放同属性空桩：Svelte 无 anchor 挂载 append 到 host 末尾，
-        // 桩与真件并列 ⇒ querySelector 命中空桩、scrollTop 恒 0、scrollTo 打空
-        expect(ROUND_REPORT).not.toMatch(/innerHTML = '<div class="wengu-report-scroll"/);
-        // 读取侧只两处（判滚动 / 滚回顶）；注释里那一处不算
-        expect(count(ROUND_REPORT, 'querySelector<HTMLElement>("[data-report] [data-report-scroll]")')).toBe(2);
-    });
-
     it("头部按钮随总结态换语义（返回题卷 / 查看总结 / 结束本次）", () => {
         expect(SIDE_MOUNT).toMatch(/summaryOpen\s*\?\s*"reportBackToQuiz"/);
-        expect(SIDE_MOUNT).toMatch(/reportShown\s*\?\s*"reportShowSummary"/);
+        expect(SIDE_MOUNT).toMatch(/reportReady\s*\?\s*"reportShowSummary"/);
+        // ⚠️「报告已出」的判据必须是**报告卡在不在**，不是宿主的 hidden——
+        // 显隐是总结视图态的从属量（退态会设回 hidden），用错则「返回题卷」
+        // 后头部读成「还没收卷」、文案退回「结束本次」
+        expect(SIDE_MOUNT).not.toMatch(/\[data-report\]:not\(\[hidden\]\)/);
+        expect(SIDE_MOUNT).toMatch(
+            /const reportReady = !!v\.el\.querySelector<HTMLElement>\("\[data-report\] \.wengu-report"\)/
+        );
         // 收卷后开关两态都在头部有钮（canEndRound 含 finishedSession）
         expect(QUIZ_SHELL).toMatch(/const canEndRound = \(v\.started \|\| !!v\.finishedSession\(\)\) && !pv;/);
     });
@@ -131,6 +163,9 @@ describe("报告已出态点「结束本次」（Issue #147 追加 2）· 源级
 describe("总结面板高度自适应（Issue #147 追加 3）· 编译产物", () => {
     it("各区块按内容定高（flex:none），不按比例铺满", () => {
         expect(REPORT_SCSS).toMatch(/\.wengu-report-chart \{[\s\S]*?flex: none;/);
+        // 卡片也按内容定高：flex:1 会把它强压成容器高 ⇒ 内容矮时留空白、
+        // 内容高时溢出卡片盒（滚动窗量不到 ⇒ 长报告滚不到底）
+        expect(REPORT_SCSS).toMatch(/\.wengu-main\.wengu-summary-view \.wengu-report \{[\s\S]*?flex: none;/);
         // 报告块本身不定高、不留大片空白：外层脚手架才有 height:100% 语义
         expect(REPORT_SCSS).toMatch(
             /\.wengu-report \{[\s\S]*?padding: 16px;[\s\S]*?display: flex;[\s\S]*?flex-direction: column;/
