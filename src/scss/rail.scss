@@ -88,8 +88,13 @@
   margin-bottom: 12px;
 }
 
+/* 标题行按钮组（四个面板共用）：右贴 + **不收缩、不换行**（Issue #145）。
+   走查「按钮文本太长过挤」的根因是按钮组会被标题压扁后自行折行；
+   收编按钮数量只是一半修法，另一半是这里把「压扁即折行」的路堵死。 */
 .wengu-ws-titlebtns {
   display: flex;
+  flex-wrap: nowrap;
+  flex: none;
   gap: 8px;
   margin-left: auto;
 

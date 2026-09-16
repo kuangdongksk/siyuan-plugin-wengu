@@ -533,7 +533,7 @@
   "relatedHint": "该文档相关的题目，点击定位",
   "relatedEmpty": "题库里还没有相关题目",
   "relatedStats": "刷 {a} 错 {w}",
-  "repairEntry": "题库体检",
+  "repairEntry": "体检",
   "repairTitle": "题库体检",
   "repairHint": "扫描全库题目的结构与引用完整性：能确定性修复的勾选应用（无 AI 调用），结构损坏的可勾选后批量重生成（AI 后台跑），内容重复仅报告。",
   "repairSummary": "共扫 {n} 题：引用索引 {auto} 类待修，挤行 {fix} 题，结构损坏 {regen} 题，重复 {dup} 组",
@@ -683,7 +683,7 @@
   "aiClear": "清空",
   "aiModelDefault": "默认模型",
   "colPanelTitle": "专题管理",
-  "colNewFolder": "新建文件夹",
+  "colNewFolder": "新建",
   "colNewSub": "新建子文件夹",
   "colDelFolder": "删除文件夹（连同其下专题）",
   "colDelFolderConfirm": "确认删除（含 {n} 个专题）",
@@ -951,5 +951,6 @@
   "switchConfirmTitle": "切换题集？",
   "switchConfirmBody": "本卷还有未交卷的进度：已答 {n}/{N} 题，计时 {time}。切换后进度不会丢失，可从开刷面板「继续上次」回到本卷。将打开「{name}」。",
   "switchConfirmStay": "留在本卷",
-  "switchConfirmGo": "继续切换"
+  "switchConfirmGo": "继续切换",
+  "colMore": "更多"
 }

@@ -533,7 +533,7 @@
   "relatedHint": "Questions related to this doc; click to locate",
   "relatedEmpty": "No related questions in the bank yet",
   "relatedStats": "{a} tries {w} wrong",
-  "repairEntry": "Bank checkup",
+  "repairEntry": "Checkup",
   "repairTitle": "Bank checkup",
   "repairHint": "Scans the whole bank for structural and reference issues: deterministic fixes are applied when checked (no AI calls), structurally broken questions can be batch-regenerated (AI, runs in background), and duplicates are report-only.",
   "repairSummary": "Scanned {n} questions: {auto} reference/index fix kinds, {fix} packed-option, {regen} structurally broken, {dup} duplicate groups",
@@ -683,7 +683,7 @@
   "aiClear": "Clear",
   "aiModelDefault": "Default model",
   "colPanelTitle": "Collections",
-  "colNewFolder": "New folder",
+  "colNewFolder": "New",
   "colNewSub": "New subfolder",
   "colDelFolder": "Delete folder (with collections inside)",
   "colDelFolderConfirm": "Confirm delete ({n} collections)",
@@ -951,5 +951,6 @@
   "switchConfirmTitle": "Switch exercise set?",
   "switchConfirmBody": "This round is still unfinished: {n}/{N} answered, {time} elapsed. Your progress is kept — you can resume it from the start panel. “{name}” will open.",
   "switchConfirmStay": "Stay here",
-  "switchConfirmGo": "Switch anyway"
+  "switchConfirmGo": "Switch anyway",
+  "colMore": "More"
 }
