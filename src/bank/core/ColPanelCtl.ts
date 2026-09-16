@@ -1,3 +1,4 @@
+import { Menu } from "siyuan";
 import type { QuizView } from "../../quiz";
 import type { QuestionBank } from "../data/QuestionBank";
 import { createFolder, deleteFolder, renameFolder } from "../data/BankFolders";
@@ -87,6 +88,23 @@ export class ColPanelCtl {
         const bank = this.bank();
         if (!bank) return;
         void openHealthDialog({ t: this.v.t, bank, modelId: () => this.v.aiModelId(), onDone: () => void this.load() });
+    }
+
+    /**
+     * 标题行「更多」菜单（Issue #145）：把**低频**动作（按知识点收集… /
+     * 题库体检）自标题行收进溢出菜单。两个动作都要 `this.v`/`this.bank()`，
+     * 故做在控制器里、组件只负责传锚点坐标（同 CompanionCtl.openFigureMenu）。
+     *
+     * ⚠️ 菜单项走 `Menu.addItem` 的 `icon` 字段（内核吃 sprite id），不是
+     * `{@html svgIcon(...)}`——规范 §6 的「图标一律走 sprite」在这里由内核
+     * 渲染满足，别往 label 里塞 emoji。
+     */
+    openMoreMenu(x: number, y: number): void {
+        const t = this.v.t;
+        const menu = new Menu("wengu-col-more");
+        menu.addItem({ icon: "iconSparkles", label: t("colCollect"), click: () => this.openCollectDialog() });
+        menu.addItem({ icon: "iconCheck", label: t("repairEntry"), click: () => this.bankHealth() });
+        menu.open({ x, y });
     }
 
     /** 点击专题：切题库模式进刷题。 */

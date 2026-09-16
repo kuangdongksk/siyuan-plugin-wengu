@@ -28,6 +28,20 @@
     const tree = $derived(buildColTree(ui.rows, ui.folders));
     const empty = $derived(tree.rows.length + tree.children.length === 0);
 
+    /**
+     * 标题行「更多」菜单的锚点（null=收起；Issue #145 把低频动作收进来，
+     * 标题行只留「新建 / 刷新 / 更多」三钮，窄窗宽也不换行）。
+     * 菜单本体由控制器开（`ColPanelCtl.openMoreMenu`，内核 Menu 需要 `v`），
+     * 这里只负责算锚点坐标——挂 popover 会让组件自带定位与内核菜单打架。
+     */
+    let moreMenu: { x: number; y: number } | undefined = $state();
+
+    const openMore = (el: HTMLButtonElement): void => {
+        const r = el.getBoundingClientRect();
+        moreMenu = { x: r.left, y: r.bottom + 4 };
+        ctl.openMoreMenu(moreMenu.x, moreMenu.y);
+    };
+
     onMount(() => {
         void ctl.load();
         return () => ctl.destroy();
@@ -43,17 +57,24 @@
         <div class="wengu-ws-title">
             {t("colPanelTitle")}
             <span class="wengu-ws-titlebtns">
+                <!-- 标题行只留高频三钮：「新建」（outline 主视觉）+ 刷新 + 更多。
+                     低频的「按知识点收集… / 题库体检」收进「更多」菜单
+                     （Issue #145：三钮全 outline 平铺会挤爆标题行，且违反
+                     design-spec §2「一行至多一个主视觉重心」）——功能一个不少，
+                     只是收编布局。菜单锚点见脚本里的 moreMenu。 -->
                 <Button type="button" variant="outline" onclick={() => ctl.openFolderInput("")}
                     >{@html svgIcon("iconAdd")} {t("colNewFolder")}</Button
                 >
-                <Button type="button" variant="outline" onclick={() => ctl.openCollectDialog()}
-                    >{@html svgIcon("iconSparkles")} {t("colCollect")}</Button
-                >
-                <Button type="button" variant="outline" onclick={() => ctl.bankHealth()}
-                    >{@html svgIcon("iconCheck")} {t("repairEntry")}</Button
-                >
                 <Button type="button" variant="text" onclick={() => void ctl.load()}
                     >{@html svgIcon("iconRefresh")}</Button
+                >
+                <Button
+                    type="button"
+                    variant="text"
+                    aria-label={t("colMore")}
+                    aria-haspopup="menu"
+                    aria-expanded={moreMenu ? "true" : "false"}
+                    onclick={(e) => openMore(e.currentTarget)}>{@html svgIcon("iconMore")}</Button
                 >
             </span>
         </div>

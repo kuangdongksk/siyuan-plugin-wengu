@@ -277,3 +277,43 @@ describe("AI 面板 kinds 过滤条：选中态不是主操作（规范 §2.3）
         expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
     });
 });
+
+/**
+ * 管理面板标题行的**几何/层级**规格（Issue #145，20260916 走查）。
+ *
+ * 该行的共用骨架在 `rail.scss` 的 `.wengu-ws-title` / `.wengu-ws-titlebtns`
+ * （四个面板共用，见 design-spec §13.3 的 rail.scss 登记行）。收编后
+ * 「窄窗宽不换行」靠三条一起成立：标题与按钮组同桌 flex、按钮组不收缩
+ * 且不换行（`nowrap`）、按钮组右贴（`margin-left:auto`）。
+ * 少任一条，本轮修好的挤压会在下一次往行里加字时复发。
+ */
+describe("管理面板标题行布局（Issue #145）", () => {
+    const css = (): string => sass.compile("src/scss/rail.scss").css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+    const ruleOf = (sel: string): string => {
+        const seg = css()
+            .split("}")
+            .find((r) => r.split("{")[0].trim() === sel);
+        expect(seg, `未找到 ${sel} 规则`).toBeTruthy();
+        return `${seg}}`;
+    };
+
+    it(".wengu-ws-title：flex 行 + 8px 行距（§6 按钮行总则）", () => {
+        const body = ruleOf(".wengu-ws-title");
+        expect(body).toMatch(/display:\s*flex/);
+        expect(body).toMatch(/align-items:\s*center/);
+        expect(body).toMatch(/gap:\s*8px/);
+    });
+
+    it(".wengu-ws-titlebtns：右贴 + 不收缩 + 不换行（收编后的防挤压闸）", () => {
+        const body = ruleOf(".wengu-ws-titlebtns");
+        expect(body).toMatch(/display:\s*flex/);
+        expect(body).toMatch(/gap:\s*8px/);
+        expect(body).toMatch(/margin-left:\s*auto/);
+        // 按钮组自身不换行、不被标题挤扁
+        expect(body).toMatch(/flex-wrap:\s*nowrap/);
+        expect(body).toMatch(/flex:\s*none/);
+        // 图标尺寸沿用 14px（sprite 默认），不做逐钮微调
+        expect(css()).toMatch(/\.wengu-ws-titlebtns \.b3-button svg[^{]*\{[^}]*width:\s*14px/);
+    });
+});

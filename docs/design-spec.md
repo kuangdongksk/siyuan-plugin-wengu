@@ -442,18 +442,24 @@ formSwitch / formInput / formOption`；输入必挂 `b3-text-field`；
 ——所谓「移动端 sprite 差异」在 3.8.x **不成立**。**写错 id 桌面同样空白**，
 只是移动端先撞上。
 
-本仓现行 id 全表（**31 个**＝官方 28 + 插件自注册 3；口径：`src/**/*.{ts,svelte}`
+本仓现行 id 全表（**32 个**＝官方 29 + 插件自注册 3；口径：`src/**/*.{ts,svelte}`
 里 `svgIcon("…")` / 字符串字面量与 `xlink:href="#…"` 的**并集**）：
 
 ```
-官方 sprite（28 个，可在 appearance/icons/index.html 或 litheness/icon.js 查到）：
+官方 sprite（29 个，可在 appearance/icons/index.html 或 litheness/icon.js 查到）：
 iconAdd iconBack iconBookmark iconBug iconCheck iconClock iconClose iconCopy iconDown
 iconEdit iconEye iconFile iconFolder iconIndeterminateCheck iconInfo iconLeft iconLink
-iconList iconPlay iconRefresh iconRiffCard iconRight iconSearch iconSettings iconSparkles
-iconStar iconTags iconTrashcan
+iconList iconMore iconPlay iconRefresh iconRiffCard iconRight iconSearch iconSettings
+iconSparkles iconStar iconTags iconTrashcan
 插件自有（3 个，src/index.ts 的 addIcons 自注册，id 永不改）：
 iconWengu iconWenguWords iconVolume
 ```
+
+⚠️ `iconMore`（**20260916 · Issue #145 新增**）：专题管理标题行的低频道
+「更多」菜单锚点图标。**已核实存在**（对官方 master 的
+`appearance/icons/litheness/icon.js` 实查）：`<symbol id="iconMore" viewBox="0 0 24 24">`
+＝**竖排三点**；另有个近亲 `id="iconMenu"`（横排三线），别混（两个都要现查官方
+sprite 才知道是哪个）。`iconDots` / `iconEllipsis` 在官方 sprite 里**根本不存在**。
 
 ⚠️ **清单必须与代码同步**：`iconIndeterminateCheck`（`FormHtml.statusIcon` /
 `ReviewHtml` 的「部分正确」态）、`iconRiffCard`（`RelatedDialog` 的「相关刷题」）、
