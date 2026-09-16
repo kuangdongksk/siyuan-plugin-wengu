@@ -398,7 +398,8 @@ describe("routeKnowledgeBatchDiag（20260909 批量两级路由）", () => {
 
     it("回显骨架（AI 先抄格式再给真数组）：取到真数组而非骨架", async () => {
         // AI 常见形态：先复述格式骨架、再给答案。旧实现贪心匹配到最后一个 `]`
-        // 侥幸能用；新实现取**首个**配平数组，故骨架必须能被正确跳过。
+        // 侥幸能用；新实现显式取**最后一个**配平数组（骨架在前、结果在后），
+        // 故必须把骨架整段跳过、拿到后面那个真数组。
         const out = await routeKnowledgeBatchDiag(["题目甲", "题目乙"], INDEX, {
             call: async (msg) =>
                 msg.includes("章节清单")

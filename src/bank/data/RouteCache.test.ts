@@ -200,6 +200,25 @@ describe("routeKnowledgeBatchCached（三弹窗共用的带缓存批量路由）
         expect(out).toEqual([[]]);
     });
 
+    it("扁平数组 = 格式偏差：当次归空且**不写缓存**，重跑必再调（Issue #143 P3-4）", async () => {
+        // 与上一条（空结果照常缓存）构成对照：AI 把所有编号并成一个数组时
+        // 逐题归属不可信，RouteCache 必须拒写——否则一次格式偏差按逐题顺序
+        // 固化进缓存，此后重跑零调用、整批永久错下去。
+        initRouteCache(makeIo());
+        const st = { n: 0 };
+        const flat = async (): Promise<string> => {
+            st.n++;
+            return '{"chapters":[1,2,3]}';
+        };
+        const opts = { texts: ["题目甲", "题目乙"], index: INDEX, modelId: "m1", call: flat };
+        const out1 = await routeKnowledgeBatchCached(opts);
+        expect(out1).toEqual([[], []]); // 当次归空
+        expect(st.n).toBe(1); // 第一级即判废，不再调第二级
+        const out2 = await routeKnowledgeBatchCached(opts);
+        expect(out2).toEqual([[], []]);
+        expect(st.n).toBe(2); // 未落缓存 ⇒ 重跑重新调 AI（下次可能拿到正常形态）
+    });
+
     it("AI 调用失败不缓存：onFail 上报，重跑会再调且成功后可缓存", async () => {
         initRouteCache(makeIo());
         const st = { n: 0, fail: true };

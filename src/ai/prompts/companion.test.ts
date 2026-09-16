@@ -6,7 +6,6 @@ import {
     buildReactPrompt,
     clampText,
     parseExprReply,
-    parseExprReply as _parseForLock,
     plainOf,
     REACT_LINE_MAX,
     REACT_LINE_WANT,
@@ -87,7 +86,6 @@ describe("parseExprReply", () => {
         // 超一字才截
         const over = parseExprReply(`EXPRESSION: happy\nLINE: ${"好".repeat(REACT_LINE_MAX + 1)}`);
         expect(over?.line.endsWith("…")).toBe(true);
-        expect(_parseForLock).toBe(parseExprReply); // 别名只为可读性，无第二实现
     });
 
     it("prompt 的要求值与截断值各有常量、且要求更紧（P3-7 收口）", () => {

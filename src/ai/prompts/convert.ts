@@ -58,8 +58,9 @@ function specTypesOf(
 export interface StepContext {
     /** 本批序号（从 1 起）。 */
     batch: number;
-    /** 是否首批——首批额外输出 CAN_CONVERT/REASON/TYPES 判定行（判定步骤
-     *  已合并进首批生成，不再单独跑一轮检测）。 */
+    /** 是否首批——首批额外输出 CAN_CONVERT/REASON/TYPES/**SUBJECT** 四行
+     *  判定（判定步骤已合并进首批生成，不再单独跑一轮检测；行数与
+     *  {@link verdictOf} 实发一致，正文口径不再是旧文案的「三行」）。 */
     first: boolean;
 }
 

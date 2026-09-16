@@ -136,8 +136,12 @@
           才判废。
         - **P3 其余**：`wrongCausesPrompt` 明说竖线**按位置切分**、题干内竖线
           是内容（拼行侧刻意不转义：转义要动既有约定且让 AI 面对陌生的 `\|`）；
-          `detectWindowPrompt` 死代码删除并由 `ai/prompts/convert.test.ts`
+          退役的两个 prompt 构建器死代码删除并由 `ai/prompts/convert.test.ts`
           **源级扫描**（vite `?raw` glob，`src/` 无 @types/node）锁「零命中」。
+          ⚠️ **守卫文件自身也不能出现被查标识符的字面量**：验收口径是
+          `grep -rn "<名字>" src/` **零命中**，守卫里把名字写成字面量会让这条
+          grep 永远非零、口径无从成立——测试文件里用运行时拼装
+          （`["a","b"].join("")`）拿名字，断言效力不变。
     - **生题题型化**（20260910）：前置检测 TYPES 行顺带报题型（parseTypes 中英
       别名容错、分段并集），buildPrompt 只拼在场题型规则（数学卷不再带英语四类
       约定）；续跑/增量跳过检测时用题集既有记录题型并集（BankSets.setTypeUnion

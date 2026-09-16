@@ -9,7 +9,8 @@ import { normalizeSubject } from "../../../bank/data/BankSets";
  * 20260910 起**独立前置检测已退役**：原来 detectQuestions 要把全文按 12k
  * 分段并行问 AI「能否出题 + 现成题数 + 题型」，现在判定与题型先验合并进
  * 首批逐段生成的回复（见 ConvertBatch + prompts/convert 的 StepContext），
- * 少一整轮 AI 调用；`detectWindowPrompt`/`parseCount` 随之删除。
+ * 少一整轮 AI 调用；原独立前置检测与题数统计的两个 prompt 构建器
+ *  （见 git 历史）随之删除，避免有人按旧名找回已退役的调用链。
  *
  * 本模块只留三件纯解析：
  * - parseTypes：从回复抽 TYPES 行（题型先验喂生成 prompt 的题型化裁剪）；
