@@ -156,7 +156,7 @@
   "knowPickClear": "清空",
   "convertKnowCount": "{n} 题已挂知识点链接",
   "collectionsTitle": "专题",
-  "collectionsBtn": "专题管理：按知识点收集题目 / 删除专题",
+  "collectionsBtn": "专题管理",
   "collectionCount": "{n} 题",
   "collectHint": "勾选知识点（含题数），把覆盖的题目收集成一个新专题",
   "collectTitlePlaceholder": "专题标题，可用 / 建目录（如 高数/极限/洛必达）",
@@ -954,5 +954,6 @@
   "switchConfirmGo": "继续切换",
   "colMore": "更多",
   "reportBackToQuiz": "返回题卷",
-  "reportShowSummary": "查看总结"
+  "reportShowSummary": "查看总结",
+  "collectionsBtnHint": "专题管理：按知识点收集题目 / 删除专题"
 }

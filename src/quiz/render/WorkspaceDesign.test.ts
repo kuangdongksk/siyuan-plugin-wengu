@@ -38,6 +38,15 @@ const RAW_RENDER = import.meta.glob("./QuizShell.ts", {
 const SHELL = RAW_RENDER["./QuizShell.ts"] ?? "";
 
 /** 组件源码（`?raw`）。 */
+/** i18n 字典原文（`?raw`）：钮面文案的**长度**是布局判据，值必须真读到。 */
+const I18N = import.meta.glob("../../i18n/*.json", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+const ZH = JSON.parse(I18N["../../i18n/zh-CN.json"]) as Record<string, string>;
+const EN = JSON.parse(I18N["../../i18n/en.json"]) as Record<string, string>;
+
 const RAW = import.meta.glob("../components/**/*.svelte", {
     query: "?raw",
     import: "default",
@@ -182,6 +191,23 @@ describe("§1 侧栏（SidePanelApp + base.scss）", () => {
         expect(SIDE).toContain("wengu-side-toolrow");
         expect(SIDE).toContain('data-act="side-ai"');
         expect(SIDE).toContain('class="wengu-side-tool"');
+    });
+
+    it("钮面取短键、完整描述下沉 title（Issue #154）：18 字描述句不得回炉当钮面", () => {
+        // 组件侧：钮面 = collectionsBtn，title = collectionsBtnHint，两处不得互换
+        const row = SIDE.slice(SIDE.indexOf("wengu-side-toolrow"), SIDE.indexOf("wengu-side-convert"));
+        expect(row).toContain('title={t("collectionsBtnHint")}');
+        expect(row).toContain('<span>{t("collectionsBtn")}</span>');
+        expect(row).not.toMatch(/title=\{t\("collectionsBtn"\)\}/);
+        // 字典侧：钮面对四字（等宽 toolrow 的地基），完整描述落在 hint 键上
+        expect(ZH.collectionsBtn).toBe("专题管理");
+        expect(EN.collectionsBtn).toBe("Collections");
+        expect(ZH.collectionsBtn).toHaveLength(4);
+        expect(EN.collectionsBtn.length).toBeLessThanOrEqual(12);
+        expect(ZH.collectionsBtnHint).toContain("按知识点收集题目");
+        expect(EN.collectionsBtnHint).toContain("knowledge point");
+        // 钮面与「统计」（statsTitle＝2 字）同处 flex:1 等宽行：长度差不得拉大
+        expect(Math.abs(ZH.collectionsBtn.length - ZH.statsTitle.length)).toBeLessThanOrEqual(2);
     });
 
     it("选中态统一内描边语言（左条退役），且树行同式", () => {
