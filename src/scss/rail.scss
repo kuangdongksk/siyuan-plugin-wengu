@@ -60,21 +60,30 @@
   box-sizing: border-box;
 }
 
-/* ── 管理面板主区的滚动归属（单滚动窗） ──
-   `.wengu-ws-main` 的 `overflow-y:auto` 就是**四块管理面板共用的那个滚动
-   窗**——`padding`/骨架不变，面板内容比视口长时由它滚（AI 会话面板的长
-   清单走同一扇窗，没有 `--fit` 档、没有二级内滚：卡随内容长，与外层面板
-   壳不冲突）。
+/* ── 「整页不滚动」宿主档（Issue #96 / #146；规范 docs/design-spec.md §12） ──
+   收内滚的面板经 `.wengu-ws-main--fit` 一档改写主区：**原始**
+   `.wengu-ws-main` 的 `overflow-y:auto` 是共用骨架（专题/知识/统计/学伴都
+   靠它自滚），一条都不动；这里只加一条**更高特异性**的覆写（双类选择器
+   0,2,0，稳过单类）。不开档 ⇒ 逐字节等同改造前。
 
-   ⚠️ **#96 的 `.wengu-ws-main--fit` 档已撤**（本单按 gap-list S4 与稿的
-   `.ai-detail { flex:1 1 auto }` + 单 `overflow` 收口）：收内滚把面板切在
-   一个屏高里、树与详情各自出滚动条，与稿「一卡两栏、卡随内容长」的形态
-   不符。开关（`ai/SessionPanel.ts`）与判定（`ai/core/PanelFit.ts`）同步
-   退役——留下带档的挂载代码就是死接线。 */
+   为何要改主区：主区可滚 = 卡永远拿不到「剩余高」（flex 子项在可滚容器里
+   按内容量高），内滚窗不出现、整页照滚。改 flex 列 + `overflow:hidden` 后
+   高度链才有起点（主区 → 面板页根 → 卡 → 卡内两列，每级 `min-height:0`）。
+
+   ⚠️ **档位按工作区白名单开，当前仅 AI 会话面板**（判定 `workspaceFits`、
+   挂在 `ai/core/PanelFit.ts`；开/关在 `ai/SessionPanel.ts` 的挂载/卸载处
+   配对）。其余三块面板**不挂这一档**——开了档而不收内滚，内容会被
+   `overflow:hidden` 切掉且滚不到，比「整页滚」更坏。 */
+.wengu-ws-main.wengu-ws-main--fit {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 /* 管理面板页根（四个面板共用；不设 max-width：宽窗口下面板要占满主区，
-   可读性靠编辑器分栏与控件宽度保证）。AI 会话面板在面板页根上多挂
-   `.wengu-aipage`（只是块壳，规则在 aipanel.scss 自己那一片里）。 */
+   可读性靠编辑器分栏与控件宽度保证）。收内滚者（AI 会话面板）在面板页根
+   上多挂 `.wengu-aipage`——「卡外件固定高、卡吃剩余高」的规则在
+   aipanel.scss 自己那一片里。 */
 .wengu-ws-page {
   /* 不设 max-width：宽窗口下面板要占满主区（860 上限曾造成
      「行没撑满」的观感），可读性靠编辑器分栏与控件宽度保证 */

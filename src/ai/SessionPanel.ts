@@ -1,5 +1,6 @@
 import type { QuizView } from "../quiz";
 import { mountSvelteApp, type MountedSvelteApp } from "../ui/mountApp";
+import { fitTargetOf, toggleFit, workspaceFits, type FitEl } from "./core/PanelFit";
 import SessionPanelApp from "./components/SessionPanelApp.svelte";
 
 /**
@@ -12,11 +13,32 @@ import SessionPanelApp from "./components/SessionPanelApp.svelte";
 
 let sessionPanelApp: MountedSvelteApp | undefined;
 
+/** 本面板开过档的那一份宿主主区（卸载时按它收起——**只碰这一份**，
+ *  判定与越界防线见 core/PanelFit 的文件头注）。 */
+let fitTarget: FitEl | undefined;
+
+/** 打开/关闭**本面板宿主**的「收内滚」档（Issue #96 / #146）：挂载前打开、
+ *  卸载后收起，配对不散落。
+ *  ⚠️ 只动本面板那一份骨架（挂载时记下的 fitTarget），**禁 document 级
+ *  全选**——同文档里别的页签/面板也有 `.wengu-ws-main`，全局开关会把它们的
+ *  主区一并改掉（内容被 overflow:hidden 切掉且滚不到），20260915 复审修正。 */
+function fitHost(on: boolean, root?: HTMLElement): void {
+    if (on) {
+        fitTarget = fitTargetOf(root);
+        toggleFit(fitTarget, true);
+        return;
+    }
+    toggleFit(fitTarget, false);
+    fitTarget = undefined;
+}
+
 /** 挂载 AI 会话面板（rail 的 "ai" 工作区主区）。 */
 export function mountAiSessionPanel(v: QuizView, root: HTMLElement): void {
     detachAiSessionPanel();
-    // 滚动归宿主主区 `.wengu-ws-main` 的共用滚动窗（单滚动窗；#96 的收内滚
-    // 档已撤，见 scss/rail.scss 那一段），挂载侧无需任何档位开关。
+    // 整页不滚动（Issue #96）：本面板收内滚 ⇒ 宿主主区改 flex 列 + 隐藏
+    // 溢出，高度链才传得到卡（规则与理由见 scss/rail.scss 那一档）。判定走
+    // 纯函数 workspaceFits（带单测），别在这里写死 "ai"。
+    fitHost(workspaceFits("ai"), root);
     sessionPanelApp = mountSvelteApp(SessionPanelApp, root, { v });
 }
 
@@ -24,4 +46,6 @@ export function mountAiSessionPanel(v: QuizView, root: HTMLElement): void {
 export function detachAiSessionPanel(): void {
     sessionPanelApp?.unmount();
     sessionPanelApp = undefined;
+    // 档必须收（否则下一块面板继承 overflow:hidden ⇒ 内容被切且滚不到）
+    fitHost(false);
 }

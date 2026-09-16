@@ -335,9 +335,8 @@
           `:last-child`**：单块行（缺侧的尾轮/孤立 ai 轮）里首块同时是末块，
           `:last-child` 会把那唯一一块的留白一并收掉、标签直接顶上摘要行。
         - ⚠️ **输出块不设 `max-height`**（面板核心用途是回看产出），长内容由
-          **宿主主区那一扇唯一的滚动窗**兜住（`.wengu-ws-main` 的
-          `overflow-y:auto`）——详情列**没有**内滚窗（#96 的收内滚已撤，
-          见本节末 #129 那条）。
+          **详情列那扇滚动窗**兜住（`.wengu-aipanel-pane` 的 `overflow-y:auto`，
+          Issue #96 / #146）——块本身行高归内容，不另设上限。
     - ⚠️ **空脚不渲染**（Issue #98）： `ownNote` 为空且 `retryable` 为假时
       `.wengu-aipanel-dfoot` **整块不出**（连同 padding/border-top/底色）——空
       容器的色带在已完成态看起来就是「下方空一块」。在途/停止态的 own-note 与
@@ -437,20 +436,28 @@
   仍留在 rail.scss 供各片共用。**色值一律 `var(--b3-*)` 全名**（#70 口径）；
   设计稿的 `--ok-solid`/`--fail-solid`/`--accent-dim` 等语义令牌落成 b3 令牌 +
   `color-mix` 组合（同 aiflow.scss 口径）。
-- ~~**整页不滚动（Issue #96，20260915）**~~ → **已撤（Issue #129，20260915，见下节）**。
-  #96 曾把本面板收进「一个屏高 + 两列各自内滚」，**与设计稿正相反**。下面这段
-  是历史记录，**不要再照它改代码**；现行口径读本节末「AI 会话面板对稿精修
-  （Issue #129）」那一条（单滚动窗）。原方案（**已退役**）：
-  面板高度适配宿主视口、滚动收进卡内两列——**推翻 #93 的 gap-list S4 取舍**；
-  四处咬合：宿主档位（`ai/core/PanelFit.ts` + `.wengu-ws-main--fit` 改写主区
-  flex 列 + `overflow:hidden`，开关在挂载/卸载配对、只动本面板那一份、判据在
-  `workspaceFits`）、高度链（面板页根 → 卡 → 两列，每级 `min-height:0`）、
-  grid 行高显式分配（`auto minmax(0,1fr)`）、内滚窗落两列
-  （`overflow-y:auto` + `scrollbar-gutter:stable` + `overscroll-behavior:contain`）。
-  ⚠️ 这些类名/文件**现在都不存在了**（`--fit` 档、`PanelFit.ts`/`PanelFit.test`、
-  `fitHost`、两列的 `overflow`/`scrollbar-gutter`、`grid-template-rows` 全删）；
-  引到它们即为死接线。
-- **单流态横幅 bar 复核**：`ConvertFlow.barOf` 有 `readPct` 即出条，
+- **整页不滚动（Issue #96，20260915；20260916 Issue #146 恢复）**：
+  面板高度适配宿主视口，滚动收进**卡内两列**的滚动窗，宿主主区不出页面级
+  滚动条（规范 §12）。四处咬合，缺一条链就整页照滚：
+  ① **宿主档**：`.wengu-ws-main--fit`（flex 列 + `overflow:hidden`）——
+  原始 `.wengu-ws-main` 的 `overflow-y:auto` 是四块面板共用的骨架，一条不动；
+  ② **开/关配对**在 `SessionPanel.ts` 的挂载/卸载处（`fitHost(workspaceFits("ai"), root)`
+  / 卸载 `fitHost(false)`）——漏关的下一块面板会被 `overflow:hidden` 切掉内容；
+  判定 `workspaceFits` / `fitTargetOf` / `toggleFit` 在 `core/PanelFit.ts`
+  （带单测；**只动本面板那一份骨架，禁 document 级全选**）；
+  ③ **高度链**在 `scss/aipanel.scss`：`.wengu-aipage` flex 列 + `min-height:0` + `height:100%`（卡外件一律 `flex:none`）→ `.wengu-aipanel` `flex:1 1 auto` + `min-height:0` + `grid-template-rows:auto minmax(0,1fr)` → 卡内两列 `min-height:0`；
+  ④ **内滚窗落两列**：`.wengu-aipanel-tree` 与 `.wengu-aipanel-pane` 各自
+  `overflow-y:auto` + `scrollbar-gutter:stable` + `overscroll-behavior:contain`；
+  `.wengu-aipanel-dbody` 维持稿的「无 max-height/无 overflow」（滚动内容不设
+  可压缩下限——`min-height:120px` 已放开）。
+  ⚠️ **折单列（≤1000px）不给树列定高上限**（40vh 那档 = 把清单与自己那扇滚动窗
+  一起撤掉 ⇒ 必出页面级滚动条）：三行按内容、各列自滚。
+  ⚠️ 回归史：**#129 对稿还原把这条链（含挂载开关）整个删了**，换成「单滚动窗、
+  卡随内容长」⇒ 20260916 真机走查又见全屏滚动条（#146 单子）。本次恢复时
+  **视觉逐值保留**（一体卡/树/详情/横幅/轮次日志块/复制钮），只改「高度从哪来、
+  滚在哪滚」。锁在 `core/AiPanelScrollChain.test.ts`（sass 真编译断言链上每一级）
+    - `core/PanelFit.test.ts`（宿主档开关与越界防线）。
+- **单流态横幅 bar 复核**- **单流态横幅 bar 复核**：`ConvertFlow.barOf` 有 `readPct` 即出条，
   `bannerViewOf` 按「无 queue 才出 bar」分流——已被 `FlowBannerUi.test` 锁死，
   本单只复核、未改。
 - **范围外**：六个批流的进度摘要上报（#79 遗留 B）仍不做。
@@ -459,15 +466,14 @@
 
 `design/aipanel-gap-list.md` + 施工规格 `design/convert-stop-redesign-spec.html` 06 节）
 
-- **执行定稿（与 #96 相反，务必先读这条）**：面板是**单滚动窗**——卡随内容长，
-  滚动归宿主主区 `.wengu-ws-main` 的 `overflow-y:auto`。稿里两列都没有滚动窗
-  （gap-list S4），所以**不造**二级滚动条：`.wengu-aipanel` 去 `flex:1/min-height:0`
-  与 `grid-template-rows`，`.wengu-aipanel-tree` / `.wengu-aipanel-pane` 去
-  `overflow/min-height:0/scrollbar-gutter`（树只留凹槽底+右边线+padding，详情列
-  只留 surface 底 + `min-width:0`），`.wengu-aipanel-dbody` 回到稿的
-  `min-height:120px`。`--fit` 档 + `ai/core/PanelFit.ts`（含单测）整体删除，
-  `ai/SessionPanel.ts` 的 `fitHost` 同步退役——**判据看稿不看规范条文**
-  （AGENTS.md 已同步标例外）。
+- ⚠️ **执行定稿已改口（Issue #146，20260916）**：本单曾按 gap-list S4 把面板
+  改成**单滚动窗**（卡随内容长、滚动归宿主主区），并把 `--fit` 档 + `PanelFit.ts`
+    - `fitHost` 整体删除 —— 结果 20260916 真机走查**又出全屏滚动条**（规范 §12
+      被打破）。**现行口径＝上一节「整页不滚动」那条**：宿主档 + 高度链 + 两列内滚窗
+      全部复位（`PanelFit.ts` 连同越界防线一起回归）。本单的**视觉部分仍逐值有效**
+      （一体卡 S1/S2、树 S3/S5、详情 S7/S8、轮次日志块），只有「高度从哪来、滚在哪滚」
+      被 #146 推翻；`min-height:120px` 的下限高也在 #146 里放开（内滚窗在列上，
+      内容侧不需要留身高）。
 - ⚠️ **树头「N 组」按去重类别数算**（`new Set(recs.map(r => r.kind)).size`）：
   稿的语义是种类数，而单条种类不设层（叶子直接上提）时 `tree.nodes.length` 会数少。
 - ⚠️ **详情头状态徽标贴右由它自己吃 `margin-left:auto`**（`.wengu-aipanel-stbadge`），
