@@ -23,7 +23,6 @@ const EXEMPTS = new Map([
     // 存量超线（规范 §11.1「❌ 待修」清单，未在 #135 改动面内）——额度＝当前行数，只许减不许增
     ["src/ai/core/SessionDetail.test.ts", 608],
     ["src/convert/service/run/ConvertBatch.ts", 503],
-    ["src/mobile/core/MobileDrill.test.ts", 520],
 ]);
 
 /** 生成数据文件整目录豁免。 */

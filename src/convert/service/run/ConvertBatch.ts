@@ -392,12 +392,12 @@ export async function convertDocBatched(
                 // 记录点停 = 走 abortFlow，与页内停止钮**同一总闸**（置
                 // 「用户终止」标记 + 断在途 fetch + worker 池收口 → 单篇转
                 // 保留/丢弃抉择、队列篇间收口），不是只断一笔 fetch。
-                // 句柄的 signal 传 internal.signal 而非 opts.signal：后者是
-                // TYPES 检测等其他链路的中止源，接成 stop 会把批次收口误判
-                // 成「用户终止」）。
+                // 句柄 signal 传 internal.signal：opts.signal 是 TYPES 检测
+                // 等链路的中止源，接成 stop 会把批次收口误判成「用户终止」。
                 abort: aiStopHandle(internal.signal, abortFlow),
                 buildPrompt: (source, rule, list) =>
-                    buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list, genTypes, step()),
+                    // 末参 bank=true（Issue #131）：产物进题库 ⇒ 原题沿用原序、新造题正确项写最前
+                    buildPrompt(source, opts.fillToChoice, opts.bigToSteps, rule, list, genTypes, step(), true),
             }),
         submit: (batch) => {
             segCursor[idx] = Math.max(segCursor[idx], batch.end);

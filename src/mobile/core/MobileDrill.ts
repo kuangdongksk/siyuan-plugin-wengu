@@ -21,6 +21,7 @@ import {
     submit,
 } from "./MobileAnswering";
 import { answerKindOf } from "./MobileModel";
+import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
 
 /**
@@ -209,7 +210,10 @@ export class MobileDrill {
 
     /* ── 开刷 ── */
 
-    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。 */
+    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。展示层选项洗牌
+     *  （Issue #131，口径见 CardDisplayShuffle 文件头）：与桌面同——死形态
+     *  入库，进卡前现洗。不洗则新造题正确项恒为首位（协议「写最前」）＝剧透。
+     *  `scope` 传会话 id（排列同轮恒定，否则恢复的字母指错项）；记账按 id 走。 */
     start(progress: "fresh" | "continue"): void {
         const docId = this.ui.home.activeSetId;
         if (!docId || this.ui.fullList.length === 0) return;
@@ -220,14 +224,16 @@ export class MobileDrill {
             this.ui.setup.reveal = last.revealMode === "after" ? "after" : "instant";
             this.ui.setup.timing = last.mode;
             const ids = new Set(last.scopeIds ?? []);
-            this.ui.list = ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList];
+            const picked = ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList];
+            this.ui.list = shuffleListForDisplay(picked, { scope: last.id });
             this.ui.session = last;
         } else {
             const src =
                 this.ui.setup.count > 0 ? this.ui.fullList.slice(0, this.ui.setup.count) : [...this.ui.fullList];
-            this.ui.list = src;
+            const sessionId = newSessionId(); // 会话 id 先铸：它同时是洗牌种子
+            this.ui.list = shuffleListForDisplay(src, { scope: sessionId });
             this.ui.session = {
-                id: newSessionId(),
+                id: sessionId,
                 docId,
                 startedAt: Date.now(),
                 mode: this.ui.setup.timing,
@@ -383,10 +389,12 @@ export class MobileDrill {
         const wrong = new Set(s.results.filter((r) => !r.ok).map((r) => baseQid(r.qid)));
         if (wrong.size === 0) return;
         const subset = this.ui.list.filter((q) => wrong.has(q.id));
-        this.ui.list = subset;
+        // 错题再练是**新一轮**：同样现洗（副本，见 start）；scope 传新会话 id
+        const sessionId = newSessionId();
+        this.ui.list = shuffleListForDisplay(subset, { scope: sessionId });
         this.ui.setup.reveal = "instant";
         this.ui.session = {
-            id: newSessionId(),
+            id: sessionId,
             docId: this.ui.home.activeSetId,
             startedAt: Date.now(),
             mode: this.ui.setup.timing,

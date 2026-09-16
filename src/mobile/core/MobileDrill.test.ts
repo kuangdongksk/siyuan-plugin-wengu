@@ -1,50 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { armed, judgeGate, make, q } from "./MobileDrillHarness";
 import { initialMobileUi, MobileDrill, type MobileUi } from "./MobileDrill";
+import { QuestionBank, type BankData } from "../../bank/data/QuestionBank";
 import { QuestionType } from "../../types";
-import type { WenguQuestion } from "../../types";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import type { MobileDeps } from "../types";
-import { QuestionBank, type BankData } from "../../bank/data/QuestionBank";
-
-/** node 测试环境无 window（vitest 不启 jsdom），QuestionBank.markDirty 的
- *  防抖定时器需要它——挂全局自指即可（BankRecording.test 同款）。 */
-(globalThis as { window?: unknown }).window ??= globalThis;
-
-/** 受控 AI 判分闸：测试自己决定 verdict 何时到场——复现「用户交卷先于
- *  AI 返回」的竞态（终局判分晚于交卷，题库镜像必须被覆写）。
- *  未开闸时**透传真实现**（既有「AI 判分失败回落自评」用例走真链路抛错）。
- *  vi.mock 被提升到 import 之上，故闸与放行器走 vi.hoisted。 */
-const judgeGate = vi.hoisted(() => {
-    let release: ((v: { verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }) => void) | undefined;
-    let gate: Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> | undefined;
-    return {
-        arm(): Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> {
-            gate = new Promise((res) => {
-                release = res;
-            });
-            return gate;
-        },
-        open(v: { verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }): void {
-            release?.(v);
-        },
-        pending(): Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> | undefined {
-            return gate;
-        },
-        reset(): void {
-            gate = undefined;
-            release = undefined;
-        },
-    };
-});
-afterEach(() => judgeGate.reset());
-
-vi.mock("../../quiz/service/AiJudge", async (orig) => {
-    const real = await orig<{ judgeBrief: (...args: unknown[]) => unknown }>();
-    return {
-        ...real,
-        judgeBrief: (...args: unknown[]): unknown => judgeGate.pending() ?? real.judgeBrief(...args),
-    };
-});
 
 /**
  * 移动端刷题编排的关键口径（Issue #59 验收 5）：记账通道全部走既有
@@ -52,83 +12,9 @@ vi.mock("../../quiz/service/AiJudge", async (orig) => {
  * 不缺（即时判分即锁定+揭示；收卷模式提交只记已答）、「未完成轮」
  * 判据只看 endedAt。
  *
- * 用假 bank/history 记录调用（真实现走内核 IO，不进单测）。
+ * 装配件（假 bank/history、armed/make）在 MobileDrillHarness.ts；
+ * 展示层洗牌用例在 MobileDrillShuffle.test.ts（Issue #131 拆片）。
  */
-
-function q(id: string, over: Partial<WenguQuestion> = {}): WenguQuestion {
-    return {
-        id,
-        type: QuestionType.Single,
-        answer: "A",
-        optionMd: ["甲", "乙"],
-        attempts: 0,
-        wrongCount: 0,
-        ...over,
-    };
-}
-
-/** 假题库：记录 recordAnswer / recordVerifyResult 调用（镜像分账判据）。 */
-function fakeBank() {
-    const calls: { kind: string; qid: string; ok: boolean }[] = [];
-    return {
-        calls,
-        bank: {
-            preload: async (): Promise<void> => undefined,
-            all: async (): Promise<unknown> => ({ sets: {}, records: {}, materials: {} }),
-            recordAnswer: async (qid: string, _a: string, ok: boolean): Promise<void> =>
-                void calls.push({ kind: "first", qid, ok }),
-            peek: (): undefined => undefined,
-            flush: async (): Promise<void> => undefined,
-            markDirty: (): void => undefined,
-        } as never,
-    };
-}
-
-function fakeHistory() {
-    const upserts: WenguSession[] = [];
-    const store = {
-        upsert: async (s: WenguSession): Promise<void> => void upserts.push(s),
-        docSessions: async (): Promise<WenguSession[]> => [],
-        preload: async (): Promise<void> => undefined,
-    };
-    return { store: store as never, upserts };
-}
-
-/** 建一个控制器（ui 深代理在真机由壳组件创建；单测里给普通对象即可）。 */
-function make(over: Partial<Parameters<typeof buildDeps>[0]> = {}) {
-    const { ui, deps, calls, upserts } = buildDeps(over);
-    const drill = new MobileDrill(ui, deps);
-    return { drill, ui, calls, upserts };
-}
-
-function buildDeps(
-    over: {
-        bank?: unknown;
-        history?: unknown;
-    } = {}
-) {
-    const { bank, calls } = fakeBank();
-    const { store, upserts } = fakeHistory();
-    const ui: MobileUi = initialMobileUi();
-    const deps: MobileDeps = {
-        i18n: {},
-        bank: (over.bank as never) ?? bank,
-        history: (over.history as never) ?? store,
-        settings: { showNums: true },
-    };
-    return { ui, deps, calls, upserts };
-}
-
-/** 构造一个已装载的会话（绕过内核装载链，直接摆好本轮状态）。 */
-function armed(over: { reveal?: "instant" | "after"; questions?: WenguQuestion[] } = {}) {
-    const { drill, ui, calls, upserts } = make();
-    const list = over.questions ?? [q("a"), q("b")];
-    ui.home = { loading: false, error: "", sets: [], activeSetId: "set1", activeSetTitle: "卷一" };
-    ui.fullList = list;
-    ui.setup.reveal = over.reveal ?? "instant";
-    drill.start("fresh");
-    return { drill, ui, calls, upserts, list };
-}
 
 describe("开刷与作答", () => {
     it("开刷建会话并落库；题集为空时不动", () => {
@@ -145,7 +31,8 @@ describe("开刷与作答", () => {
 
     it("单选题点选即答：判分即锁定 + 揭示（揭示写入点不缺）", async () => {
         const { drill, calls } = armed();
-        drill.pickLetter("A");
+        // 展示层洗牌后正确字母是随机的：按洗后的视图取（口径见洗牌一节）
+        drill.pickLetter(drill.ui.list[0].answer!);
         await drill.submit();
         const ui = drill.ui.cards[0];
         expect(ui.graded).toBe(true);
@@ -273,10 +160,12 @@ describe("未完成轮判据只看 endedAt", () => {
 describe("错题再练一轮", () => {
     it("以本轮错题为范围开新轮（scope=wrong + 清单快照）", async () => {
         const { drill } = armed();
-        drill.pickLetter("B"); // 答错
+        // 洗牌后正确字母不确定：取一个**不等于**答案的字母来答错
+        const right = drill.ui.list[0].answer!;
+        drill.pickLetter(right === "A" ? "B" : "A"); // 答错
         await drill.submit();
         drill.next();
-        drill.pickLetter("A"); // 答对
+        drill.pickLetter(drill.ui.list[1].answer!); // 答对
         await drill.submit();
         expect(drill.ui.screen).toBe("report");
         drill.retryWrong();

@@ -6,7 +6,8 @@ import { buildRegenPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { reseatAnswer } from "../gen/RegenVerify";
 import { extractBlockId } from "../../convert/service/core/ConvertService";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
-import { shuffleDraftOptions } from "../../convert/service/draft/OptionShuffle";
+import { replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
+import { unpackPackedOptions } from "../../convert/service/draft/OptionUnpack";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
 import { injectKnowledgeRefs, sectionKramdown } from "../../convert/service/knowledge/KnowRef";
@@ -196,12 +197,27 @@ async function runRegen(
         });
         const drafts = parseDrafts(reply).filter(hasStemPart);
         if (drafts.length === 0) throw new Error(t("convertEmptyReply"));
-        const draft = drafts[0];
-        // 核查：原题正确项文本 → 新选项位置 → 校正 ans 字母（先校正再洗牌）
+        // ⚠️ **格式规范先行**（P1，20260915 审查）：本链产物**直写
+        // `replaceRecordKramdown`**（不经 SetWriter），撤掉 `shuffleDraftOptions`
+        // 时把它的**两道格式处理**（挤行拆行 + 标记替换）一并带走了。故两步
+        // 都在本链自己接线，顺序与 SetWriter 同款：① 挤行拆行（AI 把多选项
+        // 塞进一个 `@@P opt` 时渲染只给首行编字母，不拆行就落库「只剩一个
+        // 选项」）→ ② 核查与替换。
+        const draft = unpackPackedOptions(drafts[0]);
+        // 核查：原题正确项文本 → 新选项位置 → 校正 ans 字母（本链已不洗牌，
+        // 校正只为消「AI 照抄原题旧字母」这一事实，见下方「不再洗牌」注释）
         const verdict = reseatAnswer(draft, q);
+        // ⚠️ **解析标记替换（P1，20260915 审查）**：本链**不经 SetWriter**
+        // （它直写 `replaceRecordKramdown`，见下方），而 keep 序的 prompt 已
+        // 要求 AI 在解析里写 〔opt:X〕 标记 —— 不在这里换掉，**裸标记会原样
+        // 落库并显示在题卡上**。「唯一落库出口」的断言对 regen 不成立，故本
+        // 链必须自己接线。
+        // 落点：reseatAnswer **之后**（它只动 ans 部件，与标记无关）、
+        // verifyPrompt/renderUnit **之前** —— AI 自检看到的与落盘形态一致。
+        const fixed = replaceDraftOptionRefs(draft);
         if (verdict.kind === "mismatch") {
             // 文本定位不到（选项被改写）：独立会话 AI 自检，no 则整题放弃
-            const check = await agentChatOnce(verifyPrompt(renderUnit(draft)), modelId, AI_TIMEOUT.mid, stop.signal, {
+            const check = await agentChatOnce(verifyPrompt(renderUnit(fixed)), modelId, AI_TIMEOUT.mid, stop.signal, {
                 kind: "regen",
                 title: aiTitle(deps.t, "aiTitleRegenCheck", { name: groupTitle }),
                 group,
@@ -209,8 +225,11 @@ async function runRegen(
             });
             if (!/VERIFY\s*[:：]\s*(yes|是)/i.test(check)) throw new Error(t("regenVerifyFailed"));
         }
-        shuffleDraftOptions(draft);
-        let kd = renderUnit(draft);
+        // ⚠️ **不再洗牌**（Issue #131）：重生成链已走 keep 序（选项沿用
+        // 原题顺序与字母，见 buildRegenPrompt 的 order="keep"），洗牌原本
+        // 就是恒等零动作；留着只会让「解析里的旧字母引用」被位置映射
+        // 二次改写。消剧透改由展示层进卡 mount 前现洗。
+        let kd = renderUnit(fixed);
         // 保留原容器的其余属性（q/type/steps/knowledge/chapter…），只换内容
         const oldIal = /\n(\{:[^\n]*custom-plugin-wengu-q="1"[^\n]*\})\s*$/.exec(record.kramdown)?.[1] ?? "";
         if (oldIal) {

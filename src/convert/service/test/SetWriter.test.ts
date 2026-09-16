@@ -82,6 +82,23 @@ describe("SetWriter", () => {
         expect(d.collections.find((c) => c.id === `doc:${setId}`)?.qids).toEqual([qid]);
     });
 
+    it("解析里的 〔opt:X〕 落库前换成选项文本（Issue #131：库内解析无选项字母）", async () => {
+        const { bank, data } = newBank();
+        const w = new SetWriter(bank);
+        const setId = await w.openSet({ title: "卷" });
+        const d = question();
+        d.parts = d.parts.map((p) =>
+            p.name === "solution" ? { ...p, text: "〔opt:A〕正确，〔opt:B〕是常见误区。" } : p
+        );
+        const out = await w.append(setId, [{ draft: d }]);
+        const kd = data().records[out.qids[0]]!.kramdown;
+        expect(kd).toContain("「正确项」正确，");
+        expect(kd).not.toContain("〔opt:"); // 标记不落库
+        // 纯函数口径：调用方手里的 draft 未被改写（渐进呈现视图仍读它）
+        expect(d.parts.find((p) => p.name === "solution")?.text).toBe("〔opt:A〕正确，〔opt:B〕是常见误区。");
+        expect(parseQuestionKramdown(kd, out.qids[0], setId)?.solutionMd).toContain("「正确项」正确");
+    });
+
     it("材料入 bank.materials；紧随小题的 group=prev 直配材料 id（跨批保持）", async () => {
         const { bank, data } = newBank();
         const w = new SetWriter(bank);

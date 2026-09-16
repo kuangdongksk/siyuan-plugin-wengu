@@ -4,7 +4,6 @@ import { questionHash } from "../../../bank/data/BankParse";
 import type { QuestionType } from "../../../types";
 import { parseVerdict } from "../core/ConvertService";
 import { parseSubject, parseTypes } from "../draft/ConvertDetect";
-import { shuffleDraftOptions } from "../draft/OptionShuffle";
 import { parseDrafts } from "../draft/QuestionDraft";
 import { foldGlossIntoDrafts } from "../gloss/GlossFold";
 import type { DraftUnit } from "../draft/QuestionDraft";
@@ -166,10 +165,15 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         // 游标不越片尾（AI 读到重叠区后可能报出重叠区内的位置）；恒前进防死循环
         const end = Math.max(cursor + 1, Math.min(next.cursor, seg.end));
         // 词条行保真（Issue #30）：本批**消费的源区间**里认词条行补进材料
-        // 尾部，并剥掉正文里漏网的 `^{...}` 残渣（在区间定下之后做，与
-        // 洗牌同层——都在落库前、下标无关）
+        // 尾部，并剥掉正文里漏网的 `^{...}` 残渣（在区间定下之后做，
+        // 落库前、下标无关）。
+        // ⚠️ **选项洗牌已撤**（Issue #131）：库与题源文档同为「死形态」
+        // （选项按原文顺序、答案字母指向原文位置）——原先这里让 AI 按
+        // 「正确项写最前」重排、再由 OptionShuffle 洗牌消剧透，AI 却照抄
+        // 原题字母，字母映射把坏答案忠实传播进库（#123 事实 1 的转换链
+        // 复发）。洗牌改为**展示层纯函数**（CardDisplayShuffle，进卡
+        // mount 前现洗），预览模式照旧看死形态。
         foldGlossIntoDrafts(drafts, deps.kramdown.slice(cursor, end));
-        drafts.forEach(shuffleDraftOptions);
         if (drafts.length > 0) {
             try {
                 res.count += await deps.submit({

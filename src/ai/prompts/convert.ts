@@ -91,7 +91,11 @@ SUBJECT: 本片段所属**学科**，只写一个词（如 英语/数学/语文/
  *  知识点反链的追加插槽（KnowledgeLink 路由出小节时才有值）；
  *  types=题型先验（首批检测顺带报出/题集既有记录并集；undefined=全量兜底）；
  *  step=逐段自推进的批次上下文（undefined 走旧的一次一块批语义，增量
- *  重转换沿用，此时 prompt 与改造前逐字节一致）。 */
+ *  重转换沿用，此时 prompt 与改造前逐字节一致）。
+ *  bank=目标**是题库/原文档**（Issue #131）：整卷转换与增量重转换都传
+ *  true，@@P opt 行改**逐题条件规则**（原文有现成题目→沿用原序与字母；
+ *  新造题→正确项写最前）并启用解析的 `〔opt:X〕` 标记协议；出题链
+ *  （加练/变式）不传，prompt 与改造前逐字节一致。 */
 export function buildPrompt(
     source: string,
     fillToChoice = false,
@@ -99,7 +103,8 @@ export function buildPrompt(
     knowRuleBlock = "",
     knowList = "",
     types?: QuestionType[],
-    step?: StepContext
+    step?: StepContext,
+    bank = false
 ): string {
     const specTypes = specTypesOf(types, fillToChoice, bigToSteps);
     // 填空转选择：一次对话内完成（不需要额外一轮 AI 调用）
@@ -124,7 +129,7 @@ ${step.first ? "第一批先判断这段内容是否适合出题（有可考查�
     return `${head}
 ${verdictOf(step)}
 
-${lead}按以下${protocolSpec(specTypes)}
+${lead}按以下${protocolSpec(specTypes, { bank })}
 硬性规则：
 ${typeRulesFor(specTypes)}
 2. 公式行内用 $...$，块级用 $$...$$ 各占一行；禁止使用 \\[ \\] 记法。

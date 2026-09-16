@@ -35,8 +35,8 @@ describe("materialRulesFor：英语题型约定与词条保真段", () => {
     });
 });
 
-describe("protocolSpec · 选项顺序变体（Issue #123）", () => {
-    it("默认：要求「正确项写最前」（转换/加练链现行口径）", () => {
+describe("protocolSpec · 选项顺序变体（Issue #123；Issue #131 加 bank 条件规则）", () => {
+    it("默认：要求「正确项写最前」（新造题口径）", () => {
         expect(protocolSpec([QuestionType.Single])).toContain("正确项写在最前");
     });
 
@@ -46,15 +46,60 @@ describe("protocolSpec · 选项顺序变体（Issue #123）", () => {
         expect(s).not.toContain("正确项写在最前");
     });
 
-    it("变体只换 @@P opt 那一行，其余段落逐字不变（含 undefined 全量兜底）", () => {
+    it("bank（Issue #131）：逐题条件规则——原文有现成选项走原序、新造题走重排", () => {
+        const s = protocolSpec([QuestionType.Single], { bank: true });
+        expect(s).toContain("原题顺序与字母");
+        expect(s).toContain("正确项写在最前");
+        expect(s).toContain("逐题判断");
+    });
+
+    it("bank 优先于 order（两支语义已在条件规则里）", () => {
+        const s = protocolSpec([QuestionType.Single], { order: "keep", bank: true });
+        expect(s).toContain("逐题判断");
+    });
+
+    it("变体只换「非变体差异」的行，其余段落逐字不变（含 undefined 全量兜底）", () => {
+        // ⚠️ 标记约定（sol 规则行）自 P1（20260915 审查）起**缺省恒在**，
+        // 不再是变体之间的差异——故剥除清单里只留「选项顺序」那几行的
+        // 差异行；sol 规则行两侧都该在、原样参与比对（漏了它说明缺省被
+        // 摘掉，正是这次要修的回归）。
         const strip = (s: string): string =>
             s
                 .split("\n")
-                .filter((l) => !l.includes("正确项写在最前") && !l.includes("原题顺序与字母"))
+                .filter(
+                    (l) => !l.includes("正确项写在最前") && !l.includes("原题顺序与字母") && !l.includes("逐题判断")
+                )
                 .join("\n");
         for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps, QuestionType.Multiple]]) {
             expect(strip(protocolSpec(types, { order: "keep" }))).toBe(strip(protocolSpec(types)));
+            expect(strip(protocolSpec(types, { bank: true }))).toBe(strip(protocolSpec(types)));
         }
+    });
+
+    it("解析标记约定**缺省恒在**（P1）：三个变体都带，唯一差别在 @@P opt 行", () => {
+        for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps]]) {
+            for (const opts of [undefined, { order: "keep" } as const, { bank: true } as const]) {
+                const s = protocolSpec(types, opts);
+                expect(s).toContain("〔opt:X〕");
+                expect(s).toContain("不得用裸字母指代选项");
+            }
+        }
+    });
+
+    it("加练/变式链（conceptPrompt/variantPrompt 的默认协议）也带标记约定——解析不残留裸字母", () => {
+        // GenQuestion 的加练与变式走默认 protocolSpec（无 opts），原先被
+        // withSolRule 的条件判定漏在链外：解析裸字母 + 写库不洗 + 展示只
+        // 重映射答案 ⇒ 一进卡字母就指错。缺省 true 后这条链一并覆盖。
+        const s = protocolSpec([QuestionType.Single, QuestionType.Judge]);
+        expect(s).toContain("选项引用约定");
+        expect(s).toContain("〔opt:X〕");
+        expect(s).toContain("正确项写在最前"); // 新造题仍走重排口径（与 sol 规则互不干扰）
+    });
+
+    it("solRule: false 是唯一摘除口（当前无调用方）", () => {
+        const s = protocolSpec([QuestionType.Single], { solRule: false });
+        expect(s).not.toContain("〔opt:X〕");
+        expect(s).toContain("正确项写在最前");
     });
 });
 

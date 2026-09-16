@@ -208,10 +208,19 @@ describe("prompt：regen 走「选项沿用原题顺序与字母」变体", () =
         const def = protocolSpec([QuestionType.Single]);
         const keep = protocolSpec([QuestionType.Single], { order: "keep" });
         expect(keep).not.toBe(def);
+        // 剔除「按变体改动的那些行」：@@P opt 约定 + @@P sol 的 〔opt:X〕
+        // 标记约定（Issue #131 随 order/bank 一并生效）——其余行必须逐字
+        // 相同。
         const strip = (s: string): string =>
             s
                 .split("\n")
-                .filter((l) => !l.includes("正确项写在最前") && !l.includes("原题顺序与字母"))
+                .filter(
+                    (l) =>
+                        !l.includes("正确项写在最前") &&
+                        !l.includes("原题顺序与字母") &&
+                        !l.includes("逐题判断") &&
+                        !l.includes("〔opt:X〕")
+                )
                 .join("\n");
         expect(strip(keep)).toBe(strip(def));
     });

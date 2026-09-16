@@ -271,3 +271,84 @@
       项写最前」协议的含义）。重生成链已改 keep 序（选项按原题顺序），此时
       映射恒等、改写零动作；**keep 序下解析仍写旧字母属语义错误，位置映射救
       不了**，由 `bank/gen/RegenVerify` 的核查 + AI 自检兜底（见 bank 域）。
+
+- **20260915 大转向：库=死形态，洗牌挪去展示层**（Issue #131，与 #123 同根
+  的第二/第三期）。#123 只给 regen 链接了核查（`reseatAnswer`），**转换链
+  仍在跑「正确项写最前 ＋ AI 抄原题字母」的自杀组合**：真机重转 220 条
+  draft 里 32 条答案字母已错（14.5%），落盘洗牌把错位忠实传播进库。定案
+  「库是死的、洗牌是函数、解析无选项字母」，四块咬合：
+    - **keep 序逐题条件规则**（`ai/prompts/protocol.ts` 的 `OPT_LINE_BY_BANK`）：
+      `protocolSpec(types, { bank: true })` 要求 AI **逐题判断**——原文这道题
+      本来就有现成选项 → 按原题顺序与字母原样给出；原文没有（讲义/笔记新造
+      题）→ 正确项写最前。整卷转换（`ConvertBatch` 的 makeCall）与增量重
+      转换（`ConvertIncrement`）都传 `bank=true`；出题/加练/变式链不传
+      （默认变体逐字节不变，prompt 测试锁着）。`order:"keep"`（regen 专用）
+      与 `bank` 并存时 `bank` 优先。
+    - **写库洗牌全部撤除**：`ConvertSegment`/`ConvertIncrement`/`GenQuestion`/
+      `RegenDialog` 四处 `shuffleDraftOptions` 调用点全删——bank 与题源文档
+      统一为**死形态**（选项按原文顺序、答案字母指向原文位置）。附带收益：
+      落库 kramdown 确定性（重转换 hash 稳定，不再每次随机洗一遍）。
+      ⚠️ `draft/OptionShuffle.ts` **实现与单测保留**（存量数据仍在用），
+      死形态下若在生成链上恢复调用 = 把死形态又洗乱，别再接线。
+    - **解析选项引用标记协议**（`draft/OptionRefReplace.ts`）：凡指代选项
+      一律写 `〔opt:X〕`（全角方括号，与「〔插图:…〕」同款、与 IAL `{:` 无
+      碰撞），**不得用裸字母指代选项**；非指代的大写字母（Plan A、维生素 A）
+      照常书写。落库前把标记换成选项文本（「」包裹）。X 非法（**该组**选项
+      数内）→ 降级裸字母（丢标记不丢信息）；数学环境内的标记**照常替换**
+      （标记即显式意图，与 gloss 域 `^{}` 的取舍相反）。
+      ⚠️ **三个接线点，不是「唯一落库出口」**（20260915 审查 P1 修正）：
+        1. `SetWriter.append`（转换 / 增量两条链）；
+        2. `bank/ui/RegenDialog.runRegen`（**直写 `replaceRecordKramdown`，
+           不经 SetWriter**）——原稿断言「唯一落库出口」对 regen 不成立，
+           漏接线的后果是 keep 序 prompt 要求的裸标记**原样写进题库并显示
+           在题卡上**。落点在 `reseatAnswer` 之后、`verifyPrompt`/`renderUnit`
+           之前（自检看到的必须就是落盘形态）。
+        3. `bank/gen/GenQuestion.genWithVerify`（加练/变式链，产物经
+           `addGenerated` **直写题库**）——**第二个被「唯一出口」漏掉的链**。
+           P1-2 把标记约定改成缺省恒在后这条链也开始要求 AI 写标记，而它当年的
+           两道格式处理（拆行 + 替换）是随 `shuffleDraftOptions` 一起被撤掉的
+           ⇒ 裸标记与挤行选项**双双原样落库**（真机后果：题卡解析显示
+           `〔opt:A〕`、挤行题只剩一个选项）。现按 SetWriter 同款两步接线：
+           ① `unpackPackedOptions`（拆行、不碰答案字母）→ ② `replaceDraftOptionRefs`。
+           `GenQuestion.test.ts` 三例锁住（标记不落库 / 自检入参=落库形态 /
+           挤行字母不动）。
+           ⚠️ **regen 链同样漏了拆行**（同次补齐）：`RegenDialog.test.ts` 新增
+           一例锁住——`shuffleDraftOptions` 撤除带走的是**两道**处理，只补标记
+           替换仍会让挤行回复落库成「只剩一个选项」。
+           **判据：凡是「AI 产物直接落库」的链（不经 SetWriter 的），标记替换
+           与挤行拆行都要各自接线** —— 加新链时照 regen 与 gen 这两处自己接，
+           别指望 SetWriter 兜。
+           ⚠️ **标记约定缺省恒在**（同次审查 P1）：它曾随 `order`/`bank` 条件生效，
+           把 `GenQuestion` 的 conceptPrompt/variantPrompt（加练/变式，走**默认
+           协议**）漏在链外——那些链解析写裸字母、写库又不洗 ⇒ 一进卡就指错，
+           正是本单要杀的 bug 类。现 `withSolRule = opts?.solRule !== false`，
+           `solRule: false` 只作逃生口（无调用方）。protocol 测试锁三个变体都带。
+           ⚠️ **字母表按部件分组**（同次审查 P1）：`option*`（顶层）与
+           `step-k-option*`（第 k 步）是**各自从 A 起**的独立字母表。拍平进同一
+           张表时，两步各 3 选项的题里 step-2 解析的 `〔opt:A〕` 会换成 **step-1**
+           的选项文本（静默错内容）。`ctxGroupOf` 按部件名定组（顶层
+           `solution`/`stem` → 顶层组；`step-k-*` → 第 k 步组），与
+           `CardDisplayShuffle` 的逐步独立洗牌同源，两处一起看。
+           ⚠️ 契约现实：`resolvePart` 只认 `step-N-(stem|option|answer)`，
+           `@@P step-1-solution` 会解析成空名被丢 ⇒ **逐步解析当前不入协议**
+           （整题解析统一写 `@@P sol` = 顶层组）；上面的 `step-k-*` 分支是前瞻
+           实现，测试里有一条断言锁住这个现实。
+    - **挤行拆行接出**（`draft/OptionUnpack.ts`）：旧 `unpackPackedSingle`
+      是「格式规范 + 把答案改成 A」的合体，后者建立在「正确项在最前」假设
+      上——死形态下字母指向原文，改答案就是凭空判错。新函数**只拆行、不碰
+      答案字母**，接线与标记替换同点：`SetWriter.append` 与
+      `GenQuestion.genWithVerify`（两处都是纯函数、都不改调用方手里的 draft）。
+      ⚠️ 挤行拆行**也不是 SetWriter 独有**：出题链同样直写题库，原先由
+      `shuffleDraftOptions` 顺带做的拆行随之一并撤掉，漏接即「挤行题只剩一个
+      选项」落库。
+    - ⚠️ **展示层洗牌换的是副本对象**（`quiz/render/CardDisplayShuffle.ts`
+      在 QuizShell 里 `buildDrillUnits` **之前**跑）：凡按 `indexOf(q)` /
+      身份比对做「题在整卷里的下标」的地方**必然落空**——本次顺修三处
+      （`FlowDom.markNum`、`AnswerFlow.skipQuestion`、`markNumAnswered`）
+      改为 `qIndexById(host, q.id)`。以后加任何「卡 → 卷内下标」的反查，
+      一律走 id，别用对象身份。
+    - ⚠️ **展示层排列按 (会话 id, 题 id) 定种子**（20260915 评审，与 quiz 域
+      同一条）：会话/题库只记字母、排列只在卡里，重渲染重掷会把恢复的字母
+      指到别的选项上；恒等排列要重掷（「像没洗」）。**答案侧必须升序**——
+      `gradeQuestion` 对纯字母答案是整串比较、用户点选恒升序，答案不排序则
+      多选题「点对也判错」。两条口径的由来与单测位置见 quiz 域同名条目。

@@ -132,3 +132,23 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       多项不剥、li 内多块不剥，共 4 例）。
 
 （以上三节自 AGENTS.md 移动端小节移入，20260915 拆分；原提交 466817b。）
+
+- **移动端必须做展示层选项洗牌**（Issue #131 P1，20260915 审查定案）：
+  `MobileDrill.start()`（含 `continue` 恢复分支）与 `retryWrong()` 都对
+  **list 副本**跑 `shuffleListForDisplay`（`quiz/render/CardDisplayShuffle`
+  复用，不在本域另写一份）。原稿写「移动端不在本规范范围、不洗即显示死形态
+  与预览同口径」——**已作废**：移动端里没有「预览」这个面，用户看到的全是
+  「做题」，而新造题按协议「正确项写最前」⇒ 死形态下正确项恒为首位＝剧透。
+  洗的是新副本（`ui.fullList` 原件不动），`ui.list` 与 `ui.cards` 仍同下标、
+  记账与 `scopeIds` 全按 id 走。
+  ⚠️ **单测拆片（Issue #131 收口，#135 行数门禁）**：本域用例原全在
+  `MobileDrill.test.ts`——加洗牌用例后涨到 588 行、越过该文件 520 行的豁免
+  额度。现拆三片：装配件（judgeGate/AiJudge 闸、假 bank/history、`q`/`make`/
+  `buildDeps`/`armed`）收口 `MobileDrillHarness.ts`，洗牌用例另立
+  `MobileDrillShuffle.test.ts`，主片只留编排用例 → 409 行。**豁免表里
+  `MobileDrill.test.ts` 那条已删**（回落到默认 500 红线）；后来者往任一
+  片加用例，超线照旧拆片，别改回豁免。
+  ⚠️ **连带口径**：`drill.ui.list` 里的题对象不再与 `ui.fullList` 同一个身份
+  ——凡按 `indexOf(q)` 做「题在卷内下标」的反查都会落空（同桌面
+  `qIndexById` 那笔）。本域目前按**下标**（`ui.qIdx`）横向移动，不受影响；
+  将来加按对象反查的入口，一律改用 id。

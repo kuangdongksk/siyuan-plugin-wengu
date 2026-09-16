@@ -5,6 +5,8 @@ import { parseQuestionKramdown, questionHash } from "../../../bank/data/BankPars
 import { aiTitle } from "../../../ui/shared";
 import { tKey } from "../../../ui/Notify";
 import { renderUnit } from "../draft/QuestionDraft";
+import { replaceDraftOptionRefs } from "../draft/OptionRefReplace";
+import { unpackPackedOptions } from "../draft/OptionUnpack";
 import type { DraftUnit } from "../draft/QuestionDraft";
 import type { WenguMaterial, WenguQuestion } from "../../../types";
 
@@ -102,7 +104,25 @@ export class SetWriter {
             this.lastMaterialId = seed;
         }
         const out: AppendOut = { qids: [], units: [], questions: [], materials: [] };
-        for (const { draft, srcKey, srcHash } of units) {
+        // 解析选项引用标记替换（Issue #131）：落库前的**最后一道**处理
+        // （reseat 校正在上游做完）——把 `〔opt:X〕` 换成选项文本，解析
+        // 因此不含任何选项字母。
+        // ⚠️ **本处只是三个接线点之一，不是「唯一落库出口」**（20260915
+        // 审查 P1 修正）：regen（`RegenDialog.runRegen` → 直写
+        // `replaceRecordKramdown`）与出题链（`GenQuestion.genWithVerify`
+        // → `addGenerated`）都**不经本函数**，各自接线。加新的「AI 产物
+        // 直接落库」链时照着那两处自己接。
+        // 替换走纯函数返回新 draft，不改调用方手里的对象（渐进呈现视图、
+        // AI 会话面板可能仍在读它）。
+        const list = units.map((u) => ({
+            ...u,
+            // ① 挤行选项拆行（纯格式规范，不动答案字母——死形态下字母指向
+            //    原文位置，见 OptionUnpack）→ ② 解析选项引用标记替换
+            //    （`〔opt:X〕` → 选项文本）。两步都是纯函数、都不改调用方
+            //    手里的 draft。
+            draft: replaceDraftOptionRefs(unpackPackedOptions(u.draft)),
+        }));
+        for (const { draft, srcKey, srcHash } of list) {
             if (draft.material) {
                 const body = draft.parts
                     .filter((p) => p.name === "body")
