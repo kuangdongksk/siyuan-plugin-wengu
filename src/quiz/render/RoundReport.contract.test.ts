@@ -4,11 +4,12 @@ import type { WenguSession } from "../service/HistoryStore";
 import ROUND_REPORT from "./RoundReport.ts?raw";
 import QUIZ_INDEX from "../index.ts?raw";
 import TIMER_BINDER from "../service/TimerBinder.ts?raw";
+import MOBILE_DRILL from "../../mobile/core/MobileDrill.ts?raw";
 import ZH from "../../i18n/zh-CN.json";
 import EN from "../../i18n/en.json";
 
 /**
- * 空轮收卷闸（Issue #147）的**唯一性**契约。
+ * 空轮收卷闸（Issue #147）与**静默关轮**（Issue #155 块 A）的**唯一性**契约。
  *
  * 收卷入口有两个（头部「结束本次」`endRound` / 倒计时归零时间条「结束本轮」
  * `finishNow`），原实现各写一份判定、`finishNow` 那份**漏写** —— 开倒计时的
@@ -17,6 +18,10 @@ import EN from "../../i18n/en.json";
  *
  * 闸已收口到 `RoundReport.finishRoundGuarded`，但「收口」本身是**易漂移的
  * 约定**：加第三个收卷入口、或某路绕过守卫直调实现体，功能照旧静默回退。
+ * **#155 块 A 反转语义**：用户走查原话「我可以就进来然后关掉」——空轮点
+ * 「结束本次」被 #147 的通知挡住是**错的**，改为**静默关轮**（不落库、不出
+ * 报告、清会话态回可开新轮），故 #147 的「不收卷 + 通知」两条断言全部反转。
+ *
  * CI 无 jsdom（`vitest.config` environment=node），故行为断言落在纯判定
  * `emptyRound` 上，链路与唯一性用**源级断言**锁死（同 `ClueMarkDom.test.ts`
  * / `SubheadHtml.test.ts` 口径；`?raw` 而非 `node:fs`——本仓无 @types/node）。
@@ -35,7 +40,7 @@ const session = (answered: number): WenguSession => ({
     results: [],
 });
 
-describe("空轮判定（Issue #147）", () => {
+describe("空轮判定（Issue #147 / #155 块 A）", () => {
     it("answered=0 ⇒ 空轮（两条收卷路都拦）", () => {
         expect(emptyRound(session(0))).toBe(true);
     });
@@ -47,6 +52,59 @@ describe("空轮判定（Issue #147）", () => {
 
     it("无会话 ⇒ 不算空轮（不在收卷路径上拦「未开轮」，交实现体早退）", () => {
         expect(emptyRound(undefined)).toBe(false);
+    });
+
+    it("「不会」（记 ok=false 的作答）算已作答，不属空轮", () => {
+        // answered 在记账时已 +1（AnswerFlow.recordAnswer），故只需断言
+        // 判定只看 answered、不看 correct：「全错」也不是空轮
+        expect(emptyRound(session(1))).toBe(false);
+        expect(emptyRound({ ...session(3), correct: 0 })).toBe(false);
+    });
+});
+
+describe("空轮静默关轮（Issue #155 块 A）· 源级", () => {
+    it("空轮分支不再通知、改成关轮（#147 的 notifyInfo 必须已摘）", () => {
+        expect(ROUND_REPORT).not.toMatch(/notifyInfo\(\{ key: "endRoundEmpty" \}\)/);
+        expect(ROUND_REPORT).not.toContain("notifyInfo");
+        expect(ROUND_REPORT).toMatch(/emptyRound\(ctx\.session\)[\s\S]*?closeEmptyRound\(ctx\);\s*return;/);
+    });
+
+    it("空轮执行体 `closeEmptyRound` 全仓只有 1 个调用方 —— 收卷守卫体内", () => {
+        expect(count(ROUND_REPORT, "closeEmptyRound(")).toBe(2); // 定义 1 + 调用 1
+        // 关轮三件：不落库清会话 → 停表（started=false） → 收态重画头部
+        const body = /export function closeEmptyRound[\s\S]*?\n}/.exec(ROUND_REPORT)?.[0] ?? "";
+        expect(body).not.toBe("");
+        expect(body).toContain("ctx.discardSession()");
+        expect(body).toContain("ctx.stopRound()");
+        expect(body).toContain("exitSummaryView(ctx.el)");
+        expect(body).toContain("onSummaryToggle?.()");
+        // ⚠️ stopRound 只翻 started、**不重画**：不补这一次重画，用户看到的
+        // 是「一题没答 + 题卡锁死」的原状（既没回开刷面板、钮也不消失）
+        expect(body).toContain("ctx.rerenderView()");
+        // 开轮即 upsert 的 0 作答记录必须真删掉（只清内存 ⇒ 统计总览多一轮）
+        expect(body).toContain("ctx.history?.removeSession(dropped)");
+        expect(body).toContain("const dropped = ctx.session?.id;");
+        expect(ROUND_REPORT).toMatch(/rerenderView: \(\) => view\.rerenderView\(\)/);
+        // 不许借道「收卷」那两条落库路（finishSession 会 upsert、showRoundReportNow
+        // 会出报告）——空轮的核心承诺就是 history 里不留该轮、界面无报告
+        expect(body).not.toContain("finishSession");
+        expect(body).not.toContain("showRoundReportNow");
+        expect(body).not.toContain("manualFinishRound");
+    });
+
+    it("视图侧 discardSessionNow 不落库不进 finished（唯一实现点）", () => {
+        // 访问器区一行式（与 finishNow 同风格）；**不 upsert、不置 finished**
+        expect(QUIZ_INDEX).toMatch(/discardSessionNow = \(\): void => void \(this\.session = undefined\)/);
+        // 唯一的「空轮清会话」落点：别的入口沿 finishSession（收卷/切卷要落库）
+        expect(count(QUIZ_INDEX, "this.session = undefined")).toBe(2); // finishSession + discardSessionNow
+        // ctx 组装把视图能力递进编排层（RoundFinishCtx.discardSession）
+        expect(ROUND_REPORT).toMatch(/discardSession: \(\) => view\.discardSessionNow\(\)/);
+        // 落库删除能力同样只经 ctx 组装递进来（视图侧 historyStore 即满足）
+        expect(ROUND_REPORT).toMatch(/history: view\.historyStore\?\.\(\),/);
+    });
+
+    it("两路收卷入口仍共用同一守卫（#147 的唯一性不许破）", () => {
+        expect(count(QUIZ_INDEX, "finishRoundGuarded(roundFinishCtx(this))")).toBe(2);
     });
 });
 
@@ -78,8 +136,14 @@ describe("闸下沉收口为唯一出口（Issue #147 · 源码级）", () => {
         expect(QUIZ_INDEX).not.toMatch(/answered\s*<=\s*0/);
     });
 
-    it("空轮通知仍是既有 i18n 键 endRoundEmpty（本单不加新键）", () => {
-        expect(ROUND_REPORT).toMatch(/notifyInfo\(\{ key: "endRoundEmpty" \}\)/);
+    it("endRoundEmpty 键保留：桌面侧已无引用，但移动端仍取它（#154 死键口径）", () => {
+        // 桌面：空轮改静默关轮 ⇒ 这条不再弹（#155 块 A）
+        expect(ROUND_REPORT).not.toContain("endRoundEmpty");
+        expect(QUIZ_INDEX).not.toContain("endRoundEmpty");
+        // ⚠️ **不许删键**：移动端 `MobileDrill.requestEnd` 仍走它（本单战区外）。
+        // 删了取词回落 `i18n[k] || k` ⇒ 真机弹裸键名「endRoundEmpty」。
+        // 删键的前置条件是「全仓零引用」，届时两语言同删（design-spec §8.4）。
+        expect(MOBILE_DRILL).toContain('notifyInfo({ key: "endRoundEmpty" })');
         expect(Object.keys(ZH as Record<string, string>)).toContain("endRoundEmpty");
         expect(Object.keys(EN as Record<string, string>)).toContain("endRoundEmpty");
     });

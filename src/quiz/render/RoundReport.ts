@@ -11,7 +11,6 @@ import type { WeakCause, WeakTopRow, WeaknessStore } from "../../bank/data/Weakn
 import { openWeakDrill } from "../../bank/ui/WeakDrill";
 import { roundAggByQid } from "../../bank/data/WeaknessStore";
 import { mountSvelteApp, type MountedSvelteApp } from "../../ui/mountApp";
-import { notifyInfo } from "../../ui/Notify";
 import RoundReportApp from "../components/RoundReportApp.svelte";
 
 /**
@@ -59,6 +58,11 @@ export function showTimeUpChoice(
     });
 }
 
+/** 抹掉某一轮（空轮关轮用；实现见 `service/HistoryStore.removeSession`）。 */
+export interface RoundHistoryDrop {
+    removeSession(id: string): Promise<void>;
+}
+
 /** 收卷/报告编排所需的视图能力（QuizView 提供薄实现）。 */
 export interface RoundFinishCtx {
     el: HTMLElement;
@@ -79,6 +83,14 @@ export interface RoundFinishCtx {
     refreshCollections?(): void;
     /** 收卷：落库、置 finished、清 session（视图实现）。 */
     finishSession(): void;
+    /** 空轮静默关闭：清 session、不落库、不进 finished（视图实现）。 */
+    discardSession(): void;
+    /** 历史落库（可选）：空轮要**抹掉开轮时已 upsert 的那条 0 作答记录**
+     *  （`StartPanel.startRound` 一开轮就落盘），否则「这轮没发生过」不成立
+     *  ——统计总览的轮次数/趋势图会把每次「打开就关」都算成一轮。 */
+    history?: RoundHistoryDrop;
+    /** 重画主区（空轮关轮后回**开刷面板**态；收卷各态都不需要，见下注）。 */
+    rerenderView(): void;
     /** after 模式手动收卷时揭示已答部分。 */
     revealAnswered(): void;
     /** 停走秒并刷新头部标签。 */
@@ -340,7 +352,8 @@ async function settleWeakness(
     }
 }
 
-/** 空轮不收卷（收卷**唯一**判定，见 {@link finishRoundGuarded}）：已回答数。 */
+/** 空轮（收卷**唯一**判定，见 {@link finishRoundGuarded}）：已回答数。
+ *  「不会」也算作答（`answered` 已在记账时 +1），故不属空轮。 */
 export function emptyRound(s: WenguSession | undefined): boolean {
     return !!s && s.answered <= 0;
 }
@@ -354,14 +367,55 @@ export function emptyRound(s: WenguSession | undefined): boolean {
  *  新增收卷入口前先读这条（`RoundReport.contract.test` 锁死本函数是
  *  全仓唯一定义点、且两路都走它）。
  *
+ *  ⚠️ **空轮不拦、改静默关闭**（Issue #155 块 A，用户走查原话「我可以就
+ *  进来然后关掉」）：#147 的「通知 + 不收卷」把「打开题卷不想做、直接
+ *  关掉本轮」这条正常意图挡住了。故空轮改为**关轮**——不落库（history
+ *  不 upsert，用户视角=这轮没发生过）、不出报告、清会话态回可开新轮，
+ *  两路收卷入口共用本出口故各自不必再处理（见 {@link closeEmptyRound}）。
+ *
  *  非空轮无副作用——「答满自动收卷」`roundComplete` 是另一条链（answered
  *  必然 >0），故不并入本闸。 */
 export function finishRoundGuarded(ctx: RoundFinishCtx): void {
     if (emptyRound(ctx.session)) {
-        notifyInfo({ key: "endRoundEmpty" });
+        closeEmptyRound(ctx);
         return;
     }
     manualFinishRound(ctx);
+}
+
+/** 空轮静默关轮（Issue #155 块 A）：**唯一的空轮执行体**，只被收卷出口
+ *  {@link finishRoundGuarded} 调用（源级闸见 RoundReport.contract.test）。
+ *
+ *  四步，顺序有讲究：
+ *  1. 抹记录 + `discardSession()`——先把**开轮时已落盘的那条 0 作答记录**经
+ *     `history.removeSession` 删掉，再清 session、不进 finished。落库两条路
+ *     （`persist`/`finishSession`）都会 upsert，故不能拿它们当「清 session」用；
+ *     而只清内存又删不掉已落盘的那条（`StartPanel.startRound` 一开轮就 upsert，
+ *     那是「未完成轮可继续」的依托），两条都要做；
+ *  2. `stopRound()`——停表 + `flushTime` + 头部标签刷新（计时停），并置
+ *     `started = false`；
+ *  3. 退态——退总结态 + 卸报告（上一轮的空轮后再开轮若残留报告卡，
+ *     不卸就会压在题卷上方）；
+ *  4. `rerenderView()` + 通知挂载方——**回开刷面板态**的关键一步（题卷
+ *     壳是整壳重建的，光翻 `started` 不重建壳，用户看到的还是原状）。
+ *     ⚠️ 漏第 4 步，头部「结束本次」也会停在已出报告态的语义上。 */
+export function closeEmptyRound(ctx: RoundFinishCtx): void {
+    const dropped = ctx.session?.id;
+    ctx.discardSession(); // 清 session、不进 finished
+    // ⚠️ 光清内存不够：开轮（`StartPanel.startRound`）就把会话 upsert 落盘了
+    // （那条 upsert 是「未完成轮可继续」的依托），空轮必须把它**删掉**才算
+    // 「history 里不留该轮」——漏这步统计总览的轮次数与趋势图各多一轮。
+    if (dropped) void ctx.history?.removeSession(dropped);
+    ctx.stopRound(); // 停表 + started=false
+    exitSummaryView(ctx.el); // 弹层/报告态一并收掉（无残留则空操作）
+    detachRoundReport();
+    /* ⚠️ `stopRound` 只翻状态、**不重画**：题卷壳是整壳重建的（renderListFor），
+       不补这一次重画，用户看到的就是「一题没答 + 题卡全锁死」的原状——
+       既没回开刷面板（`started=false` 的渲染分支要重建壳才生效），头部交卷钮
+       也不会随态消失。收卷那条路不需要它是因为 enterSummaryView 已把主区
+       切成总结独占（题卷被 CSS 收起），空轮没有报告可顶。 */
+    ctx.rerenderView();
+    onSummaryToggle?.(); // 头部随态重画（回「开刷前」语义）
 }
 
 /** 手动收卷（倒计时归零选「结束本轮」）：after 模式先揭示已答，再报告。 */
@@ -387,6 +441,10 @@ export interface RoundFinishView {
     bankStore(): QuestionBank | undefined;
     refreshCollections(): void;
     finishSession(): void;
+    discardSessionNow(): void;
+    /** 历史落库（QuizView 既有 `historyStore` 访问器即满足结构匹配）。 */
+    historyStore?(): RoundHistoryDrop | undefined;
+    rerenderView(): void;
     revealAnsweredNow(): void;
     stopRoundNow(): void;
     lockAllCardsNow(): void;
@@ -408,6 +466,9 @@ export function roundFinishCtx(view: RoundFinishView): RoundFinishCtx {
         bank: view.bankStore(),
         refreshCollections: () => view.refreshCollections(),
         finishSession: () => view.finishSession(),
+        discardSession: () => view.discardSessionNow(),
+        history: view.historyStore?.(),
+        rerenderView: () => view.rerenderView(),
         revealAnswered: () => view.revealAnsweredNow(),
         stopRound: () => view.stopRoundNow(),
         lockAllCards: () => view.lockAllCardsNow(),

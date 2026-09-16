@@ -957,5 +957,6 @@
   "colMore": "更多",
   "reportBackToQuiz": "返回题卷",
   "reportShowSummary": "查看总结",
-  "collectionsBtnHint": "专题管理：按知识点收集题目 / 删除专题"
+  "collectionsBtnHint": "专题管理：按知识点收集题目 / 删除专题",
+  "reportGroupTime": "第 {n}–{m} 题 · 已答 {x}/{y} · 总用时 {t}"
 }

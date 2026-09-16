@@ -6,6 +6,7 @@
     import { byBaseQid, buildAnalysisPrompt } from "../../ai/prompts/judge";
     import { weakCauseLabelKey } from "../../bank/data/WeaknessStore";
     import type { WeakTopRow } from "../../bank/data/WeaknessStore";
+    import { buildTimeBars, type TimeBarInput } from "../render/TimeBars";
     import type { RoundReportModel } from "../render/RoundReport";
 
     /**
@@ -34,31 +35,42 @@
     // svelte-ignore state_referenced_locally
     const { t, session: s, list, rounds } = model;
     const byQid = byBaseQid(s);
-    const maxSec = Math.max(1, ...list.map((q) => byQid.get(q.id)?.sec ?? 0));
-    // 每题用时条形图：高度 ∝ 秒数，对错描色，未答灰（多步题按整题聚合）
-    const timeBars = list.map((q, i) => {
+    /** 展开的组（下标集；逐题档恒为空——没有可折叠的明细）。 */
+    let expanded = $state(new Set<number>());
+
+    function toggleGroup(i: number): void {
+        const next = new Set(expanded);
+        if (next.has(i)) next.delete(i);
+        else next.add(i);
+        expanded = next;
+    }
+
+    // 每题用时条形图（Issue #155 块 B）：卷长 ≤60 逐题、>60 按 n 题一组
+    // 聚合（组数 ≤ ~50）——243 题原来渲染 243 根柱，宽压到几像素不可读。
+    // 组装是纯函数（render/TimeBars，带单测），本组件只做两件事：
+    // 取状态喂进去 + 把 i18n 文案格式化器递下去。
+    const barInputs: TimeBarInput[] = list.map((q, i) => {
         const r = byQid.get(q.id);
-        const sec = r?.sec ?? 0;
-        // partial（brief 方向对但有缺口）单独描黄，区别于全错
-        const state = !r
-            ? t("reportUnanswered")
-            : r.verdict === "partial"
-              ? t("verdictPartial")
-              : r.ok
-                ? t("correct")
-                : t("wrong");
         return {
-            h: Math.max(4, Math.round((sec / maxSec) * 100)),
-            cls: !r
-                ? "wengu-bar-muted"
-                : r.verdict === "partial"
-                  ? "wengu-bar-partial"
-                  : r.ok
-                    ? "wengu-bar-right"
-                    : "wengu-bar-wrong",
-            title: fmt(t("reportQTime"), { n: String(i + 1), t: mmss(sec) }) + ` · ${state}`,
             label: i + 1,
+            sec: r?.sec ?? 0,
+            unanswered: !r,
+            wrong: !!r && !r.ok && r.verdict !== "partial",
+            partial: r?.verdict === "partial",
         };
+    });
+    const stateText = (x: TimeBarInput): string =>
+        x.unanswered ? t("reportUnanswered") : x.partial ? t("verdictPartial") : x.wrong ? t("wrong") : t("correct");
+    const timeBars = buildTimeBars(barInputs, {
+        fmtTitle: (x) => fmt(t("reportQTime"), { n: String(x.label), t: mmss(x.sec) }) + ` · ${stateText(x)}`,
+        fmtGroup: (g) =>
+            fmt(t("reportGroupTime"), {
+                n: String(g.from),
+                m: String(g.to),
+                x: String(g.answered),
+                y: String(g.total),
+                t: mmss(g.sec),
+            }),
     });
     // 历史轮次得分条形图：高度 ∝ 正确率
     const scoreBars = rounds.map((r, i) => ({
@@ -107,14 +119,49 @@
         </div>
         <div class="wengu-report-chart">
             <div class="wengu-report-label">{t("reportTimeChart")}</div>
+            <!-- 卷长 >60 时每列是一组（组数 ≤ ~50）：组柱可点/回车展开
+                 组内逐题明细（Issue #155 块 B 的「查看组内详情」）。列本身
+                 只用 button role + title（无障碍：可聚焦、Enter/Space 原生
+                 即触发 click），明细行复用既有的逐题 title 文案。 -->
             <div class="wengu-bars">
-                {#each timeBars as b}
-                    <div class="wengu-bar-col" title={b.title}>
-                        <div class="wengu-bar {b.cls}" style="height:{b.h}%"></div>
-                        <span class="wengu-bar-label">{b.label}</span>
-                    </div>
+                {#each timeBars as b, i (i)}
+                    {#if b.grouped}
+                        <div class="wengu-bar-col wengu-bar-col-group">
+                            <button
+                                type="button"
+                                class="wengu-bar-hit"
+                                data-bar-group
+                                aria-expanded={expanded.has(i)}
+                                title={b.title}
+                                onclick={() => toggleGroup(i)}
+                            >
+                                <div class="wengu-bar {b.cls}" style="height:{b.h}%"></div>
+                                <span class="wengu-bar-label">{b.label}</span>
+                            </button>
+                        </div>
+                    {:else}
+                        <div class="wengu-bar-col" title={b.title}>
+                            <div class="wengu-bar {b.cls}" style="height:{b.h}%"></div>
+                            <span class="wengu-bar-label">{b.label}</span>
+                        </div>
+                    {/if}
                 {/each}
             </div>
+            {#if expanded.size > 0}
+                <div class="wengu-bar-detail-list">
+                    {#each [...expanded].sort((a, b) => a - b) as gi (gi)}
+                        <div class="wengu-bar-detail" data-bar-detail>
+                            <div class="wengu-bar-detail-head">{timeBars[gi]?.title}</div>
+                            {#each timeBars[gi]?.items ?? [] as it (it.label)}
+                                <div class="wengu-bar-detail-row" title={it.title}>
+                                    <span class="wengu-bar-detail-dot {it.cls}"></span>
+                                    <span class="wengu-bar-detail-text">{it.title}</span>
+                                </div>
+                            {/each}
+                        </div>
+                    {/each}
+                </div>
+            {/if}
         </div>
         {#if rounds.length > 0}
             <div class="wengu-report-chart">
@@ -164,5 +211,49 @@
         display: flex;
         justify-content: flex-end;
         gap: 8px;
+    }
+
+    /* 组内逐题明细（Issue #155 块 B）：展开在条形图正下方，卡内两列
+       各自内滚（#96 高度链）——明细块自身不限高，长明细随报告一起滚。
+       色点沿用 .wengu-bar-* 的背景（那族在 scss/report.scss，TS 拼串
+       触达故不能搬进组件）。 */
+    .wengu-bar-detail-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 6px;
+    }
+
+    .wengu-bar-detail {
+        padding: 8px 10px;
+        border: 1px solid var(--b3-border-color);
+        border-radius: var(--b3-border-radius);
+        background: var(--b3-theme-background-light);
+    }
+
+    .wengu-bar-detail-head {
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: var(--b3-theme-on-surface-light);
+    }
+
+    .wengu-bar-detail-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .wengu-bar-detail-dot {
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+    }
+
+    .wengu-bar-detail-text {
+        flex: 1;
+        min-width: 0;
+        font-size: 12px;
     }
 </style>

@@ -180,6 +180,31 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+/* 聚合列（Issue #155 块 B）：柱体本身是**可聚焦按钮**，故清掉 UA 的
+   按钮外观与内衬——它的内容仍是「柱 + 标签」，与逐题列逐像素同形
+   （长卷与短卷的图观感一致）；点击/回车即展开组内明细。 */
+.wengu-bar-hit {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+/* 展开中的组柱加一道下沿强调（「这组是我点开的」），不改变柱高语义 */
+.wengu-bar-hit[aria-expanded="true"] .wengu-bar {
+  outline: 1px solid var(--b3-theme-primary);
+  outline-offset: 1px;
+}
+
 .wengu-report-ai {
   padding: 8px 12px;
   white-space: pre-wrap;
