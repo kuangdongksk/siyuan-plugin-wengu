@@ -313,9 +313,29 @@ export function estimateOptWidth(text: string): number {
     return w;
 }
 
+/** 前导字母标签：A. / A、 / A： / A) / A） / (A) / （A）…
+ *  半角与全角收尾括号都要收（Issue #163 验收 2 明确点了 `A）`）：题库里
+ *  「（A）甲」与「A）甲」是同一层标签的两种写法，只认半角会漏剥。 */
+const OPTION_LABEL_RE = /^\s*(?:\([A-Za-z]\)|（[A-Za-z]）|[A-Za-z]\s*[.、．:：)）])\s*/;
+
+/** 连续前导字母标签的剥层上限（Issue #163）。真实题库的政治五套题主流
+ *  形态是**双标签**（`- A. A. ①③`，实测双标签 2411 行 vs 单标签 1108 行），
+ *  而两侧展示层此前都只剥一层 ⇒ 桌面剩一个标签、移动端剩两个。上限取 3：
+ *  双标签一遍剥净，三层已是畸形样本的天花板；再往上就与「选项内容本身就是
+ *  字母串」（如 `A. B. 两本书名` 三连）界限模糊——封顶防过度剥层把真实
+ *  正文吃掉。只剥前导、不动行内标签，故不会碰到 `①③ A.` 这类正文。 */
+const OPTION_LABEL_MAX_DEPTH = 3;
+
 function stripOptionLabel(md: string): string {
-    // 单字母标签：A. / A、 / A： / (A) …；选项正文本就带这些标签，误伤率低
-    return md.replace(/^\s*(?:\([A-Za-z]\)|[A-Za-z]\s*[.、．:：)])\s*/, "");
+    // 单字母标签：A. / A、 / A： / (A) …；选项正文本就带这些标签，误伤率低。
+    // 连续出现时逐层剥（含「标签 + 全角空格」的形态），封顶 OPTION_LABEL_MAX_DEPTH。
+    let out = md;
+    for (let i = 0; i < OPTION_LABEL_MAX_DEPTH; i++) {
+        const next = out.replace(OPTION_LABEL_RE, "");
+        if (next === out) break;
+        out = next;
+    }
+    return out;
 }
 
 /** 选项字母表，按 option 顺序对应 A、B、C…。 */

@@ -2,6 +2,27 @@
 
 ## v0.1.1 unreleased
 
+- **修复：选项字母标签连续剥层，移动端展示口径对齐桌面**（20260916，quiz /
+  mobile / types 域，Issue #163）：题库 `optionMd` 普遍自带字母标签，而
+  `stripOptionLabel` 原先**只剥一层**——双标签形态（`- A. A. ①③`）在桌面
+  `optionRowHtml` 剩一层、移动端 `QuestionBody` 更少剥一层，列表标记与两层
+  标签全渲进正文，再叠加按钮自画的字母键，洗牌后键与标签互相错位（真机
+  `C D D xxxx`）。
+
+    - **剥层封顶 3**：`types.ts` 的 `stripOptionLabel` 改循环剥层，上限
+      `OPTION_LABEL_MAX_DEPTH = 3`。真实题库政治五套题主流形态是双标签
+      （实测双标签 2411 行 vs 单标签 1108 行），双标签一遍剥净；三层已是畸形
+      样本天花板，再往上就与「选项内容本身是字母串」界限模糊——**封顶防过度
+      剥层吃掉真实正文**。只剥前导、不动行内标签。
+    - **全角收尾括号也要收**：标签正则补 `A）` / `（A）` 两支——题库里
+      `（A）甲` 与 `A）甲` 是同一层标签的两种写法，只认半角会漏剥。
+    - **移动端补齐一层**：`mobile/components/QuestionBody.svelte` 的选项派生
+      改 `optionInline(optionDisplayMd(md))`，与桌面 `optionRowHtml` **同序**；
+      少剥一层即前述错位复现。
+    - **回归锁**：`quiz/service/optionCompact.test.ts` 扩连续剥层与全角标签
+      用例，`types.test.ts` 补标签剥离单测，并用**源级断言**真锁组件源码
+      （防止组件偷偷回退到只剥一层）。
+
 - **修复：移动端空轮交卷对齐桌面——静默关闭本轮**（20260916，mobile / i18n 域，
   Issue #158）：#155 只改了桌面 `finishRoundGuarded`（空轮从「拦截」改「静默关轮」），
   移动端 `MobileDrill.requestEnd` 另有**独立守卫**、仍停在 #147 的旧口径

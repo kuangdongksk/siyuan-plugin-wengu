@@ -151,6 +151,12 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       = `index` 本身。给闭合位加长度会把 `</li>` 留在正文里（剥壳整链失效）。
     - 单测在 `quiz/service/optionCompact.test.ts`（单项 ul/ol 剥、带属性标签剥、
       多项不剥、li 内多块不剥，共 4 例）。
+    - ⚠️ **选项正文剥层口径（Issue #163，20260916）**：移动端 `QuestionBody`
+      的选项正文必须 `optionInline(optionDisplayMd(md))`，与桌面 `optionRowHtml`
+      **同序**——少剥一层时 `- A. A. ①③` 的列表标记与两层字母标签全进正文，
+      叠加按钮自画字母键后洗牌错位（真机 `C D D xxxx`）。`stripOptionLabel`
+      连续剥层**封顶 3**（`OPTION_LABEL_MAX_DEPTH`）：政治五套题双标签形态
+      2411 行为主流，双标签一遍剥净，再高就与「正文本身是字母串」界限模糊。
 
 （以上三节自 AGENTS.md 移动端小节移入，20260915 拆分；原提交 466817b。）
 

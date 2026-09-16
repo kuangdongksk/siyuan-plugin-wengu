@@ -2,7 +2,7 @@
     import { svgIcon } from "../../ui/FormHtml";
     import { renderMdHtml } from "../../ui/MdRender";
     import { optionInline } from "../../quiz/service/ProtyleHost";
-    import { QuestionType, hasSteps } from "../../types";
+    import { optionDisplayMd, QuestionType, hasSteps } from "../../types";
     import type { WenguQuestion } from "../../types";
     import type { MobileCardState } from "../core/MobileDrill";
     import { answerKindOf, lettersOf, stemSummary } from "../core/MobileModel";
@@ -42,7 +42,12 @@
 
     const letters = $derived(lettersOf(q));
     const locked = $derived(ui.locked || ui.revealed);
-    const options = $derived((q.optionMd ?? []).map((md, i) => ({ letter: letters[i], ...optionInline(md) })));
+    // 与桌面 optionRowHtml 同序（Issue #163）：optionInline(optionDisplayMd(md))。
+    // 少剥一层会把 `- A. A. ①③` 的列表标记与两层字母标签全渲进正文，
+    // 再叠加按钮自画的字母键，洗牌后键/标签互相错位（真机 `C D D xxxx`）。
+    const options = $derived(
+        (q.optionMd ?? []).map((md, i) => ({ letter: letters[i], ...optionInline(optionDisplayMd(md)) }))
+    );
     const rightLetters = $derived((q.answer ?? "").toUpperCase());
     // 作答形态唯一判据（MobileModel.answerKindOf）：填空/简答/逐空各走自己的
     // 作答位——改造前按「有没有选项」就地派生，填空题落进空档没有任何作答位

@@ -99,11 +99,32 @@ describe("选项展示与可比文本", () => {
         expect(optionDisplayMd("B、乙")).toBe("乙");
         expect(optionDisplayMd("(C) 丙")).toBe("丙");
     });
+    it("optionDisplayMd：连续标签逐层剥净（Issue #163 双标签题）", () => {
+        // 政治五套题主流形态：列表标记 + 双标签
+        expect(optionDisplayMd("- A. A. ①③")).toBe("①③");
+        expect(optionDisplayMd("- B. B. ②③")).toBe("②③");
+        // 无列表标记的双标签、全角空格分隔、不同标签样式混用
+        expect(optionDisplayMd("A. A. 甲")).toBe("甲");
+        expect(optionDisplayMd("C、C、丙")).toBe("丙");
+        expect(optionDisplayMd("(D)（D）丁")).toBe("丁");
+        // 半角/全角收尾括号都要剥（Issue #163 验收 2 点名的 `A）` 形态）
+        expect(optionDisplayMd("A）甲")).toBe("甲");
+        expect(optionDisplayMd("- A. A）甲")).toBe("甲");
+        expect(optionDisplayMd("- A）A. 甲")).toBe("甲");
+        expect(optionDisplayMd("- A. A. A. A. 甲")).toBe("A. 甲"); // 封顶 3 层
+        // 单标签、无标签零回归；标签后是正文时只在标签层剥
+        expect(optionDisplayMd("- A. 甲")).toBe("甲");
+        expect(optionDisplayMd("纯文本")).toBe("纯文本");
+        expect(optionDisplayMd("A. 选择题说法")).toBe("选择题说法");
+    });
     it("optionComparable：展示文本再判分规整；小数选项不被当有序列表标记", () => {
         expect(optionComparable("- B. $e^2$")).toBe("E^2");
         expect(optionComparable("1.5")).toBe("1.5");
         expect(optionComparable("0.5")).toBe("0.5");
         expect(optionComparable("1. 选项一")).toBe("选项一");
+        // 双标签剥净后与纯文本内容判等（Issue #163 顺带收益）
+        expect(optionComparable("- A. A. ①③")).toBe("①③");
+        expect(optionComparable("A. A. ①③")).toBe(optionComparable("①③"));
     });
 });
 
