@@ -50,7 +50,9 @@
 ## 分支与协作（CNB + NPC）——动代码前先读
 
 双远端：`origin` = GitHub（历史存档），`cnb` = CNB（云原生构建，NPC 开发在这边跑）。
-CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
+CNB 仓库：<https://cnb.cool/bianchao777/sasa/siyuan-plugin-wengu>
+  （20260916 由 `sasa1107/open-source/si-yuan/` 转移至此；**提及路径跟随仓库
+  路径**，转移后旧路径提及永久失效、零流水线零报错）
 
 - **`dev` 是长期开发分支，`main` 只作稳定发布分支。拉分支、提 PR、合并，
   三处都必须是 `dev`。**
@@ -86,7 +88,8 @@ CNB 仓库：<https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu>
   所以 `quality-gate` 也配在 `$` 下与 NPC 事件共存。顶层另两个合法语义：分支 glob
   （按触发分支匹配）、角色名（与 `.cnb/settings.yml` 的 `npc.roles[].name` 逐字一致
   时才加载，与 `$` 合并、同名事件覆盖）。
-- **召唤青简必须写完整路径且顶格**：`@sasa1107/open-source/si-yuan/siyuan-plugin-wengu(青简)`。
+- **召唤青简必须写完整路径且顶格**：`@bianchao777/sasa/siyuan-plugin-wengu(青简)`
+  （20260916 仓库转移起；旧 `@sasa1107/...` 路径已死）。
   裸 `@青简` 不会触发任何流水线（20260910 实测），系统内置的才写 `@CodeBuddy`；
   提及**必须顶格**——放在引用块（行首 `> `）里的提及同样不触发（20260913 实测：
   #59 首召落在引用块，零流水线零报错；顶格重发 1 秒内触发）。
