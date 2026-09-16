@@ -23,9 +23,10 @@ import {
     skip,
     submit,
 } from "./MobileAnswering";
+import { endNowPicked, goConfirmEndPicked, requestEnd as requestEndGuard } from "./MobileEndGuard";
 import { answerKindOf } from "./MobileModel";
 import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
-import { closeEmptyRound, retryWrongRound } from "./MobileRound";
+import { retryWrongRound } from "./MobileRound";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
 
 /**
@@ -102,6 +103,9 @@ export interface MobileUi {
     drawer: boolean;
     /** 交卷确认弹层。 */
     confirmEnd: boolean;
+    /** 交卷确认弹层的第二态：「还有 N 题已选择未确认」（Issue #164）。
+     *  `null` = 未触发；两模式（即时/收卷）同口径。守卫在 `core/MobileEndGuard`。 */
+    endPickedN: number | null;
     /** 材料面板展开（组题）。 */
     matOpen: boolean;
     /** 本轮会话（收卷后仍保留快照供报告）。 */
@@ -125,6 +129,7 @@ export function initialMobileUi(): MobileUi {
         qIdx: 0,
         drawer: false,
         confirmEnd: false,
+        endPickedN: null,
         matOpen: false,
         elapsedSec: 0,
         fullList: [],
@@ -256,6 +261,7 @@ export class MobileDrill {
         this.ui.matOpen = false;
         this.ui.drawer = false;
         this.ui.confirmEnd = false;
+        this.ui.endPickedN = null;
         this.ui.screen = "drill";
         this.ui.elapsedSec = this.ui.session.elapsedSec;
         void this.deps.history?.upsert(this.ui.session);
@@ -329,28 +335,27 @@ export class MobileDrill {
 
     /* ── 收卷 / 报告 ── */
 
-    /** 收卷入口（即时模式恒可交；收卷模式给确认弹层）。
-     *  ⚠️ **空轮在这条独立守卫上静默关轮**（Issue #158，对齐桌面
-     *  `RoundReport.closeEmptyRound`）：移动端有**独立的收卷链**（不经桌面
-     *  `finishRoundGuarded`），原 `answered <= 0` 分支停在 #147 的旧拦截口径
-     *  （通知 `endRoundEmpty` + 不收卷）——用户「进来不想做、直接关掉」的意图
-     *  被挡，而用户原话「我可以就进来然后关掉」不分端。
-     *  空轮判据与桌面同款（`answered <= 0`；「不会」记 ok=false 且已计入
-     *  `answered`，故不属空轮）。⚠️ **两处判据是有意的重复**——本域拿不到桌面
-     *  `ctx`、无法共调 `emptyRound`，改一处必须同步另一处。 */
+    /** 收卷入口（即时模式恒可交；收卷模式给确认弹层；「已选未确认」给第二态
+     *  弹层）。守卫与判据收口在 `core/MobileEndGuard`（#158 空轮静默关轮 +
+     *  #164 已选未确认不静默丢弃），此处只做转发——移动端收卷入口**只有
+     *  这一个**，别在别处再写一份空轮/选择态判定。 */
     requestEnd(): void {
-        const s = this.ui.session;
-        if (!s) return;
-        if (s.answered <= 0) {
-            closeEmptyRound(this);
-            return;
-        }
-        if (this.ui.setup.reveal === "after") this.ui.confirmEnd = true;
-        else this.endRound();
+        requestEndGuard(this);
+    }
+
+    /** 「去确认」：收起弹层并定位到第一道「已选未确认」的题。 */
+    goConfirmEndPicked(): void {
+        goConfirmEndPicked(this);
+    }
+
+    /** 「按当前已选交卷」：把这批已选按既有提交链补记后收卷出报告。 */
+    endNowPicked(): Promise<void> {
+        return endNowPicked(this);
     }
 
     cancelEnd(): void {
         this.ui.confirmEnd = false;
+        this.ui.endPickedN = null;
     }
 
     /** 交卷：揭示全部已答（收卷模式）、结算会话、出报告。 */
@@ -358,6 +363,7 @@ export class MobileDrill {
         const s = this.ui.session;
         if (!s) return;
         this.ui.confirmEnd = false;
+        this.ui.endPickedN = null;
         // 收卷模式的已答记账此前只在会话里，交卷时才补题库镜像
         if (this.ui.setup.reveal === "after") this.flushBatchMirror();
         for (let i = 0; i < this.ui.list.length; i++) {
@@ -406,6 +412,7 @@ export class MobileDrill {
         this.ui.drawer = false;
         this.ui.matOpen = false;
         this.ui.confirmEnd = false;
+        this.ui.endPickedN = null;
         void this.selectSet(this.ui.home.activeSetId, { silent: true }).catch((): void => undefined);
     }
 

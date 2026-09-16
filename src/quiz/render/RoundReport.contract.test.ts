@@ -6,6 +6,9 @@ import QUIZ_INDEX from "../index.ts?raw";
 import TIMER_BINDER from "../service/TimerBinder.ts?raw";
 import MOBILE_DRILL from "../../mobile/core/MobileDrill.ts?raw";
 import MOBILE_ROUND from "../../mobile/core/MobileRound.ts?raw";
+import MOBILE_GUARD from "../../mobile/core/MobileEndGuard.ts?raw";
+import MOBILE_ANSWERING from "../../mobile/core/MobileAnswering.ts?raw";
+import DRILL_SCREEN from "../../mobile/components/DrillScreen.svelte?raw";
 import ZH from "../../i18n/zh-CN.json";
 import EN from "../../i18n/en.json";
 
@@ -29,6 +32,9 @@ import EN from "../../i18n/en.json";
  */
 
 const count = (hay: string, needle: string): number => hay.split(needle).length - 1;
+
+/** 剥注释后的源码（注释里复述写法/键名不算引用，同 §8.4 口径）。 */
+const code = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 const session = (answered: number): WenguSession => ({
     id: "s1",
@@ -153,11 +159,44 @@ describe("闸下沉收口为唯一出口（Issue #147 · 源码级）", () => {
 
     it("移动端空轮分支落在 closeEmptyRound 上（不再 notifyInfo）", () => {
         expect(MOBILE_DRILL).not.toContain("notifyInfo");
-        expect(MOBILE_DRILL).toMatch(/closeEmptyRound\(this\)/);
-        // 空轮判据仍只在 requestEnd 一处（不许第二份入口判定）：注释里复述写法
+        expect(MOBILE_GUARD).not.toContain("notifyInfo");
+        // #164 起守卫连同判据收口到 `mobile/core/MobileEndGuard`（编排类只转发，
+        // 那文件是 500 行红线的无豁免文件，说明一写就长）
+        expect(MOBILE_DRILL).toMatch(/requestEnd\(\): void \{\s*requestEndGuard\(this\);/);
+        expect(MOBILE_GUARD).toMatch(/closeEmptyRound\(d\)/);
+        // 空轮判据仍只在收卷守卫一处（不许第二份入口判定）：注释里复述写法
         // 不算引用，故先剥注释再数（同上面 §8.4 的口径）
-        const drillCode = MOBILE_DRILL.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-        expect(drillCode.split("answered <= 0").length - 1).toBe(1);
+        expect(count(code(MOBILE_DRILL), "answered <= 0")).toBe(0);
+        expect(count(code(MOBILE_GUARD), "answered <= 0")).toBe(1);
+    });
+
+    it("「已选未确认」判据单一实现（#164）：定义只在 MobileAnswering，别处只消费", () => {
+        // 定义 1 处；补记（submitPickedUnconfirmed）与守卫两处消费 —— 共 5 处
+        expect(count(code(MOBILE_ANSWERING), "isPickedUnconfirmed")).toBe(2); // 定义 + 补记
+        expect(count(code(MOBILE_GUARD), "isPickedUnconfirmed")).toBe(3); // import + 计数 + 定位
+        // 第二份选择态判定＝根因复发，编排/收卷生命周期里一律不许出现
+        expect(MOBILE_DRILL).not.toContain("isPickedUnconfirmed");
+        expect(MOBILE_ROUND).not.toContain("isPickedUnconfirmed");
+        expect(MOBILE_GUARD).not.toMatch(/\.(letters|judge|mine)\b/);
+    });
+
+    it("交卷第二态弹层接线齐（#164 验收 2/5：文案 i18n、去向两钮、状态字段）", () => {
+        // 状态字段 + 编排转发（守卫侧写入）
+        expect(MOBILE_DRILL).toMatch(/endPickedN: number \| null;/);
+        expect(MOBILE_GUARD).toMatch(/d\.ui\.endPickedN = picked;/);
+        expect(MOBILE_GUARD).toMatch(/d\.endRound\(\)/); // 「按当前已选交卷」走既有收卷
+        // 弹层两钮 + 复用既有弹层机制（scrim/sheet），不许静默丢弃
+        expect(DRILL_SCREEN).toMatch(/drill\.ui\.endPickedN !== null/);
+        expect(DRILL_SCREEN).toMatch(/drill\.goConfirmEndPicked\(\)/);
+        expect(DRILL_SCREEN).toMatch(/drill\.endNowPicked\(\)/);
+        expect(DRILL_SCREEN).toContain("wengu-md-scrim");
+        for (const k of ["mobileEndPickedTitle", "mobileEndPickedBody", "mobileEndPickedGo", "mobileEndPickedNow"]) {
+            expect(Object.keys(ZH as Record<string, string>), k).toContain(k);
+            expect(Object.keys(EN as Record<string, string>), k).toContain(k);
+        }
+        // 题数占位符两语言对齐（组件侧走 ui/shared.fmt 取词替换）
+        expect(ZH["mobileEndPickedBody"]).toContain("{n}");
+        expect(EN["mobileEndPickedBody"]).toContain("{n}");
     });
 
     it("移动端空轮执行体与桌面同四步：抹落盘记录 → 停表 → 退态 → 回开刷面板", () => {
