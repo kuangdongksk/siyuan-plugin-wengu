@@ -102,11 +102,29 @@ describe("终态语义（即时 vs 收卷）", () => {
         expect(calls.filter((c) => c.kind === "first")).toHaveLength(2);
     });
 
-    it("空轮不收卷", () => {
-        const { drill } = armed();
+    it("空轮静默关轮：不落库、不出报告、回开刷面板（Issue #158 对齐桌面 #155）", async () => {
+        const { drill, removes } = armed();
+        const id = drill.ui.session!.id;
+        // `start` 一开轮就 upsert（「未完成轮可继续」的依托），空轮必须抹掉它
+        expect(drill.deps.history).toBeTruthy();
         drill.requestEnd();
-        expect(drill.ui.session?.endedAt).toBeUndefined();
-        expect(drill.ui.screen).toBe("drill");
+        expect(drill.ui.session).toBeUndefined(); // 清会话
+        expect(removes).toContain(id); // 落盘那条被删（统计口径不留空轮）
+        expect(drill.ui.screen).toBe("home"); // 回开刷面板，可开新轮
+        expect(drill.ui.confirmEnd).toBe(false);
+        expect(drill.ui.list).toEqual([]);
+        expect(drill.ui.cards).toEqual([]);
+        // 回面板会重探测未完成轮：这条空轮不该被认成「可继续」
+        await Promise.resolve();
+        expect(drill.ui.resume).toBeUndefined();
+    });
+
+    it("空轮在 after 模式同样关轮（不给确认弹层）", () => {
+        const { drill } = armed({ reveal: "after" });
+        drill.requestEnd();
+        expect(drill.ui.confirmEnd).toBe(false);
+        expect(drill.ui.screen).toBe("home");
+        expect(drill.ui.session).toBeUndefined();
     });
 });
 

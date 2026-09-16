@@ -2,6 +2,31 @@
 
 ## v0.1.1 unreleased
 
+- **修复：移动端空轮交卷对齐桌面——静默关闭本轮**（20260916，mobile / i18n 域，
+  Issue #158）：#155 只改了桌面 `finishRoundGuarded`（空轮从「拦截」改「静默关轮」），
+  移动端 `MobileDrill.requestEnd` 另有**独立守卫**、仍停在 #147 的旧口径
+  （`notifyInfo({ key: "endRoundEmpty" })` + 不收卷）——「进来不想做、直接关掉」被挡，
+  而用户原话不分端。
+
+    - **独立守卫改调关轮执行体**：`answered <= 0` 分支改走新增的
+      `mobile/core/MobileRound.closeEmptyRound`（函数式友元，与桌面
+      `RoundReport.closeEmptyRound` **四步同语义**按本域状态机落地）：抹
+      `history.removeSession`（`start` 一开轮就 upsert 的那条 0 作答记录）→ 清
+      session → 停表 → 退态（清 `cards`/`confirmEnd`）→ 回开刷面板 + 重探测未完成轮。
+      判据仍 `answered <= 0`（「不会」记 ok=false 且已计入 `answered`，不属空轮），
+      与桌面**是有意的两处重复**（本域拿不到桌面 `ctx`），改一处必须同步另一处。
+    - **顺手按语义拆片**：空轮说明一写就长，而 `MobileDrill.ts` 无豁免、500 行红线。
+      收卷生命周期外移 `mobile/core/MobileRound.ts`（`closeEmptyRound` +
+      `retryWrongRound` 错题再练开新轮），`MobileDrill` 留转发；`startTicker`/
+      `stopTicker`/`initCardState` 改导出供友元用（行为逐字不变）。
+    - **i18n 删死键**：`endRoundEmpty` 中英各一处删除（对齐后全仓零引用，符合
+      design-spec §8.4 死键口径；留着引用会回落 `i18n[k] || k` 弹裸键名）。
+    - **契约同步**：`quiz/render/RoundReport.contract.test.ts` 反转旧断言
+      （原「键保留」现为「键已删、两语言零残留」+ 源级断言移动端不再 notifyInfo、
+      关轮执行体四步齐全）；移动端用例新增空轮关轮行为断言（无浮层、无报告、
+      落盘记录被删、回开刷面板、未完成轮不出现）。源级判键一律先**剥注释**
+      （注释里复述键名不算引用）。
+
 - **修复：AI 会话工作区整页不滚动回归——恢复高度链并复位 `--fit` 宿主档**
   （20260916，ai / scss 域，Issue #146）：真机走查又见全屏滚动条——根因是
   `#129` 对稿还原时把 #96 的高度链（含宿主档与挂载开关）整体删掉，换成

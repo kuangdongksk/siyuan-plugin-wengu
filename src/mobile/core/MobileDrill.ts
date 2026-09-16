@@ -1,12 +1,15 @@
 import type { WenguQuestion, WenguMaterial, WenguDoc } from "../../types";
 import { QuestionType, baseQid } from "../../types";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
-import type { HistoryStore, WenguSession, WenguSessionResult } from "../../quiz/service/HistoryStore";
-import { newSessionId } from "../../quiz/service/HistoryStore";
+import {
+    newSessionId,
+    type HistoryStore,
+    type WenguSession,
+    type WenguSessionResult,
+} from "../../quiz/service/HistoryStore";
 import { ensureSets, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
 import { mirrorResult } from "../../quiz/service/AnswerMirror";
 import type { WeaknessStore } from "../../bank/data/WeaknessStore";
-import { notifyInfo } from "../../ui/Notify";
 import { errText } from "../../ui/shared";
 import {
     applyVerdict,
@@ -22,6 +25,7 @@ import {
 } from "./MobileAnswering";
 import { answerKindOf } from "./MobileModel";
 import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
+import { closeEmptyRound, retryWrongRound } from "./MobileRound";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
 
 /**
@@ -325,12 +329,20 @@ export class MobileDrill {
 
     /* ── 收卷 / 报告 ── */
 
-    /** 收卷入口（即时模式恒可交；收卷模式给确认弹层）。 */
+    /** 收卷入口（即时模式恒可交；收卷模式给确认弹层）。
+     *  ⚠️ **空轮在这条独立守卫上静默关轮**（Issue #158，对齐桌面
+     *  `RoundReport.closeEmptyRound`）：移动端有**独立的收卷链**（不经桌面
+     *  `finishRoundGuarded`），原 `answered <= 0` 分支停在 #147 的旧拦截口径
+     *  （通知 `endRoundEmpty` + 不收卷）——用户「进来不想做、直接关掉」的意图
+     *  被挡，而用户原话「我可以就进来然后关掉」不分端。
+     *  空轮判据与桌面同款（`answered <= 0`；「不会」记 ok=false 且已计入
+     *  `answered`，故不属空轮）。⚠️ **两处判据是有意的重复**——本域拿不到桌面
+     *  `ctx`、无法共调 `emptyRound`，改一处必须同步另一处。 */
     requestEnd(): void {
         const s = this.ui.session;
         if (!s) return;
         if (s.answered <= 0) {
-            notifyInfo({ key: "endRoundEmpty" });
+            closeEmptyRound(this);
             return;
         }
         if (this.ui.setup.reveal === "after") this.ui.confirmEnd = true;
@@ -382,40 +394,9 @@ export class MobileDrill {
         }
     }
 
-    /** 报告屏「错题再练一轮」：以本轮错题为范围开新轮。 */
+    /** 报告屏「错题再练一轮」：以本轮错题为范围开新轮（实现在 MobileRound）。 */
     retryWrong(): void {
-        const s = this.ui.session;
-        if (!s) return;
-        const wrong = new Set(s.results.filter((r) => !r.ok).map((r) => baseQid(r.qid)));
-        if (wrong.size === 0) return;
-        const subset = this.ui.list.filter((q) => wrong.has(q.id));
-        // 错题再练是**新一轮**：同样现洗（副本，见 start）；scope 传新会话 id
-        const sessionId = newSessionId();
-        this.ui.list = shuffleListForDisplay(subset, { scope: sessionId });
-        this.ui.setup.reveal = "instant";
-        this.ui.session = {
-            id: sessionId,
-            docId: this.ui.home.activeSetId,
-            startedAt: Date.now(),
-            mode: this.ui.setup.timing,
-            revealMode: "instant",
-            stepsMode: "offline",
-            scope: "wrong",
-            scopeIds: subset.map((q) => q.id),
-            elapsedSec: 0,
-            answered: 0,
-            correct: 0,
-            results: [],
-        };
-        this.ui.cards = subset.map(() => initCardState());
-        this.ui.qIdx = 0;
-        this.ui.confirmEnd = false;
-        this.ui.drawer = false;
-        this.ui.matOpen = false;
-        this.ui.screen = "drill";
-        this.ui.elapsedSec = 0;
-        void this.deps.history?.upsert(this.ui.session);
-        this.startTicker();
+        retryWrongRound(this);
     }
 
     /** 回开刷面板（报告屏「返回题集」）。 */
@@ -436,7 +417,8 @@ export class MobileDrill {
 
     /* ── 计时 ── */
 
-    private startTicker(): void {
+    /** 起走秒（`MobileRound` 开新轮也用，故 public——口径不变）。 */
+    startTicker(): void {
         this.stopTicker();
         // 无 window（单测/无 DOM 环境）不起走秒——秒数只在真机上有意义
         if (typeof window === "undefined") return;
@@ -449,7 +431,8 @@ export class MobileDrill {
         }, 1000);
     }
 
-    private stopTicker(): void {
+    /** 停走秒（关轮/回面板/销毁都走它，`MobileRound` 也用）。 */
+    stopTicker(): void {
         if (this.tickTimer !== undefined && typeof window !== "undefined") {
             window.clearInterval(this.tickTimer);
         }
@@ -470,8 +453,8 @@ export class MobileDrill {
     }
 }
 
-/** 空白卡态。 */
-function initCardState(): MobileCardState {
+/** 空白卡态（`MobileRound` 开新轮也用，故导出）。 */
+export function initCardState(): MobileCardState {
     return {
         letters: "",
         judge: "",
