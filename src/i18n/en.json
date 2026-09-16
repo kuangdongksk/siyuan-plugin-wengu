@@ -430,6 +430,7 @@
   "wordStar": "Star",
   "wordHomeStarTitle": "Starred",
   "wordHomeStarCount": "{n} key words, drill them",
+  "wordHomeUnit": " words",
   "wordConfusedHint": "mistook {w} for… (optional)",
   "wordConfusedPh": "e.g. revolution",
   "wordConfusedChip": "mistook for: {v}",

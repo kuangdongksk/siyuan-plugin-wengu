@@ -4,7 +4,7 @@
     import { fmt } from "../../ui/shared";
     import { keyOf } from "../core/WordStore";
     import { confusableHtml, groupsOf, wordNoteHtml } from "../service/WordConfusables";
-    import { searchWords, statusLine } from "../flow/WordLookup";
+    import { searchWords, statusKindOf, statusLine } from "../flow/WordLookup";
     import type { WordView } from "../core/WordView";
     import { WORD_VIEW_CTX } from "../core/WordUi";
     import AiButton from "./AiButton.svelte";
@@ -48,8 +48,22 @@
     </WordHead>
     {#if sel !== undefined && selEntry}
         <div class="wengu-word-card wengu-word-revealed">
-            <div class="wengu-word-unit">{statusLine(p, sel, t)}</div>
-            <div class="wengu-word-text">{selEntry.w}</div>
+            <div class="wengu-word-statusrow">
+                <span>{statusLine(p, sel, t)}</span>
+                {#if statusKindOf(p, sel) === "review"}
+                    <span class="wengu-tag is-review">{t("wordStLevel").split("{")[0].trim()}</span>
+                {/if}
+            </div>
+            <div class="wengu-word-detail-word">
+                {selEntry.w}
+                <Button
+                    class="wengu-iconbtn wengu-word-say"
+                    title={t("wordSpeakTip")}
+                    onclick={() => view.speakWordAt(sel)}
+                >
+                    {@html svgIcon("iconVolume")}
+                </Button>
+            </div>
             <div class="wengu-word-detail-meaning">{selEntry.m}</div>
             {#if selMistake?.confused}
                 <div class="wengu-word-confused">{fmt(t("wordConfusedChip"), { v: selMistake.confused })}</div>
@@ -110,6 +124,17 @@
                         <Button class="wengu-word-opt wengu-word-lk" onclick={() => view.lookupPick(i)}>
                             <span class="wengu-word-lk-word">{ui.book.words[i].w}</span>
                             <span class="wengu-word-lk-meaning">{ui.book.words[i].m.split("\n")[0]}</span>
+                            {#if statusKindOf(p, i) === "easy"}
+                                <span class="wengu-word-lk-tag wengu-tag is-easy">{t("wordStSimple")}</span>
+                            {:else if statusKindOf(p, i) === "known"}
+                                <span class="wengu-word-lk-tag wengu-tag is-known">{t("wordFamiliar")}</span>
+                            {:else if statusKindOf(p, i) === "review"}
+                                <span class="wengu-word-lk-tag wengu-tag is-review"
+                                    >{t("wordStLevel").split("{")[0].trim()}</span
+                                >
+                            {:else}
+                                <span class="wengu-word-lk-tag wengu-tag">{t("wordStNew")}</span>
+                            {/if}
                         </Button>
                     {/each}
                 {/if}

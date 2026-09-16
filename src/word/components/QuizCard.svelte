@@ -94,6 +94,10 @@
     {/if}
 {/snippet}
 
+{#snippet optKey(i: number)}
+    <span class="wengu-word-optkey">{"ABCD"[i] ?? String(i + 1)}</span>
+{/snippet}
+
 <!-- 键盘可达性由根容器统一分发（空格=翻面），卡片 div 只承接点击翻面与焦点 -->
 <!-- 推进类按钮（下一个/档位）点完同步换卡后、同一次点击仍会冒泡到卡根把新卡误翻面——交互元素不触发翻面 -->
 <!-- svelte-ignore a11y_click_events_have_key_events,a11y_no_noninteractive_tabindex,a11y_no_static_element_interactions -->
@@ -233,8 +237,11 @@
                     <Button
                         class="wengu-word-opt{optCls(i)}"
                         disabled={answered !== undefined}
-                        onclick={() => view.option(i)}>{o.text}</Button
+                        onclick={() => view.option(i)}
                     >
+                        {@render optKey(i)}
+                        <span class="wengu-word-opttext">{o.text}</span>
+                    </Button>
                 {/each}
             </div>
         {/if}

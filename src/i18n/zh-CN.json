@@ -430,6 +430,7 @@
   "wordStar": "星标",
   "wordHomeStarTitle": "星标",
   "wordHomeStarCount": "重点词 {n} 个,过一遍",
+  "wordHomeUnit": "个",
   "wordConfusedHint": "把 {w} 认成了…(选填)",
   "wordConfusedPh": "如 revolution 或 革新的那个",
   "wordConfusedChip": "曾认成:{v}",

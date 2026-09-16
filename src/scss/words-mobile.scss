@@ -18,9 +18,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     font-size: 15px;
+    border-radius: var(--b3-border-radius-b);
   }
 
   .wengu-word-head {
@@ -28,17 +29,18 @@
   }
 
   .wengu-word-title {
-    font-size: 16px;
+    font-size: 19px;
+    font-weight: 600;
   }
 
   .wengu-word-stats {
     font-size: 13px;
   }
 
-  /* 切书：hover 变色在触屏会粘住 → 改按下反馈；触区 40px */
+  /* 切书：hover 变色在触屏会粘住 → 改按下反馈；触区 44px */
   .wengu-word-bookbtn {
-    min-height: 40px;
-    font-size: 13px;
+    min-height: 44px;
+    font-size: 13.5px;
 
     &:hover {
       color: var(--b3-theme-on-surface-light);
@@ -50,17 +52,39 @@
   }
 
   .wengu-word-bookmenu .b3-list-item {
-    min-height: 40px;
+    min-height: 44px;
   }
 
-  /* 卡片：内边距略收，题面字号保证一屏可读 */
+  /* 卡片（稿⑩⑪⑫）：16px 内距、整宽题面，字号保证一屏可读 */
   .wengu-word-card {
     padding: 16px;
-    gap: 10px;
+    gap: 12px;
+    border-radius: var(--b3-border-radius-b);
+  }
+
+  /* 词面行：词 + 梯点整宽铺开（稿⑩ 的 word-row 两端对齐） */
+  .wengu-word-text,
+  .wengu-word-zh {
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .wengu-word-text {
     font-size: 34px;
+  }
+
+  /* 梯点徽标在触屏上等比例放大（稿⑩ 32px 序号的同族刻度） */
+  .wengu-word-ladder {
+    gap: 7px;
+  }
+
+  .wengu-word-ladder i {
+    width: 8px;
+    height: 8px;
+  }
+
+  .wengu-word-ladder i.is-cur {
+    width: 22px;
   }
 
   .wengu-word-zh {
@@ -81,11 +105,15 @@
 
   .wengu-word-detail-meaning,
   .wengu-word-ainote {
-    font-size: 15px;
+    font-size: 16px;
+  }
+
+  .wengu-word-detail-word {
+    font-size: 26px;
   }
 
   .wengu-word-feedback {
-    font-size: 14px;
+    font-size: 13px;
     max-width: none;
   }
 
@@ -93,16 +121,86 @@
     font-size: 15px;
   }
 
-  /* 选项瓦片：整行 ≥44px（原 min-height 34 在触屏上太密） */
+  /* 听音大喇叭（稿⑪）：96px 主色实心圆 + 白色图标，外圈波纹环 */
+  .wengu-word-card .wengu-word-say {
+    width: 96px;
+    height: 96px;
+    background: var(--b3-theme-primary);
+    color: var(--b3-theme-on-primary);
+  }
+
+  .wengu-word-card .wengu-word-say::after {
+    inset: -12px;
+    border-width: 1.5px;
+  }
+
+  .wengu-word-card .wengu-word-say svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 详情行内小喇叭保持小尺寸（上一条只作用于卡面大喇叭） */
+  .wengu-word-detail-word .wengu-word-say {
+    width: 38px;
+    height: 38px;
+    background: none;
+    color: var(--b3-theme-on-surface-light);
+  }
+
+  .wengu-word-detail-word .wengu-word-say::after {
+    content: none;
+  }
+
+  .wengu-word-detail-word .wengu-word-say svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* 选项瓦片（稿⑩⑪）：全宽行高 ≥52px、序号圆徽标 32px、字号 14.5 */
   .wengu-word-opt {
-    min-height: 44px;
-    padding: 10px 12px;
-    font-size: 15px;
+    min-height: 52px;
+    gap: 12px;
+    padding: 12px 13px;
+    font-size: 14.5px;
+    border-radius: var(--b3-border-radius-b);
+  }
+
+  .wengu-word-optkey {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+    border-width: 1.5px;
+  }
+
+  /* hover 反馈在触屏会粘住：三态与按下态覆盖掉桌面 hover 底色 */
+  .wengu-word-opt:hover:not(:disabled) {
+    border-color: var(--b3-border-color);
+    background: var(--b3-theme-surface);
+    color: var(--b3-theme-on-surface);
+  }
+
+  .wengu-word-opt:active:not(:disabled) {
+    border-color: var(--b3-theme-primary);
+    background: var(--b3-theme-primary-lightest);
+  }
+
+  .wengu-word-opt.is-correct,
+  .wengu-word-opt.is-correct:hover:not(:disabled) {
+    border-color: var(--b3-theme-success);
+    background: color-mix(in srgb, var(--b3-theme-success) 13%, transparent);
+    color: var(--b3-theme-success);
+  }
+
+  .wengu-word-opt.is-wrong,
+  .wengu-word-opt.is-wrong:hover:not(:disabled) {
+    border-color: var(--b3-theme-error);
+    background: color-mix(in srgb, var(--b3-theme-error) 13%, transparent);
+    color: var(--b3-theme-error);
   }
 
   /* 查词结果行：hover 高亮改按下（触屏 hover 粘住会一直亮） */
   .wengu-word-opt.wengu-word-lk {
-    min-height: 44px;
+    min-height: 48px;
 
     &:hover {
       background: none;
@@ -115,6 +213,11 @@
 
   .wengu-word-lk-meaning {
     font-size: 13px;
+  }
+
+  /* 查词结果行（稿⑭）：词条 15px + 状态标签常显（触屏无 hover 提示） */
+  .wengu-word-lk-word {
+    font-size: 15px;
   }
 
   /* 卡右上角工具组：触屏没有 hover 提示，星标 0.4 透明度太隐 → 常显 */
@@ -134,10 +237,20 @@
     font-size: 13px;
   }
 
-  /* 三档/收尾底条：触区与字号再上一档 */
+  /* 自评与推进按钮（稿⑫）：底部操作条 48px 高、15px 字 */
   .wengu-word-grades .b3-button {
-    min-height: 60px;
-    font-size: 16px;
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  /* 底部操作条：推进类动作行整宽等高、贴卡底 */
+  .wengu-word-actions {
+    gap: 10px;
+  }
+
+  .wengu-word-actions .b3-button {
+    min-height: 48px;
+    font-size: 15px;
   }
 
   /* 「认成了…」自述行：窄面板竖排，输入框整宽 */
@@ -158,9 +271,12 @@
     font-size: 16px;
   }
 
-  /* 首页入口卡：hover 边框改按下，内边距放大 */
+  /* 首页入口卡（稿⑨）：全宽大卡行高 ≥88px、图标 44、数字 27，hover 改按下 */
   .wengu-word-entry {
+    min-height: 88px;
+    gap: 14px;
     padding: 16px;
+    border-radius: var(--b3-border-radius-b);
 
     &:hover {
       border-color: var(--b3-border-color);
@@ -171,23 +287,62 @@
     }
   }
 
+  .wengu-word-entry :global(.wengu-word-entry-ico) {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--b3-border-radius-b);
+  }
+
   .wengu-word-entry-title {
-    font-size: 17px;
+    font-size: 15.5px;
   }
 
   .wengu-word-entry-count {
-    font-size: 14px;
+    font-size: 12.5px;
   }
 
-  /* 统计页字号 */
+  .wengu-word-entry :global(.wengu-word-entry-num) b {
+    font-size: 27px;
+  }
+
+  /* 先复习确认层（稿② 移动形态）：整宽竖排双钮 */
+  .wengu-word-askreview {
+    padding: 16px;
+  }
+
+  .wengu-word-askreview .wengu-word-zh {
+    font-size: 15px;
+  }
+
+  .wengu-word-askreview .wengu-word-actions .b3-button {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  /* 统计页（稿⑬）：六格数字加大、柱状图加高、标签可读 */
+  .wengu-stats {
+    max-width: none;
+  }
+
+  .wengu-stats-cell {
+    padding: 13px 6px;
+  }
+
   .wengu-stats-num {
-    font-size: 24px;
+    font-size: 25px;
   }
 
-  .wengu-stats-label,
+  .wengu-stats-label {
+    font-size: 11.5px;
+  }
+
+  .wengu-stats-bars {
+    height: 132px;
+  }
+
   .wengu-stats-bar-count,
   .wengu-stats-bar-label {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   /* 起点/设置表单：原生控件与按钮触区抬高 */
@@ -197,7 +352,7 @@
     .b3-button,
     .b3-select,
     .b3-text-field {
-      min-height: 40px;
+      min-height: 44px;
     }
   }
 
@@ -206,8 +361,9 @@
     height: 16px;
   }
 
-  /* 进度条加粗一档（4px 细条触屏看不清进度） */
+  /* 进度条（稿⑩）：8px 主色实心大条，触屏可直接读进度 */
   .b3-progress__bar {
-    height: 6px;
+    height: 8px;
+    margin-top: 12px;
   }
 }
