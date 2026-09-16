@@ -1,51 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { armed, judgeGate, make, q } from "./MobileDrillHarness";
 import { initialMobileUi, MobileDrill, type MobileUi } from "./MobileDrill";
-import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
+import { QuestionBank, type BankData } from "../../bank/data/QuestionBank";
 import { QuestionType } from "../../types";
-import type { WenguQuestion } from "../../types";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import type { MobileDeps } from "../types";
-import { QuestionBank, type BankData } from "../../bank/data/QuestionBank";
-
-/** node 测试环境无 window（vitest 不启 jsdom），QuestionBank.markDirty 的
- *  防抖定时器需要它——挂全局自指即可（BankRecording.test 同款）。 */
-(globalThis as { window?: unknown }).window ??= globalThis;
-
-/** 受控 AI 判分闸：测试自己决定 verdict 何时到场——复现「用户交卷先于
- *  AI 返回」的竞态（终局判分晚于交卷，题库镜像必须被覆写）。
- *  未开闸时**透传真实现**（既有「AI 判分失败回落自评」用例走真链路抛错）。
- *  vi.mock 被提升到 import 之上，故闸与放行器走 vi.hoisted。 */
-const judgeGate = vi.hoisted(() => {
-    let release: ((v: { verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }) => void) | undefined;
-    let gate: Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> | undefined;
-    return {
-        arm(): Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> {
-            gate = new Promise((res) => {
-                release = res;
-            });
-            return gate;
-        },
-        open(v: { verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }): void {
-            release?.(v);
-        },
-        pending(): Promise<{ verdict: "right" | "partial" | "wrong"; ok: boolean; comment: string }> | undefined {
-            return gate;
-        },
-        reset(): void {
-            gate = undefined;
-            release = undefined;
-        },
-    };
-});
-afterEach(() => judgeGate.reset());
-
-vi.mock("../../quiz/service/AiJudge", async (orig) => {
-    const real = await orig<{ judgeBrief: (...args: unknown[]) => unknown }>();
-    return {
-        ...real,
-        judgeBrief: (...args: unknown[]): unknown => judgeGate.pending() ?? real.judgeBrief(...args),
-    };
-});
 
 /**
  * 移动端刷题编排的关键口径（Issue #59 验收 5）：记账通道全部走既有
@@ -53,148 +12,9 @@ vi.mock("../../quiz/service/AiJudge", async (orig) => {
  * 不缺（即时判分即锁定+揭示；收卷模式提交只记已答）、「未完成轮」
  * 判据只看 endedAt。
  *
- * 用假 bank/history 记录调用（真实现走内核 IO，不进单测）。
+ * 装配件（假 bank/history、armed/make）在 MobileDrillHarness.ts；
+ * 展示层洗牌用例在 MobileDrillShuffle.test.ts（Issue #131 拆片）。
  */
-
-function q(id: string, over: Partial<WenguQuestion> = {}): WenguQuestion {
-    return {
-        id,
-        type: QuestionType.Single,
-        answer: "A",
-        optionMd: ["甲", "乙"],
-        attempts: 0,
-        wrongCount: 0,
-        ...over,
-    };
-}
-
-/** 假题库：记录 recordAnswer / recordVerifyResult 调用（镜像分账判据）。 */
-function fakeBank() {
-    const calls: { kind: string; qid: string; ok: boolean }[] = [];
-    return {
-        calls,
-        bank: {
-            preload: async (): Promise<void> => undefined,
-            all: async (): Promise<unknown> => ({ sets: {}, records: {}, materials: {} }),
-            recordAnswer: async (qid: string, _a: string, ok: boolean): Promise<void> =>
-                void calls.push({ kind: "first", qid, ok }),
-            peek: (): undefined => undefined,
-            flush: async (): Promise<void> => undefined,
-            markDirty: (): void => undefined,
-        } as never,
-    };
-}
-
-function fakeHistory() {
-    const upserts: WenguSession[] = [];
-    const store = {
-        upsert: async (s: WenguSession): Promise<void> => void upserts.push(s),
-        docSessions: async (): Promise<WenguSession[]> => [],
-        preload: async (): Promise<void> => undefined,
-    };
-    return { store: store as never, upserts };
-}
-
-/** 建一个控制器（ui 深代理在真机由壳组件创建；单测里给普通对象即可）。 */
-function make(over: Partial<Parameters<typeof buildDeps>[0]> = {}) {
-    const { ui, deps, calls, upserts } = buildDeps(over);
-    const drill = new MobileDrill(ui, deps);
-    return { drill, ui, calls, upserts };
-}
-
-function buildDeps(
-    over: {
-        bank?: unknown;
-        history?: unknown;
-    } = {}
-) {
-    const { bank, calls } = fakeBank();
-    const { store, upserts } = fakeHistory();
-    const ui: MobileUi = initialMobileUi();
-    const deps: MobileDeps = {
-        i18n: {},
-        bank: (over.bank as never) ?? bank,
-        history: (over.history as never) ?? store,
-        settings: { showNums: true },
-    };
-    return { ui, deps, calls, upserts };
-}
-
-/** 构造一个已装载的会话（绕过内核装载链，直接摆好本轮状态）。 */
-function armed(over: { reveal?: "instant" | "after"; questions?: WenguQuestion[] } = {}) {
-    const { drill, ui, calls, upserts } = make();
-    const list = over.questions ?? [q("a"), q("b")];
-    ui.home = { loading: false, error: "", sets: [], activeSetId: "set1", activeSetTitle: "卷一" };
-    ui.fullList = list;
-    ui.setup.reveal = over.reveal ?? "instant";
-    drill.start("fresh");
-    return { drill, ui, calls, upserts, list };
-}
-
-describe("展示层选项洗牌（Issue #131 P1：移动端要洗）", () => {
-    /** 4 选项题：死形态下正确项（按协议「写最前」）恒为首位——不洗就是剧透。 */
-    const four = (id: string): WenguQuestion =>
-        q(id, { optionMd: ["正解", "干扰一", "干扰二", "干扰三"], answer: "A" });
-
-    it("start() 洗的是副本：正确项不再恒为首位；fullList 原件不动", () => {
-        const { drill, ui } = armed({ questions: [four("a"), four("b"), four("c"), four("d")] });
-        // 副本：不是 fullList 里那几个对象
-        expect(drill.ui.list[0]).not.toBe(ui.fullList[0]);
-        // 原件未被污染（重开一轮/记账按原件 id 走）
-        expect(ui.fullList.every((x) => x.optionMd![0] === "正解")).toBe(true);
-        expect(ui.fullList.every((x) => x.answer === "A")).toBe(true);
-        // 至少一题的首位不再是正确项（洗牌生效；4 题全恒等的概率 (1/24)^4 可忽略）
-        const firstIsAnswer = drill.ui.list.filter((x) => {
-            const i = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf((x.answer ?? "").toUpperCase());
-            return (x.optionMd ?? [])[0] === "正解" && i === 0;
-        }).length;
-        expect(firstIsAnswer).toBeLessThan(drill.ui.list.length);
-    });
-
-    it("洗后答案字母仍指向同一选项文本（判分口径不变）", () => {
-        const { drill } = armed({ questions: [four("a"), four("b"), four("c"), four("d"), four("e")] });
-        for (const x of drill.ui.list) {
-            const i = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf((x.answer ?? "").toUpperCase());
-            expect(x.optionMd![i]).toBe("正解");
-            expect([...(x.optionMd ?? [])].sort()).toEqual(["干扰一", "干扰二", "干扰三", "正解"].sort());
-        }
-    });
-
-    it("洗后判分与题号栏下标自洽：答对洗后的答案字母记 ok", async () => {
-        const { drill, calls } = armed({ questions: [four("a"), four("b"), four("c")] });
-        const a = drill.ui.list[0].answer!;
-        drill.pickLetter(a);
-        await drill.submit();
-        expect(drill.ui.cards[0].ok).toBe(true);
-        expect(calls[0]).toMatchObject({ qid: "a", ok: true });
-    });
-
-    it("重进同一轮：排列恒定（恢复的字母仍指同一项）", () => {
-        const qs = [four("a"), four("b"), four("c")];
-        const { drill, ui } = armed({ questions: qs });
-        const firstOrder = drill.ui.list.map((x) => ({ id: x.id, opts: [...x.optionMd!], ans: x.answer }));
-        const sid = drill.ui.session!.id;
-        // 模拟「重进同一轮」：同一份 fullList + 同一会话 id 再洗一次
-        drill.ui.list = shuffleListForDisplay([...ui.fullList], { scope: sid });
-        expect(drill.ui.list.map((x) => ({ id: x.id, opts: [...x.optionMd!], ans: x.answer }))).toEqual(firstOrder);
-    });
-
-    it("换一轮：排列换（消剧透跨轮成立）", () => {
-        const qs = [four("a"), four("b"), four("c"), four("d")];
-        const orders = new Set<string>();
-        for (let i = 0; i < 8; i++) {
-            const { drill } = armed({ questions: qs.map((x) => ({ ...x })) });
-            orders.add(drill.ui.list.map((x) => `${x.id}:${x.optionMd!.join("")}`).join("|"));
-        }
-        expect(orders.size).toBeGreaterThan(1);
-    });
-
-    it("id 与卷内顺序不变（题号栏/会话快照按 id 走）", () => {
-        const { drill, ui } = armed({ questions: [four("a"), four("b"), four("c")] });
-        expect(drill.ui.list.map((x) => x.id)).toEqual(ui.fullList.map((x) => x.id));
-        expect(drill.ui.list).toHaveLength(3);
-    });
-});
 
 describe("开刷与作答", () => {
     it("开刷建会话并落库；题集为空时不动", () => {
