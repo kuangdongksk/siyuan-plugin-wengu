@@ -15,6 +15,6 @@
 | `companion.md`       | 伴学看板娘                                                    |
 | `ui.md`              | Svelte 迁移公共积木/样式工具                                  |
 | `stats.md`           | 统计域（笔记极薄）                                            |
-| `env-debugging.md`   | 通用调试流程 + 两台机器环境与 Shell 坑                        |
+| `env-debugging.md`   | 通用调试流程 + 两台机器环境与 Shell 坑 + CNB 流水线观测       |
 | `kernel-pitfalls.md` | 思源内核坑（3.8.x 真机实测）与外部 API 口径                   |
 | `legacy/`            | 早期 agent（dsh/workbuddy）记忆归档，仅供考古，勿作现行依据   |

@@ -16,6 +16,16 @@
 4. 验证安装：在装好的 `index.js` 里 grep 特征串；注意 minify 会把中文
    转成 `\uXXXX`，grep 原文中文可能查不到（用英文标识符/属性名查）。
 
+## CNB 流水线观测（20260916 用户定：sleep 前台轮询即可）
+
+- 跟踪 NPC 召唤 / quality-gate 进度：`sleep 45~90 && cnb build get-build-logs
+--repo bianchao777/sasa/siyuan-plugin-wengu` 反复查最新 sn 的 status，
+  **不必挂后台任务**。节奏参考：quality-gate 约 1~~2 分钟一轮；
+  NPC 召唤→出 PR 全程约 20+ 分钟，45~~90 秒一查足够。
+- 判「召唤是否真触发」：构建列表出现 `event: issue.comment@npc` 条目才算数；
+  一条都没有＝提及没匹配上（旧仓库路径提及即此形态，零流水线零报错，
+  见 AGENTS.md「召唤青简必须写完整路径」条）。
+
 ## 机器 A（本机，Windows + Git Bash，2026-08-30 重验）
 
 - 思源 **3.8.1** 桌面版（已自 3.8.0 升级），日常两个工作区：
