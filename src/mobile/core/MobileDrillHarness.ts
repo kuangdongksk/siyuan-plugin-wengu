@@ -4,6 +4,7 @@ import { QuestionType } from "../../types";
 import type { WenguQuestion } from "../../types";
 import type { WenguSession } from "../../quiz/service/HistoryStore";
 import type { MobileDeps } from "../types";
+import type { BankData } from "../../bank/data/QuestionBank";
 
 /** node 测试环境无 window（vitest 不启 jsdom），QuestionBank.markDirty 的
  *  防抖定时器需要它——挂全局自指即可（BankRecording.test 同款）。 */
@@ -75,32 +76,104 @@ export function q(id: string, over: Partial<WenguQuestion> = {}): WenguQuestion 
     };
 }
 
-/** 假题库：记录 recordAnswer / recordVerifyResult 调用（镜像分账判据）。 */
-export function fakeBank() {
-    const calls: { kind: string; qid: string; ok: boolean }[] = [];
-    return {
-        calls,
-        bank: {
-            preload: async (): Promise<void> => undefined,
-            all: async (): Promise<unknown> => ({ sets: {}, records: {}, materials: {} }),
-            recordAnswer: async (qid: string, _a: string, ok: boolean): Promise<void> =>
-                void calls.push({ kind: "first", qid, ok }),
-            peek: (): undefined => undefined,
-            flush: async (): Promise<void> => undefined,
-            markDirty: (): void => undefined,
-        } as never,
-    };
+/**
+ * 假题库（记录 recordAnswer 调用，判镜像分账）。
+ *
+ * `setQuestions` 走的是**真实现**（`BankSets`），但题面**不经 kramdown
+ * 解析**：假 bank 的 `parsedOf/cacheParsed` 就是内存缓存，`seedSet` 把
+ * `ParsedQuestion` 形态的题面直接塞进去。理由——单测要的是「切卷装题」
+ * 这条链，不是 BankParse（它另有用例）；用真 kramdown 拼夹具等于把解析器
+ * 契约抄一份到本文件，且极易随契约演进静默失效。
+ */
+export interface FakeBank {
+    calls: { kind: string; qid: string; ok: boolean }[];
+    /** 预埋的题集（`setId → { qids }`）。 */
+    sets: Record<string, { id: string; title: string; qids: string[] }>;
+    /** 预埋的记录（`qid → BankRecord` 形状）。 */
+    records: Record<string, unknown>;
+    /** 解析缓存（`setQuestions` 从这里读题面）。 */
+    parsed: Map<string, { hash: string; parsed: unknown }>;
+    /** 供 `deps.bank` 用的实例面。 */
+    bank: never;
 }
 
+/** 造一个假题库（空数据面，用例按需 `seedSet`）。 */
+export function fakeBank(): FakeBank {
+    const calls: { kind: string; qid: string; ok: boolean }[] = [];
+    const sets: FakeBank["sets"] = {};
+    const records: FakeBank["records"] = {};
+    const parsed: FakeBank["parsed"] = new Map();
+    // 形状对齐 `BankData`（`check:svelte` 要判隐式 any，逐字段标好）；
+    // 只有 sets/records 被消费，其余给空面即可
+    const data: BankData = {
+        version: 1,
+        sets: sets as unknown as BankData["sets"],
+        records: records as unknown as BankData["records"],
+        materials: {},
+        collections: [],
+        migratedDocs: [],
+        hashed: {},
+        knowRoots: [],
+        folders: [],
+        knowHidden: [],
+        docStats: {},
+    };
+    const bank = {
+        preload: async (): Promise<void> => undefined,
+        all: async (): Promise<unknown> => data,
+        parsedOf: (qid: string, hash: string): unknown => {
+            const hit = parsed.get(qid);
+            return hit && hit.hash === hash ? hit.parsed : undefined;
+        },
+        cacheParsed: (qid: string, hash: string, p: unknown): void => void parsed.set(qid, { hash, parsed: p }),
+        recordAnswer: async (qid: string, _a: string, ok: boolean): Promise<void> =>
+            void calls.push({ kind: "first", qid, ok }),
+        peek: (): undefined => undefined,
+        flush: async (): Promise<void> => undefined,
+        markDirty: (): void => undefined,
+    };
+    return { calls, sets, records, parsed, bank: bank as never };
+}
+
+/** 把一个题集连同题面塞进假题库（`setId` 同时是 qid 前缀的源文档 id）。
+ *  题面按 `ParsedQuestion` 形态预置：恢复链只关心题 id / 作答位，
+ *  解析本身有 `BankParse` 自己的用例。 */
+export function seedSet(face: FakeBank, setId: string, list: WenguQuestion[]): void {
+    face.sets[setId] = { id: setId, title: setId, qids: list.map((x) => x.id) };
+    for (const x of list) {
+        const hash = `h-${x.id}`;
+        face.records[x.id] = {
+            qid: x.id,
+            kramdown: "",
+            type: x.type ?? QuestionType.Single,
+            kpRefs: [],
+            sourceDocId: setId,
+            hash,
+            stats: { attempts: 0, wrongCount: 0, updatedAt: 0 },
+        };
+        face.parsed.set(x.id, { hash, parsed: { ...x, rootId: setId } });
+    }
+}
+
+/** 假会话库（`HistoryStore` 面）：`allSessions` 与 `docSessions` **同源**——
+ *  未完成轮探测自 Issue #167 起扫全库，只看 docSessions 的老假件覆盖不到。 */
 export function fakeHistory() {
     const upserts: WenguSession[] = [];
     /** 被抹掉的会话 id（空轮静默关轮必须删开轮时 upsert 的那条，Issue #158）。 */
     const removes: string[] = [];
+    /** 盘上全部轮次（升序口径由测例自己保证：按 startedAt 排好再塞）。 */
     const SESSIONS: WenguSession[] = [];
+    const byStarted = (a: WenguSession, b: WenguSession): number => a.startedAt - b.startedAt;
     const store = {
         upsert: async (s: WenguSession): Promise<void> => void upserts.push(s),
-        removeSession: async (id: string): Promise<void> => void removes.push(id),
-        docSessions: async (): Promise<WenguSession[]> => SESSIONS,
+        removeSession: async (id: string): Promise<void> => {
+            removes.push(id);
+            const i = SESSIONS.findIndex((x) => x.id === id);
+            if (i >= 0) SESSIONS.splice(i, 1);
+        },
+        docSessions: async (docId?: string): Promise<WenguSession[]> =>
+            [...SESSIONS].filter((s) => !docId || s.docId === docId).sort(byStarted),
+        allSessions: async (): Promise<WenguSession[]> => [...SESSIONS].sort(byStarted),
         preload: async (): Promise<void> => undefined,
     };
     return { store: store as never, upserts, removes, SESSIONS };
@@ -108,9 +181,9 @@ export function fakeHistory() {
 
 /** 建一个控制器（ui 深代理在真机由壳组件创建；单测里给普通对象即可）。 */
 export function make(over: Partial<Parameters<typeof buildDeps>[0]> = {}) {
-    const { ui, deps, calls, upserts, removes, SESSIONS } = buildDeps(over);
+    const { ui, deps, calls, upserts, removes, SESSIONS, face } = buildDeps(over);
     const drill = new MobileDrill(ui, deps);
-    return { drill, ui, calls, upserts, removes, SESSIONS };
+    return { drill, ui, calls, upserts, removes, SESSIONS, face };
 }
 
 /** 拼 deps（真机由壳组件给；单测给假 bank/history）。 */
@@ -120,7 +193,8 @@ export function buildDeps(
         history?: unknown;
     } = {}
 ) {
-    const { bank, calls } = fakeBank();
+    const face = fakeBank();
+    const { bank, calls } = face;
     const { store, upserts, removes, SESSIONS } = fakeHistory();
     const ui: MobileUi = initialMobileUi();
     const deps: MobileDeps = {
@@ -129,7 +203,7 @@ export function buildDeps(
         history: (over.history as never) ?? store,
         settings: { showNums: true },
     };
-    return { ui, deps, calls, upserts, removes, SESSIONS };
+    return { ui, deps, calls, upserts, removes, SESSIONS, face };
 }
 
 /** 构造一个已装载的会话（绕过内核装载链，直接摆好本轮状态）。 */

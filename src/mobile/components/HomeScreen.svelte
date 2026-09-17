@@ -5,7 +5,6 @@
     import { MOBILE_DRILL_CTX, type MobileDrill } from "../core/MobileCtx";
     import { countChoices, countLabel, groupSetsByDoc } from "../core/MobileModel";
     import { fmt } from "../../ui/shared";
-    import { baseQid } from "../../types";
 
     /**
      * 屏 ① 开刷面板（设计稿 `design/wengu-mobile-drill.html`）：续刷卡片
@@ -16,8 +15,9 @@
 
     const t = (k: string) => drill.t(k);
     const pct = (a: number, n: number) => (n > 0 ? Math.round((a / n) * 100) : 0);
-    /** 未完成轮的已答题数：按块 id 去重（多步/逐空题记的是 `qid#k`）。 */
-    const resumedAnswered = (s: { results: { qid: string }[] }) => new Set(s.results.map((r) => baseQid(r.qid))).size;
+    // 恢复卡的已答/题数/题集标题一律取 `ui.resumeView`（由 core/MobileRound
+    // 的探测与恢复路径预解）——组件不再自拼分母：跨题集时那是错的
+    // （Issue #167 A1/A2：未完成轮可能在别的题集，或来自「本次 N 题」裁剪）。
 </script>
 
 <div class="wengu-md-toolrow">
@@ -35,23 +35,21 @@
     {:else if drill.ui.home.sets.length === 0}
         <div class="wengu-md-muted">{t("noExerciseDocs")}</div>
     {:else}
-        {#if drill.ui.resume}
+        {#if drill.ui.resume && drill.ui.resumeView}
             {@const last = drill.ui.resume}
-            {@const answered = resumedAnswered(last)}
+            {@const view = drill.ui.resumeView}
             <section class="wengu-md-resume">
                 <div class="wengu-md-resume-top">
                     <span class="wengu-md-resume-tag">{@html svgIcon("iconPlay")}{t("mobileContinueTag")}</span>
-                    <span class="wengu-md-resume-meta"
-                        >{t("mobileAnsweredCount")} {answered}/{drill.ui.fullList.length}</span
-                    >
+                    <span class="wengu-md-resume-meta">{t("mobileAnsweredCount")} {view.answered}/{view.total}</span>
                 </div>
                 <h3>
-                    {drill.ui.home.activeSetTitle}
+                    {view.title}
                     <small>{last.revealMode === "after" ? t("revealAfter") : t("revealInstant")}</small>
                 </h3>
                 <div class="wengu-md-resume-foot">
-                    <span class="wengu-md-pbar"><i style="width:{pct(answered, drill.ui.fullList.length)}%"></i></span>
-                    <button class="wengu-md-resume-btn" onclick={() => drill.start("continue")}>
+                    <span class="wengu-md-pbar"><i style="width:{pct(view.answered, view.total)}%"></i></span>
+                    <button class="wengu-md-resume-btn" onclick={() => void drill.resumeRound()}>
                         {t("mobileContinueCta")}{@html svgIcon("iconRight")}
                     </button>
                 </div>

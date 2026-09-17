@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { armed, judgeGate, make, q } from "./MobileDrillHarness";
+import { mockDoc } from "./MobileResumeMock";
 import { initialMobileUi, MobileDrill, type MobileUi } from "./MobileDrill";
 import { QuestionBank, type BankData } from "../../bank/data/QuestionBank";
 import { QuestionType } from "../../types";
@@ -130,48 +131,45 @@ describe("终态语义（即时 vs 收卷）", () => {
 
 describe("未完成轮判据只看 endedAt", () => {
     it("答满但未交卷的轮仍算未完成（可继续上次改答案）", async () => {
-        const { drill } = armed({ reveal: "after" });
-        drill.pickLetter("A");
-        await drill.submit();
-        drill.next();
-        drill.pickLetter("A");
-        await drill.submit();
-        // 模拟回到开刷面板时探测未完成轮
-        drill.ui.home.activeSetId = "set1";
-        drill.ui.session!.endedAt = undefined;
-        const sessions = [drill.ui.session!];
-        const { drill: fresh } = make({
+        // after 模式答满但未交卷：endedAt 未写 ⇒ 仍算未完成（可继续改答案）
+        const { drill } = make({
             history: {
-                docSessions: async (): Promise<WenguSession[]> => sessions,
+                allSessions: async (): Promise<WenguSession[]> => [fullAfter({ id: "open", endedAt: undefined })],
                 upsert: async (): Promise<void> => undefined,
             },
         });
-        fresh.ui.home = { loading: false, error: "", sets: [], activeSetId: "set1", activeSetTitle: "卷一" };
-        fresh.ui.fullList = drill.ui.list;
-        await (fresh as unknown as { restoreResumeFor(): Promise<void> }).restoreResumeFor();
-        expect(fresh.ui.resume?.id).toBe(drill.ui.session!.id);
+        drill.ui.home = {
+            loading: false,
+            error: "",
+            sets: [mockDoc("set1", "卷一")],
+            activeSetId: "set1",
+            activeSetTitle: "卷一",
+        };
+        drill.ui.fullList = [q("set1/a"), q("set1/b")];
+        await drill.restoreResumeFor();
+        expect(drill.ui.resume?.id).toBe("open");
+        expect(drill.ui.resumeView).toMatchObject({ answered: 2, total: 2 });
     });
 
     it("空轮不算未完成", async () => {
-        const empty: WenguSession = {
-            id: "s",
-            docId: "set1",
-            startedAt: 1,
-            mode: "countUp",
-            elapsedSec: 0,
-            answered: 0,
-            correct: 0,
-            results: [],
-        };
         const { drill } = make({
             history: {
-                docSessions: async (): Promise<WenguSession[]> => [empty],
+                allSessions: async (): Promise<WenguSession[]> => [
+                    fullAfter({ id: "empty", results: [], answered: 0 }),
+                ],
                 upsert: async (): Promise<void> => undefined,
             },
         });
-        drill.ui.home.activeSetId = "set1";
-        await (drill as unknown as { restoreResumeFor(): Promise<void> }).restoreResumeFor();
+        drill.ui.home = {
+            loading: false,
+            error: "",
+            sets: [mockDoc("set1", "卷一")],
+            activeSetId: "set1",
+            activeSetTitle: "卷一",
+        };
+        await drill.restoreResumeFor();
         expect(drill.ui.resume).toBeUndefined();
+        expect(drill.ui.resumeView).toBeUndefined();
     });
 });
 
@@ -283,6 +281,26 @@ describe("AI 判分失败回落自评", () => {
         expect(drill.ui.cards[0].busy).toBe(false);
     });
 });
+
+/** 已收卷的一轮（当作「更新的已收卷轮」，边界 A 用）。 */
+function fullAfter(over: Partial<WenguSession> = {}): WenguSession {
+    return {
+        id: "done",
+        docId: "set1",
+        startedAt: 200,
+        endedAt: 300,
+        mode: "countUp",
+        revealMode: "after",
+        elapsedSec: 20,
+        answered: 2,
+        correct: 1,
+        results: [
+            { qid: "set1/a", submitted: "A", ok: true },
+            { qid: "set1/b", submitted: "B", ok: false },
+        ],
+        ...over,
+    };
+}
 
 /** 让在途的 fire-and-forget 记账（recordAnswer/mirrorRepeatAnswer 都是
  *  `void` 调用）跑完：题库 flush 不会等这些 promise，只排空微任务即可。 */

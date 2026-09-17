@@ -1,12 +1,7 @@
 import type { WenguQuestion, WenguMaterial, WenguDoc } from "../../types";
 import { QuestionType, baseQid } from "../../types";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
-import {
-    newSessionId,
-    type HistoryStore,
-    type WenguSession,
-    type WenguSessionResult,
-} from "../../quiz/service/HistoryStore";
+import { type HistoryStore, type WenguSession, type WenguSessionResult } from "../../quiz/service/HistoryStore";
 import { ensureSets, setDocsView, setMaterials, setQuestions } from "../../bank/data/BankSets";
 import { mirrorResult } from "../../quiz/service/AnswerMirror";
 import type { WeaknessStore } from "../../bank/data/WeaknessStore";
@@ -25,8 +20,14 @@ import {
 } from "./MobileAnswering";
 import { endNowPicked, goConfirmEndPicked, requestEnd as requestEndGuard } from "./MobileEndGuard";
 import { answerKindOf } from "./MobileModel";
-import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
-import { retryWrongRound } from "./MobileRound";
+import {
+    firstUnansweredIdx,
+    restoreResumeFor as restoreResumeForIn,
+    resumeRound as resumeRoundIn,
+    retryWrongRound as retryWrongRoundIn,
+    startRound,
+    type MobileResumeView,
+} from "./MobileRound";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
 
 /**
@@ -111,8 +112,11 @@ export interface MobileUi {
     /** 本轮会话（收卷后仍保留快照供报告）。 */
     session?: WenguSession;
     elapsedSec: number;
-    /** 未完成轮（判据只看 endedAt）。 */
+    /** 未完成轮（判据只看 endedAt；恢复路径以**本对象**为准，不再二次探测）。 */
     resume?: WenguSession;
+    /** 恢复卡的展示料（题集标题 / 已答 / 本轮题数）——由 `MobileRound`
+     *  的探测与恢复路径写入，组件只读（跨题集时分母才是对的）。 */
+    resumeView?: MobileResumeView;
     /** 题集全量题目（本次题数裁剪前的源）。 */
     fullList: WenguQuestion[];
 }
@@ -203,69 +207,37 @@ export class MobileDrill {
         this.ui.setup.count = 0;
         // 未完成轮探测必须在题目装载**之后**（探测读的是新题集的会话；
         // 原写法在 selectSet 之前起，读到上一卷的记录）
-        await this.restoreResumeFor();
+        await restoreResumeForIn(this);
     }
 
-    /** 未完成轮的恢复探测（题集切换/回开刷面板后调用）。
-     *  「未完成轮」判据**只看 endedAt**（Issue #12 口径）：after 模式答满
-     *  但未交卷的轮必须仍能「继续上次」改答案——别再按「答满」判。 */
-    private async restoreResumeFor(): Promise<void> {
-        const docId = this.ui.home.activeSetId;
-        const sessions = docId && this.deps.history ? await this.deps.history.docSessions(docId) : [];
-        const last = sessions[sessions.length - 1];
-        const answered = new Set((last?.results ?? []).map((r) => baseQid(r.qid))).size;
-        this.ui.resume = last && !last.endedAt && answered > 0 ? last : undefined;
+    /** 未完成轮的恢复探测（题集切换/回开刷面板/交卷后调用）：
+     *  **扫全库取最近一条**未完成轮（Issue #167 A1/A1b，实现体在
+     *  `core/MobileRound`）——只看激活题集会让「未完成轮不在首个题集」
+     *  与「目标题集有更新的已收卷轮」两种常态探测不到。 */
+    restoreResumeFor(): Promise<void> {
+        return restoreResumeForIn(this);
     }
 
     /* ── 开刷 ── */
 
-    /** 开刷：按面板选择裁剪题目、建会话（或恢复未完成轮）。展示层选项洗牌
-     *  （Issue #131，口径见 CardDisplayShuffle 文件头）：与桌面同——死形态
-     *  入库，进卡前现洗。不洗则新造题正确项恒为首位（协议「写最前」）＝剧透。
-     *  `scope` 传会话 id（排列同轮恒定，否则恢复的字母指错项）；记账按 id 走。 */
+    /** 开刷（fresh）／恢复未完成轮（continue）：实现体在 `core/MobileRound`
+     *  ——按面板选择裁剪题目、写 scopeIds 快照、建会话、洗牌、落点定位。
+     *  ⚠️ 恢复路径以 `ui.resume` 携带的会话为准，**不二次探测**（边界 A）。 */
     start(progress: "fresh" | "continue"): void {
-        const docId = this.ui.home.activeSetId;
-        if (!docId || this.ui.fullList.length === 0) return;
-        const last = this.ui.resume;
-        // 判据与桌面 startRound 逐字同款：answered > 0 且未收卷
-        const resuming = progress === "continue" && !!last;
-        if (resuming && last) {
-            this.ui.setup.reveal = last.revealMode === "after" ? "after" : "instant";
-            this.ui.setup.timing = last.mode;
-            const ids = new Set(last.scopeIds ?? []);
-            const picked = ids.size > 0 ? this.ui.fullList.filter((q) => ids.has(q.id)) : [...this.ui.fullList];
-            this.ui.list = shuffleListForDisplay(picked, { scope: last.id });
-            this.ui.session = last;
-        } else {
-            const src =
-                this.ui.setup.count > 0 ? this.ui.fullList.slice(0, this.ui.setup.count) : [...this.ui.fullList];
-            const sessionId = newSessionId(); // 会话 id 先铸：它同时是洗牌种子
-            this.ui.list = shuffleListForDisplay(src, { scope: sessionId });
-            this.ui.session = {
-                id: sessionId,
-                docId,
-                startedAt: Date.now(),
-                mode: this.ui.setup.timing,
-                revealMode: this.ui.setup.reveal,
-                stepsMode: "offline",
-                scope: "all",
-                elapsedSec: 0,
-                answered: 0,
-                correct: 0,
-                results: [],
-            };
-        }
+        if (!this.ui.home.activeSetId || this.ui.fullList.length === 0) return;
+        startRound(this, progress);
+    }
+
+    /** 恢复卡点击（**异步**）：跨题集时先装载目标题集再恢复（Issue #167）。 */
+    resumeRound(): Promise<void> {
+        return resumeRoundIn(this);
+    }
+
+    /** 本轮卡片态初始化（按 list 起一组空白态，恢复时再回填作答态）。 */
+    initRoundCards(): void {
         this.ui.cards = this.ui.list.map(() => initCardState());
-        if (resuming && last) this.restoreCardsFromSession(last);
-        this.ui.qIdx = 0;
-        this.ui.matOpen = false;
-        this.ui.drawer = false;
-        this.ui.confirmEnd = false;
-        this.ui.endPickedN = null;
-        this.ui.screen = "drill";
-        this.ui.elapsedSec = this.ui.session.elapsedSec;
-        void this.deps.history?.upsert(this.ui.session);
-        this.startTicker();
+        const s = this.ui.session;
+        if (s) this.restoreCardsFromSession(s);
     }
 
     /* ── 作答（实现体在 core/MobileAnswering，函数式友元；此处只做转发） ── */
@@ -284,6 +256,11 @@ export class MobileDrill {
     readonly selfAssess = (correct: boolean): void => selfAssess(this, correct);
     readonly dunno = (): void => dunno(this);
     readonly skip = (): void => skip(this);
+
+    /** 首道未作答题的下标（恢复落点，Issue #167 A3；纯逻辑在 MobileRound）。 */
+    firstUnanswered(): number {
+        return firstUnansweredIdx(this);
+    }
 
     /** 恢复卡态（继续上次）：与桌面 buildCardInit 同口径——收卷过才揭示。 */
     private restoreCardsFromSession(s: WenguSession): void {
@@ -402,7 +379,7 @@ export class MobileDrill {
 
     /** 报告屏「错题再练一轮」：以本轮错题为范围开新轮（实现在 MobileRound）。 */
     retryWrong(): void {
-        retryWrongRound(this);
+        retryWrongRoundIn(this);
     }
 
     /** 回开刷面板（报告屏「返回题集」）。 */
@@ -488,3 +465,4 @@ function resultsByQid(s: WenguSession): Map<string, WenguSessionResult> {
 }
 
 export type { QuestionBank, HistoryStore, WeaknessStore };
+export type { MobileResumeView };
