@@ -49,7 +49,9 @@
 
 ## 分支与协作（CNB + NPC）——动代码前先读
 
-双远端：`origin` = GitHub（历史存档），`cnb` = CNB（云原生构建，NPC 开发在这边跑）。
+双远端（20260917 实测口径）：`origin` = CNB（云原生构建，NPC 开发在这边跑，
+**拉取/推送调度一律用它**），`github` = GitHub（历史存档，长期落后、不日常同步；
+旧 `cnb` 远端名已不存在，`git fetch cnb` 会报 not a git repository）。
 CNB 仓库：<https://cnb.cool/bianchao777/sasa/siyuan-plugin-wengu>
 （20260916 由 `sasa1107/open-source/si-yuan/` 转移至此；**提及路径跟随仓库
 路径**，转移后旧路径提及永久失效、零流水线零报错）

@@ -50,6 +50,16 @@
   `-o /tmp/x.json` 后验证要用
   `node -e "require(require('path').join(require('os').tmpdir(),'x.json'))"`
   （Git Bash 的 /tmp 恰好映射 os.tmpdir()，但 node 不认 `/tmp` 字面量）
+- ⚠️ **`core.autocrlf=true` ⇒ 本地 `format:check` 全仓假红**（20260917 实证）：
+  工作区 checkout 出来全是 CRLF，而 `.prettierrc` 是 `endOfLine: "lf"`，
+  主工作区直接跑 `pnpm format:check` 会几百个文件报 warn（CI 是 LF 环境，
+  只报真格式问题——当时 CI 红 78 个、本地红 447 个）。**审 PR 对齐 CI
+  口径一律 `git -c core.autocrlf=false worktree add <路径> <分支>`**
+  建 LF 工作区再跑五件套。附带：CI 红排查用
+  `cnb build get-build-status --sn <sn>` 看 stage，再
+  `build-runner-download-log --pipelineId <sn>-001` 拿日志；
+  首跑 pnpm 若报 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`，
+  前缀 `CI=true pnpm install` 重装（~6s，store 缓存命中）。
 
 ## 机器 B（Mac，macOS arm64，已验证 2026-08-24）
 
