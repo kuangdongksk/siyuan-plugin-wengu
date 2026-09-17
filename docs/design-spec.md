@@ -814,6 +814,12 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 | `mobile-*.scss` / `mobile-english.scss`              | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族       | ③ 基座 + 跨组件                                |
 | `aipanel*.scss` / `aiflow.scss`                      | `SessionPanelApp` / `SessionDetail` / `FlowBanner`               | ② 跨组件 + TS 触达                             |
 
+> 另记（#153 修订）：`words-home.scss` 保留 `HomeScreen` 的**先复习修饰行**
+> （`.wengu-word .wengu-word-askreview .wengu-word-zh` / `-actions`）——它们作用在
+> `.wengu-word-zh` / `.wengu-word-actions` 这两个**跨组件类**上（`QuizCard` /
+> `LookupScreen` / `DoneScreen` 共用），按 §13.1② 留共享片；`.wengu-word-entry`
+> 入口卡族整体在组件 `<style>` 内。
+
 ### 13.4 试点结论（Issue #127，`startpanel.scss` → `StartPanelApp.svelte`）
 
 **试点片选**：#110 审计判定最干净的一片（唯一消费者、零 TS 拼串触达，106 行）。

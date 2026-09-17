@@ -455,6 +455,7 @@
   "wordStSimple": "太简单",
   "wordStFamiliar": "熟(不再复习)",
   "wordStNew": "未学",
+  "wordStReview": "复习中",
   "wordStLevel": "档位 {n} · 复习中",
   "wordGroupSize": "每组单词数",
   "wordGroupSizeDesc": "每组完成后 AI 复盘作答表现并调整复习安排（10~100）",

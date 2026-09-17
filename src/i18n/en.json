@@ -455,6 +455,7 @@
   "wordStSimple": "Too easy",
   "wordStFamiliar": "Familiar (no review)",
   "wordStNew": "Not learned",
+  "wordStReview": "Reviewing",
   "wordStLevel": "Level {n} · reviewing",
   "wordGroupSize": "Words per group",
   "wordGroupSizeDesc": "AI reviews each finished group and adjusts review scheduling (10-100)",

@@ -5,10 +5,13 @@
    为什么不用 media query：桌面浏览器窄窗口会误伤，触屏适配只该按**环境**
    而不是按视口宽度分流。规则一律再收一层 `.wengu-word`，防标记落在 body 时
    外溢到其它域的面板。
+   ⚠️ 前缀写 `body.wengu-mobile`（而非裸 `.wengu-mobile`）——组件 `<style>` 走
+   运行时注入、**排在 `dist/index.css` 之后**，同特异性下后者胜；加 `body` 元素
+   段把移动片抬到 0,4,1 起，才能压过组件内的桌面规则（#153 实测踩中）。
    口径：hover 依赖的反馈改 :active 或常显（触屏 hover 会粘住）；点击区
    ≥40px（主操作 ≥44px）；关键字号上调；输入框字号 ≥16px（iOS 聚焦不缩放）。 */
 
-.wengu-mobile .wengu-word {
+body.wengu-mobile .wengu-word {
   /* 面板边距收窄 + 去点按灰块（移动侧栏宽度有限） */
   padding: 8px 10px;
   -webkit-tap-highlight-color: transparent;
@@ -287,7 +290,7 @@
     }
   }
 
-  .wengu-word-entry :global(.wengu-word-entry-ico) {
+  .wengu-word-entry .wengu-word-entry-ico {
     width: 44px;
     height: 44px;
     border-radius: var(--b3-border-radius-b);
@@ -301,7 +304,7 @@
     font-size: 12.5px;
   }
 
-  .wengu-word-entry :global(.wengu-word-entry-num) b {
+  .wengu-word-entry .wengu-word-entry-num b {
     font-size: 27px;
   }
 

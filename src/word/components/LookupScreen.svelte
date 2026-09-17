@@ -51,7 +51,7 @@
             <div class="wengu-word-statusrow">
                 <span>{statusLine(p, sel, t)}</span>
                 {#if statusKindOf(p, sel) === "review"}
-                    <span class="wengu-tag is-review">{t("wordStLevel").split("{")[0].trim()}</span>
+                    <span class="wengu-tag is-review">{t("wordStReview")}</span>
                 {/if}
             </div>
             <div class="wengu-word-detail-word">
@@ -129,9 +129,7 @@
                             {:else if statusKindOf(p, i) === "known"}
                                 <span class="wengu-word-lk-tag wengu-tag is-known">{t("wordFamiliar")}</span>
                             {:else if statusKindOf(p, i) === "review"}
-                                <span class="wengu-word-lk-tag wengu-tag is-review"
-                                    >{t("wordStLevel").split("{")[0].trim()}</span
-                                >
+                                <span class="wengu-word-lk-tag wengu-tag is-review">{t("wordStReview")}</span>
                             {:else}
                                 <span class="wengu-word-lk-tag wengu-tag">{t("wordStNew")}</span>
                             {/if}
