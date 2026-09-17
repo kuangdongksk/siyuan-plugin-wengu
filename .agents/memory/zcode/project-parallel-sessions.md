@@ -2,9 +2,9 @@
 name: project-parallel-sessions
 description: 本仓库有多个 AI 会话并行工作，回合中途会发生提交/合并——编辑前文件可能已被别的会话改掉；既定协作流程是 worktree 隔离开发+部署先行+对方停下后再合并
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
+    node_type: memory
+    type: project
+    originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
 ---
 
 用户同时开多个 AI 会话操作 siyuan-plugin-wengu 仓库（2026-08-22 实证：一个
@@ -29,6 +29,7 @@ bundle 并装进思源**——重载后看到陌生功能/异常先想到是并�
 自己的 bug 修。
 
 **已跑通两轮的并行协作流程（2026-08-22/23）：**
+
 - 开发在 `.worktree/<名字>` 的 git worktree 里建独立分支（主区只加一行
   `.gitignore`），worktree 内四绿（tsc/eslint/dprint/build）后提交；
 - **部署先行**：把 worktree 的 dist 拷到插件目录 + petal 重载，用户立即可用；
@@ -61,12 +62,12 @@ bundle 并装进思源**——重载后看到陌生功能/异常先想到是并�
   别去修别人的半成品；
 - **2026-08-29 新战术一：对方脏文件在飞时，dist 构建走干净 worktree**——
   `git worktree add --detach ../wengu-build-tmp HEAD` + `pnpm install
-  --prefer-offline` + 全套检查 + build，dist 从 worktree 拷贝部署，确保
+--prefer-offline` + 全套检查 + build，dist 从 worktree 拷贝部署，确保
   只含已提交代码（对方半成品绝不进 bundle）；`worktree remove --force`
   被节点模块锁挡就 `rm -rf` + `git worktree prune`；
 - **2026-08-29 新战术二：同文件混入双方改动时用 awk 过滤 hunk 摘取提交**——
   `git diff <file> | awk '/^@@/{h++} h<=N {print}' > patch` + `git apply
-  --cached`，只 stage 自己的 hunk（旧的 filter-patch.mjs 同思路，内联更
+--cached`，只 stage 自己的 hunk（旧的 filter-patch.mjs 同思路，内联更
   轻）；注意先确认对方的相关改动已进 HEAD，否则自己的 hunk 上下文对不上；
 - **对方可能提交红 tsc**（20260829 波B 的 `new Error(msg,{cause})` 需
   ES2022 lib 而仓库 lib es2020）——干净 worktree 里 tsc 可辨归属；修
@@ -91,4 +92,4 @@ bundle 并装进思源**——重载后看到陌生功能/异常先想到是并�
   `git log` 摸一遍；`git diff <file>` 突然变空=已被对方提交的信号**，
   白做拆分。随后 rebase 整合机器 B 同日推的 LICENSE 变更（3a73a04），
   CHANGELOG「双方各加条目」型冲突解法=两边都留；
-相关：[[feedback-delegate-decisions]]
+  相关：[[feedback-delegate-decisions]]

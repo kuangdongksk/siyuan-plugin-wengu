@@ -2,9 +2,9 @@
 name: wengu-math-render-branch
 description: 公式裸 $ 修复分支——已并入 dev 并清理 worktree（2026-08-25 全合流）
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_2e656ce9-8e3c-41c2-815f-019e9ba56078
+    node_type: memory
+    type: project
+    originSessionId: sess_2e656ce9-8e3c-41c2-815f-019e9ba56078
 ---
 
 wengu/math-render 分支（2026-08-25）：修复刷题界面公式显裸 `$...$`。

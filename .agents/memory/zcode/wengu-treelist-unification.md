@@ -2,9 +2,9 @@
 name: wengu-treelist-unification
 description: 知识面板树+文档选择器树收敛共享组件 TreeList（20260830），已部署测试工作区待验收、未提交
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_9bfe960b-2224-4758-bd16-bcb9ca441db6
+    node_type: memory
+    type: project
+    originSessionId: sess_9bfe960b-2224-4758-bd16-bcb9ca441db6
 ---
 
 用户指出知识文档面板树与 KnowPicker 选择器树样式明显不一致，要求建一个

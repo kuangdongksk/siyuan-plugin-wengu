@@ -2,9 +2,9 @@
 name: feedback-plan-scope-split
 description: 两块独立改动不许混进同一计划/Issue——一次一件事，分开排队（2026-09-12 用户否决混合计划）
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
+    node_type: memory
+    type: feedback
+    originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
 ---
 
 2026-09-12 出实施计划时把「知识索引自管化」和「题目源锚」两块内容写进同一个计划，用户直接否决：「你都做的什么计划，两块内容的改动怎么能混在一起做计划」。同一轮还纠正：题库体检是题库域功能，知识侧方案不该挂靠它。

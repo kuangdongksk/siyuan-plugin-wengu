@@ -2,9 +2,9 @@
 name: wengu-english-clue-highlight-issue51
 description: 英语标线索不出高亮根因=SKIP_SELECTOR把gloss-link整棵跳掉致含联动词的选段匹配必败；Issue#51已开排队等#46
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_933ea852-fcdb-4da3-87cd-16c717406e4e
+    node_type: memory
+    type: project
+    originSessionId: sess_933ea852-fcdb-4da3-87cd-16c717406e4e
 ---
 
 2026-09-13 用户报「英语标为线索还是不会高亮」。根因已代码级定位，[Issue #51](https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/issues/51) 已开（排队：#46 在跑，合后再召唤）。

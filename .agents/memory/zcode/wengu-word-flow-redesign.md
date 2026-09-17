@@ -2,22 +2,25 @@
 name: wengu-word-flow-redesign
 description: 2026-08-26 背单词改版 wave——回想三档流已提交(3a9ef28)、大底条+四步梯地基已提交(8719834,未接线)；docs/wordbook-redesign.md(发音/四步梯/标题温故单词/多词书)待用户逐条过 6 决策点，审核前不实施
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_c3ca88ad-09c1-4779-9820-8fdaef587db6
+    node_type: memory
+    type: project
+    originSessionId: sess_c3ca88ad-09c1-4779-9820-8fdaef587db6
 ---
 
 2026-08-26 晚背单词交互改版（仿「不背单词」参考流，用户贴 4 张截图逐条点）：
 
 **已提交（3a9ef28，含当日多波部署的批量大提交）**：
+
 - 回想题正面直接三档（认识/模糊/忘记，1/2/3 键）选完翻面；结果页「下一个+记错了」；记错了=强制按不认识+弹「认成了」自述框（选「忘记」也直接带出）；客观题答错同样下一个+记错了；空翻兜底三档。
 - 熟按钮归位到卡片右上角星标旁（wengu-word-tools 角标工具组，答错/翻面才出现）。
 
 **在途部分已提交（8719834，2026-08-27）**：
+
 - 大底条 `wengu-word-grades`（三档/收尾钮整宽均分 56px）+ 修复「未翻面藏操作区」存量 bug。
 - WordQuiz.ts 的 `listen`（听音选义）/`readalong`（听音跟读）题型定义、`NEW_LADDER` 四步梯函数、`AnsweredState.peek`（看答案）——**仍未接线**（WordView/QuizCard/WordBind 未用），类型干净，是后续接线地基。
 
 **待用户审核后实施：docs/wordbook-redesign.md**（用户明确「先落实成文档」）：
+
 - 发音=speechSynthesis（词库只有 w/m **无音标数据**，音标列做不了；真音标要 MinerU 重跑 OCR 挂账）。
 - 新词四步梯：①choiceEn 学习(+看答案翻底按不认识计) ②recallEn 回想 ③listen 听音 ④readalong 跟读；know 才前进，模糊/忘记原步重出；复习词不走梯。
 - 标题改「温故单词」（现读生成物 wordbook-meta 硬编码），书名挪副位。
@@ -29,6 +32,7 @@ metadata:
 **How to apply:** 下次继续时：①先问用户 wordbook-redesign.md 6 决策点的表态，过了才接线四步梯/发音/改名/多词书（顺序见文档 §五）；②WordQuiz 的 listen/readalong/NEW_LADDER/peek 地基已提交（8719834）直接接线即可；③此前「tsc 全仓红=并行 deleteDoc 半成品」已随 [[variant-and-doctree-impl]] 一期提交解决，不再存在。
 
 **2026-08-27 晚更新（并行会话+本会话合力，§六决策已过、梯已接线）：**
+
 - 并行会话推 ca0503a..37ad240（19 提交）：四步梯接线（ca0503a，梯序定稿
   ①choiceEn②choiceZh③listen④recallEn，**readalong 出局**；仅「认识」进
   一步、错一次整梯归零 d2ec340）、pipelineLadder 流水线（组宽≤4 轮转
@@ -65,6 +69,7 @@ metadata:
   guest），别再烧轮次跟它搏斗，交用户手测。
 
 **2026-08-27 深夜更新（滚动四步梯设计定稿 + 复习算法体检，待写入文档过审）：**
+
 - 用户口述的新学调度=主流背单词 app 标准算法（用户明示「网上能查到」，
   已查证墨墨 MM/WDR、不背单词三题型流、Qlango 日引 7~10 新词等）：用
   **动态滚动窗口**替代 pipelineLadder 静态预排——开局连教 4 张①（英选中·
@@ -96,6 +101,7 @@ metadata:
   FSRS 迁移→标题→多词书。
 
 **20260828 晚：滚动窗口+FSRS 已提交 76657fb 并部署机器A，待用户真机验收。**
+
 - 用户过目后拍板开工（含补充定稿：滚动序列**单批连续流**不分批不切块、
   AI 组复盘与队列解耦改「每毕业 groupSize 词」触发；**梯进度跨批保存**——
   ladder 记 [step,errs] 落盘，中途退出重进原样恢复不回①）。
@@ -117,15 +123,16 @@ metadata:
 - 提交形态（76657fb）：word 域 23 文件+AnnoFlow+package/pnpm-lock+docs/wordbook-redesign.md；i18n 经 hunk 手术只摘 wordWindowCap 两键入提交。**学伴名动态化({name})已部署但未提交**：ChatPanel/Prompt/Prompt.test 纯净，但 CompanionCtl(94/28) 与并行会话 ChatStore 重构混改、i18n companion 区与小书童纠缠、CHANGELOG 单大 hunk 拆不动——对方 wave 落盘后须单独补提交（勿忘）。工作区 ~100 文件为 CRLF 行尾幻影（git diff 空），勿 checkout 清理（会误伤并行真实改动）。
 
 **20260828 深夜终局：redesign 全部落地并推送（e254118，附三修）。**
+
 - §四/§五 实施：进度 key 词头化 schema **v3**（cursor 废除；新词=全书扫
   第一个无进度词，太简单/熟不再当新词——与「剩」统一）；词书文件化
   data/wengu/wordbooks/{id}.json+manifest（service/WordLib，内置书首启动
   落盘同权；IO 走新 siyuan/files.ts 内核特殊通道）；v2→v3 一次性迁移
   core/WordMigrate（按内置书换算，待用户确认落盘后移除）；头部「温故单词」
-  + 书名副位=切书选择器；起点面板词书组（导入 json/csv 入库即切当前/
-  设当前/删除不删进度）；切书会话复位、队列统计当前书口径、他书 ladder
-  保留；易混组 ids 即词头跨书有效；WordView 拆 BookOps 压 498 行。
-  决策点 3/4/5/6 随实施闭环（redesign §七 已更新）。
+    - 书名副位=切书选择器；起点面板词书组（导入 json/csv 入库即切当前/
+      设当前/删除不删进度）；切书会话复位、队列统计当前书口径、他书 ladder
+      保留；易混组 ids 即词头跨书有效；WordView 拆 BookOps 压 498 行。
+      决策点 3/4/5/6 随实施闭环（redesign §七 已更新）。
 - **随附修出 76657bf 两个静默回归**：①HomeScreen 仍读 queues.fresh
   （buildQueue 已改 {review,freshLeft}）→ undefined.length **首页一开即崩**
   （svelte-check 三红即此，非 companion 批引入）；②FSRS 重写丢了「答错

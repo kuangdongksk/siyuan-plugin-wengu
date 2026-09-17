@@ -2,9 +2,9 @@
 name: feedback-storage-layout-from-code
 description: 查「某数据存哪」先读代码定位 saveData/数据源，别在存储 JSON 里瞎摸（2026-09-12 用户连番纠正）
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
+    node_type: memory
+    type: feedback
+    originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
 ---
 
 2026-09-12 排查「张宇概率索引噪音」时连被用户纠正三连：不知道存哪 → 给了存储路径还乱翻 → 「什么数据存在哪个文件代码里有」。最终靠读 `KnowledgeLink.ts` 才理清数据源分叉。

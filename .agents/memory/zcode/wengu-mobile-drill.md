@@ -2,9 +2,9 @@
 name: wengu-mobile-drill
 description: 移动端刷题：#61功能腿已合并(src/mobile ~2700行)但照稿视觉还原未做(101区块稿vs六组件骨架)；设计稿design/wengu-mobile-drill.html与OD原版一致；下一步=OpenDesign对比流程出差距再派精修
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_3a4adb84-2c73-4b34-a360-9cc6ba1d8619
+    node_type: memory
+    type: project
+    originSessionId: sess_3a4adb84-2c73-4b34-a360-9cc6ba1d8619
 ---
 
 2026-09-13 设计初稿完成。走 **OpenDesign 本地管线**（Vela 云未登录、amr-runtime 不可用，不影响本地出稿）：

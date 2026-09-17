@@ -2,9 +2,9 @@
 name: wengu-detect-count-fix
 description: 检测总数分段并行计数已修(b205197)已部署机器A待验收；chunkKramdown 已挪 ConvertService 供检测/生成分块共用
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_6672ac59-18f1-48fa-9d73-16ba463b9037
+    node_type: memory
+    type: project
+    originSessionId: sess_6672ac59-18f1-48fa-9d73-16ba463b9037
 ---
 
 用户反馈「检测共多少题远小于习题数量」（2026-08-29）：根因是

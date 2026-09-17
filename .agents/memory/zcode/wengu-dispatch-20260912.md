@@ -2,9 +2,9 @@
 name: wengu-dispatch-20260912
 description: 20260912 调度轮——PR#38/#40/#41 全合并（浮条标注+know-index+批量转换）部署两区待验收；定时自动化已挂（每30分钟审查/合并/部署/冒烟）
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_78c9ba35-405f-4079-9683-d71d8ad02a8e
+    node_type: memory
+    type: project
+    originSessionId: sess_78c9ba35-405f-4079-9683-d71d8ad02a8e
 ---
 
 2026-09-12 调度轮结论（本地只调度口径下的一整圈）：

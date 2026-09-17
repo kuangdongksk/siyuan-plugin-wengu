@@ -2,9 +2,9 @@
 name: feedback-spacing-from-layout
 description: UI 间距必须由布局表达（padding/margin/gap/实测变量），JS 只测量不决定——拒绝魔法数
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_8a00cdab-55b5-42a0-aa4b-6cc731105b45
+    node_type: memory
+    type: feedback
+    originSessionId: sess_8a00cdab-55b5-42a0-aa4b-6cc731105b45
 ---
 
 题号栏高度修复四轮后（20260829「题号没占满」→「又装不下只差几像素」→

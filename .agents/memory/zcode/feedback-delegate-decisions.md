@@ -2,9 +2,9 @@
 name: feedback-delegate-decisions
 description: 用户以「你来决定」授权代理自主决策——先给带优先级的结论，然后直接执行
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
+    node_type: memory
+    type: feedback
+    originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
 ---
 
 给出自检/评审结论（分「真 bug / 清理项 / 低优先级备查」）后，用户回复

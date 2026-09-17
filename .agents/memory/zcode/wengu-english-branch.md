@@ -1,11 +1,11 @@
 ---
 name: wengu-english-branch
 description: wengu/english——E0-E4 已并入 dev（1de759d，2026-08-24）；剩用户 UI
-  验收与挂账优化项；分支/worktree 保留未删
+    验收与挂账优化项；分支/worktree 保留未删
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_5d6c2f17-72f9-4421-b118-a25c2a2ec98c
+    node_type: memory
+    type: project
+    originSessionId: sess_5d6c2f17-72f9-4421-b118-a25c2a2ec98c
 ---
 
 考研英语题型支持分支。**2026-08-24 已并入 dev（merge 1de759d，

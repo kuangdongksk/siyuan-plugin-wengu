@@ -2,9 +2,9 @@
 name: wengu-tauri-migration-plan
 description: Tauri 平迁方案已废弃（20260908 ce2d4bd 转思源深化）；决策台账 D1-D5 仅历史备查，勿再按「待开工」引用
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_81f5900f-23e3-4d11-87c6-2ac5f406bc44
+    node_type: memory
+    type: project
+    originSessionId: sess_81f5900f-23e3-4d11-87c6-2ac5f406bc44
 ---
 
 **20260908 已废弃**：并行会话 ce2d4bd 明确「Tauri 方案废弃转思源深化」

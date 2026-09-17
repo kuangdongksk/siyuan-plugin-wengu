@@ -2,9 +2,9 @@
 name: wengu-minimax-image-detail-fix
 description: MiniMax 2013 图片附件坑修复——PromptHygiene 占位符往返消毒；已部署两区+探针双验证、已提交推送(2db456a)待用户真机重转验收
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_1d73f1f8-874d-4f59-85d6-bf31afe27cba
+    node_type: memory
+    type: project
+    originSessionId: sess_1d73f1f8-874d-4f59-85d6-bf31afe27cba
 ---
 
 20260903 会话：用户转换《概率篇-选择-题解》带图批次全灭（「网络异常，请稍后再试: invalid params, invalid image detail: auto (2013)」）。根因=内核 agent chat 用 Lute 抠 user 消息里的 `![](assets/…)` 成 base64 附件、`detail:"auto"` 发供应商（kernel/agent/attachments.go，单请求≤4张/20MB），MiniMax 的 image_url.detail 只认 low/default/high（2013=invalid params）；内核 isImageInputUnsupportedError 白名单不匹配此措辞不会降级重试。

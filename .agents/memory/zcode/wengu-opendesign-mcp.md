@@ -2,9 +2,9 @@
 name: wengu-opendesign-mcp
 description: OpenDesign MCP 派对比/生成任务的实操要点——喂料法(本机路径直读不传参)、轮询纪律、项目与产物位置（20260914 实操验证）
 metadata:
-  node_type: memory
-  type: reference
-  originSessionId: sess_7d7ff9d5-1179-4f64-a078-840c06e65317
+    node_type: memory
+    type: reference
+    originSessionId: sess_7d7ff9d5-1179-4f64-a078-840c06e65317
 ---
 
 OpenDesign MCP（daemon `127.0.0.1:7456`，本机）派「对比/出稿/细化」任务的实操要点（20260914 AI 会话面板对比 run 验证；daemon 启动命令与 run 坑见 [[wengu-mobile-drill]]）：

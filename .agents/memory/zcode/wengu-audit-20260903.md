@@ -1,11 +1,11 @@
 ---
 name: wengu-audit-20260903
 description: 20260903
-  审查机器B的「产物全内部化」11提交——3条P1功能断链+P2×6+P3，20260904 已全部修复部署两区并提交推送（2db456a，P3 的 SrcChunk ~n 失配未证实跳过），待用户验收
+    审查机器B的「产物全内部化」11提交——3条P1功能断链+P2×6+P3，20260904 已全部修复部署两区并提交推送（2db456a，P3 的 SrcChunk ~n 失配未证实跳过），待用户验收
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_464d6abf-8957-4248-9ca1-18469ed7e442
+    node_type: memory
+    type: project
+    originSessionId: sess_464d6abf-8957-4248-9ca1-18469ed7e442
 ---
 
 20260903 对机器 B 合入的 11 提交（b48839d..16f88d4）做四代理+人工核实审查，

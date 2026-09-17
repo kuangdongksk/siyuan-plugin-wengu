@@ -2,9 +2,9 @@
 name: wengu-410-lifecycle-noise
 description: 410 生命周期闸噪音 20260904 已收口并推送——flush 撞 isLifecycleGone 不弹不重排、void save() 链尾 .catch；源码闸随 2db456a、尾款 e320629/c31c44c
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_2386d4b3-597b-4f0a-863d-b3cda11babba
+    node_type: memory
+    type: project
+    originSessionId: sess_2386d4b3-597b-4f0a-863d-b3cda11babba
 ---
 
 2026-09-04 用户问为何老是报 `{"code":410,"Plugin lifecycle has ended"}`。定性：思源 3.8.2 生命周期闸+开发重载循环固有噪音——旧实例残骸的防抖落盘（题库 2s/ai-sessions 600ms）与熬过重载的长 AI 任务收口，落在截止线后每笔吃 410；新实例/磁盘数据无恙。当日用户点单「收干净」后**全部落地、已推送（origin/dev 至 c31c44c）、已部署两区（测试区 setPetalEnabled 重载成功）**：

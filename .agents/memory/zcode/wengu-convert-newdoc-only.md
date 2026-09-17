@@ -2,9 +2,9 @@
 name: wengu-convert-newdoc-only
 description: 转换固定另存（原文档绝不动）+PDF导入/MinerU整体移除，20260901已部署两区待验收未提交
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_3a7ea4ea-ac32-43a5-8bcf-0bbcd3fe6e73
+    node_type: memory
+    type: project
+    originSessionId: sess_3a7ea4ea-ac32-43a5-8bcf-0bbcd3fe6e73
 ---
 
 20260901 用户定夺「根据原文档保存一份自己的数据，完全不动原文档」：

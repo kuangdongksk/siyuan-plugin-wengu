@@ -1,11 +1,11 @@
 ---
 name: wengu-svelte-batch2-bank
 description: Svelte
-  批次2(bank面板)+批次3(review主区)已提交部署测试工作区；控制器单例模式；rail/side/head组件化并入批次6；push断连本地ahead待补推
+    批次2(bank面板)+批次3(review主区)已提交部署测试工作区；控制器单例模式；rail/side/head组件化并入批次6；push断连本地ahead待补推
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_ae10b8bd-c0bc-47b7-a880-752687402f59
+    node_type: memory
+    type: project
+    originSessionId: sess_ae10b8bd-c0bc-47b7-a880-752687402f59
 ---
 
 Svelte 迁移批次 2+3（2026-08-30）：bank 两工作区面板（7869fad）+
@@ -17,6 +17,7 @@ review 错题本主区（49bb908），均已部署**测试工作区**（D:\data\
 路线图锁定，两批落地记录已写进该文档。
 
 **How to apply:**
+
 - 递归树组件：`import Self from "./Self.svelte"` 后用 `<Self>`（Svelte 5
   无 svelte:self）；snippet 渲染调用是 `{@render name(args)}`。
 - **控制器单例模式**（review 先例，跨视图持久状态用）：模块级 ctl
@@ -59,6 +60,6 @@ review 错题本主区（49bb908），均已部署**测试工作区**（D:\data\
   收口 interface+cast（KnowPicker 同款）。AI 通道 bind:this 喂命令式
   （暗雷§8）。错误兜底 rail 漏绑事件顺修（有意）。已部署机器A两区
   （文件拷贝；思源当时未运行无热重载，启动即新版）。**6-4（题卡+
-  Steps/AnswerFlow 三写终结）刻意未动**：~1900 行作答核心，长卷性能
+  Steps/AnswerFlow 三写终结）刻意未动**：~~1900 行作答核心，长卷性能
   分片管线是 20260830 刚真机调优的硬约束，按「每批真机验证后进下一
-  批」纪律候用户验收 6-1~6-3 后再动，切分约束已记进迁移文档。
+  批」纪律候用户验收 6-1~~6-3 后再动，切分约束已记进迁移文档。

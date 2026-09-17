@@ -2,14 +2,15 @@
 name: wengu-review-mode-branch
 description: 错题复习模式分支——D1~D6 全落地并已并入 dev（2026-08-25 全合流）
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_2e656ce9-8e3c-41c2-815f-019e9ba56078
+    node_type: memory
+    type: project
+    originSessionId: sess_2e656ce9-8e3c-41c2-815f-019e9ba56078
 ---
 
 wengu/review-mode 分支：错题本（复习模式）+ 统计增强，设计文档
 docs/review-mode.md（D1~D6 全部拍板）。**已完整落地并并入 dev
 （9d2ca69），worktree/分支已清理**。实现要点存档：
+
 - 入口统一为 QuizView.enterReviewMode({docId?, qid?})——头部切换器/
   侧栏右键/统计面板三路共用；数据在 ReviewFlow 模块级缓存（TTL 60s）。
 - QuizView 常年贴 500 行红线：ConvertViewAccess 段拆去 ConvertAccess.ts

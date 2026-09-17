@@ -2,9 +2,9 @@
 name: wengu-wordbook-multi-model
 description: 词书数据模型方向定稿——考试=进度域/书=带序子集/进度挂归一化词头非下标；地基重构已动工(98bcb1e 分域迁移src/word/)，剩key语义改造与多词库管线
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_79477d44-3033-4b36-bad9-6f3d6442ecd9
+    node_type: memory
+    type: project
+    originSessionId: sess_79477d44-3033-4b36-bad9-6f3d6442ecd9
 ---
 
 2026-08-24 与用户讨论定稿的词书数据模型（**地基重构已动工**：2026-08-26 并行会话 98bcb1e/c19b9ef 把单词域迁 `src/word/` 完成分域；key 下标→词头改造与多词库管线仍待做）：

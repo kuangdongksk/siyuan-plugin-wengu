@@ -2,9 +2,9 @@
 name: wengu-clue-anchor-redesign
 description: 线索锚点改造：#52二期已合并(PR#60→d95bc6f)已部署工作区；我独立审查与NPC自审5缺陷互证(选项行丢失/CanonMap别名错位/匹配源污染)；#53三期与#56/#57同域串行待派
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_933ea852-fcdb-4da3-87cd-16c717406e4e
+    node_type: memory
+    type: project
+    originSessionId: sess_933ea852-fcdb-4da3-87cd-16c717406e4e
 ---
 
 2026-09-13 用户质疑「渲染方案不对」→ 讨论定调（思源行内标记哲学：markup 唯一生产者 + 标记时刻一次求坐标）→ 设计稿过审 → [#52 二期](https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/issues/52)/[#53 三期](https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/issues/53)（词表迁入，纯收拢）开 Issue。

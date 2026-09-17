@@ -2,9 +2,9 @@
 name: feedback-npc-parallel-by-overlap
 description: NPC 并行数不设一刀切上限——按改动面交集判断：同域串行、异域可并行（条文已推dev 1b9eab0）；召唤提及必须顶格（引用块不触发流水线，坑在AGENTS.md 7e557eb）
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_13cc5808-cda1-47b8-bd2b-df517017ad32
+    node_type: memory
+    type: feedback
+    originSessionId: sess_13cc5808-cda1-47b8-bd2b-df517017ad32
 ---
 
 2026-09-13 用户纠正 AGENTS.md「一次只跑一个 NPC 任务」约定：**同一时间能跑的 NPC 数量取决于工作内容，不是全局单任务**。当日已执行三连（用户拍板）：①条文改「同域串行、异域可并行」推 dev（1b9eab0，协作段本地直改合规）；②据此并行召唤 #59（与线索链并行）；③顶格坑实测补录（7e557eb）。

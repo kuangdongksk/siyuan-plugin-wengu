@@ -2,9 +2,9 @@
 name: feedback-data-source-simplicity
 description: 数据源设计「文档为事实源、只存 ID、拒绝镜像搬运」——用户明确否决以题库镜像为主源的方案
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_39751bd5-26e4-4f25-aa05-7838383d3faa
+    node_type: memory
+    type: feedback
+    originSessionId: sess_39751bd5-26e4-4f25-aa05-7838383d3faa
 ---
 
 2026-08-25 错题本设计（[[wengu-review-mode-branch]] D2）时用户否决以题库 bank 镜像为主源的方案：「不要以题库为主源。既然题库是按照文档走的，那就以文档为主源。你直接保存一个 ID 就可以了，不需要这么乱七八糟的。」

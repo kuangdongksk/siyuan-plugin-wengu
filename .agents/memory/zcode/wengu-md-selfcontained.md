@@ -2,9 +2,9 @@
 name: wengu-md-selfcontained
 description: 渲染自包含化(markdown-it替Lute+内嵌Protyle退役)已部署测试工作区未提交——并行会话同窗口交织QuizShell；markdown-it版本组合坑；块引用=查看原文链接
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_ae10b8bd-c0bc-47b7-a880-752687402f59
+    node_type: memory
+    type: project
+    originSessionId: sess_ae10b8bd-c0bc-47b7-a880-752687402f59
 ---
 
 渲染自包含化（2026-08-30，用户拍板「去 Protyle→去 Lute→块引用=按钮」
@@ -19,6 +19,7 @@ metadata:
 全局对象（window.Lute/SetInlineMath/Md2BlockDOM 壳全是真机坑源）。
 
 **How to apply:**
+
 - **markdown-it 版本必须 14.1.0 + @types/markdown-it 14.2.0**：14.3.1
   与 @types 组合时包内 lib 与 @types 是两套互斥声明；State/Options
   类型从 `MarkdownIt.StateInline` 命名空间限定取（node10 解析下深

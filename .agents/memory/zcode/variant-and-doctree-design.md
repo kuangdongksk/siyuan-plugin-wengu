@@ -1,11 +1,11 @@
 ---
 name: variant-and-doctree-design
 description: 变式重练+文档树形化设计文档 docs/variant-and-doctree.md 已产出，待用户逐条过 §五 □1~□7
-  后实施；二刷乱序选项已对齐方案但明确独立成项不混入
+    后实施；二刷乱序选项已对齐方案但明确独立成项不混入
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_80365c10-95e4-4c34-8546-4da799d802a1
+    node_type: memory
+    type: project
+    originSessionId: sess_80365c10-95e4-4c34-8546-4da799d802a1
 ---
 
 2026-08-26 晚用户口令「先把我发你的落实成文档」（按 [[feedback-discussion-style]]

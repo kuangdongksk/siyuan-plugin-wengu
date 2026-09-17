@@ -2,9 +2,9 @@
 name: wengu-preview-mode
 description: 预览模式+快捷复制已落地(76496f7)；长卷性能修复已提交(c3c0ade)；挂账：复习模式无通用退路、错题回顾完整版设计意向
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_9a9fcf94-774e-4e0c-aadf-ff8c624c0c20
+    node_type: memory
+    type: project
+    originSessionId: sess_9a9fcf94-774e-4e0c-aadf-ff8c624c0c20
 ---
 
 2026-08-26 预览模式会话成果（dev @76496f7 已提交；长卷性能修复已提交 c3c0ade，等用户 193 题真机验收）：

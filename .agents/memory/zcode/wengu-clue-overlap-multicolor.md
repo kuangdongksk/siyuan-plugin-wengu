@@ -2,9 +2,9 @@
 name: wengu-clue-overlap-multicolor
 description: #56并集合并(待跑)+#57改版=用户选色(标线索二级竖排色板菜单/独立ColorMenu组件/clueColors平行字段)body已更新待召唤；队列#52→#53→#56→#57
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_933ea852-fcdb-4da3-87cd-16c717406e4e
+    node_type: memory
+    type: project
+    originSessionId: sess_933ea852-fcdb-4da3-87cd-16c717406e4e
 ---
 
 2026-09-13 用户贴真机卡 DOM 报：三条线索只出两个 mark（`proposal` 短条出了、`proposal might be regarded` 长条没出），要「长的覆盖短的」；另要线索 mark 多色、取思源主题配置。

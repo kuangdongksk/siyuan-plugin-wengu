@@ -2,18 +2,19 @@
 name: variant-and-doctree-impl
 description: 变式重练+侧栏文档树化一期+KnowPicker树化二期全部完成——已提交推送(9218a66/b5cba82,2026-08-27)并部署机器A，待用户真机验收；实施记录在 docs/variant-and-doctree.md §六
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_80365c10-95e4-4c34-8546-4da799d802a1
+    node_type: memory
+    type: project
+    originSessionId: sess_80365c10-95e4-4c34-8546-4da799d802a1
 ---
 
 设计 [[variant-and-doctree-design]]（docs/variant-and-doctree.md）：一期
-（V1~V4 变式重练 + S1~S3 侧栏树）2026-08-26 实施，二期（□6/T1~T3
+（V1~~V4 变式重练 + S1~~S3 侧栏树）2026-08-26 实施，二期（□6/T1~T3
 KnowPicker 树化）2026-08-27 完成——**均已提交推送**（一期 b5cba82，
 二期 9218a66，一期里同批收进右键删除文档见 [[wengu-delete-doc-feature]]）
 并部署机器 A 重载，待用户真机验收。
 
 一期落点：
+
 - `bank/GenQuestion.ts` generateVariantOf（按题变式，模板=题自己）+
   `bank/QuestionBank.ts` recordsOfDoc。
 - `bank/VariantDrill.ts`（新）：右键「变式重练」→ 范围（整卷/仅错题）+数量
@@ -24,6 +25,7 @@ KnowPicker 树化）2026-08-27 完成——**均已提交推送**（一期 b5cba
 - 右键菜单现有三项：错题复习/删除文档/变式重练。
 
 二期落点（2026-08-27）：
+
 - `ui/PickerTree.ts`（新）：buildPickerTree（笔记本首段纯容器根，同路径
   撞名以同名子行挂载）+ renderPickerTree（行壳 b3-list-item，toggle/缩进
   复用 base.scss wengu-tree 全局类；仅文档行 data-id 可选，分支行

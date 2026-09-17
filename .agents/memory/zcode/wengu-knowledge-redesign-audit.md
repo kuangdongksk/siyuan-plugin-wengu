@@ -2,9 +2,9 @@
 name: wengu-knowledge-redesign-audit
 description: 知识树方案四块落地（20260831 fe26ff3）；□4 rail 合并次日被推翻——b84aab4 拆回五钮+专题独立工作区（ColListSection 更名 CollectionPanelApp），现行为准；□1~□3 活视图专题机制不变
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_6c2e17d9-aa59-430b-a6da-6a0322ef54c1
+    node_type: memory
+    type: project
+    originSessionId: sess_6c2e17d9-aa59-430b-a6da-6a0322ef54c1
 ---
 
 20260830 审查+用户定调（合并两模块、h1~h6 载体、专题=动态视图）→ 20260831 机器 B

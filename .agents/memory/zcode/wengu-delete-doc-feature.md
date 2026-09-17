@@ -2,9 +2,9 @@
 name: wengu-delete-doc-feature
 description: 侧栏文档右键「删除文档」+专题对话框 iconList 巨图修复——已随变式一期提交(b5cba82)推送部署，待用户验收
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_80365c10-95e4-4c34-8546-4da799d802a1
+    node_type: memory
+    type: project
+    originSessionId: sess_80365c10-95e4-4c34-8546-4da799d802a1
 ---
 
 2026-08-26 晚落地并部署（tsc/eslint/prettier/67 测/build 全绿；

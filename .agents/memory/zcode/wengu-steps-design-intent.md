@@ -2,9 +2,9 @@
 name: wengu-steps-design-intent
 description: 多步引导题的产品决策与待办——离线路径锚定是心算约束下的有意设计（已记契约文档）；「转换后分类审核预览」方案已提出待用户确认
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_fdb4b391-bd4a-4aef-ad5f-3b9bd55d6395
+    node_type: memory
+    type: project
+    originSessionId: sess_fdb4b391-bd4a-4aef-ad5f-3b9bd55d6395
 ---
 
 用户拍板的 steps 题设计意图（已写入 docs/question-block-contract.md

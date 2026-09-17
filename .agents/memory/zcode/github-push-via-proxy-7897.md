@@ -2,9 +2,9 @@
 name: github-push-via-proxy-7897
 description: git 访问 GitHub 顺序：先试直连（时通时不通），失败再走 127.0.0.1:7897 代理（代理进程未必在跑，先探端口）
 metadata:
-  node_type: memory
-  type: user
-  originSessionId: sess_3a7ea4ea-ac32-43a5-8bcf-0bbcd3fe6e73
+    node_type: memory
+    type: user
+    originSessionId: sess_3a7ea4ea-ac32-43a5-8bcf-0bbcd3fe6e73
 ---
 
 用户本机（机器 A，Windows）本地代理端口为 **7897**（Clash 惯用端口，
@@ -17,12 +17,12 @@ metadata:
 
 1. 先直接跑（可加 `http.low-speed-limit/low-speed-time` 短超时快败）；
 2. 直连失败 → `netstat` 探 7897 是否在监听：
-   - 在监听：加一次性代理（不写全局配置，避免拖累思源内核 127.0.0.1
-     与国内网络访问）：
+    - 在监听：加一次性代理（不写全局配置，避免拖累思源内核 127.0.0.1
+      与国内网络访问）：
 
-         git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push origin dev
+          git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push origin dev
 
-   - 没监听：向用户报告代理未开，请用户开代理或稍后重试。
+    - 没监听：向用户报告代理未开，请用户开代理或稍后重试。
 
 每条路重试 1~2 次即换，别循环死磕。
 

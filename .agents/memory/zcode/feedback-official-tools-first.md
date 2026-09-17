@@ -2,9 +2,9 @@
 name: feedback-official-tools-first
 description: 平台操作一律优先官方工具（cnb→cnb-cli、GitHub→gh），禁手搓旁路（内嵌token/裸curl调API）
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
+    node_type: memory
+    type: feedback
+    originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
 ---
 
 2026-09-12 用户定夺：「不管什么时候都要用官方的工具」。起因：cnb remote 内嵌 token 过期排查中，我用 curl 裸调 CNB API 探测、手工抽 token，随后接好 cnb-cli 官方凭证链路，用户认可并升格为总则。

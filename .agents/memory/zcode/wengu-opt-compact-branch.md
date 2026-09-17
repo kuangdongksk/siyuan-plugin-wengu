@@ -2,9 +2,9 @@
 name: wengu-opt-compact-branch
 description: opt-compact 分支——短选项紧凑排布（Lute 剥壳+估宽分档一行2/4个），已部署机器A待验收；Lute 段落真机形态探针结论
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_5eab66a4-4dac-4b5f-a04d-a42ab10bdb17
+    node_type: memory
+    type: project
+    originSessionId: sess_5eab66a4-4dac-4b5f-a04d-a42ab10bdb17
 ---
 
 短选项紧凑排布 opt-compact（20260829）：用户反馈数学短公式选项（π/6 等）每个独占一行太浪费。分支 `opt-compact`（工作树 `D:/code/siyuan/wengu-optcompact`，基于 dev 8056ffc），提交 a99b547（设计文档 docs/option-compact-layout.md）+ 695c90f（实现）+ ca29bcd（验收返修两连），已部署机器A已重载 petal，**待用户重开题库页签验收（Neo 主题）**。

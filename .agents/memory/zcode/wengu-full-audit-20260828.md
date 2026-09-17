@@ -2,9 +2,9 @@
 name: wengu-full-audit-20260828
 description: 三轮全仓审查五波全修（A~E 20260829「直接全部修复」）已部署机器A；③波挂账13清11遗留3条；窄屏守卫+部署竞态教训
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_171906d3-4d72-4e64-8f7a-9083d0719183
+    node_type: memory
+    type: project
+    originSessionId: sess_171906d3-4d72-4e64-8f7a-9083d0719183
 ---
 
 2026-08-28 全仓代码审查（4 并行代理+机械扫描，每条 P1 亲自核码）后两波修复，

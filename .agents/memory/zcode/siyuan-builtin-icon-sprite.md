@@ -2,9 +2,9 @@
 name: siyuan-builtin-icon-sprite
 description: 思源内置图标 sprite 的真身位置（图标包机制）与 dock 图标 uiLayout 持久化定论
 metadata:
-  node_type: memory
-  type: reference
-  originSessionId: sess_5f3a9cc2-61f3-4e4e-a1c6-8ecc56597c81
+    node_type: memory
+    type: reference
+    originSessionId: sess_5f3a9cc2-61f3-4e4e-a1c6-8ecc56597c81
 ---
 
 思源 3.8.x 起内置图标走**图标包**机制，sprite 不在 stage 的 HTML/JS 里：

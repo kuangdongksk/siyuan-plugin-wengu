@@ -1,11 +1,11 @@
 ---
 name: wengu-cnb-cli-credential
 description: cnb remote 鉴权改走 cnb-cli OAuth2+git credential helper，内嵌 token 的
-  remote URL 已废弃（2026-09-12）
+    remote URL 已废弃（2026-09-12）
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
+    node_type: memory
+    type: project
+    originSessionId: sess_d169247f-5f10-46c8-bf8a-67217b560e33
 ---
 
 2026-09-12 cnb remote 内嵌 token 过期（fetch 报「仓库不存在」，API 返回 401 errcode 16）。修复方式（机器 A 已生效）：

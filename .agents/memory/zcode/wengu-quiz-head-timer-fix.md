@@ -2,9 +2,9 @@
 name: wengu-quiz-head-timer-fix
 description: 刷题头部吸顶+计时不再累计后台墙钟已提交(721d088)；20260830 补修吸顶头z-index盖官方弹窗——isolation:isolate收口视图根已部署待验收
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_d8648257-4f3d-4eb9-b920-684a5a6bfd41
+    node_type: memory
+    type: project
+    originSessionId: sess_d8648257-4f3d-4eb9-b920-684a5a6bfd41
 ---
 
 2026-08-27 晚刷题页签两修（721d088，已部署机器 A + petal 重载，待用户验收）：

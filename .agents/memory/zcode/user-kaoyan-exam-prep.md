@@ -2,9 +2,9 @@
 name: user-kaoyan-exam-prep
 description: 用户在备战考研，刷题文档是各家的模拟卷（肖四肖八/李林六套/张四张八）
 metadata:
-  node_type: memory
-  type: user
-  originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
+    node_type: memory
+    type: user
+    originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
 ---
 
 用户用温故插件备战考研（2026-08 时点）：习题文档是各家模拟卷，如肖四

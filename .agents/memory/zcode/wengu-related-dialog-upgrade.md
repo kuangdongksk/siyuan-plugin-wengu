@@ -2,9 +2,9 @@
 name: wengu-related-dialog-upgrade
 description: 相关题弹窗×刷题联动设计稿已过审(20260913)，落地为Issue#44+召唤青简，实现状态见dispatch-20260913
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_4482839f-2c9e-4f41-959d-e1f76daa9b53
+    node_type: memory
+    type: project
+    originSessionId: sess_4482839f-2c9e-4f41-959d-e1f76daa9b53
 ---
 
 20260913 用户过审定夺：**专题落侧栏清单但必须写清来源**（标题=`相关题·{来源文档标题}`）；**回顾=看历史错题及答案**（错题本 qidFilter 筛选口径，不重刷开轮）；AI 分析未表态按推荐落（弹窗内等待渲染 + track(kind="analyze") 兜底回看）。

@@ -2,9 +2,9 @@
 name: wengu-dock-icon-branch
 description: dock-icon 已并 dev(8779c6d)、worktree已清——图标稳定id+官方path、选择器下拉化、UI标准§〇4-9；§〇4图标钮 wengu-iconbtn；svg巨幅坑已于20260905根修(svgIcon自带14×14,清单退役为保险层)
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_5f3a9cc2-61f3-4e4e-a1c6-8ecc56597c81
+    node_type: memory
+    type: project
+    originSessionId: sess_5f3a9cc2-61f3-4e4e-a1c6-8ecc56597c81
 ---
 
 2026-08-26 图标与 UI 修复分支：六提交**已全部并入 dev**（merge 8779c6d，

@@ -2,9 +2,9 @@
 name: wengu-word-audit-20260829
 description: 单词域全量审查——P1组边界已修(760fcf2)；P2×2已随全仓审查波B/D清偿；剩P3×4挂账
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_8a00cdab-55b5-42a0-aa4b-6cc731105b45
+    node_type: memory
+    type: project
+    originSessionId: sess_8a00cdab-55b5-42a0-aa4b-6cc731105b45
 ---
 
 2026-08-29 单词域全量代码审查（core/flow/service/comp 共 44 逻辑文件）。

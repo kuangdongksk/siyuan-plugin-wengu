@@ -2,9 +2,9 @@
 name: wengu-option-packed-repair
 description: 20260905 选项挤行事件：拆行修复已实现部署测试区，21条损坏数据待用户点「题库体检」执行；含 computer-use 误点游戏教训
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_e06130bf-8341-4166-bf4b-e57336133eea
+    node_type: memory
+    type: project
+    originSessionId: sess_e06130bf-8341-4166-bf4b-e57336133eea
 ---
 
 20260905 测试区《概率篇-选择-题解》45 题中 21 题「只剩正确选项」：AI 把 4 个选项一行一个塞进同一 `@@P opt`，renderUnit 只给首行编字母、OptionShuffle n<2 跳过洗牌。修复双件已部署测试区（工作区也拷了 dist+i18n，但工作区内核当时未开）：`OptionShuffle.unpackPackedSingle`（生成侧拆行，答案重写 A 再洗牌）+ `bank/data/BankRepair` + 专题工作区「题库体检」入口（RepairDialog，预览即所得）。离线用真实损坏数据验证过 20 可修/1 多选 packed-multi/24 健康。**未提交**。

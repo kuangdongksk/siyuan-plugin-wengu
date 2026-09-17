@@ -2,9 +2,9 @@
 name: wengu-dispatch-20260913
 description: 20260913调度轮：#52已合并(PR#60→d95bc6f)部署工作区；#59并行召唤NPC跑着；并行约定已改条文推dev(1b9eab0)+顶格坑(7e557eb)；#53/#56/#57线索域串行待派；#44/#45/#46/#51议题未关待清
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_4482839f-2c9e-4f41-959d-e1f76daa9b53
+    node_type: memory
+    type: project
+    originSessionId: sess_4482839f-2c9e-4f41-959d-e1f76daa9b53
 ---
 
 2026-09-13 调度轮（链式：召唤→NPC实现+复审→本地审查→合并→召唤下一个）。

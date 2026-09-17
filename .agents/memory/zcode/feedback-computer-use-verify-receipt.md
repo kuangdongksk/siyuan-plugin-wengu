@@ -2,9 +2,9 @@
 name: feedback-computer-use-verify-receipt
 description: computer-use 点屏幕前必须核对 action_receipt 的 resolved_app_ref——用户可能在实时用机（曾误点进全屏游戏）
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_e06130bf-8341-4166-bf4b-e57336133eea
+    node_type: memory
+    type: feedback
+    originSessionId: sess_e06130bf-8341-4166-bf4b-e57336133eea
 ---
 
 20260905 驱动思源 UI 时，激活思源后一次坐标点击的 dispatch 结果显示 `resolved_app_ref` 是用户正在玩的全屏游戏（Don't Starve Together）——游戏抢回了焦点，截图栅格虽是思源内容，事件却发进了游戏。

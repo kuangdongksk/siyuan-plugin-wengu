@@ -2,9 +2,9 @@
 name: wengu-dispatch-20260915
 description: 20260915调度轮：审并合并F0/F1整改PR#126(regen答案核查)与#128(SCSS迁组件试点)+部署两区；#129 AI面板对稿已派在跑
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_98362b44-947f-4ea8-9367-63c7e16ced87
+    node_type: memory
+    type: project
+    originSessionId: sess_98362b44-947f-4ea8-9367-63c7e16ced87
 ---
 
 2026-09-15 晚调度轮（接 [[wengu-dispatch-20260914]]）。
@@ -12,6 +12,7 @@ metadata:
 **上午会话（我记忆之外）发生的事**：审计 #110 产出整改单 F0/F1（Issue #123/#127）并召唤 NPC，两轮交付完毕待审；#119~#122、#125 已合并（拆超线文件/design-spec.md 落库/i18n 收口/AI 面板复制）。本地 dev 因此落后远端 46 条，本轮先 ff 同步。
 
 **本轮审查合并（merge sha）**：
+
 - **PR #126 → 2ce3ab7**（F0 重新生成无核查）：三条修法=① regen prompt 走 protocolSpec `order:"keep"`（只换 @@P opt 行，默认链逐字节不变）② `bank/gen/RegenVerify.reseatAnswer` 先校正后洗牌，失配走 verifyPrompt 自检、no 整题不落盘 ③ OptionShuffle 洗牌时按同一 order 映射改写解析里的独立裸字母词符（保护区：行内/围栏代码+$数学+\(\)\[\]+所有格）。⚠️ ③ 是**转换链全局行为变更**（解析字母随洗牌走），我实证了 `solution` 部件命名与 QuestionDraft 契约一致不会 no-op。真机验收=题卡重生成一笔修正案。
 - **PR #128 → 4619236**（F1 SCSS 绑定新规试点）：startpanel.scss(106) 迁入 StartPanelApp.svelte `<style>`（webpack css:"injected" 首次激活，产物不落 dist/index.css）；english.scss(564) 拆三片；design-spec §十三 成样式绑定权威口径。复核轮揪出 3 处「类名没变肉眼无感」的选择器形态漂移，补了**选择器名录逐字平价闸**（后续每批迁片都要抄）。我本机独立 build+产物核对过（wengu-start 在 index.js 不在 index.css、gloss 样式仍在全局 css）。真机验收=开刷面板明暗+Neo 目视（静态面已被闸钉死）。
 

@@ -2,9 +2,9 @@
 name: feedback-discussion-style
 description: 设计讨论先给分析然后把话语权交给用户——「等我说完」：结构化选项别抢在用户表达前；设计交付先出审核文档、逐条过完再实施；「先拉取」类口令立即暂停实施做同步
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_fdb4b391-bd4a-4aef-ad5f-3b9bd55d6395
+    node_type: memory
+    type: feedback
+    originSessionId: sess_fdb4b391-bd4a-4aef-ad5f-3b9bd55d6395
 ---
 
 设计探讨轮里我用 AskUserQuestion 抛结构化选项，用户先回「你还没问我是
@@ -26,8 +26,7 @@ metadata:
 **How to apply:** 讨论轮输出「准确的现状地图+弱点+我的推荐」后**停住等
 用户说**，不用选择题工具催；用户逐条表态后按表态执行（授权的直接做，
 确认是问题的给方案待确认）；收到「稍等/先拉取」类口令立即暂停实施、
-先做同步动作。报 bug 的形态（2026-08-27 两例）：用户常**只贴 DOM 快照
-+「修复一下这个bug」不描述症状**——从 DOM 结构、部署目录未压缩 i18n、
+先做同步动作。报 bug 的形态（2026-08-27 两例）：用户常**只贴 DOM 快照 +「修复一下这个bug」不描述症状**——从 DOM 结构、部署目录未压缩 i18n、
 minified bundle 上下文反推症状（如剩余数与学伴画像矛盾、计时器恒三十
 几分），别反问「什么症状」空转。参见 [[feedback-delegate-decisions]]、
 [[wengu-steps-design-intent]]。

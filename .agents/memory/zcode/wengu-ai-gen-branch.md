@@ -2,9 +2,9 @@
 name: wengu-ai-gen-branch
 description: wengu/ai-gen——题库①~⑥全部并入 dev（a485a5b，2026-08-24）；与 english 调和完成；全链路真机验收等用户第一次真转换
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_5d6c2f17-72f9-4421-b118-a25c2a2ec98c
+    node_type: memory
+    type: project
+    originSessionId: sess_5d6c2f17-72f9-4421-b118-a25c2a2ec98c
 ---
 
 题库插件数据化分支。**2026-08-24 全部并入 dev（a485a5b）并推送
@@ -17,10 +17,11 @@ metadata:
 AiJudge 判分返回融合 SCORE 并入评语+CAUSE 错因两路；CardParts.
 renderCardHead 承接 regen 按钮（english 把卡头挪过去了）；
 QuizView 构造 11 参（history/weakness/bank/openSettings/wordStore）
-+ 双套访问器并存（DrillViewAccess/ConvertViewAccess/StatsViewAccess/
-TimerHostAccess）；**ConvertHost.applyQuizList 补 materials 透传**
-（aigen 重构时丢了 english 的材料预览语义——自动合并查不出的真 bug）；
-bindHead 拆 ViewBindings.bindHeadFor 压回 500 行。
+
+- 双套访问器并存（DrillViewAccess/ConvertViewAccess/StatsViewAccess/
+  TimerHostAccess）；**ConvertHost.applyQuizList 补 materials 透传**
+  （aigen 重构时丢了 english 的材料预览语义——自动合并查不出的真 bug）；
+  bindHead 拆 ViewBindings.bindHeadFor 压回 500 行。
 
 **遗留**：本工作区仍无习题数据，①~⑥ 全链路（转换入库→专题→刷→
 报告→薄弱加练→重生成→右键反查）等用户第一次真转换后验收。

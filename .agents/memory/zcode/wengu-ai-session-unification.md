@@ -2,9 +2,9 @@
 name: wengu-ai-session-unification
 description: AI 调用全量收敛 agentChatOnce(278a2a2)；20260905 面板自由追问退役→失败重试(agentChatContinued 重放+retrying 原地翻案)已部署测试区未提交；落盘缺口审计待用户定
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_7e260705-3cf8-4587-826c-b20e179b0687
+    node_type: memory
+    type: project
+    originSessionId: sess_7e260705-3cf8-4587-826c-b20e179b0687
 ---
 
 2026-08-30 用户拍板「所有 AI 对话走 sessionID」并落地（提交 278a2a2，已部署机器 A 待验收）：

@@ -1,18 +1,18 @@
 ---
 name: wengu-kernel-extra-traps
 description: 思源 3.8.0 内核/工具坑三条（AGENTS.md 未记）：putFile 不吃 JSON、moveDocs 报 block
-  not found、WindowsApps 前端源码 Git Bash 读不了
+    not found、WindowsApps 前端源码 Git Bash 读不了
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
+    node_type: memory
+    type: project
+    originSessionId: sess_265f8127-992b-406c-9fe3-b3f644f5fb04
 ---
 
 2026-08-22 真机（127.0.0.1:6806）实测的补充坑，尚未回填 AGENTS.md：
 
 1. **`/api/file/putFile` 不吃 JSON body**：即使 payload 用文件传（排除 Git
    Bash 转义问题），任何 path 写法都返回 `{"code":400,"msg":"path must
-   be empty"}`——该端点应为 multipart。**替代**：在插件内用
+be empty"}`——该端点应为 multipart。**替代**：在插件内用
    `this.saveData("key", str)` 落盘，再从磁盘
    `data/storage/petal/<plugin>/<key>` 读回（临时 dump DOM 就这么干的）。
 2. **`/api/filetree/moveDocs` 不可用**：fromPaths/toNotebook/toPath 均已
@@ -36,7 +36,9 @@ metadata:
 
 **How to apply:** 涉及内核写文件/搬文档时直接选替代方案；给 AGENTS.md
 回填时把这三条并入「内核坑」一节。相关：[[project-parallel-sessions]]
+
 - 插件自定义 Dock(3.8.0):(this as any).addDock({type,config:{title,icon,index,hotkey},init(custom)}) 注册;激活:遍历 window.siyuan.layout.{leftDock,rightDock,bottomDock},data[插件名+type] 存在者 toggleModel(全type);npm 类型包 1.2.x 未收录需局部声明
+
 6. **Windows node.exe 不认 Git Bash 的 /tmp 路径**（20260826 机器A）：
    `curl -o /tmp/x.json` 成功后 `node -e "require('/tmp/x.json')"` 报
    MODULE_NOT_FOUND——node 把 /tmp 解析到当前盘符根（D:\tmp）。用
@@ -50,8 +52,8 @@ metadata:
    走这里最快。
 8. **内核 base.css 的窄屏媒体查询特异性陷阱**（20260829 机器A 3.8.1
    实证，用户截图「设置弹窗内容超出了」的根因）：`@media
-   (max-width:750px){.config__item>.b3-text-field,.config__item>
-   .b3-select,.config__item>.b3-button,…{width:100%;margin-top:8px}}`
+(max-width:750px){.config__item>.b3-text-field,.config__item>
+.b3-select,.config__item>.b3-button,…{width:100%;margin-top:8px}}`
    （特异性 0,2,0）在窗口 ≤750 CSS px（半屏分栏/DPI 缩放）盖过
    `.fn__size200{width:200px}`——插件设置弹窗「标签+定宽控件」横排行
    被拉成整行宽并溢出面板右缘。修法：复合选择器

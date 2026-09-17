@@ -2,9 +2,9 @@
 name: wengu-wordbook-pipeline
 description: 单词本词表(你还在背单词吗)的生成管线位置与再生成方法
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_cfd7a5f5-10a8-4edd-8f56-6d63a53e7f52
+    node_type: memory
+    type: project
+    originSessionId: sess_cfd7a5f5-10a8-4edd-8f56-6d63a53e7f52
 ---
 
 温故插件内置词书《你还在背单词吗(刘晓艳)》数据由一次性管线生成(2026-08-23):

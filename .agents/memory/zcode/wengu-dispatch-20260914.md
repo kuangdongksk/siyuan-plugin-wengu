@@ -2,9 +2,9 @@
 name: wengu-dispatch-20260914
 description: 20260914调度轮：审并合并PR#84(阅读面结构判据)与#86(流级横幅对稿)；dev 4deab77仍未装机，攒账三屏+五条真机验收
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_7d7ff9d5-1179-4f64-a078-840c06e65317
+    node_type: memory
+    type: project
+    originSessionId: sess_7d7ff9d5-1179-4f64-a078-840c06e65317
 ---
 
 **20260914 调度轮（接 [[wengu-batch-convert-resume-issue62]] 之后）**：审查并合并了两个他人派的 NPC PR：
@@ -13,6 +13,7 @@ metadata:
 - **PR #86 → `4deab77`（Ref #85，已关）**：流级横幅按已验收设计稿还原（#79 停摆的美化）。FlowRegistry 结构化通用载荷（`AiFlowItemState` 六态含 skipped——与 #62 对齐、零 convert 类型泄漏、progressAiFlow 只覆盖传入键、stopKey 范围词登记侧给）；ConvertFlow 折算（停止屏四段=aborted 快照不带 progress 须从 stopped item+pending 取数、队列累计≠当前篇 count）；FlowBannerUi 纯逻辑 303 行单测锁两轮对稿修正（段序 done→skip→fail→run/stop→cancel→queued 与 chips 序不同、两屏各 6 chip 停止共用格）。
 
 **已装机（20260914 用户令，dev `4deab77`）**：主仓 tsc+vitest 1210 绿后构建，dist+i18n 拷两区（md5 一致），测试区 60606 setPetalEnabled 重载成功、工作区思源未开只拷文件。真机验收清单：
+
 - #84 五条：语文卷材料组挂阅读面/纯阅读英语卷挂/工科独立题不挂/聚合混合刷分段各判/标生词语文不出英语出（subject 存量回退）
 - #86 三屏：跑动（seg+stats+counts+分篇清单）/停止抉择/单流（bar+stats）——NPC 自述无实机截图，**视觉必对**
 - #62 验收 1~6（批量转换中断续跑）

@@ -2,9 +2,9 @@
 name: siyuan-web-ui-debug
 description: 插件 UI 调试直接开思源网页版（6806 的 desktop 构建）——比搭假复现页好；附截图查看与资源路径
 metadata:
-  node_type: memory
-  type: reference
-  originSessionId: sess_5f3a9cc2-61f3-4e4e-a1c6-8ecc56597c81
+    node_type: memory
+    type: reference
+    originSessionId: sess_5f3a9cc2-61f3-4e4e-a1c6-8ecc56597c81
 ---
 
 **用户明确偏好（2026-08-26）**：调插件 UI 样式别搭合成复现页，直接打开
@@ -21,7 +21,7 @@ metadata:
 - file:// 页面 Browser Use 导航不了；要开本地页须先起 HTTP 静态服务。
 - 若确需搭静态复现：思源 base.css 在 WindowsApps stage
   `build/desktop/base.*.css`，Neo 主题在 `<工作区>/conf/appearance/
-  themes/Neo/theme.css`，图标 symbol 在 conf/appearance/icons/litheness/
+themes/Neo/theme.css`，图标 symbol 在 conf/appearance/icons/litheness/
   icon.js（见 [[siyuan-builtin-icon-sprite]]）。
 - **stage CSS 走内核 HTTP 拉（20260830，WindowsApps 目录 Git Bash cd
   权限拒绝）**：`curl http://127.0.0.1:<port>/stage/build/desktop/`（免
@@ -29,7 +29,7 @@ metadata:
   事实：`.b3-form__upload` 是**隐形全覆盖 input**（absolute 铺满父容器/
   opacity:.001/font-size:0，须 position:relative 父按钮）——思源官方配方
   即 `<button class="b3-button b3-button--outline" style="position:
-  relative"><input class="b3-form__upload" type="file">`（设置-同步「导入
+relative"><input class="b3-form__upload" type="file">`（设置-同步「导入
   配置」同款，main.js 里还有生成此结构的工厂函数）；`.b3-file` 在思源
   CSS **无定义**、是裸原生控件——插件上传控件一律用 b3-form__upload
   配方（StartScreen 两文件行已换，见 [[wengu-import-tsv-redesign]]）。
@@ -43,7 +43,7 @@ metadata:
   按钮上。Playwright locator.click 常超时（actionability 判定被透明层
   干扰），坐标点击 + `getBoundingClientRect` 取中心更可靠。
   **但连开多个 guest 后整个面板会挂死**（`browser guest not attached
-  (webview not ready)` 反复出现，visibility 开关/等待均不救）——悠着
+(webview not ready)` 反复出现，visibility 开关/等待均不救）——悠着
   用，一次会话别超过三四个 guest；挂了只能等面板自愈。
 - 验 CSS 规则是否命中：弹窗开着时读
   `getComputedStyle(action).gap` + 各 button `getBoundingClientRect()`

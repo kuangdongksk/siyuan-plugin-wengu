@@ -4,6 +4,7 @@
 - [OpenDesign MCP实操](wengu-opendesign-mcp.md) — 喂料法=prompt给本机路径/本地服务URL不传参；running+mtime静态≠挂禁cancel；tail events.jsonl看进度；5-30分钟/单
 - [20260914调度轮](wengu-dispatch-20260914.md) — 审并合并PR#84(阅读面材料组判据+subject两级)与#86(横幅对稿)；#87/#89材料内滚+#88/#90面板对稿已合并装机(fcc19b3)；用户批对比太粗→OpenDesign对比run跑着(差距根因=实现只抄结构没抄数值:grid一体卡/292px树/三级缩进14-27-42)；移动端#61功能腿已并视觉还原未做
 - [批量转换中断续跑#62](wengu-batch-convert-resume-issue62.md) — 已合并PR#63→dev 109f5a8未装机；三块机制+P3边缘(进行中丢弃进度)挂账，真机验收待用户
+
 # MEMORY.md
 
 - [重叠线索丢mark+主题多色](wengu-clue-overlap-multicolor.md) — #56并集合并(长覆盖短)；#57改版=用户选色制(标线索二级竖排色板/独立ui/ColorMenu组件/clueColors平行字段-1默认黄)body已更新；队列#52→#53→#56→#57

@@ -2,9 +2,9 @@
 name: wengu-companion-ai-density
 description: 团子 AI 反应做题侧自适应节流已实现并部署机器A待验收——每题候选触发、慢节奏(≥60s/题)每题发、快节奏150s、批次必触发；未提交
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_fd4a5e1c-097c-46b9-a8d1-015eb0e4dd19
+    node_type: memory
+    type: project
+    originSessionId: sess_fd4a5e1c-097c-46b9-a8d1-015eb0e4dd19
 ---
 
 接 2026-08-27 的「逐题没喂大模型」疑问：用户 08-28 定稿密度并已实施——

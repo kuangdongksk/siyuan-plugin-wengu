@@ -1,11 +1,11 @@
 ---
 name: wengu-pdf-import-branch
 description: wengu/pdf-import——已并入 dev（03d9075，2026-08-24 全分支合流）；PDF 导入代码全绿但
-  mineruToken 真机端到端验证仍待用户
+    mineruToken 真机端到端验证仍待用户
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_5d6c2f17-72f9-4421-b118-a25c2a2ec98c
+    node_type: memory
+    type: project
+    originSessionId: sess_5d6c2f17-72f9-4421-b118-a25c2a2ec98c
 ---
 
 PDF 导入（MinerU）+ 转换原位替换 + 删错题闪卡死代码。

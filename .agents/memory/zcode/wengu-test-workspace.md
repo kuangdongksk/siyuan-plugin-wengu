@@ -2,9 +2,9 @@
 name: wengu-test-workspace
 description: 测试工作区 D:\data\思源\测试——验证部署用；内核端口不固定需 netstat 扫描（本会话 52036）
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_7e260705-3cf8-4587-826c-b20e179b0687
+    node_type: memory
+    type: project
+    originSessionId: sess_7e260705-3cf8-4587-826c-b20e179b0687
 ---
 
 用户在机器 A 另有一个**测试工作区** `D:\data\思源\测试`（与主工作区 `D:\data\思源\工作` 并列），用于安全地验证插件部署：

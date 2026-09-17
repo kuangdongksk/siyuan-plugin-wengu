@@ -2,9 +2,9 @@
 name: wengu-quiz-ui-fixes-20260829
 description: 20260829 用户逐条反馈的四项修复——题号栏实测封顶/思路描边/内嵌Protyle只读配方/失效modelId总闸，均部署机器A
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_8a00cdab-55b5-42a0-aa4b-6cc731105b45
+    node_type: memory
+    type: project
+    originSessionId: sess_8a00cdab-55b5-42a0-aa4b-6cc731105b45
 ---
 
 2026-08-29 一轮用户真机反馈驱动的四项修复，全部已部署机器 A（对方会话
