@@ -57,6 +57,43 @@
       组格状态取组内**最差**（错 > 已答 > 未答 > 对）——点进去就是那道错的；
     - **会话结果必须先按块 id 归并**（多步/逐空题记的是 `qid#k`）——不归并
       会把一道多步题算成 N 道，统计与格子全错位。
+- **「继续上次」恢复链（Issue #167，20260917 收口三缺口）**：恢复卡 + 探测
+  本来就有，但三条缺口让它形同虚设（用户感知「每次都是新的开始」）。现口径：
+    - **探测扫全库、取最近一条未完成轮**（`MobileRound.restoreResumeFor`）：
+      原实现恒取**激活题集**（`sets[0]`）的 `docSessions` 最后一条——未完成轮
+      不在首个题集时（多套题常态）恢复卡完全不出现；目标题集有**更新的已收卷
+      轮**时又被它挤掉（边界 A）。判据收口为
+      `MobileRound.isUnfinishedSession` 唯一实现（`!endedAt` + 按块 id 去重
+      的 `answered > 0`），**只收清单里还在的题集**（题集已删不出卡）。
+      ⚠️ 探测时若发现激活卷没有可继续的轮，**跨卷取最近一条并顺手
+      `selectSet` 过去**——恢复卡是全局一张（设计稿屏 ① 置顶单卡），跨卷时
+      分母/落点/洗牌都得按那一卷算。`selectSet` 内也调它 ⇒ **别在 selectSet
+      里再写一份探测**。
+    - **恢复路径以恢复卡携带的会话为准，禁二次探测**（`resumeRound()`，
+      异步）：跨题集先 `selectSet` 装载，再 `startRound(this, "continue")`。
+      `startRound` 开头就把 `ui.resume` 抓进局部变量，装载段的重探测改不动它；
+      点击恢复不得走重探测（边界 A 会把 resume 抹掉 → 退出「继续」退化成新开）。
+    - ⚠️ **恢复路径不许再 `history.upsert(session)`**（本单实测踩到，会真丢
+      数据）：upsert 是「按 id 整段换对象」，重放刚读出来的那条会把它自己
+      覆盖掉、其余轮次随之消失（真库上最直接的后果是阻塞全库探测的**其他题集**
+      未完成轮被抹）。只有 fresh 开轮才 upsert。
+    - **`scopeIds` 快照只给「本次题数」裁剪轮写**（`beginFreshRound`）：
+      `setup.count > 0` 且真的裁掉题才写；全量与桌面 `scope === "all"` 同口径
+      **不写**（不写 = 存量行为，恢复侧空 ids 走全量兜底，零迁移、不 bump
+      version）。不写则「选 20 题答 8 题退出」恢复成全量卷、排列也变。
+    - **落点 = 首道未作答题**（`firstUnansweredIdx`，A3）：恢复后 `qIdx` 定位
+      到恢复后 cards 里第一道 `!graded` 的题；答满未交卷（after 模式）无未作答
+      可落，维持第 1 题。
+    - **恢复卡展示料收在 `ui.resumeView`**（`MobileResumeView`：题集标题 / 已答
+      / 本轮题数 / scopeLen），由探测与恢复路径写入、组件只读——组件原先自己
+      按 `activeSetTitle` + `fullList.length` 拼分母，跨题集时那是错的。
+    - **落点分工**：起轮 / 恢复 / 关轮全在 `core/MobileRound.ts`
+      （`MobileDrill.ts` 余量仅 9 行，只留薄转发；`MobileDrill` 里没有开轮
+      逻辑了，改开轮去 `MobileRound.startRound`）。用例
+      `mobile/core/MobileDrillResume.test.ts`；夹具 `MobileResumeMock.ts` +
+      `MobileDrillHarness` 的 `seedSet`（假题库走**真** `setQuestions`，题面经
+      `parsedOf/cacheParsed` 预置，不拼 kramdown）。
+
 - **空轮静默关轮（Issue #158，对齐桌面 #155 块 A）**：移动端有**独立的收卷守卫**
   （`MobileDrill.requestEnd`），#155 只改了桌面 `finishRoundGuarded`，移动端原样停在
   #147 的旧拦截口径（通知 `endRoundEmpty` + 不收卷），「进来不想做、直接关掉」被挡
