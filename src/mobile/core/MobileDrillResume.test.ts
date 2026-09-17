@@ -90,8 +90,37 @@ describe("恢复探测 / 快照 / 落点（Issue #167 A1/A1b/A2/A3）", () => {
             unfinished({ docId: "set2", ids: ["set2/b", "set2/c"], answeredIds: ["set2/b"] }),
         ]);
         expect(ui.resume?.docId).toBe("set2");
-        expect(ui.home.activeSetId).toBe("set2"); // 恢复卡指向哪卷，卷面就是哪卷
-        expect(drill.ui.resumeView).toMatchObject({ title: "卷二", answered: 1, total: 2, scopeLen: 2 });
+        // ⚠️ 探测**只读**：卡指向 B，但卷面仍停在激活的卷一——切卷是用户
+        // 点恢复卡那一步的事（否则题集行点不动，见 MobileRound 探测注释）
+        expect(ui.home.activeSetId).toBe("set1");
+        expect(ui.home.activeSetTitle).toBe("卷一");
+        expect(drill.ui.resumeView).toMatchObject({ title: "卷二", answered: 1, total: 2 });
+    });
+
+    it("A1 探测不改激活卷：用户点题集 A 不会被静默弹到有未完成轮的 B", async () => {
+        const { drill, ui, face } = await twoSets([
+            unfinished({ docId: "set2", ids: ["set2/b", "set2/c"], answeredIds: ["set2/b"] }),
+        ]);
+        seedSet(face, "set3", [q("set3/x")]);
+        ui.home.sets.push(mockDoc("set3", "卷三"));
+        await drill.selectSet("set3");
+        expect(ui.home.activeSetId).toBe("set3"); // 点哪卷就是哪卷
+        expect(ui.home.activeSetTitle).toBe("卷三");
+        // 恢复卡仍指向 B（全局一张），点它才切过去
+        expect(ui.resume?.docId).toBe("set2");
+        await drill.resumeRound();
+        expect(ui.home.activeSetId).toBe("set2");
+        expect(ui.session?.docId).toBe("set2");
+    });
+
+    it("A1 边界 B：探测后题集被删，点恢复卡不恢复（不开一张空卷）", async () => {
+        const { drill, ui } = await twoSets([unfinished({ docId: "set2", ids: ["set2/b"], answeredIds: ["set2/b"] })]);
+        expect(ui.resume?.docId).toBe("set2");
+        ui.home.sets = ui.home.sets.filter((x) => x.id !== "set2"); // 题集在探测后被删
+        await drill.resumeRound();
+        expect(ui.screen).toBe("home"); // 没进刷题屏
+        expect(ui.session).toBeUndefined();
+        expect(ui.resume).toBeUndefined();
     });
 
     it("A1 点击恢复：切到 B 并恢复该轮（作答态还原、继续不是重开）", async () => {
@@ -168,7 +197,7 @@ describe("恢复探测 / 快照 / 落点（Issue #167 A1/A1b/A2/A3）", () => {
         };
         ui2.fullList = Array.from({ length: 15 }, (_, i) => q(`q${i}`));
         await fresh.restoreResumeFor();
-        expect(ui2.resumeView).toMatchObject({ answered: 1, total: 10, scopeLen: 10 });
+        expect(ui2.resumeView).toMatchObject({ answered: 1, total: 10 });
         await fresh.resumeRound();
         expect(fresh.ui.list).toHaveLength(10);
         expect(fresh.ui.list.map((x) => ({ id: x.id, opts: [...x.optionMd!], ans: x.answer }))).toEqual(before);

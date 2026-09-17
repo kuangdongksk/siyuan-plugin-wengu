@@ -65,18 +65,23 @@
       轮**时又被它挤掉（边界 A）。判据收口为
       `MobileRound.isUnfinishedSession` 唯一实现（`!endedAt` + 按块 id 去重
       的 `answered > 0`），**只收清单里还在的题集**（题集已删不出卡）。
-      ⚠️ 探测时若发现激活卷没有可继续的轮，**跨卷取最近一条并顺手
-      `selectSet` 过去**——恢复卡是全局一张（设计稿屏 ① 置顶单卡），跨卷时
-      分母/落点/洗牌都得按那一卷算。`selectSet` 内也调它 ⇒ **别在 selectSet
-      里再写一份探测**。
+      取哪一条：全库未完成轮里 `startedAt` 最大那条（「继续上次」＝最近一次
+      断点）；恢复卡是全局一张（设计稿屏 ① 置顶单卡），跨卷时卡上显示目标
+      题集标题、分母按**目标题集**算。
+      ⚠️ **探测只读，绝不 `selectSet`**（本单返工教训）：原写法在探测里顺手
+      切卷面，后果是用户点题集 A 被静默弹到有未完成轮的卷 B——开刷面板的
+      题集行「点不动」、「返回题集」也被弹走，选卷入口直接废掉。切卷只发生在
+      用户点恢复卡那一步（`resumeRound`）。跨卷要判「可继续」/算分母时，按
+      id 现读该卷题清单（`setQuestionsOf`，bank 缓存命中）即可，**别动
+      `activeSetId`**。`selectSet` 内也调探测 ⇒ 别在 selectSet 里再写一份。
     - **恢复路径以恢复卡携带的会话为准，禁二次探测**（`resumeRound()`，
       异步）：跨题集先 `selectSet` 装载，再 `startRound(this, "continue")`。
       `startRound` 开头就把 `ui.resume` 抓进局部变量，装载段的重探测改不动它；
       点击恢复不得走重探测（边界 A 会把 resume 抹掉 → 退出「继续」退化成新开）。
-    - ⚠️ **恢复路径不许再 `history.upsert(session)`**（本单实测踩到，会真丢
-      数据）：upsert 是「按 id 整段换对象」，重放刚读出来的那条会把它自己
-      覆盖掉、其余轮次随之消失（真库上最直接的后果是阻塞全库探测的**其他题集**
-      未完成轮被抹）。只有 fresh 开轮才 upsert。
+    - ⚠️ **恢复路径不许再 `history.upsert(session)`**：upsert 是「按 id 整段
+      换对象」，重放一份刚读出来的旧快照会把**同 id 那条的新态盖回去**（陈旧
+      覆盖；同进程共用一个 store 实例时尤甚），而且恢复本身零字段变化、白写
+      一遍整文件。会话已是权威现场 ⇒ 只有 fresh 开轮才 upsert。
     - **`scopeIds` 快照只给「本次题数」裁剪轮写**（`beginFreshRound`）：
       `setup.count > 0` 且真的裁掉题才写；全量与桌面 `scope === "all"` 同口径
       **不写**（不写 = 存量行为，恢复侧空 ids 走全量兜底，零迁移、不 bump
@@ -84,9 +89,14 @@
     - **落点 = 首道未作答题**（`firstUnansweredIdx`，A3）：恢复后 `qIdx` 定位
       到恢复后 cards 里第一道 `!graded` 的题；答满未交卷（after 模式）无未作答
       可落，维持第 1 题。
-    - **恢复卡展示料收在 `ui.resumeView`**（`MobileResumeView`：题集标题 / 已答
-      / 本轮题数 / scopeLen），由探测与恢复路径写入、组件只读——组件原先自己
-      按 `activeSetTitle` + `fullList.length` 拼分母，跨题集时那是错的。
+    - **恢复卡展示料收在 `ui.resumeView`**（`MobileResumeView`：题集标题 /
+      已答 / 本轮题数），由探测写入、组件只读——组件原先自己按
+      `activeSetTitle` + `fullList.length` 拼分母，跨题集时那是错的（分母
+      必须按**目标题集**的题清单算）。
+    - **跨卷恢复一律走 `resumeRound()`**：`startRound` 只认「属于当前激活
+      题集」的 `ui.resume`（跨卷会话的题清单还没装载，直接恢复会拿错卷的
+      `fullList`）。`resumeRound` 先判目标题集是否还在清单里（题集在探测后
+      被删就清卡返回，不开空卷），再 `selectSet` 装载，最后才开轮。
     - **落点分工**：起轮 / 恢复 / 关轮全在 `core/MobileRound.ts`
       （`MobileDrill.ts` 余量仅 9 行，只留薄转发；`MobileDrill` 里没有开轮
       逻辑了，改开轮去 `MobileRound.startRound`）。用例

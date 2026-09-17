@@ -1,6 +1,7 @@
 import { baseQid, type WenguQuestion } from "../../types";
 import { newSessionId, type WenguSession } from "../../quiz/service/HistoryStore";
 import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
+import { setQuestions } from "../../bank/data/BankSets";
 import type { MobileDrill } from "./MobileDrill";
 
 /**
@@ -65,23 +66,19 @@ export interface MobileResumeView {
     title: string;
     /** 已答题数（按块 id 去重）。 */
     answered: number;
-    /** 本轮题数（scopeIds 快照长度；无快照 = 全量题的题数）。 */
+    /** 本轮题数（scopeIds 快照长度；无快照 = **目标题集**的题数）。 */
     total: number;
-    /** 恢复后卷内题数（快照按当前题集过滤后的实际条数）。 */
-    scopeLen: number;
 }
 
-/** 恢复卡视图料（`ui.resumeView` 的构造口；纯计算，不写状态）。 */
-export function resumeViewOf(d: MobileDrill): MobileResumeView | undefined {
-    const s = d.ui.resume;
-    if (!s) return undefined;
+/** 恢复卡视图料（纯计算，不写状态）。
+ *  ⚠️ `list` 必须是**该会话所属题集**的题清单——恢复卡跨卷显示时
+ *  `ui.fullList` 还是当前激活卷的，拿它当分母是错的（Issue #167 A2）。 */
+export function resumeViewOf(d: MobileDrill, s: WenguSession, list: WenguQuestion[]): MobileResumeView {
     const ids = scopeIdSet(s);
-    const scopeLen = ids ? d.ui.fullList.filter((q) => ids.has(q.id)).length : d.ui.fullList.length;
     return {
         title: d.ui.home.sets.find((x) => x.id === s.docId)?.title || d.ui.home.activeSetTitle,
         answered: resultsByQid(s).size,
-        total: ids ? ids.size : d.ui.fullList.length,
-        scopeLen,
+        total: ids ? ids.size : list.length,
     };
 }
 
@@ -102,16 +99,6 @@ async function unfinishedByDoc(d: MobileDrill, docIds: Set<string>): Promise<Map
     return out;
 }
 
-/** 最近一条未完成轮所属的题集（`startedAt` 最大者；同刻取后出现的那条）。 */
-function latestDocId(map: Map<string, WenguSession>): string | undefined {
-    let docId: string | undefined;
-    let at = -1;
-    for (const [id, s] of map) {
-        if (s.startedAt >= at) [docId, at] = [id, s.startedAt];
-    }
-    return docId;
-}
-
 /** 该卷的未完成轮能否直接用：快照（若有）在**该卷的题清单**里查得到题。
  *  题面分叉（题集被换/被清）时不算可继续，免得恢复出一张空卷。 */
 function resumable(d: MobileDrill, s: WenguSession, list: WenguQuestion[]): boolean {
@@ -126,25 +113,40 @@ function resumable(d: MobileDrill, s: WenguSession, list: WenguQuestion[]): bool
  *  **更新的已收卷轮**时，取「最后一条」的旧口径把它挤掉（边界 A）。
  *  全库探测 + 只收未完成轮两处都堵死。
  *
- *  落点规则：先看**当前激活题集**有没有可继续的轮（用户刚在那卷里断的），
- *  没有才跨到别的卷取最近一条——并**顺手把卷面切过去**（`selectSet`，
- *  顺带装载该卷题目/材料），这样恢复卡的分母、落点、洗牌都按那一卷算。
- *  ⚠️ 恢复卡是全局一张（设计稿屏 ① 置顶单卡），跨卷取最近一条即正确解。 */
+ *  取哪一条：全库未完成轮里 **`startedAt` 最大**的那条（「继续上次」＝最近
+ *  一次断点；同刻取后出现的那条），恢复卡是全局一张（设计稿屏 ① 置顶单卡），
+ *  卡上显示目标题集标题、分母按**目标题集**算。
+ *
+ *  ⚠️ **探测只读**：绝不改写 `activeSetId`（切卷只发生在用户点恢复卡那一步
+ *  ——`resumeRound`）。原写法在探测里顺手 `selectSet` 过去，后果是用户
+ *  点题集 A 会被静默弹到卷 B：开刷面板的题集行「点不动」，连「返回题集」
+ *  也被弹走，等于把选卷入口废掉。 */
 export async function restoreResumeFor(d: MobileDrill): Promise<void> {
     const docIds = new Set(d.ui.home.sets.map((x) => x.id));
     const map = await unfinishedByDoc(d, docIds);
-    let docId = d.ui.home.activeSetId;
-    // 激活卷没有可继续的轮 ⇒ 换到最近一条所在的卷（不存在则不显示恢复卡）
-    if (!(map.has(docId) && resumable(d, map.get(docId)!, d.ui.fullList))) {
-        const other = latestDocId(map);
-        if (other && other !== docId) {
-            docId = other; // 先切卷面，再判可继续（题清单此时才是那一卷的）
-            await d.selectSet(other, { silent: true });
+    // 候选按 startedAt 倒序；取第一个「快照在本卷题清单里查得到题」的
+    const ids = [...map.keys()].sort((a, b) => map.get(b)!.startedAt - map.get(a)!.startedAt);
+    let s: WenguSession | undefined;
+    let list: WenguQuestion[] = [];
+    for (const id of ids) {
+        const cand = map.get(id)!;
+        // 跨卷清单现读**只为**判可继续与算分母（不切卷面）
+        const candList = await setQuestionsOf(d, id);
+        if (resumable(d, cand, candList)) {
+            [s, list] = [cand, candList];
+            break;
         }
     }
-    const s = map.get(docId);
-    d.ui.resume = s && resumable(d, s, d.ui.fullList) ? s : undefined;
-    d.ui.resumeView = resumeViewOf(d);
+    d.ui.resume = s;
+    d.ui.resumeView = s ? resumeViewOf(d, s, list) : undefined;
+}
+
+/** 某题集的题清单：激活卷直接用已装载的 `ui.fullList`（零成本），
+ *  跨卷才按 id 现读（bank 缓存命中，不走解析）。 */
+async function setQuestionsOf(d: MobileDrill, setId: string): Promise<WenguQuestion[]> {
+    if (setId === d.ui.home.activeSetId) return d.ui.fullList;
+    const bank = d.deps.bank;
+    return bank ? await setQuestions(bank, setId) : [];
 }
 
 /**
@@ -160,8 +162,11 @@ export async function restoreResumeFor(d: MobileDrill): Promise<void> {
  * 恒定，否则恢复的字母指错项）；记账按 id 走。
  */
 export function startRound(d: MobileDrill, progress: "fresh" | "continue"): void {
-    // 恢复路径要先装载目标题集（`selectSet` 会重探测）——故先把会话抓在手里
-    const s = progress === "continue" ? d.ui.resume : undefined;
+    // 恢复路径要先装载目标题集（`selectSet` 会重探测）——故先把会话抓在手里。
+    // ⚠️ 只认**属于当前激活题集**的那条：跨卷会话的题清单还没装载，
+    // 直接恢复会拿错卷的 fullList 洗出一张错卷（跨卷一律走 resumeRound）
+    const r = d.ui.resume;
+    const s = progress === "continue" && r?.docId === d.ui.home.activeSetId ? r : undefined;
     if (s) {
         d.ui.setup.reveal = s.revealMode === "after" ? "after" : "instant";
         d.ui.setup.timing = s.mode;
@@ -181,10 +186,9 @@ export function startRound(d: MobileDrill, progress: "fresh" | "continue"): void
     d.ui.endPickedN = null;
     d.ui.screen = "drill";
     d.ui.elapsedSec = d.ui.session?.elapsedSec ?? 0;
-    // ⚠️ 恢复路径**不许**再 upsert：假 store/内核落盘都是「整段换对象」语义，
-    // 重放一份 `d.ui.session` 会把它自己刚读出来的那条**同 id 记录覆盖掉**，
-    // 本轮盘上残留（其余轮次）随之消失——真库上最直接的后果是阻塞 #167
-    // 全库探测的其他题集未完成轮被抹。会话已是权威现场，无字段变化要写。
+    // ⚠️ 恢复路径**不许**再 upsert：upsert 是「按 id 整段换对象」，重放一份
+    // 刚读出来的旧快照会把**同 id 那条的新态盖回去**（陈旧覆盖），且恢复
+    // 本身零字段变化、白写一遍整文件。会话已是权威现场，无需回写。
     if (!s) void d.deps.history?.upsert(d.ui.session!);
     d.startTicker();
 }
@@ -197,8 +201,15 @@ export function startRound(d: MobileDrill, progress: "fresh" | "continue"): void
 export async function resumeRound(d: MobileDrill): Promise<void> {
     const s = d.ui.resume;
     if (!s) return;
+    // 边界 B：目标题集在探测之后被删（清单里已无此 id）就不恢复——
+    // 装载段装不出题面，硬开会得到一张空卷
+    if (!d.ui.home.sets.some((x) => x.id === s.docId)) {
+        d.ui.resume = undefined;
+        d.ui.resumeView = undefined;
+        return;
+    }
     if (s.docId !== d.ui.home.activeSetId) await d.selectSet(s.docId, { silent: true });
-    d.ui.resume = s; // 装载段重探测可能已换过一条，恢复卡自带的那条才是权威
+    d.ui.resume = s; // 装载段重探测可能换过一条，恢复卡自带的那条才是权威
     startRound(d, "continue");
 }
 
