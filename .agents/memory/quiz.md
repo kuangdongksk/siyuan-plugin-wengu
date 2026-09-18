@@ -712,3 +712,34 @@ answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不�
       Issue #147 空轮闸收口把入口层两处判定合进守卫，再降至 **565**；同单扩围三项把总结视图出口
       外移（`focusFinishedRound`），最终 **561**（额度同步收）。
       ⚠️ 记账链一条没删：会话 upsert → bank 镜像（首答/覆写分流）→ 学伴事件。
+
+- **「继续上次」候选 = 从尾向前第一个未完成轮**（Issue #169，20260918 真机报障）：
+  开刷面板「进度与范围」卡不出「继续上次（已答 n 题）」。数据侧诊断：涉事卷
+  **所有有作答的轮都已收卷**（没丢进度），但**最后一轮是「开了轮没答题就
+  离开」的空轮**（`answered:0`：弃轮无 `endedAt` / 倒计时归零或切卷收卷的
+  空轮有 `endedAt`）——空轮占住末位后，即使前面存在「有作答且未收卷」的轮，
+  恢复入口也被**永久埋掉**。
+    - **判据不变**（`answered > 0` + `endedAt` 未写，Issue #12 B3 口径），
+      **查找改「从尾向前找第一个命中」**。候选查找与判据收口到
+      `quiz/service/ResumePicker`（`answeredQuestionCount` / `isUnfinishedRound`
+      / `lastUnfinishedRound`）——原先 `buildStartPanelModel` 与 `startRound`
+      各写一份「只看 `rounds[rounds.length-1]`」，口径漂移就是「面板显示了
+      「继续上次」，点下去却从零开刷」这类**不报错的**静默错配。
+      ⚠️ 两处必须共用同一个查找函数，契约测试
+      `quiz/render/ResumePicker.contract.test.ts` 数落点。
+    - **纯空轮库仍不出「继续上次」**（判据不变、不造幽灵入口），两种空轮形态
+      （有/无 `endedAt`）都要跳过；尾随的**已收卷非空轮**同样不许把前面的未完成
+      轮顶掉（收卷即断点已封）。多步题 `qid#k` 仍按块 id 归并计数。
+    - **空轮路径盘点（#169 调查项，结论）**：
+        - `endRound` / 倒计时 `finishNow`（倒计时归零「结束本轮」）二路都走
+          `finishRoundGuarded` → 空轮 `closeEmptyRound` **真 `removeSession`**
+          且不写 `endedAt`（用例 `quiz/render/EmptyRoundPath.test.ts` 锁死）；
+        - **切卷 / 重开页签 / 刷新**走 `load()` → `finishSession()`——它**不看
+          空轮**、一律 `endedAt + upsert` 封卷。这条就是「弃轮形态」的反面：
+          **开了轮没答题就切卷，那一轮不会留在库里**（内存 session 连同零作答
+          记录一起被丢弃，开轮 upsert 的那条被有 `endedAt` 的同 id 覆盖）。
+          真机里带 `endedAt` 的空轮来自**倒计时归零选「结束本轮」**那条链，
+          至于「开轮 3 秒」的时长 = 倒计时分钟数极小（可设 1 分钟，6:30 那次）；
+          两形态都是历史遗留、**按纯读侧兼容处置**（不迁移、不擦，面板跳过即可）。
+        - 移动端的对应漏擦路径是做题屏返回键（`backHome` 只退屏，不封卷），
+          #169 一并按「只擦不可恢复的轮」修（见 `mobile.md`）。

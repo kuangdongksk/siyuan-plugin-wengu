@@ -1,5 +1,6 @@
 import type { HistoryStore, WenguRoundScope, WenguSession } from "../service/HistoryStore";
 import { newSessionId } from "../service/HistoryStore";
+import { answeredQuestionCount, lastUnfinishedRound } from "../service/ResumePicker";
 import type { TimerController } from "../service/TimerController";
 import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } from "../../types";
 import { baseQid } from "../../types";
@@ -64,13 +65,18 @@ export function buildStartPanelModel(args: {
     list: WenguQuestion[];
 }): StartPanelModel {
     const last = args.rounds[args.rounds.length - 1];
-    const answered = answeredQuestionCount(last);
     // 「未完成」＝有作答且**未收卷**（endedAt 未写）。原先另加一条
     // 「答满即不算未完成」——那条只在 instant 下成立（答满立刻收卷，
     // endedAt 自然写上）；after 模式答满**不自动收卷**（Issue #12 B3），
     // 答满却未收卷的轮仍要能「继续上次」改答案并交卷，故判据收敛为
     // 只看 endedAt（answered > 0 防空轮），不再按题数上限排除。
-    const unfinished = last && !last.endedAt && answered > 0 ? last : undefined;
+    //
+    // ⚠️ **候选不是「最后一轮」而是「从尾向前第一个未完成轮」**（Issue #169）：
+    // 开轮即 upsert，用户开了轮没答题就离开会留一条 0 作答的空轮占住末位，
+    // 旧写法（只看末位）把前面「有作答且未收卷」的轮永久埋掉。判据本身
+    // 不变（纯空轮库仍不出「继续上次」），查找收口 `service/ResumePicker`。
+    const unfinished = lastUnfinishedRound(args.rounds);
+    const answered = answeredQuestionCount(unfinished);
     const resumeReveal: WenguRevealMode = unfinished?.revealMode === "after" ? "after" : "instant";
     return {
         t: args.t,
@@ -91,11 +97,6 @@ export function buildStartPanelModel(args: {
               }
             : undefined,
     };
-}
-
-/** 一轮里已作答的题目数（多步题的 qid#k 条目按块 id 去重）。 */
-function answeredQuestionCount(s: WenguSession | undefined): number {
-    return new Set((s?.results ?? []).map((r) => baseQid(r.qid))).size;
 }
 
 /** 开轮执行入参（视图提供状态与收尾回调）。 */
@@ -127,11 +128,11 @@ export function startRound(ctx: StartRoundCtx, cfg: RoundConfig, override?: { sc
     }
     ctx.setRevealMode(cfg.reveal);
     ctx.setActiveIdx(0);
+    // ⚠️ 候选查找**必须与 buildStartPanelModel 同口径**（Issue #169）：
+    // 尾随空轮占末位时也要往后找——面板显示了「继续上次」，这里却落回新轮，
+    // 就成了「点了继续却从零开刷」的静默错配。两处共用 ResumePicker。
     const last = ctx.rounds[ctx.rounds.length - 1];
-    const lastAnswered = new Set((last?.results ?? []).map((r) => baseQid(r.qid))).size;
-    // 未完成判据同 buildStartPanelModel：只看「有作答且未收卷」——
-    // after 模式答满未交卷的轮必须能继续改答案（Issue #12 B3）
-    const unfinished = cfg.progress === "continue" && last && !last.endedAt && lastAnswered > 0 ? last : undefined;
+    const unfinished = cfg.progress === "continue" ? lastUnfinishedRound(ctx.rounds) : undefined;
     // 范围裁剪：进行中的轮优先按它**落盘的范围清单**恢复（scopeIds 快照，
     // 开轮时冻结）——旧轮没有快照的按 scope+该轮结果重算；范围自引用会
     // 漂移：wrong 轮按本轮结果重算丢原范围、wrongAll 轮内答对的题被

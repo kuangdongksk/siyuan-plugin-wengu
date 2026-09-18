@@ -23,6 +23,44 @@
       注记 mono 弱注记位未动）。详情头 meta 槽（S7）口径不变、断言照旧。
     - **样式零规则改动**：`aipanel-tree.scss` 仅更新注释（只收窄串长，不改
       mono/faint 弱注记位）；按 `docs/design-spec.md` §十三登记表仍留共享片。
+- **修复：开刷面板「继续上次」被尾随空轮埋没（候选轮只看数组末位）**
+  （20260918，quiz / mobile 域，Issue #169）：20260918 真机报障「进度与范围」
+  卡不出现「继续上次（已答 n 题）」。数据侧诊断：涉事卷**有作答的轮都已收卷**
+  （没丢进度），但**最后一轮是「开了轮没答题就离开」的空轮**（`answered:0`；
+  弃轮无 `endedAt`／收卷空轮有 `endedAt`）——空轮占住末位后，即使前面存在
+  「有作答且未收卷」的轮，恢复入口也被**永久埋掉**。
+
+    - **判据不变、查找改向**：`answered > 0 && !endedAt` 原样保留（不回归幽灵
+      入口），候选从「只看 `rounds[rounds.length-1]`」改为**从尾向前找第一个
+      命中的轮**。`buildStartPanelModel` 与 `startRound` **两处共用同一实现**
+      （新片 `quiz/service/ResumePicker`：`answeredQuestionCount` /
+      `isUnfinishedRound` / `lastUnfinishedRound`）——原先两处各写一份，漂移
+      一次就是「面板显示了「继续上次」，点下去却从零开刷」的静默错配。
+    - **移动端自查：恢复探测链无此病**（探测是全库扫 + 只收未完成轮，空轮连
+      候选都进不来），并顺手把移动端另一份自写判据收口到 `ResumePicker`
+      （`MobileRound.isUnfinishedSession` 只留薄转发）。用例
+      `MobileDrillResume.test.ts` 把两种空轮形态摆到卷尾锁住结论。
+    - **调查项结论（空轮路径盘点）**：`endRound` / 倒计时 `finishNow` 两路都经
+      `finishRoundGuarded`，空轮走 `closeEmptyRound` **真 `removeSession`**、
+      不写 `endedAt`（用例 `quiz/render/EmptyRoundPath.test.ts` 锁死）；切卷 /
+      重开页签 / 刷新走 `load()` → `finishSession()`，**不看空轮、一律
+      `endedAt + upsert` 封卷**——所以「开了轮没答题就切卷」那一轮不会留在
+      库里，真机里带 `endedAt` 的空轮来自**倒计时归零选「结束本轮」**那条链
+      （时长小 = 倒计时分钟数可设到 1）。两形态均**按纯读侧兼容处置**：不迁移、
+      不擦存量，面板跳过即可。
+    - **明确漏擦路径（移动端）**：做题屏左上返回键（`backHome`）**只退屏**、
+      不封卷也不擦——一题没答的轮就此成为孤儿占位（探测不收、无人再擦，
+      `history` 里留下一条「开轮没答题」）。现按**只擦「不可恢复」的轮**修：
+      `!endedAt && answeredQuestionCount === 0` 才 `removeSession`；**有作答
+      （含「不会」）的轮一条都不擦**（那是「继续上次」的依托，擦掉就是静默
+      丢进度）。报告屏进 `backHome`（轮次已收卷）按判据空操作。
+    - **零迁移**：纯读侧逻辑，不动存储格式、不迁移存量历史（历史空轮留库里
+      无害）；`version` 不 bump。
+    - 用例：`ResumePicker.test.ts`（判据与查找 9 例）、`StartPanel.test.ts`
+      扩两组（面板模型 / `startRound` 各含两种空轮形态 + 纯空轮不出入口 +
+      steps 归并）、`EmptyRoundPath.test.ts`（桌面收卷路径 4 例）、
+      `MobileDrillResume.test.ts` 扩两组（尾随空轮 / 弃轮擦除 11 例）、
+      `ResumePicker.contract.test.ts`（候选查找单一实现的源级锁）。
 
 - **修复：移动端「继续上次」三缺口——跨题集探测不到、count 轮恢复展开全量、
   恢复落第 1 题**（20260917，mobile 域，Issue #167）：恢复链路（HomeScreen

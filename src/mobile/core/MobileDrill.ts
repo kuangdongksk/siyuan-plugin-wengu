@@ -21,6 +21,7 @@ import {
 import { endNowPicked, goConfirmEndPicked, requestEnd as requestEndGuard } from "./MobileEndGuard";
 import { answerKindOf } from "./MobileModel";
 import {
+    dropAbandonedRoundIn,
     firstUnansweredIdx,
     restoreResumeFor as restoreResumeForIn,
     resumeRound as resumeRoundIn,
@@ -382,8 +383,13 @@ export class MobileDrill {
         retryWrongRoundIn(this);
     }
 
-    /** 回开刷面板（报告屏「返回题集」）。 */
+    /** 回开刷面板（做题屏左上返回 / 报告屏「返回题集」）。
+     *  ⚠️ 先结算**弃轮**（Issue #169）：`screen="drill"` 里点返回等于放弃本轮，
+     *  盘上那条停在开轮 upsert 的形态——有作答留着（「继续上次」的依托），
+     *  **一题没答的擦掉**（探测不收它、没人再管，白占统计轮次）。报告屏进来时
+     *  `screen="report"`、轮次已收卷，本调用按判据空操作。 */
     backHome(): void {
+        dropAbandonedRoundIn(this);
         this.ui.screen = "home";
         this.stopTicker();
         this.ui.drawer = false;
