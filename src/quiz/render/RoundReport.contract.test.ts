@@ -9,6 +9,8 @@ import MOBILE_ROUND from "../../mobile/core/MobileRound.ts?raw";
 import MOBILE_GUARD from "../../mobile/core/MobileEndGuard.ts?raw";
 import MOBILE_ANSWERING from "../../mobile/core/MobileAnswering.ts?raw";
 import DRILL_SCREEN from "../../mobile/components/DrillScreen.svelte?raw";
+import MOBILE_APP from "../../mobile/components/MobileApp.svelte?raw";
+import DOCKS from "../../bootstrap/Docks.ts?raw";
 import ZH from "../../i18n/zh-CN.json";
 import EN from "../../i18n/en.json";
 
@@ -197,6 +199,28 @@ describe("闸下沉收口为唯一出口（Issue #147 · 源码级）", () => {
         // 题数占位符两语言对齐（组件侧走 ui/shared.fmt 取词替换）
         expect(ZH["mobileEndPickedBody"]).toContain("{n}");
         expect(EN["mobileEndPickedBody"]).toContain("{n}");
+    });
+
+    it("移动端卸载链接线不漂移（Issue #173）：两条路各自必达、擦除执行体只落一处", () => {
+        // ① 就地卸载：壳组件 onDestroy → destroy（真机实际销毁路径——
+        //    `Docks` 的 init 重入先 `drillUnmount?.()`，Svelte `unmount()`
+        //    只销毁组件、不触发 dock destroy）
+        expect(code(MOBILE_APP)).toMatch(/onDestroy\(\(\) => drill\.destroy\(\)\)/);
+        // ② 远端卸载：dock destroy → drillCtl.destroy()（兜底路）
+        expect(code(DOCKS)).toMatch(/drillCtl\?\.destroy\(\)/);
+        // ③ 揭台：卸载时走秒必须停——`MobileDrill.destroy` 只许转发 settleOnUnmount
+        expect(code(MOBILE_DRILL)).toMatch(/destroy\(\): void \{\s*settleOnUnmount\(this\);\s*\}/);
+        // ④ 擦除执行体不得离开 MobileRound（`isAbandonedRound` 唯一实现之外，
+        //    连「有作答只结算用时、不封卷」的分叉也不许在别处复写）
+        expect(code(MOBILE_APP)).not.toContain("isAbandonedRound");
+        expect(code(DOCKS)).not.toContain("isAbandonedRound");
+        expect(code(MOBILE_DRILL)).not.toContain("isAbandonedRound");
+        // ⑤ 卸载不封卷：settleOnUnmount 执行体里没有 `endedAt =`
+        const body = /export function settleOnUnmount[\s\S]*?\n}/.exec(MOBILE_ROUND)?.[0] ?? "";
+        expect(body).not.toBe("");
+        expect(body).not.toContain("endedAt =");
+        expect(body).toContain("isAbandonedRound(s)");
+        expect(body).toContain("d.stopTicker()");
     });
 
     it("移动端空轮执行体与桌面同四步：抹落盘记录 → 停表 → 退态 → 回开刷面板", () => {

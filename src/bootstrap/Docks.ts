@@ -48,6 +48,12 @@ let wordUnmount: (() => void) | undefined;
 /** 移动端刷题面板的卸载函数（同 dock 单例口径）。 */
 let drillUnmount: (() => void) | undefined;
 
+/** 移动端刷题控制器（卸载前的轮次结算入口，Issue #173）。
+ *  ⚠️ 组件 `onDestroy` 已覆盖真机实际卸载路径；此处是**远端卸载路径**
+ *  （dock destroy）的兜底——两条路互不触发、各自必达，
+ *  `MobileDrill.destroy` 幂等，重复调用无副作用。 */
+let drillCtl: { destroy(): void } | undefined;
+
 /** dock 装载所需的宿主能力（插件实例按需提供；各店取共享单例）。 */
 export interface DockHost {
     /** 插件 i18n 表（dock 标题与面板取词）。 */
@@ -116,6 +122,9 @@ function registerMobileDrillDock(host: DockHost): void {
             },
             init: (custom) => mountMobileDrillView(host, custom),
             destroy: () => {
+                // 先结算本轮（停走秒 + 结算用时 + 擦不可恢复的空轮），再卸应用
+                drillCtl?.destroy();
+                drillCtl = undefined;
                 drillUnmount?.();
                 drillUnmount = undefined;
             },
@@ -137,7 +146,12 @@ function mountWordView(host: DockHost, custom: { element?: Element }): void {
 function mountMobileDrillView(host: DockHost, custom: { element?: Element }): void {
     const el = custom.element as HTMLElement | undefined;
     if (!el || !host.alive()) return;
-    drillUnmount?.(); // dock init 重入（布局恢复竞态）先卸旧实例，防计时器泄漏
+    // dock init 重入（布局恢复竞态）先卸旧实例，防计时器泄漏——**先结算后卸载**
+    // （卸载本身不再回头结算：下面刚挂的新实例会覆盖 drillCtl，若在卸载函数里
+    // 结算就会误结算新实例的空会话）
+    drillCtl?.destroy();
+    drillCtl = undefined;
+    drillUnmount?.();
     const mounted = mountMobileDrill(el, {
         i18n: host.i18n ?? {},
         bank: host.bank?.(),
@@ -145,5 +159,6 @@ function mountMobileDrillView(host: DockHost, custom: { element?: Element }): vo
         weakness: host.weakness?.(),
         settings: host.settings?.(),
     });
+    drillCtl = mounted.app.drill;
     drillUnmount = mounted.unmount;
 }
