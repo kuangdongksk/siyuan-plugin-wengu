@@ -142,7 +142,7 @@ function applyOrder(
 }
 
 /**
- * **解析/题干里的选项字母引用同步改写**（Issue #176 主修，治存量）。
+ * **解析里的选项字母引用同步改写**（Issue #176 主修，治存量）。
  *
  * 背景：#131 的冻结口径「库内解析不含任何选项字母」在真机上**没守住**——
  * 工作区 bank 实查 841 道 single/multiple 里 **835 道（99.3%）**解析带字母
@@ -196,7 +196,14 @@ function cardOptionTexts(opts: string[], key: string): string[] {
 }
 
 /** 声明式卡内容洗牌（`""`=顶层，`step-k`=第 k 步）：选项重排 + 答案重写 +
- *  **解析/题干里的字母引用同步改写**（同一份 order 映射）。 */
+ *  **解析里的字母引用同步改写**（同一份 order 映射）。
+ *
+ *  ⚠️ **题干（`stemMd`）不在改写范围**（20260918 复核实查）：注释此前声称
+ *  「解析/题干」，实现只回填 `solutionMd`——本次把口径改准。**为何不做**：
+ *  题干里的独立字母大多**不是选项引用**而是实体名（「甲、乙、丙」「A、B 两
+ *  点」「A 组数据」），照映射改写会把实体指代搬错位（内容静默损坏），而
+ *  Issue #176 的验收标准只点解析；真要接，需先在真机语料上量出「题干字母
+ *  =选项引用」的占比与误伤面，别照搬解析这条。 */
 interface CardShuffle {
     key: string;
     opts: string[];
@@ -276,9 +283,13 @@ export function shuffleForDisplay(q: WenguQuestion, rand: Rand = Math.random): W
     return out;
 }
 
-/** steps：各步独立洗（组键 `step-k`），题级解析按**顶层组**口径改写
- *  （逐步解析当前不入协议，见 OptionRefReplace 模块头；真出现时按步组
- *  改写——`step-k-solution` 分支同款）。 */
+/** steps：各步独立洗（组键 `step-k`）。
+ *
+ *  ⚠️ **steps 的题级 `solutionMd` 不改写**（20260918 复核更正，此前注释
+ *  写「按顶层组口径改写」，实现里没有这段）：逐步题各步选项组**各有自己的
+ *  字母映射**，题级解析里的「B」到底指哪一步的 B **无从判定**——猜错就是把
+ *  指代搬错位。逐步解析当前不入协议（见 `OptionRefReplace` 模块头），
+ *  真加进来时按步组改写（那时引用会带步上下文，判据才成立）。 */
 function shuffleStepsForDisplay(q: WenguQuestion, rand: Rand): WenguQuestion {
     const src = q.steps ?? [];
     const steps = src.map((s, i) => shuffleStep(s, `step-${i + 1}`, rand));

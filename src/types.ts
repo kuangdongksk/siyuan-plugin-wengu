@@ -302,6 +302,12 @@ export function optionDisplayMd(md: string): string {
  *  展示层封顶 3 层、只用于「画角标前的显示」，`A. B. 两本书名` 这类正文
  *  开头保号；落库只该是「标签 + 正文」，故默认 2 层——多剥风险的现实面
  *  几乎为零，而**不剥净的代价是每次刷新都看见「A. A.」**。
+ *
+ *  **唯一主修落点＝落库**（Issue #176 复核实查）：`QuestionDraft.renderUnit`
+ *  拼 `- X. ` 前调用（库里本就不该存双字母）。展示层
+ *  `ProtyleHost.optionRowHtml` / `CardState.optSnaps` 另叠一层作**兜底**
+ *  ——对真机 ≤3 层标签是空操作（`optionDisplayMd` 自 #163 起已封顶 3），
+ *  只有 ≥4 层畸形存量才用到，别把它当主因。
  *  截断按**码点**（代理对/emoji 不切半）。
  */
 export function normalizeOptionLabels(md: string, depth = 2): string {

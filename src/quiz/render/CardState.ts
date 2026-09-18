@@ -261,7 +261,9 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
  *  steps 步选项（CardSteps）与 cloze 当前空选项（本文件）共用。 */
 export function optSnaps(optionMd: string[]): OptSnap[] {
     return optionMd.map((md, i) => {
-        // Issue #176：与 ProtyleHost.optionRowHtml 同款兜底（双字母剥净）
+        // Issue #176：与 `ProtyleHost.optionRowHtml` 同款兜底（口径与
+        // 实查结论见那里的注释——真机双字母在 #163 起已剥净，这层对它是
+        // 空操作，只有 ≥4 层畸形存量才用到；主修在落库 `renderUnit`）。
         const { body, tier } = optionInline(optionDisplayMd(normalizeOptionLabels(md)));
         return { letter: LETTERS[i] ?? "", html: body, tier, mark: 0 as const };
     });

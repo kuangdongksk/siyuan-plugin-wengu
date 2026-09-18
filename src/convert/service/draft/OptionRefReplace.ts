@@ -202,6 +202,13 @@ export function normalizeBareRefs(text: string, opts: string[]): string {
     let changed = false;
     for (const m of text.matchAll(LETTER_TOKEN)) {
         const at = m.index;
+        // ⚠️ **已被上一处「字母 + 全文」吃掉的区间必须跳过**（#176 复核实录）：
+        // `matchAll` 按**原文**位置迭代，不看上一处的 `last`——而选项正文自身
+        // 含独立字母是常态（英文阅读题 `A. A big plan…`、`B. The author…`），
+        // 不跳过就会把它们当**第二处引用**再换一遍，输出重复叠影
+        // （`A. A big plan 正确` → `「A big plan」「A big plan」 big plan 正确`）。
+        // 判据只看位置（与字母本身无关，同 `rewriteLetters` 的跳过口径）。
+        if (at < last) continue;
         if (!isRefLetter(text, at, mask)) continue;
         const i = LETTERS.indexOf(m[0]);
         const opt = i >= 0 ? opts[i] : undefined;

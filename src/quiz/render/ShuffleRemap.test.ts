@@ -125,11 +125,14 @@ describe("真实 kramdown 样本自洽锁（gen-mu3s7wm9-vpg6jm）", () => {
             seen.add(x.solutionMd ?? "");
         }
         expect(seen.size).toBeGreaterThan(1); // 解析文本随洗牌变（不是原样抄库）
-        // ⚠️ 反向锁：解析里**不再**出现「B. 不可分割」以外的「X. 文本」错配
+        // ⚠️ 反向锁（判据 `(?<![A-Za-z])([A-H])(?![A-Za-z])`——20260918 复核
+        //    修掉原文案里的 `(?!=[A-Za-z])` 笔误：那是「后面不是 `=字母`」，
+        //    对 `A. 文本` 恒成立，意图（后面不是字母）没表达出来）
+        // 反向锁：解析里**不再**出现「B. 不可分割」以外的「X. 文本」错配
         for (const scope of ["s1", "s2", "s3"]) {
             const x = shuffleListForDisplay([q], { scope })[0]!;
             const cards = (x.optionMd ?? []).map((t) => optionDisplayMd(normalizeOptionLabels(t)));
-            for (const m of (x.solutionMd ?? "").matchAll(/(?<![A-Za-z])([A-H])(?!=[A-Za-z])\.\s*([^，。」]+)/g)) {
+            for (const m of (x.solutionMd ?? "").matchAll(/(?<![A-Za-z])([A-H])(?![A-Za-z])\.\s*([^，。」]+)/g)) {
                 if (m[2] && !cards.some((c) => c.startsWith(m[2]!.trim()))) {
                     throw new Error(`解析引用失配：${m[0]}`);
                 }
@@ -206,6 +209,47 @@ describe("解析字母重映射的词符口径", () => {
     });
 });
 
+/** 改写范围口径（20260918 复核实查）：只改解析，不碰题干 / steps 题级解析。 */
+describe("改写范围（口径锁）", () => {
+    const cards = (q: WenguQuestion): string[] =>
+        (q.optionMd ?? []).map((t) => optionDisplayMd(normalizeOptionLabels(t)));
+
+    it("题干（stemMd）不被改写——题干字母多为实体名，不是选项引用", () => {
+        const q: WenguQuestion = {
+            id: "s",
+            type: QuestionType.Single,
+            attempts: 0,
+            wrongCount: 0,
+            optionMd: ["甲", "乙", "丙"],
+            answer: "A",
+            stemMd: "关于 A、B 两点的说法，正确的是（ ）",
+            solutionMd: "A 正确。",
+        };
+        const x = shuffleForDisplay(q, () => 0.9);
+        expect(x.stemMd).toBe("关于 A、B 两点的说法，正确的是（ ）"); // 逐字不动
+        expect(x.solutionMd).not.toBe("A 正确。"); // 解析照改
+    });
+
+    it("steps 题级 solutionMd 不被改写（各步字母映射不同，指代无从判定）", () => {
+        const q: WenguQuestion = {
+            id: "s2",
+            type: QuestionType.Steps,
+            attempts: 0,
+            wrongCount: 0,
+            answer: "A",
+            solutionMd: "第一步 A. 甲 正确。",
+            steps: [
+                { kind: "method", stemMd: "第一步", optionMd: ["甲", "乙"], answer: "A" },
+                { kind: "result", stemMd: "第二步", optionMd: ["丙", "丁"], answer: "A" },
+            ],
+        };
+        const x = shuffleForDisplay(q, () => 0.9);
+        expect(x.solutionMd).toBe("第一步 A. 甲 正确。"); // 不动（宁可不改）
+        // 步内答案与选项同源洗过（自洽）
+        expect(cards({ ...x, optionMd: x.steps![0]!.optionMd })[LETTERS.indexOf(x.steps![0]!.answer!)]).toBe("甲");
+    });
+});
+
 /** 源头堵新流量：落库三链共用的**裸字母 / 「字母+全文」规范化**。 */
 describe("源头规范化：裸字母与「字母+全文」引用（三接线点共用）", () => {
     const OPTS = ["维护封建统治", "加强思想教育", "以人民为中心", "全面从严治党"];
@@ -218,6 +262,26 @@ describe("源头规范化：裸字母与「字母+全文」引用（三接线点
         expect(normalizeBareRefs("B. 加强思想教育 正确。", OPTS)).toBe("「加强思想教育」正确。");
         expect(normalizeBareRefs("（B）加强思想教育正确。", OPTS)).toBe("「加强思想教育」正确。");
         expect(normalizeBareRefs("（B）加强思想教育 正确。", OPTS)).toBe("「加强思想教育」正确。");
+    });
+
+    it("「字母 + 全文」吃掉的区间不得被后续命中二次替换（20260918 复核实缺陷）", () => {
+        // 选项正文自带独立字母是常态（英文阅读题）：`A. A big plan…`。
+        // `matchAll` 按**原文**位置迭代、不看上一处的游标 ⇒ 修复前会把正文里
+        // 那个 A 当第二处引用再换一遍，输出重复叠影。
+        expect(normalizeBareRefs("A. A big plan 正确。", ["A big plan", "另一项"])).toBe("「A big plan」正确。");
+        expect(
+            normalizeBareRefs("B. The author argues this 正确，A. A proposal is wrong 错误。", [
+                "A proposal is wrong",
+                "The author argues this",
+            ])
+        ).toBe("「The author argues this」正确，「A proposal is wrong」错误。");
+        // 不因跳过而漏吃：`A. 甲 正确。B 错误。` 两处都该换
+        expect(normalizeBareRefs("A. 甲 正确。B 错误。", ["甲", "另一项"])).toBe("「甲」正确。「另一项」 错误。");
+    });
+
+    it("`Plan A` 的多格空白排版也排除（WORD_BEFORE 修复）", () => {
+        const en = "Plan  A works (double space).";
+        expect(normalizeBareRefs(en, ["甲", "乙"])).toBe(en);
     });
 
     it("无凭据（超范围字母 / 无选项组）一律原样", () => {

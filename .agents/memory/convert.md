@@ -314,6 +314,15 @@ unpackPackedOptions(d)))`）：`SetWriter.append` / `GenQuestion.genWithVerify`
           （`「文本」 正确`）、标点不归引用（`A，B 均错`）；
         - **存量零迁移**：存量解析的字母由展示层洗牌时改写
           （`CardDisplayShuffle` 同步 remap），本道只管新流量。
+        - ⚠️ **「字母 + 全文」吃掉的区间必须跳过后续命中**（20260918 复核
+          修掉的实缺陷）：`matchAll` 按**原文**位置迭代、不看上一处的游标，
+          而选项正文自带独立字母是常态（英文阅读题 `A. A big plan…`、
+          `B. The author…`）——不判「已吃过的区间」就会把它们当第二处引用
+          再换一遍，输出重复叠影（`「A big plan」「A big plan」 big plan`）。
+          判据只看位置，与字母本身无关（同 `rewriteLetters` 的跳过口径）。
+        - ⚠️ **`Plan A` 的英文正文词排除要认多格空白**（同次复核）：
+          `WORD_BEFORE` 原写 `[ \t]$`（只认一格），`Plan  A works` 双空格
+          排版漏判 ⇒ 正文里的字母被当引用改掉；改 `[ \t]+$`。
     - **解析选项引用标记协议**（`draft/OptionRefReplace.ts`）：凡指代选项
       一律写 `〔opt:X〕`（全角方括号，与「〔插图:…〕」同款、与 IAL `{:` 无
       碰撞），**不得用裸字母指代选项**；非指代的大写字母（Plan A、维生素 A）

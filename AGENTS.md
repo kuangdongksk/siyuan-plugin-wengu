@@ -136,11 +136,13 @@ CNB 仓库：<https://cnb.cool/bianchao777/sasa/siyuan-plugin-wengu>
   行样式。
 - **选项字母标签剥层口径分两侧**（Issue #176，20260918）：
   **显示**（`optionDisplayMd`，封顶 3 层）给角标前的文本用；
-  **落库/规范化**（`types.normalizeOptionLabels`，默认 2 层：真机双字母
-  `A. A. 时空…` 一遍剥净）给「标签 + 正文」用；**展示侧兜底**在
-  `quiz/service/ProtyleHost.optionRowHtml` 与 `quiz/render/CardState` 的
-  选项行渲染处调 `normalizeOptionLabels`。改任一侧先读
-  `docs/svelte-migration.md` 相邻条款与 `.agents/memory/convert.md`。
+  **落库/规范化**（`types.normalizeOptionLabels`，默认 2 层）给「标签 + 正文」用。
+  **主修落点＝落库**：`convert/service/draft/QuestionDraft.renderUnit` 拼
+  `- X. ` 前调用（库里本就不该存双字母 `A. A. 时空…`）。
+  **展示侧兜底**在 `quiz/service/ProtyleHost.optionRowHtml` 与
+  `quiz/render/CardState.optSnaps`——⚠️ 对真机常见双字母是**空操作**
+  （#163 起 `optionDisplayMd` 已连续剥层封顶 3），别当主因。
+  改任一侧先读 `.agents/memory/convert.md`（#163 双标签实测口径）。
 - **硬性约束：仓库内单文件 ≤500 行**（src/quiz/index.ts 基线豁免 574 行——20260826
   预览改版至 20260903 聚合/组链修复持续增长，访问器表+编排职责外移破坏内聚，改动它
   前后注意别再净增；见迁移文档 6-5 节与 20260903 审查。豁免＝上限，越线照算违规；
