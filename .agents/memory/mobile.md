@@ -260,3 +260,39 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
   ——凡按 `indexOf(q)` 做「题在卷内下标」的反查都会落空（同桌面
   `qIndexById` 那笔）。本域目前按**下标**（`ui.qIdx`）横向移动，不受影响；
   将来加按对象反查的入口，一律改用 id。
+
+- **弃轮擦除 + 未完成轮判据收口**（Issue #169，20260918）：
+    - **做题屏左上返回 = 弃轮**（移动端的「切卷」入口就是它，`backHome`）：
+      原实现**只退屏**——`ui.session` 留着、盘上那条停在开轮 upsert 的形态。
+      有作答时无害（探测仍能找回，「继续上次」）；**一题没答就是永久孤儿**：
+      探测不收 0 作答的轮（判据 `answeredQuestionCount > 0`）、没有任何入口
+      再擦它，`history` 里就留下「开轮没答题」的孤儿占位（真机
+      `set-mu3s2jbi-i63c` 的 `mu5fzmhp-9lb9ni` 即此形态）。
+    - 修法：`MobileRound.dropAbandonedRoundIn(d)` 挂在 `backHome` 首行，
+      **只擦「不可恢复」的轮**（`!s.endedAt && answeredQuestionCount(s) === 0`
+      才 `removeSession`）。**有作答（含「不会」）的轮一条都不许擦**——那是
+      「继续上次」的依托，擦掉就是静默丢进度（比多一条空轮严重得多）。
+      判据与查找原语都在 `quiz/service/ResumePicker`（下条），本文件只留执行体。
+      ⚠️ `backHome` 也服务报告屏（`screen="report"`、轮次已收卷）⇒ 执行体按
+      判据空操作，**不要**在 `backHome` 里无条件 `removeSession`。
+    - **卸载结算（`MobileDrill.destroy` → `MobileRound.settleOnUnmount`）**：
+      与返回键**同病同修**（离屏不擦＝0 作答那条永久孤儿），一律取
+      `ResumePicker.isAbandonedRound`。⚠️ 与桌面 `finishSession` 的**差异是
+      有意为之**：桌面切卷＝**封卷**（写 `endedAt`），移动端离屏＝**留作未完成
+      轮**（不写 `endedAt`，有作答的轮只结算用时）——别为「口径一致」把移动端
+      改成封卷，那会把「继续上次」的依托写成已收卷轮。
+      ⚠️ **该链目前尚未接线**：`MobileApp.svelte` 没有 `onDestroy`、`Docks`
+      的 destroy 只调 Svelte 卸载函数 ⇒ 真机上 `MobileDrill.destroy` 不跑
+      （走秒 interval 也一并漏停）。本单只把执行体按「一旦接线就不漏擦」修好，
+      接线另立单。
+    - **恢复探测「无此病」的结论已用用例锁住**：探测是「全库扫 + 只收未完成
+      轮」，空轮（弃轮 / 收卷空轮两形态）连候选都进不来，不会把前面「有作答且
+      未收卷」的轮挤出候选 —— 与桌面开刷面板「只看数组末位」的坑不同源。
+      用例在 `MobileDrillResume.test.ts` 的两组（尾随空轮 + 弃轮擦除）。
+
+- **「未完成轮」判据与候选查找**（Issue #169）：判据（有作答且未收卷）与
+  「从尾向前找第一个命中的轮」收口到 `quiz/service/ResumePicker`
+  （`answeredQuestionCount` / `isUnfinishedRound` / `lastUnfinishedRound`）。
+  本域 `MobileRound.isUnfinishedSession` 只剩**薄转发**（导出名自 #167 起
+  被切片用例取用，不改名）。**别再在探测里自写一份 `!endedAt && resultsByQid`**
+  ——契约测试（`quiz/render/ResumePicker.contract.test.ts`）会红。

@@ -21,6 +21,8 @@ import {
 import { endNowPicked, goConfirmEndPicked, requestEnd as requestEndGuard } from "./MobileEndGuard";
 import { answerKindOf } from "./MobileModel";
 import {
+    dropAbandonedRoundIn,
+    settleOnUnmount,
     firstUnansweredIdx,
     restoreResumeFor as restoreResumeForIn,
     resumeRound as resumeRoundIn,
@@ -382,8 +384,13 @@ export class MobileDrill {
         retryWrongRoundIn(this);
     }
 
-    /** 回开刷面板（报告屏「返回题集」）。 */
+    /** 回开刷面板（做题屏左上返回 / 报告屏「返回题集」）。
+     *  ⚠️ 先结算**弃轮**（Issue #169）：`screen="drill"` 里点返回等于放弃本轮，
+     *  盘上那条停在开轮 upsert 的形态——有作答留着（「继续上次」的依托），
+     *  **一题没答的擦掉**（探测不收它、没人再管，白占统计轮次）。报告屏进来时
+     *  `screen="report"`、轮次已收卷，本调用按判据空操作。 */
     backHome(): void {
+        dropAbandonedRoundIn(this);
         this.ui.screen = "home";
         this.stopTicker();
         this.ui.drawer = false;
@@ -426,14 +433,11 @@ export class MobileDrill {
     /** 答满去重标记（收卷模式的「可检查修改」提示只给一次）。 */
     allAnsweredNotified = false;
 
-    /** 销毁（dock destroy 时调用）：停走秒并结算未落库会话。 */
+    /** 销毁（dock destroy 时调用）：实现体在 `core/MobileRound`
+     *  （`settleOnUnmount`——停走秒 + 结算用时 + 擦不可恢复的空轮，
+     *  Issue #169 调查项；擦除执行体按契约只许落 `MobileRound`）。 */
     destroy(): void {
-        this.stopTicker();
-        const s = this.ui.session;
-        if (s && !s.endedAt) {
-            s.elapsedSec = Math.max(s.elapsedSec, this.ui.elapsedSec);
-            void this.deps.history?.upsert(s);
-        }
+        settleOnUnmount(this);
     }
 }
 

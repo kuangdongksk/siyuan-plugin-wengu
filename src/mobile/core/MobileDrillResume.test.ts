@@ -228,3 +228,246 @@ describe("恢复探测 / 快照 / 落点（Issue #167 A1/A1b/A2/A3）", () => {
         expect(two.ui.session?.endedAt).toBeUndefined();
     });
 });
+
+/**
+ * 尾随空轮不得埋掉恢复卡（Issue #169 移动端自查）：桌面候选只看数组末位，
+ * 空轮一占末位就把前面「有作答且未收卷」的轮埋掉；移动端探测是**全库扫 +
+ * 只收未完成轮**，空轮连候选都进不来，故无此病。本组把两种空轮形态摆到
+ * 该卷尾部，锁住「恢复卡仍指向有作答的那一轮」。
+ */
+describe("尾随空轮不埋恢复卡（Issue #169 移动端自查）", () => {
+    /** 开轮即 upsert 的一条 0 作答记录（弃轮无 endedAt / 收卷空轮有 endedAt）。 */
+    function emptyRound(over: { id: string; docId: string; startedAt: number; endedAt?: number }): WenguSession {
+        return {
+            id: over.id,
+            docId: over.docId,
+            startedAt: over.startedAt,
+            endedAt: over.endedAt,
+            mode: "countUp",
+            revealMode: "instant",
+            scope: "all",
+            elapsedSec: over.endedAt ? over.endedAt - over.startedAt : 3,
+            answered: 0,
+            correct: 0,
+            results: [],
+        };
+    }
+
+    /** 单卷夹具：set1（a/b），会话按传入顺序入历史。 */
+    async function oneSet(sessions: WenguSession[]) {
+        const { drill, ui, SESSIONS, face } = make();
+        sessions.forEach((s) => SESSIONS.push(s));
+        seedSet(face, "set1", [q("set1/a"), q("set1/b")]);
+        ui.home = {
+            loading: false,
+            error: "",
+            sets: [mockDoc("set1", "卷一")],
+            activeSetId: "set1",
+            activeSetTitle: "卷一",
+        };
+        ui.fullList = [q("set1/a"), q("set1/b")];
+        await drill.restoreResumeFor();
+        return { drill, ui };
+    }
+
+    const open = unfinished({ id: "open", docId: "set1", startedAt: 100, ids: ["set1/a"], answeredIds: ["set1/a"] });
+
+    it("尾随弃轮（无 endedAt，即空轮静默关轮漏擦的形态）：恢复卡仍指向未完成轮", async () => {
+        const { drill, ui } = await oneSet([open, emptyRound({ id: "e1", docId: "set1", startedAt: 200 })]);
+        expect(ui.resume?.id).toBe("open");
+        expect(ui.resumeView).toMatchObject({ answered: 1 });
+        await drill.resumeRound();
+        expect(ui.session?.id).toBe("open"); // 续的是那一轮，不是空轮
+    });
+
+    it("尾随收卷空轮（有 endedAt，开轮 3 秒被收卷的形态）：同样不埋恢复卡", async () => {
+        const { drill, ui } = await oneSet([
+            open,
+            emptyRound({ id: "e2", docId: "set1", startedAt: 200, endedAt: 203 }),
+        ]);
+        expect(ui.resume?.id).toBe("open");
+        await drill.resumeRound();
+        expect(ui.session?.id).toBe("open");
+    });
+
+    it("只有空轮（弃轮 + 收卷空轮）⇒ 不出恢复卡（判据不回归）", async () => {
+        const { ui } = await oneSet([
+            emptyRound({ id: "e1", docId: "set1", startedAt: 100 }),
+            emptyRound({ id: "e2", docId: "set1", startedAt: 200, endedAt: 203 }),
+        ]);
+        expect(ui.resume).toBeUndefined();
+        expect(ui.resumeView).toBeUndefined();
+    });
+
+    it("同卷多条未完成轮：仍取 `startedAt` 最大的一条（空轮不参与排序）", async () => {
+        const older = unfinished({
+            id: "older",
+            docId: "set1",
+            startedAt: 50,
+            ids: ["set1/a"],
+            answeredIds: ["set1/a"],
+        });
+        const { ui } = await oneSet([older, open, emptyRound({ id: "e1", docId: "set1", startedAt: 300 })]);
+        expect(ui.resume?.id).toBe("open");
+    });
+
+    it("空轮判据同样按块 id 归并（steps 轮 `qid#k` 只算一题、不算空轮）", async () => {
+        const steps: WenguSession = {
+            ...unfinished({ id: "steps", docId: "set1", startedAt: 150, ids: ["set1/a"], answeredIds: [] }),
+            answered: 0,
+            results: [
+                { qid: "set1/a#0", submitted: "A", ok: true },
+                { qid: "set1/a#1", submitted: "B", ok: false },
+            ],
+        };
+        const { ui } = await oneSet([steps, emptyRound({ id: "e1", docId: "set1", startedAt: 200 })]);
+        expect(ui.resume?.id).toBe("steps");
+        expect(ui.resumeView).toMatchObject({ answered: 1 });
+    });
+});
+
+/**
+ * 弃轮擦除（Issue #169 调查项·移动端）：移动端的「切卷」入口就是做题屏左上
+ * 返回（`backHome`），它**只退屏**、不收卷——盘上那条停在开轮 upsert 的形态。
+ * 有作答时无害（探测仍能找回，「继续上次」）；**一题没答就是永久孤儿**
+ * （探测不收 0 作答、无人再擦）。
+ */
+describe("弃轮擦除：做题屏返回（Issue #169 调查项）", () => {
+    function set1Fixture() {
+        const m = make();
+        seedSet(m.face, "set1", [q("set1/a"), q("set1/b")]);
+        m.ui.home = {
+            loading: false,
+            error: "",
+            sets: [mockDoc("set1", "卷一")],
+            activeSetId: "set1",
+            activeSetTitle: "卷一",
+        };
+        m.ui.fullList = [q("set1/a"), q("set1/b")];
+        return m;
+    }
+
+    it("空轮点返回：抹掉盘上那条 0 作答记录（不让孤儿占住 history）", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh"); // 开轮即 upsert
+        const id = ui.session!.id;
+        drill.backHome();
+        expect(removes).toContain(id);
+        expect(ui.screen).toBe("home");
+    });
+
+    it("空轮点返回后重探测：不出恢复卡（那条已擦，不是「可继续」）", async () => {
+        const { drill, ui } = set1Fixture();
+        drill.start("fresh");
+        drill.backHome();
+        await new Promise((r) => setTimeout(r, 0));
+        await drill.restoreResumeFor();
+        expect(ui.resume).toBeUndefined();
+    });
+
+    it("已作答点返回：**不擦**（那是「继续上次」的依托，擦掉就是丢进度）", async () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        await drill.submit(); // 答了一题
+        const id = ui.session!.id;
+        drill.backHome();
+        expect(removes).not.toContain(id);
+    });
+
+    it("已收卷的轮点返回：不擦（报告还要看，归收卷链管）", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        drill.endRound(); // 直接交卷（即时模式）
+        const id = ui.session!.id;
+        expect(ui.session?.endedAt).toBeTruthy();
+        drill.backHome();
+        expect(removes).not.toContain(id);
+    });
+
+    it("报告屏进 backHome（轮次已收卷）：不误擦", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        drill.endRound();
+        expect(ui.screen).toBe("report");
+        const id = ui.session!.id;
+        drill.backHome();
+        expect(removes).not.toContain(id);
+    });
+
+    it("「不会」也是作答（answered 已 +1）：不误擦", async () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        drill.dunno();
+        await new Promise((r) => setTimeout(r, 0));
+        const id = ui.session!.id;
+        drill.backHome();
+        expect(removes).not.toContain(id);
+    });
+
+    it("空轮返回后内存态也清（不留旧 session 供面板复用）", () => {
+        const { drill, ui } = set1Fixture();
+        drill.start("fresh");
+        drill.backHome();
+        expect(ui.session).toBeUndefined();
+    });
+});
+
+/**
+ * 卸载结算（`MobileDrill.destroy` → `settleOnUnmount`）：Issue #169 调查项。
+ * 与做题屏返回**同病同修**——离屏不擦，0 作答那条就是永久孤儿。语义差异也
+ * 一并锁住：移动端离屏**不封卷**（不写 `endedAt`），有作答的轮留作
+ * 「继续上次」。
+ *
+ * ⚠️ 该链在真机上**尚未接线**（`MobileApp.svelte` 无 `onDestroy`、`Docks`
+ * 的 destroy 只调 Svelte 卸载函数）：本组测的是「一旦接线就不漏擦」，
+ * 接线本身另立单。
+ */
+describe("卸载结算：destroy（Issue #169 调查项）", () => {
+    function set1Fixture() {
+        const m = make();
+        seedSet(m.face, "set1", [q("set1/a"), q("set1/b")]);
+        m.ui.home = {
+            loading: false,
+            error: "",
+            sets: [mockDoc("set1", "卷一")],
+            activeSetId: "set1",
+            activeSetTitle: "卷一",
+        };
+        m.ui.fullList = [q("set1/a"), q("set1/b")];
+        return m;
+    }
+
+    it("空轮卸载：抹掉盘上那条 0 作答记录并清内存态", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        const id = ui.session!.id;
+        drill.destroy();
+        expect(removes).toContain(id);
+        expect(ui.session).toBeUndefined();
+    });
+
+    it("有作答卸载：**不擦、不封卷**（留作「继续上次」，写 endedAt 就变已收卷轮）", async () => {
+        const { drill, ui, removes, upserts } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        await drill.submit();
+        const id = ui.session!.id;
+        drill.destroy();
+        expect(removes).not.toContain(id);
+        expect(ui.session?.endedAt).toBeUndefined();
+        expect(upserts).toContain(ui.session); // 结算用时照旧落盘
+    });
+
+    it("已收卷（报告屏）卸载：不擦（报告还要看）", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        drill.endRound();
+        const id = ui.session!.id;
+        drill.destroy();
+        expect(removes).not.toContain(id);
+    });
+});

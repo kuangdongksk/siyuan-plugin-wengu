@@ -712,3 +712,48 @@ answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不�
       Issue #147 空轮闸收口把入口层两处判定合进守卫，再降至 **565**；同单扩围三项把总结视图出口
       外移（`focusFinishedRound`），最终 **561**（额度同步收）。
       ⚠️ 记账链一条没删：会话 upsert → bank 镜像（首答/覆写分流）→ 学伴事件。
+
+- **「继续上次」候选 = 从尾向前第一个未完成轮**（Issue #169，20260918 真机报障）：
+  开刷面板「进度与范围」卡不出「继续上次（已答 n 题）」。数据侧诊断：涉事卷
+  **所有有作答的轮都已收卷**（没丢进度），但**最后一轮是「开了轮没答题就
+  离开」的空轮**（`answered:0`：弃轮无 `endedAt` / 倒计时归零或切卷收卷的
+  空轮有 `endedAt`）——空轮占住末位后，即使前面存在「有作答且未收卷」的轮，
+  恢复入口也被**永久埋掉**。
+    - **判据不变**（`answered > 0` + `endedAt` 未写，Issue #12 B3 口径），
+      **查找改「从尾向前找第一个命中」**。候选查找与判据收口到
+      `quiz/service/ResumePicker`（`answeredQuestionCount` / `isUnfinishedRound`
+      / `lastUnfinishedRound`）——原先 `buildStartPanelModel` 与 `startRound`
+      各写一份「只看 `rounds[rounds.length-1]`」，口径漂移就是「面板显示了
+      「继续上次」，点下去却从零开刷」这类**不报错的**静默错配。
+      ⚠️ 两处必须共用同一个查找函数，契约测试
+      `quiz/render/ResumePicker.contract.test.ts` 数落点。
+    - **纯空轮库仍不出「继续上次」**（判据不变、不造幽灵入口），两种空轮形态
+      （有/无 `endedAt`）都要跳过；尾随的**已收卷非空轮**同样不许把前面的未完成
+      轮顶掉（收卷即断点已封）。多步题 `qid#k` 仍按块 id 归并计数。
+    - **空轮路径盘点（#169 调查项，结论；第一版归因写反了，已订正）**：
+      全仓能写 `endedAt` 的落点只有两处（`grep "endedAt = Date"`）——
+      **桌面 `QuizView.finishSession`** 与**移动端 `MobileDrill.endRound`**：
+        - **`endRound` / 倒计时 `finishNow`（倒计时归零「结束本轮」）二路都走
+          `finishRoundGuarded` → 空轮 `closeEmptyRound`**：那条链是**真
+          `removeSession`、压根不写 `endedAt`**（用例
+          `quiz/render/EmptyRoundPath.test.ts` 锁死），**不是**空轮的来源。
+          ⚠️ 别再把带 `endedAt` 的空轮归给倒计时：倒计时最短档 1 分钟
+          （`clampMinutes` 下限），而真机那条 `mu6anse2-2zarfg` 是「开轮 3 秒」
+          ——物理上到不了归零。
+        - **真漏擦路径＝桌面 `finishSession`（切卷 / 重开页签 / 刷新 / 销毁）**：
+          旧实现**不看空轮、一律 `endedAt + upsert` 封卷**。⚠️ **`upsert` 同 id
+          是「整条替换」不是删除** ⇒ 开轮落盘的那条 0 作答记录**留在库里**，
+          只是多了 `endedAt`——真机 `mu6anse2-2zarfg` 就是这条链漏出去的
+          （第一版写成「那一轮不会留在库里」，错在把 upsert 当成了删除）。
+          修法：封卷判定与落盘收口 `quiz/service/RoundSeal.sealRound`——
+          **空轮真删、不写 `endedAt`、不进 `finished`**，有作答照旧封卷
+          （用例 `quiz/service/RoundSeal.test.ts`）。`index.ts` 的
+          `finishSession` 只剩一行调用（编排文件额度只许减不许增）。
+        - 移动端两条对应漏擦：做题屏返回键 `backHome`（只退屏）+ 面板卸载
+          （`MobileDrill.destroy` → `settleOnUnmount`；⚠️ 该链**真机上尚未接线**，
+          `MobileApp.svelte` 无 `onDestroy`）。两处都按 `ResumePicker.isAbandonedRound`
+          （**判据唯一实现**：`!endedAt && answered <= 0 && results 按块 id 归并 === 0`，
+          方向取保守——有内容一条不擦）修，见 `mobile.md`。
+          移动端离屏**不封卷**（与桌面不同源，有意为之：要留作「继续上次」）。
+        - **存量历史仍按纯读侧兼容**：`sealRound` 只处置「正在结束」的那一轮，
+          历史里的旧空轮不迁移、不擦，面板/探测跳过即可。

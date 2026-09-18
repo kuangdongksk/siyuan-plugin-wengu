@@ -38,6 +38,8 @@ import { finishRoundGuarded, focusFinishedRound, lockAllCards, roundFinishCtx, s
 import type { WeaknessStore } from "../bank/data/WeaknessStore";
 import type { WenguSettingsShape as SettingsDialogShape } from "../ui/SettingsDialog";
 import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
+// prettier-ignore
+import { sealRound } from "./service/RoundSeal";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
 import { bindViewFrameFor } from "./flow/ViewBindings";
@@ -337,11 +339,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         const s = this.session;
         if (!s) return;
         this.session = undefined;
-        s.endedAt = Date.now();
-        s.elapsedSec = Math.max(s.elapsedSec, this.timer.elapsed());
-        s.thoughts = collectThoughts(); // 思路随卷快照（未作答的题也保得住；6-4b 走题卡登记表）
-        this.finished = s;
-        void this.history?.upsert(s);
+        // 封卷（Issue #169）：空轮真删——切卷/刷新/关页签不落 0 作答孤儿
+        this.finished = sealRound(this.history, s, { elapsedSec: this.timer.elapsed(), thoughts: collectThoughts() });
     }
 
     private async load(): Promise<void> {

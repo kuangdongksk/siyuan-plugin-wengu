@@ -1,5 +1,6 @@
 import { baseQid, type WenguQuestion } from "../../types";
 import { newSessionId, type WenguSession } from "../../quiz/service/HistoryStore";
+import { answeredQuestionCount, isAbandonedRound, isUnfinishedRound } from "../../quiz/service/ResumePicker";
 import { shuffleListForDisplay } from "../../quiz/render/CardDisplayShuffle";
 import { setQuestions } from "../../bank/data/BankSets";
 import type { MobileDrill } from "./MobileDrill";
@@ -13,7 +14,7 @@ import type { MobileDrill } from "./MobileDrill";
  * 的说明一写就长，而 `MobileDrill.ts` 是**无豁免、500 行红线**的编排文件。
  * 按语义把「起轮 / 恢复 / 关轮」这一域整体放在此处，`MobileDrill` 只留
  * 薄转发（`restoreResumeFor` / `start` / `resumeRound` / `retryWrong` /
- * `closeEmptyRound`）。
+ * `closeEmptyRound` / `dropAbandonedRoundIn` / `settleOnUnmount`）。
  *
  * ⚠️ 状态写入仍只经 `d.ui`（Svelte 5 `$state` 深代理），别在别处另存一份。
  */
@@ -41,23 +42,21 @@ function sessionCore(d: MobileDrill, sessionId: string): Omit<WenguSession, "sta
 
 /** 首道未作答题的下标（Issue #167 A3）：恢复落点；全答满时回第 1 题。 */
 export function firstUnansweredIdx(d: MobileDrill): number {
-    const answered = resultsByQid(d.ui.session);
+    const answered = new Set((d.ui.session?.results ?? []).map((r) => baseQid(r.qid)));
     const i = d.ui.list.findIndex((q) => !answered.has(q.id));
     return i < 0 ? 0 : i;
 }
 
-/** 会话结果按整题聚合（多步题记的是 qid#k）。 */
-function resultsByQid(s: WenguSession | undefined): Set<string> {
-    return new Set((s?.results ?? []).map((r) => baseQid(r.qid)));
-}
-
 /**
- * 「未完成轮」判据（**唯一实现**，Issue #167）：「有作答且未收卷」——
- * 只看 `endedAt`（Issue #12 B3 口径），`answered` 按块 id 去重（多步/逐空
- * 题记的是 `qid#k`），> 0 防空轮。恢复卡、开轮、切片用例三处都取它。
+ * 「未完成轮」判据：「有作答且未收卷」——只看 `endedAt`（Issue #12 B3 口径），
+ * `answered` 按块 id 去重（多步/逐空题记的是 `qid#k`），> 0 防空轮。
+ *
+ * ⚠️ 判据**实现在 `quiz/service/ResumePicker`**（Issue #169 收口）：桌面开刷
+ * 面板与移动端恢复探测原各写一份，口径漂移就是「一处认未完成、另一处不认」；
+ * 本文件只留薄转发（导出名保持 #167 起的样子，切片用例仍取它）。
  */
 export function isUnfinishedSession(s: WenguSession): boolean {
-    return !s.endedAt && resultsByQid(s).size > 0;
+    return isUnfinishedRound(s);
 }
 
 /** 一条会话在恢复卡上要的料（编排层预解好，组件零重复计算）。 */
@@ -77,7 +76,7 @@ export function resumeViewOf(d: MobileDrill, s: WenguSession, list: WenguQuestio
     const ids = scopeIdSet(s);
     return {
         title: d.ui.home.sets.find((x) => x.id === s.docId)?.title || d.ui.home.activeSetTitle,
-        answered: resultsByQid(s).size,
+        answered: answeredQuestionCount(s),
         total: ids ? ids.size : list.length,
     };
 }
@@ -87,14 +86,23 @@ function scopeIdSet(s: WenguSession): Set<string> | null {
     return s.scopeIds && s.scopeIds.length > 0 ? new Set(s.scopeIds) : null;
 }
 
-/** 全库未完成轮，`docId → 最近一条`（收卷的轮不算；无作答的空轮不算）。
- *  `docIds` 给定时只收这些题集——**清单里没有的题集（已删）不出恢复卡**。 */
+/**
+ * 全库未完成轮，`docId → 最近一条`（收卷的轮不算；无作答的空轮不算）。
+ *  `docIds` 给定时只收这些题集——**清单里没有的题集（已删）不出恢复卡**。
+ *
+ * ⚠️ **「该卷最近一条」只比同卷的未完成轮**（Issue #169 口径确认）：
+ * 探测全库 + 只收未完成轮两处都堵死了「尾随空轮占位」——空轮（有 `endedAt`
+ * 的收卷空轮 / 无 `endedAt` 的弃轮）连候选都进不来，不会把前面「有作答且
+ * 未收卷」的轮挤出候选。故移动端**无此病**；此处去掉冗余的 `isUnfinishedSession`
+ * 二次过滤（判定在下方按 `startedAt` 排序取最近一条时一并做掉），
+ * 避免同一判据两处各写一遍。
+ */
 async function unfinishedByDoc(d: MobileDrill, docIds: Set<string>): Promise<Map<string, WenguSession>> {
     const all = (await d.deps.history?.allSessions?.()) ?? [];
     const out = new Map<string, WenguSession>();
     for (const s of all) {
         // 升序 ⇒ 后写覆盖 = 该卷最近一条
-        if (docIds.has(s.docId) && isUnfinishedSession(s)) out.set(s.docId, s);
+        if (docIds.has(s.docId) && isUnfinishedRound(s)) out.set(s.docId, s);
     }
     return out;
 }
@@ -230,6 +238,55 @@ function beginFreshRound(d: MobileDrill): void {
         scopeIds: culled ? src.map((q) => q.id) : undefined,
         elapsedSec: 0,
     };
+}
+
+/** 弃轮擦除（做题屏左上返回题集）：Issue #169 调查项。
+ *
+ *  这个返回键就是移动端的「离开本轮」入口，原实现**只退屏**——`ui.session`
+ *  留着、盘上那条停在开轮 upsert 的形态。有作答时无害（探测仍能找回，
+ *  已答不丢）；**空轮则永久占位**，`history` 里留下一条「开轮没答题」的
+ *  孤儿（`set-mu3s2jbi-i63c` 的 `mu5fzmhp-9lb9ni` 正是这一形态）。
+ *
+ *  ⚠️ **判据取 `ResumePicker.isAbandonedRound`**（只有「零作答且未收卷」
+ *  才擦）——有作答（含「不会」）的轮**必须留**，那是「继续上次」的依托，
+ *  擦掉就是静默丢进度（比多一条空轮严重得多）。判据只许一份，别在此
+ *  重写成 `answeredQuestionCount === 0` 之类的本地表达式。
+ *  纯弃轮擦除与关闭语义一致：用户视角「这轮没发生过」、统计总览不多一轮。 */
+export function dropAbandonedRoundIn(d: MobileDrill): void {
+    const s = d.ui.session;
+    if (!s || !isAbandonedRound(s)) return; // 已收卷（有报告）/ 有作答（可续）都不擦
+    d.ui.session = undefined; // 与卸载结算同口径：清内存态，否则回面板仍持旧 session
+    void d.deps.history?.removeSession(s.id);
+}
+
+/** 面板卸载时的轮次结算（dock destroy / 壳组件销毁）：Issue #169 调查项。
+ *
+ *  与做题屏返回 `backHome` **同病同修**——离屏那一刻盘上那条停在开轮
+ *  upsert 的形态，**空轮不擦就是永久孤儿**（探测不收 0 作答的轮、
+ *  没有任何入口再擦它）。故擦除判据取 `ResumePicker.isAbandonedRound`，
+ *  与 `dropAbandonedRoundIn` 同一份判据、不在此另写。
+ *
+ *  ⚠️ 与桌面 `QuizView.finishSession` 的差别是**有意为之**：桌面「切卷」
+ *  ＝**封卷**（写 `endedAt` + 落盘，那一轮进历史、出报告态）；移动端离屏
+ *  ＝**留作未完成轮**（不写 `endedAt`，「继续上次」要能按 id 找回）。
+ *  故这里**有作答的轮只结算用时、不封卷**——两边语义不同源，别为了「一致」
+ *  把移动端改成封卷（那会把「继续上次」的依托写成已收卷轮）。
+ *
+ *  ⚠️ **本函数目前尚未接线**：`MobileApp.svelte` 没有 `onDestroy`、`Docks`
+ *  的 destroy 只调 Svelte 卸载函数 ⇒ 真机上这条链不跑（`MobileDrill.destroy`
+ *  同理）。此处按「一旦接线就不漏擦」先修好；接线本身（连同走秒 interval
+ *  的泄漏）不在本单范围内，另立单处置。 */
+export function settleOnUnmount(d: MobileDrill & Ticker): void {
+    d.stopTicker();
+    const s = d.ui.session;
+    if (!s || s.endedAt) return;
+    s.elapsedSec = Math.max(s.elapsedSec, d.ui.elapsedSec);
+    if (!isAbandonedRound(s)) {
+        void d.deps.history?.upsert(s);
+        return;
+    }
+    d.ui.session = undefined;
+    void d.deps.history?.removeSession(s.id);
 }
 
 /**
