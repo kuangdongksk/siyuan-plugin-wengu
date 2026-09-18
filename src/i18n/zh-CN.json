@@ -936,7 +936,7 @@
   "aiCopyTurn": "复制整轮",
   "aiCopied": "已复制",
   "aiCopyFail": "复制失败，请手动选中",
-  "aiRowMeta": "{time} · {kind}",
+  "aiRowMeta": "{time}",
   "sideAiTitle": "打开 AI 讲解",
   "sideAiBtn": "AI 讲解",
   "kcapsLabel": "考点",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { AiSessionRecord } from "../data/AiSessions";
 import { buildSessionTree, groupRowName, leafStateOf, subjectOf } from "./SessionTree";
 import { AI_STOPPED } from "../data/AiSessions";
@@ -240,5 +240,55 @@ describe("叶子行视图（Issue #88：状态点 + 任务名 + 状态徽标）"
         // ③ 两套词表只在 done 上重叠——正是「拿状态词拼色类」看起来能过、
         //    实际只有 done 命中、running/error 静默失效的原因
         expect([...statusWords].filter((w) => colorNames.has(w))).toEqual(["done"]);
+    });
+});
+
+/**
+ * #170（20260918）**叶行注记的形态**：`wengu-aipanel-meta` 是 #129 的间隙期
+ * 产物，它叠加在**常驻**徽标之后就是「点 + 名 + 注记 + 徽标」四件——设计稿
+ * leaf 只有三件，窄侧栏下运行中行最挤。故运行中整条不渲染、其余行只留时刻
+ * （类别由组行表达）。组件不挂载进单测，规格走**源级锁**（同
+ * `AiPanelGapRestore.test` 口径：vite 的 `?raw` 读源码）。 */
+describe("叶行注记形态（源级锁：运行中不出 + 去类别段只留时刻）", () => {
+    let app = "";
+    let zh = "";
+
+    beforeAll(async () => {
+        app = (await import("../components/SessionPanelApp.svelte?raw")).default;
+        zh = (await import("../../i18n/zh-CN.json")).default.aiRowMeta as string;
+    });
+
+    /** 树叶子行的那段 main 片段（组行/ trailers 都在别处，切片防误伤详情头）。 */
+    const leafSnippet = (): string => {
+        const i = app.indexOf("wengu-aipanel-dot is-");
+        const j = app.indexOf("</snippet>", i);
+        expect(i, "找不到叶行渲染片段").toBeGreaterThan(-1);
+        return app.slice(i, j);
+    };
+
+    it("运行中行不渲染注记（判据取视图 spin，与徽标转圈同源）", () => {
+        const leaf = leafSnippet();
+        // 注记的渲染条件自带 `!lv?.spin`——运行中整条让位给三件套
+        expect(leaf).toContain("!lv?.spin");
+        // ⚠️ 不许拿**色名**（视图词表）或**状态词**（数据词表）当判据：#92 的
+        //    踩坑就是两套词表混用，只有 done 命中、run 静默失效
+        const cond = leaf.slice(leaf.indexOf("{#if"), leaf.indexOf("wengu-aipanel-meta"));
+        expect(cond).not.toContain("dotCls");
+        expect(cond).not.toContain("status");
+    });
+
+    it("注记只喂时间：不再注入类别段（kind 参数已从模板与调用点双双移除）", () => {
+        const leaf = leafSnippet();
+        expect(leaf).toContain('fmt(t("aiRowMeta"), {');
+        expect(leaf).toContain("time: rowStamp(");
+        expect(leaf).not.toContain("kind:");
+        // 两语言模板都一段式（分隔符是排版约定，不该再拼类别）
+        expect(zh).not.toContain("{kind}");
+        expect(zh.trim()).toBe("{time}");
+    });
+
+    it("详情头的 meta 槽不受影响（S7 留槽口径：常空 span 仍在）", async () => {
+        const detail = (await import("../components/SessionDetail.svelte?raw")).default;
+        expect(detail).toContain('class="wengu-aipanel-meta"></span>');
     });
 });
