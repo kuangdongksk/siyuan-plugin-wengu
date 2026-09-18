@@ -936,7 +936,7 @@
   "aiCopyTurn": "Copy full turn",
   "aiCopied": "Copied",
   "aiCopyFail": "Copy failed — select manually",
-  "aiRowMeta": "{time} · {kind}",
+  "aiRowMeta": "{time}",
   "sideAiTitle": "Open AI tutor",
   "sideAiBtn": "AI tutor",
   "kcapsLabel": "Points",

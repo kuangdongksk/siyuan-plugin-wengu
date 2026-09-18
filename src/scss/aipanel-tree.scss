@@ -155,7 +155,12 @@
 /* 行尾弱注记（间隙期形态，见 SessionPanelApp 的头注释「间隙期」一节）：
    叶行时间戳 + 删除钮同排——删除钮按 gap-list S5 退回 hover 显隐
    （功能件不占常驻视觉位），时间戳是常驻的 mono 弱注记（稿 `.leaf .kind`
-   同位：`font:400 11px/1 var(--mono); color:var(--faint)`）。 */
+   同位：`font:400 11px/1 var(--mono); color:var(--faint)`）。
+   ⚠️ #170（20260918）起**串里不再带类别段**（「MM-DD HH:MM」一段式）：
+   类别由组行表达，注记与贴右徽标同排、串越短徽标越靠右；运行中行整条不渲染
+   ——所以本片的定位矩形**更新**是「非运行中的未选中行」一种形态；样式本身
+   为一片**共享片**（组件是 `injected` 档但本片带移动基座/跨组件口径标记，
+   按 docs/design-spec.md §十三登记表**留共享片**，不搬进组件 `<style>`）。 */
 .wengu-aipanel-tree .wengu-aipanel-meta {
   flex: none;
   font-family: var(--b3-font-family-code);
