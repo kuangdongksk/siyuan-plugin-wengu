@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compile } from "svelte/compiler";
 import { emptyRound } from "./RoundReport";
 import type { WenguSession } from "../service/HistoryStore";
 import ROUND_REPORT from "./RoundReport.ts?raw";
@@ -11,6 +12,7 @@ import MOBILE_ANSWERING from "../../mobile/core/MobileAnswering.ts?raw";
 import DRILL_SCREEN from "../../mobile/components/DrillScreen.svelte?raw";
 import MOBILE_APP from "../../mobile/components/MobileApp.svelte?raw";
 import DOCKS from "../../bootstrap/Docks.ts?raw";
+import MOBILE_INDEX from "../../mobile/index.ts?raw";
 import ZH from "../../i18n/zh-CN.json";
 import EN from "../../i18n/en.json";
 
@@ -206,7 +208,8 @@ describe("闸下沉收口为唯一出口（Issue #147 · 源码级）", () => {
         //    `Docks` 的 init 重入先 `drillUnmount?.()`，Svelte `unmount()`
         //    只销毁组件、不触发 dock destroy）
         expect(code(MOBILE_APP)).toMatch(/onDestroy\(\(\) => drill\.destroy\(\)\)/);
-        // ② 远端卸载：dock destroy → drillCtl.destroy()（兜底路）
+        // ② 远端卸载：dock destroy → drillCtl.destroy()（兜底路）；
+        //    兜底路**取实例的键名**另由下一组「真编译反解」断言锁住（#173 复核）
         expect(code(DOCKS)).toMatch(/drillCtl\?\.destroy\(\)/);
         // ③ 揭台：卸载时走秒必须停——`MobileDrill.destroy` 只许转发 settleOnUnmount
         expect(code(MOBILE_DRILL)).toMatch(/destroy\(\): void \{\s*settleOnUnmount\(this\);\s*\}/);
@@ -221,6 +224,36 @@ describe("闸下沉收口为唯一出口（Issue #147 · 源码级）", () => {
         expect(body).not.toContain("endedAt =");
         expect(body).toContain("isAbandonedRound(s)");
         expect(body).toContain("d.stopTicker()");
+        // ⑥ 停表不许有旁路（Issue #173 验收「卸载时 stopTicker 必达」）：
+        //    `settleOnUnmount` 无第二参、第一句就是 stopTicker——开了
+        //    `stopTick: false` 这种开关，漏接一处从调用点根本看不出来
+        expect(code(MOBILE_ROUND)).toMatch(
+            /export function settleOnUnmount\(d: MobileDrill & Ticker\): void \{\s*d\.stopTicker\(\);/
+        );
+    });
+
+    it("壳组件实例导出的键名对得上（Issue #173 复核）：真编译反解，非源码文本", () => {
+        // 「取实例」这类接线是**跨文件约定**，字符串级断言看不出来。此处按
+        // `WordUiStyle.test.ts` 的先例走**真编译**：从 Svelte 编译产物里取
+        // `$$exports` 的键集合，再与 `mobile/index.ts` 声明的导出面、`Docks`
+        // 读实例的键逐一对齐。此前 `ctl` / `drill` 错位就是被漏在这一层。
+        const cli = compile(MOBILE_APP, { generate: "client", css: "injected", filename: "MobileApp.svelte" });
+        const exportKeys = new Set(
+            [...cli.js.code.matchAll(/\$\$exports = \{([^}]*)\}/g)]
+                .flatMap((m) => m[1].split(",").map((x) => x.trim()))
+                .filter(Boolean)
+        );
+        expect(exportKeys.has("ctl")).toBe(true);
+        // 收口层 `MobileAppExports` 声明的键：既不许漏（调用点读不到）、
+        // 也不许凭空多（声明了组件没导出的键 = 又一个静默 undefined）
+        const iface = /export interface MobileAppExports \{([\s\S]*?)\n\}/.exec(code(MOBILE_INDEX))?.[1] ?? "";
+        expect(iface).not.toBe("");
+        const declared = new Set([...iface.matchAll(/(\w+)\s*:/g)].map((m) => m[1]));
+        expect([...declared].sort()).toEqual([...exportKeys].sort());
+        // 调用点读的键（`Docks` 的 `mounted.app.X`）必须真在导出面里
+        const used = [...code(DOCKS).matchAll(/mounted\.app\.(\w+)/g)].map((m) => m[1]);
+        expect(used.length).toBeGreaterThan(0);
+        for (const k of used) expect(exportKeys.has(k), `Docks 读 mounted.app.${k}，壳组件未导出`).toBe(true);
     });
 
     it("移动端空轮执行体与桌面同四步：抹落盘记录 → 停表 → 退态 → 回开刷面板", () => {

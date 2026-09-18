@@ -2,6 +2,40 @@
 
 ## v0.1.1 unreleased
 
+- **修复：移动端刷题卸载链接线——退出面板不再泄漏走秒 interval、不再留 0 作答孤儿**
+  （20260919，mobile / bootstrap 域，Issue #173）：#169 已把执行体
+  （`MobileRound.settleOnUnmount`：停走秒 + 结算用时 + 擦不可恢复的空轮）修好，
+  但**真机上没有接线**——退出插件面板后走秒 interval 无人清、开轮没答题的轮
+  永久占住历史。
+
+    - **接线两条路各自必达、互不触发**（Svelte 的 `unmount()` 只销毁组件，
+      **不会**调用 dock 的 `destroy` 回调）：
+      ① **就地卸载**（真机实际销毁路径）：壳组件 `MobileApp.svelte` 补
+      `onDestroy` → `drill.destroy()`——`Docks.mountMobileDrillView` 的
+      `drillUnmount?.()`（dock init 重入 / 面板重建）走的就是这条 Svelte 卸载线；
+      ② **远端卸载**：`Docks` 的 dock `destroy` → `drillCtl.destroy()`
+      （模块级控制器引用），并一律**先结算后卸载**（否则新实例的空会话会被误结算）。
+      `MobileDrill.destroy` 因此要求**幂等**（停表幂等、`ui.session` 已清即返回）。
+    - **停表无旁路**：`settleOnUnmount` 第一句永远是 `d.stopTicker()`，
+      不给 `{ stopTick: false }` 这类开关（漏接一处从调用点看不出来）。
+    - **语义未动**：有作答的轮离屏**只结算用时、不写 `endedAt`**（移动端离屏＝
+      留作未完成轮，与桌面切卷＝封卷是有意分叉）；擦除判据仍只取
+      `ResumePicker.isAbandonedRound`，没有第二份本地表达式。
+    - **复核期修掉的静默坑**：首版 `Docks` 读 `mounted.app.drill`，而壳组件导出的是
+      `export const ctl` ⇒ `drillCtl` **恒为 `undefined`、兜底路整条死掉**；收口层
+      `mobile/index.ts` 的 `as unknown as MountedSvelteApp<{ drill }>` 把这处不一致
+      声明成了合法类型，字符串级契约断言也照旧通过。现由三层各锁一道：收口层
+      `MobileAppExports`（键名收口）、`Docks` 的 `mounted.app.ctl`、
+      `RoundReport.contract.test.ts` 里**真编译**（`svelte/compiler` 取 `$$exports`
+      键集）与调用点键名的比对断言。
+    - **测试**：`MobileUnmountSettle.test.ts`（自 `MobileDrillResume.test.ts` 拆出的
+      卸载专片：空轮擦除 / 有作答不封卷 / 已收卷不擦 / 注入走秒替身断言
+      `clearInterval` 被调且句柄置空 / 幂等 / 未起轮零动作 6 例）；
+      `RoundReport.contract.test.ts` 扩两组源级契约。`MobileDrill` 构造第三参
+      `TickHost` 仅测试注入（node 无 `window` 时起不了表，「卸载必达」无法观测），
+      真机不传、行为逐字不变。
+    - **零迁移**：不动存储格式、不迁移存量历史；`version` 不 bump。
+
 - **修复：AI 会话面板叶子行注记收窄——运行中不渲染、去类别段只留时刻**
   （20260918，ai / scss 域，Issue #170）：真机报障，窄侧栏下叶子行同排四件
   （状态点 + 任务名 + `wengu-aipanel-meta` + 状态徽标），设计稿的 leaf 只有
@@ -62,9 +96,9 @@
       `results` 按块 id 归并为 0，方向取保守）；**有作答（含「不会」）的轮
       一条都不擦**（那是「继续上次」的依托，擦掉就是静默丢进度）。报告屏进
       `backHome`（轮次已收卷）按判据空操作。
-      ⚠️ 移动端离屏**不封卷**（与桌面不同源，有意为之）；且 `MobileDrill.destroy`
-      真机上**尚未接线**（`MobileApp.svelte` 无 `onDestroy`），本单只修执行体，
-      接线另立单。
+      ⚠️ 移动端离屏**不封卷**（与桌面不同源，有意为之）；`MobileDrill.destroy`
+      真机上当时**尚未接线**（`MobileApp.svelte` 无 `onDestroy`），本单只修执行体
+      ——接线已由 Issue #173 落地（见上方条目）。
     - **零迁移**：纯读侧逻辑，不动存储格式、不迁移存量历史（历史空轮留库里
       无害）；`version` 不 bump。
     - 用例：`ResumePicker.test.ts`（判据与查找 9 例）、`StartPanel.test.ts`

@@ -288,8 +288,16 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
            的 `drillUnmount?.()` 走 Svelte 卸载，dock init 重入与面板重建都在
            这条线上）。放在组件里才覆盖得到「init 重入先卸旧实例」这步。
         2. **远端卸载**：`Docks` 的 dock `destroy` → `drillCtl.destroy()`
-           （模块级控制器引用，`drillUnmount` 旁一路）——移动端实测拿不到组件
-           实例那条路的兜底。
+           （模块级控制器引用，`drillUnmount` 旁一路）——dock 侧兜底路。
+           ⚠️ **取实例的键名是这套接线的既踩坑**（#173 首版）：组件导出的是
+           `export const ctl`，而 `Docks` 当时读 `mounted.app.drill` ——错位后
+           `drillCtl` **恒为 `undefined`**，兜底路**整条静默死掉**，且
+           `mobile/index.ts` 的 `as unknown as MountedSvelteApp<{drill}>`
+           把这处不一致声明成了合法类型、字符串级契约断言也照旧通过。
+           现由三层各锁一道：`mobile/index.ts` 的 `MobileAppExports`（收口层）、
+           `Docks` 的 `mounted.app.ctl`、以及 `RoundReport.contract.test.ts`
+           里**真编译**（`svelte/compiler` 取 `$$exports` 键集）比对的源级断言。
+           改任一处的键名，三处必须同步。
            故 `MobileDrill.destroy` 必须**幂等**（停表幂等、`ui.session` 已清即返回）；
            `Docks` 的 `mountMobileDrillView` 一律**先结算后卸载**（先 `drillCtl.destroy()`
            再 `drillUnmount?.()`，否则卸载函数会误结算刚挂上的新实例空会话）。

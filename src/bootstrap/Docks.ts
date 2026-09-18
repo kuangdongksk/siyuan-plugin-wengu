@@ -51,7 +51,11 @@ let drillUnmount: (() => void) | undefined;
 /** 移动端刷题控制器（卸载前的轮次结算入口，Issue #173）。
  *  ⚠️ 组件 `onDestroy` 已覆盖真机实际卸载路径；此处是**远端卸载路径**
  *  （dock destroy）的兜底——两条路互不触发、各自必达，
- *  `MobileDrill.destroy` 幂等，重复调用无副作用。 */
+ *  `MobileDrill.destroy` 幂等，重复调用无副作用。
+ *  ⚠️ 取自壳组件实例导出（`mounted.app.ctl`）——**键名必须与
+ *  `MobileApp.svelte` 的 `export const ctl` 逐字一致**（`mobile/index.ts`
+ *  的 `MobileAppExports` 与源级契约各锁一道）。#173 首版写成 `app.drill`，
+ *  与组件的 `ctl` 错位 ⇒ 这里恒为 `undefined`、兜底路**整条静默死掉**。 */
 let drillCtl: { destroy(): void } | undefined;
 
 /** dock 装载所需的宿主能力（插件实例按需提供；各店取共享单例）。 */
@@ -159,6 +163,6 @@ function mountMobileDrillView(host: DockHost, custom: { element?: Element }): vo
         weakness: host.weakness?.(),
         settings: host.settings?.(),
     });
-    drillCtl = mounted.app.drill;
+    drillCtl = mounted.app.ctl;
     drillUnmount = mounted.unmount;
 }

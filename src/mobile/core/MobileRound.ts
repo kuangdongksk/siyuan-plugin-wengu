@@ -281,13 +281,16 @@ export function dropAbandonedRoundIn(d: MobileDrill): void {
  *     这条覆盖真机实际销毁路径（`Docks.mountMobileDrillView` 的
  *     `drillUnmount?.()`，dock init 重入/面板重建都走它）；
  *  2. **远端卸载**：`Docks` 的 dock `destroy` → `drillCtl.destroy()`（`ui.session`
- *     已清时空转）——移动端实测拿不到组件实例的兜底路。
+ *     已清时空转）——dock 侧兜底路，`drillCtl` 取壳组件实例导出
+ *     `mounted.app.ctl`（键名与组件 `export const ctl` 必须逐字一致）。
  *  故本函数必须**幂等**（重复调用无害）：停表幂等、`ui.session` 已清即返回。
  *
- *  ⚠️ `stopTick: false` 只给「停表已由别处保证」的用例用（如 `closeEmptyRound`
- *  的执行体自带 `stopTicker`）：它不是语义开关，别在真机链上用它。 */
-export function settleOnUnmount(d: MobileDrill & Ticker, opts: { stopTick?: boolean } = {}): void {
-    if (opts.stopTick !== false) d.stopTicker();
+ *  ⚠️ 本函数的**第一句永远是 `d.stopTicker()`**，不给「可选停表」的开关
+ *  （Issue #173 验收：「卸载时 `stopTicker` 必达」）——一旦开了 `stopTick: false`
+ *  这类旁路，接线漏一处就退回「走秒 interval 泄漏」，而漏与不漏从调用点
+ *  看不出来。需要不动的场景是「不调用本函数」，不是「调用但关掉它」。 */
+export function settleOnUnmount(d: MobileDrill & Ticker): void {
+    d.stopTicker();
     const s = d.ui.session;
     if (!s || s.endedAt) return;
     s.elapsedSec = Math.max(s.elapsedSec, d.ui.elapsedSec);
