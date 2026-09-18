@@ -172,18 +172,43 @@ ${done}`;
 }
 
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
- *  ok=全步对、sec=各步求和；verdict 保留 brief 的 partial 标记）。
- *  分析 prompt 的每题行与轮报图表共用（RoundReportApp 经此导入）。 */
+ *  ok=全步对、sec=各步用时求和；verdict 保留 brief 的 partial 标记）。
+ *  分析 prompt 的每题行与轮报图表共用（RoundReportApp 经此导入）。
+ *
+ *  ⚠️ **`sec` 的三态口径（Issue #177，本函数的唯一易错点）**：
+ *  ① `> 0`＝该题**每一步**都记到了用时，值为各步之和；
+ *  ② `0`＝**未记录**（任一步缺 `sec`，或整卷计时模式下根本没有逐题用时）；
+ *  ③ **绝不允许出现 `NaN`**。
+ *
+ *  旧实现是 `(cur?.sec ?? 0) + r.sec`——单步（绝大多数题）在 `r.sec` 缺失
+ *  时即 `0 + undefined = NaN`，而**`NaN ?? 0` 仍是 `NaN`**（`??` 只吃
+ *  null/undefined，不吃 NaN），于是 NaN 一路漏到两个消费方：
+ *  - 报告图表：`mmss(NaN)` → tooltip 显示「用时 NaN:NaN」、柱高算出
+ *    `height:NaN%`（非法值被浏览器丢弃，整张图的相对高度失效）；
+ *  - 旧 prompt 的逐题行 `${r.sec ?? 0}s` → **字面印出「NaNs」**。
+ *    #177 那份报告里「Q15-21 计时为 NaN」**不是 AI 幻觉，是它照抄了我们
+ *    喂进去的字符串**——这条教训比「补三态文案」更重要：**渲染前先保证
+ *    数据里没有 NaN**，否则再好的指令也拦不住照抄。
+ *  故现口径把「是否每步都记到」单独累计，任缺一步整题按 `0`（未记录）；
+ *  消费方一律用 `> 0` 判「有真用时」，`0` 与缺失同路（见 timeStateOf /
+ *  报告图表的 `?? 0`）。 */
 export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
     const out = new Map<string, { ok: boolean; sec: number; verdict?: string }>();
+    /** 该题每一步都记到了用时（见上文三态②：任缺一步整题归 0）。 */
+    const allTimed = new Map<string, boolean>();
     for (const r of s.results) {
         const b = baseQid(r.qid);
         const cur = out.get(b);
         out.set(b, {
             ok: cur ? cur.ok && r.ok : r.ok,
-            sec: (cur?.sec ?? 0) + r.sec,
+            sec: (cur?.sec ?? 0) + (r.sec ?? 0),
             verdict: cur?.verdict ?? r.verdict,
         });
+        allTimed.set(b, (allTimed.get(b) ?? true) && r.sec > 0);
+    }
+    for (const [b, timed] of allTimed) {
+        const hit = out.get(b);
+        if (hit && !timed) hit.sec = 0;
     }
     return out;
 }
@@ -262,8 +287,8 @@ export function buildAnalysisPrompt(m: {
     const thoughtRule = hasThoughts
         ? "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。"
         : "";
-    return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分四段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议。${thoughtRule}
-报告末尾另起一节「知识点」，用 markdown 列表逐点给出**归组清单**（几点已有下表，直接照抄与合并，不要编造新的知识点名）：每点几对几错、合计用时。
+    return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分五段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议；知识点归组。${thoughtRule}
+末段「知识点」用 markdown 列表逐点给出**归组清单**（下表已按知识点归好组，直接照抄与合并，不要编造新的知识点名）：每点几对几错、合计用时。
 ⚠️ 用时数据以「每题」行给出的为准，标记为「${TIME_UNKNOWN_TEXT}」的题是**没有记录到用时**（快速作答未满 1 秒），不是 0 秒也不是缺失错误：不要推测、编造任何数值，不要输出 NaN、undefined 或类似字样的占位。
 本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
 每题：${perQ}

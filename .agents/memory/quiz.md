@@ -260,6 +260,17 @@ flex-direction:column}`）：`.wengu-main` 原是块级内滚窗（`base.scss`
       `unfinished`）——原先还要求 `answered < 题数`，那条只在 instant 下成立，
       after 答满未交卷的轮会被判成「已完成」而无法「继续上次」改答案。
       `lockAllCardsNow` 是**状态级 + DOM 级双管**（`ui.locked` 是真闸）。
+- ⚠️ **报告用时的合并在 `ai/prompts/judge.ts` 的 `byBaseQid`（跨域：quiz 图表 + ai prompt 同源）**
+  （Issue #177，20260919）：报告图表（`RoundReportApp` 的每题/分组柱）与判卷 prompt
+  的每题行、知识点归组**共用这一个聚合**，`sec` 三态口径只此一处：
+  `>0`＝各步都记到用时之和 / `0`＝**未记录** / **绝不出 `NaN`**。
+  踩坑原文：旧实现 `(cur?.sec ?? 0) + r.sec` 在单步题缺 `sec` 时即
+  `0 + undefined = NaN`，而 **`??` 不吃 NaN** ⇒ 图表 tooltip 出「用时 NaN:NaN」、
+  柱高算出 `height:NaN%`（非法值被浏览器静默丢弃，**整张图相对高度集体失真、
+  看着像「柱子一样高」**），prompt 侧则字面印出「NaNs」。
+  **改这个函数时先跑 `ai/prompts/judge.test.ts` 的「绝不出 NaN」组**
+  （全形态单一断言兜底）；图表侧另有出口归一 `TimeBars.secOf`（非有限值按 0），
+  两道都留——源头修，任何新调用方传脏值也不坏图。
 - **跳过是「没来过」**：`skipQuestion` 不记账不锁卡不揭示，只
   `onActiveQ` + `focusQuestion` 滚到下一题；末题零动作。「不会」才记账
   （`submitted=""`，objective 与 brief 都直接判错，brief **不调 AI**）。

@@ -20,7 +20,8 @@ const MIN_H = 4;
 export interface TimeBarInput {
     /** 整卷题号（1 起）。 */
     label: number;
-    /** 该题用时（秒；未答传 0）。 */
+    /** 该题用时（秒；未答传 0）。**须为有限数**：消费方按 `> 0` 判「有真
+     *  用时」，0 与缺失同路；`NaN`/`Infinity` 一律按 0 收拾（见 `secOf`）。 */
     sec: number;
     /** 未作答（会话里没有该题的结果记录）。 */
     unanswered: boolean;
@@ -57,6 +58,18 @@ export interface TimeBarGroupInfo {
     answered: number;
     total: number;
     sec: number;
+}
+
+/** 用时归一到「有限数」（Issue #177）：非有限值（`NaN`/`Infinity`/非数字）
+ *  一律按 0 收拾。
+ *
+ *  为什么图也要防：`byBaseQid` 曾在用时缺失时漏出 `NaN`（已从源头修掉，
+ *  见其注释），而 `mmss(NaN)` 显示「NaN:NaN」、`(NaN / max) * 100` 让柱高
+ *  算出 `height:NaN%`——非法值被浏览器静默丢弃，**整张柱状图的相对高度
+ *  集体失效**（表现是「柱子全一样高」，看不出是数据坏了）。源头修 + 出口
+ *  归一，两道都留：任何新调用方传进脏值也不再坏图。 */
+function secOf(x: TimeBarInput): number {
+    return Number.isFinite(x.sec) ? x.sec : 0;
 }
 
 /** 逐题状态 → 语义类名（口径与原逐题图逐字一致）。 */
@@ -108,24 +121,24 @@ export function buildTimeBars(
     }));
 
     if (size === 1) {
-        const max = Math.max(1, ...list.map((x) => x.sec));
+        const max = Math.max(1, ...list.map(secOf));
         // ⚠️ 逐题列也带 `items`（单元素）——两档的列**形状必须一致**，
         // 否则组件要按档分流取明细（#155 前逐题 title 直接挂在列上，
         // 组件里那份分叉就是下次漏改的入口）。
         return items.map((it, i) => ({
             ...it,
             grouped: false,
-            h: Math.max(MIN_H, Math.round((list[i].sec / max) * 100)),
+            h: Math.max(MIN_H, Math.round((secOf(list[i]) / max) * 100)),
             items: [it],
         }));
     }
 
     const cols: TimeBarCol[] = [];
-    const secOf: number[] = []; // 各组已答总用时（与 cols 同下标）
+    const groupSec: number[] = []; // 各组已答总用时（与 cols 同下标）
     for (let start = 0; start < list.length; start += size) {
         const group = list.slice(start, start + size);
-        const sec = group.reduce((sum, x) => sum + (x.unanswered ? 0 : x.sec), 0);
-        secOf.push(sec);
+        const sec = group.reduce((sum, x) => sum + (x.unanswered ? 0 : secOf(x)), 0);
+        groupSec.push(sec);
         cols.push({
             grouped: true,
             label: cols.length + 1,
@@ -141,7 +154,7 @@ export function buildTimeBars(
             items: items.slice(start, start + size),
         });
     }
-    const max = Math.max(1, ...secOf);
-    cols.forEach((c, i) => (c.h = Math.max(MIN_H, Math.round((secOf[i] / max) * 100))));
+    const max = Math.max(1, ...groupSec);
+    cols.forEach((c, i) => (c.h = Math.max(MIN_H, Math.round((groupSec[i] / max) * 100))));
     return cols;
 }

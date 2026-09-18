@@ -223,12 +223,15 @@ describe("用时图分组聚合（Issue #155 块 B）· 源级", () => {
         expect(TIME_BARS).toMatch(/group\.every\(\(x\) => x\.unanswered\)\) return "wengu-bar-muted"/);
         expect(TIME_BARS).toMatch(/group\.some\(\(x\) => !x\.unanswered && x\.wrong\)\) return "wengu-bar-wrong"/);
         expect(TIME_BARS).toMatch(/group\.some\(\(x\) => !x\.unanswered && x\.partial\)\) return "wengu-bar-partial"/);
+        // 组总用时与柱高都过 secOf 归一（Issue #177：脏用时按 0 收拾，
+        // 源头已在 byBaseQid 修掉，出口再防一道——不许算出 height:NaN%）
         expect(TIME_BARS).toMatch(
-            /const sec = group\.reduce\(\(sum, x\) => sum \+ \(x\.unanswered \? 0 : x\.sec\), 0\)/
+            /const sec = group\.reduce\(\(sum, x\) => sum \+ \(x\.unanswered \? 0 : secOf\(x\)\), 0\)/
         );
         expect(TIME_BARS).toMatch(
-            /cols\.forEach\(\(c, i\) => \(c\.h = Math\.max\(MIN_H, Math\.round\(\(secOf\[i\] \/ max\) \* 100\)\)\)\)/
+            /cols\.forEach\(\(c, i\) => \(c\.h = Math\.max\(MIN_H, Math\.round\(\(groupSec\[i\] \/ max\) \* 100\)\)\)\)/
         );
+        expect(TIME_BARS).toMatch(/return Number\.isFinite\(x\.sec\) \? x\.sec : 0;/);
     });
 
     it("组 title 是新 i18n 键 reportGroupTime，两个语言文件都有（尾键）", () => {

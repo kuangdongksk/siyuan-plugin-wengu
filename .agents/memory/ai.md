@@ -18,6 +18,23 @@
 - `models.ts`：模型清单与默认。`timeouts.ts`：AI_TIMEOUT 档位（调用点禁
   自造超时数字；超时统一按 SSE 空闲计）。`agentPanel.ts`：智能体面板
   DOM 自动化 + 「面板优先、页内降级」按钮帮手。
+    - ⚠️ **页内降级输出自 #177（20260919）起是 markdown，不是纯文本**：
+      `runAgentTextOrPanel` 写 `out.innerHTML = renderAiTextHtml(kind, text)`——
+      **AI 正文**（`kind==="body"`）过 `ui/MdRender` 的 `renderMdHtml`；
+      **加载/空回复/失败文案仍纯文本**（`esc` + 换行转 `<br>`，容器
+      `white-space:pre-wrap` 已退役——渲染产物自带块级结构，再 pre-wrap 会把
+      换行双倍撑开）。形态判定抽成纯函数（node 环境无 jsdom 也能断言）；
+      两个消费方（`RoundReportApp` 报告 / `StatsCtl` 统计建议）零改动受益。
+      基线样式在共享片 `scss/ai-md.scss`（两方共用 `.wengu-report-ai`，
+      `design-spec` §13.3 登记表内）。公式 `$…$` 出思源同款占位但**不接
+      KaTeX 补渲**（补渲要内核 `ProtyleMethod.mathRender`，本通道不接）。
+    - ⚠️ **别给 prompt 喂 NaN**（#177 教训，细节见 `quiz.md` 的 `byBaseQid` 条）：
+      旧 prompt 每题行印出字面「NaNs」，AI 报告里的「计时为 NaN」**就是照抄
+      我们的字符串**，不是幻觉——**渲染前先保证数据里没有 NaN，再严的指令也
+      拦不住照抄**。该 prompt 现按三态给用时（`N s` / `TIME_UNKNOWN_TEXT` 常量
+      「用时未记录（快速作答 <1s）」/ 未答不注），并带「不要编造数值、不要输出
+      NaN/undefined」硬指令；报告结构由四段扩为**五段**（末段「知识点」归组清单，
+      同组用时全缺时不出「合计用时」，免得又把「没数据」摆成 `0s`）。
 - **AI 会话登记与管理工作区面板**（20260831）：
     - 登记簿 `data/AiSessions.ts`：saveData("ai-sessions")，LRU 双上限全局
       150/单类 40、600ms 去抖 + 串行链落盘，重载时 running 改判「已中断」；

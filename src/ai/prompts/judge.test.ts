@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { byBaseQid, buildAnalysisPrompt, TIME_UNKNOWN_TEXT } from "./judge";
+import { mmss } from "../../ui/shared";
 import type { WenguQuestion } from "../../types";
 import type { WenguSession, WenguSessionResult } from "../../quiz/service/HistoryStore";
 
@@ -59,6 +60,12 @@ describe("buildAnalysisPrompt：逐题用时三态", () => {
         expect(p.split("每题：")[1]).not.toContain("s\n");
     });
 
+    it("报告结构写明五段且末段是「知识点」（#177 从四段扩为五段）", () => {
+        const p = build([res("q1", true)], [q("q1", "极限")]);
+        expect(p).toContain("分五段");
+        expect(p).toContain("知识点归组");
+    });
+
     it("含「不要输出 NaN」硬指令与用时口径说明", () => {
         const p = build([res("q1", true)], [q("q1", "极限")]);
         expect(p).toContain("不要输出 NaN");
@@ -97,15 +104,66 @@ describe("buildAnalysisPrompt：知识点归组节", () => {
     });
 });
 
-describe("byBaseQid：组题多步合并（prompt 与报告图表同源）", () => {
-    it("多步题 qid#k 合并成一条：ok 全对、sec 求和、用时缺失不算 0", () => {
-        const s = session([res("q1#0", true, 4), res("q1#1", true), res("q2#0", false)]);
-        const merged = byBaseQid(s);
-        // 用时缺失的步在合并里就是「没记到」（消费侧一律只认数值形态，
-        // 见 timeStateOf；本断言的用法是「不是有效数值」而不是「等于 0」）
-        expect(Number.isFinite(merged.get("q1")?.sec)).toBe(false);
-        expect(Number.isFinite(merged.get("q2")?.sec)).toBe(false);
+describe("byBaseQid：用时三态且绝不出 NaN（Issue #177 根因修复）", () => {
+    it("单步题 sec 缺失 → 0（旧实现是 `0 + undefined = NaN`，漏到图表与 prompt）", () => {
+        const merged = byBaseQid(session([res("q1", true)]));
+        expect(merged.get("q1")?.sec).toBe(0);
+    });
+
+    it("sec=29 → 原样 29", () => {
+        expect(byBaseQid(session([res("q1", true, 29)])).get("q1")?.sec).toBe(29);
+    });
+
+    it("多步题全步有 sec → 求和", () => {
+        const merged = byBaseQid(session([res("q1#0", true, 4), res("q1#1", true, 6)]));
+        expect(merged.get("q1")?.sec).toBe(10);
         expect(merged.get("q1")?.ok).toBe(true);
+    });
+
+    it("多步题任一步缺 sec → 整题 0（不给半个和，也不给 NaN）", () => {
+        const merged = byBaseQid(session([res("q1#0", true, 4), res("q1#1", true)]));
+        expect(merged.get("q1")?.sec).toBe(0);
+        expect(merged.get("q1")?.ok).toBe(true);
+    });
+
+    it("任何结果都不出 NaN/非有限值（单一断言兜住全部形态）", () => {
+        const merged = byBaseQid(
+            session([
+                res("q1", true),
+                res("q2", false, 0),
+                res("q3", true, 5),
+                res("q4#0", true),
+                res("q4#1", false, 2),
+            ])
+        );
+        for (const [, v] of merged) expect(Number.isFinite(v.sec)).toBe(true);
+        // verdict 合并照旧（partial 取首个出现的）
         expect(merged.get("q2")?.ok).toBe(false);
+    });
+
+    it("报告图表链（byBaseQid → mmss）不再显示 `NaN:NaN`", () => {
+        // RoundReportApp 的柱状图 title 走 `mmss(byQid.get(id)?.sec ?? 0)`：
+        // 旧实现 NaN 会让 tooltip 出「用时 NaN:NaN」、柱高算出 height:NaN%
+        const merged = byBaseQid(session([res("q1", true), res("q2", false, 7)]));
+        const titles = [...merged.values()].map((v) => mmss(v.sec));
+        expect(titles).toEqual(["0:00", "0:07"]);
+        expect(titles.join()).not.toContain("NaN");
+    });
+
+    it("prompt 的数据行不出 NaN（旧写法是字面印出 `NaNs`，AI 只是照抄）", () => {
+        const p = build([res("q1", true), res("q2", false, 7)], [q("q1", "极限"), q("q2", "极限")]);
+        // ⚠️ 断言只覆盖**数据行**：指令段本身就写着「不要输出 NaN」这个字样
+        const dataLines = p
+            .split("\n")
+            .filter(
+                (l) =>
+                    l.startsWith("每题：") ||
+                    l.startsWith("知识点归组：") ||
+                    l.startsWith("- ") ||
+                    l.startsWith("本轮：")
+            );
+        expect(dataLines.join("\n")).not.toContain("NaN");
+        expect(dataLines.join("\n")).not.toContain("undefined");
+        expect(p).toContain(`1. 极限 对 ${TIME_UNKNOWN_TEXT}`);
     });
 });
