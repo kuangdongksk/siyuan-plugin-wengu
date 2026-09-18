@@ -1,5 +1,8 @@
-import { LETTERS, type WenguQuestion, type WenguStep } from "../../types";
+import { LETTERS, optionDisplayMd, type WenguQuestion, type WenguStep } from "../../types";
 import { POSITION_SENSITIVE } from "../../convert/service/draft/OptionShuffle";
+import { letterMapper, rewriteLetters } from "../../convert/service/draft/LetterRefs";
+import { collectOptionGroups, remapQuotedHead } from "../../convert/service/draft/OptGroups";
+import type { DraftPart, DraftUnit } from "../../convert/service/draft/QuestionDraft";
 
 /**
  * **展示层**选项洗牌（Issue #131，20260915）：题库与题源文档统一为
@@ -127,22 +130,117 @@ function applyOrder(
     opts: string[],
     answer: string,
     order: number[] | null
-): { opts: string[]; answer: string; changed: boolean } {
-    if (!order) return { opts, answer, changed: false };
+): { opts: string[]; answer: string; toIdx: Map<number, number> | null; changed: boolean } {
+    if (!order) return { opts, answer, toIdx: null, changed: false };
     // order[j] = 新第 j 位放原第几个 ⇒ 字母映射「原第 i 位 → 新第 j 位」
     const toIdx = new Map<number, number>();
     for (let j = 0; j < order.length; j++) toIdx.set(order[j], j);
     const nextOpts = order.map((i) => opts[i]);
     const nextAnswer = remapAnswer(answer, toIdx);
     const changed = nextAnswer !== answer || nextOpts.some((t, i) => t !== opts[i]);
-    return { opts: nextOpts, answer: nextAnswer, changed };
+    return { opts: nextOpts, answer: nextAnswer, toIdx, changed };
 }
 
-/** 单步：洗选项 + 重写步答案（零改动 ⇒ 原引用）。 */
-function shuffleStep(s: WenguStep, rand: Rand): WenguStep {
+/**
+ * **解析/题干里的选项字母引用同步改写**（Issue #176 主修，治存量）。
+ *
+ * 背景：#131 的冻结口径「库内解析不含任何选项字母」在真机上**没守住**——
+ * 工作区 bank 实查 841 道 single/multiple 里 **835 道（99.3%）**解析带字母
+ * 引用（AI 无视 `〔opt:X〕` 标记约定，直接写「B. …」或裸字母）。展示层洗牌
+ * 只重映射 `answer`，解析里的字母仍指**库内原序位置** ⇒ 换序后指到别的
+ * 选项上（真机截图：卡面 B 位显示甲，解析说「B. 乙」正确）。
+ *
+ * 改法：洗选项组时用**同一份 order 映射**（不是分头重算）改写该组解析里的
+ * 独立字母词符——词符口径/数学与代码保护区/所有格排除全部复用
+ * `LetterRefs`（#123 遗产成套件），落库层的标记替换同源。
+ *
+ * **字母确为该组真实选项**才映射：超范围字母（该组 3 项而解析写 `E`）不动
+ * ——那本就不是本组的引用（同 LetterRefs 的 A–H 词符口径 + 组内
+ * 长度校验）。
+ *
+ * 库形态：`〔opt:X〕` 标记（`replaceDraftOptionRefs` 已在上游换成文本，
+ * 正常库里没有残留）；真出现按「同一个字母**仍指同一项**」映射成新字母，
+ * 保住标记的引用语义。截断引用里的字母（`「A proposal to establish…」`）
+ * 同在受保护区外、照常映射，指代依然成立。
+ */
+function remapRefs(p: DraftPart, opts: string[], toIdx: Map<number, number>): DraftPart {
+    if (!p.text) return p;
+    const inRange = (ch: string): boolean => {
+        const i = LETTERS.indexOf(ch);
+        return i >= 0 && i < opts.length;
+    };
+    const map = (ch: string): string => (inRange(ch) ? letterMapper(toIdx)(ch) : ch);
+    // ⚠️ **顺序不能反**（#176 自验踩到）：先搬引用前缀（`「A …」`），再改
+    // 独立词符。反了的话前缀会被词符阶段当独立字母**再映射一次**
+    // （A→C→B，反向跳一个位次）——因为引用前缀与「引用正文的句首字母」在
+    // 真机形态里是同一个字符，只有「先改前缀」能让词符阶段跳过它（新字母
+    // ≠ 旧字母，`changed` 判定不再作用于它）。
+    const text = rewriteLetters(remapQuotedHead(p.text, toIdx, LETTERS), map);
+    return text === p.text ? p : { ...p, text };
+}
+
+/**
+ * 该组选项的**字母表文本**（渲染序＝字母序，含挤行拆分与标签剥离）——
+ * 复用落库层那**唯一**一套分组口径（`OptGroups.collectOptionGroups`
+ * 认 `option*` / `step-k-option*` 部件名），避免展示层另起一套近似实现
+ * （两套一旦漂移，就是「答案字母按 A 套、解析按 B 套」的静默错位）。
+ *
+ * ⚠️ 与洗牌用的原始 `opts` 数组**不是同一份**：原始项是 `- A. 甲` 的
+ * markdown（含列表标记/标签，可能挤行），字母表要的是**渲染后**的文本
+ * 位次——两者项数可能不同（挤行时原始 1 项 = 渲染后 4 项），绝不能互换。
+ */
+function cardOptionTexts(opts: string[], key: string): string[] {
+    const name = key === "" ? "option" : `${key}-option`;
+    const draft: DraftUnit = { material: false, attrs: {}, parts: opts.map((t) => ({ name, text: t })) };
+    return collectOptionGroups(draft, optionDisplayMd).get(key) ?? opts;
+}
+
+/** 声明式卡内容洗牌（`""`=顶层，`step-k`=第 k 步）：选项重排 + 答案重写 +
+ *  **解析/题干里的字母引用同步改写**（同一份 order 映射）。 */
+interface CardShuffle {
+    key: string;
+    opts: string[];
+    answer: string;
+    solutionMd?: string;
+    /** 带解析的宿主部件（卡壳 / 步 / 题）：重写后按此键回填。 */
+    patch: (next: { opts: string[]; answer: string; solutionMd?: string }) => void;
+}
+
+/** 洗一组并回填（不可洗/零改动 ⇒ 不回填，调用方据此判断是否换新对象）。 */
+function shuffleCardGroup(c: CardShuffle, rand: Rand): boolean {
+    const order = drawOrder(c.opts, rand);
+    const r = applyOrder(c.opts, c.answer, order);
+    if (!r.changed) return false;
+    const next = { opts: r.opts, answer: r.answer, solutionMd: c.solutionMd };
+    if (r.toIdx && c.solutionMd) {
+        // 重写解析里的字母引用：字母表按**渲染序文本**（挤行拆分/标签剥净后
+        // 的位次），禁用 optionDisplayMd 之外的近似口径。
+        const texts = cardOptionTexts(c.opts, c.key);
+        const part: DraftPart = { name: "solution", text: c.solutionMd };
+        const rewritten = remapRefs(part, texts.length ? texts : c.opts, r.toIdx);
+        next.solutionMd = rewritten.text;
+    }
+    c.patch(next);
+    return true;
+}
+
+/** 单步：洗选项 + 重写步答案（`WenguStep` 无解析部件——逐步解析**当前
+ *  不入协议**，见 `OptionRefReplace` 模块头；真加进来时在此接解析重写）。 */
+function shuffleStep(s: WenguStep, key: string, rand: Rand): WenguStep {
     const opts = s.optionMd ?? [];
-    const r = applyOrder(opts, s.answer ?? "", drawOrder(opts, rand));
-    return r.changed ? { ...s, optionMd: r.opts, answer: r.answer } : s;
+    let out = s;
+    shuffleCardGroup(
+        {
+            key,
+            opts,
+            answer: s.answer ?? "",
+            patch: (n) => {
+                out = { ...s, optionMd: n.opts, answer: n.answer };
+            },
+        },
+        rand
+    );
+    return out;
 }
 
 /**
@@ -154,15 +252,38 @@ function shuffleStep(s: WenguStep, rand: Rand): WenguStep {
  * 是「单题 + 显式随机源」形态，供单测与需要一次性洗牌的调用方使用。
  */
 export function shuffleForDisplay(q: WenguQuestion, rand: Rand = Math.random): WenguQuestion {
-    if (q.type === "steps") {
-        const steps = (q.steps ?? []).map((s) => shuffleStep(s, rand));
-        if (steps.every((s, i) => s === q.steps![i])) return q;
-        return { ...q, steps };
-    }
+    if (q.type === "steps") return shuffleStepsForDisplay(q, rand);
     if (q.type !== "single" && q.type !== "multiple") return q;
     const opts = q.optionMd ?? [];
-    const r = applyOrder(opts, q.answer ?? "", drawOrder(opts, rand));
-    return r.changed ? { ...q, optionMd: r.opts, answer: r.answer } : q;
+    let out = q;
+    shuffleCardGroup(
+        {
+            key: "",
+            opts,
+            answer: q.answer ?? "",
+            solutionMd: q.solutionMd,
+            patch: (n) => {
+                out = {
+                    ...q,
+                    optionMd: n.opts,
+                    answer: n.answer,
+                    ...(n.solutionMd !== undefined ? { solutionMd: n.solutionMd } : {}),
+                };
+            },
+        },
+        rand
+    );
+    return out;
+}
+
+/** steps：各步独立洗（组键 `step-k`），题级解析按**顶层组**口径改写
+ *  （逐步解析当前不入协议，见 OptionRefReplace 模块头；真出现时按步组
+ *  改写——`step-k-solution` 分支同款）。 */
+function shuffleStepsForDisplay(q: WenguQuestion, rand: Rand): WenguQuestion {
+    const src = q.steps ?? [];
+    const steps = src.map((s, i) => shuffleStep(s, `step-${i + 1}`, rand));
+    if (steps.every((s, i) => s === src[i])) return q;
+    return { ...q, steps };
 }
 
 /**

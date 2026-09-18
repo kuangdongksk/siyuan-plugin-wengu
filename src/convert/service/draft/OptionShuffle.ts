@@ -1,4 +1,5 @@
 import { LETTERS } from "../../../types";
+import { letterMapper, rewriteLetters } from "./LetterRefs";
 import type { DraftUnit } from "../draft/QuestionDraft";
 
 /**
@@ -56,51 +57,8 @@ interface OptGroup {
     ans: number;
 }
 
-/** 解析里可安全改写字母的词符：独立 A–H 单字母（词边界）、排除
- *  `'A`（所有格前缀）。**改写前一律先剥受保护区**（见 protectedMask）。 */
-const LETTER_TOKEN = /(?<![A-Za-z])[A-H](?![A-Za-z])/g;
-/** 所有格前缀形态（`students' A`）——词符整体跳过，不当作选项字母引用。 */
-const POSSESSIVE_BEFORE = /['\u2019][ \t]?$/;
-
-/** 需要排除改写的区间：行内代码、围栏代码、数学（$…$ / $$…$$ /
- *  \(…\) / \[…\]）——公式里的字母不是选项字母。 */
-function protectionMask(text: string): boolean[] {
-    const n = text.length;
-    const inMath = new Array<boolean>(n).fill(false);
-    const spans: [number, number][] = [];
-    const push = (re: RegExp, flags = "g"): void => {
-        for (const m of text.matchAll(new RegExp(re.source, flags))) spans.push([m.index, m.index + m[0].length]);
-    };
-    push(/`[^`\n]*`/);
-    push(/```[\s\S]*?```/);
-    push(/\$\$[\s\S]*?\$\$/);
-    push(/\$[^$\n]*\$/);
-    push(/\\\([\s\S]*?\\\)/);
-    push(/\\\[[\s\S]*?\\\]/);
-    for (const [a, b] of spans) for (let i = a; i < b && i < n; i++) inMath[i] = true;
-    return inMath;
-}
-
-/** 按字母映射改写一段文本里的独立字母词符（受保护区/已映射外的不动）。 */
-export function rewriteLetters(text: string, map: (ch: string) => string): string {
-    if (!text) return text;
-    const mask = protectionMask(text);
-    let out = "";
-    let last = 0;
-    let changed = false;
-    for (const m of text.matchAll(LETTER_TOKEN)) {
-        const at = m.index;
-        // 跳过的命中（受保护区/所有格前缀/映射不变）必须原样补回来，否则被吞
-        const skip = mask[at] || POSSESSIVE_BEFORE.test(text.slice(0, at));
-        const to = skip ? m[0] : map(m[0]);
-        out += text.slice(last, at) + to;
-        last = at + m[0].length;
-        if (to !== m[0]) changed = true;
-    }
-    if (!changed) return text;
-    return out + text.slice(last);
-}
-
+/** 解析字母改写（词符口径/保护区/所有格）自 #176 起接出到
+ *  `LetterRefs`，展示层洗牌共用同一套——本模块不再自持正则。 */
 /** 收集单元的全部选项组（键 ""=顶层；step-k=多步题第 k 步）。 */
 function collectGroups(d: DraftUnit): Map<string, OptGroup> {
     const g = new Map<string, OptGroup>();
@@ -152,11 +110,7 @@ function shuffleGroup(d: DraftUnit, grp: OptGroup): void {
     // 字母随之 i→j（与上面的 newRun 计算同一套 order，禁分头重算）。
     const toIdx = new Map<number, number>();
     for (let j = 0; j < n; j++) toIdx.set(order[j], j);
-    const map = (ch: string): string => {
-        const i = LETTERS.indexOf(ch);
-        const j = toIdx.get(i);
-        return j === undefined ? ch : LETTERS[j];
-    };
+    const map = letterMapper(toIdx);
     for (let j = 0; j < n; j++) d.parts[grp.opts[j]].text = texts[order[j]];
     ansPart.text = newRun;
     rewriteSolutionLetters(d, map);

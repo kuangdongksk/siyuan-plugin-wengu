@@ -290,6 +290,30 @@
       落库 kramdown 确定性（重转换 hash 稳定，不再每次随机洗一遍）。
       ⚠️ `draft/OptionShuffle.ts` **实现与单测保留**（存量数据仍在用），
       死形态下若在生成链上恢复调用 = 把死形态又洗乱，别再接线。
+      ⚠️ **`OptionShuffle` 的解析字母改写口径已接出**（#176）到
+      `draft/LetterRefs.ts`（词符/保护区/所有格/英文正文词/引用前缀）与
+      `draft/OptGroups.ts`（选项组分组/字母表/长文本截断/引用前缀映射）——
+      展示层洗牌（`quiz/render/CardDisplayShuffle`）与落库规范化共用同一套，
+      改口径只改这两个文件，别在调用侧另起正则。
+    - **解析里的选项字母引用**（Issue #176，20260918 — 落库侧堵新流量）：
+      #131 的冻结口径「库内解析不含任何选项字母」在真机上**没守住**（工作区
+      bank 实查 841 道里 835 道带字母引用）。落库链新增**第二道**：
+      `normalizeDraftOptionRefs`（`OptionRefReplace`）把解析/题干里的
+      **裸字母**与**「字母 + 全文」**引用规范化为 `「选项文本」`
+      （长文本截断复用 `OptGroups.displayText`，与标记替换同形态）。
+      三条落库链**同链调用**（`normalizeDraftOptionRefs(replaceDraftOptionRefs(
+unpackPackedOptions(d)))`）：`SetWriter.append` / `GenQuestion.genWithVerify`
+      / `RegenDialog.runRegen`——加新链照这三处自己接。
+      口径要点：
+        - **无凭据（字母超出该组选项数）一律原样**——宁可读起来突兀，也不
+          静默改写/删字（同标记替换的降级口径）；
+        - **受保护区一律不碰**（与标记替换相反！标记是显式意图故照常替换，
+          裸字母是**猜测**，碰了就是静默毁公式）；
+        - 「字母 + 全文」形态把标签（`B.` / `（B）`）与全文**一并吃掉**，
+          否则留「『文本』. 文本」叠影；裸字母形态**保留**引用后的空白
+          （`「文本」 正确`）、标点不归引用（`A，B 均错`）；
+        - **存量零迁移**：存量解析的字母由展示层洗牌时改写
+          （`CardDisplayShuffle` 同步 remap），本道只管新流量。
     - **解析选项引用标记协议**（`draft/OptionRefReplace.ts`）：凡指代选项
       一律写 `〔opt:X〕`（全角方括号，与「〔插图:…〕」同款、与 IAL `{:` 无
       碰撞），**不得用裸字母指代选项**；非指代的大写字母（Plan A、维生素 A）

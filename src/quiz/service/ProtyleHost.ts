@@ -1,6 +1,6 @@
 import { ProtyleMethod } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
-import { optionDisplayMd, estimateOptWidth, LETTERS } from "../../types";
+import { optionDisplayMd, normalizeOptionLabels, estimateOptWidth, LETTERS } from "../../types";
 import { renderMdHtml } from "../../ui/MdRender";
 import { decorateMaterialEntry } from "./MaterialDecorate";
 import { yieldToBrowser } from "../../ui/shared";
@@ -94,7 +94,11 @@ export class ProtyleHost {
  *  正文经 optionInline 剥壳成内联 HTML 并按估宽加紧凑档类
  *  （wengu-opt-s/m，多列排布见 card-render.scss）。 */
 export function optionRowHtml(i: number, md: string, rowClass = "wengu-option-fallback"): string {
-    const { body, tier } = optionInline(optionDisplayMd(md));
+    // Issue #176：存量库里的**双字母**选项文本（`- A. A. 时空…`，AI 自带
+    // 一层 + 行协议层又叠一层）在展示层此前只剥一层 ⇒ 卡面剩一个字母。
+    // 展示侧兜底走 `normalizeOptionLabels`（一次剥净，默认 2 层；显示层
+    // 的 `OPTION_LABEL_MAX_DEPTH = 3` 保留给「画角标前显示」的旧口径）。
+    const { body, tier } = optionInline(optionDisplayMd(normalizeOptionLabels(md)));
     const cls = tier ? `${rowClass} ${tier}` : rowClass;
     return `<div class="${cls}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span><div class="wengu-opt-body">${body}</div></div>`;
 }

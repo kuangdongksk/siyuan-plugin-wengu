@@ -346,8 +346,9 @@ describe("长选项截断（Issue #148）", () => {
  *   - 解析里的「（A）」还按**转换时**的序 → 指另一个选项。
  * 5 个会话 5 次失配（每次都换排列 ⇒ 每次都错到别处），是真机可见的错误指代。
  *
- * 锁法：用**真实洗牌函数**。截断形态不含字母 ⇒ 洗牌前后解析逐字不变，
- * 不变量「解析不指代任何位置」恒成立。
+ * 锁法：用**真实洗牌函数**。⚠️ **口径已于 #176 改口**：截断引用的
+ * `「` 后字母是**引用前缀**（按标记协议同一个字母指同一项），展示层洗牌时
+ * 会同步重映射——引用**正文**（截断文本本身）仍逐字不变。
  */
 describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", () => {
     const LONG_OPTS = [
@@ -365,17 +366,27 @@ describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", (
                 { name: "stem", text: "题干" },
                 ...LONG_OPTS.map((o) => ({ name: "option-0", text: o })),
                 { name: "answer", text: "A" },
-                { name: "solution", text: "正确答案：〔opt:A〕。" },
+                { name: "solution", text: "〔opt:A〕正确。" },
             ],
         },
     ]);
 
+    it("解析里的截断形态只带**引用字母前缀**（截断文本里的字母是正文，不是引用）", () => {
+        // 引用形态 `「A proposal…」`：前 30 字里的 `A`（英文首词）与引用
+        // 字母同形——#176 起展示层按标记协议只重映射**前缀那个字母**、
+        // 引用正文逐字不动（见 CardDisplayShuffle.remapRefs / remapQuotedHead）。
+        expect(solOf(d0)).toBe(`「${LONG_OPTS[0].slice(0, 30)}…」正确。`);
+        // 唯一的**引用**字母是 `「` 后那个（其余字母都在引用正文里）
+        expect(/「([A-H])/.exec(solOf(d0)!)?.[1]).toBe("A");
+        expect(solOf(d0)!.split("」").length).toBe(2);
+    });
+
     it("解析里的截断形态**不含任何字母**（洗牌无从失配的前提）", () => {
-        expect(solOf(d0)).toBe(`正确答案：「${LONG_OPTS[0].slice(0, 30)}…」。`);
+        expect(solOf(d0)).toBe(`「${LONG_OPTS[0].slice(0, 30)}…」正确。`);
         expect(solOf(d0)).not.toMatch(/[（(][A-H][)）]/);
     });
 
-    it("换会话洗牌：解析逐字不变，且答案字母仍指向同一选项文本", () => {
+    it("换会话洗牌：引用前缀跟着重映射、引用正文逐字不变（Issue #176 改口）", () => {
         const base = {
             id: "q1",
             type: "single",
@@ -385,13 +396,18 @@ describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", (
         } as WenguQuestion;
         const cjk = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         const wantText = LONG_OPTS[0]; // 转换期正确项的文本（洗多少次都不该变）
+        const headOf = (s: string): string => /「([A-H])/.exec(s)?.[1] ?? "";
         const orders = new Set<string>();
         for (const scope of ["s1", "s2", "s3", "s4", "s5"]) {
             const x = shuffleListForDisplay([base], { scope })[0]!;
-            // ① 解析文本原样（无位置引用可失配）
-            expect(x.solutionMd).toBe(solOf(d0));
-            // ② 答案字母洗后仍指向原正确项的文本（判分/描色口径）
-            expect(x.optionMd![cjk.indexOf((x.answer ?? "").toUpperCase())]).toBe(wantText);
+            // ① 除引用前缀字母外，解析逐字不动（截断文本里的字母是**内容**）
+            expect(x.solutionMd!.replace(/「[A-H]/, "「?")).toBe(solOf(d0)!.replace(/「[A-H]/, "「?"));
+            // ② 引用前缀字母 = 洗后答案字母（同一项）；答案字母仍指向原文本
+            const ans = (x.answer ?? "").toUpperCase();
+            expect(headOf(x.solutionMd!)).toBe(ans);
+            expect(x.optionMd![cjk.indexOf(ans)]).toBe(wantText);
+            // ③ `「…」` 里的首词仍是选项正文（没被前缀改写吃掉）
+            expect(x.solutionMd).toContain(LONG_OPTS[0].slice(2, 30));
             orders.add((x.optionMd ?? []).join("|"));
         }
         expect(orders.size).toBeGreaterThan(1); // 确实换了序（消剧透仍成立）

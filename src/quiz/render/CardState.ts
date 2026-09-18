@@ -3,7 +3,7 @@ import { esc, fmt } from "../../ui/shared";
 import type { WenguSession, WenguSessionResult } from "../service/HistoryStore";
 import { optionIsRight, slotOptionIsRight, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { optionInline } from "../service/ProtyleHost";
-import { hasSlots, hasSteps, LETTERS, optionDisplayMd, QuestionType } from "../../types";
+import { hasSlots, hasSteps, LETTERS, normalizeOptionLabels, optionDisplayMd, QuestionType } from "../../types";
 import type { WenguQuestion, WenguRevealMode } from "../../types";
 import { isChoice, isObjective } from "./CardHtml";
 import { initSteps } from "./CardSteps";
@@ -261,7 +261,8 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
  *  steps 步选项（CardSteps）与 cloze 当前空选项（本文件）共用。 */
 export function optSnaps(optionMd: string[]): OptSnap[] {
     return optionMd.map((md, i) => {
-        const { body, tier } = optionInline(optionDisplayMd(md));
+        // Issue #176：与 ProtyleHost.optionRowHtml 同款兜底（双字母剥净）
+        const { body, tier } = optionInline(optionDisplayMd(normalizeOptionLabels(md)));
         return { letter: LETTERS[i] ?? "", html: body, tier, mark: 0 as const };
     });
 }

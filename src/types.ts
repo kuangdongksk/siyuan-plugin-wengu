@@ -295,6 +295,25 @@ export function optionDisplayMd(md: string): string {
     return stripOptionLabel(md.replace(/^\s*(?:[-*+]|\d+[.)])\s+/, "")).trimStart();
 }
 
+/** 选项**落库规范化**：连续前导字母标签**一次剥净**（默认 2 层：真机
+ *  双字母「A. A. 时空…」一遍干净）。
+ *
+ *  ⚠️ 与展示层 `optionDisplayMd` 的**有意不同**（Issue #163 的取舍）：
+ *  展示层封顶 3 层、只用于「画角标前的显示」，`A. B. 两本书名` 这类正文
+ *  开头保号；落库只该是「标签 + 正文」，故默认 2 层——多剥风险的现实面
+ *  几乎为零，而**不剥净的代价是每次刷新都看见「A. A.」**。
+ *  截断按**码点**（代理对/emoji 不切半）。
+ */
+export function normalizeOptionLabels(md: string, depth = 2): string {
+    let out = md;
+    for (let i = 0; i < depth; i++) {
+        const next = out.replace(OPTION_LABEL_RE, "");
+        if (next === out) break;
+        out = next;
+    }
+    return out;
+}
+
 /** 选项判分用可比文本：去标记/标签后规整。 */
 export function optionComparable(md: string): string {
     return normAnswerText(optionDisplayMd(md));
