@@ -22,6 +22,7 @@ import { endNowPicked, goConfirmEndPicked, requestEnd as requestEndGuard } from 
 import { answerKindOf } from "./MobileModel";
 import {
     dropAbandonedRoundIn,
+    settleOnUnmount,
     firstUnansweredIdx,
     restoreResumeFor as restoreResumeForIn,
     resumeRound as resumeRoundIn,
@@ -432,14 +433,11 @@ export class MobileDrill {
     /** 答满去重标记（收卷模式的「可检查修改」提示只给一次）。 */
     allAnsweredNotified = false;
 
-    /** 销毁（dock destroy 时调用）：停走秒并结算未落库会话。 */
+    /** 销毁（dock destroy 时调用）：实现体在 `core/MobileRound`
+     *  （`settleOnUnmount`——停走秒 + 结算用时 + 擦不可恢复的空轮，
+     *  Issue #169 调查项；擦除执行体按契约只许落 `MobileRound`）。 */
     destroy(): void {
-        this.stopTicker();
-        const s = this.ui.session;
-        if (s && !s.endedAt) {
-            s.elapsedSec = Math.max(s.elapsedSec, this.ui.elapsedSec);
-            void this.deps.history?.upsert(s);
-        }
+        settleOnUnmount(this);
     }
 }
 

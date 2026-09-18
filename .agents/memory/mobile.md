@@ -275,6 +275,16 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       判据与查找原语都在 `quiz/service/ResumePicker`（下条），本文件只留执行体。
       ⚠️ `backHome` 也服务报告屏（`screen="report"`、轮次已收卷）⇒ 执行体按
       判据空操作，**不要**在 `backHome` 里无条件 `removeSession`。
+    - **卸载结算（`MobileDrill.destroy` → `MobileRound.settleOnUnmount`）**：
+      与返回键**同病同修**（离屏不擦＝0 作答那条永久孤儿），一律取
+      `ResumePicker.isAbandonedRound`。⚠️ 与桌面 `finishSession` 的**差异是
+      有意为之**：桌面切卷＝**封卷**（写 `endedAt`），移动端离屏＝**留作未完成
+      轮**（不写 `endedAt`，有作答的轮只结算用时）——别为「口径一致」把移动端
+      改成封卷，那会把「继续上次」的依托写成已收卷轮。
+      ⚠️ **该链目前尚未接线**：`MobileApp.svelte` 没有 `onDestroy`、`Docks`
+      的 destroy 只调 Svelte 卸载函数 ⇒ 真机上 `MobileDrill.destroy` 不跑
+      （走秒 interval 也一并漏停）。本单只把执行体按「一旦接线就不漏擦」修好，
+      接线另立单。
     - **恢复探测「无此病」的结论已用用例锁住**：探测是「全库扫 + 只收未完成
       轮」，空轮（弃轮 / 收卷空轮两形态）连候选都进不来，不会把前面「有作答且
       未收卷」的轮挤出候选 —— 与桌面开刷面板「只看数组末位」的坑不同源。

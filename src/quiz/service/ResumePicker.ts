@@ -39,3 +39,25 @@ export function lastUnfinishedRound(rounds: readonly WenguSession[] | undefined)
     }
     return undefined;
 }
+
+/** 「弃轮」判据（Issue #169 调查项，20260918）：**零作答且未收卷**
+ *  ——一轮「留库还是擦掉」的擦除侧判据（留库侧＝{@link isUnfinishedRound}）。
+ *
+ *  弃轮＝**不可恢复**：零作答的记录谁都续不了（探测只收有作答的轮），
+ *  留库只占位（统计总览的轮次数/趋势图凭空多一轮）。已收卷的轮**不在
+ *  此判据内**（有报告可看，归收卷链管）。
+ *
+ *  ⚠️ **有作答的轮一律不在此判据内**——那是进度的依托，擦掉就是静默丢
+ *  进度（比多一条空轮严重得多）。故两个计数**都要为 0** 才算弃轮，方向
+ *  一律取**保守**（宁可留一条无害的空轮，不可删一条有内容的轮）：
+ *  - `answeredQuestionCount(s) === 0`——`results` 为**恢复与报告的真相**
+ *    （多步题 `qid#k` 按块 id 归并；`results` 非空即「有内容可续」）；
+ *  - `s.answered <= 0`——记账字段，与 `RoundReport.emptyRound`（收卷闸的
+ *    空轮判据）同口径。旧形态两者可能不同步（`answered` 缺计），故双条件
+ *    与「只用其一」相比只会更保守。
+ *
+ *  存量历史沿用「纯读侧兼容」：本判据只作用于**正在处置**的那一轮
+ *  （切卷/刷新/退屏/卸载），历史里的旧空轮不迁移、不擦，由面板/探测跳过。 */
+export function isAbandonedRound(s: WenguSession | undefined): boolean {
+    return !!s && !s.endedAt && s.answered <= 0 && answeredQuestionCount(s) === 0;
+}

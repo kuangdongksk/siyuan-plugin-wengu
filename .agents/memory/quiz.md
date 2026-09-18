@@ -730,16 +730,30 @@ answered > 0`。**同 id 早退排在最前**（点当前行任何模式都不�
     - **纯空轮库仍不出「继续上次」**（判据不变、不造幽灵入口），两种空轮形态
       （有/无 `endedAt`）都要跳过；尾随的**已收卷非空轮**同样不许把前面的未完成
       轮顶掉（收卷即断点已封）。多步题 `qid#k` 仍按块 id 归并计数。
-    - **空轮路径盘点（#169 调查项，结论）**：
-        - `endRound` / 倒计时 `finishNow`（倒计时归零「结束本轮」）二路都走
-          `finishRoundGuarded` → 空轮 `closeEmptyRound` **真 `removeSession`**
-          且不写 `endedAt`（用例 `quiz/render/EmptyRoundPath.test.ts` 锁死）；
-        - **切卷 / 重开页签 / 刷新**走 `load()` → `finishSession()`——它**不看
-          空轮**、一律 `endedAt + upsert` 封卷。这条就是「弃轮形态」的反面：
-          **开了轮没答题就切卷，那一轮不会留在库里**（内存 session 连同零作答
-          记录一起被丢弃，开轮 upsert 的那条被有 `endedAt` 的同 id 覆盖）。
-          真机里带 `endedAt` 的空轮来自**倒计时归零选「结束本轮」**那条链，
-          至于「开轮 3 秒」的时长 = 倒计时分钟数极小（可设 1 分钟，6:30 那次）；
-          两形态都是历史遗留、**按纯读侧兼容处置**（不迁移、不擦，面板跳过即可）。
-        - 移动端的对应漏擦路径是做题屏返回键（`backHome` 只退屏，不封卷），
-          #169 一并按「只擦不可恢复的轮」修（见 `mobile.md`）。
+    - **空轮路径盘点（#169 调查项，结论；第一版归因写反了，已订正）**：
+      全仓能写 `endedAt` 的落点只有两处（`grep "endedAt = Date"`）——
+      **桌面 `QuizView.finishSession`** 与**移动端 `MobileDrill.endRound`**：
+        - **`endRound` / 倒计时 `finishNow`（倒计时归零「结束本轮」）二路都走
+          `finishRoundGuarded` → 空轮 `closeEmptyRound`**：那条链是**真
+          `removeSession`、压根不写 `endedAt`**（用例
+          `quiz/render/EmptyRoundPath.test.ts` 锁死），**不是**空轮的来源。
+          ⚠️ 别再把带 `endedAt` 的空轮归给倒计时：倒计时最短档 1 分钟
+          （`clampMinutes` 下限），而真机那条 `mu6anse2-2zarfg` 是「开轮 3 秒」
+          ——物理上到不了归零。
+        - **真漏擦路径＝桌面 `finishSession`（切卷 / 重开页签 / 刷新 / 销毁）**：
+          旧实现**不看空轮、一律 `endedAt + upsert` 封卷**。⚠️ **`upsert` 同 id
+          是「整条替换」不是删除** ⇒ 开轮落盘的那条 0 作答记录**留在库里**，
+          只是多了 `endedAt`——真机 `mu6anse2-2zarfg` 就是这条链漏出去的
+          （第一版写成「那一轮不会留在库里」，错在把 upsert 当成了删除）。
+          修法：封卷判定与落盘收口 `quiz/service/RoundSeal.sealRound`——
+          **空轮真删、不写 `endedAt`、不进 `finished`**，有作答照旧封卷
+          （用例 `quiz/service/RoundSeal.test.ts`）。`index.ts` 的
+          `finishSession` 只剩一行调用（编排文件额度只许减不许增）。
+        - 移动端两条对应漏擦：做题屏返回键 `backHome`（只退屏）+ 面板卸载
+          （`MobileDrill.destroy` → `settleOnUnmount`；⚠️ 该链**真机上尚未接线**，
+          `MobileApp.svelte` 无 `onDestroy`）。两处都按 `ResumePicker.isAbandonedRound`
+          （**判据唯一实现**：`!endedAt && answered <= 0 && results 按块 id 归并 === 0`，
+          方向取保守——有内容一条不擦）修，见 `mobile.md`。
+          移动端离屏**不封卷**（与桌面不同源，有意为之：要留作「继续上次」）。
+        - **存量历史仍按纯读侧兼容**：`sealRound` 只处置「正在结束」的那一轮，
+          历史里的旧空轮不迁移、不擦，面板/探测跳过即可。

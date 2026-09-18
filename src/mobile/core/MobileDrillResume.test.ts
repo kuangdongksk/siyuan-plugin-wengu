@@ -406,4 +406,68 @@ describe("弃轮擦除：做题屏返回（Issue #169 调查项）", () => {
         drill.backHome();
         expect(removes).not.toContain(id);
     });
+
+    it("空轮返回后内存态也清（不留旧 session 供面板复用）", () => {
+        const { drill, ui } = set1Fixture();
+        drill.start("fresh");
+        drill.backHome();
+        expect(ui.session).toBeUndefined();
+    });
+});
+
+/**
+ * 卸载结算（`MobileDrill.destroy` → `settleOnUnmount`）：Issue #169 调查项。
+ * 与做题屏返回**同病同修**——离屏不擦，0 作答那条就是永久孤儿。语义差异也
+ * 一并锁住：移动端离屏**不封卷**（不写 `endedAt`），有作答的轮留作
+ * 「继续上次」。
+ *
+ * ⚠️ 该链在真机上**尚未接线**（`MobileApp.svelte` 无 `onDestroy`、`Docks`
+ * 的 destroy 只调 Svelte 卸载函数）：本组测的是「一旦接线就不漏擦」，
+ * 接线本身另立单。
+ */
+describe("卸载结算：destroy（Issue #169 调查项）", () => {
+    function set1Fixture() {
+        const m = make();
+        seedSet(m.face, "set1", [q("set1/a"), q("set1/b")]);
+        m.ui.home = {
+            loading: false,
+            error: "",
+            sets: [mockDoc("set1", "卷一")],
+            activeSetId: "set1",
+            activeSetTitle: "卷一",
+        };
+        m.ui.fullList = [q("set1/a"), q("set1/b")];
+        return m;
+    }
+
+    it("空轮卸载：抹掉盘上那条 0 作答记录并清内存态", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        const id = ui.session!.id;
+        drill.destroy();
+        expect(removes).toContain(id);
+        expect(ui.session).toBeUndefined();
+    });
+
+    it("有作答卸载：**不擦、不封卷**（留作「继续上次」，写 endedAt 就变已收卷轮）", async () => {
+        const { drill, ui, removes, upserts } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        await drill.submit();
+        const id = ui.session!.id;
+        drill.destroy();
+        expect(removes).not.toContain(id);
+        expect(ui.session?.endedAt).toBeUndefined();
+        expect(upserts).toContain(ui.session); // 结算用时照旧落盘
+    });
+
+    it("已收卷（报告屏）卸载：不擦（报告还要看）", () => {
+        const { drill, ui, removes } = set1Fixture();
+        drill.start("fresh");
+        drill.pickLetter("A");
+        drill.endRound();
+        const id = ui.session!.id;
+        drill.destroy();
+        expect(removes).not.toContain(id);
+    });
 });

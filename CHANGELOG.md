@@ -40,27 +40,39 @@
       候选都进不来），并顺手把移动端另一份自写判据收口到 `ResumePicker`
       （`MobileRound.isUnfinishedSession` 只留薄转发）。用例
       `MobileDrillResume.test.ts` 把两种空轮形态摆到卷尾锁住结论。
-    - **调查项结论（空轮路径盘点）**：`endRound` / 倒计时 `finishNow` 两路都经
-      `finishRoundGuarded`，空轮走 `closeEmptyRound` **真 `removeSession`**、
-      不写 `endedAt`（用例 `quiz/render/EmptyRoundPath.test.ts` 锁死）；切卷 /
-      重开页签 / 刷新走 `load()` → `finishSession()`，**不看空轮、一律
-      `endedAt + upsert` 封卷**——所以「开了轮没答题就切卷」那一轮不会留在
-      库里，真机里带 `endedAt` 的空轮来自**倒计时归零选「结束本轮」**那条链
-      （时长小 = 倒计时分钟数可设到 1）。两形态均**按纯读侧兼容处置**：不迁移、
-      不擦存量，面板跳过即可。
-    - **明确漏擦路径（移动端）**：做题屏左上返回键（`backHome`）**只退屏**、
-      不封卷也不擦——一题没答的轮就此成为孤儿占位（探测不收、无人再擦，
-      `history` 里留下一条「开轮没答题」）。现按**只擦「不可恢复」的轮**修：
-      `!endedAt && answeredQuestionCount === 0` 才 `removeSession`；**有作答
-      （含「不会」）的轮一条都不擦**（那是「继续上次」的依托，擦掉就是静默
-      丢进度）。报告屏进 `backHome`（轮次已收卷）按判据空操作。
+    - **调查项结论（空轮路径盘点）**：全仓能写 `endedAt` 的落点只有两处
+      （桌面 `finishSession` / 移动端 `endRound`）。
+      `endRound` 与倒计时 `finishNow` 两路都经 `finishRoundGuarded`，空轮走
+      `closeEmptyRound` **真 `removeSession`**、不写 `endedAt`（用例
+      `quiz/render/EmptyRoundPath.test.ts` 锁死）；**真漏擦路径＝桌面
+      `finishSession`（切卷 / 重开页签 / 刷新 / 销毁）**——旧实现**不看空轮、
+      一律 `endedAt + upsert` 封卷**，而 **`upsert` 同 id 是「整条替换」不是
+      删除** ⇒ 开轮落盘的那条 0 作答记录**留在库里**（只是多了 `endedAt`），
+      真机 `mu6anse2-2zarfg`（开轮 3 秒被写 `endedAt`）正是这条链漏出去的。
+      ⚠️ 倒计时那条链**不写 `endedAt`**，且最短档 1 分钟（`clampMinutes`
+      下限）——「3 秒」到不了归零，别再往它头上归因。
+      修法：封卷判定与落盘收口 `quiz/service/RoundSeal.sealRound`——**空轮
+      真删、不写 `endedAt`、不进 `finished`**（报告自然不出），有作答照旧封卷；
+      `index.ts` 的 `finishSession` 只剩一行调用。
+    - **漏擦路径（移动端，两条同修）**：做题屏左上返回键（`backHome`）**只退屏**、
+      卸载（`MobileDrill.destroy`）**只结算用时**——一题没答的轮就此成为孤儿
+      占位（探测不收、无人再擦）。现按**只擦「不可恢复」的轮**修，判据收口
+      `ResumePicker.isAbandonedRound`（`!endedAt && answered <= 0` 且
+      `results` 按块 id 归并为 0，方向取保守）；**有作答（含「不会」）的轮
+      一条都不擦**（那是「继续上次」的依托，擦掉就是静默丢进度）。报告屏进
+      `backHome`（轮次已收卷）按判据空操作。
+      ⚠️ 移动端离屏**不封卷**（与桌面不同源，有意为之）；且 `MobileDrill.destroy`
+      真机上**尚未接线**（`MobileApp.svelte` 无 `onDestroy`），本单只修执行体，
+      接线另立单。
     - **零迁移**：纯读侧逻辑，不动存储格式、不迁移存量历史（历史空轮留库里
       无害）；`version` 不 bump。
     - 用例：`ResumePicker.test.ts`（判据与查找 9 例）、`StartPanel.test.ts`
       扩两组（面板模型 / `startRound` 各含两种空轮形态 + 纯空轮不出入口 +
       steps 归并）、`EmptyRoundPath.test.ts`（桌面收卷路径 4 例）、
-      `MobileDrillResume.test.ts` 扩两组（尾随空轮 / 弃轮擦除 11 例）、
-      `ResumePicker.contract.test.ts`（候选查找单一实现的源级锁）。
+      `RoundSeal.test.ts`（封卷：空轮真删 / 有作答封卷 / 用时只增不减 7 例）、
+      `MobileDrillResume.test.ts` 扩四组（尾随空轮 / 弃轮擦除 / 卸载结算
+      24 例）、`ResumePicker.contract.test.ts`（判据与候选查找单一实现的
+      源级锁）。
 
 - **修复：移动端「继续上次」三缺口——跨题集探测不到、count 轮恢复展开全量、
   恢复落第 1 题**（20260917，mobile 域，Issue #167）：恢复链路（HomeScreen

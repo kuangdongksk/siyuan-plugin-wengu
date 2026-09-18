@@ -3,6 +3,7 @@ import START_PANEL from "./StartPanel.ts?raw";
 import MOBILE_DRILL from "../../mobile/core/MobileDrill.ts?raw";
 import MOBILE_ROUND from "../../mobile/core/MobileRound.ts?raw";
 import PICKER from "../service/ResumePicker.ts?raw";
+import QUIZ_INDEX from "../index.ts?raw";
 
 /**
  * 「未完成轮」候选查找的**唯一性**契约（Issue #169）。
@@ -50,15 +51,35 @@ describe("候选查找单一实现（Issue #169）", () => {
 });
 
 describe("弃轮擦除接线（Issue #169 调查项）", () => {
-    it("移动端返回键走弃轮擦除（执行体只认「零作答且未收卷」）", () => {
-        const body = /export function dropAbandonedRoundIn[\s\S]*?\n}/.exec(MOBILE_ROUND)?.[0] ?? "";
-        expect(body).not.toBe("");
-        // 只擦不可恢复的轮：已收卷不擦、有作答不擦
-        expect(body).toContain("if (!s || s.endedAt) return;");
-        expect(body).toContain("if (answeredQuestionCount(s) > 0) return;");
-        expect(body).toContain("removeSession(s.id)");
-        // 编排类只转发，不许在 backHome 里另写一份判据
+    it("擦除判据全仓只有一份实现（弃轮＝零作答且未收卷）", () => {
+        expect(count(PICKER, "export function isAbandonedRound")).toBe(1);
+        // 双条件 + 保守方向：answered 记账字段与 results 真相都为 0 才算弃轮
+        // （宁可留一条无害空轮，不可删一条有内容的轮）
+        expect(PICKER).toMatch(/!s\.endedAt && s\.answered <= 0 && answeredQuestionCount\(s\) === 0/);
+        // 移动端不许再自写一份判据（原写法 `s.endedAt` + `answeredQuestionCount > 0` 已收口）
+        expect(code(MOBILE_ROUND)).not.toMatch(/if \(answeredQuestionCount\(s\) > 0\) return/);
+    });
+
+    it("两个擦除入口都在 MobileRound 里，执行体只认 isAbandonedRound", () => {
+        const drop = /export function dropAbandonedRoundIn[\s\S]*?\n}/.exec(MOBILE_ROUND)?.[0] ?? "";
+        expect(drop).not.toBe("");
+        expect(drop).toContain("isAbandonedRound(s)");
+        expect(drop).toContain("removeSession(s.id)");
+        // 卸载结算（dock destroy 链）与返回键同判据：空轮擦、有作答只结算用时
+        const settle = /export function settleOnUnmount[\s\S]*?\n}/.exec(MOBILE_ROUND)?.[0] ?? "";
+        expect(settle).not.toBe("");
+        expect(settle).toContain("isAbandonedRound(s)");
+        expect(settle).toContain("removeSession(s.id)");
+        expect(settle).toContain("upsert(s)");
+        // ⚠️ 移动端离屏**不封卷**（与桌面 finishSession 语义不同源）：
+        // 写了 endedAt 就把「继续上次」的依托变成已收卷轮
+        expect(settle).not.toContain("endedAt =");
+    });
+
+    it("编排类只转发，不许出现 removeSession（桌面 index.ts 同口径）", () => {
         expect(count(code(MOBILE_DRILL), "dropAbandonedRoundIn")).toBe(2); // import + 调用
+        expect(count(code(MOBILE_DRILL), "settleOnUnmount")).toBe(2); // import + 调用
         expect(code(MOBILE_DRILL)).not.toMatch(/removeSession/);
+        expect(code(QUIZ_INDEX)).not.toMatch(/removeSession/);
     });
 });
