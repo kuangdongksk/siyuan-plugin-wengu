@@ -19,7 +19,10 @@ import type { MobileDrill } from "./MobileDrill";
  * ⚠️ 状态写入仍只经 `d.ui`（Svelte 5 `$state` 深代理），别在别处另存一份。
  */
 
-/** 本轮会话计时起点（秒粒度由 startedAt 推）的唯一机关。 */
+/** 本轮会话计时起点（秒粒度由 startedAt 推）的唯一机关。
+ *  ⚠️ `MobileDrill` 的 `startTicker/stopTicker` 签名（无参）必须与这里
+ *  逐字兼容——卸载结算链（`settleOnUnmount` / `closeEmptyRound` /
+ *  `retryWrongRound`）都靠这个交叉类型拿停表能力。 */
 type Ticker = {
     startTicker(): void;
     stopTicker(): void;
@@ -272,10 +275,20 @@ export function dropAbandonedRoundIn(d: MobileDrill): void {
  *  故这里**有作答的轮只结算用时、不封卷**——两边语义不同源，别为了「一致」
  *  把移动端改成封卷（那会把「继续上次」的依托写成已收卷轮）。
  *
- *  ⚠️ **本函数目前尚未接线**：`MobileApp.svelte` 没有 `onDestroy`、`Docks`
- *  的 destroy 只调 Svelte 卸载函数 ⇒ 真机上这条链不跑（`MobileDrill.destroy`
- *  同理）。此处按「一旦接线就不漏擦」先修好；接线本身（连同走秒 interval
- *  的泄漏）不在本单范围内，另立单处置。 */
+ *  ⚠️ **接线（Issue #173）两条路各自必达，互不触发**：
+ *  1. **就地卸载**：壳组件 `MobileApp.svelte` 的 `onDestroy` → `drill.destroy()`
+ *     ——Svelte 的 `unmount()` 只销毁组件，**不会**调用 dock 的 destroy 回调；
+ *     这条覆盖真机实际销毁路径（`Docks.mountMobileDrillView` 的
+ *     `drillUnmount?.()`，dock init 重入/面板重建都走它）；
+ *  2. **远端卸载**：`Docks` 的 dock `destroy` → `drillCtl.destroy()`（`ui.session`
+ *     已清时空转）——dock 侧兜底路，`drillCtl` 取壳组件实例导出
+ *     `mounted.app.ctl`（键名与组件 `export const ctl` 必须逐字一致）。
+ *  故本函数必须**幂等**（重复调用无害）：停表幂等、`ui.session` 已清即返回。
+ *
+ *  ⚠️ 本函数的**第一句永远是 `d.stopTicker()`**，不给「可选停表」的开关
+ *  （Issue #173 验收：「卸载时 `stopTicker` 必达」）——一旦开了 `stopTick: false`
+ *  这类旁路，接线漏一处就退回「走秒 interval 泄漏」，而漏与不漏从调用点
+ *  看不出来。需要不动的场景是「不调用本函数」，不是「调用但关掉它」。 */
 export function settleOnUnmount(d: MobileDrill & Ticker): void {
     d.stopTicker();
     const s = d.ui.session;

@@ -48,6 +48,12 @@ import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
  * 的响应态产出——不做字符串渲染，也不复用桌面壳的整壳 innerHTML 管线。
  */
 
+/** 走秒 interval 的宿主面（真机 = `window`；测试注入替身以观测清理）。 */
+export interface TickHost {
+    setInterval(fn: () => void, ms: number): number;
+    clearInterval(id: number): void;
+}
+
 /** 作答态（组件渲染源）。 */
 export interface MobileAnswerState {
     /** 已选字母（升序拼接，多选/单选）。 */
@@ -152,12 +158,19 @@ export class MobileDrill {
     /** 会话计时起点（秒粒度由 startedAt 推）。 */
     private tickTimer?: number;
 
+    /** 走秒 interval 的宿主面（真机 = window；测试可注入替身以便
+     *  断言 `clearInterval` 被调——node 环境下 `window` 不存在时
+     *  `MobileRound` 的 `typeof window === "undefined"` 守卫会拦住起表，
+     *  「卸载必达 stopTicker」就无法从外部观测，见 #173）。 */
+    private readonly tickHost: TickHost;
+
     /** AI 模型 id（public：作答友元模块读）。 */
     readonly modelId: string;
 
-    constructor(ui: MobileUi, deps: MobileDeps) {
+    constructor(ui: MobileUi, deps: MobileDeps, tickHost?: TickHost) {
         this.ui = ui;
         this.deps = deps;
+        this.tickHost = tickHost ?? (typeof window === "undefined" ? undefined : window);
         this.t = (key) => deps.i18n[key] || key;
         this.modelId = deps.settings?.convertModelId ?? "";
         this.ui.setup.reveal = deps.settings?.defaultReveal === "after" ? "after" : "instant";
@@ -411,31 +424,36 @@ export class MobileDrill {
     /** 起走秒（`MobileRound` 开新轮也用，故 public——口径不变）。 */
     startTicker(): void {
         this.stopTicker();
-        // 无 window（单测/无 DOM 环境）不起走秒——秒数只在真机上有意义
-        if (typeof window === "undefined") return;
+        // 无走秒宿主（单测/无 DOM 环境）不起走秒——秒数只在真机上有意义
+        if (!this.tickHost) return;
         const base = this.ui.session?.elapsedSec ?? 0;
         const t0 = Date.now();
-        this.tickTimer = window.setInterval(() => {
+        this.tickTimer = this.tickHost.setInterval(() => {
             this.ui.elapsedSec = base + Math.floor((Date.now() - t0) / 1000);
             const s = this.ui.session;
             if (s) s.elapsedSec = Math.max(s.elapsedSec, this.ui.elapsedSec);
         }, 1000);
     }
 
-    /** 停走秒（关轮/回面板/销毁都走它，`MobileRound` 也用）。 */
+    /** 停走秒（关轮/回面板/销毁都走它，`MobileRound` 也用；**卸载结算
+     *  的第一步**——见 `core/MobileRound` 的 `settleOnUnmount`）。 */
     stopTicker(): void {
-        if (this.tickTimer !== undefined && typeof window !== "undefined") {
-            window.clearInterval(this.tickTimer);
-        }
+        if (this.tickTimer !== undefined) this.tickHost?.clearInterval(this.tickTimer);
         this.tickTimer = undefined;
     }
 
     /** 答满去重标记（收卷模式的「可检查修改」提示只给一次）。 */
     allAnsweredNotified = false;
 
-    /** 销毁（dock destroy 时调用）：实现体在 `core/MobileRound`
+    /** 销毁（面板真卸载时调用；**幂等**）：实现体在 `core/MobileRound`
      *  （`settleOnUnmount`——停走秒 + 结算用时 + 擦不可恢复的空轮，
-     *  Issue #169 调查项；擦除执行体按契约只许落 `MobileRound`）。 */
+     *  Issue #169 调查项；擦除执行体按契约只许落 `MobileRound`）。
+     *
+     *  ⚠️ 本方法是**远端卸载路径**（dock destroy 的挂载层调用）的入口，
+     *  与壳组件 `onDestroy` 那条**就地卸载路径**不同时走：Svelte 的
+     *  `unmount()` 只销毁组件、不跑 dock 的 destroy（两者互不触发）。
+     *  两条路各自必达，重复调用无害（`settleOnUnmount` 幂等：停表幂等、
+     *  已清 `ui.session` 后直接返回）。见 Issue #173 的接线点说明。 */
     destroy(): void {
         settleOnUnmount(this);
     }

@@ -281,10 +281,34 @@ answer,drawer}.scss`，四片各 <500 行）：标记由挂载层 `markMobileUi`
       有意为之**：桌面切卷＝**封卷**（写 `endedAt`），移动端离屏＝**留作未完成
       轮**（不写 `endedAt`，有作答的轮只结算用时）——别为「口径一致」把移动端
       改成封卷，那会把「继续上次」的依托写成已收卷轮。
-      ⚠️ **该链目前尚未接线**：`MobileApp.svelte` 没有 `onDestroy`、`Docks`
-      的 destroy 只调 Svelte 卸载函数 ⇒ 真机上 `MobileDrill.destroy` 不跑
-      （走秒 interval 也一并漏停）。本单只把执行体按「一旦接线就不漏擦」修好，
-      接线另立单。
+      ⚠️ **接线（Issue #173，20260919）两条路各自必达、互不触发**——
+      Svelte 的 `unmount()` 只销毁组件、**不会**调用 dock 的 destroy 回调：
+        1. **就地卸载**：壳组件 `MobileApp.svelte` 的 `onDestroy` →
+           `drill.destroy()`（**真机实际销毁路径**：`Docks.mountMobileDrillView`
+           的 `drillUnmount?.()` 走 Svelte 卸载，dock init 重入与面板重建都在
+           这条线上）。放在组件里才覆盖得到「init 重入先卸旧实例」这步。
+        2. **远端卸载**：`Docks` 的 dock `destroy` → `drillCtl.destroy()`
+           （模块级控制器引用，`drillUnmount` 旁一路）——dock 侧兜底路。
+           ⚠️ **取实例的键名是这套接线的既踩坑**（#173 首版）：组件导出的是
+           `export const ctl`，而 `Docks` 当时读 `mounted.app.drill` ——错位后
+           `drillCtl` **恒为 `undefined`**，兜底路**整条静默死掉**，且
+           `mobile/index.ts` 的 `as unknown as MountedSvelteApp<{drill}>`
+           把这处不一致声明成了合法类型、字符串级契约断言也照旧通过。
+           现由三层各锁一道：`mobile/index.ts` 的 `MobileAppExports`（收口层）、
+           `Docks` 的 `mounted.app.ctl`、以及 `RoundReport.contract.test.ts`
+           里**真编译**（`svelte/compiler` 取 `$$exports` 键集）比对的源级断言。
+           改任一处的键名，三处必须同步。
+           故 `MobileDrill.destroy` 必须**幂等**（停表幂等、`ui.session` 已清即返回）；
+           `Docks` 的 `mountMobileDrillView` 一律**先结算后卸载**（先 `drillCtl.destroy()`
+           再 `drillUnmount?.()`，否则卸载函数会误结算刚挂上的新实例空会话）。
+           **走秒 interval 一并清零**：`settleOnUnmount` 第一句就是 `stopTicker()`。
+           单测在 `MobileUnmountSettle.test.ts`（自 `MobileDrillResume.test.ts`
+           拆出的卸载专片，含注入走秒替身断言 `clearInterval` 被调）；源级契约
+           （两条接线路 + 擦除只在 `MobileRound`）锁在
+           `quiz/render/RoundReport.contract.test.ts`。
+           ⚠️ **走秒 interval 的宿主可注入**（`MobileDrill` 构造第三参 `TickHost`）：
+           node 环境无 `window`，不注入时起不了表、「卸载必达 stopTicker」就无法
+           从外部观测（真机不传此参，行为逐字不变）。
     - **恢复探测「无此病」的结论已用用例锁住**：探测是「全库扫 + 只收未完成
       轮」，空轮（弃轮 / 收卷空轮两形态）连候选都进不来，不会把前面「有作答且
       未收卷」的轮挤出候选 —— 与桌面开刷面板「只看数组末位」的坑不同源。
