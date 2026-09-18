@@ -92,3 +92,70 @@ describe("详情头形态（源级锁：meta 常空 + 徽标自吃 auto）", () 
         expect(css).toMatch(/\.wengu-aipanel-badge\s*\{[^}]*font-weight:\s*500/);
     });
 });
+
+/**
+ * #170（20260918）**叶行注记的形态收窄**（真机报障：窄侧栏下叶子行
+ * 「点 + 名 + 注记 + 徽标」四件塞满，稿里只有三件）：
+ *  1. **运行中行整条不渲染注记**——判据取**视图**的 `lv.spin`（与徽标转圈
+ *     同源）。刻意**不**用 `lv.dotCls === "run"`（色名＝视图词表）或
+ *     `rec.status === "running"`（状态词＝数据词表）：#92 的踩坑正是两套
+ *     词表混用——只有 `done` 重叠，`run` 会静默失效。
+ *  2. **注记去类别段、只留「MM-DD HH:MM」**——种类优先两级树里叶子已挂在
+ *     「转换」组行下，`· 转换`是同屏重复；且注记与**贴右**徽标同排
+ *     （`.wengu-aipanel-badge { margin-left:auto }`），串越长越把徽标往左挤。
+ *
+ * 规格与上面的 S7 断言同口径：组件不挂载进单测，走 `?raw` 源级锁。
+ */
+describe("叶行注记形态（#170 源级锁：运行中不出 + 去类别段只留时刻）", () => {
+    let app = "";
+    let zh = "";
+    let en = "";
+
+    beforeAll(async () => {
+        app = (await import("../components/SessionPanelApp.svelte?raw")).default;
+        zh = (await import("../../i18n/zh-CN.json")).default.aiRowMeta as string;
+        en = (await import("../../i18n/en.json")).default.aiRowMeta as string;
+    });
+
+    /** 树叶子行那段 main 片段（切到 `{/snippet}` 收口，防误伤组行/详情头）。 */
+    const leafSnippet = (): string => {
+        const i = app.indexOf("wengu-aipanel-dot is-");
+        expect(i, "找不到叶行渲染片段").toBeGreaterThan(-1);
+        const j = app.indexOf("{/snippet}", i);
+        expect(j, "叶行片段没有收口").toBeGreaterThan(i);
+        return app.slice(i, j);
+    };
+
+    it("运行中行不渲染注记（判据取视图 spin，与徽标转圈同源）", () => {
+        const leaf = leafSnippet();
+        // 注记的渲染条件自带 `!lv?.spin`——运行中整条让位给设计稿三件套
+        expect(leaf).toContain("!lv?.spin");
+        // 判据不许拿**色名**（视图词表）或**状态词**（数据词表）：见上「#92」
+        const cond = leaf.slice(leaf.indexOf("{#if"), leaf.indexOf("wengu-aipanel-meta"));
+        expect(cond).not.toContain("dotCls");
+        expect(cond).not.toContain("status");
+    });
+
+    it("注记只喂时间：类别段已从模板与调用点双双移除", () => {
+        const leaf = leafSnippet();
+        expect(leaf).toContain('fmt(t("aiRowMeta"), {');
+        expect(leaf).toContain("time: rowStamp(");
+        expect(leaf).not.toContain("kind:");
+        // 两语言模板都一段式（分隔符是排版约定，不该再拼类别）
+        expect(zh.trim()).toBe("{time}");
+        expect(en.trim()).toBe("{time}");
+    });
+
+    it("注记的排版形态未动（只收窄串长，不改 mono 弱注记位）", async () => {
+        // 样式侧零规则改动：`.wengu-aipanel-tree .wengu-aipanel-meta` 仍是
+        // mono + faint 的常驻弱注记（改的只是串长与运行中不出）
+        const sass = await import("sass");
+        const path = SCSS_PATHS.find((p) => p.endsWith("/scss/aipanel-tree.scss"));
+        expect(path, "找不到 aipanel-tree.scss（glob 清单为空？）").toBeTruthy();
+        const css = sass.compile(relOf(path!)).css;
+        expect(css).toMatch(/\.wengu-aipanel-tree \.wengu-aipanel-meta\s*\{[^}]*flex:\s*none/);
+        expect(css).toMatch(
+            /\.wengu-aipanel-tree \.wengu-aipanel-meta\s*\{[^}]*font-family:\s*var\(--b3-font-family-code\)/
+        );
+    });
+});

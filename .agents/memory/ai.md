@@ -537,6 +537,8 @@ class="wengu-aipanel-meta"></span>`，S7 留槽口径：稿内无「时间 · �
       ② **注记去类别段、只留「MM-DD HH:MM」**——种类优先两级树里叶子已挂在
       「转换」组行下，「· 转换」是同屏重复；且注记与**贴右**徽标同排
       （`.wengu-aipanel-badge { margin-left:auto }`），串越长越把徽标往左挤。
-      规格锁在 `core/SessionTree.test.ts` 的「叶行注记形态」源级断言
-      （#170 新增；`aiRowMeta` 模板同步改一段式，调用点只喂 `time`）；
-      详情头 meta 槽口径不变（S7，`AiPanelGapRestore.test` 照旧）。
+      规格锁进 `core/AiPanelGapRestore.test.ts` 的「叶行注记形态（#170 源级
+      锁）」三条（与 #129 的 S7 断言同文件同口径——都是「对稿形态」的回归锁，
+      别另立到 `SessionTree.test.ts`：那里是树化纯逻辑的场地）；
+      `aiRowMeta` 模板中英同改一段式，调用点只喂 `time`；
+      详情头 meta 槽口径不变（S7 断言照旧）。
