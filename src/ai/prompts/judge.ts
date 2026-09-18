@@ -188,8 +188,32 @@ export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: numb
     return out;
 }
 
-/** 一轮判卷分析 prompt（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。
- *  入参收结构子集，RoundReport 的完整模型天然可赋值。 */
+/** 报告里「用时未记录」的**唯一文案**（Issue #177）。
+ *
+ *  为什么要有这一态：`HistoryStore.recordResult` 有 `sec > 0` 闸（0 秒不该
+ *  记，数据层是对的），故**快速作答（<1s）与未记录的用时在数据上是同一形态**
+ *  （`sec` 缺失）。旧 prompt 把 `r.sec ?? 0` 落成字面 `0s`，AI 拿到一排 0s
+ *  后自己写成「Q15-21 计时为 NaN」（20260918 真机幻觉，原始报告在 #177）。
+ *  现三态显式表述：有秒数 `N s` / 未记录 → 本常量 / 未答不注时间。
+ *  ⚠️ 单测与真机验收都按本常量对文案，改文案就改这一处。 */
+export const TIME_UNKNOWN_TEXT = "用时未记录（快速作答 <1s）";
+
+/** 逐题行的用时三态（见 {@link TIME_UNKNOWN_TEXT}）；未答恒为 `""`。 */
+function timeStateOf(r: { ok: boolean; sec: number } | undefined): string {
+    if (!r) return "";
+    // sec 缺失与非正数同路（0 = 该题没记上用时，不是「0 秒完成」）
+    return r.sec > 0 ? `${r.sec}s` : TIME_UNKNOWN_TEXT;
+}
+
+/** 一轮判卷分析 prompt（总体/薄弱点/思路点评/建议 + 知识点归组；带各题
+ *  思路时重点点评思路）。入参收结构子集，RoundReport 的完整模型天然可赋值。
+ *
+ *  Issue #177 两处指令层改动（**数据侧零改动**）：
+ *  1. 每题行用时三态 + 「不要编造数值、不要输出 NaN」硬指令；
+ *  2. 新增「知识点」一节：按 `q.knowledge`（缺省 `q.chapter`）归组，每组
+ *     几对几错 + 合计用时，markdown 列表 —— 数据本就全在 prompt 里，
+ *     此前只给逐题流水，知识点散在叙述里不便对照复习。
+ */
 export function buildAnalysisPrompt(m: {
     session: WenguSession;
     list: WenguQuestion[];
@@ -201,24 +225,49 @@ export function buildAnalysisPrompt(m: {
     const byQid = byBaseQid(s);
     const thoughts = s.thoughts ?? {};
     const hasThoughts = Object.keys(thoughts).length > 0;
+    const labelOf = (q: WenguQuestion, i: number): string => q.knowledge || q.chapter || String(i + 1);
+    const stateOf = (r: { ok: boolean; verdict?: string } | undefined): string =>
+        // partial=方向对但有缺口（统计记错），AI 分析要单独点名
+        !r ? "未答" : r.verdict === "partial" ? "部分正确" : r.ok ? "对" : "错";
     const perQ = list
         .map((q, i) => {
             const r = byQid.get(q.id);
-            const label = q.knowledge || q.chapter || String(i + 1);
-            // partial=方向对但有缺口（统计记错），AI 分析要单独点名
-            const state = !r ? "未答" : r.verdict === "partial" ? "部分正确" : r.ok ? "对" : "错";
-            const base = r ? `${i + 1}. ${label} ${state} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
+            const base = `${i + 1}. ${labelOf(q, i)} ${stateOf(r)}${r ? ` ${timeStateOf(r)}` : ""}`;
             return thoughts[q.id] ? `${base}｜思路：${thoughts[q.id]}` : base;
         })
         .join("；\n");
+    // 知识点归组（Issue #177）：同一归组键的题聚成一段，给出几对几错 + 合计
+    // 用时（**逐题 sec 全缺时不出用时**，免得又出现一排 0/NaN 的诱导）
+    const groups = new Map<string, { total: number; correct: number; sec: number; timed: boolean }>();
+    list.forEach((q, i) => {
+        const key = labelOf(q, i);
+        const r = byQid.get(q.id);
+        const g = groups.get(key) ?? { total: 0, correct: 0, sec: 0, timed: false };
+        g.total++;
+        if (r?.ok) g.correct++;
+        if (r && r.sec > 0) {
+            g.sec += r.sec;
+            g.timed = true;
+        }
+        groups.set(key, g);
+    });
+    const knowGroups = [...groups]
+        .map(([key, g]) => {
+            const time = g.timed ? `，合计用时 ${g.sec}s` : "";
+            return `- ${key}：${g.correct} 对 / ${g.total - g.correct} 错${time}`;
+        })
+        .join("\n");
     const history = rounds.map((r, i) => `第${i + 1}轮 ${r.correct}/${r.answered}`).join("；");
     const overtime = m.overtimeSec > 0 ? `；超时 ${mmss(m.overtimeSec)}` : "";
     const thoughtRule = hasThoughts
         ? "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。"
         : "";
     return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分四段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议。${thoughtRule}
+报告末尾另起一节「知识点」，用 markdown 列表逐点给出**归组清单**（几点已有下表，直接照抄与合并，不要编造新的知识点名）：每点几对几错、合计用时。
+⚠️ 用时数据以「每题」行给出的为准，标记为「${TIME_UNKNOWN_TEXT}」的题是**没有记录到用时**（快速作答未满 1 秒），不是 0 秒也不是缺失错误：不要推测、编造任何数值，不要输出 NaN、undefined 或类似字样的占位。
 本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
 每题：${perQ}
+知识点归组：\n${knowGroups}
 历史轮次：${history}
 只输出报告正文，不要客套。`;
 }

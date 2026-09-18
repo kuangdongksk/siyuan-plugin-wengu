@@ -1,4 +1,5 @@
-import { errText } from "./../ui/shared";
+import { esc, errText } from "./../ui/shared";
+import { renderMdHtml } from "../ui/MdRender";
 import { agentChatOnce } from "./client";
 import { AI_TIMEOUT } from "./timeouts";
 
@@ -52,9 +53,33 @@ export async function openAgentWithPrompt(prompt: string, marker = "你是刷题
 }
 
 /**
+ * 页内输出区的一次形态渲染（Issue #177）：**AI 正文走 markdown，加载/
+ * 空回复/失败文案走纯文本**。
+ *
+ * 纯函数（只依赖入参与 renderMdHtml），无 DOM 依赖 ⇒ 单测环境（node、
+ * 无 jsdom）可直接断言 —— 这也是把「html 还是文本」的判断从组件/API
+ * 副作用里拆出来单独锁死的原因。
+ *
+ * ⚠️ **纯文本一路必须 esc 后再换行转 `<br>`**：改成 innerHTML 后
+ * `errText(e)` 的宿主原文（可能含 `<`）会当 HTML 解掉；且 pre-wrap 已随
+ * markdown 渲染退役（容器里再 pre-wrap 会把渲染产物的换行双倍撑开），
+ * 纯文本的换行必须显式补 `<br>`，否则多行错误信息挤成一行。
+ */
+export function renderAiTextHtml(kind: "loading" | "empty" | "fail" | "body", text: string): string {
+    return kind === "body" ? renderMdHtml(text) : esc(text).replace(/\n/g, "<br>");
+}
+
+/**
  * 「优先在智能体面板开新会话发 prompt（可追问、markdown 渲染），面板
- * 自动化失配时降级页内拉取纯文本」——轮次报告与统计面板的 AI 按钮
- * 共用。文案键由调用方解析传入（loading/空回复/失败前缀）。
+ * 自动化失配时降级页内拉取、同样按 markdown 渲染」——轮次报告与统计
+ * 面板的 AI 按钮共用。文案键由调用方解析传入（loading/空回复/失败前缀）。
+ *
+ * 输出形态自 Issue #177 起统一：`out.innerHTML = renderAiTextHtml(...)`
+ * （此前 `textContent` ⇒ AI 散文里 `**总评**:` 字面星号裸奔、列表挤成一段）。
+ * md 渲染产物含 `div.p`/列表等标准标签，容器侧基线样式在共享片
+ * `scss/ai-md.scss`（design-spec §13.3 登记）。
+ * 公式（数学卷解析里的 `$…$`）MdRender 已出思源同款占位，KaTeX 补渲需要
+ * 内核 ProtyleMethod，本通道（页内降级、跨域共享）不接 —— 登记说明。
  */
 export async function runAgentTextOrPanel(opts: {
     prompt: string;
@@ -68,14 +93,15 @@ export async function runAgentTextOrPanel(opts: {
     if (await openAgentWithPrompt(opts.prompt)) return;
     const { btn, out } = opts;
     btn.disabled = true;
-    out.textContent = opts.loadingText;
+    out.innerHTML = renderAiTextHtml("loading", opts.loadingText);
     out.removeAttribute("hidden");
     try {
         // 独立会话，页内降级路径（登记进 AI 会话面板，标题取 prompt 前缀）
         const text = await agentChatOnce(opts.prompt, opts.modelId, AI_TIMEOUT.quick, undefined, { kind: "ask" });
-        out.textContent = text.trim() || opts.emptyText;
+        const body = text.trim();
+        out.innerHTML = body ? renderAiTextHtml("body", body) : renderAiTextHtml("empty", opts.emptyText);
     } catch (e) {
-        out.textContent = `${opts.failPrefix}${errText(e)}`;
+        out.innerHTML = renderAiTextHtml("fail", `${opts.failPrefix}${errText(e)}`);
     } finally {
         btn.disabled = false;
     }

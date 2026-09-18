@@ -797,22 +797,23 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 **未登记的按违规处理**（同 §9 口径）。新迁出的每一片、以及任何留共享片的
 「专属类族」，都要在此登记**绑定到哪个渲染函数 / 哪组组件**。
 
-| 共享片                                               | 绑定到（渲染源）                                                 | 留片理由                                       |
-| ---------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- |
-| `base.scss`                                          | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                    | ① TS 渲染层 + 共享底座                         |
-| `panels.scss`                                        | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS | ①（47 类 TS 触达）                             |
-| `cards.scss` / `card-render.scss`                    | `CardHtml` / `CardMount` / `QuizCard` 组件族                     | ①（各 21~25 类）                               |
-| `nums.scss`（#135 自 `cards.scss` 拆出）             | `NumRail.ts` 的 `[data-nums]` 契约 / `NumRailApp.svelte`         | ①（TS 侧 `data-nums` 触达）+ 红线拆片          |
-| `card-extra.scss`（#135 自 `card-render.scss` 拆出） | `QuizCard` 组件族的揭示后新增行（考点 chips / 自评五星）         | ① 红线拆片                                     |
-| `side.scss`（#135 自 `base.scss` 拆出）              | `SidePanelApp` / `TreeList`（侧栏树行覆写）                      | ①（`wengu-side-*` 由 TS/子组件渲染）+ 红线拆片 |
-| `english.scss`                                       | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`   | ①（27 类 TS 触达）                             |
-| `english-gloss.scss`                                 | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）        | ① + 跨组件复用                                 |
-| `reading.scss`                                       | `GroupUnitApp` / `CardHtml`（原文高亮）                          | ①（19 类）                                     |
-| `preview.scss`                                       | `PreviewFlow.ts`（无 Svelte 渲染源）                             | ①（19 类）                                     |
-| `rail.scss`                                          | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                   | ② 跨面板共享                                   |
-| `words.scss` / `words-mobile.scss`                   | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）  | ② + 对偶片须同批                               |
-| `mobile-*.scss` / `mobile-english.scss`              | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族       | ③ 基座 + 跨组件                                |
-| `aipanel*.scss` / `aiflow.scss`                      | `SessionPanelApp` / `SessionDetail` / `FlowBanner`               | ② 跨组件 + TS 触达                             |
+| 共享片                                               | 绑定到（渲染源）                                                        | 留片理由                                                          |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `base.scss`                                          | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                           | ① TS 渲染层 + 共享底座                                            |
+| `panels.scss`                                        | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS        | ①（47 类 TS 触达）                                                |
+| `cards.scss` / `card-render.scss`                    | `CardHtml` / `CardMount` / `QuizCard` 组件族                            | ①（各 21~25 类）                                                  |
+| `nums.scss`（#135 自 `cards.scss` 拆出）             | `NumRail.ts` 的 `[data-nums]` 契约 / `NumRailApp.svelte`                | ①（TS 侧 `data-nums` 触达）+ 红线拆片                             |
+| `card-extra.scss`（#135 自 `card-render.scss` 拆出） | `QuizCard` 组件族的揭示后新增行（考点 chips / 自评五星）                | ① 红线拆片                                                        |
+| `side.scss`（#135 自 `base.scss` 拆出）              | `SidePanelApp` / `TreeList`（侧栏树行覆写）                             | ①（`wengu-side-*` 由 TS/子组件渲染）+ 红线拆片                    |
+| `english.scss`                                       | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`          | ①（27 类 TS 触达）                                                |
+| `english-gloss.scss`                                 | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）               | ① + 跨组件复用                                                    |
+| `reading.scss`                                       | `GroupUnitApp` / `CardHtml`（原文高亮）                                 | ①（19 类）                                                        |
+| `preview.scss`                                       | `PreviewFlow.ts`（无 Svelte 渲染源）                                    | ①（19 类）                                                        |
+| `rail.scss`                                          | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                          | ② 跨面板共享                                                      |
+| `words.scss` / `words-mobile.scss`                   | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）         | ② + 对偶片须同批                                                  |
+| `mobile-*.scss` / `mobile-english.scss`              | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族              | ③ 基座 + 跨组件                                                   |
+| `aipanel*.scss` / `aiflow.scss`                      | `SessionPanelApp` / `SessionDetail` / `FlowBanner`                      | ② 跨组件 + TS 触达                                                |
+| `ai-md.scss`（#177 拆出）                            | `ai/agentPanel.ts` 的 `runAgentTextOrPanel` 输出区（MdRender 产物基线） | ② 跨组件（`RoundReportApp` / `StatsDoc` 共用 `.wengu-report-ai`） |
 
 > 另记（#153 修订）：`words-home.scss` 保留 `HomeScreen` 的**先复习修饰行**
 > （`.wengu-word .wengu-word-askreview .wengu-word-zh` / `-actions`）——它们作用在
