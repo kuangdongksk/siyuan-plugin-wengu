@@ -1,11 +1,11 @@
 ---
 name: wen-gu-mini-init
 description: 温故做题小程序 wen-gu-mini 已初始化——路径/远端/技术栈与三个环境坑（pinia4
-  坏产物、vitest5-vs-vite5.2.8、wot 类型与 exactOptionalPropertyTypes 冲突）
+    坏产物、vitest5-vs-vite5.2.8、wot 类型与 exactOptionalPropertyTypes 冲突）
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_23bd300a-b92f-49fa-88b6-f1785f66963d
+    node_type: memory
+    type: project
+    originSessionId: sess_23bd300a-b92f-49fa-88b6-f1785f66963d
 ---
 
 2026-09-18 把温故「做题」迁小程序，新仓库初始化完成并首推 CNB：
@@ -20,6 +20,7 @@ metadata:
 **Why:** 环境坑不在新仓库 README 里，复现/续作时省一轮排查。
 
 **How to apply:**
+
 - pinia 必须 2.x：4.0.3 dist 有坏 import `from "nostics"`，rollup 直接炸。
 - vitest 锁 3.x：uni 模板钉死 vite 5.2.8，vitest 5 要 vite 6/7 的
   `module-runner` 导出；且 vitest 用独立 `vitest.config.ts`，别让它加载 uni 的 vite.config。

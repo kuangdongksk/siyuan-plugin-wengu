@@ -2,9 +2,9 @@
 name: conversion-review-reconcile-count
 description: 用户纠正：审 AI 转换输出不能只看单批协议合规，必须对账源文档题量与产物题数——「这就是你说的没缺陷」
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_a1e34516-cf90-485b-be44-2894bd05a991
+    node_type: memory
+    type: feedback
+    originSessionId: sess_a1e34516-cf90-485b-be44-2894bd05a991
 ---
 
 20260918 用户贴一批生题输出让我审，我判「无实质缺陷」（该批材料块处理确实合规），用户回：「本来有四十几道题，现在只生成了五道，这就是你说的没缺陷」——真正的丢题在整文档题量层，不在单批输出层。

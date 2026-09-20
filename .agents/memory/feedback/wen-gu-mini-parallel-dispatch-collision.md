@@ -17,6 +17,7 @@ issue 贴销项说明、宣布设计冻结）；本会话同一时间检查「op
 约束跨会话失效，浪费一条 NPC 流水线（计费）＋制造噪音。
 
 **How to apply:**
+
 - wen-gu-mini（或任何用户可能开并行会话的仓库）派发前必查四样：
   `cnb pulls list-pulls --state open` 之外，还要 `--state closed`（近几小时）、
   dev 最新提交（`git fetch && git log`）、各在办 issue 的**最新评论**

@@ -2,9 +2,9 @@
 name: scheduling-20260918-two-fixes
 description: 20260918 晨调度：装机 dev@93001b7 + 两报障开单（#169 继续上次被空轮埋没 / #170 AI面板叶行挤）双 NPC 并行，#170 已出 PR#171 待审
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_a1e34516-cf90-485b-be44-2894bd05a991
+    node_type: memory
+    type: project
+    originSessionId: sess_a1e34516-cf90-485b-be44-2894bd05a991
 ---
 
 20260918 晨会话事实（细节见 [[english-conversion-yield-42-vs-5]] 与 [[cnb-cli-command-calls]]）：

@@ -1,12 +1,12 @@
 ---
 name: cnb-cli-command-calls
 description: cnb CLI 开单/召唤/查 PR 的实测命令口径——issues create-issue
-  --body-file、post-issue-comment 需 --repo --number --work-mode、pulls get-pull
-  拿分支
+    --body-file、post-issue-comment 需 --repo --number --work-mode、pulls get-pull
+    拿分支
 metadata:
-  node_type: memory
-  type: reference
-  originSessionId: sess_a1e34516-cf90-485b-be44-2894bd05a991
+    node_type: memory
+    type: reference
+    originSessionId: sess_a1e34516-cf90-485b-be44-2894bd05a991
 ---
 
 20260918 实测通过的 cnb CLI 口径（补 [[cnb-npc-full-workflow-first-run]] 的旧口径）：

@@ -2,9 +2,9 @@
 name: recall-repo-memory-before-market-answers
 description: 用户随口提"我要出的/我说的那个"类延续性话题时，先翻仓库 .agents/memory/ 再答，别先用世界知识凑
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_eb306cd9-27fe-4a22-a022-8d7c9646435c
+    node_type: memory
+    type: feedback
+    originSessionId: sess_eb306cd9-27fe-4a22-a022-8d7c9646435c
 ---
 
 2026-09-18 用户问「政治微信刷题小程序叫什么」，指的是他要自研上线的独立产品
