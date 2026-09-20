@@ -1,0 +1,29 @@
+name: bootstrap-ccw
+description: 引导创建节点和工作流
+
+parameters:
+  - name: user_input
+    description: 用户输入
+    required: false
+    default: ""
+
+nodes:
+  - id: create-node
+    name: 创建节点
+    type: skill
+    skill: claude-code-workflow:create-node-ccw
+    promote: |
+      调用 /create-node-ccw 让用户创建节点
+      等待用户输入"完成"结束，或"取消"终止
+    verify: always
+    goto_if:
+      - if: ${{ result.user_input == "继续" }}
+        target: create-node
+      - else: end
+
+  - id: end
+    name: 完成
+    type: skill
+    skill: claude-code-workflow:index-ccw
+    promote: |
+      结束引导工作流，调用 /index-ccw 更新索引

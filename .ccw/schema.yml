@@ -1,0 +1,124 @@
+# CCW 工作流 Schema 定义
+version: 1.2
+
+# 工作流文件格式
+workflow:
+  file_extension: .yml
+  directory: .ccw/workflows/
+
+# 工作流级字段
+workflow_fields:
+  name: 工作流名称（kebab-case，作为调用标识）
+  description: 工作流描述（显示在索引与路由提示中）
+  triggers:
+    description: 触发关键词列表（可选，2-6 个）。用户消息命中时 CCW 钩子自动注入路由提示；会同步进 index.yml
+    example:
+      - 插件开发
+      - plugin
+  parameters: 输入参数定义列表（name/description/required/default）
+  nodes: 节点列表
+
+# 节点类型定义
+node_types:
+  prompt:
+    description: 纯提示型节点（默认类型，可省略 type 字段）
+    required_fields:
+      - id
+      - name
+      - promote
+    optional_fields:
+      - verify
+      - goto_if
+
+  command:
+    description: 执行 shell 命令
+    required_fields:
+      - id
+      - name
+      - type
+      - command
+      - promote
+    optional_fields:
+      - verify
+      - goto_if
+
+  skill:
+    description: 调用其他 skill
+    required_fields:
+      - id
+      - name
+      - type
+      - skill
+      - promote
+    optional_fields:
+      - verify
+      - goto_if
+
+  agent:
+    description: 委托给子代理
+    required_fields:
+      - id
+      - name
+      - type
+      - agent
+      - promote
+    optional_fields:
+      - verify
+      - goto_if
+
+  workflow:
+    description: 引用其他工作流
+    required_fields:
+      - id
+      - name
+      - type
+      - workflow
+      - promote
+    optional_fields:
+      - verify
+      - goto_if
+
+# 字段说明
+fields:
+  id: 节点唯一标识符（kebab-case）
+  name: 节点名称（中文描述）
+  type: 节点类型（command|skill|agent|workflow|prompt），默认为 prompt
+  promote: 节点提示词（自然语言，供 AI 理解执行意图）
+  command: shell 命令（type=command 时必需）
+  skill: skill 名称（type=skill 时必需，插件 skill 用 plugin-name:skill-name 格式）
+  agent: agent 名称（type=agent 时必需）
+  workflow: 工作流名称（type=workflow 时必需）
+  verify: 审批模式
+  goto_if: 条件跳转规则
+
+# verify 级别
+verify_levels:
+  never: 不中断执行，直接继续下一节点
+  auto: AI 自行评估节点结果，仅在失败或不确定时询问用户
+  always: 每个节点暂停等待用户确认
+
+# 条件跳转规则
+goto_if_rules:
+  syntax: ${{ expression }}
+  description: |
+    条件跳转表达式。由 AI 在执行时根据上下文进行判断和替换，不是运行时引擎解析。
+    - parameters.*  → 从工作流参数中获取（可靠）
+    - result.*      → 从上一步执行结果中推断（依赖 AI 判断）
+  fields:
+    - name: if
+      description: 条件表达式
+      required: true
+    - name: target
+      description: 匹配时跳转的目标节点 ID
+      required: true
+    - name: else
+      description: 无条件匹配时的默认回退目标节点 ID（推荐始终提供）
+      required: false
+  best_practices:
+    - 始终提供 else 回退，避免无匹配时执行卡住
+    - 循环（回指前面节点）时确保有终止条件
+    - promote 中用自然语言描述预期结果，辅助 AI 判断
+
+# 默认规则
+defaults:
+  type: prompt # 未指定 type 时默认为 prompt

@@ -1,0 +1,14 @@
+workflows:
+  - name: bootstrap-ccw
+    description: 引导创建节点和工作流
+    path: workflows/bootstrap-ccw.yml
+  - name: od-ui-draft
+    description: OpenDesign 出 UI 高保真稿全流程——目录校验、任务书、REST 派 run、轮询、取产物、prettier、Chrome 无头截图自查，最后交用户拍板
+    path: workflows/od-ui-draft.yml
+
+nodes: []
+
+schema:
+  version: 1.2
+  status: valid
+  violations: []
