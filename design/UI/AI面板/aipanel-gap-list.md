@@ -2,7 +2,7 @@
 
 对照口径：
 
-- **设计稿（权威）**：`design/convert-stop-redesign.html` 的 `<style>` 与三屏 `ai-panel-*` mock（数值全部逐条从原稿提取，本清单不发明任何稿外视觉）。
+- **设计稿（权威）**：`design/UI/转换/convert-stop-redesign.html` 的 `<style>` 与三屏 `ai-panel-*` mock（数值全部逐条从原稿提取，本清单不发明任何稿外视觉）。
 - **实现（现状实测）**：`src/scss/aipanel.scss`、`src/scss/aiflow.scss`、`src/scss/rail.scss`（布局壳）、`src/ai/components/SessionPanelApp.svelte` + `FlowBanner.svelte` + `SessionDetail.svelte` + `ui/TreeList.svelte`、`src/ai/core/SessionTree.ts` + `SessionDetail.ts` + `FlowOwnership.ts`。
 - **宿主约束**：色值一律 `var(--b3-*)`（#70 事故口径），设计稿 oklch 令牌按 §0 映射表落点；尺寸/字距/字重照稿字面值。
 - **输入说明**：真机截图 `wengu-aipanel-current.png` 的视觉分析因图像工具持续 429 限流未能完成；本清单全部对比项基于设计稿与实现两侧**源码逐行实测**，数值精确到 px，不受此影响。

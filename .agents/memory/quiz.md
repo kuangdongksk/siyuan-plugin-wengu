@@ -1,7 +1,7 @@
 # src/quiz/ —— 做题主流程
 
 - **对稿还原（Issue #135，20260915）**：侧栏/题号栏/头部统计条/题卡/chips/
-  自评五星按 `design/sidebar-gap-list.md` §0–§4 与 §7.a/b 逐值落地，规格锁在
+  自评五星按 `design/UI/刷题/sidebar-gap-list.md` §0–§4 与 §7.a/b 逐值落地，规格锁在
   `quiz/render/WorkspaceDesign.test.ts`（scss 真编译 + 组件 `?raw` 断言
   **规则在场与值**，不钉分片落点——拆片是后续批次自由）。落点要点：
     - **`--wengu-faint` / `--wengu-border-strong`** 定义在 `scss/base.scss`

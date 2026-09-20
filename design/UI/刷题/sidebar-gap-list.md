@@ -2,7 +2,7 @@
 
 对照三源：
 
-- **设计稿（权威）**：`design/wengu-desktop-drill.html` —— 视觉唯一权威。但页面级结构只取组件级样式，做题主区保持现状「多题长卷」形态（所有题卡依次铺开滚动），**不采用**稿内「单题卡 + 上一题/下一题」翻页形态。
+- **设计稿（权威）**：`design/UI/刷题/wengu-desktop-drill.html` —— 视觉唯一权威。但页面级结构只取组件级样式，做题主区保持现状「多题长卷」形态（所有题卡依次铺开滚动），**不采用**稿内「单题卡 + 上一题/下一题」翻页形态。
 - **实现（现状实测）**：`src/scss/{base,panels,cards,card-render,reading,review}.scss` + `src/quiz/components/{SidePanelApp,NumRailApp,QuizHeadApp,GroupUnitApp}.svelte` + `src/quiz/components/QuizCard/index.svelte` + `src/review/`（逐值读出，非印象）。
 - **宿主约束**：`docs/design-spec.md`（UI 规范权威：令牌白名单/字号阶梯/间距圆角阶梯/按钮层级/弹窗规范）+ 思源 b3 令牌体系；用户运行 Neo+ 深色暖调主题（实测见 `theme-tokens-neo.md`），**所有修法必须明暗两态成立**。
 

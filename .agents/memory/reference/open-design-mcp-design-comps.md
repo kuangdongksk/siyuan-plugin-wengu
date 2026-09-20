@@ -36,7 +36,7 @@ metadata:
   全被拒），用无头 Chrome 直渲（`--headless=new --window-size=W,H --screenshot=…`，
   H 用页面真实 scrollHeight）交 judge 读盘上 PNG。
 
-3. `design/wengu-word-redesign.html`（20260916，57bdade 出稿 + 4da21d5 换色双推）——
+3. `design/UI/背单词/wengu-word-redesign.html`（20260916，57bdade 出稿 + 4da21d5 换色双推）——
    双端背单词美化：桌面 dock 360px 8 屏 + 移动 390×844 6 屏，屏清单/文案逐条给足
    （首页三入口卡/先复习确认/四步梯三题型作答态/详情翻面态/完成+统计/查词），美化
    四板斧=卡片三层区分、主色节奏、tabular-nums 大数字锚点、梯进度「当前步拉长胶囊」。
@@ -50,11 +50,11 @@ metadata:
 
 两稿在库（均 judge 通过、已提交仓库）：
 
-1. `design/wengu-reading-unit-redesign.html`——英语阅读组题，核心诉求=材料正文
+1. `design/UI/刷题/wengu-reading-unit-redesign.html`——英语阅读组题，核心诉求=材料正文
    过紧：段距 4px→17px、行高 1.75、68ch 行长、区内留白 22/24；含现状对照屏。
    用户问过文档在哪——答：仓库 design/ 文件直接开浏览器 + Open Design 应用内
    项目名可查；previewUrl 是 daemon 会话级、重启失效。
-2. `design/convert-stop-redesign.html`——转换任务停止入口/进度，动因=面板记录级
+2. `design/UI/转换/convert-stop-redesign.html`——转换任务停止入口/进度，动因=面板记录级
    停止粒度错位（一条记录只是一次 AI 调用、停的却是整批）。稿内「本稿采用」结论：
    ① AI 面板顶部常驻「转换运行中」**流级横幅**（队列名 + 按篇着色构成条 + 第 i/N 篇 +
    累计题数 + 「停止整批转换」，与页内转换条同口径、二次确认一致）；② 记录级

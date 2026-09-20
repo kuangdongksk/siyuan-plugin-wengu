@@ -29,7 +29,7 @@ prune、rebase 本地两笔（08a31f3 串行链 + 8affba9 设计稿）到新 dev
 同日第三批：**Issue #74**（题集源级哈希+分段边界表：set.srcContentHash + set.segs
 {s,e,h} 每批落库段表；重导判定=续跑记录>未变更短路>逐段比对从失配段起重转>存量回退；
 用户拍板 A+分段增强，痛点=逐段题集源没改也整卷重烧），流水线 cnb-t6g-1k2f8sefh。
-另：停止入口 UX 设计稿已出 `design/convert-stop-redesign.html`（流级横幅+去掉记录级
+另：停止入口 UX 设计稿已出 `design/UI/转换/convert-stop-redesign.html`（流级横幅+去掉记录级
 停止），实现单未派待用户发话。教训：stdio 探针 start_run 的 grep 要配转义引号，
 重复派单两次（cancel_run 补救）。
 

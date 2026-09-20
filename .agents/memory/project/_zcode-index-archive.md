@@ -90,7 +90,7 @@
 
 - [线索锚点改造已开Issue](wengu-clue-anchor-redesign.md) — **#52已合并(PR#60→d95bc6f)部署工作区**：ClueCanon权威坐标系+MaterialDecorate单出口+clueRanges；审查战果=我审3缺陷与NPC自审5缺陷互证(CanonMap缓存别名错位实锤/选项行丢失)；#53三期吃#60产物待派；真机待验线索嵌套+iOS sup
 - [英语标线索不高亮#51](wengu-english-clue-highlight-issue51.md) — **已合并(PR#54→5f56c90+收尾#55→2846d81,我审)**：真根因=SKIP_SELECTOR含gloss-link排除匹配文本源(「占两遍」REJECT假说被推翻,SHOW_TEXT下REJECT≡SKIP)；残留=GlossDom头注旧互不嵌套文案待顺带修；真机验证待用户(选段跨联动词出mark、上标不包)
-- [移动端刷题需求](wengu-mobile-drill.md) — **#61功能腿已合并(src/mobile ~2700行)但照稿视觉还原未做**(101区块稿vs六组件骨架=用户「感觉没开始」根因)；设计稿design/wengu-mobile-drill.html与OD原版101区块一致无需迁；下一步=OpenDesign对比流程(最好先要用户手机实拍)；桌面定夺不改版；坑=召唤提及顶格+daemon无头启动+断流重试+截断从.file-versions恢复+Chrome无头截图保底路
+- [移动端刷题需求](wengu-mobile-drill.md) — **#61功能腿已合并(src/mobile ~2700行)但照稿视觉还原未做**(101区块稿vs六组件骨架=用户「感觉没开始」根因)；设计稿design/UI/刷题/wengu-mobile-drill.html与OD原版101区块一致无需迁；下一步=OpenDesign对比流程(最好先要用户手机实拍)；桌面定夺不改版；坑=召唤提及顶格+daemon无头启动+断流重试+截断从.file-versions恢复+Chrome无头截图保底路
 - [20260913调度轮](wengu-dispatch-20260913.md) — 三连已执行：并行约定推dev(1b9eab0)+PR#60双轮审查合并(d95bc6f)部署+#59并行召唤(顶格重发才触发)；#53/#56/#57线索域串行待派；#44/#45/#46/#51议题未关待清
 - [NPC并行按改动面交集](feedback-npc-parallel-by-overlap.md) — 同域串行/异域可并行已落AGENTS.md条文；**召唤提及必须顶格**（引用块不触发流水线零报错），发完必查build-logs确认issue.comment@npc真起了
 - [合并后清理闭环](feedback-merge-cleanup-closure.md) — 用户定：PR合并即关关联Issue(收口评论带sha,update-issue --state closed --state-reason completed)+删远端分支，只留dev；在办不动；调度轮收尾必做

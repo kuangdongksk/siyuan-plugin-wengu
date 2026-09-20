@@ -19,8 +19,8 @@ metadata:
 
 **交付（OD run 06816268-88d0-40bb-a2bc-7d635d5c3b8e，agent=claude，~19 分钟成功）**：
 
-- `design/sidebar-gap-list.md`（37KB）：§0 oklch→b3 令牌映射表 / §1-6 三列差距表（S/A/B/C）侧栏·题号栏·头部·题卡·错题本·材料区 / §7 新增特性规格 a-e / §8 指针。
-- `design/wengu-sidebar-redesign.html`（104KB）：七区块施工稿，多题长卷形态没跑偏，带明暗切换验证钮，标签配平零问题（prettier DIRTY 与既有稿先例一致，无字面量标签问题）。
+- `design/UI/刷题/sidebar-gap-list.md`（37KB）：§0 oklch→b3 令牌映射表 / §1-6 三列差距表（S/A/B/C）侧栏·题号栏·头部·题卡·错题本·材料区 / §7 新增特性规格 a-e / §8 指针。
+- `design/UI/刷题/wengu-sidebar-redesign.html`（104KB）：七区块施工稿，多题长卷形态没跑偏，带明暗切换验证钮，标签配平零问题（prettier DIRTY 与既有稿先例一致，无字面量标签问题）。
 - 产物**直落仓库 design/**：项目=`fdbb75ad-e850-4431-8456-4e457d2bf63d`，用 `POST /api/import/folder {baseDir,name}` 把 design 文件夹整个导成 OD 项目（用户明确要求建项目必须指定文件夹）。文件未提交，等用户过审。
 
 **实施进展（20260916 第一波审并合并+部署）**：

@@ -219,7 +219,7 @@
 
 ### 流级横幅的视觉还原（Issue #85，20260914；设计稿
 
-`design/convert-stop-redesign.html` 已验收 → 照稿施工勿发明视觉）
+`design/UI/转换/convert-stop-redesign.html` 已验收 → 照稿施工勿发明视觉）
 
 - **视图模型在 `ai/core/FlowBannerUi.ts`（纯逻辑带单测）**，组件零判断：
   构成条分段（`flowSegs` 篇数→flex 权重）、六态 chips（`flowChips`，零值
@@ -291,7 +291,7 @@
 
 ### AI 会话面板的视觉还原（Issue #88，20260914；设计稿
 
-`design/convert-stop-redesign.html` 的 `ai-panel-batch-running` /
+`design/UI/转换/convert-stop-redesign.html` 的 `ai-panel-batch-running` /
 `ai-panel-single-running` / `ai-panel-stopped` 三屏 + `legacy-ai-panel`
 对照屏 → 照稿施工勿发明视觉）
 
@@ -505,7 +505,7 @@
 
 ### AI 会话面板对稿精修（Issue #129，20260915；差距清单
 
-`design/aipanel-gap-list.md` + 施工规格 `design/convert-stop-redesign-spec.html` 06 节）
+`design/UI/AI面板/aipanel-gap-list.md` + 施工规格 `design/UI/转换/convert-stop-redesign-spec.html` 06 节）
 
 - ⚠️ **执行定稿已改口（Issue #146，20260916）**：本单曾按 gap-list S4 把面板
   改成**单滚动窗**（卡随内容长、滚动归宿主主区），并把 `--fit` 档 + `PanelFit.ts`

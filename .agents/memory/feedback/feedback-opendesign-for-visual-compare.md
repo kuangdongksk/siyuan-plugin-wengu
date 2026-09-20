@@ -17,6 +17,6 @@ metadata:
 - 我自己只做：截图确认现状形态、提取稿的 CSS 规格确认根因方向——不下「差距不大/差不多」的结论。
 - 同模式适用于后续移动端视觉还原（[[wengu-mobile-drill]]：101 区块稿 vs src/mobile 功能腿）。
 
-**已实操验证（20260914 AI 会话面板对比）**：产出的 gap-list.md 质量远超人眼粗看——S/A/B/C 分级、每项三列精确到 px、附 oklch→b3 唯一令牌映射表；钉出 S1「横幅与面板不是一张卡」这类我完全漏判的结构级根因。细化稿（施工规格表+存量回退形态示意）直接达到「照抄即可」精度，已据此开出精修 Issue #92。两份产物已入仓 `design/aipanel-gap-list.md` 与 `design/convert-stop-redesign-spec.html`，后续同类对比可参考其结构。
+**已实操验证（20260914 AI 会话面板对比）**：产出的 gap-list.md 质量远超人眼粗看——S/A/B/C 分级、每项三列精确到 px、附 oklch→b3 唯一令牌映射表；钉出 S1「横幅与面板不是一张卡」这类我完全漏判的结构级根因。细化稿（施工规格表+存量回退形态示意）直接达到「照抄即可」精度，已据此开出精修 Issue #92。两份产物已入仓 `design/UI/AI面板/aipanel-gap-list.md` 与 `design/UI/转换/convert-stop-redesign-spec.html`，后续同类对比可参考其结构。
 
 相关：[[wengu-dispatch-20260914]]

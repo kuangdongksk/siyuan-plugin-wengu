@@ -30,12 +30,12 @@ metadata:
 
 - **用户批评**：我对 #90 实现与设计稿的对比太粗糙（差距那么大只看出那么点），指示**丢给 OpenDesign 让它对比并给出该怎么改**（见 [[feedback-opendesign-for-visual-compare]]）。已建项目 `wengu-aipanel-redesign-fc7d` 派 run `85bd2a28-4219-4ebf-b65b-8de7d910029b`（agent=claude 本机跑），任务=差距清单（稿值/现状值/修法三列，gap-list.md）+ 细化稿（aipanel-spec.html：施工规格表+存量回退形态示意）。喂料法=prompt 里直接给本机文件路径与本地 http 服务（design/ 起了 node 静态服务 18923），**不让大文件经手传参**。
 - **差距根因（我已从稿 CSS 提取确认）**：实现只抄结构没抄数值——稿的 `.ai-panel` 是 **grid 一体卡**（`grid-template-areas:"banner banner""tree detail"`、左树 292px 固定、横幅横跨卡内顶部），树行**三级缩进 14/27/42px**、badge 19px 高/11px mono/圆角 4px 各态配色、dot 8px（run 带 3px 光晕）、log 行 66px+1fr grid/时间戳 mono 11.5px、own-note 虚线边框卡；aipanel.scss 全是自由发挥的近似值。
-- **移动端核实（用户问「怎么感觉没开始做」）**：#61 功能腿已合并（`src/mobile/` 域 ~2700 行：HomeScreen/DrillScreen/QuestionBody/NumDrawer/ReportScreen+测试），**照稿视觉还原一行没动**——观感「没开始」。设计稿 `design/wengu-mobile-drill.html`（PR#58）与 OpenDesign 项目原件 **101 区块逐一对齐**（AppData 副本无需迁移）。移动端视觉还原建议走同一 OpenDesign 对比流程，最好先要用户手机实拍（首页/答题/报告）。
+- **移动端核实（用户问「怎么感觉没开始做」）**：#61 功能腿已合并（`src/mobile/` 域 ~2700 行：HomeScreen/DrillScreen/QuestionBody/NumDrawer/ReportScreen+测试），**照稿视觉还原一行没动**——观感「没开始」。设计稿 `design/UI/刷题/wengu-mobile-drill.html`（PR#58）与 OpenDesign 项目原件 **101 区块逐一对齐**（AppData 副本无需迁移）。移动端视觉还原建议走同一 OpenDesign 对比流程，最好先要用户手机实拍（首页/答题/报告）。
 - **21 小时盘点补充**：此间其他会话已合并 #61(移动端功能腿)/#68/#71/#73/#75/#78/#79/#80/#82 等一批；测试数 976→1265。
 
 ## 追加三（同日深夜：OpenDesign 对比完成、产出入仓、#92 已派）
 
 - **run `85bd2a28` 完成**（全程仅此一个 run，用户明确「不要派发多个 OpenDesign」）：产出 `gap-list.md`（S/A/B/C 四级差距，每项三列稿值/现状值/修法；§0 oklch→`var(--b3-*)` 唯一令牌映射表；**S1「横幅与面板不是一张卡」=整体不像的第一根因**，S2 grid 一体卡 292px 两栏/S3-S9 树宽·凹槽底·行尾·轮次行·详情头·滚动窗/树头取舍）+ `aipanel-spec.html`（原稿全文+追加「06 施工规格」节：6.1 令牌映射/6.2 全元素 CSS 规格总表逐值照抄/6.3 存量回退形态/6.4 轮次日志可施工与稿 mock 专属分界）。run 状态长时间挂 running 只是收尾写总结——**完成判据看 events.jsonl 的 TodoWrite 全勾+产物落盘，别当中断**。
-- **产物入仓坑**：aipanel-spec.html 里 agent 写的三处正文 `<style>` 字面量（注释+行文）被 prettier HTML 解析器当真标签 → 未闭合 → `SyntaxError: Unexpected character "EOF"`（报在文件尾，极具迷惑性）→ CI 格式门 error。修法=字面量改写（如「style 块」）；栈式配平器定位未闭合标签。已修（`8909a4e`，CI success）。产物入仓两文件：`design/aipanel-gap-list.md` + `design/convert-stop-redesign-spec.html`。
+- **产物入仓坑**：aipanel-spec.html 里 agent 写的三处正文 `<style>` 字面量（注释+行文）被 prettier HTML 解析器当真标签 → 未闭合 → `SyntaxError: Unexpected character "EOF"`（报在文件尾，极具迷惑性）→ CI 格式门 error。修法=字面量改写（如「style 块」）；栈式配平器定位未闭合标签。已修（`8909a4e`，CI success）。产物入仓两文件：`design/UI/AI面板/aipanel-gap-list.md` + `design/UI/转换/convert-stop-redesign-spec.html`。
 - **[Issue #92 已开+召唤](https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/issues/92)**：面板照 gap-list 精修，S 级九条全部落地、A/B 逐条不得选择性忽略（有异议 PR 列理由）、S9 树头合并维持现状已拍板；TreeList 共享组件不动本体。流水线已触发（20260914 深夜），PR 出来我独立审后合并装机。
 - **装机终态**：dev=`8909a4e`（含设计稿文档），插件产物装机到 `fcc19b3`（两区 dist+i18n，工作区 65219 已重载、测试区拷贝待下次开思源生效）。用户 21:03 在真机跑转换验证 #62/#90。真机验收账：#84 五条/#86 三屏/#62 六条 + #89 材料内滚 + #90 面板形态。

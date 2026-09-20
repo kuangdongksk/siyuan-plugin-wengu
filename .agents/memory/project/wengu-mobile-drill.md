@@ -1,6 +1,6 @@
 ---
 name: wengu-mobile-drill
-description: 移动端刷题：#61功能腿已合并(src/mobile ~2700行)但照稿视觉还原未做(101区块稿vs六组件骨架)；设计稿design/wengu-mobile-drill.html与OD原版一致；下一步=OpenDesign对比流程出差距再派精修
+description: 移动端刷题：#61功能腿已合并(src/mobile ~2700行)但照稿视觉还原未做(101区块稿vs六组件骨架)；设计稿design/UI/刷题/wengu-mobile-drill.html与OD原版一致；下一步=OpenDesign对比流程出差距再派精修
 metadata:
     node_type: memory
     type: project
@@ -18,7 +18,7 @@ metadata:
 - **桌面稿定夺（20260913 用户）**：**桌面端不改版**——现有布局已经很好，不需要设计稿那种一体化重排；稿里做得好的是间距/留白，仅留作以后桌面视觉微调的参考，不据此开任何活。移动稿才是要落地的：过审后出审核文档 + 开 Issue
 - **落地（20260913 用户拍板）**：移动稿过审转开发。设计稿已入仓 `design/`（wengu-mobile-drill.html 九屏 + wengu-desktop-drill.html 七屏留档 + theme-tokens-neo.md），走 PR #58 合并进 dev；**开发 Issue #59 已派发**（含九屏清单/移动端硬约束/六条可验证验收标准）。**与线索链并行召唤已执行**（20260913，用户批准三连：改并行约定/审PR#60/召#59）：评论里加「并行提示：勿动线索域文件、AGENTS.md 只追加移动端段落」。⚠️ **召唤坑（20260913 实测）**：提及放引用块（行首 `> `）**不触发流水线**且零报错——顶格重发 1 秒内触发；坑已补进 AGENTS.md 召唤约定段。NPC 已在跑（11:18 `issue.comment@npc` 触发）
 - **待办**：NPC 开 PR → 我审 PR（重点：桌面零回归=无 `.wengu-mobile` 标记时逐字节不变、与线索域文件零交集核查）→ 真机验收
-- **20260914 晚核实（用户问「移动端怎么感觉没开始做」）**：#59/**PR #61 已合并**（feat(mobile): 移动端仅刷题 dock 面板与作答流）——`src/mobile/` 独立域 ~2700 行：HomeScreen/DrillScreen/QuestionBody/NumDrawer/ReportScreen 六组件 + MobileModel/MobileDrill/MobileAnswering/MobileMaterials 核心 + 单测，真机 dock 能跑通全流程。**但照稿视觉还原一行没动**（101 区块稿 vs 六组件骨架）——「能用骨架≠设计稿样子」，观感即「没开始」。设计稿 `design/wengu-mobile-drill.html` 与 AppData 项目原件逐区块核对一致（101/101），无需再迁。下一步=移动端视觉还原：建议走 OpenDesign 对比流程（同 AI 会话面板，见 [[feedback-opendesign-for-visual-compare]]），最好先要用户手机实拍三张（首页/答题/报告）喂给对比。
+- **20260914 晚核实（用户问「移动端怎么感觉没开始做」）**：#59/**PR #61 已合并**（feat(mobile): 移动端仅刷题 dock 面板与作答流）——`src/mobile/` 独立域 ~2700 行：HomeScreen/DrillScreen/QuestionBody/NumDrawer/ReportScreen 六组件 + MobileModel/MobileDrill/MobileAnswering/MobileMaterials 核心 + 单测，真机 dock 能跑通全流程。**但照稿视觉还原一行没动**（101 区块稿 vs 六组件骨架）——「能用骨架≠设计稿样子」，观感即「没开始」。设计稿 `design/UI/刷题/wengu-mobile-drill.html` 与 AppData 项目原件逐区块核对一致（101/101），无需再迁。下一步=移动端视觉还原：建议走 OpenDesign 对比流程（同 AI 会话面板，见 [[feedback-opendesign-for-visual-compare]]），最好先要用户手机实拍三张（首页/答题/报告）喂给对比。
 - **daemon 坑**：MCP 工具报「cannot reach daemon at 127.0.0.1:7456」= daemon 没跑（MCP stdio 通道本身是好的）。无头启动：
   `ELECTRON_RUN_AS_NODE=1 OD_DATA_DIR=C:\Users\awsd3\AppData\Roaming\Open Design\namespaces\release-stable-win\data OD_SIDECAR_IPC_PATH=\\.\pipe\open-design-release-stable-win-daemon "D:\program\Open Design\Open Design.exe" <resources\app\prebundled\daemon\daemon-cli.mjs> --host 127.0.0.1 --port 7456 --no-open`
 - **run 坑两则**：① 首轮 17 分钟纯思考后被 `AGENT_CONNECTION_DROPPED`（stream_disconnected）掐断——本机网络老毛病，标记 retryable 时直接再 start_run（新 requestId）即可；② 收尾时 agent 自行重构压缩文件，重构跑到一半 run 终止（`endedWithUnfinishedWork:true`），文件被砍剩一屏——**完整版在项目 `.file-versions/<hash>/0001-*.html` 快照里，直接 cp 回来即修**（agentMessage 描述的是完整版内容）。验标签配平别用 grep 数 `</div>`（MSYS 把参数里 `/div` 当 POSIX 路径转换成 Git 安装路径），用 node 在运行时拼正则
