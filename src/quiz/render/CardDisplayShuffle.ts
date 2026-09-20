@@ -136,15 +136,15 @@ function applyOrder(
     opts: string[],
     answer: string,
     order: number[] | null
-): { opts: string[]; answer: string; toIdx: Map<number, number> | null; changed: boolean } {
-    if (!order) return { opts, answer, toIdx: null, changed: false };
+): { opts: string[]; answer: string; changed: boolean } {
+    if (!order) return { opts, answer, changed: false };
     // order[j] = 新第 j 位放原第几个 ⇒ 字母映射「原第 i 位 → 新第 j 位」
     const toIdx = new Map<number, number>();
     for (let j = 0; j < order.length; j++) toIdx.set(order[j], j);
     const nextOpts = order.map((i) => opts[i]);
     const nextAnswer = remapAnswer(answer, toIdx);
     const changed = nextAnswer !== answer || nextOpts.some((t, i) => t !== opts[i]);
-    return { opts: nextOpts, answer: nextAnswer, toIdx, changed };
+    return { opts: nextOpts, answer: nextAnswer, changed };
 }
 
 /** 声明式卡内容洗牌（`""`=顶层，`step-k`=第 k 步）：选项重排 + 答案重写。

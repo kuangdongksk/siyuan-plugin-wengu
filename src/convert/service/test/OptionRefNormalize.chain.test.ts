@@ -201,10 +201,11 @@ describe("无凭据字母原样保留", () => {
         expect(normalizeBareRefs("（B）加强思想教育 正确。", OPTS)).toBe("「加强思想教育」正确。");
     });
 
-    it("代码 / 数学保护区里的独立字母不动（本层已守住，与展示层对照）", () => {
-        // ⚠️ 与展示层对照组：`normalizeBareRefs` 先做 `protectionMask`，故
-        // 代码/数学区确实不动；展示层 `remapQuotedHead` 无掩码（见另一文件
-        // 的【红】用例）。两层口径不一致这一事实本身就是本单的成果之一。
+    it("代码 / 数学保护区里的独立字母不动（本层已守住）", () => {
+        // `normalizeBareRefs` 先做 `protectionMask`，故代码/数学区确实不动
+        // ——裸字母是**猜测**，碰保护区就是静默毁公式（见模块头）。
+        // 「展示层同步改写解析」的旧对照组已随 Issue #176 收窄撤除：展示层
+        // 根本不碰文本，这条只剩本层自身口径。
         const sol = "$x_A$ 与 `A` 无关，$$A$$ 同。";
         expect(normalizeBareRefs(sol, OPTS)).toBe(sol);
     });

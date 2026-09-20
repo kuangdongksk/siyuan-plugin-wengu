@@ -13,8 +13,8 @@ import type { DraftUnit } from "./QuestionDraft";
  * 落库前（**reseat 校正之后、renderUnit 之前**）把每个标记换成该选项的
  * **文本**（全角引号「」包裹、多个标记自然连排）。这样解析里不再含任何
  * 选项字母（长选项只**截断**、不补字母，见下），两件事同时成立：
- *   1. 展示层洗牌只剩「答案字母重映射」一件事，不需要再改解析
- *      （存量数据的解析字母改写仍由 OptionShuffle ③ 承担）；
+ *   1. 展示层洗牌只剩「答案字母重映射」一件事，不需要再改解析——展示层
+ *      自 Issue #176 收窄（20260919）起不对任何用户文本猜字母；
  *   2. 英语域不会被裸 A 误伤——AI 想指选项就得显式加标记，没加的一律
  *      当作普通大写字母原样不动。
  *
@@ -153,9 +153,11 @@ export function replaceOptionRefsMap(drafts: DraftUnit[]): DraftUnit[] {
  * 裸字母是**猜测**，绝不能碰受保护区（`$x_A$`、`` `A` `` 里的 A 不是引用）。
  * 故这里先按保护区做掩码，命中在保护区内一律跳过。
  *
- * ⚠️ **现状兜底与存量无关**：存量解析里的字母由展示层洗牌时改写
- * （`CardDisplayShuffle` 同步 remap，见该模块），**不做迁移**；本道只堵
- * 新流量（三条落库链共用本函数）。
+ * ⚠️ **只堵新流量、不治存量**（Issue #176 收窄，20260919 用户拍板）：
+ * 存量带裸字母的旧记录**不做迁移**——用户重新转换一次，产物过本道即成
+ * 无字母引文。展示层也不再兜底（`CardDisplayShuffle` 只重映射 `answer`
+ * 字母，见该模块），故存量换序后解析里的字母仍指库内原序位，属**已知
+ * 接受态**。三条落库链共用本函数。
  */
 
 /** 列表标记（`- ` / `1. `）+ 前导字母标签（`A. ` / `(A)` / `A、` …）——
@@ -233,7 +235,7 @@ export function normalizeBareRefs(text: string, opts: string[]): string {
         // 含独立字母是常态（英文阅读题 `A. A big plan…`、`B. The author…`），
         // 不跳过就会把它们当**第二处引用**再换一遍，输出重复叠影
         // （`A. A big plan 正确` → `「A big plan」「A big plan」 big plan 正确`）。
-        // 判据只看位置（与字母本身无关，同 `rewriteLetters` 的跳过口径）。
+        // 判据只看位置、与字母本身无关。
         if (at < last) continue;
         if (quoted[at]) continue; // 引号体是内容（幂等锁，见 quotedBodyMask）
         if (!isRefLetter(text, at, mask)) continue;

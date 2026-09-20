@@ -9,7 +9,7 @@ import type { DraftUnit, DraftPart } from "./QuestionDraft";
  *     A 重新编**。拍平进同一张字母表会让 step-2 的引用命中 step-1 的选项
  *     （静默错内容），故口径必须唯一且共享，不能各处另起一套正则。
  *   - **字母表口径**：字母 = **渲染序**里的位次（`optionDisplayMd` 剥掉
- *     列表标记与字母标签后的空串不算位次，见 `optionTexts`）。
+ *     列表标记与字母标签后的空串不算位次，见 `slotsOf`）。
  *
  * 本模块只做「读」：不洗牌、不改文本、不落库（洗牌在
  * `OptionShuffle`/`CardDisplayShuffle`，写作由调用方定）。

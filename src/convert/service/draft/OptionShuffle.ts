@@ -27,9 +27,8 @@ import type { DraftUnit } from "../draft/QuestionDraft";
  *
  * ⚠️ **解析字母改写已退役**（Issue #176 收窄，20260919）：本模块原先在
  *  洗牌时按同一条映射改写解析里的裸字母词符（#123），现随展示层口径一并
- *  撤除——`letterMapper`/`rewriteLetters` 已从 `LetterRefs` 删除（那侧只留
- *  落库判据）。**解析文本在洗牌中一律原样**，与展示层 `CardDisplayShuffle`
- *  同口径。
+ *  撤除——**解析文本在洗牌中一律原样**，与展示层 `CardDisplayShuffle`
+ *  同口径；`LetterRefs` 那侧只留落库判据。
  *
  *  ⚠️ 本模块**整体闲置**（#131 起生成链零调用，仅 Test 调），且与死形态协议
  *  相冲（它假定「正确项写最前 + 答案改 A」）。待存量清零后另单整体删除，
