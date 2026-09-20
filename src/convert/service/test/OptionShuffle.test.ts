@@ -8,6 +8,10 @@ import { parseDrafts, type DraftUnit } from "../draft/QuestionDraft";
  * 按字母比，这里锁定「洗完仍判得对」）。位置敏感措辞/无字母语义题型
  * 原样不动。draft 层洗牌：部件数组重排 + 答案字母按「新位置」重编，
  * 字母本身由渲染按顺序自动编（本测试只验证 draft 内部一致性）。
+ *
+ * ⚠️ **解析文本一律原样**（Issue #176 收窄，20260919）：本模块原先会在
+ * 洗牌时改写解析里的裸字母（#123），随展示层口径一并撤除——故下面对
+ * 解析的断言全是「逐字不动」，而不是「跟着改」。
  */
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -121,89 +125,65 @@ describe("shuffleDraftOptions · 拆行 unpack（挤行选项）", () => {
     });
 });
 
-describe("shuffleDraftOptions · 解析字母同步改写（Issue #123）", () => {
-    it("解析里的裸字母词符按同一映射改写（正解指向正确答案）", () => {
-        const d = parseDrafts(
-            [
-                "@@Q type=single",
-                "@@P stem",
-                "下列说法正确的是？",
-                "@@P opt",
-                "甲方法",
-                "@@P opt",
-                "乙方法",
-                "@@P opt",
-                "丙方法",
-                "@@P ans",
-                "A",
-                "@@P sol",
-                "A 正确，B 与 C 都是干扰说法。",
-                "@@END",
-            ].join("\n")
-        )[0];
-        shuffleDraftOptions(d);
-        const ans = textsOf(d, "answer")[0];
-        const sol = textsOf(d, "solution")[0];
-        // 解析的正解字母必须与答案同步；另两个字母落在剩余选项上
-        const m = /^([A-C]) 正确，([A-C]) 与 ([A-C]) 都是干扰说法。$/.exec(sol);
-        expect(m?.[1]).toBe(ans);
-        expect([m?.[2], m?.[3]].sort()).toEqual(["A", "B", "C"].filter((x) => x !== ans).sort());
+describe("shuffleDraftOptions · 解析文本一律原样（Issue #176 收窄）", () => {
+    const SOLS = [
+        "A 正确，B 错误。",
+        "students' A 与 BAD 里的字母不动，A 正确。",
+        "$x_A$ 与 $A^{2}$ 无关，`A` 也不相关。",
+        "Plan A works well.",
+        "维生素A 缺乏症，A4纸 规格。",
+        "E 不可行，C 正确。",
+    ];
+
+    it("解析部件逐字不动（任意排列、任意形态）", () => {
+        for (const sol of SOLS) {
+            const d = parseDrafts(
+                [
+                    "@@Q type=single",
+                    "@@P stem",
+                    "题",
+                    "@@P opt",
+                    "甲",
+                    "@@P opt",
+                    "乙",
+                    "@@P opt",
+                    "丙",
+                    "@@P ans",
+                    "A",
+                    "@@P sol",
+                    sol,
+                    "@@END",
+                ].join("\n")
+            )[0];
+            const before = textsOf(d, "solution")[0];
+            for (let i = 0; i < 20; i++) {
+                const copy = parseDrafts(
+                    [
+                        "@@Q type=single",
+                        "@@P stem",
+                        "题",
+                        "@@P opt",
+                        "甲",
+                        "@@P opt",
+                        "乙",
+                        "@@P opt",
+                        "丙",
+                        "@@P ans",
+                        "A",
+                        "@@P sol",
+                        sol,
+                        "@@END",
+                    ].join("\n")
+                )[0];
+                shuffleDraftOptions(copy);
+                expect(textsOf(copy, "solution")[0]).toBe(before); // 逐字不动
+            }
+            shuffleDraftOptions(d);
+            expect(textsOf(d, "solution")[0]).toBe(before);
+        }
     });
 
-    it("数学区间/行内代码里的字母不是选项字母，绝不动", () => {
-        const d = parseDrafts(
-            [
-                "@@Q type=single",
-                "@@P stem",
-                "题",
-                "@@P opt",
-                "甲",
-                "@@P opt",
-                "乙",
-                "@@P opt",
-                "丙",
-                "@@P ans",
-                "A",
-                "@@P sol",
-                "设 $A$ 为矩阵，`B` 是代码，故 A 正确。",
-                "@@END",
-            ].join("\n")
-        )[0];
-        shuffleDraftOptions(d);
-        const ans = textsOf(d, "answer")[0];
-        const sol = textsOf(d, "solution")[0];
-        expect(sol).toContain("$A$");
-        expect(sol).toContain("`B`");
-        expect(sol).toContain(`${ans} 正确`);
-    });
-
-    it("英文词内/所有格后的字母不当作选项字母引用", () => {
-        const d = parseDrafts(
-            [
-                "@@Q type=single",
-                "@@P stem",
-                "题",
-                "@@P opt",
-                "甲",
-                "@@P opt",
-                "乙",
-                "@@P opt",
-                "丙",
-                "@@P ans",
-                "A",
-                "@@P sol",
-                "students' A 与 BAD 里的字母不动，A 正确。",
-                "@@END",
-            ].join("\n")
-        )[0];
-        shuffleDraftOptions(d);
-        const sol = textsOf(d, "solution")[0];
-        expect(sol).toContain("students' A");
-        expect(sol).toContain("BAD");
-        expect(sol).toContain(`${textsOf(d, "answer")[0]} 正确`);
-    });
-
-    it("位置敏感措辞组跳过洗牌 → 解析原样（无失配，零改写）", () => {
+    it("位置敏感措辞组跳过洗牌 → 整单元原样（零改写）", () => {
         const d = parseDrafts(
             [
                 "@@Q type=single",
@@ -227,7 +207,8 @@ describe("shuffleDraftOptions · 解析字母同步改写（Issue #123）", () =
         expect(d.parts.map((p) => `${p.name}:${p.text}`)).toEqual(before);
     });
 
-    it("steps：每步解析的字母按该步自己的映射改写", () => {
+    it("steps：题级解析同样逐字不动（逐步映射不同，无从判定）", () => {
+        const sol = "A 与 B 都可行，C 不可行。";
         const d = parseDrafts(
             [
                 "@@Q type=steps steps=method",
@@ -244,17 +225,12 @@ describe("shuffleDraftOptions · 解析字母同步改写（Issue #123）", () =
                 "@@P step-ans",
                 "AB",
                 "@@P sol",
-                "A 与 B 都可行，C 不可行。",
+                sol,
                 "@@END",
             ].join("\n")
         )[0];
         shuffleDraftOptions(d);
-        const ans = textsOf(d, "step-1-answer")[0];
-        const sol = textsOf(d, "solution")[0] ?? "";
-        const m = /^([A-C]) 与 ([A-C]) 都可行，([A-C]) 不可行。$/.exec(sol);
-        expect(m).not.toBeNull();
-        expect([m?.[1], m?.[2]].sort()).toEqual([...ans].sort());
-        expect(m?.[3]).toBe(["A", "B", "C"].filter((x) => !ans.includes(x))[0]);
+        expect(textsOf(d, "solution")[0]).toBe(sol);
     });
 });
 

@@ -149,7 +149,7 @@ describe("reseatAnswer · 与洗牌串起来（先校正再洗牌 → 判分一�
         }
     });
 
-    it("regen 的 keep 序（选项已按原题顺序）与洗牌字母映射自洽：解析字母跟答案走", async () => {
+    it("regen 的 keep 序与洗牌字母映射自洽：解析文本原样、答案字母仍指正确项", async () => {
         const { shuffleDraftOptions } = await import("../../convert/service/draft/OptionShuffle");
         const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         for (let i = 0; i < 100; i++) {
@@ -179,10 +179,9 @@ describe("reseatAnswer · 与洗牌串起来（先校正再洗牌 → 判分一�
             expect(d.parts.filter((p) => p.name === "option-0").map((p) => p.text)[LETTERS.indexOf(ans)]).toBe(
                 "运动是物质的根本属性"
             );
-            const sol = d.parts.find((p) => p.name === "solution")?.text ?? "";
-            const m = /^([A-D]) 正确，([A-D])、([A-D])、([A-D]) 都是混淆说法。$/.exec(sol);
-            expect(m?.[1]).toBe(ans); // 解析的正解字母与答案同步
-            expect([m?.[2], m?.[3], m?.[4]].sort()).toEqual(["A", "B", "C", "D"].filter((x) => x !== ans).sort());
+            // ⚠️ 解析文本**原样**（Issue #176 收窄）：洗牌不再改写解析里的
+            //    字母（拒绝对用户文本猜字母；存量由重新转换消化）。
+            expect(d.parts.find((p) => p.name === "solution")?.text).toBe("B 正确，A、C、D 都是混淆说法。");
         }
     });
 });

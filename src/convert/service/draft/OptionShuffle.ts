@@ -1,5 +1,4 @@
 import { LETTERS } from "../../../types";
-import { letterMapper, rewriteLetters } from "./LetterRefs";
 import type { DraftUnit } from "../draft/QuestionDraft";
 
 /**
@@ -26,26 +25,15 @@ import type { DraftUnit } from "../draft/QuestionDraft";
  * 洗）；judge/fill/cloze/match/essay/trans 无字母重排语义，原样跳过。
  * 选项文本含位置敏感措辞（「以上都对」「A 和 B」一类）时跳过该组洗牌。
  *
- * **解析里的字母引用同步改写**（Issue #123，20260915）：生成协议让 AI
- * 按「正确项在最前」写 **解析**（「A 正确，B 错误」），洗牌只重写答案
- * 字母的话解析字母会全部失配（指到别的选项上）。故洗牌时按同一条字母
- * 映射（旧字母 → 新字母）改写解析文本里的**独立裸字母词符**（A–H 单字母
- * 词符，带边界）。口径与边界：
- *   - 只认 `\b[A-H]\b`（且字母确为该组真实存在的选项）；CJK 相邻时
- *     `\b` 依赖字符类边界，中文「选项 A 正确」这类仍能命中；
- *   - **排除**行内/围栏代码（`` ` ``）、数学区间（`$...$` / `$$...$$`、
- *     `\(...\)` / `\[...\]`）——公式里的 A 不是选项字母，改了就是
- *     静默毁公式（与 gloss 域 `^{}` 的 protectedSpans 同款纪律）；
- *   - 撇号前缀（英语 `students' A` 一类所有格）不认，避免误伤；
- *   - 位置敏感措辞组本就跳过洗牌，「A 和 B」类解析天然不失配。
+ * ⚠️ **解析字母改写已退役**（Issue #176 收窄，20260919）：本模块原先在
+ *  洗牌时按同一条映射改写解析里的裸字母词符（#123），现随展示层口径一并
+ *  撤除——`letterMapper`/`rewriteLetters` 已从 `LetterRefs` 删除（那侧只留
+ *  落库判据）。**解析文本在洗牌中一律原样**，与展示层 `CardDisplayShuffle`
+ *  同口径。
  *
- *  ⚠️ **映射的语义前提**（20260915 实测厘清，别想当然）：这条改写假定
- *  「解析里的字母 = **本组选项的序位字母**」，这正是「正确项写最前」协议
- *  的含义（AI 写解析时看到的顺序就是它自己输出的顺序）。重生成链已改
- *  走 keep 序（选项按原题顺序、字母随顺序对应），此时映射是恒等、改写
- *  是零动作——**若 keep 序下解析仍写旧字母（AI 想指原题第 2 项），那是
- *  语义错误、位置映射救不了**，由 RegenDialog 的答案核查（reseatAnswer
- *  + verifyPrompt 自检）兜底，不在本层处理。
+ *  ⚠️ 本模块**整体闲置**（#131 起生成链零调用，仅 Test 调），且与死形态协议
+ *  相冲（它假定「正确项写最前 + 答案改 A」）。待存量清零后另单整体删除，
+ *  本次只做「不依赖已删 helper」的最小手术（去掉解析改写那段）。
  */
 
 /** 位置敏感措辞：洗牌会破坏指代关系，保留 AI 原序。 */
@@ -57,8 +45,6 @@ interface OptGroup {
     ans: number;
 }
 
-/** 解析字母改写（词符口径/保护区/所有格）自 #176 起接出到
- *  `LetterRefs`，展示层洗牌共用同一套——本模块不再自持正则。 */
 /** 收集单元的全部选项组（键 ""=顶层；step-k=多步题第 k 步）。 */
 function collectGroups(d: DraftUnit): Map<string, OptGroup> {
     const g = new Map<string, OptGroup>();
@@ -106,25 +92,11 @@ function shuffleGroup(d: DraftUnit, grp: OptGroup): void {
             .join("");
     }
     if (order.length === 0 || newRun === oldSorted) return;
-    // 旧字母 → 新字母：原第 i 位的选项内容洗到 order[j]=i 的第 j 位，
-    // 字母随之 i→j（与上面的 newRun 计算同一套 order，禁分头重算）。
-    const toIdx = new Map<number, number>();
-    for (let j = 0; j < n; j++) toIdx.set(order[j], j);
-    const map = letterMapper(toIdx);
+    // ⚠️ 解析文本**不改写**（Issue #176 收窄）：本模块已无字母映射器，
+    //   洗牌只重排选项 + 重写答案字母——与展示层同口径（渲染/落库路径都不
+    //   对用户文本猜字母）。
     for (let j = 0; j < n; j++) d.parts[grp.opts[j]].text = texts[order[j]];
     ansPart.text = newRun;
-    rewriteSolutionLetters(d, map);
-}
-
-/** 按字母映射改写解析文本里的独立字母词符（Issue #123 的解析失配补偿）。
- *  只改**解析类部件**：顶层 solution、多步题的整题解析、逐空/逐步的
- *  solution（顶层与嵌套组都覆盖——组内解析同受洗牌影响）。题干/材料
- *  正文不动（那不是选项字母的引用面，误改风险大于收益）。 */
-function rewriteSolutionLetters(d: DraftUnit, map: (ch: string) => string): void {
-    for (const p of d.parts) {
-        if (!/^(?:solution|.*-solution)$/.test(p.name)) continue;
-        p.text = rewriteLetters(p.text, map);
-    }
 }
 
 /** 拆行 unpack（20260905 真机数据踩坑）：AI 无视「每个选项一个 @@P opt」

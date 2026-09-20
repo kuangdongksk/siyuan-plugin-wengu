@@ -10,20 +10,22 @@ import {
 import { parseDrafts, type DraftUnit } from "../../convert/service/draft/QuestionDraft";
 
 /**
- * Issue #176 验收：**展示层洗牌必须同步改写解析里的选项字母引用**。
+ * Issue #176 **收窄后的落库链验收**（20260918 真机报障的收口，20260919 用户
+ * 拍板：不治存量、不在展示层猜字母）。
  *
- * 真机报障（20260918）：卡面 B 位显示「时空是一切运动的观念载体」，解析
- * 却写「B. 时空与物质运动不可分割」正确——洗牌只重映射 `answer`、解析
- * 里的字母仍指库内原序位置，换序后全体失配（工作区 bank 实查 841 道
- * single/multiple 里 835 道（99.3%）解析带字母引用）。
+ * 真机背景：卡面 B 位显示「时空是一切运动的观念载体」，解析却写「B. 时空与
+ * 物质运动不可分割」——洗牌只重映射 `answer`、解析字母仍指库内原序位置，
+ * 换序后全体失配（工作区 bank 实查 841 道里 835 道解析带字母引用）。
  *
- * 本文件的三条锁：
- *   1. **真实 kramdown 样本自洽锁**（题源 gen-mu3s7wm9-vpg6jm，工作区
- *      bank 原文）：洗牌后解析里每个字母引用指向的选项文本 == 卡面该字母
- *      位的选项文本；换 scope 重洗仍自洽；
- *   2. 词符口径：数学/代码区不误伤、超范围字母（E/F）不动、英文正文词
- *      （`Plan A`）不动、所有格（`students' A`）不动；
- *   3. 长引用前缀（`「A proposal…」`）：前缀随映射搬、引用正文逐字不动。
+ * **收窄后的解法**：插件不再在洗牌时现场猜字母（判据对 `维生素A`/`A4纸`/
+ * 引文体字母的误伤面不可接受），改由**落库链**产出无字母引文：存量用户
+ * 重新转换一次即消化，解析里根本没有字母，也就无所谓指代错位。
+ *
+ * 本文件锁两件事：
+ *   1. **展示层只换序、不动文本**（真机样本 + 各形态解析一律逐字不动）；
+ *   2. **落库规范化**（裸字母 / 「字母 + 全文」→ `「选项文本」`）三接线点共用，
+ *      且吃掉的区间不被二次替换。
+ * 展示层的答案字母自洽性由 `CardDisplayShuffle.test.ts` / 本文件末组锁住。
  */
 
 /** 真机 kramdown（gen-mu3s7wm9-vpg6jm 那道题，工作区 bank 原文形态）：
@@ -65,79 +67,31 @@ const realQuestion = (): WenguQuestion => {
     return q;
 };
 
-/**
- * 自洽锁（本单主修的唯一判据）：解析里每个「`X. <选项文本>`」引用拆出的
- * **文本**，必须与**卡面 X 位**的选项文本逐字一致——洗牌把选项换位后，
- * 解析里的字母必须跟着换，否则就是真机那个「卡面 B 位显示甲、解析说
- * B 是乙」的错误指代。
- *
- * 只判「文本确为某个选项」的引用（长选项截断形态、非引用大写字母不掺和）。
- */
-const assertSelfConsistent = (x: WenguQuestion): void => {
-    const cards = (x.optionMd ?? []).map((t) => optionDisplayMd(normalizeOptionLabels(t)));
-    const textAt = (letter: string): string => cards[LETTERS.indexOf(letter)] ?? "";
-    let checked = 0;
-    for (const m of (x.solutionMd ?? "").matchAll(/(?<![A-Za-z])([A-H])[.、]\s*([^，。、「」]+)/g)) {
-        const letter = m[1]!;
-        const claim = normalizeOptionLabels(m[2]!.trim().replace(/[.。]$/, ""));
-        const hit = cards.find((c) => c === claim);
-        if (!hit) continue; // 非选项引用 / 截断形态：不掺和
-        checked += 1;
-        if (claim !== textAt(letter))
-            console.log("MISMATCH", JSON.stringify({ letter, claim, at: textAt(letter), cards, sol: x.solutionMd }));
-        expect({ letter, claim }).toEqual({ letter, claim: textAt(letter) });
-    }
-    expect(checked).toBeGreaterThan(0); // 真机样本必须至少有一条可判引用
-};
-
 /** 真机那道题洗后的**不变量**：答案字母指向的文本恒为「不可分割」。 */
 const assertAnswerStable = (x: WenguQuestion): void => {
     const at = LETTERS.indexOf((x.answer ?? "").toUpperCase());
     expect(optionDisplayMd(normalizeOptionLabels((x.optionMd ?? [])[at] ?? ""))).toBe("时空与物质运动不可分割");
 };
 
-describe("真实 kramdown 样本自洽锁（gen-mu3s7wm9-vpg6jm）", () => {
+describe("真实 kramdown 样本（gen-mu3s7wm9-vpg6jm）", () => {
     it("库内自洽（洗牌前）：字母、文本、答案三方吻合", () => {
         const q = realQuestion();
         expect(q.answer).toBe("B");
         expect(q.solutionMd).toContain("B. 时空与物质运动不可分割");
         assertAnswerStable(q);
-        assertSelfConsistent(q);
     });
 
-    it("换 scope 重洗：解析引用与卡面选项位**始终自洽**（本单主修）", () => {
+    it("洗牌只换序：解析逐字不动、答案字母仍指原正确项（收窄后的行为锁）", () => {
         const q = realQuestion();
         const orders = new Set<string>();
         for (const scope of ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"]) {
             const x = shuffleListForDisplay([q], { scope })[0]!;
+            expect(x.solutionMd).toBe(q.solutionMd); // 逐字不动（不在展示层猜字母）
+            expect(x.stemMd).toBe(q.stemMd);
             assertAnswerStable(x); // 答案字母指向的文本没变
-            assertSelfConsistent(x); // 解析引用与卡面同字母位一致
             orders.add((x.optionMd ?? []).join("|"));
         }
         expect(orders.size).toBeGreaterThan(1); // 确实换了序（消剧透仍成立）
-    });
-
-    it("解析里的字母引用确实被改写（洗序变了 ⇒ 文本必须跟着换位）", () => {
-        const q = realQuestion();
-        const seen = new Set<string>();
-        for (const scope of ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"]) {
-            const x = shuffleListForDisplay([q], { scope })[0]!;
-            seen.add(x.solutionMd ?? "");
-        }
-        expect(seen.size).toBeGreaterThan(1); // 解析文本随洗牌变（不是原样抄库）
-        // ⚠️ 反向锁（判据 `(?<![A-Za-z])([A-H])(?![A-Za-z])`——20260918 复核
-        //    修掉原文案里的 `(?!=[A-Za-z])` 笔误：那是「后面不是 `=字母`」，
-        //    对 `A. 文本` 恒成立，意图（后面不是字母）没表达出来）
-        // 反向锁：解析里**不再**出现「B. 不可分割」以外的「X. 文本」错配
-        for (const scope of ["s1", "s2", "s3"]) {
-            const x = shuffleListForDisplay([q], { scope })[0]!;
-            const cards = (x.optionMd ?? []).map((t) => optionDisplayMd(normalizeOptionLabels(t)));
-            for (const m of (x.solutionMd ?? "").matchAll(/(?<![A-Za-z])([A-H])(?![A-Za-z])\.\s*([^，。」]+)/g)) {
-                if (m[2] && !cards.some((c) => c.startsWith(m[2]!.trim()))) {
-                    throw new Error(`解析引用失配：${m[0]}`);
-                }
-            }
-        }
     });
 
     it("双字母「A. A. 时空…」剥净（伴生畸形①，展示侧兜底）", () => {
@@ -146,8 +100,8 @@ describe("真实 kramdown 样本自洽锁（gen-mu3s7wm9-vpg6jm）", () => {
     });
 });
 
-/** 词符口径（复用 #123 成套件）：不该动的一个都不许动。 */
-describe("解析字母重映射的词符口径", () => {
+/** 收窄口径：展示层对**任何形态**的解析文本都不碰。 */
+describe("展示层不改写解析（收窄后的边界锁）", () => {
     const base = (sol: string): WenguQuestion => ({
         id: "q1",
         type: QuestionType.Single,
@@ -158,99 +112,35 @@ describe("解析字母重映射的词符口径", () => {
         solutionMd: sol,
     });
 
-    it("数学 `^A$` 与代码区不误伤", () => {
-        const x = shuffleForDisplay(base("$x_A$ 与 $A^{2}$ 无关，`A` 也不相关。甲正确。"), () => 0.9);
-        expect(x.solutionMd).toContain("$x_A$");
-        expect(x.solutionMd).toContain("$A^{2}$");
-        expect(x.solutionMd).toContain("`A`");
-    });
+    const CASES: string[] = [
+        "选项 A 正确，选项 B 错误。",
+        "A 正确，B 错误。",
+        "「A. 甲」正确，「C. 丙」错误。",
+        "「A proposal to establish a new …」正确。",
+        "$x_A$ 与 $A^{2}$ 无关，`A` 也不相关。",
+        "Plan A works well. Students' A is graded.",
+        "维生素A 缺乏症，A4纸 规格，B2B 业务。",
+        "E 错误，F 也不对。",
+    ];
 
-    it("超范围字母（该组 3 项而解析写 E/F）不动", () => {
-        const x = shuffleForDisplay(base("E 错误，F 也不对。"), () => 0.9);
-        expect(x.solutionMd).toBe("E 错误，F 也不对。");
-    });
-
-    it("英文正文词 `Plan A` 与所有格 `students' A` 不动", () => {
-        const en = "Plan A works well. Students' A is graded.";
-        const x = shuffleForDisplay(base(en), () => 0.9);
-        expect(x.solutionMd).toBe(en);
-    });
-
-    it("中文夹写的独立字母（「选项 A 正确」）会跟着重映射", () => {
-        // 洗序把原 A 项挪到 B 位 ⇒ 解析里的 A 必须改成 B（不然指到别的项）
-        const x = shuffleForDisplay(base("选项 A 正确，选项 B 错误。"), () => 0.9);
-        expect(x.answer).toBe("B");
-        expect(x.solutionMd).toBe("选项 B 正确，选项 A 错误。");
-    });
-
-    it("长引用前缀（`「A proposal…」`）：前缀随映射、引用正文逐字不动", () => {
-        const opts = [
-            "A proposal to establish a new framework for international cooperation",
-            "The author argues that technology has reshaped the way we communicate",
-            "Governments should prioritize environmental protection over growth",
-        ];
-        const q: WenguQuestion = {
-            id: "q2",
-            type: QuestionType.Single,
-            attempts: 0,
-            wrongCount: 0,
-            optionMd: opts,
-            answer: "A",
-            solutionMd: "「A proposal to establish a new …」正确。",
-        };
-        for (const scope of ["s1", "s2", "s3", "s4"]) {
-            const x = shuffleListForDisplay([q], { scope })[0]!;
-            const head = /^「([A-H])/.exec(x.solutionMd ?? "")?.[1];
-            expect(head).toBe((x.answer ?? "").toUpperCase());
-            // 引用首词逐字不动（前缀之外的部分一字未改）
-            expect(x.solutionMd).toContain("proposal to establish a new …」正确。");
-            expect((x.optionMd ?? [])[LETTERS.indexOf(head!)]).toBe(opts[0]);
+    it("逐条：任意随机源下解析逐字不动", () => {
+        for (const sol of CASES) {
+            for (const rand of [() => 0, () => 0.9, () => 0.5]) {
+                expect(shuffleForDisplay(base(sol), rand).solutionMd).toBe(sol);
+            }
         }
     });
-});
 
-/** 改写范围口径（20260918 复核实查）：只改解析，不碰题干 / steps 题级解析。 */
-describe("改写范围（口径锁）", () => {
-    const cards = (q: WenguQuestion): string[] =>
-        (q.optionMd ?? []).map((t) => optionDisplayMd(normalizeOptionLabels(t)));
-
-    it("题干（stemMd）不被改写——题干字母多为实体名，不是选项引用", () => {
-        const q: WenguQuestion = {
-            id: "s",
-            type: QuestionType.Single,
-            attempts: 0,
-            wrongCount: 0,
-            optionMd: ["甲", "乙", "丙"],
-            answer: "A",
-            stemMd: "关于 A、B 两点的说法，正确的是（ ）",
-            solutionMd: "A 正确。",
-        };
-        const x = shuffleForDisplay(q, () => 0.9);
-        expect(x.stemMd).toBe("关于 A、B 两点的说法，正确的是（ ）"); // 逐字不动
-        expect(x.solutionMd).not.toBe("A 正确。"); // 解析照改
-    });
-
-    it("steps 题级 solutionMd 不被改写（各步字母映射不同，指代无从判定）", () => {
-        const q: WenguQuestion = {
-            id: "s2",
-            type: QuestionType.Steps,
-            attempts: 0,
-            wrongCount: 0,
-            answer: "A",
-            solutionMd: "第一步 A. 甲 正确。",
-            steps: [
-                { kind: "method", stemMd: "第一步", optionMd: ["甲", "乙"], answer: "A" },
-                { kind: "result", stemMd: "第二步", optionMd: ["丙", "丁"], answer: "A" },
-            ],
-        };
-        const x = shuffleForDisplay(q, () => 0.9);
-        expect(x.solutionMd).toBe("第一步 A. 甲 正确。"); // 不动（宁可不改）
-        // 步内答案与选项同源洗过（自洽）
-        expect(cards({ ...x, optionMd: x.steps![0]!.optionMd })[LETTERS.indexOf(x.steps![0]!.answer!)]).toBe("甲");
+    it("题干（stemMd）不改写", () => {
+        const stem = "关于 A、B 两点的说法，正确的是（ ）";
+        const x = shuffleForDisplay(base("选项 A 正确。"), () => 0.9);
+        expect(x.solutionMd).toBe("选项 A 正确。");
+        const y = shuffleForDisplay({ ...base("A 正确。"), stemMd: stem }, () => 0.9);
+        expect(y.stemMd).toBe(stem);
     });
 });
 
-/** 源头堵新流量：落库三链共用的**裸字母 / 「字母+全文」规范化**。 */
+/** 落库链：三接线点共用的**裸字母 / 「字母+全文」规范化**（本单正题）。 */
 describe("源头规范化：裸字母与「字母+全文」引用（三接线点共用）", () => {
     const OPTS = ["维护封建统治", "加强思想教育", "以人民为中心", "全面从严治党"];
 
@@ -344,24 +234,24 @@ describe("源头规范化：裸字母与「字母+全文」引用（三接线点
     });
 });
 
-/** 移动端：同走 `shuffleListForDisplay`（会话恢复路径）——补一条口径锁。 */
+/** 移动端：同走 `shuffleListForDisplay`（会话恢复路径）——只换序、不动文本。 */
 describe("移动端同源（MobileRound 走同一函数）", () => {
-    it("恢复路径按会话 id 定种子：同会话两次一致、解析引用同源自洽", () => {
+    it("恢复路径按会话 id 定种子：同会话两次一致、解析逐字不动", () => {
         const q = realQuestion();
         const a = shuffleListForDisplay([q], { scope: "m-s1" })[0]!;
         const b = shuffleListForDisplay([q], { scope: "m-s1" })[0]!;
         expect(b.optionMd).toEqual(a.optionMd);
-        expect(b.solutionMd).toBe(a.solutionMd);
+        expect(b.solutionMd).toBe(q.solutionMd);
         assertAnswerStable(a);
-        assertSelfConsistent(a);
     });
 
-    it("换轮换序，仍自洽（移动端与桌面零分叉）", () => {
+    it("换轮换序，答案仍指同一项（移动端与桌面零分叉）", () => {
         const q = realQuestion();
         const s1 = shuffleListForDisplay([q], { scope: "m-s1" })[0]!;
         const s2 = shuffleListForDisplay([q], { scope: "m-s2" })[0]!;
-        assertSelfConsistent(s1);
-        assertSelfConsistent(s2);
+        assertAnswerStable(s1);
+        assertAnswerStable(s2);
+        expect(s1.solutionMd).toBe(s2.solutionMd); // 文本不随轮次变
         expect(s1.optionMd).not.toEqual(s2.optionMd);
     });
 });

@@ -1,10 +1,15 @@
 /**
- * 解析里**选项字母引用**的判定与改写（Issue #176，源出 #123 的成套件）。
+ * 解析里**选项字母引用**的判定（Issue #176，源出 #123 的成套件）。
  *
- * 这里是「哪些字母算选项引用」的**唯一口径**，两处调用方共用：
- *   - 落库层：`OptionRefReplace`（裸字母/「字母+全文」规范化）；
- *   - 展示层：`quiz/render/CardDisplayShuffle`（洗选项时同步重写引用）。
+ * 这里是「哪些字母算选项引用」的**唯一口径**，**落库专用**：
+ * `OptionRefReplace.normalizeBareRefs`（裸字母/「字母+全文」规范化）消费它。
  * 各写一套正则必然漂移（#176 自验实录：一套认了 `Plan A`、另一套不认）。
+ *
+ * ⚠️ **展示层不再调用本模块**（Issue #176 收窄，20260919）：`9d998f1` 曾
+ * 让 `quiz/render/CardDisplayShuffle` 在洗牌时用本判据现场改写解析里的字母
+ * 引用，该特性已撤除——渲染路径不对用户文本猜字母，存量由重新转换消化。
+ * 故 `rewriteLetters`/`letterMapper` 一并删除，本模块只出**判据**（
+ * `isRefLetter`/`LETTER_TOKEN`/`protectionMask`/`OPEN_BEFORE`）。
  *
  * ## 判据（两个方向都是不变量，只放松任一侧就是回归）
  *
@@ -17,7 +22,9 @@
  * 2. **排除受保护区**：行内/围栏代码与数学（`$…$`/`$$…$$`/`\(…\)`/`\[…\]`）
  *    ——公式/代码里的 A 不是选项字母，改了就是静默毁内容；
  * 3. **排除所有格**（两侧）：前缀 `students' A` 与后缀 `A's plan`；
- * 4. **排除引用前缀**：`「` 后紧跟的字母，由 `remapQuotedHead` 单独处理；
+ * 4. **排除引用前缀**：`「` 后紧跟的字母——它是**已规范化引文的句首字母**
+ *    （`「A proposal…」`），不是候选引用位（展示层的引头改写已随 #176
+ *    收窄撤除）；
  * 5. **排除英文正文里的「词 + 空格 + 大写字母」**（`Plan A`、`option B`）：
  *    前面的词是**纯 ASCII 单词**时该字母是正文的一部分，不是引用。
  *    真机解析是中文夹写（`选项 A 正确`、`A 正确`、`A. 全文`）——前缀为
@@ -29,8 +36,8 @@
 
 /** 解析里**待检**的字母词符：A–H 单字母候选，两侧不是 ASCII 字母。
  *  ⚠️ 这是**粗筛**——`维生素A`、`A4纸` 也会命中，由 {@link isRefLetter}
- *  这个唯一判据否掉。`rewriteLetters` / `normalizeBareRefs` 都必须过它，
- *  别把粗筛当结论（各写一条近似正则正是 #176 的漂移来源）。 */
+ *  这个唯一判据否掉。调用方（`normalizeBareRefs`）必须过它，别把粗筛当结论
+ *  （各写一条近似正则正是 #176 的漂移来源）。 */
 export const LETTER_TOKEN = /(?<![A-Za-z])[A-H](?![A-Za-z])/g;
 
 /** 半角/全角开括号（`（B）` 形态：字母被括号包着，是同一层标签的另一种
@@ -51,7 +58,7 @@ const POSSESSIVE_AFTER = /^['\u2019](?:s\b)?/;
 const WORD_BEFORE_CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]$/;
 /** CJK 融合词后缀（`维生素A` 的**后**字）。 */
 const WORD_AFTER_CJK = /^[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/;
-/** 引用前缀（`「` 后紧跟的字母）——由 `remapQuotedHead` 单独处理。 */
+/** 引用前缀（`「` 后紧跟的字母）：已规范化引文的句首，不是引用位。 */
 const QUOTE_BEFORE = /「$/;
 /** 英文正文语境（`Plan A` / `option B` / `vitamin A`）——前导**纯 ASCII
  *  单词**时该字母不是引用。**中文前缀（CJK/标点/行首）不在此列**：真机
@@ -93,8 +100,8 @@ const DIGIT_AFTER = /^[0-9]/;
 
 /** 该位置的字母是否算**选项引用**（false ⇒ 一律不动）。
  *
- *  **两个方向都是不变量**：漏检（真机引用没改 → 洗牌后错误指代）与误伤
- *  （正文词被改 → 静默毁内容）各有红项锁着。改本函数必须两向都跑。 */
+ *  **两个方向都是不变量**：漏检（真机引用没被规范化 → 库内留裸字母）与
+ *  误伤（正文词被改 → 静默毁内容）各有红项锁着。改本函数必须两向都跑。 */
 export function isRefLetter(text: string, at: number, mask: boolean[]): boolean {
     if (mask[at]) return false;
     const before = text.slice(0, at);
@@ -113,36 +120,3 @@ export function isRefLetter(text: string, at: number, mask: boolean[]): boolean 
     if (DIGIT_AFTER.test(after) || DIGIT_BEFORE.test(before)) return false;
     return !WORD_BEFORE_CJK.test(before) && !WORD_AFTER_CJK.test(after);
 }
-
-/** 按字母映射改写一段文本里的**引用字母**（其余原样；零改动返回原引用）。 */
-export function rewriteLetters(text: string, map: (ch: string) => string): string {
-    if (!text) return text;
-    const mask = protectionMask(text);
-    let out = "";
-    let last = 0;
-    let changed = false;
-    for (const m of text.matchAll(LETTER_TOKEN)) {
-        const at = m.index;
-        // 跳过的命中必须**原样补回**（不参与映射），否则字符被吞
-        const to = isRefLetter(text, at, mask) ? map(m[0]) : m[0];
-        out += text.slice(last, at) + to;
-        last = at + m[0].length;
-        if (to !== m[0]) changed = true;
-    }
-    if (!changed) return text;
-    return out + text.slice(last);
-}
-
-/** 旧序号 → 新序号的字母映射器（`toIdx`：原第 i 位的内容落到新第 j 位）。
- *  「字母确为该组真实选项」由调用方按组内长度先校验（超范围不映射）。 */
-export function letterMapper(toIdx: Map<number, number>): (ch: string) => string {
-    return (ch: string) => {
-        const i = LETTERS_AB.indexOf(ch);
-        const j = i >= 0 ? toIdx.get(i) : undefined;
-        return j === undefined ? ch : (LETTERS_AB[j] ?? ch);
-    };
-}
-
-/** 与 `types.LETTERS` 同表（本模块不反向依赖 types：那是 UI/判分层工具，
- *  convert 与 quiz 两侧都引它会出现循环）。 */
-const LETTERS_AB = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

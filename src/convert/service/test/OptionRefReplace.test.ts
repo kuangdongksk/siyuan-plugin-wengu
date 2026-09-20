@@ -373,8 +373,8 @@ describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", (
 
     it("解析里的截断形态只带**引用字母前缀**（截断文本里的字母是正文，不是引用）", () => {
         // 引用形态 `「A proposal…」`：前 30 字里的 `A`（英文首词）与引用
-        // 字母同形——#176 起展示层按标记协议只重映射**前缀那个字母**、
-        // 引用正文逐字不动（见 CardDisplayShuffle.remapRefs / remapQuotedHead）。
+        // 字母同形——它属于**引文正文**（内容），不是引用位；展示层自
+        // Issue #176 收窄起**不改写任何解析文本**。
         expect(solOf(d0)).toBe(`「${LONG_OPTS[0].slice(0, 30)}…」正确。`);
         // 唯一的**引用**字母是 `「` 后那个（其余字母都在引用正文里）
         expect(/「([A-H])/.exec(solOf(d0)!)?.[1]).toBe("A");
@@ -386,7 +386,7 @@ describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", (
         expect(solOf(d0)).not.toMatch(/[（(][A-H][)）]/);
     });
 
-    it("换会话洗牌：引用前缀跟着重映射、引用正文逐字不变（Issue #176 改口）", () => {
+    it("换会话洗牌：解析（含截断引文）逐字不变、答案字母仍指原文本（#176 收窄）", () => {
         const base = {
             id: "q1",
             type: "single",
@@ -400,13 +400,15 @@ describe("长选项截断 × 展示层洗牌（Issue #148 复核回归锁）", (
         const orders = new Set<string>();
         for (const scope of ["s1", "s2", "s3", "s4", "s5"]) {
             const x = shuffleListForDisplay([base], { scope })[0]!;
-            // ① 除引用前缀字母外，解析逐字不动（截断文本里的字母是**内容**）
-            expect(x.solutionMd!.replace(/「[A-H]/, "「?")).toBe(solOf(d0)!.replace(/「[A-H]/, "「?"));
-            // ② 引用前缀字母 = 洗后答案字母（同一项）；答案字母仍指向原文本
+            // ① 解析**逐字不动**（展示层不再猜字母，前缀与引文正文都不碰）
+            expect(x.solutionMd).toBe(solOf(d0));
+            // ② 库内那份前缀字母是**转换时的位置引用**，与洗后字母无关
+            //    （存量带字母的记录由重新转换消化，见 CardDisplayShuffle 文件头）
+            expect(headOf(x.solutionMd!)).toBe("A");
+            // ③ 答案字母仍指向原正确项文本
             const ans = (x.answer ?? "").toUpperCase();
-            expect(headOf(x.solutionMd!)).toBe(ans);
             expect(x.optionMd![cjk.indexOf(ans)]).toBe(wantText);
-            // ③ `「…」` 里的首词仍是选项正文（没被前缀改写吃掉）
+            // ④ `「…」` 里的首词仍是选项正文（内容一字未动）
             expect(x.solutionMd).toContain(LONG_OPTS[0].slice(2, 30));
             orders.add((x.optionMd ?? []).join("|"));
         }
