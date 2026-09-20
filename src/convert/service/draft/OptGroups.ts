@@ -1,4 +1,5 @@
 import type { DraftUnit, DraftPart } from "./QuestionDraft";
+import { protectionMask } from "./LetterRefs";
 
 /**
  * 选项组只读视图（Issue #176 接出）：**展示层**（`quiz/render/CardDisplayShuffle`
@@ -41,13 +42,20 @@ export function displayText(text: string, limit = 40, keep = 30): string {
  * 故只把紧跟在 `「` 之后的那个字母重映射（且该字母确为组内选项），
  * 引用文本逐字不动。
  *
- * ⚠️ **必须在词符改写之前跑**（本函数是**预**处理）：词符改写
- * （`rewriteLetters`）的 `(?<![A-Za-z])` 前视会把 `^「` 后的字母当词符
- * 一起改掉——真机解析形态「「A …」正确。」里，引用前缀与「引用正文的句首
- * 字母」是**同一个字符**，映射会在两者上各作用一次（A→C→B 反向跳一个位次，
- * 展示层自验踩到）。故：**先把引用前缀搬到新字母**（此时它是「已映射」的
- * 字母，与它的原字母不再相等），词符阶段自然跳过它、只继续处理正文里的
- * 独立词符；顺序反了就会二次映射。
+ * ⚠️ **与词符改写的次序无关**（20260919 复核实测更正）：本条此前声称
+ * 「顺序反了就会二次映射 A→C→B」，实测不成立。两个函数的命中集**由同一条
+ * 判据（前导字符是 `「`）切开、互为补集**——`rewriteLetters` 每个命中都过
+ * `isRefLetter`，而其中的 `QUOTE_BEFORE` 已把引用前缀位排除；`remapQuotedHead`
+ * 只认被排除的那一位。故先改哪个都只各改一次，反序只可能「少改」、
+ * 结构上到不了「重改」。
+ *   - 锁：`ShuffleRemapInvariants.test.ts` 的 3 元全排列穷举（3000 组随机
+ *     文本，两序零差异）+ 正序结果的显式断言；
+ *   - 调用方（`CardDisplayShuffle.remapRefs`）仍按「先前缀、后词符」写，
+ *     那是**可读性**（先处理更特殊的形态），不是正确性前提。
+ *
+ * ⚠️ **改的是「引用前缀」这一个字母**，引用正文逐字不动：按标记协议
+ * 「前缀是位置引用、正文是内容」。真机形态「「A proposal to establish…」」
+ * 里前缀与英文句首字母同形，只认 `「` 后紧贴的那一个。
  */
 export function remapQuotedHead(text: string, toIdx: Map<number, number>, letters: string): string {
     // **全局**替换（不是只认文本开头）：一道题里可以有多个引用
@@ -58,7 +66,13 @@ export function remapQuotedHead(text: string, toIdx: Map<number, number>, letter
     // 「字母 + 标签」、`「A」` 是「字母 + 收尾」）。用「字母后不是字母」
     // 的判据避免把 `「ABC」` 里的 A 当引用。
     const QUOTED_HEAD = /「([A-H])(?![A-Za-z])/g;
-    return text.replace(QUOTED_HEAD, (all, ch: string) => {
+    // ⚠️ **受保护区（行内/围栏代码、数学）内的引头原样**（#176 复核实录
+    // 「R4」）：代码/数学区整体不是引用语境，`「A. 甲」` 落在这里是**内容**。
+    // `rewriteLetters` 早已过 mask，本函数原先没接 ⇒ 同一段文本两层口径
+    // 不一致（词符层不动、引头层照改）。
+    const mask = protectionMask(text);
+    return text.replace(QUOTED_HEAD, (all, ch: string, offset: number) => {
+        if (mask[offset + 1]) return all; // offset +1：跳过 `「` 本身
         const i = letters.indexOf(ch);
         const j = i >= 0 ? toIdx.get(i) : undefined;
         return j === undefined ? all : `「${letters[j] ?? ch}`;

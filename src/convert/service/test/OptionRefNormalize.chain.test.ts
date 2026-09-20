@@ -21,9 +21,8 @@ import type { BankData } from "../../../bank/data/QuestionBank";
  * 本文件用 `?raw` 源级断言钉「三处调用点用的同一条表达式」，用**真实
  * SetWriter**（唯一能在单测里整链跑通的出口）钉端到端形态。
  *
- * ⚠️ 红项以 `it.fails` 落（＝当前实现不满足验收，已实测确认；只报不改，
- * 见 PR 归因表）：门禁保持绿，缺陷被钉成可执行断言，修复落地后自动翻红
- * 提示收口（届时把 `it.fails` 改回 `it` 即为回归锁）。
+ * ⚠️ **红项已收口**（20260919）：原先 2 条以 `it.fails` 落的红项转正为
+ * 普通 `it`，断言一字未松——它们现在钉的是「修复不许回退」。
  */
 
 const OPTS = ["维护封建统治", "加强思想教育", "以人民为中心", "全面从严治党"];
@@ -120,14 +119,21 @@ describe("幂等：跑两遍 = 跑一遍", () => {
         }
     });
 
-    it.fails("【红】选项正文自带字母时链幂等（`A 与 B 相互独立` 被二次改写）", () => {
-        // 选项文本本身以选项字母开头是常态（「A 与 B 相互独立」这类数学选项）。
-        // 规范化把 `A` 换成 `「A 与 B 相互独立」` 后，**引号内的 A 成了第二遍
-        // 的候选引用**——第二次跑把引号里的 A 又换掉，库内文本被静默改坏
-        // （`「A 与 「两事件互斥」 相互独立」`）。
+    it("选项正文自带字母时链幂等（`A 与 B 相互独立`，R5 回归锁）", () => {
+        // 修复前：第一遍产出的 `「A 与 B 相互独立」`，其**引号体内**的独立字母
+        // 是第二遍的候选 ⇒ 再跑一遍得到 `「A 与 「两事件互斥」 相互独立」`，
+        // 库内文本被静默改坏（幂等破）。现由 `quotedBodyMask` 把引号体当
+        // **不透明区间**跳过 —— 幂等与「一条检出都不丢」同时成立。
         const opts = ["A 与 B 相互独立", "两事件互斥", "无法确定"];
         const once = normalizeBareRefs("A 正确，B 错误。", opts);
+        expect(once).toBe("「A 与 B 相互独立」 正确，「两事件互斥」 错误。");
         expect(normalizeBareRefs(once, opts)).toBe(once);
+        // 草稿单元层与整链层同样幂等（三层都钉，别只钉最内层）
+        const d = draftOf("A 正确，B 错误。", opts);
+        expect(solOf(normalizeDraftOptionRefs(normalizeDraftOptionRefs(d)))).toBe(solOf(normalizeDraftOptionRefs(d)));
+        expect(JSON.stringify(chain(chain(d)))).toBe(JSON.stringify(chain(d)));
+        // 反向锁：引号**体外**的引用照旧检出（跳过引号体不许把后面的也吞了）
+        expect(normalizeBareRefs("「甲」正确，B 错误。", OPTS)).toBe("「甲」正确，「加强思想教育」 错误。");
     });
 });
 
@@ -182,10 +188,17 @@ describe("无凭据字母原样保留", () => {
         expect(normalizeBareRefs(sol, OPTS)).toBe(sol);
     });
 
-    it.fails("【红】所有格后缀 `A's` / CJK 前缀 `维生素A` / `A4纸`：验收要求不动（实际被改写）", () => {
-        for (const sol of ["A's plan works.", "维生素A 缺乏症。", "A4纸 规格。"]) {
+    it("所有格后缀 `A's` / CJK 融合词 `维生素A` / 型号 `A4纸`：不动（R1–R3 回归锁）", () => {
+        // 三条款式与展示层同一条判据（`LetterRefs.isRefLetter`）——展示层那份
+        // 回归锁在 `ShuffleRemapInvariants.test.ts`，这里钉落库链的口径一致。
+        for (const sol of ["A's plan works.", "维生素A 缺乏症。", "A4纸 规格。", "B2B 业务。"]) {
             expect(normalizeBareRefs(sol, OPTS)).toBe(sol);
         }
+        // ⚠️ 反向锁（同一判据不许为了不误伤而漏检）：真机三种引用形态照旧检出
+        expect(normalizeBareRefs("A 正确。", OPTS)).toBe("「维护封建统治」 正确。");
+        expect(normalizeBareRefs("选项 A 正确。", OPTS)).toBe("选项 「维护封建统治」 正确。");
+        expect(normalizeBareRefs("A. 维护封建统治 全文。", OPTS)).toBe("「维护封建统治」全文。");
+        expect(normalizeBareRefs("（B）加强思想教育 正确。", OPTS)).toBe("「加强思想教育」正确。");
     });
 
     it("代码 / 数学保护区里的独立字母不动（本层已守住，与展示层对照）", () => {

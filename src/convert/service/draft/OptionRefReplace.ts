@@ -191,12 +191,38 @@ function quotedLen(at: number, text: string, opts: string[]): number {
     return label[0].length + best + space;
 }
 
+/** 引用**引号体**的掩码（`「…」` 内部一律 true）。
+ *
+ * 引号体是**已规范化的引用正文**，不是候选引用位：头位由判据的
+ * `QUOTE_BEFORE` 挡着，正文位本来也不是引用位（它前面是汉字/字母/引号）。
+ * 但它**是候选位的上游文本**——第一遍把裸字母换成 `「选项文本」` 后，正文
+ * 自身含独立字母的选项（数学题常态 `A 与 B 相互独立`）就让第二遍多出一个
+ * 候选，把库内文本静默改坏（#176 复核实录「R5」：
+ * `「A 与 B 相互独立」 正确` → `「A 与 「两事件互斥」 相互独立」 正确`）。
+ *
+ * 故把引号体当**不透明区间**跳过：既恢复「跑两遍 = 跑一遍」的幂等，又
+ * **一条检出都不丢**（体外的引用位一个没少）。 */
+function quotedBodyMask(text: string): boolean[] {
+    const mask = new Array<boolean>(text.length).fill(false);
+    let open = -1;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === "「" && open < 0) open = i;
+        else if (ch === "」" && open >= 0) {
+            for (let k = open; k <= i; k++) mask[k] = true;
+            open = -1;
+        }
+    }
+    return mask;
+}
+
 /** 一个独立字母词符 → `「选项文本」`；「字母 + 全文」形态把标签与全文
  *  一并吃掉（避免「『文本』. 文本」叠影）。**无凭据一律原样**（宁可读起来
  *  突兀，也不静默改写/删字）。 */
 export function normalizeBareRefs(text: string, opts: string[]): string {
     if (!text || opts.length === 0) return text;
     const mask = protectionMask(text);
+    const quoted = quotedBodyMask(text);
     let out = "";
     let last = 0;
     let changed = false;
@@ -209,6 +235,7 @@ export function normalizeBareRefs(text: string, opts: string[]): string {
         // （`A. A big plan 正确` → `「A big plan」「A big plan」 big plan 正确`）。
         // 判据只看位置（与字母本身无关，同 `rewriteLetters` 的跳过口径）。
         if (at < last) continue;
+        if (quoted[at]) continue; // 引号体是内容（幂等锁，见 quotedBodyMask）
         if (!isRefLetter(text, at, mask)) continue;
         const i = LETTERS.indexOf(m[0]);
         const opt = i >= 0 ? opts[i] : undefined;

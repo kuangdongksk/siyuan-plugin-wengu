@@ -18,12 +18,10 @@ import { letterMapper, rewriteLetters } from "../../convert/service/draft/Letter
  *   2. **语义层**：每条引用所指的选项文本洗牌前后一致（与 `answer` 同源）；
  *   3. **边界层**：不该动的一个都不许动。
  *
- * ⚠️ **红项以 `it.fails` 落**（＝当前实现不满足验收，已实测确认）：
- * 用例名一律带「【红】」前缀，体内注释逐条写「期望 / 实际 / 归因」，PR 里
- * 另给汇总表。`it.fails` 让门禁保持全绿（CI 不因已知缺陷变红、不至于把
- * dev 染红），同时把缺陷**钉成可执行断言**——修复落地后这些用例会因
- * 「不再失败」而翻成红，提示收口。修完把 `it.fails` 改回 `it` 即成本单的
- * 回归锁。
+ * ⚠️ **红项已收口**（20260919）：原先 6 条以 `it.fails` 落的红项，
+ * 探针转正为普通 `it` —— 它们从「已知缺陷的可执行证据」变成**回归锁**，
+ * 断言一字未松。修法见 `LetterRefs`（R1/R2/R3 判据）、`OptGroups`
+ * （R4 引头接保护区）、`OptionRefReplace`（R5 引号体不透明）。
  */
 
 /** 洗后选项的渲染序文本（本文件的题面都不含挤行部件，一行一项）。 */
@@ -228,34 +226,57 @@ describe("对抗矩阵", () => {
         expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
     });
 
-    it.fails("【红】所有格后缀 `A's`：验收要求不改写（实际被当引用改写）", () => {
-        // 期望：`A's plan works.` 原样（`A` 是英文正文词，不是选项引用）
-        // 实际：`D's plan works.`（rand=0 时 A→D，`rewriteLetters` 只排除
-        //       **前导**撇号 `students' A`，不排除**后随**撇号 `A's`）
-        const sol = "A's plan works.";
-        expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
+    it("所有格后缀 `A's`：不改写（R1 回归锁）", () => {
+        // 修复前：`D's plan works.`（rand=0 时 A→D）。判据当时只排**前导**
+        // 撇号 `students' A`，不排**后随**撇号 `A's` ⇒ 英文所有格的 A 被当
+        // 引用改写。现由 `LetterRefs.POSSESSIVE_AFTER` 否掉（半/全角撇号均认）。
+        for (const sol of ["A's plan works.", "A’s plan works.", "A' works."]) {
+            expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
+            expect(shuffleForDisplay(mk(sol, OPTS4), () => 0.9).solutionMd).toBe(sol);
+        }
+        // 反向锁：**带空格**的 `A 's` 不是所有格，是独立引用（判据只挡紧贴）
+        expect(shuffleForDisplay(mk("A 's plan.", OPTS4), () => 0).solutionMd).toBe("D 's plan.");
     });
 
-    it.fails("【红】CJK 前缀紧邻的字母 `维生素A`：验收要求不改写（实际被改写）", () => {
-        // 期望原样；实际 `维生素D 缺乏症。`（`isRefLetter` 只排除 ASCII 词前缀，
-        // CJK 前缀不在排除面——真机英语/科普题的「维生素A」「A 型血」会中招）
-        const sol = "维生素A 缺乏症。";
-        expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
-    });
-
-    it.fails("【红】字母 + 数字 `A4纸`：验收要求不改写（实际被改写）", () => {
-        // 期望原样；实际 `D4纸 规格。`（LETTER_TOKEN 只挡 `[A-Za-z]` 两侧，
-        // 数字不收——型号/编号（A4、B5、C2）会被当引用改掉）
-        const sol = "A4纸 规格。";
-        expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
-    });
-
-    it.fails("【红】代码 / 数学保护区内的引用前缀：验收要求原样（实际被改写）", () => {
-        // 期望原样；实际前缀照改（`remapQuotedHead` 未接 `protectionMask`：
-        // 前缀在词符阶段受保护区保护，但预处理阶段不受——两层口径不一致）
-        for (const sol of ["`「A. 甲」` 是代码。", "$「A. 甲」$ 是公式。"]) {
+    it("CJK 融合词紧贴的字母 `维生素A`：不改写（R2 回归锁）", () => {
+        // 修复前：`维生素D 缺乏症。`（判据只排除 ASCII 词前缀，CJK 不在排除面）。
+        // 现由 `LetterRefs.WORD_BEFORE_CJK` 否掉——**只挡紧贴**。
+        for (const sol of ["维生素A 缺乏症。", "A型血 是常见类型。", "B站 的题。"]) {
             expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
         }
+        // ⚠️ 反向锁（同一条用例里两向都锁）：带分隔符的照旧是引用——
+        // 「只挡紧贴」若被实现成「见 CJK 就不改」，真机引用会成片漏检。
+        expect(shuffleForDisplay(mk("维生素 A 缺乏症。", OPTS4), () => 0).solutionMd).toBe("维生素 D 缺乏症。");
+        expect(shuffleForDisplay(mk("选项 A 正确。", OPTS4), () => 0).solutionMd).toBe("选项 D 正确。");
+    });
+
+    it("字母 + 数字型号 `A4纸` / `B2B`：不改写（R3 回归锁）", () => {
+        // 修复前：`D4纸 规格。`（`LETTER_TOKEN` 只挡 `[A-Za-z]` 两侧，数字不在
+        // 排除面）。现由 `LetterRefs.DIGIT_AFTER` 否掉——只挡**后随数字**。
+        for (const sol of ["A4纸 规格。", "B2B 业务。", "C2 系统与 D5 平台。"]) {
+            expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
+        }
+        // 反向锁：数字在**前**（`1A` 是编号后缀？）不影响判定——字母后无数字
+        // 仍是引用候选，靠前缀/词符判据决定
+        expect(shuffleForDisplay(mk("第 4 项后 A 正确。", OPTS4), () => 0).solutionMd).toBe("第 4 项后 D 正确。");
+    });
+
+    it("代码 / 数学保护区内的引用前缀：原样（R4 回归锁）", () => {
+        // 修复前前缀照改（`D.`）：`remapQuotedHead` 未接 `protectionMask`，
+        // 同一段文本词符层不动、引头层照改，两层口径不一致。
+        // 现由 `OptGroups.remapQuotedHead` 过 mask 守住（`mask[offset+1]`）。
+        for (const sol of [
+            "`「A. 甲」` 是代码。",
+            "$「A. 甲」$ 是公式。",
+            "$$「A. 甲」$$ 同。",
+            "\\(「A. 甲」\\) 同。",
+        ]) {
+            expect(shuffleForDisplay(mk(sol, OPTS4), () => 0).solutionMd).toBe(sol);
+        }
+        // 反向锁：**保护区外**的引头照旧映射（不许为了挡保护区把引头整类关掉）
+        expect(shuffleForDisplay(mk("`代码` 与 「A. 甲」正确。", OPTS4), () => 0).solutionMd).toBe(
+            "`代码` 与 「D. 甲」正确。"
+        );
     });
 
     it("stemMd 不改写；steps 各步独立洗、cloak/match 不洗；WenguStep 无解析部件", () => {

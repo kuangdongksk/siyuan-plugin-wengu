@@ -170,11 +170,12 @@ function remapRefs(p: DraftPart, opts: string[], toIdx: Map<number, number>): Dr
         return i >= 0 && i < opts.length;
     };
     const map = (ch: string): string => (inRange(ch) ? letterMapper(toIdx)(ch) : ch);
-    // ⚠️ **顺序不能反**（#176 自验踩到）：先搬引用前缀（`「A …」`），再改
-    // 独立词符。反了的话前缀会被词符阶段当独立字母**再映射一次**
-    // （A→C→B，反向跳一个位次）——因为引用前缀与「引用正文的句首字母」在
-    // 真机形态里是同一个字符，只有「先改前缀」能让词符阶段跳过它（新字母
-    // ≠ 旧字母，`changed` 判定不再作用于它）。
+    // ⚠️ **两函数次序无关**（20260919 复核实测更正）：本条此前声称「反了会
+    // 二次映射 A→C→B」，不成立——引用前缀与「引用正文的句首字母」在真机形态
+    // 里虽是同一个字符，但 `rewriteLetters` 的每个命中都过 `isRefLetter`，
+    // 其中的 `QUOTE_BEFORE` 已把前缀位排除，两个函数改集互斥。此处按
+    // 「先前缀、后词符」写只是**可读性**（更特殊的形态先处理），不是正确性
+    // 前提。锁见 `ShuffleRemapInvariants.test.ts` 的正反序穷举（3000 组零差异）。
     const text = rewriteLetters(remapQuotedHead(p.text, toIdx, LETTERS), map);
     return text === p.text ? p : { ...p, text };
 }
