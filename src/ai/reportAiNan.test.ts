@@ -80,9 +80,14 @@ const barsOf = (merged: Map<string, { sec: number }>, list: WenguQuestion[]): Ti
         partial: false,
     }));
 
+/** 报告图表的文案格式化器（本文件只验数据链，取**最朴素**口径即可；
+ *  ⚠️ 但 `sec` 必须按生产侧一样过有限数归一——`mmss(NaN)` 会算出「NaN:NaN」，
+ *  这是**文案层**的事，与本文件要验的「数据层不出非有限值」是两条线。生产侧
+ *  的正式口径见 RoundReportApp 的 `timeText`（三态）与 TimeBars.test）。 */
+const fin = (sec: number): number => (Number.isFinite(sec) ? sec : 0);
 const fmt = {
-    fmtTitle: (x: TimeBarInput) => `第${x.label}题 · ${mmss(x.sec)}`,
-    fmtGroup: (g: { from: number; to: number; sec: number }) => `第${g.from}-${g.to}题 · ${mmss(g.sec)}`,
+    fmtTitle: (x: TimeBarInput) => `第${x.label}题 · ${mmss(fin(x.sec))}`,
+    fmtGroup: (g: { from: number; to: number; sec: number }) => `第${g.from}-${g.to}题 · ${mmss(fin(g.sec))}`,
 };
 
 /** 全卷扩展（聚合档需要 >60 题）。 */
@@ -200,7 +205,7 @@ describe("NaN 矩阵：TimeBars 柱高为有限值（跨模块链）", () => {
         }
     });
 
-    it("脏值直达 TimeBars 出口：NaN/Infinity 一律按 0 收拾（源头修 + 出口防两道）", () => {
+    it("脏值直达 TimeBars 出口：NaN/Infinity 按 0 收拾，且 tooltip 不再是 NaN:NaN", () => {
         const dirty: TimeBarInput[] = [
             { label: 1, sec: NaN, unanswered: false, wrong: false, partial: false },
             { label: 2, sec: Infinity, unanswered: false, wrong: false, partial: false },
@@ -209,7 +214,12 @@ describe("NaN 矩阵：TimeBars 柱高为有限值（跨模块链）", () => {
         ];
         const bars = buildTimeBars(dirty, fmt);
         expect(bars.map((c) => c.h)).toEqual([4, 4, 4, 100]);
+        // ⚠️ 柱高过了 secOf（出口归一）就一定出不了 NaN%；title 文案则**由
+        //    调用方决定**——本夹具的 fmt 是朴素口径（直接 mmss(x.sec)），只
+        //    验「不再有 NaN/Infinity 穿透」；生产侧的三态化见 RoundReportApp
+        //    的 timeText 与 TimeBars.test 的「tooltip 不出 NaN:NaN」。
         expect(bars.map((c) => c.title).join(" ")).not.toContain("NaN");
+        expect(bars.map((c) => c.title).join(" ")).not.toContain("Infinity");
         // 聚合档同口径（组内求和不得被脏值污染成 NaN）
         const long = [
             ...dirty,
@@ -220,32 +230,49 @@ describe("NaN 矩阵：TimeBars 柱高为有限值（跨模块链）", () => {
     });
 });
 
-/**
- * ⚠️ **探针（预期会红，属「代码错」归因线索）** —— 下面两条钉的是当前实现的
- * 实际行为，不是要求实现迎合。修复另派，本单只报不改。
- */
-describe("NaN 矩阵：探针——非有限值从 byBaseQid 到数据出口的穿透", () => {
+describe("NaN 矩阵：非有限值在 byBaseQid 出口一律归 0（Infinity 同罪）", () => {
     const probe = (qid: string, sec: number): number => byBaseQid(session([res(qid, true, sec)])).get(qid)?.sec ?? 0;
 
-    it("probe：byBaseQid 对 NaN 入参已归 0（现状符合「绝不出 NaN」）", () => {
-        // 期望：数据出口永不产出非有限值
-        // 实际：`sec > 0` 闸对 NaN 恰好不成立 ⇒ 归 0，pass
+    it("byBaseQid 对 NaN / ±Infinity 入参一律归 0", () => {
+        // 「绝不出非有限值」的兜底落在**出口**而不是「垃圾进不来」：
+        // `history.json` 可手改 / 可跨版本同步，`sec: Infinity` 在落盘层没有闸
+        // （`HistoryStore` 只挡 `sec > 0` 以下的），且 `Infinity > 0` 成立 ⇒
+        // 单靠三态判据吃不掉它。故 `byBaseQid` 返回前对终值过 Number.isFinite。
         expect(probe("q1", NaN)).toBe(0);
+        expect(probe("q1", Infinity)).toBe(0);
+        expect(probe("q1", -Infinity)).toBe(0);
     });
 
-    it("probe：byBaseQid 对 Infinity 入参不设防 → Infinity 穿到图表与 prompt", () => {
-        // 期望：`byBaseQid` 的「绝不出 NaN」应收口成「绝不出非有限值」（Infinity 同罪）
-        // 实际：`Infinity > 0` 成立 ⇒ sec 原样 Infinity，一路穿到
-        //   · `mmss(Infinity)` = "Infinity:NaN:NaN"（tooltip 印出 NaN）
-        //   · 逐题行 `${r.sec}s` = "Infinitys"（AI 照抄的字符串素材）
-        // 归因：**代码错**（`byBaseQid` 缺 Number.isFinite 出口归一，同 TimeBars.secOf 那道）
-        expect(Number.isFinite(probe("q1", Infinity))).toBe(true);
-    });
-
-    it("probe：Infinity 穿透链的可观测后果（图表 tooltip 出 NaN、prompt 行出 Infinity）", () => {
+    it("Infinity 穿透链已断：图表 tooltip 无 NaN、prompt 行无 Infinity", () => {
         const sec = probe("q1", Infinity);
         const bars = buildTimeBars([{ label: 1, sec, unanswered: false, wrong: false, partial: false }], fmt);
         expect(bars[0].title, "图表 title 不应出现 NaN").not.toContain("NaN");
         expect(prompt([res("q1", true, Infinity)], [q("q1", "极限")])).not.toContain("Infinity");
+        // 多步题同口径（求和后再归一）
+        const multi = byBaseQid(session([res("q1#0", true, Infinity), res("q1#1", true, 5)]));
+        expect(Number.isFinite(multi.get("q1")?.sec ?? NaN)).toBe(true);
+    });
+
+    it("脏值直达 TimeBars 出口：NaN/Infinity 按 0 收拾，**且 tooltip 不再是 NaN:NaN**", () => {
+        const dirty: TimeBarInput[] = [
+            { label: 1, sec: NaN, unanswered: false, wrong: false, partial: false },
+            { label: 2, sec: Infinity, unanswered: false, wrong: false, partial: false },
+            { label: 3, sec: -Infinity, unanswered: false, wrong: false, partial: false },
+            { label: 4, sec: 10, unanswered: false, wrong: false, partial: false },
+        ];
+        const bars = buildTimeBars(dirty, fmt);
+        expect(bars.map((c) => c.h)).toEqual([4, 4, 4, 100]);
+        // 出口归一已保证 sec 有限 ⇒ fmt.fmtTitle 里不会再算出「NaN:NaN」；
+        // 本夹具的 `fmt` 是**测试自带**的朴素口径（直接 mmss(x.sec)），
+        // 生产侧的三态化处置见 RoundReportApp 的 timeText 与 TimeBars.test。
+        expect(bars.map((c) => c.title).join(" ")).not.toContain("NaN");
+        expect(bars.map((c) => c.title).join(" ")).not.toContain("Infinity");
+        // 聚合档同口径（组内求和不得被脏值污染成 NaN）
+        const long = [
+            ...dirty,
+            ...Array.from({ length: 60 }, (_, i) => dirty[i % 4]).map((x, i) => ({ ...x, label: i + 5 })),
+        ];
+        const grouped = buildTimeBars(long, fmt);
+        expect(grouped.every((c) => Number.isFinite(c.h))).toBe(true);
     });
 });

@@ -178,7 +178,7 @@ ${done}`;
  *  ⚠️ **`sec` 的三态口径（Issue #177，本函数的唯一易错点）**：
  *  ① `> 0`＝该题**每一步**都记到了用时，值为各步之和；
  *  ② `0`＝**未记录**（任一步缺 `sec`，或整卷计时模式下根本没有逐题用时）；
- *  ③ **绝不允许出现 `NaN`**。
+ *  ③ **绝不允许出现非有限值**（`NaN` 与 `±Infinity` 同罪）。
  *
  *  旧实现是 `(cur?.sec ?? 0) + r.sec`——单步（绝大多数题）在 `r.sec` 缺失
  *  时即 `0 + undefined = NaN`，而**`NaN ?? 0` 仍是 `NaN`**（`??` 只吃
@@ -191,7 +191,21 @@ ${done}`;
  *    数据里没有 NaN**，否则再好的指令也拦不住照抄。
  *  故现口径把「是否每步都记到」单独累计，任缺一步整题按 `0`（未记录）；
  *  消费方一律用 `> 0` 判「有真用时」，`0` 与缺失同路（见 timeStateOf /
- *  报告图表的 `?? 0`）。 */
+ *  报告图表的 `?? 0`）。
+ *
+ *  ⚠️ **③ 的兜底落在出口，不落在「有没有垃圾进得来」**：`history.json` 是
+ *  可手改 / 可跨版本同步的存储，`sec: Infinity` 这种脏值**在落盘层没有闸**
+ *  （`HistoryStore` 只挡 `sec > 0` 以下的），故 `allTimed` 那轮的 `r.sec > 0`
+ *  判据吃不掉它：`Infinity > 0` 成立 ⇒ 原样留下，再穿到 `mmss(Infinity)`
+ *  ＝「Infinity:NaN:NaN」与逐题行的「Infinitys」。故**返回前对终值再过一次
+ *  `Number.isFinite`**——判据修的是常见形态，出口修的是「任何入参」（同
+ *  `TimeBars.secOf` 那道，两处同口径）。 */
+function secFinite(sec: number): number {
+    return Number.isFinite(sec) ? sec : 0;
+}
+
+/** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
+ *  ok=全步对、sec=各步用时求和；verdict 保留 brief 的 partial 标记）。 */
 export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
     const out = new Map<string, { ok: boolean; sec: number; verdict?: string }>();
     /** 该题每一步都记到了用时（见上文三态②：任缺一步整题归 0）。 */
@@ -201,14 +215,15 @@ export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: numb
         const cur = out.get(b);
         out.set(b, {
             ok: cur ? cur.ok && r.ok : r.ok,
-            sec: (cur?.sec ?? 0) + (r.sec ?? 0),
+            sec: secFinite((cur?.sec ?? 0) + (r.sec ?? 0)),
             verdict: cur?.verdict ?? r.verdict,
         });
         allTimed.set(b, (allTimed.get(b) ?? true) && r.sec > 0);
     }
     for (const [b, timed] of allTimed) {
         const hit = out.get(b);
-        if (hit && !timed) hit.sec = 0;
+        // 出口再归一一道：`allTimed` 的 `r.sec > 0` 拦不住 Infinity（见上文）
+        if (hit) hit.sec = timed ? secFinite(hit.sec) : 0;
     }
     return out;
 }

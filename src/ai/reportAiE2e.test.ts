@@ -26,10 +26,11 @@ import { aiSessions, initAiSessions, type AiSessionStore } from "./data/AiSessio
  * 失败兜底、空回复三条路径与生产同源（mock 掉就只验到我们自己的拼装），
  * 间接也把「槽在收口释放」这条队列口径一起验了。
  *
- * ⚠️ 真机从未命中的一条路径：`runAgentTextOrPanel` 成功路径里若抛错，
- * `finally { btn.disabled = false }` 在场、但**异常会继续向上逃逸**——
- * 两个消费方都是 `void runAgentTextOrPanel({...})`（fire-and-forget），
- * ⇒ 变成未处理 rejection。本文件末段探针钉这条形态。
+ * ⚠️ 真机可达的一条路径（原先由探针钉住，20260920 复核后已修）：输出区
+ * `innerHTML` 写入自身抛错时（DOM 已 detach / 被宿主替换），异常会继续向上
+ * 逃逸——两个消费方都是 `void runAgentTextOrPanel({...})`（fire-and-forget），
+ * ⇒ 未处理 rejection、用户零反馈。现出口把写入收进 `paint()` 帮手**静默
+ * 收手**；本文件末段改钉「不逃逸 + 按钮状态仍收口」。
  */
 
 /** 输出区替身：只实现被触碰的 innerHTML / removeAttribute；并**记录写入序**，
@@ -261,18 +262,20 @@ describe("出口端到端：两个消费方共用同一出口（零改动受益�
 });
 
 /**
- * ⚠️ **探针（预期会红，属「代码错」归因线索）**
+ * 出口端到端：**输出写入失败不影响功能**（原探针已修，20260920）
  *
- * 形态：`runAgentTextOrPanel` 的成功路径里，若 `out.innerHTML = ...` 自身抛错
- * （真机可达：DOM 已被卸载 / 输出区被宿主替换），`finally` 只恢复按钮，
- * **异常继续向上逃逸**；而两个消费方都是 fire-and-forget 的 `void run(...)`
- * ⇒ 未处理 rejection（真机表现为控制台报错 + 按钮状态虽恢复但用户无提示）。
- * 期望：出口把「渲染/写入失败」也收进原有 try/catch，`fail` 分支兜底（同
- * `agentChatOnce` 失败的处理），至少不得逃逸到调用方。
- * 归因：**代码错**（缺 catch，非测试口径问题）。
+ * 形态（真机可达）：报告/统计面板被切走或收起后 DOM 已 detach、或被宿主
+ * 替换，`out.innerHTML = ...` 会抛（`hierarchy`/`detached` 类）。原实现
+ * `finally` 只恢复按钮，**异常继续向上逃逸**；两个消费方都是
+ * fire-and-forget 的 `void run(...)` ⇒ 未处理 rejection（真机表现为控制台
+ * 报错 + 用户零反馈）。
+ *
+ * 现口径：`渲染/写入失败不算功能失败` —— 出口静默收手（AI 正文仍可在 AI
+ * 会话面板回看），**不得逃逸**，按钮与槽位照旧由 `finally` 收口。
  */
-describe("出口端到端：探针——输出写入失败时的逃逸", () => {
-    it("probe：out.innerHTML 抛错会逃逸到调用方（`void` 调用 ⇒ 未处理 rejection）", async () => {
+describe("出口端到端：输出写入失败（DOM 已 detach）不逃逸", () => {
+    it("out.innerHTML 抛错时出口不逃逸，且按钮仍收口为可用", async () => {
+        const btn = new FakeBtn();
         const out = {
             set innerHTML(_v: string) {
                 throw new Error("host detached");
@@ -285,7 +288,7 @@ describe("出口端到端：探针——输出写入失败时的逃逸", () => {
         await expect(
             runAgentTextOrPanel({
                 prompt: "你是刷题判卷助手。",
-                btn: new FakeBtn() as unknown as HTMLButtonElement,
+                btn: btn as unknown as HTMLButtonElement,
                 out,
                 modelId: "m",
                 loadingText: "分析中…",
@@ -293,9 +296,13 @@ describe("出口端到端：探针——输出写入失败时的逃逸", () => {
                 failPrefix: "AI 调用失败：",
             })
         ).resolves.toBeUndefined();
+        expect(btn.disabled, "失败路也必须把按钮恢复可用").toBe(false);
+        // 写入虽失败，AI 调用本身成功并登记进面板（产物可回看，不丢）
+        await store.ready();
+        expect(store.list().find((r) => r.kind === "ask")?.status).toBe("done");
     });
 
-    it("probe：prompt 非字符串（AI 侧脏输入）时同样逃逸", async () => {
+    it("prompt 非字符串（AI 侧脏输入）时同样不逃逸", async () => {
         const out = new FakeOut();
         await expect(
             runAgentTextOrPanel({

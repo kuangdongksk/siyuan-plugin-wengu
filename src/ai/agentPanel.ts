@@ -93,15 +93,35 @@ export async function runAgentTextOrPanel(opts: {
     if (await openAgentWithPrompt(opts.prompt)) return;
     const { btn, out } = opts;
     btn.disabled = true;
-    out.innerHTML = renderAiTextHtml("loading", opts.loadingText);
-    out.removeAttribute("hidden");
+    /** 输出区写入：**写失败不算功能失败**（Issue #177 复核追加）。
+     *
+     *  真机可达：报告/统计面板被切走或收起后 DOM 已 detach、或被宿主替换，
+     *  `innerHTML` 赋值会抛（`hierarchy`/`detached` 类错误）。此时唯一正确
+     *  的动作是**静默收手**——否则异常逃出本函数，而两个消费方都是
+     *  fire-and-forget 的 `void runAi()` ⇒ 未处理 rejection（真机表现为
+     *  控制台报错、用户零反馈）。按钮与槽位仍由外层 `finally` 收拾，故本
+     *  帮手只负责「不让写入失败掀桌」；写不进去的正文在 AI 会话面板里仍
+     *  可回看（页内降级路径每次都登记进面板）。 */
+    const paint = (html: string): void => {
+        try {
+            out.innerHTML = html;
+        } catch {
+            /* 输出区已不可达：无提示可给，收手（见上文） */
+        }
+    };
+    paint(renderAiTextHtml("loading", opts.loadingText));
+    try {
+        out.removeAttribute("hidden");
+    } catch {
+        /* 同上：宿主已 detach */
+    }
     try {
         // 独立会话，页内降级路径（登记进 AI 会话面板，标题取 prompt 前缀）
         const text = await agentChatOnce(opts.prompt, opts.modelId, AI_TIMEOUT.quick, undefined, { kind: "ask" });
         const body = text.trim();
-        out.innerHTML = body ? renderAiTextHtml("body", body) : renderAiTextHtml("empty", opts.emptyText);
+        paint(body ? renderAiTextHtml("body", body) : renderAiTextHtml("empty", opts.emptyText));
     } catch (e) {
-        out.innerHTML = renderAiTextHtml("fail", `${opts.failPrefix}${errText(e)}`);
+        paint(renderAiTextHtml("fail", `${opts.failPrefix}${errText(e)}`));
     } finally {
         btn.disabled = false;
     }

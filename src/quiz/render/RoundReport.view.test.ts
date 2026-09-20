@@ -223,10 +223,16 @@ describe("用时图分组聚合（Issue #155 块 B）· 源级", () => {
         expect(TIME_BARS).toMatch(/group\.every\(\(x\) => x\.unanswered\)\) return "wengu-bar-muted"/);
         expect(TIME_BARS).toMatch(/group\.some\(\(x\) => !x\.unanswered && x\.wrong\)\) return "wengu-bar-wrong"/);
         expect(TIME_BARS).toMatch(/group\.some\(\(x\) => !x\.unanswered && x\.partial\)\) return "wengu-bar-partial"/);
-        // 组总用时与柱高都过 secOf 归一（Issue #177：脏用时按 0 收拾，
-        // 源头已在 byBaseQid 修掉，出口再防一道——不许算出 height:NaN%）
+        // 组总用时与柱高都走**归一后的** sec（Issue #177：脏用时按 0 收拾，
+        // 源头已在 byBaseQid 修掉，出口再防一道——不许算出 height:NaN%）。
+        // ⚠️ 归一自 20260920 起提到**入口**（`clean` 数组）而不是在算式里
+        //    就地 secOf：这样交给 `fmt.fmtTitle/fmtGroup` 的 sec 也已是有限值，
+        //    调用方一句朴素 mmss 印不出「NaN:NaN」（TimeBars.test 有专锁）。
         expect(TIME_BARS).toMatch(
-            /const sec = group\.reduce\(\(sum, x\) => sum \+ \(x\.unanswered \? 0 : secOf\(x\)\), 0\)/
+            /const clean: TimeBarInput\[\] = list\.map\(\(x\) => \(\{ \.\.\.x, sec: secOf\(x\) \}\)\)/
+        );
+        expect(TIME_BARS).toMatch(
+            /const sec = group\.reduce\(\(sum, x\) => sum \+ \(x\.unanswered \? 0 : x\.sec\), 0\)/
         );
         expect(TIME_BARS).toMatch(
             /cols\.forEach\(\(c, i\) => \(c\.h = Math\.max\(MIN_H, Math\.round\(\(groupSec\[i\] \/ max\) \* 100\)\)\)\)/
@@ -244,6 +250,21 @@ describe("用时图分组聚合（Issue #155 块 B）· 源级", () => {
         const tail = (o: Record<string, string>): string => Object.keys(o).slice(-1)[0];
         expect(tail(ZH as Record<string, string>)).toBe("reportGroupTime");
         expect(tail(EN as Record<string, string>)).toBe("reportGroupTime");
+    });
+
+    it("柱 title 的用时**三态**：未答不注时间 / 未记录出文案 / 有真用时才 mmss（Issue #177）", () => {
+        // ⚠️ 不能直接 `mmss(x.sec)`：`mmss` 只夹 `Math.max(0, …)`，脏输入会
+        //    算出「NaN:NaN」/「Infinity:NaN:NaN」印进 tooltip（数据侧已在
+        //    byBaseQid 出口归一，这里是**文案侧的出口**，两处同口径）。
+        //    三态文案收口在 TIME_UNKNOWN_TEXT（同判卷 prompt，别各写一套）。
+        expect(SVELTE_SRC).toContain("TIME_UNKNOWN_TEXT");
+        expect(SVELTE_SRC).toMatch(
+            /const timeText = \(sec: number, unanswered: boolean\): string =>\s*unanswered \? t\("reportUnanswered"\) : sec > 0 \? mmss\(sec\) : TIME_UNKNOWN_TEXT;/
+        );
+        // 逐题档与聚合档**各**要过 timeText（不许某一档绕过）
+        expect(count(SVELTE_SRC, "timeText(")).toBe(2);
+        // 走的是「两档各自一个格式化器」的原形状，未把 mmss 直接钉死在 title 里
+        expect(SVELTE_SRC).not.toMatch(/fmtTitle: \(x\) =>[^\n]*mmss\(x\.sec\)/);
     });
 
     it("组柱/明细样式：TS 拼串触达的 .wengu-bar-* 留共享片，组件独占的明细块进 <style>", () => {

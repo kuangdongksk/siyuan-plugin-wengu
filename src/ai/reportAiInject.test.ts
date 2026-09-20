@@ -170,11 +170,38 @@ describe("接线（源级）：输出区三处写入一律过 renderAiTextHtml",
     const code = stripComments(AGENT_SRC);
 
     it("源码里 innerHTML 赋值的右值**只有** renderAiTextHtml（无裸字符串拼接直写）", () => {
-        const writes = [...code.matchAll(/([\w.$]+)\.innerHTML\s*=\s*([^;]+);/g)].map(
-            (m) => `${m[1]} = ${m[2].trim()}`
-        );
-        expect(writes.length).toBe(3); // loading / body-or-empty / fail
-        for (const w of writes) expect(w).toContain("renderAiTextHtml(");
+        // 契约：**任何**一处 `innerHTML =` 的右值，最终都只能来自
+        // `renderAiTextHtml`。做法是「顺调用点回溯」：右值若是局部帮手
+        // （如 `paint(html)`），就去找该帮手的定义体，再看它体内是否调用了
+        // 这个函数——**递归看整条链**，而不是钉死某一行写法。
+        //
+        // ⚠️ 为什么不用「数几处写入」：#177 复核把三处写入收进 `paint()`
+        //    帮手（写失败不逃离，见 reportAiE2e 的健壮性组），语义一字未变
+        //    而写法由 3 行直写变 1 处间接 —— 钉条数就是钉内部实现，改结构即
+        //    假红。**该拦的是「新增一条绕过 renderAiTextHtml 的直写」**。
+        // ⚠️ 右值捕获必须**限在同一行**（`[^;]+` 会跨行一路吃到下一个分号，
+        //    实测把 `out.innerHTML = html;` 后面的整段都裹进来）——用 [^;\n]+
+        // ⚠️ 右值捕获限在同一行（`[^;]+` 会跨行一路吃到下一个分号）
+        const writes = [...code.matchAll(/([\w.$]+)\.innerHTML\s*=\s*([^;\n]+);/g)].map((m) => m[2].trim());
+        expect(writes.length).toBeGreaterThanOrEqual(1);
+        for (const rhs of writes) {
+            // 直写：右值当场过 renderAiTextHtml —— 最理想，直接放行
+            if (/renderAiTextHtml\s*\(/.test(rhs)) continue;
+            // 间接写：右值是个**裸标识符**（帮手形参名，如 `paint` 收到的 html）
+            // ⇒ 回到**该标识符所在的函数体**里，看它体内有没有过 renderAiTextHtml。
+            // ⚠️ 只认这一层间接（拒绝无限递归的正则猜谜）：真出现多层转发
+            //    就先重构调用链，别把门禁写成能自欺的模糊匹配。
+            expect(/^[A-Za-z_$][\w$]*$/.test(rhs), `写入右值既非 renderAiTextHtml 调用也非裸标识符：${rhs}`).toBe(true);
+            // 该标识符唯一出现在形参表里 ⇒ 取其声明所在行往后的一小段函数体
+            const ident = new RegExp("\\b" + rhs + "\\b");
+            const decl = code.split("\n").findIndex((l) => ident.test(l) && /=>|function/.test(l));
+            expect(decl, `写入右值 ${rhs} 找不到声明它的帮手`).toBeGreaterThanOrEqual(0);
+            const body = code
+                .split("\n")
+                .slice(decl, decl + 20)
+                .join("\n");
+            expect(body, `帮手 ${rhs} 体内未过 renderAiTextHtml`).toContain("renderAiTextHtml(");
+        }
     });
 
     it("三处 kind 与文案字段一一对应（loading / body+empty / fail+errText）", () => {
@@ -205,24 +232,38 @@ describe("接线（源级）：输出区三处写入一律过 renderAiTextHtml",
 });
 
 /**
- * ⚠️ **探针（预期会红，属「断言口径 / 代码口径不一致」的归因线索）**
+ * `javascript:` 协议一条的口径（原「探针」已归因评审下结论）
  *
- * 任务验收标准写的是「`javascript:` 协议必须被拦住」。实测：`renderMdHtml`
- * 用的 markdown-it 默认 `validateLink` **只允许** http/https/mailto 等白名单
- * 协议，`javascript:` 链接**不会被渲染成 `<a>`**——但它的输出是
+ * 验收标准曾写「`javascript:` 必须被**转义**」。实测：`renderMdHtml` 用的
+ * markdown-it 默认 `validateLink` **只允许** http/https/mailto 等白名单协议，
+ * `javascript:` 链接**不会被渲染成 `<a>`**——但输出是
  * `[点我](javascript:alert(1))` 这串**原样文本**，不是带 `&lt;` 的转义形态。
- * 即：无 XSS 风险（安全成立），但「必须转义」这条措辞对不上实际实现。
- * 归因：**口径错**（验收标准应写成「不产出可执行链接/协议不得进 href/src」），
- * 待归因评审定口径；本单只报不改。
+ * 即：**无 XSS 风险（安全成立），「转义」这条措辞对不上实际实现**。
+ *
+ * 归因结论（20260920 复核）：**断言口径错**，非代码缺陷 —— 「拒渲」与
+ * 「转义」是两条不同的正确路径，验收标准应写成「不产出可执行链接/协议不得
+ * 进 href/src」，而不是「产物不含协议名原文」。故本条改钉**真正的契约**：
+ * ① 不产出可执行链接/图片；② 载荷原样留存为**文本**（不是被当 HTML 解掉）。
+ * ② 这条是刻意的：md-it 拒渲时不做转义，`javascript:` 字面留在 `div.p` 的
+ * **文本节点**里 —— 安全上等价（不会被当 HTML 解），但**换渲染器就有新面**，
+ * 所以钉住形态而不是钉「必须是安全的」。
  */
-describe("注入对抗：探针——javascript: 协议的断言口径", () => {
-    it("probe：载荷被「拒绝渲染」而非「转义」（无 href，但保留原始字面量）", () => {
+describe("注入对抗：javascript: 协议（拒渲＝安全，不做转义）", () => {
+    it("载荷被「拒绝渲染」而非「转义」：无 href/src，且原样留存为文本", () => {
         const html = injected("[点我](javascript:alert(1))");
         expect(html).not.toMatch(/href|src/i); // ✅ 安全：确实没产出链接/图片
-        // ⚠️ 期望（验收标准措辞）：「载荷必须转义」⇒ 产物不含协议名原文
-        // 实际：载荷**原样留存为文本**（md-it 拒绝渲染，未做任何转义）
-        // 归因：**断言口径错**（措辞把「拒渲」等同于「转义」）而非安全漏洞，
-        //       但「无转义」这一点在二次渲染场景下会变成新面 ⇒ 口径需定夺
-        expect(html).not.toContain("javascript:");
+        expect(html).not.toMatch(/<a[\s>]/i); // 也没产出 <a> 标签（**契约**）
+        // 形态钉住：协议名原文留在**文本节点**里（不是 HTML 属性、不是标签）；
+        // 拒渲分支不做转义 ⇒ 这里**不该**出现 `&lt;`（那是另一条路径的形态，
+        // 见本文件「裸 HTML 一律转义」那组）
+        expect(html).toContain("javascript:");
+        expect(html).not.toContain("&lt;");
+    });
+
+    it("危险协议不止这一种：图片协议/vbscript/data 同样不进 href/src", () => {
+        for (const md of ["![x](javascript:alert(1))", "[a](vbscript:msgbox)", "[b](data:text/html,<b>)"]) {
+            const html = injected(md);
+            expect(html, `${md} 不应产出可执行链接/图片`).not.toMatch(/href|src/i);
+        }
     });
 });

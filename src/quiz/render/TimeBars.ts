@@ -113,7 +113,12 @@ export function buildTimeBars(
 ): TimeBarCol[] {
     if (list.length === 0) return [];
     const size = barGroupSize(list.length);
-    const items: TimeBarItem[] = list.map((x) => ({
+    // ⚠️ 交给格式化器的输入**先归一**（Issue #177 出口口径）：`sec` 若是脏值，
+    //    调用方一句朴素的 `mmss(x.sec)` 就印出「NaN:NaN」/「Infinity:NaN:NaN」
+    //    ——本模块不能一边把 secOf 当内部实现细节、一边把脏 sec 原样递出去。
+    //    归一后 `TimeBarInput.sec` 的那句「须为有限数」才是**本模块保证**的。
+    const clean: TimeBarInput[] = list.map((x) => ({ ...x, sec: secOf(x) }));
+    const items: TimeBarItem[] = clean.map((x) => ({
         label: x.label,
         h: MIN_H,
         cls: clsOf(x),
@@ -121,23 +126,23 @@ export function buildTimeBars(
     }));
 
     if (size === 1) {
-        const max = Math.max(1, ...list.map(secOf));
+        const max = Math.max(1, ...clean.map(secOf));
         // ⚠️ 逐题列也带 `items`（单元素）——两档的列**形状必须一致**，
         // 否则组件要按档分流取明细（#155 前逐题 title 直接挂在列上，
         // 组件里那份分叉就是下次漏改的入口）。
         return items.map((it, i) => ({
             ...it,
             grouped: false,
-            h: Math.max(MIN_H, Math.round((secOf(list[i]) / max) * 100)),
+            h: Math.max(MIN_H, Math.round((clean[i].sec / max) * 100)),
             items: [it],
         }));
     }
 
     const cols: TimeBarCol[] = [];
     const groupSec: number[] = []; // 各组已答总用时（与 cols 同下标）
-    for (let start = 0; start < list.length; start += size) {
-        const group = list.slice(start, start + size);
-        const sec = group.reduce((sum, x) => sum + (x.unanswered ? 0 : secOf(x)), 0);
+    for (let start = 0; start < clean.length; start += size) {
+        const group = clean.slice(start, start + size);
+        const sec = group.reduce((sum, x) => sum + (x.unanswered ? 0 : x.sec), 0);
         groupSec.push(sec);
         cols.push({
             grouped: true,

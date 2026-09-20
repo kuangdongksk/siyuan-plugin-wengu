@@ -68,10 +68,21 @@ describe("接线（源级断言：改 innerHTML 不许改名、出错不许裸 t
     /** 剥注释：源码注释里成段复述了旧写法，不剥会误伤。 */
     const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
-    it("输出区三处写入都过 renderAiTextHtml（无裸 textContent 写入）", () => {
-        expect(code).toContain('out.innerHTML = renderAiTextHtml("loading", opts.loadingText)');
-        expect(code).toContain('renderAiTextHtml("body", body)');
-        expect(code).toContain('renderAiTextHtml("fail", `${opts.failPrefix}${errText(e)}`)');
+    it("输出区三态文案都过 renderAiTextHtml（无裸 textContent 写入）", () => {
+        // ⚠️ 断言写成「产物在、载荷在」而非钉死赋值语句整行：源码级锁要防的是
+        //    「有人绕开 renderAiTextHtml 直接写裸 HTML / 裸 textContent」，
+        //    不是「写入语句长什么样」。钉整行的代价 20260920 现过：#177 复核把
+        //    三处写入收进 `paint()` 帮手（写失败不逃离，见 reportAiE2e 探针），
+        //    语义一字未变却让三条断言同时变红 —— 那是**内部实现反射**，不是
+        //    契约。改钉「产物函数 + 载荷 + 无旁路」三件。
+        for (const call of [
+            'renderAiTextHtml("loading", opts.loadingText)',
+            'renderAiTextHtml("body", body)',
+            'renderAiTextHtml("empty", opts.emptyText)',
+            'renderAiTextHtml("fail", `${opts.failPrefix}${errText(e)}`)',
+        ]) {
+            expect(code).toContain(call);
+        }
         expect(code).not.toMatch(/out\.textContent\s*=/);
     });
 

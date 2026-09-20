@@ -167,6 +167,25 @@ describe("buildTimeBars 聚合档（>60）", () => {
         expect(cols[2].h).toBe(4);
     });
 
+    it("归一后的 sec 让调用方的 mmss 出不了 NaN:NaN（Issue #177 出口口径）", () => {
+        // ⚠️ 本模块**不产出** title（tx 由调用方给）——但它交出去的 sec 必须已
+        //    是有限数，否则任何朴素 `mmss(x.sec)` 直接印出「NaN:NaN」。
+        //    生产侧的三态文案见 RoundReportApp 的 timeText；此处锁**数据口**。
+        const seen: number[] = [];
+        const spy = {
+            fmtTitle: (x: TimeBarInput): string => {
+                seen.push(x.sec);
+                return "t";
+            },
+            fmtGroup: (g: { sec: number }): string => {
+                seen.push(g.sec);
+                return "t";
+            },
+        };
+        buildTimeBars([q(1, Number.NaN, "right"), q(2, Number.POSITIVE_INFINITY, "right")], spy);
+        for (const s of seen) expect(Number.isFinite(s), `交给格式化器的 sec 必须有限，实际 ${s}`).toBe(true);
+    });
+
     it("组 title 文案与组内明细的逐题 title 都拿到", () => {
         const cols = buildTimeBars(
             [q(1, 5, "right"), q(2, 0, "none"), ...right(60).map((x) => ({ ...x, label: x.label + 2 }))],
