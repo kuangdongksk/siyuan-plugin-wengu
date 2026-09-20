@@ -276,3 +276,47 @@ describe("NaN 矩阵：非有限值在 byBaseQid 出口一律归 0（Infinity �
         expect(grouped.every((c) => Number.isFinite(c.h))).toBe(true);
     });
 });
+
+/**
+ * ⚠️ **残余缺口（同缺陷类，`it.fails` 钉住）**
+ *
+ * `byBaseQid` 出口已把**逐题**用时归一到有限值，但同一处的**汇总用时**没有：
+ * `buildAnalysisPrompt` 的「本轮」行写 `mmss(m.totalSec)`，`mmss` 只夹
+ * `Math.max(0, …)` ⇒ 非有限入参直接印「Infinity:NaN:NaN」。报告组件侧同形
+ * 两处（`mmss(model.totalSec)` / `mmss(model.overtimeSec)`）。
+ *
+ * **① totalSec：可达（实测，同一根因只修了一半）**
+ * `m.totalSec` ← `RoundReport` 的 `ctx.timer.elapsed()` ←
+ * `TimerController.baseSec` ← 「继续上次」时 `StartPanel` 传的
+ * `unfinished.elapsedSec`——**它就是 history.json 里那个可手改 / 可跨版本同步
+ * 的字段**，与 `byBaseQid` 那条修复所引的通道**逐字同一个**：
+ * `JSON.parse('{"elapsedSec":1e999}')` → `Infinity`，`typeof` 仍是 number，
+ * 落盘层没有闸。故这不是「理论脏值」——逐题 `sec` 补了出口归一，汇总
+ * `elapsedSec` 漏了，属**同口径未收口**。
+ *
+ * **② overtimeSec：不可达（只作一致性锁，不虚报面）**
+ * `overtimeSec` 是 `TimerController.tick()` 里的整数计数器、**不落盘**
+ * （`start()` 每次重置为 0），拿不到 `±Infinity`。
+ * （`ratePct` 对 Infinity 有 `Math.min(100, …)` 钳位，同样不可达，故不钉。）
+ *
+ * 归因：**代码错**（口径不一致）。但**不在本单验收标准字面范围内**（标准只
+ * 点了逐题 `sec` / `byBaseQid` / `TimeBars`）⇒ 只钉不修，等你的归因评审
+ * 决定是否并入同一条派单。真补上归一后，① 会因「意外通过」变红，届时摘掉
+ * 它那行的 `it.fails` 即可（② 可一并摘）。
+ */
+describe("NaN 矩阵（残余缺口）：汇总行 mmss 未过出口归一", () => {
+    const empty = session([]);
+
+    it.fails(
+        "① buildAnalysisPrompt 的 totalSec（history.json elapsedSec 通道）非有限时，「本轮」行不应出 NaN:NaN",
+        () => {
+            const p = buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: Infinity, overtimeSec: 0 });
+            expect(p.split("\n").find((l) => l.startsWith("本轮："))).not.toContain("NaN");
+        }
+    );
+
+    it.fails("② overtimeSec 非有限时「超时」段不应出 NaN:NaN（一致性锁，该入参当前不可达）", () => {
+        const p = buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: 60, overtimeSec: Infinity });
+        expect(p).not.toContain("NaN");
+    });
+});
