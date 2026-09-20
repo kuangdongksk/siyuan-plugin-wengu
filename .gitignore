@@ -19,3 +19,4 @@ package-lock.json
 .workbuddy/
 design/**/*.od-skills/
 design/**/*.artifact.json
+.ccw/state/
