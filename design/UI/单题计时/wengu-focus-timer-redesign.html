@@ -1,0 +1,3167 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="dark" />
+        <meta
+            name="description"
+            content="温故 · 刷题主区「单题计时切换（focus-timer）」高保真施工稿：焦点亮度分级、切换时序、作答计时冻结、头部与题号栏落点，四屏带可交互取景窗与实现侧取值表。"
+        />
+        <title>温故 · 单题计时切换（focus-timer）· 高保真施工稿</title>
+        <style>
+            /* ══════════════════════════════════════════════════════════════════
+   温故 · 刷题主区 · 单题计时切换（focus-timer）高保真施工稿
+   令牌取自运行中思源 3.8.3 + Neo+ 深色暖调实测值（design/theme-tokens-neo.md），
+   派生值一律沿 oklch 调明度、不新增色相。
+   seed 六个令牌（--bg/--surface/--fg/--muted/--border/--accent）在最前面，
+   其余温故令牌是它们的别名与 oklch 派生。
+   ══════════════════════════════════════════════════════════════════ */
+            :root {
+                /* ── seed 六令牌 → 绑定温故主题 ── */
+                --bg: #272e33;
+                --surface: #364852;
+                --fg: #d3cab4;
+                --muted: #bab3a1;
+                --border: rgba(226, 218, 197, 0.2);
+                --accent: #c5866a;
+                /* ── 温故令牌别名 ── */
+                --primary: var(--accent);
+                --on-primary: #fdf6ef;
+                /* ── oklch 派生（只动明度） ── */
+                --well: #1d2e37;
+                --deepen: rgba(29, 46, 55, 0.52);
+                --fg-3: #9a9484;
+                --faint: rgba(211, 202, 180, 0.42);
+                --border-soft: rgba(226, 218, 197, 0.12);
+                --border-strong: rgba(226, 218, 197, 0.32);
+                --hover: rgba(226, 218, 197, 0.06);
+                --primary-text: #e1a990;
+                --primary-strong: #8c5237;
+                --primary-strong-hover: #77432a;
+                --primary-soft: rgba(197, 134, 106, 0.16);
+                --ok: #9ad4b4;
+                --ok-soft: rgba(154, 212, 180, 0.13);
+                --bad: #f19f94;
+                --bad-soft: rgba(241, 159, 148, 0.12);
+                --warn: #e9b95e;
+                --page-bg: #1c2328;
+                --shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.35);
+                /* ── 字体：系统栈，不做自定义字体 ── */
+                --font-display: "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Microsoft Yahei", sans-serif;
+                --font-ui: var(--font-display);
+                --font-read: Georgia, "Times New Roman", "Songti SC", "Source Han Serif SC", serif;
+                --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+                /* ── spacing 8 阶 ── */
+                --sp2: 8px;
+                --sp3: 12px;
+                --sp4: 16px;
+                --sp5: 20px;
+                --sp6: 24px;
+                --sp7: 32px;
+                --r1: 6px;
+                --r2: 8px;
+                --r3: 12px;
+                /* ── 本稿唯一新增的一组取值：焦点亮度 ── */
+                --focus-dim: 0.22; /* 非焦点卡 */
+                --focus-lift: 0.45; /* 非焦点卡悬停 */
+                --focus-ms: 150ms; /* 过渡时长（上限） */
+                /* ── 版面 ── */
+                --w-win: 1360px;
+                --w-card: 820px;
+            }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            html {
+                -webkit-text-size-adjust: 100%;
+            }
+            body {
+                margin: 0;
+                background: var(--page-bg);
+                color: var(--fg);
+                font: 400 13px/1.65 var(--font-ui);
+                -webkit-font-smoothing: antialiased;
+                padding: 0 0 84px;
+            }
+            h1,
+            h2,
+            h3,
+            p,
+            ul,
+            ol,
+            figure,
+            blockquote {
+                margin: 0;
+            }
+            ul,
+            ol {
+                padding: 0;
+                list-style: none;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: none;
+                border: 0;
+                padding: 0;
+                cursor: pointer;
+            }
+            h1,
+            h2,
+            h3 {
+                font-family: var(--font-display);
+            }
+            p {
+                text-wrap: pretty;
+            }
+            :focus-visible {
+                outline: 2px solid var(--primary-text);
+                outline-offset: 2px;
+                border-radius: var(--r1);
+            }
+            .ic {
+                width: 15px;
+                height: 15px;
+                flex: none;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.7;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .ic-sm {
+                width: 12px;
+                height: 12px;
+            }
+            .num {
+                font-family: var(--font-mono);
+                font-variant-numeric: tabular-nums;
+            }
+            .sheet {
+                width: min(var(--w-win) + 96px, 100%);
+                margin: 0 auto;
+                padding: 0 48px;
+            }
+
+            /* ── 稿纸层（非产品 UI） ─────────────────────────────────────── */
+            .doc-head {
+                border-bottom: 1px solid var(--border-soft);
+                padding-top: 34px;
+                padding-bottom: 22px;
+            }
+            .kicker {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font: 500 11px/1 var(--font-mono);
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: var(--fg-3);
+            }
+            .kicker::after {
+                content: "";
+                flex: 1;
+                height: 1px;
+                background: var(--border-soft);
+            }
+            .doc-head h1 {
+                margin-top: 16px;
+                font-size: 27px;
+                line-height: 1.32;
+                font-weight: 600;
+                letter-spacing: 0.005em;
+            }
+            .doc-head h1 em {
+                font-style: normal;
+                color: var(--primary-text);
+            }
+            .lede {
+                margin-top: 11px;
+                max-width: 84ch;
+                font-size: 13px;
+                line-height: 1.85;
+                color: var(--muted);
+            }
+            .rules {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+                gap: var(--sp2);
+                margin-top: 20px;
+            }
+            .rule {
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r1);
+                padding: 8px 12px;
+                font-size: 12px;
+                line-height: 1.65;
+                color: var(--fg-3);
+            }
+            .rule b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            /* 亮度图例：三张真卡缩样，取值即真值 */
+            .legend {
+                display: flex;
+                align-items: flex-end;
+                gap: var(--sp5);
+                margin-top: 22px;
+                flex-wrap: wrap;
+            }
+            .legend-item {
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+            }
+            .legend-chip {
+                width: 132px;
+                height: 62px;
+                border: 1px solid var(--border);
+                border-radius: var(--r2);
+                background: var(--surface);
+                padding: 9px 11px;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .legend-chip i {
+                display: block;
+                height: 4px;
+                border-radius: 2px;
+                background: var(--fg);
+            }
+            .legend-chip i:nth-child(1) {
+                width: 54%;
+                opacity: 0.85;
+            }
+            .legend-chip i:nth-child(2) {
+                width: 88%;
+                opacity: 0.4;
+            }
+            .legend-chip i:nth-child(3) {
+                width: 66%;
+                opacity: 0.4;
+            }
+            .l-dim {
+                opacity: var(--focus-dim);
+            }
+            .l-lift {
+                opacity: var(--focus-lift);
+            }
+            .legend-key {
+                font: 400 11.5px/1.5 var(--font-mono);
+                color: var(--fg-3);
+            }
+            .legend-key b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .legend-note {
+                font-size: 12px;
+                line-height: 1.7;
+                color: var(--fg-3);
+                max-width: 34ch;
+                padding-bottom: 2px;
+            }
+
+            /* ── 稿件导航条（稿纸层）：四屏 + 口径，随滚动高亮当前段 ──────── */
+            .docnav {
+                position: sticky;
+                top: 0;
+                z-index: 20;
+                background: color-mix(in oklab, var(--page-bg) 86%, transparent);
+                backdrop-filter: blur(14px);
+                border-bottom: 1px solid var(--border-soft);
+            }
+            .docnav-in {
+                width: min(var(--w-win) + 96px, 100%);
+                margin: 0 auto;
+                padding: 0 48px;
+                height: 52px;
+                display: flex;
+                align-items: center;
+                gap: var(--sp5);
+            }
+            .dn-brand {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                color: var(--fg);
+                white-space: nowrap;
+            }
+            .dn-brand i {
+                width: 7px;
+                height: 7px;
+                border-radius: 2px;
+                background: var(--primary);
+                flex: none;
+            }
+            .dn-tail {
+                font: 400 11.5px/1.6 var(--font-mono);
+                color: var(--fg-3);
+                white-space: nowrap;
+            }
+            .dn-links {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+                margin-left: auto;
+            }
+            .dn {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                height: 30px;
+                padding: 0 11px;
+                border-radius: var(--r1);
+                font-size: 12.5px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+            .dn:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .dn .n {
+                font-family: var(--font-mono);
+                font-size: 10.5px;
+                letter-spacing: 0.06em;
+                color: var(--fg-3);
+            }
+            .dn.on {
+                background: var(--primary-soft);
+                color: var(--fg);
+                box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 32%, transparent);
+            }
+            .dn.on .n {
+                color: var(--primary-text);
+            }
+
+            /* ── 屏：说明条 + 窗口 + 规格表 ─────────────────────────────── */
+            .screen {
+                padding-block: 44px 0;
+                scroll-margin-top: 68px;
+            }
+            .screen + .screen {
+                border-top: 1px solid var(--border-soft);
+                margin-top: 46px;
+            }
+            .cap {
+                display: flex;
+                gap: 9px;
+                align-items: flex-start;
+                max-width: 96ch;
+                font-size: 13px;
+                line-height: 1.8;
+                color: var(--muted);
+            }
+            .cap .no {
+                flex: none;
+                font-family: var(--font-mono);
+                font-weight: 600;
+                color: var(--primary-text);
+                padding-top: 2px;
+            }
+            .cap b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .cap-sub {
+                margin-top: 6px;
+                font-size: 12px;
+                line-height: 1.75;
+                color: var(--fg-3);
+            }
+            .screen-body {
+                margin-top: 18px;
+            }
+
+            /* ── 思源窗口壳（产品外框，非本稿改动面） ─────────────────── */
+            .win {
+                width: 100%;
+                height: 820px;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                box-shadow: var(--shadow);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                position: relative;
+            }
+            .win-title {
+                height: 34px;
+                flex: none;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 0 14px;
+                background: rgba(0, 0, 0, 0.18);
+                border-bottom: 1px solid var(--border);
+            }
+            .wt-ico {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                background: var(--primary);
+                color: var(--on-primary);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .wt-ico .ic {
+                width: 10px;
+                height: 10px;
+                stroke-width: 2.2;
+            }
+            .wt-t {
+                font-size: 12px;
+                color: var(--muted);
+                letter-spacing: 0.03em;
+            }
+            .win-glyphs {
+                margin-left: auto;
+                display: flex;
+                gap: 2px;
+            }
+            .wg {
+                width: 32px;
+                height: 22px;
+                border-radius: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--faint);
+            }
+            .wg:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .win-tabs {
+                height: 34px;
+                flex: none;
+                display: flex;
+                background: rgba(0, 0, 0, 0.12);
+                border-bottom: 1px solid var(--border);
+                padding: 0 8px;
+            }
+            .tab {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                padding: 0 15px;
+                font-size: 12.5px;
+                color: var(--muted);
+                border-right: 1px solid var(--border);
+                position: relative;
+            }
+            .tab:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .tab.on {
+                background: var(--bg);
+                color: var(--fg);
+            }
+            .tab.on::after {
+                content: "";
+                position: absolute;
+                inset: 0 0 auto;
+                height: 2px;
+                background: var(--primary);
+            }
+            .app {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+            }
+            .dock {
+                width: 42px;
+                flex: none;
+                border-right: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 10px 0;
+                gap: 4px;
+                background: rgba(0, 0, 0, 0.1);
+            }
+            .dk {
+                width: 30px;
+                height: 30px;
+                border-radius: var(--r1);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--faint);
+            }
+            .dk:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .dk.on {
+                background: var(--primary-soft);
+                color: var(--primary-text);
+                box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent);
+            }
+            .side {
+                width: 248px;
+                flex: none;
+                border-right: 1px solid var(--border);
+                background: rgba(0, 0, 0, 0.06);
+                padding: 12px 12px 0;
+                display: flex;
+                flex-direction: column;
+                gap: var(--sp2);
+            }
+            .sh-t {
+                font-size: 12.5px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+            }
+            .trow {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                height: 28px;
+                padding: 0 8px;
+                border-radius: var(--r1);
+                font-size: 12.5px;
+                color: var(--muted);
+            }
+            .trow:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .trow.on {
+                background: var(--primary-soft);
+                color: var(--fg);
+                box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 34%, transparent);
+            }
+            .trow.sub {
+                padding-left: 22px;
+            }
+            .trow .ic {
+                width: 13px;
+                height: 13px;
+                color: var(--fg-3);
+            }
+            .main {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            /* 头部统计条（含「本题」计时标签） */
+            .stats {
+                height: 46px;
+                flex: none;
+                display: flex;
+                align-items: center;
+                gap: 13px;
+                padding: 0 20px;
+                border-bottom: 1px solid var(--border);
+                font-size: 12.5px;
+                color: var(--muted);
+                background: rgba(0, 0, 0, 0.06);
+            }
+            .st-name {
+                color: var(--fg);
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .st-sep {
+                width: 1px;
+                height: 15px;
+                background: var(--border-strong);
+                flex: none;
+            }
+            .st-item b {
+                color: var(--fg);
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .st-timer {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                color: var(--muted);
+                font-variant-numeric: tabular-nums;
+            }
+            .st-now {
+                margin-left: auto;
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .st-now .ic {
+                color: var(--primary-text);
+            }
+            .st-now.frozen .ic {
+                color: var(--fg-3);
+            }
+            .st-now b {
+                font-variant-numeric: tabular-nums;
+            }
+            .work {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+            }
+            /* 题号栏 NumRail */
+            .qnav {
+                width: 62px;
+                flex: none;
+                border-right: 1px solid var(--border);
+                background: rgba(0, 0, 0, 0.06);
+                padding: 12px 10px;
+                display: flex;
+                flex-direction: column;
+                gap: var(--sp2);
+            }
+            .qn-cap {
+                font-size: 11px;
+                color: var(--fg-3);
+                text-align: center;
+                letter-spacing: 0.03em;
+            }
+            .qn-cap b {
+                color: var(--fg);
+            }
+            .qn-grid {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                display: grid;
+                align-content: start;
+                gap: 5px;
+                padding-right: 2px;
+            }
+            .qn {
+                height: 28px;
+                border: 1px solid var(--border);
+                border-radius: 5px;
+                background: transparent;
+                color: var(--muted);
+                font-size: 12px;
+                font-variant-numeric: tabular-nums;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex: none;
+            }
+            .qn:hover {
+                background: var(--hover);
+                color: var(--fg);
+                border-color: var(--border-strong);
+            }
+            .qn.cur {
+                background: var(--primary-strong);
+                border-color: var(--primary-strong);
+                color: var(--on-primary);
+                font-weight: 700;
+            }
+            /* 当前格也要有悬停反馈：压深一档，暖白字对比度不降（与主按钮同一取值） */
+            .qn.cur:hover {
+                background: var(--primary-strong-hover);
+                border-color: var(--primary-strong-hover);
+                color: var(--on-primary);
+            }
+            .qn.ok {
+                background: var(--ok-soft);
+                border-color: color-mix(in oklab, var(--ok) 42%, transparent);
+                color: var(--ok);
+            }
+            .qn.bad {
+                background: var(--bad-soft);
+                border-color: color-mix(in oklab, var(--bad) 42%, transparent);
+                color: var(--bad);
+            }
+            .qn-more {
+                font-size: 10.5px;
+                color: var(--fg-3);
+                text-align: center;
+                flex: none;
+            }
+            .qn-legend {
+                flex: none;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                border-top: 1px solid var(--border);
+                padding-top: 8px;
+                font-size: 10.5px;
+                color: var(--fg-3);
+            }
+            .lgd {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .lgd i {
+                width: 8px;
+                height: 8px;
+                border-radius: 3px;
+                display: block;
+                border: 1px solid var(--border-strong);
+            }
+            .lgd.d-cur i {
+                background: var(--primary);
+                border-color: var(--primary);
+            }
+            .lgd.d-ok i {
+                background: var(--ok-soft);
+                border-color: var(--ok);
+            }
+            .lgd.d-bad i {
+                background: var(--bad-soft);
+                border-color: var(--bad);
+            }
+
+            /* ── 长卷滚动窗：焦点亮度的唯一作用场 ─────────────────────── */
+            .qwrap {
+                flex: 1;
+                min-width: 0;
+                position: relative;
+                overflow-y: auto;
+                padding: 18px 34px 40px;
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+            .qwrap > * {
+                width: min(var(--w-card), 100%);
+                margin-inline: auto;
+                flex: none;
+            }
+            .qcard,
+            .qgroup .gmat,
+            .qgroup .qgh {
+                transition: opacity var(--focus-ms) linear;
+            }
+            /* 规则一：焦点卡满亮度，其余 0.22 */
+            .qcard {
+                opacity: var(--focus-dim);
+            }
+            .qcard:not(.is-focus):hover {
+                opacity: var(--focus-lift);
+            }
+            /* 键盘路径：焦点落在卡内任一控件上即回满亮度，不经过低对比态 */
+            .qcard.is-focus,
+            .qcard:not(.is-focus):focus-within {
+                opacity: 1;
+            }
+            /* 规则二：材料组——组头与材料随组内焦点，组内小题各自计亮度 */
+            .qgroup:not(.has-focus) .gmat,
+            .qgroup:not(.has-focus) .qgh {
+                opacity: var(--focus-dim);
+            }
+            .qgroup:focus-within .gmat,
+            .qgroup:focus-within .qgh {
+                opacity: 1;
+            }
+            /* 系统级「减少动态效果」：本条归零，切换即时到位（口径仍是一条亮度，只是不过渡） */
+            @media (prefers-reduced-motion: reduce) {
+                :root {
+                    --focus-ms: 0ms;
+                }
+            }
+            /* 屏 ② 重放用：回到起始帧时先关掉过渡，否则复位自己也会淡一次 */
+            .pane-view.no-anim .qcard {
+                transition: none;
+            }
+            .qgroup {
+                width: min(var(--w-card), 100%);
+                margin-inline: auto;
+                flex: none;
+                border: 1px solid var(--border);
+                border-radius: var(--r3);
+                background: color-mix(in oklab, var(--bg) 38%, var(--surface));
+                padding: 14px;
+                display: flex;
+                flex-direction: column;
+                gap: var(--sp3);
+            }
+            .qgh {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .gmat {
+                background: var(--well);
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r2);
+                padding: 13px 18px 15px;
+            }
+            .gmat-hd {
+                display: flex;
+                align-items: baseline;
+                justify-content: space-between;
+                gap: var(--sp4);
+                margin-bottom: 7px;
+            }
+            .gmat-t {
+                font-family: var(--font-read);
+                font-size: 13.5px;
+                font-weight: 600;
+                color: var(--fg);
+            }
+            .gmat p {
+                font-family: var(--font-read);
+                font-size: 14px;
+                line-height: 1.82;
+                color: var(--fg);
+                max-width: 68ch;
+            }
+            .gmat p + p {
+                margin-top: 7px;
+            }
+            .gcards {
+                display: flex;
+                flex-direction: column;
+                gap: var(--sp3);
+            }
+            .qcard {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--r3);
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+                display: flex;
+                flex-direction: column;
+                scroll-margin: 14px;
+            }
+            .qcard--sub {
+                background: color-mix(in oklab, var(--bg) 30%, var(--surface));
+            }
+            .qh {
+                padding: 14px 20px 11px;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: flex-start;
+                gap: var(--sp3);
+            }
+            .qh-l {
+                flex: 1;
+                min-width: 0;
+            }
+            .qtags {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                flex-wrap: wrap;
+                margin-bottom: 5px;
+            }
+            .chip {
+                font-size: 11.5px;
+                font-weight: 600;
+                border-radius: 99px;
+                padding: 2.5px 10px;
+                letter-spacing: 0.02em;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                white-space: nowrap;
+            }
+            .chip .ic {
+                width: 11px;
+                height: 11px;
+            }
+            .c-no {
+                background: var(--primary-soft);
+                color: var(--primary-text);
+                border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent);
+            }
+            .c-type,
+            .c-grp {
+                background: var(--well);
+                color: var(--muted);
+                border: 1px solid var(--border);
+            }
+            .c-qid {
+                background: var(--well);
+                color: var(--fg);
+                border: 1px solid var(--border-strong);
+            }
+            /* 「本题用时」注记——提交判分后才有 */
+            .c-time {
+                background: var(--well);
+                color: var(--fg);
+                border: 1px solid var(--border-strong);
+            }
+            .c-time .ic {
+                color: var(--muted);
+            }
+            .qt {
+                font-size: 15.5px;
+                font-weight: 600;
+                letter-spacing: 0.01em;
+                line-height: 1.4;
+            }
+            .qh-meta {
+                font-size: 11.5px;
+                color: var(--muted);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .qb {
+                padding: 15px 20px 4px;
+            }
+            .stem {
+                font-size: 14.5px;
+                line-height: 1.9;
+            }
+            .fx {
+                font-family: var(--font-read);
+                font-size: 15px;
+                line-height: 1.9;
+            }
+            .fx var {
+                font-style: italic;
+            }
+            .fx-given {
+                margin: 11px 0 2px;
+                padding: 9px 15px;
+                background: var(--well);
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r1);
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 5px 20px;
+                font-family: var(--font-read);
+                font-size: 14px;
+            }
+            .fx-given .ask {
+                font-family: var(--font-ui);
+                font-size: 12.5px;
+                font-weight: 600;
+                color: var(--primary-text);
+                border-left: 1px solid var(--border-strong);
+                padding-left: 16px;
+            }
+            .frac {
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                vertical-align: middle;
+                margin: 0 3px;
+                line-height: 1.28;
+                font-size: 0.9em;
+            }
+            .frac .fn {
+                padding: 0 5px 1px;
+                border-bottom: 1.3px solid currentColor;
+            }
+            .frac .fd {
+                padding: 1px 5px 0;
+            }
+            sub {
+                font-size: 0.68em;
+                line-height: 0;
+            }
+            .opts {
+                margin-top: 12px;
+                display: flex;
+                flex-direction: column;
+                gap: 9px;
+            }
+            .opt {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 14px;
+                min-height: 44px;
+                border: 1px solid var(--border);
+                border-radius: var(--r1);
+                background: transparent;
+                color: var(--fg);
+                font-size: 14.5px;
+                text-align: left;
+            }
+            .opt:hover {
+                background: var(--deepen);
+                border-color: var(--border-strong);
+            }
+            .opt .key {
+                width: 25px;
+                height: 25px;
+                flex: none;
+                border: 1.5px solid var(--border-strong);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: var(--font-read);
+                font-size: 12.5px;
+                font-weight: 700;
+            }
+            .opt.sel {
+                background: var(--primary-soft);
+                border-color: var(--primary);
+            }
+            .opt.sel .key {
+                background: var(--primary);
+                border-color: var(--primary);
+                color: var(--on-primary);
+            }
+            .opt.ok {
+                background: var(--ok-soft);
+                border-color: color-mix(in oklab, var(--ok) 50%, transparent);
+            }
+            .opt.ok .key {
+                background: var(--ok);
+                border-color: var(--ok);
+                color: var(--well);
+            }
+            .opt.bad {
+                background: var(--bad-soft);
+                border-color: color-mix(in oklab, var(--bad) 50%, transparent);
+            }
+            .opt.bad .key {
+                background: var(--bad);
+                border-color: var(--bad);
+                color: var(--well);
+            }
+            .opt.sel:hover {
+                background: color-mix(in oklab, var(--primary) 26%, transparent);
+                border-color: var(--primary);
+            }
+            .opt.ok .ov,
+            .opt.bad .ov {
+                font-weight: 600;
+            }
+            /* 判分后的干扰项：只压文字色，不再乘一次透明度——卡体本身已带 0.22
+               的焦点亮度，嵌套相乘会叠到约 0.27，与材料组同一条口径：退后只压一层。 */
+            .opt.dim {
+                color: var(--muted);
+            }
+            .opt.dim .key {
+                border-color: var(--border);
+                color: var(--fg-3);
+            }
+            .opt.locked {
+                cursor: default;
+            }
+            .opt.locked:hover {
+                background: transparent;
+                border-color: var(--border);
+            }
+            .opt.locked.ok:hover {
+                background: var(--ok-soft);
+            }
+            .opt.locked.bad:hover {
+                background: var(--bad-soft);
+            }
+            .opt-tail {
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11.5px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .opt-tail.t-ok {
+                color: var(--ok);
+            }
+            .opt-tail.t-bad {
+                color: var(--bad);
+            }
+            .qf {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                padding: 13px 20px 15px;
+            }
+            .kbd-hints {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11.5px;
+                color: var(--muted);
+            }
+            kbd {
+                font-family: var(--font-ui);
+                font-size: 10.5px;
+                background: var(--well);
+                border: 1px solid var(--border-strong);
+                border-bottom-width: 2px;
+                border-radius: 4px;
+                padding: 1px 6px;
+                color: var(--fg);
+            }
+            .qf-space {
+                flex: 1;
+            }
+            .btn {
+                height: 32px;
+                padding: 0 16px;
+                border: 1px solid transparent;
+                border-radius: var(--r1);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                white-space: nowrap;
+            }
+            .btn.primary {
+                background: var(--primary-strong);
+                color: var(--on-primary);
+            }
+            .btn.primary:hover {
+                background: var(--primary-strong-hover);
+            }
+            .btn.ghost {
+                color: var(--muted);
+            }
+            .btn.ghost:hover {
+                background: var(--hover);
+                color: var(--fg);
+            }
+            .btn.sm {
+                height: 28px;
+                padding: 0 13px;
+                font-size: 12.5px;
+            }
+            .verdict {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-top: 13px;
+                padding: 9px 14px;
+                border-radius: var(--r1);
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .verdict.bad {
+                background: var(--bad-soft);
+                border: 1px solid color-mix(in oklab, var(--bad) 45%, transparent);
+                color: var(--bad);
+            }
+            .verdict.good {
+                background: var(--ok-soft);
+                border: 1px solid color-mix(in oklab, var(--ok) 45%, transparent);
+                color: var(--ok);
+            }
+            .verdict .v-sub {
+                font-weight: 400;
+                font-size: 11.5px;
+                color: var(--muted);
+            }
+            .analysis {
+                margin-top: 11px;
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r1);
+                background: rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }
+            .ana-h {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 14px;
+                font-size: 12.5px;
+                font-weight: 600;
+                color: var(--fg);
+            }
+            .ana-h:hover {
+                background: var(--hover);
+            }
+            .ana-h .ic {
+                color: var(--muted);
+                transition: transform 0.18s ease;
+            }
+            .analysis.open .ana-h .ic {
+                transform: rotate(90deg);
+            }
+            .ana-b {
+                display: none;
+                border-top: 1px solid var(--border-soft);
+                padding: 2px 16px 13px;
+            }
+            .analysis.open .ana-b {
+                display: block;
+            }
+            .ana-b p {
+                margin-top: 8px;
+                font-size: 13px;
+                line-height: 1.85;
+                color: var(--fg);
+            }
+            .kcaps {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-top: 12px;
+            }
+            .kc-t {
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .kchip {
+                font-size: 12px;
+                color: var(--primary-text);
+                background: var(--primary-soft);
+                border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent);
+                border-radius: 99px;
+                padding: 2.5px 11px;
+            }
+            .kchip:hover {
+                background: color-mix(in oklab, var(--primary) 26%, transparent);
+            }
+            .selfrate {
+                display: flex;
+                align-items: center;
+                gap: 11px;
+                margin-top: 12px;
+                flex-wrap: wrap;
+            }
+            .sr-label {
+                font-size: 12.5px;
+                color: var(--muted);
+            }
+            .stars {
+                display: flex;
+                gap: 3px;
+            }
+            .star {
+                width: 25px;
+                height: 25px;
+                border-radius: 5px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--faint);
+            }
+            .star:hover {
+                background: var(--hover);
+                color: var(--muted);
+            }
+            .star .ic {
+                width: 16px;
+                height: 16px;
+            }
+            .star.on {
+                color: var(--warn);
+            }
+            .star.on .ic {
+                fill: currentColor;
+                stroke: none;
+            }
+            .sr-hint {
+                font-size: 11.5px;
+                color: var(--muted);
+            }
+
+            /* ── 屏 2：两个静态取景窗 ──────────────────────────────────── */
+            .panes {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 26px;
+            }
+            .pane-cap {
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+                margin-bottom: 9px;
+                font-size: 12.5px;
+                color: var(--muted);
+            }
+            .pane-cap .t {
+                font-family: var(--font-mono);
+                font-weight: 600;
+                color: var(--fg);
+            }
+            .pane-cap .hint {
+                color: var(--fg-3);
+                font-size: 11.5px;
+            }
+            .pane-view {
+                position: relative;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 16px 20px 20px;
+            }
+            .pane-view .qwrap {
+                padding: 0;
+                gap: 16px;
+                overflow: visible;
+            }
+            .pane-view .qwrap > * {
+                width: 100%;
+            }
+            .tl {
+                margin-top: 20px;
+                display: flex;
+                align-items: center;
+                gap: 0;
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r2);
+                background: rgba(0, 0, 0, 0.14);
+                overflow: hidden;
+            }
+            .tl-step {
+                flex: 1;
+                min-width: 0;
+                padding: 11px 15px 12px;
+                border-right: 1px solid var(--border-soft);
+            }
+            .tl-step:last-child {
+                border-right: 0;
+            }
+            .tl-t {
+                font: 600 11px/1 var(--font-mono);
+                letter-spacing: 0.08em;
+                color: var(--fg-3);
+            }
+            .tl-v {
+                margin-top: 7px;
+                font-size: 12px;
+                line-height: 1.7;
+                color: var(--muted);
+            }
+            .tl-v b {
+                color: var(--fg);
+                font-family: var(--font-mono);
+                font-weight: 600;
+            }
+            .tl-sum {
+                flex: none;
+                width: 280px;
+                padding: 11px 16px 12px;
+                background: rgba(0, 0, 0, 0.16);
+                font-size: 12px;
+                line-height: 1.7;
+                color: var(--muted);
+            }
+
+            /* ── 屏 2：过渡时间线上的当前档 + 重放控件 ─────────────────── */
+            .tl-step.on {
+                background: color-mix(in oklab, var(--primary) 12%, transparent);
+            }
+            .tl-step.on .tl-t {
+                color: var(--primary-text);
+            }
+            .replay {
+                display: flex;
+                align-items: center;
+                gap: var(--sp5);
+                flex-wrap: wrap;
+                margin-top: 14px;
+                padding: 13px 16px;
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r2);
+                background: rgba(0, 0, 0, 0.14);
+            }
+            .rp-read {
+                display: flex;
+                align-items: center;
+                gap: var(--sp3);
+                flex-wrap: wrap;
+            }
+            .rp-chip {
+                display: inline-flex;
+                align-items: baseline;
+                gap: 8px;
+                padding: 5px 12px;
+                border: 1px solid var(--border);
+                border-radius: var(--r1);
+                background: var(--well);
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .rp-chip b {
+                font-family: var(--font-mono);
+                font-size: 13px;
+                font-variant-numeric: tabular-nums;
+                color: var(--fg);
+            }
+            .rp-note {
+                flex: 1;
+                min-width: 220px;
+                font-size: 11.5px;
+                line-height: 1.7;
+                color: var(--fg-3);
+            }
+
+            /* ── 屏 4：三个落点 ────────────────────────────────────────── */
+            .marks {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 14px;
+                margin-top: 22px;
+            }
+            .mark {
+                border: 1px solid var(--border-soft);
+                border-radius: var(--r2);
+                background: rgba(0, 0, 0, 0.14);
+                padding: 13px 16px 14px;
+            }
+            .mark-t {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 12.5px;
+                font-weight: 600;
+                color: var(--fg);
+            }
+            .mark-t .ic {
+                color: var(--primary-text);
+            }
+            .mark p {
+                margin-top: 7px;
+                font-size: 12px;
+                line-height: 1.72;
+                color: var(--muted);
+            }
+
+            /* ── 规格表（稿纸层，非产品 UI） ───────────────────────────── */
+            .spec {
+                margin-top: 22px;
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+            }
+            .spec caption {
+                caption-side: top;
+                text-align: left;
+                padding-bottom: 8px;
+                font: 500 11px/1 var(--font-mono);
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--fg-3);
+            }
+            .spec th,
+            .spec td {
+                text-align: left;
+                vertical-align: top;
+                padding: 9px 14px;
+                border-bottom: 1px solid var(--border-soft);
+                line-height: 1.7;
+            }
+            .spec th {
+                font: 500 11px/1.6 var(--font-mono);
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--fg-3);
+                border-bottom-color: var(--border);
+            }
+            .spec th:first-child {
+                width: 212px;
+            }
+            .spec td {
+                color: var(--muted);
+            }
+            .spec td:first-child {
+                color: var(--fg);
+                font-family: var(--font-mono);
+                font-size: 11.5px;
+                width: 212px;
+            }
+            .spec td b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .spec code {
+                font-family: var(--font-mono);
+                font-size: 11.5px;
+                color: var(--primary-text);
+            }
+            .cols {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: var(--sp6);
+                margin-top: 22px;
+            }
+            .cols h3 {
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+            }
+            .cols h3 + p {
+                margin-top: 7px;
+            }
+            .list {
+                margin-top: 9px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .list li {
+                position: relative;
+                padding-left: 15px;
+                font-size: 12px;
+                line-height: 1.75;
+                color: var(--muted);
+            }
+            .list li::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 8px;
+                width: 5px;
+                height: 5px;
+                border-radius: 2px;
+                background: var(--border-strong);
+            }
+            .list li b {
+                color: var(--fg);
+                font-weight: 600;
+            }
+            .closing {
+                margin-top: 44px;
+                border-top: 1px solid var(--border-soft);
+                padding-top: 34px;
+                scroll-margin-top: 68px;
+            }
+            .foot {
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid var(--border-soft);
+                display: flex;
+                justify-content: space-between;
+                gap: var(--sp5);
+                flex-wrap: wrap;
+                font: 400 11.5px/1.7 var(--font-mono);
+                color: var(--fg-3);
+            }
+
+            /* ── 打印 / 导出 PDF：稿纸层让路，屏与卡不被分页切断 ──────── */
+            @media print {
+                html {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                body {
+                    padding-bottom: 0;
+                }
+                .docnav {
+                    display: none;
+                }
+                .screen,
+                .closing,
+                .legend,
+                .win,
+                .pane,
+                .tl,
+                .replay,
+                .mark,
+                .qcard,
+                .qgroup,
+                .spec tr {
+                    break-inside: avoid;
+                }
+                .screen {
+                    padding-block: 26px 0;
+                }
+                .screen + .screen,
+                .closing {
+                    margin-top: 26px;
+                }
+                .foot {
+                    margin-top: 26px;
+                }
+            }
+
+            /* ── 窄屏阅读模式（稿纸层让步：隐藏 dock 与侧栏） ─────────── */
+            @media (max-width: 1180px) {
+                .sheet,
+                .docnav-in {
+                    width: 100%;
+                    padding: 0 20px;
+                }
+                .docnav-in {
+                    gap: var(--sp3);
+                }
+                .dn-tail,
+                .dn .lbl {
+                    display: none;
+                }
+                .dock,
+                .side {
+                    display: none;
+                }
+                .panes,
+                .marks {
+                    grid-template-columns: 1fr;
+                }
+                .tl {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .tl-step {
+                    border-right: 0;
+                    border-bottom: 1px solid var(--border-soft);
+                }
+                .tl-sum {
+                    width: auto;
+                }
+                .win {
+                    height: 760px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <nav class="docnav" data-od-id="doc-nav" aria-label="稿件导航">
+            <div class="docnav-in">
+                <span class="dn-brand"><i></i>单题计时切换 · 施工稿</span>
+                <span class="dn-tail">focus-timer · v4</span>
+                <span class="dn-links">
+                    <a class="dn" href="#screen-1-panorama" data-goto="screen-1-panorama"
+                        ><span class="n">01</span><span class="lbl">全景</span></a
+                    >
+                    <a class="dn" href="#screen-2-transition" data-goto="screen-2-transition"
+                        ><span class="n">02</span><span class="lbl">切换瞬间</span></a
+                    >
+                    <a class="dn" href="#screen-3-answer" data-goto="screen-3-answer"
+                        ><span class="n">03</span><span class="lbl">作答态</span></a
+                    >
+                    <a class="dn" href="#screen-4-rail" data-goto="screen-4-rail"
+                        ><span class="n">04</span><span class="lbl">头部·题号栏</span></a
+                    >
+                    <a class="dn" href="#spec-rules" data-goto="spec-rules"
+                        ><span class="n">05</span><span class="lbl">口径</span></a
+                    >
+                    <a class="dn" href="#spec-tokens" data-goto="spec-tokens"
+                        ><span class="n">06</span><span class="lbl">落点表</span></a
+                    >
+                </span>
+            </div>
+        </nav>
+
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <g id="i-timer">
+                    <circle cx="12" cy="13" r="8" />
+                    <path d="M12 9.5V13l2.5 1.6M9 2.5h6" />
+                </g>
+                <g id="i-check"><path d="M4.5 12.5l5 5 10-10.5" /></g>
+                <g id="i-x"><path d="M6 6l12 12M18 6L6 18" /></g>
+                <g id="i-chev"><path d="M9 5l7 7-7 7" /></g>
+                <g id="i-book">
+                    <path d="M4 5.5A2 2 0 0 1 6 3.5h6v17H6a2 2 0 0 1-2-2z" />
+                    <path d="M20 5.5a2 2 0 0 0-2-2h-6v17h6a2 2 0 0 0 2-2z" />
+                </g>
+                <g id="i-grid">
+                    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+                    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+                    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+                    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+                </g>
+                <g id="i-star">
+                    <path d="M12 4.5l2.35 4.9 5.15.7-3.75 3.6.9 5.3-4.65-2.6-4.65 2.6.9-5.3-3.75-3.6 5.15-.7z" />
+                </g>
+                <g id="i-min"><path d="M5 12h14" /></g>
+                <g id="i-max"><rect x="5" y="5" width="14" height="14" rx="2" /></g>
+                <g id="i-dot"><circle cx="12" cy="12" r="3.2" /></g>
+            </defs>
+        </svg>
+
+        <main class="sheet">
+            <header class="doc-head" data-od-id="doc-head">
+                <p class="kicker">温故 · 刷题主区 · 单题计时切换 focus-timer · 施工稿 20260920</p>
+                <h1 data-od-id="doc-title">单题计时切换 · <em>焦点即计时</em></h1>
+                <p class="lede">
+                    长卷形态一律不动：只在「谁是焦点」上加一条视觉分级——焦点卡满亮度，其余卡退到 0.22
+                    亮度；滚动与悬停都不切焦点，点击才切，而点选项作答本身就是切换动作，机制上保证「作答必先计时」。提交判分时该题用时冻结，落成卡上「本题用时
+                    m:ss」注记。下面四屏依次是：多题长卷全景、切换瞬间前后对照、焦点卡作答态、以及头部计时标签与题号栏的焦点指示。作用面仅限刷题主区的长卷视图；侧栏、开刷面板、轮次报告、错题本与移动端未动。
+                </p>
+                <div class="rules">
+                    <p class="rule"><b>① 点击才切</b>　滚动不触发、悬停不触发；只有 pointer 点击改焦点。</p>
+                    <p class="rule"><b>② 过渡 150ms linear</b>　两卡交叉淡化，亮度和恒定，过程里不出现「暗谷」。</p>
+                    <p class="rule">
+                        <b>③ 只此一条视觉</b>　不加焦点边框、不加放大位移、不加投影；卡内结构文案顺序逐字不变。
+                    </p>
+                    <p class="rule"><b>④ 0.22 / 0.45 / 1.00</b>　非焦点 / 非焦点悬停 / 焦点。</p>
+                    <p class="rule">
+                        <b>⑤ 提交即冻结</b>　该题用时＝它处在焦点的时间之和，判分落定格上「本题用时 m:ss」。
+                    </p>
+                    <p class="rule">
+                        <b>⑥ DOM 零变化</b>　焦点只切一个 class（<code>.is-focus</code>）与一个
+                        <code>aria-current</code>，不做重排。
+                    </p>
+                </div>
+                <div class="legend" data-od-id="dim-legend">
+                    <div class="legend-item">
+                        <div class="legend-chip"><i></i><i></i><i></i></div>
+                        <span class="legend-key"><b>1.00</b> · 焦点卡</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-chip l-dim"><i></i><i></i><i></i></div>
+                        <span class="legend-key"><b>0.22</b> · 非焦点卡</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-chip l-lift"><i></i><i></i><i></i></div>
+                        <span class="legend-key"><b>0.45</b> · 非焦点·悬停</span>
+                    </div>
+                    <p class="legend-note">
+                        三张缩样就是卡面真值：同一张卡换的只是透明度，颜色、字号、间距、结构一概不动。键盘 Tab
+                        到卡上时同样抬到 1.00，与焦点态一致。
+                    </p>
+                </div>
+            </header>
+
+            <!-- ══ ① 全景 ═══════════════════════════════════════════════ -->
+            <section id="screen-1-panorama" class="screen" data-od-id="screen-1-panorama">
+                <p class="cap">
+                    <span class="no">①</span>
+                    <span
+                        ><b>全景 · 多题长卷（焦点落在第 23 题，卷内含一张 24–25 材料组）</b
+                        >。滚动窗职责不变：卡自上而下堆叠，焦点卡满亮度可作答，上下相邻卡退到
+                        0.22——可见、可辨，但明显不在当下。点任意非焦点卡的任意位置（含它的选项）即把焦点切过去。材料组按「组内小题各自计时」处理：焦点在组外时组头与材料一同退后，焦点进组后组头与材料回到满亮度，组内非焦点小题照旧
+                        0.22。</span
+                    >
+                </p>
+                <p class="cap cap-sub">
+                    可交互：点卡体切焦点（两卡在 150ms
+                    内真的交叉淡化，不是瞬时跳变）、点选项作答、点「提交答案」判分，「下一题」交给下一张卡；头部「本题」随焦点走秒。窗口内滚动不会改变焦点。
+                </p>
+                <div class="screen-body">
+                    <div class="win" data-demo="pano" tabindex="0" data-od-id="win-panorama"></div>
+                </div>
+                <table class="spec">
+                    <caption>
+                        落点与取值 · 屏 ①
+                    </caption>
+                    <tbody>
+                        <tr>
+                            <th>元素 / 选择器</th>
+                            <th>取值</th>
+                            <th>口径</th>
+                        </tr>
+                        <tr>
+                            <td>.qcard</td>
+                            <td><code>opacity: var(--focus-dim)</code>＝<b>0.22</b></td>
+                            <td>默认即非焦点：卡体整体退后，卡内结构/文案/顺序零变化。</td>
+                        </tr>
+                        <tr>
+                            <td>.qcard.is-focus</td>
+                            <td><code>opacity: 1</code>＋<code>aria-current="true"</code></td>
+                            <td>焦点卡是卷内唯一满亮度单元，也是唯一可作答单元。</td>
+                        </tr>
+                        <tr>
+                            <td>.qcard:not(.is-focus):hover</td>
+                            <td><code>opacity: var(--focus-lift)</code>＝<b>0.45</b></td>
+                            <td>
+                                鼠标接近时抬到可拾取（估算约 2.5:1，仍低于
+                                AA）；它只负责「目标把握」，可读性由键盘/焦点态承担，见文末可及性一节。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>.qcard:not(.is-focus):focus-within</td>
+                            <td><code>opacity: 1</code></td>
+                            <td>
+                                Tab 进入卡内任一选项/按钮即回满亮度；与悬停同为 0,3,0
+                                特异性，靠源序胜出，所以键盘优先于鼠标。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>.qgroup</td>
+                            <td><code>.has-focus</code> 由组内小题是否含焦点决定</td>
+                            <td>组头与材料是组内小题的共享依据，亮度随「组内是否有焦点」整组切换。</td>
+                        </tr>
+                        <tr>
+                            <td>.qgroup:not(.has-focus) .gmat<br />.qgroup:not(.has-focus) .qgh</td>
+                            <td><code>opacity: 0.22</code></td>
+                            <td>与组内小题同值，但作用在不同元素上——不做嵌套相乘，避免叠成 0.05。</td>
+                        </tr>
+                        <tr>
+                            <td>.qwrap</td>
+                            <td><code>overflow-y: auto</code>；卡间距 18px；卡宽 <code>min(820px, 100%)</code></td>
+                            <td>长卷形态不变：滚动职责仍在这一层，焦点不随滚动改变。</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ══ ② 切换瞬间 ═══════════════════════════════════════════ -->
+            <section id="screen-2-transition" class="screen" data-od-id="screen-2-transition">
+                <p class="cap">
+                    <span class="no">②</span>
+                    <span
+                        ><b>切换瞬间 · 前后对照（第 23 题 → 第 22 题）</b
+                        >。像素级只有一组透明度在变：左格是起始帧（焦点在第 23 题，且<b>可玩</b>——点第 22
+                        题卡内任意位置），右格是过渡结束的终帧（150ms）。中点两卡同为 0.61——linear
+                        交叉淡化让两卡亮度之和恒定，视线不会被一次「先压暗、再抬亮」的闪动打断。</span
+                    >
+                </p>
+                <p class="cap cap-sub">
+                    可交互：点左格内第 22 题卡的任意位置 → 两卡交叉淡化；点「重放 150ms
+                    过渡」则复位到起始帧再走一遍，时间线的当前档与下方读数同步推进。读数取自元素实时的 computed
+                    opacity，不是写死的中间值。
+                </p>
+                <div class="screen-body">
+                    <div class="panes">
+                        <div class="pane" data-od-id="pane-before">
+                            <p class="pane-cap">
+                                <span class="t">起始帧 · t=0ms</span>
+                                <span class="hint">可玩：点第 22 题卡内任意位置</span>
+                            </p>
+                            <div class="pane-view" data-static="22"></div>
+                        </div>
+                        <div class="pane" data-od-id="pane-after">
+                            <p class="pane-cap">
+                                <span class="t">终帧 · t=150ms（冻结对照）</span>
+                                <span class="hint">焦点已在第 22 题，头部「本题」随之换表</span>
+                            </p>
+                            <div class="pane-view" data-static="23"></div>
+                        </div>
+                    </div>
+                    <div class="tl" data-od-id="transition-timeline">
+                        <div class="tl-step" data-tl="0">
+                            <p class="tl-t">T = 0MS</p>
+                            <p class="tl-v">第 22 题 <b>0.22</b>　第 23 题 <b>1.00</b></p>
+                        </div>
+                        <div class="tl-step" data-tl="75">
+                            <p class="tl-t">T = 75MS（中点）</p>
+                            <p class="tl-v">第 22 题 <b>0.61</b>　第 23 题 <b>0.61</b></p>
+                        </div>
+                        <div class="tl-step" data-tl="150">
+                            <p class="tl-t">T = 150MS</p>
+                            <p class="tl-v">第 22 题 <b>1.00</b>　第 23 题 <b>0.22</b></p>
+                        </div>
+                        <div class="tl-sum">
+                            linear 两卡之和恒为 1.22：切换过程里没有「两卡都暗」的谷底，也没有「两卡都亮」的双焦点帧。
+                        </div>
+                    </div>
+                    <div class="replay" data-od-id="transition-replay">
+                        <button class="btn primary" data-replay>重放 150ms 过渡</button>
+                        <div class="rp-read">
+                            <span class="rp-chip"><span>第 22 题</span><b data-rp-a>0.22</b></span>
+                            <span class="rp-chip"><span>第 23 题</span><b data-rp-b>1.00</b></span>
+                        </div>
+                        <p class="rp-note" data-rp-note>
+                            两枚读数取自元素实时的 computed opacity：中点会同时读到 0.61。
+                        </p>
+                    </div>
+                </div>
+                <table class="spec">
+                    <caption>
+                        切换时序 · 屏 ②
+                    </caption>
+                    <tbody>
+                        <tr>
+                            <th>时刻</th>
+                            <th>写进 DOM 的东西</th>
+                            <th>口径</th>
+                        </tr>
+                        <tr>
+                            <td>t = 0</td>
+                            <td>旧焦点卡 <code>remove .is-focus</code>；新焦点卡 <code>add .is-focus</code></td>
+                            <td>同一帧内完成，中间不出现两卡同亮或同暗的过渡帧。</td>
+                        </tr>
+                        <tr>
+                            <td>t = 0 → 150ms</td>
+                            <td><code>transition: opacity 150ms linear</code></td>
+                            <td>只过渡透明度；不加 transform、不加 box-shadow 过渡，避免焦点切换触发重排。</td>
+                        </tr>
+                        <tr>
+                            <td>t = 150ms</td>
+                            <td>题号栏 <code>.qn.cur</code> 与头部「本题」同帧已就位</td>
+                            <td>三处指示（卡亮度 / 题号栏当前格 / 头部本题）在 150ms 内收敛到同一题。</td>
+                        </tr>
+                        <tr>
+                            <td>切换时的时间账</td>
+                            <td>旧焦点题 <code>acc</code> 累加停在当前值（未提交则保留）</td>
+                            <td>切走不清零：切回来接着累加，提交才冻结。</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ══ ③ 焦点卡作答态 ═══════════════════════════════════════ -->
+            <section id="screen-3-answer" class="screen" data-od-id="screen-3-answer">
+                <p class="cap">
+                    <span class="no">③</span>
+                    <span
+                        ><b>焦点卡作答态 · 选中 → 提交揭示 → 用时注记</b
+                        >。焦点卡可直接作答：点选项即选中（这一下同时就是切焦点的动作，所以不存在「没在计时却已作答」的路径），头部「本题」实时走秒；提交判分后该题用时冻结，卡头出现「本题用时
+                        m:ss」注记，题号栏对应格同时着色。</span
+                    >
+                </p>
+                <p class="cap cap-sub">
+                    可交互：点 A–D 选择、点「提交答案」判分并冻结用时、点「下一题」把焦点交给下一张卡。上方第 22
+                    题是已判分冻结态的对照——同一个用时数字在判分行里也能读到（卡头注记在它自己的卡头上，上滚可见）。
+                </p>
+                <div class="screen-body">
+                    <div class="win" data-demo="answer" tabindex="0" data-od-id="win-answer"></div>
+                </div>
+                <table class="spec">
+                    <caption>
+                        作答态三帧 · 屏 ③
+                    </caption>
+                    <tbody>
+                        <tr>
+                            <th>状态</th>
+                            <th>卡上出现什么</th>
+                            <th>口径</th>
+                        </tr>
+                        <tr>
+                            <td>焦点降临（未作答）</td>
+                            <td>卡头无用时注记；头部「本题」从 <b>0:00</b> 起走</td>
+                            <td>计时起点＝该题第一次成为焦点，不是「点第一个选项」。</td>
+                        </tr>
+                        <tr>
+                            <td>已选中（未提交）</td>
+                            <td>选项走 <code>.sel</code>：陶土橙描边＋浅底，字母徽标实心</td>
+                            <td>选中归属焦点卡；改选随便改，用时继续累加，不算次数。</td>
+                        </tr>
+                        <tr>
+                            <td>提交判分</td>
+                            <td>
+                                「本题用时 <b>m:ss</b>」chip 落到卡头；选项锁定，正确项 <code>.ok</code>、误选项
+                                <code>.bad</code>；展开解析、考点、自评
+                            </td>
+                            <td>冻结那一刻的 <code>acc</code>；此后无论切走多久，这个数字不再变。</td>
+                        </tr>
+                        <tr>
+                            <td>用时出现几处</td>
+                            <td>两处：卡头 <code>.chip.c-time</code>（常驻）＋ 判分行（冻结那一刻）</td>
+                            <td>
+                                同一个数字、两个用途：卡头是记录（卡被降亮度或滚回去看时仍在），判分行是当时的反馈。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>判分后的干扰项</td>
+                            <td><code>.opt.dim</code> 只压文字色（<code>--muted</code>），不叠 <code>opacity</code></td>
+                            <td>
+                                卡体已经带着 0.22 的焦点亮度；干扰项再乘一次透明度就叠到约
+                                0.13、几乎读不出来。与材料组「不做嵌套相乘」同一条口径：退后只压一层。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>注记形态</td>
+                            <td><code>.chip.c-time</code>（计时图标＋等宽数字）</td>
+                            <td>与题型 chip 同一行、同一套胶囊语言，不新增组件、不占用题干空间。</td>
+                        </tr>
+                        <tr>
+                            <td>判分后的焦点</td>
+                            <td>焦点不动，仍停在这张卡（可回看解析）</td>
+                            <td>「下一题」才移焦点；直接点别的卡也算一次点击切换。</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ══ ④ 头部与题号栏 ═══════════════════════════════════════ -->
+            <section id="screen-4-rail" class="screen" data-od-id="screen-4-rail">
+                <p class="cap">
+                    <span class="no">④</span>
+                    <span
+                        ><b>头部计时标签 ＋ 题号栏（NumRail）焦点题指示</b
+                        >。题号栏不需要新状态——焦点题就是当前题，沿用既有 <code>.qn.cur</code> 语义与陶土橙实底（填充走
+                        <code>--primary-strong</code
+                        >，与主按钮同一口径），零新增状态、零新增徽标。头部把「本题」放在「本轮」之前：前者是随焦点走的单题计时，后者是本轮总时。点题号栏任意格即切焦点并滚到该卡，头部「本题」与该格同帧更新。</span
+                    >
+                </p>
+                <div class="screen-body">
+                    <div class="win" data-demo="rail" tabindex="0" data-od-id="win-rail"></div>
+                    <div class="marks">
+                        <div class="mark" data-od-id="mark-card">
+                            <p class="mark-t">
+                                <svg class="ic"><use href="#i-timer" /></svg>落点① 卡头注记
+                            </p>
+                            <p>
+                                提交判分后出现，值是冻结值。卷内已判分的题各自带一个，回看时不用去想「刚才那题花了多久」。
+                            </p>
+                        </div>
+                        <div class="mark" data-od-id="mark-head">
+                            <p class="mark-t">
+                                <svg class="ic"><use href="#i-timer" /></svg>落点② 头部「本题」
+                            </p>
+                            <p>
+                                实时值，跟随焦点切换表盘：焦点在谁身上，它就跑谁的账。计时中图标走主色，冻结后转弱灰。
+                            </p>
+                        </div>
+                        <div class="mark" data-od-id="mark-rail">
+                            <p class="mark-t">
+                                <svg class="ic"><use href="#i-book" /></svg>落点③ 题号栏当前格
+                            </p>
+                            <p>
+                                沿用
+                                <code>.qn.cur</code>。它本来就代表「当前题」，焦点即当前题，因此一个状态类都不用加。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <table class="spec">
+                    <caption>
+                        头部与题号栏 · 屏 ④
+                    </caption>
+                    <tbody>
+                        <tr>
+                            <th>元素</th>
+                            <th>取值</th>
+                            <th>口径</th>
+                        </tr>
+                        <tr>
+                            <td>.st-now（本题）</td>
+                            <td><code>margin-left:auto</code>；数值 600 字重＋tabular-nums</td>
+                            <td>排在「本轮」之前，视线先落在单题账上；不新占一行、不改统计条高度（仍 46px）。</td>
+                        </tr>
+                        <tr>
+                            <td>.st-now .ic</td>
+                            <td>计时中 <code>--primary-text</code>／冻结 <code>--fg-3</code></td>
+                            <td>只换图标颜色表达状态，不加动效、不加脉冲点。</td>
+                        </tr>
+                        <tr>
+                            <td>.st-round（本轮）</td>
+                            <td>既有取值不动，弱一档（<code>--muted</code>）</td>
+                            <td>本轮总时保持原样，避免两枚等重计时抢焦点。</td>
+                        </tr>
+                        <tr>
+                            <td>.qn.cur</td>
+                            <td><code>background: var(--primary-strong)</code>，暖白字 6.00:1</td>
+                            <td>
+                                焦点题指示复用既有当前题格（语义不变）；填充走主按钮同一口径的
+                                <code>--primary-strong</code>—— 既有稿已定的对比度修正，不是本稿新增。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>.qn 其余状态</td>
+                            <td><code>.ok</code> / <code>.bad</code> 沿用既有语义色</td>
+                            <td>判分后着色与用时冻结同帧发生，避免「已着色但注记还没出现」的错位。</td>
+                        </tr>
+                        <tr>
+                            <td>点 .qn → 切焦点</td>
+                            <td><code>scrollTo</code> 到该卡顶（<code>scroll-margin: 14px</code>）</td>
+                            <td>
+                                只滚内滚窗（设
+                                <code>scrollTop</code
+                                >）。不用浏览器原生的「滚动到元素」API：它会连带滚动宿主与预览外层，正是既有的踩坑点。
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- ══ 口径汇总 ═════════════════════════════════════════════ -->
+            <section id="spec-rules" class="closing" data-od-id="spec-rules">
+                <div class="cols">
+                    <div>
+                        <h3>交互口径：什么会切，什么不会</h3>
+                        <ul class="list">
+                            <li><b>滚动</b>　不切。卷内不存在任何 scroll → 焦点 的通路，机制上做不到。</li>
+                            <li><b>悬停</b>　不切。悬停只把卡从 0.22 抬到 0.45，纯提示。</li>
+                            <li><b>点击卡体</b>　切。卡的任意位置（含题干、空白）都算一次点击。</li>
+                            <li><b>点选项</b>　切＋选。作答动作本身就是切换动作，故「作答必先计时」成立。</li>
+                            <li><b>点题号栏某格</b>　切＋滚到该卡；这是键盘用户的主路径。</li>
+                            <li><b>提交判分</b>　不切。焦点留在原题，方便对着解析回看自己的用时。</li>
+                            <li><b>点「下一题」</b>　切到下一张卡（含材料组内的下一小题）。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>计时口径：一题一笔账</h3>
+                        <ul class="list">
+                            <li><b>起</b>　该题第一次成为焦点的时刻。进入长卷时焦点落在第 23 题，它即刻开始计时。</li>
+                            <li><b>累</b>　＝该题处在焦点的时间之和。切走不清零，切回来接着加。</li>
+                            <li><b>冻</b>　提交判分（或标不会）那一刻定格，此后不再变。</li>
+                            <li><b>材料组</b>　按小题各记一笔：组壳与材料不单独计时，焦点进组后由当前小题承担。</li>
+                            <li><b>一轮结束</b>　交卷即封账；错题重刷是新一轮，从 0:00 重记。</li>
+                            <li>
+                                <b>静置</b>　同一张卡一直挂着焦点、人离开电脑，时间照走——不做空闲检测，这不在本稿范围。
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>不做清单（本稿的克制面）</h3>
+                        <ul class="list">
+                            <li>不加焦点边框、不加外发光、不加投影变化。</li>
+                            <li>不做缩小 / 位移 / 盖叠，非焦点卡的盒子位置逐像素不动。</li>
+                            <li>不改卡内结构、文案、顺序，不加「计时中」徽标或角标。</li>
+                            <li>不给非焦点卡加遮罩层或模糊，退后只由透明度承担。</li>
+                            <li>不改侧栏、开刷面板、轮次报告、错题本与移动端——作用面只有长卷。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>可及性：0.22 是有代价的，代价写在这里</h3>
+                        <ul class="list">
+                            <li>
+                                <b>先把账算清楚</b>　按 sRGB 相对亮度＋alpha 合成估算，卡面正文（<code>--fg</code>）在
+                                0.22 下约 <b>1.6:1</b>、0.45 下约 <b>2.5:1</b>，都低于
+                                4.5:1。这是「可见但明显退后」的必然结果，不辩解。
+                            </li>
+                            <li>
+                                <b>为什么不把 0.45 再抬高</b>　要抬到 4.5:1 得上到
+                                ≈0.82，与焦点态几乎看不出区别，那条分级就没了。所以兜底放在通路而不是取值上。
+                            </li>
+                            <li><b>悬停抬亮</b>　0.45 只定位为「目标拾取」提示，不当可读性解药。</li>
+                            <li>
+                                <b>键盘路径不经低对比态</b>　Tab 到卡上或选项上即回 1.00，键盘用户读到的永远是满亮度。
+                            </li>
+                            <li><b>导航不降亮</b>　题号栏、头部统计条、滚动条一律不参与降亮度，方向感始终清晰。</li>
+                            <li>
+                                <b>读屏</b>　焦点题带 <code>aria-current="true"</code>，非焦点卡仍在 DOM
+                                顺序内、可被朗读。
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="spec-tokens" class="closing" data-od-id="spec-tokens">
+                <table class="spec">
+                    <caption>
+                        实现侧落点表 · 本稿唯一新增的一组取值
+                    </caption>
+                    <tbody>
+                        <tr>
+                            <th>令牌 / 选择器</th>
+                            <th>取值</th>
+                            <th>说明</th>
+                        </tr>
+                        <tr>
+                            <td>--focus-dim</td>
+                            <td><b>0.22</b></td>
+                            <td>非焦点卡不透明度；卡片默认态。</td>
+                        </tr>
+                        <tr>
+                            <td>--focus-lift</td>
+                            <td><b>0.45</b></td>
+                            <td>非焦点卡悬停：仅作目标拾取提示，可读性由焦点态与键盘态承担。</td>
+                        </tr>
+                        <tr>
+                            <td>--focus-ms</td>
+                            <td><b>150ms</b></td>
+                            <td>过渡时长上限，linear；只作用于 opacity。</td>
+                        </tr>
+                        <tr>
+                            <td>.qcard / .qgroup .gmat / .qgroup .qgh</td>
+                            <td><code>transition: opacity var(--focus-ms) linear</code></td>
+                            <td>无 transform、无 box-shadow 过渡，切焦点不触发重排。</td>
+                        </tr>
+                        <tr>
+                            <td>.chip.c-time</td>
+                            <td>卡头注记：计时图标＋等宽「本题用时 m:ss」</td>
+                            <td>只在 <code>submitted</code> 后渲染；颜色走既有 chip 语言。</td>
+                        </tr>
+                        <tr>
+                            <td>运行时</td>
+                            <td>一枚 1s interval 推进焦点题的 <code>acc</code></td>
+                            <td>只改头部与注记的文本节点，不重渲染卡体，避免滚动跳动。</td>
+                        </tr>
+                        <tr>
+                            <td>窄屏（≤1180px）</td>
+                            <td>稿纸层隐藏 dock 与侧栏、双取景窗改单列</td>
+                            <td>属稿件阅读模式，不是产品改动；产品移动端适配另案（移动端刷题见 mobile 域）。</td>
+                        </tr>
+                        <tr>
+                            <td>prefers-reduced-motion</td>
+                            <td><code>--focus-ms: 0ms</code></td>
+                            <td>
+                                系统开启「减少动态效果」时过渡归零，切换即时到位；亮度分级本身不动，机构上仍是「一条亮度」。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>卡内 DOM 就地换掉后的键盘焦点</td>
+                            <td><code>root.focus({ preventScroll: true })</code></td>
+                            <td>
+                                选中/判分把卡内节点换新，原本持焦的按钮随之消失——把焦点收回取景窗本体，鼠标作答之后
+                                <kbd>A</kbd>–<kbd>D</kbd> 与 <kbd>Enter</kbd> 仍然是活的。产品侧同理：作答后别把焦点丢给
+                                body。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>data-od-id</code> 唯一化</td>
+                            <td>
+                                四格取景窗各自加前缀（<code>pano-</code> / <code>answer-</code> / <code>rail-</code> /
+                                <code>pane-before-</code>）
+                            </td>
+                            <td>
+                                同一张卡在四格取景窗里各有一份，锚点重名会让批注指不清是哪一个；只改稿件的锚点名，界面零变化。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>阅读位置记忆</td>
+                            <td><code>localStorage["wengu-focus-timer:view"]</code>（六段之一）</td>
+                            <td>
+                                刷新回到上次读到的那一屏；localStorage 不可用（无痕 / 受限
+                                iframe）时咽掉异常、退回首屏，不阻断阅读。
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>打印 / 导出 PDF</td>
+                            <td>导航条让位；屏、取景窗、卡与表行 <code>break-inside: avoid</code></td>
+                            <td>
+                                纸张与 PDF 上不给「一句话断两页、一张卡切成两半」；<code
+                                    >print-color-adjust: exact</code
+                                >
+                                让深色底照印，观感与屏幕一致。
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <footer class="foot" data-od-id="doc-foot">
+                <span>温故 · 单题计时切换施工稿 · 20260920 · rev.3</span>
+                <span
+                    >本版改动：卡内 DOM 就地换掉后把键盘焦点收回取景窗（鼠标作答后 <kbd>A</kbd>–<kbd>D</kbd> /
+                    <kbd>Enter</kbd> 不再静默失灵）· 四格取景窗的 <code>data-od-id</code> 各自加前缀，锚点不再重名 ·
+                    阅读位置存 localStorage，刷新回到原屏 · 补打印 / 导出分页口径。<br />rev.2：焦点切换改为原地打补丁（150ms
+                    过渡真的跑得起来，不再被重建 DOM 抹掉）· 屏 ② 左格可玩 + 重放控件 + 实时 opacity 读数 · 稿件导航条 ·
+                    减少动态效果归零 · 题号栏当前格悬停反馈。</span
+                >
+                <span>令牌：theme-tokens-neo.md（Neo+ 深色暖调实测）· 形态：现行长卷题卡，未动</span>
+            </footer>
+        </main>
+
+        <script>
+            (function () {
+                var F = {
+                    id: 21,
+                    type: "单选题",
+                    title: "三车间次品溯源 · 全概率与贝叶斯",
+                    src: "《考研数学强化通关330》概率论与数理统计",
+                    stem: "某工厂的甲、乙、丙三个车间生产同一种零件，产量依次占全厂的 25%、35%、40%，次品率分别为 5%、4%、2%。现从全厂成品中随机抽取一件，发现是次品，则它来自乙车间的概率为（　　）",
+                    given: ["P(A₁)=0.25，P(A₂)=0.35，P(A₃)=0.40", "P(B|A₁)=0.05，P(B|A₂)=0.04，P(B|A₃)=0.02"],
+                    ask: "求 P(A₂|B)",
+                    math: true,
+                    opts: [
+                        { k: "A", t: '<span class="frac"><span class="fn">25</span><span class="fd">69</span></span>' },
+                        { k: "B", t: '<span class="frac"><span class="fn">28</span><span class="fd">69</span></span>' },
+                        { k: "C", t: '<span class="frac"><span class="fn">16</span><span class="fd">69</span></span>' },
+                        { k: "D", t: '<span class="frac"><span class="fn">8</span><span class="fd">23</span></span>' },
+                    ],
+                    ans: "B",
+                    analysis:
+                        "全概率：P(B)=0.25×0.05+0.35×0.04+0.40×0.02=0.0345。贝叶斯：P(A₂|B)=0.014÷0.0345=28/69。分子别写成 0.35×0.04 之后忘记除以 P(B)。",
+                    kcaps: ["全概率公式", "贝叶斯公式", "条件概率"],
+                };
+                var Q22 = {
+                    id: 22,
+                    type: "多选题",
+                    title: "行列式与转置 · 说法辨析",
+                    src: "《考研数学强化通关330》线性代数",
+                    stem: "设 A 为 n 阶矩阵，k 为非零常数，则下列说法正确的有（　　）",
+                    opts: [
+                        { k: "A", t: "|kA| = k|A|" },
+                        { k: "B", t: "|kA| = kⁿ|A|" },
+                        { k: "C", t: "|Aᵀ| = |A|" },
+                        { k: "D", t: "|A⁻¹| = |A|⁻¹" },
+                    ],
+                    ans: "B、C、D",
+                    analysis:
+                        "标量乘矩阵作用于每一行，行列式放大 kⁿ 倍，故 A 错 B 对；转置不改变行列式，C 对；可逆时 |A⁻¹|=|A|⁻¹，D 对。",
+                    kcaps: ["行列式性质", "转置", "逆矩阵"],
+                };
+                var Q23 = {
+                    id: 23,
+                    type: "单选题",
+                    title: "两台机器的次品追踪 · 全概率",
+                    src: "《考研数学强化通关330》概率论与数理统计",
+                    stem: "甲、乙两台机器加工同一种零件，产量比为 3∶2，次品率分别为 2% 与 5%。现从成品中随机抽取一件，发现是次品，则它来自乙机器的概率为（　　）",
+                    math: true,
+                    opts: [
+                        { k: "A", t: '<span class="frac"><span class="fn">3</span><span class="fd">8</span></span>' },
+                        { k: "B", t: '<span class="frac"><span class="fn">2</span><span class="fd">5</span></span>' },
+                        { k: "C", t: '<span class="frac"><span class="fn">5</span><span class="fd">8</span></span>' },
+                        { k: "D", t: '<span class="frac"><span class="fn">1</span><span class="fd">2</span></span>' },
+                    ],
+                    ans: "C",
+                    analysis:
+                        "产量比 3∶2 即 P(甲)=3/5、P(乙)=2/5。P(次品)=3/5×0.02+2/5×0.05=0.032；所求=0.02÷0.032=5/8。注意问的是「来自乙」，别把先验概率当答案。",
+                    kcaps: ["全概率公式", "贝叶斯公式"],
+                };
+                var Q26 = {
+                    id: 26,
+                    type: "单选题",
+                    title: "矩阵标量乘法与行列式",
+                    src: "《考研数学强化通关330》线性代数",
+                    stem: "设 3 阶矩阵 A 的行列式 |A| = 6，则 |2A| = （　　）",
+                    opts: [
+                        { k: "A", t: "12" },
+                        { k: "B", t: "36" },
+                        { k: "C", t: "24" },
+                        { k: "D", t: "48" },
+                    ],
+                    ans: "D",
+                    analysis: "|2A| = 2³·|A| = 8×6 = 48。常见失误是只乘一次得 12。",
+                    kcaps: ["行列式", "标量乘法"],
+                };
+                var Q24 = {
+                    id: 24,
+                    type: "单选题",
+                    title: "细节定位 · 新的成功标准",
+                    stem: "According to Paragraph 1, the museum's new measure of success is whether（　　）",
+                    opts: [
+                        { k: "A", t: "its permanent collection keeps growing" },
+                        { k: "B", t: "local residents begin to see their city differently" },
+                        { k: "C", t: "visiting tourists spend more per visit" },
+                        { k: "D", t: "its touring shows earn more at the door" },
+                    ],
+                    ans: "B",
+                    analysis:
+                        "第一段把旧标准（blockbuster exhibitions）与新标准对立起来，落点在 “the people who live nearby begin to see their own city in a bolder and more optimistic light”，即当地人的城市自视改变。A、C、D 都是被作者降格为表层的指标。",
+                    kcaps: ["段落主旨", "细节定位"],
+                };
+                var Q25 = {
+                    id: 25,
+                    type: "单选题",
+                    title: "词义猜测 · trumped by",
+                    stem: 'The phrase "trumped by" (Paragraph 2) is closest in meaning to（　　）',
+                    opts: [
+                        { k: "A", t: "outnumbered by" },
+                        { k: "B", t: "overtaken by" },
+                        { k: "C", t: "replaced by" },
+                        { k: "D", t: "supported by" },
+                    ],
+                    ans: "B",
+                    analysis:
+                        "前句列举了上座率、酒店入住与巡展收入「仍然重要」，随后 but 转折——它们在重要性的排序上被一个更安静的口径压过，即 overtaken（在重要性上被超过）。outnumbered 只讲数量，replaced 讲替换关系，都过实。",
+                    kcaps: ["词义猜测", "转折逻辑"],
+                };
+                var GROUP = {
+                    label: "材料组 · 第 24–25 题",
+                    src: "《考研英语阅读 100 篇》文化类 · 示例语篇",
+                    title: "Town of culture",
+                    ps: [
+                        "A museum that once measured its success by blockbuster exhibitions now counts something else. Its director argues that the real test is whether the people who live nearby begin to see their own city in a bolder and more optimistic light.",
+                        "Attendance figures, hotel bookings and the revenue of touring shows still matter, but they are regularly trumped by a quieter indicator: whether local residents come back, bring their children, and describe the place as theirs.",
+                    ],
+                    qs: [Q24, Q25],
+                };
+                var ALL = [F, Q22, Q23, Q26, Q24, Q25];
+                var SUBQ = [24, 25]; /* 材料组内的小题：卡头不重复写来源 */
+                var RAIL = [];
+                for (var i = 21; i <= 35; i++) RAIL.push(i);
+
+                function pad(n) {
+                    return (n < 10 ? "0" : "") + n;
+                }
+                function mmss(s) {
+                    s = Math.max(0, Math.floor(s));
+                    return Math.floor(s / 60) + ":" + pad(s % 60);
+                }
+                function esc(s) {
+                    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+                }
+
+                function optHTML(q, o, st) {
+                    var picked = st.picked.indexOf(o.k) > -1;
+                    var cls = "opt";
+                    var tail = "";
+                    if (st.submitted) {
+                        cls += " locked";
+                        var right = q.ans.indexOf(o.k) > -1;
+                        if (right) {
+                            cls += " ok";
+                            tail =
+                                '<span class="opt-tail t-ok">' +
+                                (picked ? "正确答案 · 你选的" : "正确答案") +
+                                "</span>";
+                        } else if (picked) {
+                            cls += " bad";
+                            tail = '<span class="opt-tail t-bad">你选的</span>';
+                        } else {
+                            cls += " dim";
+                        }
+                    } else if (picked) {
+                        cls += " sel";
+                    }
+                    return (
+                        '<li><button class="' +
+                        cls +
+                        '" data-od-id="opt-' +
+                        q.id +
+                        "-" +
+                        o.k +
+                        '" data-nav="opt-' +
+                        q.id +
+                        "-" +
+                        o.k +
+                        '" data-opt="' +
+                        q.id +
+                        ":" +
+                        o.k +
+                        '" aria-pressed="' +
+                        (picked ? "true" : "false") +
+                        '"><span class="key">' +
+                        o.k +
+                        '</span><span class="ov' +
+                        (q.math ? " fx" : "") +
+                        '">' +
+                        o.t +
+                        "</span>" +
+                        tail +
+                        "</button></li>"
+                    );
+                }
+
+                function revealHTML(q, st) {
+                    if (!st.submitted) return "";
+                    var good = isRight(q, st);
+                    var head = good
+                        ? '<svg class="ic ic-sm"><use href="#i-check"/></svg>答对 · 本题用时 ' + mmss(st.tused)
+                        : '<svg class="ic ic-sm"><use href="#i-x"/></svg>判分 · 正确答案 ' +
+                          q.ans +
+                          " · 本题用时 " +
+                          mmss(st.tused);
+                    return (
+                        '<div class="verdict ' +
+                        (good ? "good" : "bad") +
+                        '">' +
+                        head +
+                        '<span class="v-sub">' +
+                        (good ? "用时已冻结，可回看解析" : "该题用时已冻结；错题本按知识点归因") +
+                        "</span></div>" +
+                        '<div class="analysis open"><button class="ana-h" aria-expanded="true"><svg class="ic ic-sm"><use href="#i-chev"/></svg>解析与步骤</button><div class="ana-b"><p>' +
+                        esc(q.analysis) +
+                        '</p></div></div><div class="kcaps"><span class="kc-t">考点</span>' +
+                        q.kcaps
+                            .map(function (k) {
+                                return '<button class="kchip">' + esc(k) + "</button>";
+                            })
+                            .join("") +
+                        '</div><div class="selfrate"><span class="sr-label">自评掌握度</span><span class="stars">' +
+                        [1, 2, 3, 4, 5]
+                            .map(function (n) {
+                                return (
+                                    '<button class="star' +
+                                    (n <= (good ? 2 : 1) ? " on" : "") +
+                                    '" aria-label="' +
+                                    n +
+                                    ' 星"><svg class="ic"><use href="#i-star"/></svg></button>'
+                                );
+                            })
+                            .join("") +
+                        '</span><span class="sr-hint">' +
+                        (good ? "上次 1 星 → 本次 2 星" : "错因已标，重刷时优先") +
+                        "</span></div>"
+                    );
+                }
+
+                function timeChip(st) {
+                    if (!st.submitted) return "";
+                    return (
+                        '<span class="chip c-time"><svg class="ic"><use href="#i-timer"/></svg>本题用时 ' +
+                        mmss(st.tused) +
+                        "</span>"
+                    );
+                }
+
+                /* 判分口径：已选集合与答案集合完全一致才算对（多选不部分给分） */
+                function isRight(q, s) {
+                    if (!s.submitted || !s.picked.length) return false;
+                    var keys = q.ans.split("、");
+                    if (s.picked.length !== keys.length) return false;
+                    return s.picked.every(function (k) {
+                        return keys.indexOf(k) > -1;
+                    });
+                }
+
+                function cardInnerHTML(q, st, sub) {
+                    return (
+                        '<header class="qh"><div class="qh-l"><div class="qtags">' +
+                        '<span class="chip c-no">第 ' +
+                        q.id +
+                        ' 题</span><span class="chip c-type">' +
+                        q.type +
+                        "</span>" +
+                        timeChip(st) +
+                        (sub ? "" : '<span class="qh-meta">来源 · ' + esc(q.src) + "</span>") +
+                        '</div><h3 class="qt">' +
+                        esc(q.title) +
+                        '</h3></div></header><div class="qb"><p class="stem">' +
+                        esc(q.stem) +
+                        "</p>" +
+                        (q.given
+                            ? '<div class="fx-given">' +
+                              q.given
+                                  .map(function (g) {
+                                      return "<span>" + esc(g) + "</span>";
+                                  })
+                                  .join("") +
+                              '<span class="ask">' +
+                              esc(q.ask) +
+                              "</span></div>"
+                            : "") +
+                        '<ul class="opts">' +
+                        q.opts
+                            .map(function (o) {
+                                return optHTML(q, o, st);
+                            })
+                            .join("") +
+                        "</ul>" +
+                        revealHTML(q, st) +
+                        '</div><footer class="qf"><span class="kbd-hints"><kbd>A</kbd>–<kbd>D</kbd> 选择 · <kbd>Enter</kbd> 提交</span><span class="qf-space"></span>' +
+                        (st.submitted
+                            ? '<button class="btn primary" data-next="' +
+                              q.id +
+                              '" data-od-id="cta-next-' +
+                              q.id +
+                              '">下一题</button>'
+                            : '<button class="btn ghost" data-dunno="' +
+                              q.id +
+                              '" data-od-id="cta-dunno-' +
+                              q.id +
+                              '">标不会</button><button class="btn primary" data-submit="' +
+                              q.id +
+                              '" data-od-id="cta-submit-' +
+                              q.id +
+                              '">提交答案</button>') +
+                        "</footer>"
+                    );
+                }
+
+                function cardHTML(q, st, focused, sub) {
+                    var cls = "qcard" + (sub ? " qcard--sub" : "") + (focused ? " is-focus" : "");
+                    return (
+                        '<article class="' +
+                        cls +
+                        '" data-qid="' +
+                        q.id +
+                        '" data-nav="qcard-' +
+                        q.id +
+                        '" data-od-id="qcard-' +
+                        q.id +
+                        '"' +
+                        (focused ? ' aria-current="true"' : "") +
+                        ">" +
+                        cardInnerHTML(q, st, sub) +
+                        "</article>"
+                    );
+                }
+
+                function groupHTML(st, focus) {
+                    var has = GROUP.qs.some(function (q) {
+                        return q.id === focus;
+                    });
+                    return (
+                        '<article class="qgroup' +
+                        (has ? " has-focus" : "") +
+                        '" data-qid="g2425"><header class="qgh"><span class="chip c-grp">' +
+                        esc(GROUP.label) +
+                        '</span><span class="chip c-type">2 小题分别计时</span><span class="qh-meta">来源 · ' +
+                        esc(GROUP.src) +
+                        '</span></header><div class="gmat"><div class="gmat-hd"><span class="gmat-t">' +
+                        esc(GROUP.title) +
+                        '</span><span class="qh-meta">' +
+                        GROUP.ps.join(" ").split(/\s+/).length +
+                        " words · 2 段</span></div>" +
+                        GROUP.ps
+                            .map(function (p) {
+                                return "<p>" + esc(p) + "</p>";
+                            })
+                            .join("") +
+                        '</div><div class="gcards">' +
+                        GROUP.qs
+                            .map(function (q) {
+                                return cardHTML(q, st[q.id], focus === q.id, true);
+                            })
+                            .join("") +
+                        "</div></article>"
+                    );
+                }
+
+                function railHTML(st, focus) {
+                    var cell = RAIL.map(function (id) {
+                        var s = st[id];
+                        var cls = "qn";
+                        if (id === focus) cls += " cur";
+                        else if (s && s.submitted) cls += isRight(QMAP(id), s) ? " ok" : " bad";
+                        return (
+                            '<button class="' +
+                            cls +
+                            '" data-rail="' +
+                            id +
+                            '" data-nav="qn-' +
+                            id +
+                            '" aria-label="第 ' +
+                            id +
+                            ' 题"' +
+                            (id === focus ? ' aria-current="true"' : "") +
+                            ">" +
+                            id +
+                            "</button>"
+                        );
+                    }).join("");
+                    return (
+                        '<nav class="qnav" aria-label="题号栏"><div class="qn-cap">题号 <b>' +
+                        focus +
+                        '</b>/85</div><div class="qn-grid">' +
+                        cell +
+                        '</div><div class="qn-more">… 至 85</div><div class="qn-legend"><span class="lgd d-cur"><i></i>当前＝焦点</span><span class="lgd d-ok"><i></i>答对</span><span class="lgd d-bad"><i></i>答错</span></div></nav>'
+                    );
+                }
+
+                function QMAP(id) {
+                    for (var i = 0; i < ALL.length; i++) if (ALL[i].id === id) return ALL[i];
+                    return Q23;
+                }
+
+                function chrome(title) {
+                    return (
+                        '<div class="win-title"><span class="wt-ico"><svg class="ic"><use href="#i-dot"/></svg></span><span class="wt-t">' +
+                        title +
+                        '</span><span class="win-glyphs"><button class="wg" aria-label="最小化"><svg class="ic ic-sm"><use href="#i-min"/></svg></button><button class="wg" aria-label="最大化"><svg class="ic ic-sm"><use href="#i-max"/></svg></button><button class="wg" aria-label="关闭"><svg class="ic ic-sm"><use href="#i-x"/></svg></button></span></div>' +
+                        '<div class="win-tabs"><span class="tab on"><svg class="ic"><use href="#i-book"/></svg>《概率论与数理统计-题解》</span><span class="tab"><svg class="ic"><use href="#i-grid"/></svg>温故 · 刷题</span></div>'
+                    );
+                }
+
+                function sideHTML() {
+                    var rows = [
+                        ["第一章　随机事件与概率", false],
+                        ["1.1　样本空间与事件", true],
+                        ["1.2　条件概率与独立性", false],
+                        ["1.3　全概率与贝叶斯", true],
+                        ["第二章　随机变量及其分布", false],
+                        ["第三章　多维随机变量", false],
+                    ];
+                    return (
+                        '<aside class="side"><p class="sh-t">题集目录</p>' +
+                        rows
+                            .map(function (r) {
+                                return (
+                                    '<div class="trow' +
+                                    (r[1] ? " sub" : "") +
+                                    (r[0].indexOf("全概率") > -1 ? " on" : "") +
+                                    '"><svg class="ic"><use href="#i-book"/></svg>' +
+                                    esc(r[0]) +
+                                    "</div>"
+                                );
+                            })
+                            .join("") +
+                        "</aside>"
+                    );
+                }
+
+                function headHTML(st, focus) {
+                    var done = ALL.filter(function (q) {
+                        return st[q.id].submitted;
+                    }).length;
+                    var right = ALL.filter(function (q) {
+                        return isRight(q, st[q.id]);
+                    }).length;
+                    return (
+                        '<div class="stats"><span class="st-name">《概率论与数理统计-题解》</span><span class="st-sep"></span><span class="st-item">已刷 <b data-done>' +
+                        done +
+                        '</b>/85</span><span class="st-item">答对 <b data-right>' +
+                        right +
+                        '</b>/85</span><span class="st-sep"></span><span class="st-item">第 1 轮</span><span class="st-timer st-now" data-now><svg class="ic"><use href="#i-timer"/></svg>本题 <b>' +
+                        mmss(st[focus].acc) +
+                        '</b></span><span class="st-timer">本轮 <b data-round>' +
+                        "</b></span>" +
+                        '<button class="btn ghost sm" data-od-id="cta-submit-paper">交卷</button></div>'
+                    );
+                }
+
+                function make(spec) {
+                    var st = {};
+                    ALL.forEach(function (q) {
+                        st[q.id] = { picked: [], submitted: false, tused: null, acc: 0 };
+                    });
+                    Object.keys(spec.seed || {}).forEach(function (k) {
+                        Object.assign(st[k], spec.seed[k]);
+                    });
+                    Object.keys(spec.picked || {}).forEach(function (k) {
+                        st[k].picked = [].concat(spec.picked[k]);
+                    });
+                    st[spec.focus].acc = spec.focusAcc || 0;
+                    return {
+                        st: st,
+                        focus: spec.focus,
+                        round: spec.round || 746,
+                        anchor: spec.anchor || null,
+                    };
+                }
+
+                var DEMOS = {
+                    pano: make({
+                        focus: 23,
+                        focusAcc: 42,
+                        seed: {
+                            21: { picked: ["B"], submitted: true, tused: 38, acc: 38 },
+                            24: { picked: ["B"], submitted: true, tused: 62, acc: 62 },
+                        },
+                        picked: { 22: "B" },
+                        anchor: { id: 22, tail: 108 },
+                    }),
+                    answer: make({
+                        focus: 23,
+                        focusAcc: 47,
+                        seed: {
+                            21: { picked: ["B"], submitted: true, tused: 38, acc: 38 },
+                            22: { picked: ["A"], submitted: true, tused: 41, acc: 41 },
+                        },
+                        picked: { 23: "B" },
+                        anchor: { id: 22, tail: 210 },
+                    }),
+                    rail: make({
+                        focus: 23,
+                        focusAcc: 42,
+                        seed: { 21: { picked: ["B"], submitted: true, tused: 38, acc: 38 } },
+                        anchor: { id: 23, top: true },
+                    }),
+                };
+
+                /* 同一个取景窗里的锚点加前缀：同一张卡在四格取景里各有一份，
+                   重名会让批注指不清是哪一个。只改锚点名，界面零变化。 */
+                function qualify(root, pre) {
+                    if (!pre) return;
+                    Array.prototype.forEach.call(root.querySelectorAll("[data-od-id]"), function (el) {
+                        var v = el.getAttribute("data-od-id");
+                        if (v.indexOf(pre + "-") !== 0) el.setAttribute("data-od-id", pre + "-" + v);
+                    });
+                }
+
+                function paint(root, D) {
+                    var qwrap = root.querySelector(".qwrap");
+                    var keep = qwrap ? qwrap.scrollTop : 0;
+                    var body =
+                        '<div class="dock"><span class="dk on"><svg class="ic"><use href="#i-book"/></svg></span><span class="dk"><svg class="ic"><use href="#i-grid"/></svg></span><span class="dk"><svg class="ic"><use href="#i-star"/></svg></span></div>' +
+                        sideHTML() +
+                        '<div class="main">' +
+                        headHTML(D.st, D.focus) +
+                        '<div class="work">' +
+                        railHTML(D.st, D.focus) +
+                        '<div class="qwrap">' +
+                        cardHTML(F, D.st[F.id], D.focus === F.id) +
+                        cardHTML(Q22, D.st[Q22.id], D.focus === Q22.id) +
+                        cardHTML(Q23, D.st[Q23.id], D.focus === Q23.id) +
+                        groupHTML(D.st, D.focus) +
+                        cardHTML(Q26, D.st[Q26.id], D.focus === Q26.id) +
+                        "</div></div></div>";
+                    root.innerHTML =
+                        chrome("思源笔记 3.8.3 · 温故（wengu）· 刷题") + '<div class="app">' + body + "</div>";
+                    var qw = root.querySelector(".qwrap");
+                    if (keep) qw.scrollTop = keep;
+                    root.querySelector("[data-round]").textContent = mmss(D.round);
+                    qualify(root, D.pre);
+                    return qw;
+                }
+
+                function paintStatic(view, st, focus, pre) {
+                    view.innerHTML =
+                        '<div class="qwrap">' +
+                        cardHTML(Q22, st[Q22.id], focus === Q22.id) +
+                        cardHTML(Q23, st[Q23.id], focus === Q23.id) +
+                        "</div>";
+                    qualify(view, pre);
+                }
+
+                /* ── 运行期 ─────────────────────────────────────────────── */
+                var live = [];
+
+                function scrollToQid(root, id) {
+                    var qw = root.querySelector(".qwrap");
+                    var card = qw.querySelector('[data-qid="' + id + '"]');
+                    if (!card) return;
+                    qw.scrollTop = Math.max(0, card.offsetTop - 14);
+                }
+
+                /* ── 焦点切换一律走补丁，不重建 DOM ────────────────────────────
+                   paint() 会把整段 innerHTML 换掉，节点是新的，CSS 过渡没有起点可
+                   插值——那样「150ms 交叉淡化」就只活在文字里。所以切焦点只在同
+                   一个节点上加减 .is-focus：浏览器就地插值，屏 ①②③ 与重放看到的
+                   是同一条真过渡，DOM 重排也是零。 */
+                function patchNow(D, root) {
+                    var now = root.querySelector("[data-now]");
+                    if (!now) return;
+                    now.querySelector("b").textContent = mmss(stateOf(D, D.focus).acc);
+                    now.classList.toggle("frozen", !!stateOf(D, D.focus).submitted);
+                }
+
+                /* 长卷取景只有 6 张卡，题号栏却有 21–35：点到未渲染的题号时不报错，
+                   只是把它当成一笔 0:00 的账挂着。 */
+                function stateOf(D, id) {
+                    if (!D.st[id]) D.st[id] = { picked: [], submitted: false, tused: null, acc: 0 };
+                    return D.st[id];
+                }
+
+                function patchStats(D, root) {
+                    var done = 0;
+                    var right = 0;
+                    ALL.forEach(function (q) {
+                        if (D.st[q.id].submitted) done++;
+                        if (isRight(q, D.st[q.id])) right++;
+                    });
+                    var d = root.querySelector("[data-done]");
+                    var r = root.querySelector("[data-right]");
+                    if (d) d.textContent = done;
+                    if (r) r.textContent = right;
+                    patchNow(D, root);
+                }
+
+                function patchRail(D, root) {
+                    Array.prototype.forEach.call(root.querySelectorAll(".qn"), function (el) {
+                        var id = +el.dataset.rail;
+                        var s = D.st[id];
+                        var cls = "qn";
+                        if (id === D.focus) cls += " cur";
+                        else if (s && s.submitted) cls += isRight(QMAP(id), s) ? " ok" : " bad";
+                        el.className = cls;
+                        if (id === D.focus) el.setAttribute("aria-current", "true");
+                        else el.removeAttribute("aria-current");
+                    });
+                    var cap = root.querySelector(".qn-cap b");
+                    if (cap) cap.textContent = D.focus;
+                }
+
+                function patchFocus(D, root) {
+                    var qw = root.querySelector(".qwrap");
+                    if (!qw) return;
+                    Array.prototype.forEach.call(qw.querySelectorAll(".qcard"), function (el) {
+                        var on = +el.dataset.qid === D.focus;
+                        el.classList.toggle("is-focus", on);
+                        if (on) el.setAttribute("aria-current", "true");
+                        else el.removeAttribute("aria-current");
+                    });
+                    var inGroup = GROUP.qs.some(function (q) {
+                        return q.id === D.focus;
+                    });
+                    Array.prototype.forEach.call(qw.querySelectorAll(".qgroup"), function (el) {
+                        el.classList.toggle("has-focus", inGroup);
+                    });
+                    patchRail(D, root);
+                    patchNow(D, root);
+                }
+
+                /* 只换一张卡的卡内 DOM：article 节点与它的 opacity 不动，
+                   所以「点选项即切焦点」那一下的过渡照样跑得起来。 */
+                function patchCard(D, root, qid) {
+                    var el = root.querySelector('.qwrap .qcard[data-qid="' + qid + '"]');
+                    if (!el) return;
+                    var hadFocus = root.contains(document.activeElement);
+                    el.innerHTML = cardInnerHTML(QMAP(qid), D.st[qid], SUBQ.indexOf(qid) > -1);
+                    qualify(el, D.pre);
+                    /* 卡内 DOM 换新后，原本持焦的按钮随之消失；把焦点收回取景窗本体，
+                       否则鼠标作答之后 A–D / Enter 会静默失灵。 */
+                    if (hadFocus && root.hasAttribute("tabindex")) root.focus({ preventScroll: true });
+                }
+
+                function setFocus(D, root, id, scroll) {
+                    if (D.focus === id) return;
+                    D.focus = id;
+                    stateOf(D, id); /* 题号栏 21–35 都能点：木有渲染的题至少得有笔账，别让头部取时虚空 */
+                    patchFocus(D, root);
+                    if (scroll) scrollToQid(root, id);
+                }
+
+                /* 选中一个选项：这一下同时就是切焦点动作（口径③），
+                   所以不存在「没在计时却已作答」的路径。 */
+                function pick(D, root, qid, key) {
+                    var s = D.st[qid];
+                    var q = QMAP(qid);
+                    if (s.submitted) return;
+                    if (q.type === "多选题") {
+                        var i = s.picked.indexOf(key);
+                        if (i > -1) s.picked.splice(i, 1);
+                        else s.picked.push(key);
+                    } else {
+                        s.picked = [key];
+                    }
+                    D.focus = qid;
+                    patchFocus(D, root);
+                    patchCard(D, root, qid);
+                }
+
+                function submit(D, root, id, dunno) {
+                    var s = D.st[id];
+                    if (s.submitted) return;
+                    s.submitted = true;
+                    s.tused = s.acc;
+                    if (dunno && !s.picked.length) s.picked = [];
+                    patchFocus(D, root);
+                    patchCard(D, root, id);
+                    patchStats(D, root);
+                    patchRail(D, root);
+                }
+
+                function nextOf(id) {
+                    var order = [21, 22, 23, 24, 25, 26];
+                    var i = order.indexOf(id);
+                    return order[Math.min(order.length - 1, i + 1)];
+                }
+
+                /* 让一个取景窗活起来：一套事件代理服务屏 ①②③④ 与屏 ② 的左格，
+                   差别只在 root 能不能接键盘焦点（只有完整窗口带 tabindex）。 */
+                function bindRuntime(root, D, opts) {
+                    opts = opts || {};
+                    var qw = root.querySelector(".qwrap");
+                    if (D.anchor && qw) {
+                        var a = qw.querySelector('[data-qid="' + D.anchor.id + '"]');
+                        if (a) {
+                            qw.scrollTop = D.anchor.top
+                                ? a.offsetTop - 14
+                                : a.offsetTop + a.offsetHeight - D.anchor.tail;
+                        }
+                    }
+                    var rec = { D: D, root: root };
+                    live.push(rec);
+
+                    root.addEventListener("click", function (e) {
+                        var t = e.target;
+                        var opt = t.closest("[data-opt]");
+                        var card = t.closest("[data-qid]");
+                        var rail = t.closest("[data-rail]");
+                        var sub = t.closest("[data-submit]");
+                        var dun = t.closest("[data-dunno]");
+                        var nxt = t.closest("[data-next]");
+                        /* 键盘通道：点空白/卡体时把键盘焦点收到窗口上，A–D 与 Enter 立即可用；
+                           点的是按钮本体时不抢焦点，留给 Tab 顺序与原生 Enter 行为。 */
+                        if (opts.focusable && !(opt || rail || sub || dun || nxt)) {
+                            root.focus({ preventScroll: true });
+                        }
+
+                        if (rail) {
+                            setFocus(D, root, +rail.dataset.rail, true);
+                            return;
+                        }
+                        if (opt) {
+                            var parts = opt.dataset.opt.split(":");
+                            pick(D, root, +parts[0], parts[1]);
+                            return;
+                        }
+                        if (sub) {
+                            submit(D, root, +sub.dataset.submit, false);
+                            return;
+                        }
+                        if (dun) {
+                            submit(D, root, +dun.dataset.dunno, true);
+                            return;
+                        }
+                        if (nxt) {
+                            setFocus(D, root, nextOf(+nxt.dataset.next), true);
+                            return;
+                        }
+                        if (card) {
+                            setFocus(D, root, +card.dataset.qid, false);
+                        }
+                    });
+
+                    root.addEventListener("keydown", function (e) {
+                        if (e.target.closest("input, textarea, [contenteditable]")) return;
+                        var q = QMAP(D.focus);
+                        var k = e.key.toUpperCase();
+                        var hit = null;
+                        q.opts.forEach(function (o) {
+                            if (o.k === k) hit = o.k;
+                        });
+                        if (hit) {
+                            e.preventDefault();
+                            pick(D, root, q.id, hit);
+                            return;
+                        }
+                        /* Enter 只在窗口本体持焦时接管，避免与按钮原生行为打架 */
+                        if (e.key === "Enter" && e.target === root) {
+                            e.preventDefault();
+                            if (!D.st[q.id].submitted) submit(D, root, q.id, false);
+                            else setFocus(D, root, nextOf(q.id), true);
+                        }
+                    });
+                }
+
+                function mount(root, key) {
+                    var D = DEMOS[key];
+                    D.pre = key;
+                    paint(root, D);
+                    bindRuntime(root, D, { focusable: true });
+                }
+
+                Array.prototype.forEach.call(document.querySelectorAll("[data-demo]"), function (el) {
+                    mount(el, el.dataset.demo);
+                });
+                var P2 = make({ focus: 23, focusAcc: 34 });
+                P2.st[22].picked = ["B"];
+                var P2b = make({ focus: 22 });
+                P2b.st[22].picked = ["B"];
+                P2.pre = "pane-before";
+                P2b.pre = "pane-after";
+                var paneBefore = document.querySelector('[data-static="22"]');
+                var paneAfter = document.querySelector('[data-static="23"]');
+                /* 起始帧焦点在第 23 题（就是说明里的「点击前」），终帧焦点已到第 22 题。
+                   旧稿这两格与说明文字是反的，这里按说明配平。 */
+                paintStatic(paneBefore, P2.st, P2.focus, P2.pre);
+                paintStatic(paneAfter, P2b.st, P2b.focus, P2b.pre);
+                bindRuntime(paneBefore, P2, {});
+                setupReplay(paneBefore, P2, 23, 22);
+
+                setInterval(function () {
+                    live.forEach(function (rec) {
+                        var D = rec.D;
+                        D.round += 1;
+                        var cur = stateOf(D, D.focus);
+                        if (!cur.submitted) cur.acc += 1;
+                        var now = rec.root.querySelector("[data-now]");
+                        if (now) {
+                            now.querySelector("b").textContent = mmss(D.st[D.focus].acc);
+                            now.classList.toggle("frozen", !!D.st[D.focus].submitted);
+                        }
+                        var rd = rec.root.querySelector("[data-round]");
+                        if (rd) rd.textContent = mmss(D.round);
+                    });
+                }, 1000);
+
+                /* 屏 ②：左格不是画片，是一格可玩的起始帧——点下去真的交叉淡化；
+                   旁侧两枚读数直接读 getComputedStyle 的实时 opacity，中点会读到 0.61。 */
+                function setupReplay(view, D, startId, endId) {
+                    if (!view) return;
+                    var rpA = document.querySelector("[data-rp-a]");
+                    var rpB = document.querySelector("[data-rp-b]");
+                    var note = document.querySelector("[data-rp-note]");
+                    var btn = document.querySelector("[data-replay]");
+                    var steps = Array.prototype.slice.call(document.querySelectorAll("[data-tl]"));
+                    var reduceQ = window.matchMedia("(prefers-reduced-motion: reduce)");
+                    var raf = 0;
+
+                    function cardOf(id) {
+                        return view.querySelector('.qcard[data-qid="' + id + '"]');
+                    }
+                    function op(el) {
+                        if (!el) return 1;
+                        var v = parseFloat(window.getComputedStyle(el).opacity);
+                        return isNaN(v) ? 1 : v;
+                    }
+                    function readout() {
+                        if (rpA) rpA.textContent = op(cardOf(22)).toFixed(2);
+                        if (rpB) rpB.textContent = op(cardOf(23)).toFixed(2);
+                    }
+                    function mark(t) {
+                        var i = t < 37.5 ? 0 : t < 112.5 ? 1 : 2;
+                        steps.forEach(function (s, k) {
+                            s.classList.toggle("on", k === i);
+                        });
+                    }
+                    function go(id) {
+                        if (raf) cancelAnimationFrame(raf);
+                        setFocus(D, view, id, false);
+                        readout();
+                        mark(0);
+                        if (reduceQ.matches) {
+                            mark(150);
+                            readout();
+                            return;
+                        }
+                        var t0 = performance.now();
+                        raf = requestAnimationFrame(function tick(now) {
+                            var t = now - t0;
+                            readout();
+                            mark(t);
+                            if (t < 260) {
+                                raf = requestAnimationFrame(tick);
+                            } else {
+                                raf = 0;
+                                readout();
+                                mark(150);
+                            }
+                        });
+                    }
+                    /* 无声回到起始帧：过渡暂时关掉，否则复位自己也会淡一次 */
+                    function reset() {
+                        view.classList.add("no-anim");
+                        setFocus(D, view, startId, false);
+                        void view.offsetWidth;
+                        view.classList.remove("no-anim");
+                        readout();
+                        mark(0);
+                    }
+                    /* 手点左格时读数也跟着走（bindRuntime 已把焦点切过去，这里只采样） */
+                    view.addEventListener("click", function (e) {
+                        var card = e.target.closest(".qcard");
+                        if (card) go(+card.dataset.qid);
+                    });
+                    if (btn) {
+                        btn.addEventListener("click", function () {
+                            reset();
+                            window.setTimeout(function () {
+                                go(endId);
+                            }, 80);
+                        });
+                    }
+                    reset();
+                    if (note && reduceQ.matches) {
+                        note.textContent =
+                            "系统开启了「减少动态效果」：按本稿口径过渡归零，重放会即时跳到终帧；读数仍取自元素实时的 computed opacity。";
+                    }
+                }
+
+                /* ── 稿件导航：点即滚到该段（不碰 scrollIntoView），滚动时高亮当前段 ── */
+                (function () {
+                    var links = Array.prototype.slice.call(document.querySelectorAll("[data-goto]"));
+                    if (!links.length) return;
+                    var KEY = "wengu-focus-timer:view";
+                    function pick2(id) {
+                        return document.querySelector('[data-od-id="' + id + '"]');
+                    }
+                    function remember(id) {
+                        try {
+                            window.localStorage.setItem(KEY, id);
+                        } catch (err) {}
+                    }
+                    function recall() {
+                        try {
+                            return window.localStorage.getItem(KEY);
+                        } catch (err) {
+                            return null;
+                        }
+                    }
+                    function reduced() {
+                        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                    }
+                    function goTo(el, smooth) {
+                        var top = el.getBoundingClientRect().top + window.pageYOffset - 68;
+                        window.scrollTo({ top: top < 0 ? 0 : top, behavior: smooth ? "smooth" : "auto" });
+                    }
+                    function setOn(link) {
+                        links.forEach(function (l) {
+                            l.classList.toggle("on", l === link);
+                        });
+                        if (link) remember(link.dataset.goto);
+                    }
+                    links.forEach(function (l) {
+                        l.addEventListener("click", function (e) {
+                            e.preventDefault();
+                            var el = pick2(l.dataset.goto);
+                            setOn(l);
+                            if (el) goTo(el, !reduced());
+                        });
+                    });
+                    /* 刷新回到上次读到的那一屏；无痕/受限 iframe 下 localStorage 会抛，
+                       咽掉异常降级为首屏，不阻断阅读。 */
+                    (function restore() {
+                        var saved = recall();
+                        var el = saved ? pick2(saved) : null;
+                        if (!el) return;
+                        links.forEach(function (l) {
+                            if (l.dataset.goto === saved) setOn(l);
+                        });
+                        goTo(el, false);
+                    })();
+                    if (!("IntersectionObserver" in window)) return;
+                    var io = new IntersectionObserver(
+                        function (entries) {
+                            entries.forEach(function (en) {
+                                if (!en.isIntersecting) return;
+                                var id = en.target.dataset.odId;
+                                links.forEach(function (l) {
+                                    if (l.dataset.goto === id) setOn(l);
+                                });
+                            });
+                        },
+                        { rootMargin: "-64px 0px -58% 0px", threshold: 0 }
+                    );
+                    links.forEach(function (l) {
+                        var el = pick2(l.dataset.goto);
+                        if (el) io.observe(el);
+                    });
+                })();
+            })();
+        </script>
+    </body>
+</html>
