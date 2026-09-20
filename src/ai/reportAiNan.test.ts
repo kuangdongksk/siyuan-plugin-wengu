@@ -278,45 +278,93 @@ describe("NaN 矩阵：非有限值在 byBaseQid 出口一律归 0（Infinity �
 });
 
 /**
- * ⚠️ **残余缺口（同缺陷类，`it.fails` 钉住）**
+ * **汇总用时的出口归一（Issue #177 收口，`2e579c1` 钉的两条已修）**
  *
- * `byBaseQid` 出口已把**逐题**用时归一到有限值，但同一处的**汇总用时**没有：
- * `buildAnalysisPrompt` 的「本轮」行写 `mmss(m.totalSec)`，`mmss` 只夹
- * `Math.max(0, …)` ⇒ 非有限入参直接印「Infinity:NaN:NaN」。报告组件侧同形
- * 两处（`mmss(model.totalSec)` / `mmss(model.overtimeSec)`）。
+ * `byBaseQid` 出口已把**逐题**用时归一到有限值；**汇总用时**同缺陷类、但
+ * 走的是另一条无闸通道，20260920 一并收口（口径与 `byBaseQid` 的
+ * `secFinite`、`TimeBars.secOf` 逐字一致：**非有限值按 0 收拾**）：
  *
- * **① totalSec：可达（实测，同一根因只修了一半）**
+ * **① totalSec：可达（实测复现过整链）**
  * `m.totalSec` ← `RoundReport` 的 `ctx.timer.elapsed()` ←
  * `TimerController.baseSec` ← 「继续上次」时 `StartPanel` 传的
  * `unfinished.elapsedSec`——**它就是 history.json 里那个可手改 / 可跨版本同步
- * 的字段**，与 `byBaseQid` 那条修复所引的通道**逐字同一个**：
+ * 的字段**：
  * `JSON.parse('{"elapsedSec":1e999}')` → `Infinity`，`typeof` 仍是 number，
- * 落盘层没有闸。故这不是「理论脏值」——逐题 `sec` 补了出口归一，汇总
- * `elapsedSec` 漏了，属**同口径未收口**。
+ * 落盘层没有闸（`HistoryStore` 只挡 `sec > 0` 以下的）⇒
+ * `totalSec = baseSec + sec` 恒 `Infinity`，`mmss` 只夹 `Math.max(0, …)`，
+ * 旧实现印出「总用时 Infinity:NaN:NaN」。
  *
- * **② overtimeSec：不可达（只作一致性锁，不虚报面）**
+ * **② overtimeSec：不可达（一致性锁，不虚报面）**
  * `overtimeSec` 是 `TimerController.tick()` 里的整数计数器、**不落盘**
- * （`start()` 每次重置为 0），拿不到 `±Infinity`。
- * （`ratePct` 对 Infinity 有 `Math.min(100, …)` 钳位，同样不可达，故不钉。）
+ * （`start()` 每次重置为 0），拿不到 `±Infinity`；同形收口只为「同一组
+ * 汇总入参只有一个口径」，不是可复现缺口。
  *
- * 归因：**代码错**（口径不一致）。但**不在本单验收标准字面范围内**（标准只
- * 点了逐题 `sec` / `byBaseQid` / `TimeBars`）⇒ 只钉不修，等你的归因评审
- * 决定是否并入同一条派单。真补上归一后，① 会因「意外通过」变红，届时摘掉
- * 它那行的 `it.fails` 即可（② 可一并摘）。
+ * ⚠️ 本组**只锁 prompt 侧**（`buildAnalysisPrompt` 是纯函数，node 环境可直
+ * 断言）；报告组件的同形两处（`RoundReportApp` 的 `mmss(totalSec)` /
+ * `mmss(overtimeSec)`）由 `quiz/render/RoundReport.view.test.ts` 的源码级锁
+ * 把关。**别把 `mmss` 本身改成夹 `Number.isFinite`**——那是全仓共享的格式化
+ * 器，脏值的责任在「谁把它送进 mmss」这一层（出口归一），不在文案层。
  */
-describe("NaN 矩阵（残余缺口）：汇总行 mmss 未过出口归一", () => {
+describe("NaN 矩阵（Issue #177 收口）：汇总行 mmss 已过出口归一", () => {
     const empty = session([]);
 
-    it.fails(
-        "① buildAnalysisPrompt 的 totalSec（history.json elapsedSec 通道）非有限时，「本轮」行不应出 NaN:NaN",
-        () => {
-            const p = buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: Infinity, overtimeSec: 0 });
-            expect(p.split("\n").find((l) => l.startsWith("本轮："))).not.toContain("NaN");
-        }
-    );
+    const roundLine = (p: string): string => p.split("\n").find((l) => l.startsWith("本轮：")) ?? "";
 
-    it.fails("② overtimeSec 非有限时「超时」段不应出 NaN:NaN（一致性锁，该入参当前不可达）", () => {
+    it("① totalSec 非有限（history.json elapsedSec 通道）：「本轮」行按 0 收拾，不出 NaN:NaN", () => {
+        const line = roundLine(
+            buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: Infinity, overtimeSec: 0 })
+        );
+        expect(line).toContain("总用时 0:00"); // 非有限 → 0（byBaseQid 的 secFinite 同口径）
+        expect(line).not.toContain("NaN");
+        expect(line).not.toContain("Infinity");
+    });
+
+    it("① 同口径对 NaN / -Infinity 也成立（不是只挡 Infinity 一个值）", () => {
+        for (const total of [NaN, -Infinity, Number.POSITIVE_INFINITY]) {
+            const line = roundLine(
+                buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: total, overtimeSec: 0 })
+            );
+            expect(line, `totalSec=${String(total)}`).toContain("总用时 0:00");
+            expect(line).not.toContain("NaN");
+        }
+    });
+
+    it("① 正常值逐字不变（闸只吃非有限值，不吃真用时）", () => {
+        const line = roundLine(
+            buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: 3945, overtimeSec: 0 })
+        );
+        expect(line).toContain("总用时 1:05:45");
+    });
+
+    it("① 与逐题出口同口径：两端都归一后，全文（含本轮行）无字面 NaN", () => {
+        const p = buildAnalysisPrompt({
+            session: session([res("q1", true, Infinity)]),
+            list: [q("q1", "极限")],
+            rounds: [],
+            totalSec: Infinity,
+            overtimeSec: 0,
+        });
+        const stripped = p.replace(/不要输出 NaN、undefined 或类似字样的占位/g, "");
+        expect(stripped).not.toContain("NaN");
+        expect(stripped).not.toContain("Infinity");
+    });
+
+    it("② overtimeSec 非有限：「超时」段既不印 NaN 也不印 Infinity（一致性锁，该入参当前不可达）", () => {
         const p = buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: 60, overtimeSec: Infinity });
-        expect(p).not.toContain("NaN");
+        // 指令段自带「不要输出 NaN、undefined」字样，先剥掉再扫（同本文件
+        // 上文数据区那条的口径）——否则是拿自己的原句打自己的脸
+        const stripped = p.replace(/不要输出 NaN、undefined 或类似字样的占位/g, "");
+        expect(stripped).not.toContain("NaN");
+        expect(stripped).not.toContain("Infinity");
+        // 归一后 ≤0 ⇒ 整个「超时」段不出（与传 0 等价，不是印个「超时 0:00」）
+        expect(roundLine(p)).not.toContain("超时");
+        expect(roundLine(p)).toBe(
+            roundLine(buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: 60, overtimeSec: 0 }))
+        );
+    });
+
+    it("② overtimeSec 正常值逐字不变（超过 0 才出「超时」段）", () => {
+        const p = buildAnalysisPrompt({ session: empty, list: [], rounds: [], totalSec: 60, overtimeSec: 125 });
+        expect(roundLine(p)).toContain("超时 2:05");
     });
 });

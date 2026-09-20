@@ -71,6 +71,16 @@
      *  同口径；也顺带对齐「0 与缺失同路」：不说「0:00」，说「未记录」。 */
     const timeText = (sec: number, unanswered: boolean): string =>
         unanswered ? t("reportUnanswered") : sec > 0 ? mmss(sec) : TIME_UNKNOWN_TEXT;
+    /** **汇总行**的出口归一（Issue #177 收口）：`mmss` 只夹 `Math.max(0, …)`，
+     *  非有限入参直接印「Infinity:NaN:NaN」。`model.totalSec` 那条**可达**：
+     *  ← `TimerController.elapsed()` ← `baseSec` ←「继续上次」传的
+     *  `unfinished.elapsedSec`，即 history.json 里可手改 / 可跨版本同步的字段
+     *  （`JSON.parse('{"elapsedSec":1e999}')` → `Infinity`，落盘层无闸）。
+     *  `model.overtimeSec` 同形收口只作**一致性锁**（`tick()` 整数计数器、
+     *  不落盘，当前不可达）——别虚报成可复现缺口。判卷 prompt 的「本轮」行
+     *  在 `buildAnalysisPrompt` 内同口径收，两处同一判据：非有限值按 0 收拾。 */
+    const totalSec = Number.isFinite(model.totalSec) ? model.totalSec : 0;
+    const overtimeSec = Number.isFinite(model.overtimeSec) ? model.overtimeSec : 0;
     const timeBars = buildTimeBars(barInputs, {
         fmtTitle: (x) =>
             fmt(t("reportQTime"), { n: String(x.label), t: timeText(x.sec, x.unanswered) }) + ` · ${stateText(x)}`,
@@ -123,9 +133,9 @@
         <div class="wengu-start-title">{t("reportTitle")}</div>
         <div class="wengu-report-summary">
             <span class="wengu-meta">{fmt(t("reportScore"), { c: String(s.correct), a: String(s.answered) })}</span>
-            <span class="wengu-meta">{@html svgIcon("iconClock")} {mmss(model.totalSec)}</span>
-            {#if model.overtimeSec > 0}
-                <span class="wengu-meta">+{mmss(model.overtimeSec)} {t("reportOvertime")}</span>
+            <span class="wengu-meta">{@html svgIcon("iconClock")} {mmss(totalSec)}</span>
+            {#if overtimeSec > 0}
+                <span class="wengu-meta">+{mmss(overtimeSec)} {t("reportOvertime")}</span>
             {/if}
         </div>
         <div class="wengu-report-chart">

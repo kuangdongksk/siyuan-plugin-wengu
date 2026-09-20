@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "svelte/compiler";
 import * as sass from "sass";
+import { buildAnalysisPrompt } from "../../ai/prompts/judge";
+import { TimerController } from "../service/TimerController";
+import type { WenguSession } from "../service/HistoryStore";
 import ROUND_REPORT from "./RoundReport.ts?raw";
 import QUIZ_SHELL from "./QuizShell.ts?raw";
 import QUIZ_INDEX from "../index.ts?raw";
@@ -267,6 +270,26 @@ describe("用时图分组聚合（Issue #155 块 B）· 源级", () => {
         expect(SVELTE_SRC).not.toMatch(/fmtTitle: \(x\) =>[^\n]*mmss\(x\.sec\)/);
     });
 
+    it("**汇总行**用时也过出口归一：mmss(totalSec)/mmss(overtimeSec) 不许吃非有限入参（Issue #177 收口）", () => {
+        // 同缺陷类的另一条通道（逐题 sec 已由 byBaseQid/TimeBars 收口）：汇总
+        // 用时的 totalSec ← TimerController.elapsed() ← baseSec ←「继续上次」
+        // 传的 history.json elapsedSec（`JSON.parse('{"elapsedSec":1e999}')` →
+        // Infinity，落盘层无闸），旧实现印出「Infinity:NaN:NaN」。
+        // ⚠️ 判据不许写成「把 mmss 改成夹 Number.isFinite」——mmss 是全仓共享
+        //    格式化器，脏值的责任在把它送进来这一层（prompt 侧同口径）。
+        expect(SVELTE_SRC).toMatch(/const totalSec = Number\.isFinite\(model\.totalSec\) \? model\.totalSec : 0;/);
+        expect(SVELTE_SRC).toMatch(
+            /const overtimeSec = Number\.isFinite\(model\.overtimeSec\) \? model\.overtimeSec : 0;/
+        );
+        // 模板只许用归一后的局部量；`mmss(model.…)` 一处都不许再留
+        expect(SVELTE_SRC).toContain("mmss(totalSec)");
+        expect(SVELTE_SRC).toContain("mmss(overtimeSec)");
+        expect(SVELTE_SRC).not.toMatch(/mmss\(model\./);
+        // 「超时」段的出现条件也走归一后的值（否则 Infinity 会印「+0:00 超时」旁挂）
+        expect(SVELTE_SRC).toMatch(/\{#if overtimeSec > 0\}/);
+        expect(SVELTE_SRC).not.toMatch(/\{#if model\.overtimeSec > 0\}/);
+    });
+
     it("组柱/明细样式：TS 拼串触达的 .wengu-bar-* 留共享片，组件独占的明细块进 <style>", () => {
         // 色类由 render/TimeBars.ts 拼串产生 ⇒ 不能搬进组件 <style>
         for (const cls of ["wengu-bar-muted", "wengu-bar-right", "wengu-bar-wrong", "wengu-bar-partial"])
@@ -299,5 +322,70 @@ describe("RoundReportApp.svelte <style>（design-spec §13 绑定口径）", () 
         // 报告滚动窗的**桩**留在共享片（TS innerHTML 触达）；组件内同名规则
         // 只留 flex 行布局，两者不重定义 overflow（一个落点一条口径）
         expect(css).not.toMatch(/wengu-report-scroll \{[\s\S]*?overflow/);
+    });
+});
+
+/**
+ * 汇总用时出口归一的**跨模块链**（Issue #177 收口）：不构造假模型，用
+ * **真 `TimerController`** 跑一遍「history.json 脏 `elapsedSec` → baseSec →
+ * elapsed()」的可达路径，再喂给 prompt 与报告侧的同口径取值。
+ *
+ * ⚠️ 这条链是 `2e579c1` 实测可达的那条（不是理论脏值）：`elapsedSec` 是
+ * history.json 里可手改 / 可跨版本同步的字段，`JSON.parse('{"elapsedSec":
+ * 1e999}')` → `Infinity`，落盘层无闸（`HistoryStore` 只挡 `sec > 0` 以下）。
+ * 修法只在**出口**（`buildAnalysisPrompt` 的 `secFinite` + 组件模板的
+ * `Number.isFinite`）——`HistoryStore`/`RoundSeal` 的存量写法与 `start()` 的
+ * 形参语义一律未动，免得碰数据演进守则。
+ */
+describe("汇总用时出口归一（Issue #177 收口）· 真类跨模块链", () => {
+    /** 报告/统计侧共用的取值口径（与 RoundReportApp 的模板逐字同判据）。 */
+    const exit = (model: { totalSec: number; overtimeSec: number }): { totalSec: number; overtimeSec: number } => ({
+        totalSec: Number.isFinite(model.totalSec) ? model.totalSec : 0,
+        overtimeSec: Number.isFinite(model.overtimeSec) ? model.overtimeSec : 0,
+    });
+
+    const empty: WenguSession = {
+        id: "s1",
+        docId: "d1",
+        startedAt: 1,
+        mode: "countUp",
+        elapsedSec: 0,
+        answered: 0,
+        correct: 0,
+        results: [],
+    };
+
+    it("脏 elapsedSec（history.json 的 `1e999`）进 baseSec 后 elapsed() 确为非有限（复现，不是推测）", () => {
+        const timer = new TimerController(() => undefined);
+        const dirty = (JSON.parse('{"elapsedSec":1e999}') as { elapsedSec: number }).elapsedSec;
+        expect(Number.isFinite(dirty)).toBe(false); // 落盘层确实没闸
+        timer.start("countUp", 20, dirty);
+        expect(Number.isFinite(timer.elapsed())).toBe(false); // ← 可达通道在此
+    });
+
+    it("该链的 elapsed() 过出口 ⇒ prompt「本轮」行按 0 收拾，不出 NaN/Infinity", () => {
+        const timer = new TimerController(() => undefined);
+        timer.start("countUp", 20, (JSON.parse('{"elapsedSec":1e999}') as { elapsedSec: number }).elapsedSec);
+        const model = { totalSec: timer.elapsed(), overtimeSec: 0 };
+        const line =
+            buildAnalysisPrompt({ session: empty, list: [], rounds: [], ...exit(model) })
+                .split("\n")
+                .find((l) => l.startsWith("本轮：")) ?? "";
+        expect(line).toContain("总用时 0:00");
+        expect(line).not.toContain("NaN");
+        expect(line).not.toContain("Infinity");
+    });
+
+    it("正常路径逐字不变：真用时（含超时）照原样出", () => {
+        const timer = new TimerController(() => undefined);
+        timer.start("countUp", 20, 3600); // 继续上次：base=1h
+        const model = { totalSec: timer.elapsed(), overtimeSec: 125 };
+        expect(exit(model)).toEqual({ totalSec: 3600, overtimeSec: 125 });
+        const line =
+            buildAnalysisPrompt({ session: empty, list: [], rounds: [], ...exit(model) })
+                .split("\n")
+                .find((l) => l.startsWith("本轮：")) ?? "";
+        expect(line).toContain("总用时 1:00:00");
+        expect(line).toContain("超时 2:05");
     });
 });

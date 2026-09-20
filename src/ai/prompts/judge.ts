@@ -298,14 +298,27 @@ export function buildAnalysisPrompt(m: {
         })
         .join("\n");
     const history = rounds.map((r, i) => `第${i + 1}轮 ${r.correct}/${r.answered}`).join("；");
-    const overtime = m.overtimeSec > 0 ? `；超时 ${mmss(m.overtimeSec)}` : "";
+    // 汇总行的**出口归一**（Issue #177）：`totalSec`/`overtimeSec` 与逐题
+    // `sec` 同罪不同路——逐题那条走了 byBaseQid（`allTimed` 的 `r.sec > 0`
+    // 判据拦不住 Infinity，靠出口 `secFinite` 收），**汇总这条两个闸都没有**：
+    // `RoundReport` 的 `totalSec` ← `TimerController.elapsed()` ← `baseSec`
+    // ←「继续上次」传的 `unfinished.elapsedSec`，正是 history.json 里可手改 /
+    // 可跨版本同步的那个字段（`JSON.parse('{"elapsedSec":1e999}')` →
+    // `Infinity`，落盘层无闸）⇒ `totalSec = baseSec + sec` 直接出非有限值，
+    // 而 `mmss` 只夹 `Math.max(0, …)`，印成「总用时 Infinity:NaN:NaN」。
+    // 故与 byBaseQid 同口径：**出口再过一道 secFinite**，任何入参都不印脏值。
+    // ⚠️ `overtimeSec` 同形收口只是**一致性锁**（`tick()` 整数计数器、不落盘，
+    // 当前拿不到 ±Infinity），别当成可复现缺口。
+    const totalSec = secFinite(m.totalSec);
+    const overtimeSec = secFinite(m.overtimeSec);
+    const overtime = overtimeSec > 0 ? `；超时 ${mmss(overtimeSec)}` : "";
     const thoughtRule = hasThoughts
         ? "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。"
         : "";
     return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分五段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议；知识点归组。${thoughtRule}
 末段「知识点」用 markdown 列表逐点给出**归组清单**（下表已按知识点归好组，直接照抄与合并，不要编造新的知识点名）：每点几对几错、合计用时。
 ⚠️ 用时数据以「每题」行给出的为准，标记为「${TIME_UNKNOWN_TEXT}」的题是**没有记录到用时**（快速作答未满 1 秒），不是 0 秒也不是缺失错误：不要推测、编造任何数值，不要输出 NaN、undefined 或类似字样的占位。
-本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
+本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(totalSec)}${overtime}
 每题：${perQ}
 知识点归组：\n${knowGroups}
 历史轮次：${history}

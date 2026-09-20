@@ -271,6 +271,18 @@ flex-direction:column}`）：`.wengu-main` 原是块级内滚窗（`base.scss`
   **改这个函数时先跑 `ai/prompts/judge.test.ts` 的「绝不出 NaN」组**
   （全形态单一断言兜底）；图表侧另有出口归一 `TimeBars.secOf`（非有限值按 0），
   两道都留——源头修，任何新调用方传脏值也不坏图。
+- ⚠️ **汇总用时是另一条通道，20260920 一并收口（别只修逐题就以为完了）**：
+  `totalSec` ← `RoundReport` 的 `ctx.timer.elapsed()` ← `TimerController.baseSec`
+  ←「继续上次」传的 `unfinished.elapsedSec`，即 history.json 里可手改 / 可跨版本
+  同步的字段（`JSON.parse('{"elapsedSec":1e999}')` → `Infinity`，**落盘层无闸**）
+  ⇒ `totalSec = baseSec + sec` 恒非有限，`mmss` 只夹 `Math.max(0, …)`，旧实现
+  印「总用时 Infinity:NaN:NaN」。**修法只落出口**（`judge.ts` 的 `secFinite` +
+  `RoundReportApp` 模板的 `Number.isFinite`），**不碰** `HistoryStore`/`RoundSeal`
+  的存量写法与 `start()` 形参语义——那会踩数据演进守则。`overtimeSec` 同形收口
+  只作**一致性锁**（`tick()` 整数计数器、不落盘，当前不可达，别虚报成缺口）。
+  ⚠️ **别把 `mmss` 本身改成夹 `Number.isFinite`**：它是全仓共享格式化器，脏值的
+  责任在「谁把它送进 mmss」这层。锁在 `ai/reportAiNan.test.ts`（prompt 侧）
+    - `render/RoundReport.view.test.ts`（组件源码级 + 真 `TimerController` 跨模块链）。
 - **跳过是「没来过」**：`skipQuestion` 不记账不锁卡不揭示，只
   `onActiveQ` + `focusQuestion` 滚到下一题；末题零动作。「不会」才记账
   （`submitted=""`，objective 与 brief 都直接判错，brief **不调 AI**）。
