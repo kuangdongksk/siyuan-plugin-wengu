@@ -19,5 +19,17 @@ OpenDesign MCP（daemon `127.0.0.1:7456`，本机）派「对比/出稿/细化�
 - **生成 HTML 的格式门坑**：agent 写的 HTML 里正文/注释会出现 `` `<style>` `` 这类**字面量标签**（无闭合），prettier 的 HTML 解析器当真标签 → `SyntaxError: Unexpected character "EOF"`（报在文件尾行，极具迷惑性——真因是中间未闭合）→ CI 格式门 error。**产物入仓前先 `prettier --check`**，挂了用栈式配平器定位未闭合标签、字面量改写（如「style 块」）。同理 markdown 字面量 \`\` \`标签\`\` 在 HTML 文件里都不转义。
 - **完成判定**：run 主体做完后状态可能长时间挂 `running`（收尾写总结慢）——以事件流里 TodoWrite 全勾 + 产物文件落盘为准判完成，别 cancel 也别当挂了重复派。
 - **单 run 纪律**：同一任务**不许并行派发多个 OpenDesign run**（20260914 用户明确要求「注意不要派发多个 OpenDesign」）；断流重试=同任务新 requestId 重发，不是再开一单。
+- **macOS（外置卷机器）无头启动（20260920 实测通过）**：app 不在 /Applications，在
+  `/Volumes/baiWeiNV7200/Applications/Open Design.app`；`open -g -j <app> --args --headless`
+  即起（launcher→sidecar supervisor 全链起来，socket 落
+  `/var/folders/bk/2q8v1brx7mjf7qkhphjw_gzm0000gn/T/od-sidecar-501/`）。REST 直启 =
+  Helper 二进制 + `…/prebundled/daemon/daemon-cli.mjs --host 127.0.0.1 --port 7456 --no-open`，
+  env `ELECTRON_RUN_AS_NODE=1 OD_DATA_DIR=~/Library/Application Support/Open Design/namespaces/release-stable/data OD_SIDECAR_CLIENT_ENDPOINT=<活 sock>`。
+  REST 路由在 `prebundled/daemon/chunks/server-CQLNCSGE.mjs`（POST /api/import/folder、
+  POST /api/runs、GET /api/runs/:id、GET /api/projects/:id/files/:name）。
+- **MCP stdio 探针坑（20260920）**：`/tmp/od-mcp.mjs` 探针 spawn 的 Electron Helper 把
+  带空格的 daemon-cli 路径按空格截断（`Cannot find module '/Users/sasa/Library/Application'`）
+  → initialize 超时；修法候选=sh -c 显式引号包路径或复制 daemon-cli 到无空格路径
+  （注意 __dirname 资源解析）。修通前优先走 REST。
 
 相关：[[feedback-opendesign-for-visual-compare]]、[[wengu-mobile-drill]]
