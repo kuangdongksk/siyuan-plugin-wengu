@@ -3,7 +3,7 @@ import * as sass from "sass";
 import { compile } from "svelte/compiler";
 
 /**
- * 阅读组可拖分隔条的**对稿规格**（Issue #138，`design/sidebar-gap-list.md`
+ * 阅读组可拖分隔条的**对稿规格**（Issue #138，`design/UI/刷题/sidebar-gap-list.md`
  * §6.1 / §7.c）：与 `WorkspaceDesign.test.ts` / `StartPanelStyle.test.ts`
  * 同口径——scss 走 `sass.compile` 真编译、组件走 `?raw` + Svelte 真编译，
  * 断言尺寸/令牌/结构而不是通读源码。

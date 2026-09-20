@@ -6,7 +6,7 @@ import type { WenguRevealMode, WenguTimingMode } from "../types";
  * 移动端「仅刷题」：dock 面板内完成 选卷/开刷 → 作答 → 判分揭示 → 轮次报告。
  * 管理类功能（转换 / rail 工作区 / 统计 / 词书）不进移动端。
  *
- * 设计稿：`design/wengu-mobile-drill.html`（九屏 390×844）。
+ * 设计稿：`design/UI/刷题/wengu-mobile-drill.html`（九屏 390×844）。
  */
 
 /** 移动端视图模式（对应设计稿屏 ①⑥⑦⑧）。 */

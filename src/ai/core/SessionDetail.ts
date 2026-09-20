@@ -1,6 +1,6 @@
 /**
  * 记录详情的**三段视图模型**（Issue #88，纯逻辑带单测）：
- * 设计稿 `design/convert-stop-redesign.html` 的 `.ai-detail` 由
+ * 设计稿 `design/UI/转换/convert-stop-redesign.html` 的 `.ai-detail` 由
  * `detail-head`（任务名 + kind 徽标 + 状态徽标）、`detail-body`
  * （`log-label` + `ul.log` 轮次日志）、`detail-foot`（`own-note` 归属备注）
  * 三段构成，此处把记录折算成三段各自的渲染数据——组件只按字段渲染。

@@ -4,7 +4,7 @@ import { compile } from "svelte/compiler";
 
 /**
  * 开刷面板的样式硬口径（Issue #100，**编译产物断言**）：照设计稿
- * `design/wengu-desktop-drill.html` 屏① 的规格不得漂移——卡片/卡头/行/
+ * `design/UI/刷题/wengu-desktop-drill.html` 屏① 的规格不得漂移——卡片/卡头/行/
  * 动作行的关键尺寸与稿一致，且**颜色零硬编码**（全部走 b3 令牌，
  * 明暗主题自适应）。
  *

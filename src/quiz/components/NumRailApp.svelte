@@ -14,7 +14,7 @@
      * 短线、hover 伸展变长，套标题走原生 title（栏容器 overflow-y:auto
      * 会裁切行内浮层，原生提示不受裁）。
      *
-     * 对稿还原（Issue #135，design/sidebar-gap-list.md §2）：结构分三层
+     * 对稿还原（Issue #135，design/UI/刷题/sidebar-gap-list.md §2）：结构分三层
      * ——常驻题号帽 `.wengu-nums-cap`（「题号 N/M」，可滚性表达）/ 自滚网格
      * `.wengu-nums-grid`（**滚动职责从 .wengu-nums 下放到本层**，帽与图例
      * 常驻不滚）/ 常驻图例 `.wengu-nums-legend`（多题集或揭示态才出，作答中

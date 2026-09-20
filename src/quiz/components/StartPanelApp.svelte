@@ -193,7 +193,7 @@
 </div>
 
 <style>
-    /* ── 开刷面板（首屏，Issue #100）：照设计稿 design/wengu-desktop-drill.html
+    /* ── 开刷面板（首屏，Issue #100）：照设计稿 design/UI/刷题/wengu-desktop-drill.html
    屏①——去外盒、改居中列容器：两张独立卡片 + 底部动作行（卡头在卡内）；
    行式控件沿用 FormRow 的 b3 行样式（与插件设置同款）。颜色全走 b3 令牌
    （Neo 的 #c5866a/#364852 只作观感参照，禁硬编码）。

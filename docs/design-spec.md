@@ -2,7 +2,7 @@
 
 > **本文是界面规范的唯一权威落点。** 口径来源＝
 > `docs/design-review.md §〇`（旧文保留作审查清单，不删）、`AGENTS.md` 各 UI 段、
-> `design/*.html` 设计稿、代码内构件注释；由审计单
+> `design/UI/<主题>/*.html` 设计稿、代码内构件注释；由审计单
 > [#111](https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/issues/111)
 > （规范草案）与 [#112](https://cnb.cool/sasa1107/open-source/si-yuan/siyuan-plugin-wengu/-/issues/112)
 > （现状违反清单 + 官方令牌白名单硬证据）校订成文。
@@ -170,7 +170,7 @@ ts/svelte 走源码文本并**剥注释**（注释里复述写法不算在用，
 ### 2.2 唯一主操作的落点
 
 - 一个面板/弹窗**至多一个** `primary`。当前已知合法落点：
-  开刷面板「开始刷题」（Issue #100 照 `design/wengu-desktop-drill.html` 屏①）、
+  开刷面板「开始刷题」（Issue #100 照 `design/UI/刷题/wengu-desktop-drill.html` 屏①）、
   移动端主 CTA、AI 会话详情的错误态「重试」（`SessionDetail.svelte`，
   该屏唯一错误恢复动作）。
 - **「选中态」不是主操作**：筛选条/chip 的选中态走主题色描边或浅底，
@@ -733,7 +733,7 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
     | 专题 / 知识 / 统计 / 学伴 | 待迁移（不在本条当前生效范围）                    |
 
     ⚠️ AI 会话面板沿设计稿保留的**视觉**（一体卡骨架、树/详情/横幅、轮次日志块
-    与复制钮，见 `design/aipanel-gap-list.md`）与高度链**不冲突**：本面板的内滚窗
+    与复制钮，见 `design/UI/AI面板/aipanel-gap-list.md`）与高度链**不冲突**：本面板的内滚窗
     落在**卡内两列**（树列 / 详情列），卡本身仍按稿是「一体卡」形态；窄窗（≤1000px）
     折单列后仍是卡内滚动（横幅行按内容，树/详情两行各吃剩余高的一半、各自列内滚），
     不回退成页面级滚动。
@@ -882,12 +882,12 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 
 ## 附：本文与其它文档的关系
 
-| 文档                                           | 角色                                                                   |
-| ---------------------------------------------- | ---------------------------------------------------------------------- |
-| **`docs/design-spec.md`（本文）**              | **界面规范唯一权威落点**                                               |
-| `docs/design-review.md §〇`                    | 历史审查清单（**保留不删**），规范条款已上收本文；§一/§四 为历史快照   |
-| `AGENTS.md` 通用横切约束                       | 索引 + 最常踩的几条（指向本文）                                        |
-| `docs/svelte-migration.md`                     | Svelte 迁移施工手册（模式样板 / 暗雷清单；样式绑定权威口径见本文 §13） |
-| `design/*.html` / `design/aipanel-gap-list.md` | **设计稿**（照稿施工、勿发明视觉）                                     |
-| `design/theme-tokens-neo.md`                   | **观察记录，非规范来源**（见文首）                                     |
-| `docs/question-block-contract.md`              | 题块契约（改行为必须同步）                                             |
+| 文档                                                               | 角色                                                                   |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| **`docs/design-spec.md`（本文）**                                  | **界面规范唯一权威落点**                                               |
+| `docs/design-review.md §〇`                                        | 历史审查清单（**保留不删**），规范条款已上收本文；§一/§四 为历史快照   |
+| `AGENTS.md` 通用横切约束                                           | 索引 + 最常踩的几条（指向本文）                                        |
+| `docs/svelte-migration.md`                                         | Svelte 迁移施工手册（模式样板 / 暗雷清单；样式绑定权威口径见本文 §13） |
+| `design/UI/<主题>/*.html` / `design/UI/AI面板/aipanel-gap-list.md` | **设计稿**（照稿施工、勿发明视觉）                                     |
+| `design/theme-tokens-neo.md`                                       | **观察记录，非规范来源**（见文首）                                     |
+| `docs/question-block-contract.md`                                  | 题块契约（改行为必须同步）                                             |

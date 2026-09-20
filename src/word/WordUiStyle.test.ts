@@ -4,7 +4,7 @@ import { compile } from "svelte/compiler";
 
 /**
  * 背单词双端界面美化的样式硬口径（Issue #153，**编译产物断言**）：
- * 照设计稿 `design/wengu-word-redesign.html` 双端逐屏规格不得漂移。
+ * 照设计稿 `design/UI/背单词/wengu-word-redesign.html` 双端逐屏规格不得漂移。
  *
  * 覆盖两条口径：
  *   1. **色值零硬编码**——稿内 Neo+ hex 只是静态兜底，落地全走 `var(--b3-*)`

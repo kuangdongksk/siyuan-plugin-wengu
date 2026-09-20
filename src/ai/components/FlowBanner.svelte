@@ -32,7 +32,7 @@
     /**
      * 「运行中的 AI 流」横幅（Issue #77 落地、**Issue #85 按设计稿还原**）：
      * AI 会话面板**顶部**的流级停止面。三屏对应设计稿
-     * `design/convert-stop-redesign.html`：
+     * `design/UI/转换/convert-stop-redesign.html`：
      *  - 批量队列跑动中 → 两行标题 + 构成条（六态分色 + aria）/ 单流进度条
      *    - 富统计（mono 数字）+ 收起/展开分篇 + cancel 语义停止钮；
      *    下方六态计数 chips（零值压暗）+ 展开后的分篇清单（五列 grid）；

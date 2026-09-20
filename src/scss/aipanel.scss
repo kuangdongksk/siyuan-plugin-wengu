@@ -1,8 +1,8 @@
 /* AI 会话面板（Issue #88 按设计稿还原；**Issue #92 照施工规格精修**）
-   视觉规格照 design/convert-stop-redesign.html 的三屏（ai-panel-batch-running /
+   视觉规格照 design/UI/转换/convert-stop-redesign.html 的三屏（ai-panel-batch-running /
    ai-panel-single-running / ai-panel-stopped）与 legacy-ai-panel 对照屏，
-   数值逐条取自 design/aipanel-gap-list.md（差距清单=权威修法）与
-   design/convert-stop-redesign-spec.html 06 节（CSS 规格总表）。**不自行发明**：
+   数值逐条取自 design/UI/AI面板/aipanel-gap-list.md（差距清单=权威修法）与
+   design/UI/转换/convert-stop-redesign-spec.html 06 节（CSS 规格总表）。**不自行发明**：
 
      ① **一体卡**（gap-list S1/S2）：`.wengu-aipanel` = 稿的 grid
         （292px + 1fr，banner 跨两栏）+ 卡面/1px 边线/12px 圆角/overflow:hidden；
@@ -18,7 +18,7 @@
      ④ 状态语言一套三件：色点 / 徽标 / 状态词（六态同色名族）。
 
    色值**一律 var(--b3-*) 全名**，禁止写死色值与令牌裸名（#70 事故口径）。
-   令牌权威在 design/aipanel-gap-list.md §0 映射表（下称「映射表」）；
+   令牌权威在 design/UI/AI面板/aipanel-gap-list.md §0 映射表（下称「映射表」）；
    component-group 令牌在本仓不存在时的兜底写在各条注释里。 */
 
 /* ── 〇 一体卡外壳（gap-list S1/S2；稿 .ai-panel） ── */

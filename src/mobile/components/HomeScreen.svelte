@@ -7,7 +7,7 @@
     import { fmt } from "../../ui/shared";
 
     /**
-     * 屏 ① 开刷面板（设计稿 `design/wengu-mobile-drill.html`）：续刷卡片
+     * 屏 ① 开刷面板（设计稿 `design/UI/刷题/wengu-mobile-drill.html`）：续刷卡片
      * 置顶直达上次进度；先选「判分模式」与「本次题数」，再进入按源文档
      * 分组的题集清单，行内进度条显示做题进度。
      */
