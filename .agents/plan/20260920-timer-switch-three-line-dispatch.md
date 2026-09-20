@@ -16,7 +16,7 @@
    （先红测试后实现）。线 C 的 Issue 必须附设计稿路径 → **先出稿、用户过目拍板后才派线 C**。
 4. 全程不合并任何 PR；全绿后复核 NPC（glm-5.3-flash）终审，用户拍板合并。
 5. mock 库不引入（vitest 内置 vi.mock/vi.fn，仓内 151 处先例；DOM 断言走 ？raw 源级
-   + sass.compile 既有范式）。
+    - sass.compile 既有范式）。
 
 ## 一、已完成（勿重做）
 
@@ -36,18 +36,18 @@
 
 1. 写任务书 `design/UI/单题计时/README.md`（该目录新建；内容见下方「任务书内容」）。
 2. OD 调用（两条路，REST 已验证通、MCP 探针有 bug 待修）：
-   - **REST 路（推荐，已验证）**：daemon 启动见 §四。然后
-     `POST /api/import/folder` JSON `{baseDir:"<仓库绝对路径>/design/UI/单题计时", name:"wengu-focus-timer"}`
-     → `POST /api/runs`（body 字段用 `GET /api/runs?projectId=…` 对照或从
-     server chunk 的 registerRunCreateRoute 看；字段含 projectId/prompt）
-     → 轮询 `GET /api/runs/:id`（30-60s）→ `GET /api/projects/:id/files/:name` 取产物。
-     本会话已从 daemon-cli 的 server chunk 确认路由表存在（/api/import/folder、/api/runs、
-     /api/runs/:id、/api/projects/:id/files/:name、/api/runs/:id/cancel）。
-   - **MCP 探针路**：`/tmp/od-mcp.mjs` 已重建但仍有坑——spawn 的 Electron Helper 把
-     带空格的 daemon-cli 路径按空格截断（报 `Cannot find module '/Users/sasa/Library/Application'`）
-     → initialize 超时。修法候选：sh -c 显式加引号包 command 与 args[0]，或先把
-     daemon-cli.mjs 复制到无空格路径（注意 __dirname 资源解析可能断）。修好后
-     `node /tmp/od-mcp.mjs list` 看工具，`call import_folder …`、`call start_run …`。
+    - **REST 路（推荐，已验证）**：daemon 启动见 §四。然后
+      `POST /api/import/folder` JSON `{baseDir:"<仓库绝对路径>/design/UI/单题计时", name:"wengu-focus-timer"}`
+      → `POST /api/runs`（body 字段用 `GET /api/runs?projectId=…` 对照或从
+      server chunk 的 registerRunCreateRoute 看；字段含 projectId/prompt）
+      → 轮询 `GET /api/runs/:id`（30-60s）→ `GET /api/projects/:id/files/:name` 取产物。
+      本会话已从 daemon-cli 的 server chunk 确认路由表存在（/api/import/folder、/api/runs、
+      /api/runs/:id、/api/projects/:id/files/:name、/api/runs/:id/cancel）。
+    - **MCP 探针路**：`/tmp/od-mcp.mjs` 已重建但仍有坑——spawn 的 Electron Helper 把
+      带空格的 daemon-cli 路径按空格截断（报 `Cannot find module '/Users/sasa/Library/Application'`）
+      → initialize 超时。修法候选：sh -c 显式加引号包 command 与 args[0]，或先把
+      daemon-cli.mjs 复制到无空格路径（注意 __dirname 资源解析可能断）。修好后
+      `node /tmp/od-mcp.mjs list` 看工具，`call import_folder …`、`call start_run …`。
 3. **纪律**（记忆 wengu-opendesign-mcp 有全量）：单 run 不并行；prompt 喂本机绝对路径
    不传大文件；按 `design/theme-tokens-neo.md` 落色（常驻深色暖调）；产物入仓前必
    `prettier --write`，正文/注释禁未闭合的字面量 `<style>` 标签（prettier HTML 解析会炸，

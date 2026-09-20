@@ -2,7 +2,7 @@
 name: remote-naming-per-machine
 description: 两台机器 git 远端命名相反——外置卷这台 cnb=CNB/origin=github，AGENTS.md 93001b7 的 origin=CNB 口径是另一台机器的；推错一次 github 存档
 metadata:
-  type: reference
+    type: reference
 ---
 
 20260920 实测（外置卷 baiWeiNV7200 这台机器）：`git remote -v` =
