@@ -1,0 +1,88 @@
+name: od-ui-draft
+description: OpenDesign 出 UI 高保真稿全流程——目录校验、任务书、REST 派 run、轮询、取产物、prettier、Chrome 无头截图自查，最后交用户拍板
+
+parameters:
+  - name: theme
+    description: 主题名（中文目录名，如「单题计时」）；工作区为 design/UI/<主题>/
+    required: true
+  - name: baseDir
+    description: 出稿工作区目录（仓库相对路径）
+    required: false
+    default: design/UI/<theme>/
+  - name: refPaths
+    description: 参照文件（本机绝对路径，逗号分隔；至少含 design/theme-tokens-neo.md 落色权威）
+    required: false
+    default: design/theme-tokens-neo.md
+  - name: artifactName
+    description: 产物文件名（单文件自包含高保真 HTML）
+    required: false
+    default: wengu-<theme>-redesign.html
+
+nodes:
+  - id: check_dir
+    name: 目录规范校验
+    type: command
+    command: |
+      test -d "${baseDir}" && echo "exists: ${baseDir}"
+    promote: |
+      校验出稿工作区目录 ${baseDir} 存在。不存在则先创建目录并提示用户确认是新主题。
+      目录名必须落在 design/UI/<主题>/ 规范下。
+    verify: auto
+
+  - id: write_readme
+    name: 写/复核任务书 README
+    promote: |
+      在 ${baseDir}/README.md 写（或复核既有）出稿任务书，必须包含：主题与交互链
+      （逐条可验证，注明哪些是用户拍板不可发散的）；屏清单（每屏一句话+要点）；
+      参照文件清单（${refPaths}，注明只读）；产物名 ${artifactName}；
+      「OD run 对既有文件只读、禁改 README、除产物外不得新建/修改任何文件」纪律。
+      写完跑 pnpm exec prettier --write 过格式。
+    verify: auto
+
+  - id: od_start_run
+    name: OD daemon 起动与派 run
+    promote: |
+      1) 探活 http://127.0.0.1:7456/api/health；不通则按 .agents/plan/
+      20260920-timer-switch-three-line-dispatch.md §四直启 daemon-cli
+      （Helper 二进制 + daemon-cli.mjs --host 127.0.0.1 --port 7456 --no-open，
+      env：ELECTRON_RUN_AS_NODE=1、OD_DATA_DIR、OD_SIDECAR_CLIENT_ENDPOINT=<活 socket，
+      socket 在 /var/folders/*/T/od-sidecar-501/ 挑 mtime 最新）。
+      2) POST /api/import/folder {"baseDir":"<仓库绝对路径>/${baseDir}","name":"wengu-<theme>"}，
+      记 projectId。
+      3) POST /api/runs {"projectId":"<projectId>","prompt":"<出稿提示词>"}——提示词先给
+      用户过目再发；prompt 喂参照文件的本机绝对路径，不内嵌大文件内容；写明产物名
+      ${artifactName}、禁改 README、单文件自包含。
+      4) 记 runId。纪律：单 run 不并行；发后不得 cancel。
+    verify: always
+
+  - id: poll_run
+    name: 轮询 run 至完成
+    promote: |
+      GET /api/runs/<runId> 每 45 秒轮询一次。status=running 且文件 mtime 不变≠挂了，
+      禁止 cancel，耐心等到 status 变为完成态。超 40 分钟无进展才向用户报告异常。
+    verify: never
+
+  - id: fetch_artifact
+    name: 取产物并过 prettier
+    promote: |
+      GET /api/projects/<projectId>/files/${artifactName} 取产物，写入 ${baseDir}/${artifactName}；
+      若该接口 404，则改从工作区目录直接读取（import folder 是本地目录，产物通常已落盘）。
+      入仓前必 pnpm exec prettier --write；正文/注释里不得有未闭合的字面量 <style> 标签
+      （prettier HTML 解析会炸，报错在文件尾）。
+    verify: auto
+
+  - id: render_check
+    name: Chrome 无头截图自查
+    promote: |
+      Chrome 无头渲染自查：先取页面真实 scrollHeight 作为 H，
+      chrome --headless=new --window-size=W,H --screenshot=/tmp/<产物名>.png <file://绝对路径>，
+      W 取 1440。看截图确认：四屏齐全、深色暖调落色对齐参照、无破版/溢出/空白屏。
+      有问题回 od_start_run 改 prompt 重跑（同一 run 串行，不并行）。
+    verify: auto
+
+  - id: report_user
+    name: 贴稿给用户拍板
+    promote: |
+      把产物路径 + 截图 + 四屏清单贴给用户过目拍板。不满意则按反馈改 prompt 重跑；
+      拍板后才进入后续派单（本节点是人工闸门，不可跳过）。
+    verify: always
