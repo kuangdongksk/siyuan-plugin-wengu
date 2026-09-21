@@ -7,6 +7,7 @@ import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert
 import { convertIncremental, sourceChunksOf } from "../../convert/service/run/ConvertIncrement";
 import { refineKeepOldChoice } from "../../convert/service/run/ConvertChangeScreen";
 import { chunkQcSummary } from "../../ai/jev/convertChecks";
+import { isJevEnabled } from "../../ai/jev/enabled";
 import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { readRecordSrcGroups, removeRecords } from "../../bank/data/BankSets";
 import { planReimportBySegs, qidsFromOffset, segViewOf } from "../../convert/service/source/SetSegments";
@@ -355,7 +356,13 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
     };
     // 省费模式 + 有变更块时挂精修（Issue #186 A3）：把实质变更的块从
     // 「保留旧题」改判成「重转」。**非省费不挂**（用户要全量就全量）。
+    // ⚠️ **未启用 Jev（无 key / 总开关关）也不挂**：`judgeChanges` 无 key 时
+    // 一律回「全部当实质」，挂上去就是「删旧记录 + 重转全部变更块」——无 key
+    // 必须零行为变化（Issue #186 验收 1），且删记录不可逆。故闸按**能力**
+    // 判（`isJevEnabled`），**不按判定结果**判：key 已配但调用失败/缺值仍走
+    // 判定层口径（拿不准＝当实质＝重出，用户 20260921 已确认，勿再翻案）。
     const compact = v.settingsOf()?.convertKeepOld === true;
+    const refineOn = isJevEnabled(v.settingsOf());
     const refine = async (base: IncrementChoice): Promise<{ choice: IncrementChoice; note?: string }> => {
         const { choice, summary } = await refineKeepOldChoice(plan, base, {
             readOldQuestions: async (blocks) => {
@@ -376,7 +383,7 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
         plan,
         total: chunks.length,
         compact,
-        ...(compact && plan.changed.length > 0 ? { refine } : {}),
+        ...(compact && refineOn && plan.changed.length > 0 ? { refine } : {}),
         onConfirm: start,
     });
 }

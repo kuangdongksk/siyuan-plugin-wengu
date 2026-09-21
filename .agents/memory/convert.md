@@ -449,3 +449,32 @@ unpackPackedOptions(d)))`）：`SetWriter.append` / `GenQuestion.genWithVerify`
           ——回归锁在 `OptionRefReplace.test.ts` 末组：用**真实** `shuffleListForDisplay`
           断言「换会话洗牌后解析逐字不变 + 答案字母仍指向同一选项文本」。加任何
           「往解析里写字母」的改动前先跑它。
+- **Jev 判定落点：切片预筛 A2 + 增量变更实质判定 A3**（Issue #186，规划稿
+  §三 A2/A3；`355ac3b` 首版合并，复核补修见下）：两处都在**花钱的生成调用
+  之前**加一道便宜的类型化判定，只回布尔决策，切片/`srcKey`/`hash` 一概不碰。
+    - 判定层 `ai/jev/chunkScreen.ts`（A2：`screenChunks` 按 `SCREEN_BATCH_CHARS`
+      攒批，一片两问 noul+score）、`ai/jev/changeJudge.ts`（A3：一批一次问完）；
+      阈值唯一落点 `ai/jev/policy.ts` 的 `screenShouldSkip` / `changeIsWordingLevel`。
+      接线：`ConvertIncrement`（生成循环**之前**批量预筛，`screened` 与 `empty`
+      **分账**）、`ConvertSegment`（可选 `deps.screen`，缺省恒不跳）、
+      `ConvertQc` 的 `ScreenAcc`（整卷链逐窗口问）、`ConvertChangeScreen`
+      （A3 编排侧收口）+ `IncrementDialog.refine` + `DocOps`。
+    - ⚠️ **两个已踩的坑（改这两处前先看，都是复核轮抓到的真缺陷）**：
+        1. **预筛结论必须按入参位序落位，不许按 `key` 归并**。两个调用点都传
+           **空 key**（增量链整批 `key: ""`、`ScreenAcc` 单片也是 `""`）——按 key
+           归并会把「空白片的未判定」与「真判定的跳过」错配到别的片：报告说
+           「跳过 1 片」，实际跳的是另一片，**真没料的片照样烧生成调用**（省钱
+           落点静默失效）；`verdicts[i]` 与 `items[i]` 必须严格同长同序。
+        2. **A3 的「无 key」闸要挂在调用侧、按能力判，不能按判定结果判**。
+           `judgeChanges` 无 key 时返回「全部当实质」只是**逐块保守默认值**，
+           而 A3 的「实质」＝**先删旧记录再重转** ⇒ 调用侧无条件采用就成了
+           「无 key 时静默删旧题 + 重转全部变更块」，违反验收 1（无 key 行为与
+           现状一致），且删除不可逆。故 `DocOps` 挂 `refine` 前加
+           `isJevEnabled(settings)` 闸。
+           ⚠️ **别写成「判定失败/缺值也回原选择」**——那是翻已确认的口径
+           （用户 20260921 定：A3 拿不准＝低置信/缺值/失败一律重出，错误代价
+           不对称：误重出只费钱、误保留污染题库）。**分界线是「能力」（有没有
+           key / 开关开没开），不是「这一跑判成了没有」。**
+    - A3 的输入是「**旧题 + 新源文**」不是「旧源文 + 新源文」：记录只存
+      `srcKey`/`srcHash`，**旧源文无任何留存**（补存＝动冻结面），故拿该块已出的
+      旧题（`record.kramdown`，题集侧现读）当「旧内容」的代表。

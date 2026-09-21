@@ -145,6 +145,49 @@ describe("预筛判定（screenChunks）", () => {
         expect(r.verdicts.every((v) => !v.skip && !v.judged)).toBe(true);
     });
 
+    it("⚠️ 空 key 且**空白片夹在中间**：结论仍按位序落位（不许按 key 归并）", async () => {
+        // 真机口径：`ConvertIncrement` 与 `ScreenAcc` 都传空 key（`key: ""`）——
+        // 按 key 归并会把「空白片的未判定」与「真判定的跳过」错配到别的片，
+        // 表现为「报告说跳了 1 片，实际跳的是另一片（真没料的片照样烧生成调用）」。
+        const withBlank: ScreenItem[] = [
+            { key: "", text: "有料的内容" },
+            { key: "", text: "   " }, // 空白片夹在中间
+            { key: "", text: "又一料" },
+        ];
+        const { fn } = mockTransport([
+            {
+                status: 200,
+                body: body([
+                    [0.05, 1], // 第 1 个非空片：判没料
+                    [0.95, 5],
+                ]),
+            },
+        ]);
+        const r = await screenChunks(withBlank, { apiKey: "sk-test", transport: fn });
+        expect(r.verdicts.map((v) => v.skip)).toEqual([true, false, false]);
+        expect(r.verdicts.map((v) => v.judged)).toEqual([true, false, true]);
+        expect(r.skipped).toBe(1);
+        expect(r.checked).toBe(2); // 空白片不计入判定数
+        expect(r.verdicts.length).toBe(withBlank.length); // 与入参严格同长同序
+    });
+
+    it("⚠️ 空 key 且跨批（预算断批）时位序不错位", async () => {
+        const items2: ScreenItem[] = [
+            { key: "", text: "x".repeat(4000) },
+            { key: "", text: "   " },
+            { key: "", text: "y".repeat(4000) },
+        ];
+        // 4000 + 空白 + 4000：第一片自成一批、后两片一批 ⇒ 两次请求
+        const { fn, payloads } = mockTransport([
+            { status: 200, body: body([[0.95, 5]]) },
+            { status: 200, body: body([[0.05, 1]]) },
+        ]);
+        const r = await screenChunks(items2, { apiKey: "sk-test", transport: fn });
+        expect(payloads.length).toBe(2);
+        expect(r.verdicts.map((v) => v.skip)).toEqual([false, false, true]);
+        expect(r.skipped).toBe(1);
+    });
+
     it("结论顺序与入参一致（key 回填）", async () => {
         const mixed: ScreenItem[] = [
             { key: "k1", text: "材料一" },
