@@ -81,6 +81,11 @@ describe("AI 会话记录标题 i18n（规范 §8.6）", () => {
  * 都没这一键，面板那条记录的行名就是字面量 `aiTitleJevChange`；既有三条
  * 门禁逐条都扫不到它——死键闸方向相反、§8.6 只查 `title: "中文…"`
  * 硬编码、键族齐备闸只查字典内已有的键）。
+ *
+ * **已知边界**（不扩面的理由）：属性式访问 `i18n.xxx` / `host.i18n.xxx`
+ * 不在本闸扫描面——那是另一个方向（§8.4 死键闸）要管的形态，且它们普遍
+ * 写成 `i18n.wordBtn || "背单词"`，缺键退化成中文兜底而非裸键名，
+ * 危害与本节不同级。
  */
 const SRC = import.meta.glob("../**/*.{ts,svelte}", { query: "?raw", import: "default", eager: true }) as Record<
     string,
