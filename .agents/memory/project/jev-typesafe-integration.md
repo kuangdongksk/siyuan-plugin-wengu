@@ -28,18 +28,16 @@ OpenAPI（CNB_TOKEN/CNB_PULL_REQUEST_IID 内置环境），本地走 cnb CLI（`
 **待办**：① 用户配 key（本地 export TYPESAFE_KEY；CI 私有仓库 envs.yml + 开
 imports 注释行）→ 实跑校准——并行会话已做声明级标定
 （[[typesafe-ai-pr-claim-triage]]：叙事声明 7/7，技术声明仍以机械复跑为锚）。
-② **推荐档派单进度（20260921 调度轮）**：#183 基建已交 **PR #190**（CI 绿；
-transport/policy/enabled/设置页审查过关，`data.status` 已对照内核源码核实
-`NetworkForwardData.Status json:"status"`）。**评审揪出一个必修点**：client.ts 的
-`questions` 发匿名数组、`parseAnswers` 断言 `answers` 为按位数组——但生产实证
-（jev-pr-review.mjs 在 CI 真跑同端点，标定 7/7）是**按问题名索引的对象**，且单题
-字段是 `{type, instructions, criteria}`（score 的 criteria 是字符串数组），不是
-`{question, options}`。已在 PR 评论召 NPC 修（11:30 进队）：内部 API 保持
-`JevQuestion[]` 位序、线上组装自动命名、补钉线格式用例。**#190 修完 CI 绿后：
-合并 → 关 #183 → 删分支 → 召唤 #184、#185/#188（异域并行）；#186 等 #184；
-#187 等 #189（同 quiz 域，防 quiz/index.ts 冲突串行）。**每单验收硬口径：
-无 key 零行为变化 + mock 六路单测 + 冻结清单测试原样通过。CI 预检 key 仍未启用
-（.cnb.yml 注释行未开、本地 shell 无 TYPESAFE_API_KEY），PR #190 预检评论缺失
+② **推荐档派单进度（20260921 调度轮终态）**：#183 基建已交 PR #190 并**合并
+`4c1bd25`**（评审揪出线格式与生产实证不符：questions/answers 应为按名对象、单题
+`{type, instructions, criteria}`、score 的 criteria 是字符串数组——实证源
+jev-pr-review.mjs；NPC 已修 `1103cef`+`85c3903` 后 CI 绿）。线 C PR #189 亦已合并
+`c81e211`（#182 关、分支删）。**下游四单已同批召唤在跑（11:46 流水线齐发）**：
+#184 convert 质检（feat/jev-convert-qc）、#185 word 复盘（feat/jev-word-review）、
+#187 quiz 填空判分（feat/jev-gap-grade）、#188 bank 同义词（feat/jev-know-synonym）；
+**#186 仍串行等 #184 合并后召唤**。每单验收硬口径：无 key 零行为变化 + mock 六路
+单测 + 冻结清单测试原样通过；召唤词里已写明「别动 client.ts 线格式」。CI 预检 key
+仍未启用（.cnb.yml 注释行未开、本地 shell 无 TYPESAFE_API_KEY），PR 预检评论缺失
 不影响合并（预检仅供参考）。
 ③ **跨域口径（用户问过，已核实）**：渲染进程直连外部域不可靠，插件内一律走
 内核 `/api/network/forwardProxy`（payload 只收 string、响应在 data.body，
