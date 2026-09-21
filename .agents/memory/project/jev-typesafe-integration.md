@@ -1,11 +1,12 @@
 ---
 name: jev-typesafe-integration
-description: Jev 接入——预检落地（925e2c3）；#183 基建已交 PR #190 但评审揪出线上格式
-  与实证不符（按名对象非按位数组），已召 NPC 修；#184-188 仍闸在 #183 合并后
+description:
+    Jev 接入——推荐档六单全合并；20260921 用户推翻「不登记 AI 会话」决策，
+    #201 会话可见性在飞；下一步真机冒烟
 metadata:
-  node_type: memory
-  type: project
-  originSessionId: sess_6df0a370-a88f-401c-991a-21db9262948c
+    node_type: memory
+    type: project
+    originSessionId: sess_6df0a370-a88f-401c-991a-21db9262948c
 ---
 
 「Jev」= TypeSafe 平台旗舰 System One **判定模型**（不是生成式）：只回类型化判定
@@ -47,7 +48,13 @@ imports 注释行）→ 实跑校准——并行会话已做声明级标定
 4 文件未过 → dev 门禁红 #194）；NPC 会自己协调同批分支的格式折行防冲突。CI 预检 key
 仍未启用（预检仅供参考不挡合并）；**真机冒烟**：装 key 后转换质检/复盘判档/填空判同/
 同义词四落点逐一过一遍（传输契约修后才真正可用）。
-③ **跨域口径（用户问过，已核实）**：渲染进程直连外部域不可靠，插件内一律走
+③ **AI 会话可见性（20260921 用户点名，推翻 #183「不登记 AI 会话面板」决策）**：
+Issue #201 已开单召唤（feat/jev-session-track）——六落点 `judgeJev` 按登记簿
+begin/succeed/fail 落 `jev` 类别记录（KIND_KEYS 加 `aiKindJev`；
+`SessionDetail.retryable` 必须排除 jev——重试走 agentChatContinued 是生成式
+专属；**在途闸红线不动**；登记簿 schema 零新增）；`client.ts` 头注红线第一条
+随 PR 改写。冒烟时面板可见性一并验收。
+④ **跨域口径（用户问过，已核实）**：渲染进程直连外部域不可靠，插件内一律走
 内核 `/api/network/forwardProxy`（payload 只收 string、响应在 data.body，
 3.8.2 修过 responseEncoding #18978；kernel-pitfalls.md「外部 API」节）。
 可试档 C1-C5（易混推荐/remap 仲裁/stats 证据挑选/学伴台词/PR 逐条声明）
