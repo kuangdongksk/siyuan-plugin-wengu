@@ -298,7 +298,9 @@ export async function judgeJev(opts: JudgeJevOpts): Promise<JevAnswer[]> {
     const req = {
         url: JEV_ENDPOINT,
         method: "POST" as const,
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        // 只带鉴权头：`Content-Type` 由内核补（契约 4，见 transport.ts 头注），
+        // 自带反而与内核的默认设置重复
+        headers: { Authorization: `Bearer ${key}` },
         payload,
         timeout,
     };

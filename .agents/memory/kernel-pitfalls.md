@@ -147,12 +147,27 @@ message, language, references, model?}`；`userEntryID` 是
     要取内联内容剥壳得按这个形态（ProtyleHost.unwrapSingleBlock），
     朴素取 innerHTML 会把块级壳漏进去。
 
-## 外部 API：无（MinerU/PDF 导入 20260901 移除）
+## 外部 API：只走内核 forwardProxy（Jev / 20260921 起重启该通道）
 
-- PDF 导入的中间产物文档无处安放（20260903 起转换零落盘，题库才是
-  内容真相），MinerU 管线失去意义——PdfImport/MinerUClient/PdfImportRow
-  三文件与 settings.mineruToken、fflate 依赖、EApi.ForwardProxy 一并
-  删除（20260901 首删时的动因是「另存文档永久留文档树」，pivot 后
-  更彻底）。若将来重接外部 JSON API，内核 `/api/network/forwardProxy`
-  `{url, method, headers, payload?, timeout}`（上游响应在 `data.body`）
-  仍可用，但 payload 只收 **string，二进制过不去**（20260823 真机验证）。
+- **历史**：MinerU/PDF 导入 20260901 整体移除时连带删过 `EApi.ForwardProxy`
+  （动因是另存文档永久留文档树，pivot 后更彻底）。20260921 Jev（TypeSafe）
+  接入**重启**该枚举与通道；唯一落点是 `src/ai/jev/transport.ts`。
+- **四条契约**（20260921 对内核源码 v3.8.0~v3.8.5-beta.2 逐版核对 +
+  内核自带契约测试 `kernel/api/contract_network_test.go` 对照）：
+    - ⚠️ **`headers` 只认数组 `[{ "K": "v" }]`**（本条踩过，#197）。
+      3.8.0~3.8.3：`if headers, ok := arg["headers"].([]any); ok`；
+      3.8.4+：`Headers []map[string]JSONValue` 契约式解码。
+      **传对象 = 静默失效**：断言失败 → 整块跳过 → 一个头都不设，
+      且内核零报错、HTTP 仍 200 ⇒ 表现为「填了正确 key 也一律 401/403」。
+      旧文档与退役的 MinerUClient 都写的对象形态，转手即踩；
+      正确写法＝`transportBodyOf`（单测钉死）。
+    - **`responseEncoding` 显式 `"text"`**：上游 JSON 按 UTF-8 文本回
+      `data.body`（`bodyEncoding` 同回 `"text"`）；base64/hex 族给二进制用
+      （内核 3.8.2 修过该字段的编码路径，上游 issue #18978）。
+    - **内核自身失败时 HTTP 仍是 200**（`{code,msg,data:null}`）⇒ 必须读 `code`；
+      只看 HTTP 状态会把内核报错当成「上游空响应」。内核 `msg` 要带出来当诊断。
+    - `payload` 只收 **string，二进制过不去**（20260823 真机验证）；
+      内核会**自动补 `Content-Type: application/json`**（可被 `contentType` 覆盖），
+      故调用方不必自带。`timeout` 毫秒、缺省 7000；响应体内核侧封顶 32MB。
+    - 另一条通用坑（同本文件首条）：内核 `fetchSyncPost` **并发互相吞响应**，
+      故 transport 自带串行链，多落点同时判定会排队。

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
     JEV_ENDPOINT,
     JEV_MODEL,
@@ -10,7 +10,15 @@ import {
     type JevAnswer,
     type JevQuestion,
 } from "./client";
-import { JEV_TIMEOUT_MS, decodeProxyBody, type JevHttpResponse } from "./transport";
+import {
+    JEV_TIMEOUT_MS,
+    decodeProxyBody,
+    kernelProxyTransportWith,
+    readProxyResult,
+    transportBodyOf,
+    type JevHttpResponse,
+} from "./transport";
+import { EApi } from "../../siyuan/api";
 import { noulVerdict, choiceLowConfidence, scoreLowConfidence } from "./policy";
 
 /** 单题 noul（判定请求主体与断言都短）。 */
@@ -235,7 +243,7 @@ describe("Jev 客户端（judgeJev）", () => {
     });
 });
 
-describe("transport 解码契约（responseEncoding）", () => {
+describe("transport 通道契约（内核 forwardProxy / Issue #197）", () => {
     it("string 直用；已解析对象序列化兜底；空值归空串", () => {
         expect(decodeProxyBody('{"a":1}')).toBe('{"a":1}');
         expect(decodeProxyBody({ a: 1 })).toBe('{"a":1}');
@@ -243,26 +251,93 @@ describe("transport 解码契约（responseEncoding）", () => {
         expect(decodeProxyBody(undefined)).toBe("");
     });
 
-    it("内核 transport 用真实 forwardProxy 通道（路径 + string payload + data.body 取体）", async () => {
-        // 真机通道形态：fetchSyncPost 返回 { code, data: { body, status } }；
-        // 这里 mock siyuan 模块，验证「payload 只收 string」与取体路径
-        const fetchSyncPost = vi.fn(async () => ({ code: 0, data: { body: noulBody(0.7), status: 200 } }));
-        vi.doMock("siyuan", () => ({ fetchSyncPost }));
-        const { kernelProxyTransport } = await import("./transport");
-        const res = await kernelProxyTransport({
+    it("内核回编码态（bodyEncoding）时按编码解回文本；解不出原样返回待协议层报错", () => {
+        const text = '{"answers":{"q0":{"noul":0.9}}}';
+        expect(decodeProxyBody(btoa(text), "base64")).toBe(text);
+        expect(decodeProxyBody(btoa(text), "base64-std")).toBe(text);
+        const hex = [...new TextEncoder().encode(text)].map((b) => b.toString(16).padStart(2, "0")).join("");
+        expect(decodeProxyBody(hex, "hex")).toBe(text);
+        // 非 UTF-8 语义的编码（base32）解不了：原样返回，由 JSON 解析层报协议错
+        expect(decodeProxyBody("MFRGG", "base32")).toBe("MFRGG");
+        expect(decodeProxyBody(text)).toBe(text);
+        expect(decodeProxyBody(text, "text")).toBe(text);
+    });
+
+    it("内核 body 契约：headers 数组形态 + responseEncoding text + string payload", () => {
+        const body = transportBodyOf({
             url: JEV_ENDPOINT,
             method: "POST",
             headers: { Authorization: "Bearer k" },
-            payload: JSON.stringify({ hi: 1 }),
+            payload: '{"a":1}',
             timeout: 1000,
         });
-        if (fetchSyncPost.mock.calls.length) {
-            const [path, body] = fetchSyncPost.mock.calls[0] as unknown as [string, Record<string, unknown>];
-            expect(path).toBe("/api/network/forwardProxy");
-            expect(typeof body.payload).toBe("string");
-            expect(res).toEqual({ status: 200, body: noulBody(0.7) });
-        }
-        vi.doUnmock("siyuan");
+        // 内核按 `arg["headers"].([]any)`（3.8.0~3.8.3）/`[]map[string]JSONValue`
+        // （3.8.4+）取头——**只认数组**；对象会被断言丢弃、静默不设任何头（#197 根因）
+        expect(body.headers).toEqual([{ Authorization: "Bearer k" }]);
+        expect(Array.isArray(body.headers)).toBe(true);
+        expect(body.responseEncoding).toBe("text");
+        expect(typeof body.payload).toBe("string");
+        expect(body.url).toBe(JEV_ENDPOINT);
+        expect(body.method).toBe("POST");
+    });
+
+    it("内核信封解读：成功取 data.status/data.body；内核失败折算网络错并带 msg", () => {
+        expect(readProxyResult({ code: 0, msg: "", data: { status: 200, body: '{"ok":1}' } })).toEqual({
+            status: 200,
+            body: '{"ok":1}',
+        });
+        // 内核回编码态时也解回文本（bodyEncoding 契约）
+        expect(
+            readProxyResult({ code: 0, msg: "", data: { status: 200, body: "eyJvayI6MX0=", bodyEncoding: "base64" } })
+        ).toEqual({ status: 200, body: '{"ok":1}' });
+        // 内核自身失败时 HTTP 仍是 200，只有 code≠0 —— 必须读 code，并把 msg 带出来
+        const failed = readProxyResult({ code: 8, msg: "forward request failed: timeout", data: null });
+        expect(failed.status).toBe(0);
+        expect(failed.body).toContain("timeout");
+        expect(readProxyResult(undefined).status).toBe(0);
+    });
+
+    it("内核 transport 真发到 EApi.ForwardProxy，且并发串行（不互相吞）", async () => {
+        const paths: string[] = [];
+        const seen: Record<string, unknown>[] = [];
+        let inFlight = 0;
+        let peak = 0;
+        const transport = kernelProxyTransportWith(async (path, body) => {
+            paths.push(path);
+            seen.push(body);
+            inFlight++;
+            peak = Math.max(peak, inFlight);
+            await new Promise((r) => setTimeout(r, 1));
+            inFlight--;
+            return { code: 0, msg: "", data: { status: 200, body: noulBody(0.7) } };
+        });
+        const req = {
+            url: JEV_ENDPOINT,
+            method: "POST" as const,
+            headers: { Authorization: "Bearer k" },
+            payload: JSON.stringify({ hi: 1 }),
+            timeout: JEV_TIMEOUT_MS.judge,
+        };
+        const results = await Promise.all([transport(req), transport(req), transport(req)]);
+        // 契约断言**无条件执行**（不得写成「mock 没被调到就跳过」——那会让通道失效静默通过）
+        expect(paths).toEqual([EApi.ForwardProxy, EApi.ForwardProxy, EApi.ForwardProxy]);
+        expect(seen[0]).toEqual(transportBodyOf(req));
+        expect(peak).toBe(1); // 串行：内核 fetchSyncPost 并发互吞
+        expect(results.every((r) => r.status === 200)).toBe(true);
+    });
+
+    it("内核抛错（网络/超时）折算 status 0，不向上抛", async () => {
+        const transport = kernelProxyTransportWith(async () => {
+            throw new Error("Failed to fetch");
+        });
+        const res = await transport({
+            url: JEV_ENDPOINT,
+            method: "POST",
+            headers: {},
+            payload: "{}",
+            timeout: 1,
+        });
+        expect(res.status).toBe(0);
     });
 });
 
