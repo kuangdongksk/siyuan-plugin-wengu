@@ -4,8 +4,11 @@ import { tKey } from "../../../ui/Notify";
 import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import { makeKnowAwareAi } from "../knowledge/KnowRoute";
 import { applyKnowDrafts, parseDrafts } from "../draft/QuestionDraft";
+import type { DraftUnit } from "../draft/QuestionDraft";
 import { foldGlossIntoDrafts } from "../gloss/GlossFold";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../source/SrcChunk";
+import { checkBatch, type JevQcChunkSummary } from "../../../ai/jev/convertChecks";
+import { isJevEnabled } from "../../../ai/jev/enabled";
 import { SetWriter } from "../output/SetWriter";
 import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/BankSets";
 import { knowTreesOf } from "../../../bank/data/KnowTrees";
@@ -61,6 +64,9 @@ export interface IncrementRun {
     signal?: AbortSignal;
     /** 逐块进度（done=已完成块数，count=已生成题数）。 */
     onProgress?(p: { done: number; total: number; count: number }): void;
+    /** 本跑设置（Issue #184）：转换质检的总闸与 Jev key。**缺省=不判定**
+     *  （未接线调用方与单测因此零行为变化）。 */
+    settingsOf?(): { jevKey?: string; jevEnabled?: boolean } | undefined;
 }
 
 /** 增量执行结果。aborted=中途终止（已入库部分保留，自愈见文件头）。 */
@@ -80,6 +86,9 @@ export interface IncrementOutcome {
     /** `group=prev` 悬空降级为独立题的题数（Issue #148 同款兜底：SetWriter
      *  不写坏 group、读侧不悬空，但共享原文确实缺了——终态里点明）。 */
     danglingGroups: number;
+    /** Jev 质检（Issue #184）：**只在判出存疑时有此键**（判定结果不落盘，
+     *  随本次运行的返回值给报告用）。 */
+    qc?: JevQcChunkSummary;
 }
 
 /** 执行增量：删旧 → 标记 → 逐块生成入库（串行；AI 走独立会话）。 */
@@ -152,6 +161,21 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
             buildPrompt(source, run.fillToChoice, run.bigToSteps, rule, list, genTypes, undefined, true),
     });
     const writer = new SetWriter(run.bank);
+    /** 落库前的质检（Issue #184）：逐块收集产物，**本块 append 之前**判定
+     *  （判定先于落库；`checkChunks` 内部对每块独立回落现状）。 */
+    const qcEnabled = isJevEnabled(run.settingsOf?.());
+    const runQc = async (index: number, drafts: DraftUnit[]): Promise<void> => {
+        if (!qcEnabled || drafts.length === 0) return;
+        const report = await checkBatch({ drafts, materialText: "", apiKey: run.settingsOf?.()?.jevKey });
+        if (report.checked === 0) return; // 未判定（失败/无题）＝本块无痕
+        // ⚠️ 只在**判出存疑**时才建 `qc` 键：全过/失败/未启用时该键不存在，
+        // 调用方的终态文案与分支形状逐字节不变（零 Jev 痕迹是硬口径）
+        if (report.suspects.length === 0) return;
+        out.qc ??= { suspectChunks: 0, checkedChunks: 0, reports: [] };
+        out.qc.checkedChunks++;
+        out.qc.suspectChunks++;
+        out.qc.reports.push({ index, report });
+    };
     for (let i = 0; i < run.chunks.length; i++) {
         // 逐块与块间都认本流程的中止源（面板「停止」与页内停止走同一处）
         if (stopCtrl.signal.aborted) {
@@ -182,6 +206,8 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         // ⚠️ **选项洗牌已撤**（Issue #131，与 ConvertSegment 同款）：
         // 库=死形态（原序＋答案指向原字母），洗牌改到展示层现洗。
         foldGlossIntoDrafts(drafts, chunk.text);
+        // 质检先于落库（Issue #184）：判定失败/未启用都是空报告，零阻塞
+        await runQc(i, drafts);
         if (gen.byAlias && drafts.length > 0) out.knowLinked += applyKnowDrafts(drafts, gen.byAlias);
         const res = await writer.append(
             run.setId,

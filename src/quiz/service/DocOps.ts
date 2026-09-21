@@ -293,6 +293,8 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                             ),
                             "muted"
                         ),
+                    // 质检设置（Issue #184）：增量链的判定先于落库，失败静默跳过
+                    settingsOf: () => v.settingsOf(),
                 });
             } catch (e) {
                 failed = errText(e);
@@ -302,11 +304,15 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
             if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
             // 零产物 + 悬空 group=prev 两段收尾点名（Issue #148：后者静默
             // 降级会让「题目分开了」重现却无从察觉）
+            // Jev 存疑（Issue #184）：**有存疑才拼这段**——无 key / 无踩雷时
+            // 终态文案与改造前逐字一致（增量链的零 Jev 痕迹是硬口径）
+            const qc = res!.qc && res!.qc.suspectChunks > 0 ? res!.qc : undefined;
             const tail =
                 (res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "") +
                 (res!.danglingGroups > 0
                     ? ` ${esc(fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) }))}`
-                    : "");
+                    : "") +
+                (qc ? ` ${esc(fmt(t("incrJevQc"), { n: String(qc.suspectChunks) }))}` : "");
             ev.onStatus(
                 esc(
                     fmt(res!.aborted ? t("incrAborted") : t("incrDone"), {

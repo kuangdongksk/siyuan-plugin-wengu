@@ -1,6 +1,7 @@
 import type { ConvertProgressRecord } from "../run/ConvertBatch";
 import type { ConvertViewAccess } from "../../index";
 import { convertDoneText, showStatus, updateConvertBtn } from "../../index";
+import { showJevQc } from "../../ui/JevQcReport";
 import type { ProgressivePreview } from "../../../quiz/service/ProgressivePreview";
 import type { WenguSettingsShape as SettingsDialogShape } from "../../../ui/SettingsDialog";
 import type { QuestionBank } from "../../../bank/data/QuestionBank";
@@ -148,13 +149,22 @@ export class ConvertAccess implements ConvertViewAccess {
         void this.host.reloadView();
     }
 
-    onConvertDone(r: { setId: string; title: string; count: number; message?: string }): void {
+    onConvertDone(r: {
+        setId: string;
+        title: string;
+        count: number;
+        message?: string;
+        qc?: import("../run/ConvertBatch").ConvertQc;
+    }): void {
         this.host.progressiveOf().clear();
         this.host.switchPreviewDoc(r.setId, r.title, r.count);
         // 产物已直写题库（每批已 flush），无回扫入库步骤
-        void this.host
-            .reloadView()
-            .then(() => showStatus(this.host.el, convertDoneText(this.host.t, r.title, r.count), "ok"));
+        void this.host.reloadView().then(() => {
+            showStatus(this.host.el, convertDoneText(this.host.t, r.title, r.count), "ok");
+            // Jev 质检报告（Issue #184）：判定结果不落盘，只在这里展示一次
+            //（条上换行 = 转换报告里专属的一行；无存疑/未启用时零追加）
+            showJevQc(this.host.t, r.qc);
+        });
     }
 
     /** load 恢复（QuizView.load 读到 prefs 后回填）。 */

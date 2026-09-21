@@ -8,6 +8,7 @@
  * 的读写两端一眼可对（audit #109 的家族惯例）。
  */
 import type { QuestionPreview } from "../draft/ConvertDetect";
+import type { JevQcSuspect } from "../../../ai/jev/convertChecks";
 import type { WenguMaterial, WenguQuestion } from "../../../types";
 
 /** 一批落库的交付计划（`planSubmit` 的纯计算产物，`applySubmit` 消费）：
@@ -76,6 +77,18 @@ export interface ConvertProgressRecord {
     batch?: { index: number; total: number; groupTitle?: string; rootId?: string };
 }
 
+/** Jev 转换质检的收口载荷（Issue #184）：**只在判出存疑时存在**。
+ *  判定结果不落盘（规划稿 §二 纪律 3），故它是**内存态**、随本次运行一起
+ *  过去；没有存疑/未启用时 `qc` 键不出现（既有结果形状逐字节不变）。 */
+export interface ConvertQc {
+    /** 已判定的题目数（0=未判定）。 */
+    checked: number;
+    /** 有存疑项的批数（报告头展示用）。 */
+    suspectBatches: number;
+    /** 存疑项清单（哪一项存疑 + 是否明确踩雷）。 */
+    suspects: JevQcSuspect[];
+}
+
 /** 批式转换结果：done=全部完成；aborted=用户终止（已落库部分待抉择）。 */
 export interface BatchedResult {
     status: "done" | "aborted" | "failed";
@@ -93,6 +106,8 @@ export interface BatchedResult {
     doneOffset: number;
     /** 本次运行写入的题目 id（「全部丢弃」按它回收）。 */
     writtenQids: string[];
+    /** Jev 转换质检结果（Issue #184）：只在判出存疑时携带。 */
+    qc?: ConvertQc;
 }
 
 /** 继续生成的入参：上次终止保留的进度（题集已在题库里，接续写入）。 */

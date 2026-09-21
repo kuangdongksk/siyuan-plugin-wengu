@@ -22,7 +22,7 @@ const EXEMPTS = new Map([
     ["src/quiz/index.ts", 561], // 编排内聚，访问器表+编排职责外移破坏内聚（#137 记账外移 567 → #147 空轮闸/总结视图出口外移 561）
     // 存量超线（规范 §11.1「❌ 待修」清单，未在 #135 改动面内）——额度＝当前行数，只许减不许增
     ["src/ai/core/SessionDetail.test.ts", 608],
-    ["src/convert/service/run/ConvertBatch.ts", 492], // #148 收口抽出 doneMessageOf/warnSuffixOf 后 503 → 492
+    ["src/convert/service/run/ConvertBatch.ts", 477], // #184 质检/终态收口抽出 ConvertQc 后 492 → 477
 ]);
 
 /** 生成数据文件整目录豁免。 */
