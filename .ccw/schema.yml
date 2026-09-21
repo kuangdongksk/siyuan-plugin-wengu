@@ -134,4 +134,4 @@ goto_if_rules:
 
 # 默认规则
 defaults:
-  type: prompt  # 未指定 type 时默认为 prompt
+  type: prompt # 未指定 type 时默认为 prompt
