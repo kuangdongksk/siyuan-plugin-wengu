@@ -236,8 +236,9 @@ function probMapText(v: unknown): Record<string, string> {
 }
 
 /**
- * 上游 body 取 `answers` **按名对象**，按输入位序取回（缺名即协议错，
- * 维持「不静默补齐」口径——补齐会把模型漏答伪装成有效答案）。
+ * 上游 body 取 `answers` **按名对象**，按输入位序取回。
+ * **缺名/多题都判协议错**（口径：`q0..qN` 必须一一对应）——
+ * 缺名是模型漏答、多题是上游串了别人的答案，两者都不能静默补齐/截断。
  */
 function parseAnswers(qs: JevQuestion[], body: string): JevAnswer[] {
     let json: unknown;
@@ -251,10 +252,15 @@ function parseAnswers(qs: JevQuestion[], body: string): JevAnswer[] {
         throw new JevProtocolError("响应缺 answers 按名对象");
     }
     const table = answers as Record<string, unknown>;
+    const names = Object.keys(table);
+    // 先卡总数：多题（含串名）在这里就拦下，别让多余答案悄悄溜过
+    if (names.length !== qs.length) {
+        throw new JevProtocolError(`答案条数不匹配：问 ${qs.length} 条、回 ${names.length} 条`);
+    }
     return qs.map((q, i) => {
         const name = wireQuestionName(i);
         if (!Object.prototype.hasOwnProperty.call(table, name)) {
-            throw new JevProtocolError(`答案缺 ${name}（回 ${Object.keys(table).length} 条、问 ${qs.length} 条）`);
+            throw new JevProtocolError(`答案缺 ${name}（回 ${names.length} 条、问 ${qs.length} 条）`);
         }
         return parseAnswer(q, table[name]);
     });

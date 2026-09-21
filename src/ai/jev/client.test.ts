@@ -138,12 +138,13 @@ describe("Jev 客户端（judgeJev）", () => {
         );
     });
 
-    it("200 但 JSON 坏 / answers 非按名对象 / 缺名 → JevProtocolError", async () => {
+    it("200 但 JSON 坏 / answers 非按名对象 / 缺名 / 多题 → JevProtocolError", async () => {
         const cases = [
             "not json",
             JSON.stringify({ answers: [] }), // 匿名数组：旧口径，已不合法
             JSON.stringify({ answers: {} }), // 空对象：q0 缺失
             JSON.stringify({ answers: { q1: { noul: 0.5 } } }), // 名不匹配：回了 q1、缺 q0
+            JSON.stringify({ answers: { q0: { noul: 0.5 }, q1: { noul: 0.5 } } }), // 多题：q0 在但多回 q1
             JSON.stringify({}), // 无 answers 键
         ];
         for (const body of cases) {
