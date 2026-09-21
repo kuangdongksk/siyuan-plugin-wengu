@@ -130,8 +130,7 @@ export async function convertDocBatched(
         title: aiTitle(tKey, "aiTitleConvert", { name: info.title }),
     };
     const kd = await KernelBlock.kramdown(docId);
-    // 剥原文的块 id IAL 行（含引用前缀变体）：AI 出题用不到块 id，
-    // 留着会被原样抄进解析/题干落成裸文本（真机踩坑）
+    // 剥原文的块 id IAL 行（含引用前缀变体）：留着会被 AI 原样抄进题干（真机踩坑）
     const kramdown = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
         /^\s*(?:>\s*)?\{:[^}\n]*\bid="[^"]*"[^\n]*$/gm,
         ""
@@ -206,15 +205,14 @@ export async function convertDocBatched(
     const writtenQids: string[] = [];
     const generatedKds: string[] = [];
     let count = 0;
-    /** 已落库批数：submit 每落一批 +1（进度回调 ConvertProgress.batch 的
-     *  口径）。AI 批可能零产物而不发 submit，故它与收口的「AI 调用批数」
-     *  不是一回事——两者必须各累各的，混用即双重累计。 */
+    /** 已落库批数：submit 每落一批 +1（进度回调 ConvertProgress.batch 的口径）。
+     *  AI 批可能零产物而不发 submit ⇒ 它与收口的「AI 调用批数」不是一回事。 */
     let flushedBatches = 0;
     // 自检计数（完成消息附警告）：空批 / 定位失败 / **悬空 group=prev**（#148）
     let emptyBatches = 0;
     let anchorMiss = 0;
     let danglingGroups = 0;
-    const qc = new QcAcc(); // Jev 质检（Issue #184）：状态在 ConvertQc（不落盘）
+    const qc = new QcAcc(); // Jev 状态（#184 质检 + #186 预筛）在 ConvertQc
     let refused = ""; // 首片首批判定「不能出题」的原因（零产物收口时用）
     let firstError = "";
     /** 学科是否已落库（Issue #83；首批报出后写一次，后续批次不再重复调） */
@@ -373,6 +371,7 @@ export async function convertDocBatched(
         signal: internal.signal,
         single: shards.length === 1,
         t,
+        screen: (text) => qc.screen.windowOf(text, opts.settingsOf?.()), // #186 A2 预筛
         reportTypes: (types) => {
             const merged = new Set<QuestionType>(genTypes ?? []);
             for (const x of types) merged.add(x);

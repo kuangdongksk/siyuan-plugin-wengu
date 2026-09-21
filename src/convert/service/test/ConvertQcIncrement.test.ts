@@ -15,11 +15,32 @@ import type { StructChunk } from "../source/SrcChunk";
 
 const jev = { calls: 0, body: "", /** 按调用序给的响应体队列（空=一律用 `body`）。 */ bodies: [] as string[] };
 
+/** 是否切片预筛请求（Issue #186 A2）：增量链在生成之前会先问一次预筛，
+ *  它与质检（#184）共用同一条传输——mock 按 payload 区分两者、**各给各的
+ *  脚本**，免得预筛把质检的响应体消费掉（判定串位是多腿链路最容易踩的假红）。
+ *  本文件的断言面是质检，故预筛一律回「有料」（不跳）。 */
+function isScreenReq(payload: string): boolean {
+    return payload.includes("【第 1 片】");
+}
+
 vi.mock("../../../ai/jev/transport", async (importOriginal) => {
     const mod = (await importOriginal()) as Record<string, unknown>;
     return {
         ...mod,
-        kernelProxyTransport: async () => {
+        kernelProxyTransport: async (req: { payload: string }) => {
+            if (isScreenReq(req.payload)) {
+                return {
+                    status: 200,
+                    body: JSON.stringify({
+                        answers: {
+                            q0: { noul: 0.95 },
+                            q1: { score: 5, confidence: 0.9 },
+                            q2: { noul: 0.95 },
+                            q3: { score: 5, confidence: 0.9 },
+                        },
+                    }),
+                };
+            }
             const i = jev.calls++;
             return { status: 200, body: jev.bodies[i] ?? jev.body };
         },

@@ -72,6 +72,10 @@ export interface SegmentDeps {
     reportSubject(subject?: string): void;
     /** 交付一批产物：编排层按片序闸门落库，返回落库题数。 */
     submit(batch: SegmentBatch): Promise<number>;
+    /** 切片预筛（Issue #186 A2）：本窗口该不该在**生成之前**跳过——
+     *  判定层在 `ai/jev/chunkScreen.ts`，编排侧计数与回落口径在
+     *  `ConvertQc.ts` 的 `ScreenAcc`。缺省=不跳（未接线调用方与单测零变化）。 */
+    screen?(text: string): Promise<boolean>;
     /** 内部信号（用户终止或任一失败都会置位）。 */
     signal: AbortSignal;
     /** 翻译（超时文案）。 */
@@ -123,6 +127,15 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         // 纯标题窗口（章标题直挂子标题）零内容：不发 AI（发了也只是
         // CAN_CONVERT:no 白耗一次调用），直接推进游标
         if (isHeadingOnlyChunk(win.text)) {
+            cursor = win.end;
+            res.cursor = cursor;
+            continue;
+        }
+        // 切片预筛（Issue #186 A2）：花了钱的生成调用之前先问一句「这段有
+        // 可出题的内容吗」——判定确认「没料」就推游标走人，不进生成 AI。
+        // 未接线（deps.screen 缺省）恒不跳，行为与改造前逐字一致。
+        if (deps.screen && (await deps.screen(win.text))) {
+            // 计数在编排侧的 ScreenAcc（单一来源；片内不自留一份）
             cursor = win.end;
             res.cursor = cursor;
             continue;

@@ -53,12 +53,29 @@ A
 /** 判定请求的证据（本文件唯一的「是否发请求」事实源）与可换的响应体。 */
 const jev = { calls: 0, body: "", payloads: [] as string[] };
 
-/** 判定传输注入：**替换真网络**——记录调用次数，并回给定的响应体。 */
+/** 是否切片预筛请求（Issue #186 A2）：本链在生成之前先给每个窗口问一次
+ *  预筛，它与质检（#184）**共用同一条传输**——按 `state` 的片号标记区分，
+ *  免得两腿的响应体互相消费（判定串位是这类多腿链路最容易踩的假红）。
+ *  本文件的断言面是质检，故预筛一律回「有料」（不跳）。 */
+function isScreenReq(payload: string): boolean {
+    return payload.includes("【第 1 片】");
+}
+
+/** 预筛的响应体：一片两问（noul + score），一律「有料、有价值」。 */
+const screenBody = JSON.stringify({
+    answers: {
+        q0: { noul: 0.95 },
+        q1: { score: 5, confidence: 0.9 },
+    },
+});
+
+/** 判定传输注入：**替换真网络**——按请求类型分派响应体，另存两份证据。 */
 vi.mock("../../../ai/jev/transport", async (importOriginal) => {
     const mod = (await importOriginal()) as Record<string, unknown>;
     return {
         ...mod,
         kernelProxyTransport: async (req: { payload: string }) => {
+            if (isScreenReq(req.payload)) return { status: 200, body: screenBody };
             jev.calls++;
             jev.payloads.push(req.payload);
             return { status: 200, body: jev.body };

@@ -74,3 +74,37 @@ export const SYN_OPTIONS: string[] = [SYN_VERDICTS.same, SYN_VERDICTS.related, S
 export function synVerdictEntersTable(verdict: string | undefined): boolean {
     return verdict === SYN_VERDICTS.same;
 }
+
+/* ── 落点专属口径（Issue #186 / 规划稿 A2·A3） ── */
+
+/**
+ * 切片预筛（A2）：**跳过**的门槛 —— 两个条件**同时**成立才跳。
+ *
+ * 「保守」是本落点的第一原则（规划稿 §三 A2 红线：误杀只是少出题，但要可控）：
+ * - noul 必须**明确为否**（≤0.2，经 `noulClearlyNo`）——不确定档一律不跳；
+ * - score 必须**明确低**（≤ {@link SCREEN_LOW_SCORE}）**且**置信度够
+ *   （`scoreLowConfidence` 为假）——分值不可用时不跳。
+ */
+export const SCREEN_LOW_SCORE = 2;
+
+/** 预筛「跳过」判据（唯一落点，调用方与单测都引这里）。 */
+export function screenShouldSkip(
+    noul: number | undefined,
+    score: number | undefined,
+    conf: number | undefined
+): boolean {
+    if (!noulClearlyNo(noul)) return false;
+    if (scoreLowConfidence(conf)) return false;
+    return typeof score === "number" && Number.isFinite(score) && score <= SCREEN_LOW_SCORE;
+}
+
+/**
+ * 变更实质判定（A3）：口径与 A1/A2 **方向相反**——只有 noul **明确为否**
+ * （≤0.2）才当「措辞级」（保留旧题）；不确定档、缺值、明确为是**一律当
+ * 实质变化**（宁可多转不漏转，Issue #186 需求 2）。故本落点不提供
+ * 「明确为是」的 helper（那会诱使调用方把不确定当措辞），判定由
+ * `ai/jev/changeJudge.ts` 直接按 `noulVerdict(p) !== "no"` 收口。
+ */
+export function changeIsWordingLevel(noul: number | undefined): boolean {
+    return noulClearlyNo(noul);
+}
