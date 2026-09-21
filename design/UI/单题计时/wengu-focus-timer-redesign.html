@@ -57,7 +57,8 @@
                 /* 一圈 = 60000ms，落在 JS 常量 LAP；与下面这组流光谱取值同源 */
                 --stream-w: 2px; /* 流光主线宽 */
                 --stream-halo: 5.5px; /* 流光外晕线宽 */
-                --stream-tail: 104px; /* 尾长（含头部珠子遮住的 18px） */
+                /* 生长式流光：已过段恒留（尾端锚在计时起点不动），只有头部沿边框推进；
+                   无尾长概念，一圈走完即满框，进圈从起点重长。 */
                 --stream-glow: rgba(225, 169, 144, 0.55);
                 --r1: 6px;
                 --r2: 10px;
@@ -2166,7 +2167,9 @@
                             <td>
                                 路径＝卡框圆角矩形，<code>inset 0.5px</code>、<code>r = 11.5px</code>（卡圆角 12px
                                 的中心线）；主线 <code>--stream-w: 2px</code>、外晕
-                                <code>--stream-halo: 5.5px</code>、尾长 <code>--stream-tail: 104px</code>。
+                                <code>--stream-halo: 5.5px</code>。<b>生长式</b>：流光从计时起点沿边框<b>长出来</b>，
+                                已过段恒留、尾端锚在起点不动（不是烧完的彗星尾），头部珠子与读数随行推进；
+                                一圈走完即满框，进圈从起点重长，圈数由右上角 chip 记。
                             </td>
                         </tr>
                         <tr>
@@ -2529,8 +2532,6 @@
 
                 function Stream(host) {
                     this.host = host;
-                    this.tail = 104;
-                    this.tailH = 132;
                     this.ready = false;
                     this.lastLabel = "";
                     this.label = "0:00";
@@ -2581,10 +2582,6 @@
                     var L = this.head.getTotalLength();
                     if (!L) return false;
                     this.L = L;
-                    this.tail = Math.min(104, L * 0.42);
-                    this.tailH = Math.min(132, L * 0.5);
-                    this.halo.setAttribute("stroke-dasharray", this.tailH + " " + (L - this.tailH));
-                    this.head.setAttribute("stroke-dasharray", this.tail + " " + (L - this.tail));
                     this.ready = true;
                     return true;
                 };
@@ -2602,8 +2599,14 @@
                     var L = this.L;
                     var s = (((p % 1) + 1) % 1) * L;
                     this.p = p;
-                    this.halo.setAttribute("stroke-dashoffset", (this.tailH - s).toFixed(2));
-                    this.head.setAttribute("stroke-dashoffset", (this.tail - s).toFixed(2));
+                    /* 生长式：画 [0, s]——尾端锚在计时起点不动，只有头部推进；
+                       一圈走完满框，进圈从起点重长（圈数另有 chip 记）。 */
+                    var grew = s.toFixed(2);
+                    var rest = (L - s).toFixed(2);
+                    this.halo.setAttribute("stroke-dasharray", grew + " " + rest);
+                    this.head.setAttribute("stroke-dasharray", grew + " " + rest);
+                    this.halo.setAttribute("stroke-dashoffset", "0");
+                    this.head.setAttribute("stroke-dashoffset", "0");
                     var pt = this.head.getPointAtLength(s);
                     this.mark.setAttribute("transform", "translate(" + pt.x.toFixed(2) + " " + pt.y.toFixed(2) + ")");
                     this.setLabel(this.label);
