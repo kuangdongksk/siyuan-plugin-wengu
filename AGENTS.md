@@ -51,8 +51,11 @@
   红线/隐藏高危面/测试弱化/工程质量分。**预检仅供参考、不是合并门禁**——低置信
   （choice<0.5）强制回落「需人工细看」，脚本失败也不红流水线。本地复跑：
   `node .cnb/scripts/jev-pr-review.mjs <PR号> [--post]`（数据走 cnb CLI，零 token
-  处理）。key 走 `TYPESAFE_API_KEY` 环境变量（别名 `JEV_KEY`；CI 从私有仓库
+  处理）。key 走 `TYPESAFE_API_KEY` 环境变量（别名 `TYPESAFE_KEY` / `JEV_KEY`；
+  CI 从私有仓库
   imports 注入，启用步骤见 `.cnb.yml` 注释与脚本头注）；key 未配时 CI 自动跳过。
+  标定结论（20260921，#178/#179/#181 七条声明 7/7）：Jev 对**叙事/归因类声明**
+  初筛有效；技术类声明的可信度锚仍是机械复跑——预检之外照旧拉分支重跑五件套。
 - 只读操作（看代码、查内核 API、跑只读 SQL）不受此限，随时可做。
 
 ## 分支与协作（CNB + NPC）——动代码前先读

@@ -19,8 +19,9 @@
  *     `node .cnb/scripts/jev-pr-review.mjs <PR号> [--repo 组/子/仓] [--post] [--dry-run]`
  *     数据走已登录的 cnb CLI（零 token 处理）；默认只打印，--post 才落评论。
  *
- * key（jevkey）：环境变量 TYPESAFE_API_KEY（或别名 JEV_KEY）。仓库内不落 key：
- * CI 从私有仓库 imports 注入（.cnb.yml 里有预留注释行）；本地 export 即可。
+ * key（jevkey）：环境变量 TYPESAFE_API_KEY（别名 TYPESAFE_KEY / JEV_KEY）。
+ * 仓库内不落 key：CI 从私有仓库 imports 注入（.cnb.yml 里有预留注释行）；本地
+ * export 即可。
  * 直连 REST 而不用 @typesafe-ai/sdk：给构建镜像引入新依赖属于业务面改动，
  * fetch 三十行就够了，不值得为基础设施动 package.json。
  */
@@ -53,7 +54,7 @@ const PROJECT_RULES = `「温故」是思源笔记的刷题插件，存量用户
 const args = process.argv.slice(2);
 const hasFlag = (name) => args.includes(name);
 const CI_MODE = Boolean(process.env.CNB_PULL_REQUEST_IID && process.env.CNB_TOKEN);
-const API_KEY = process.env.TYPESAFE_API_KEY || process.env.JEV_KEY || "";
+const API_KEY = process.env.TYPESAFE_API_KEY || process.env.TYPESAFE_KEY || process.env.JEV_KEY || "";
 
 function usageAndExit() {
     console.log(`用法：node .cnb/scripts/jev-pr-review.mjs <PR号> [--repo 组/子/仓] [--post] [--dry-run]
