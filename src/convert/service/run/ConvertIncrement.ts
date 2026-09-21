@@ -8,6 +8,7 @@ import type { DraftUnit } from "../draft/QuestionDraft";
 import { foldGlossIntoDrafts } from "../gloss/GlossFold";
 import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../source/SrcChunk";
 import { checkBatch, type JevQcChunkSummary } from "../../../ai/jev/convertChecks";
+import { screenChunks } from "../../../ai/jev/chunkScreen";
 import { isJevEnabled } from "../../../ai/jev/enabled";
 import { SetWriter } from "../output/SetWriter";
 import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/BankSets";
@@ -86,6 +87,10 @@ export interface IncrementOutcome {
     /** `group=prev` 悬空降级为独立题的题数（Issue #148 同款兜底：SetWriter
      *  不写坏 group、读侧不悬空，但共享原文确实缺了——终态里点明）。 */
     danglingGroups: number;
+    /** Jev 预筛跳过的块数（Issue #186 A2）：**在生成 AI 之前**被拦下的
+     *  切片（与 `empty` 分账——`empty` 是「烧了生成调用但零产物」，
+     *  本项是「一次生成调用都没烧」）。0 = 零跳过。 */
+    screened: number;
     /** Jev 质检（Issue #184）：**只在判出存疑时有此键**（判定结果不落盘，
      *  随本次运行的返回值给报告用）。 */
     qc?: JevQcChunkSummary;
@@ -101,6 +106,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         knowLinked: 0,
         empty: 0,
         danglingGroups: 0,
+        screened: 0,
     };
     if (run.signal?.aborted) {
         out.aborted = true;
@@ -120,6 +126,30 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         await run.bank.flush();
         return out;
     }
+    /** 切片预筛（Issue #186 A2）：**生成循环之前**批量问一次 Jev
+     *  「这片有可出题的内容吗」——判定确认「没料」的块**在进生成 AI 之前
+     *  拦下**，报告单独计一类（`out.screened`），与 `empty` 分账。
+     *
+     * 三条口径（与质检同源，见 `ai/jev/chunkScreen.ts` 头注）：
+     *  - 未启用/失败/低置信 → **一个都不跳**（`chunks` 与入参逐字相同，
+     *    进度总数、块序、落库产物全部零变化）；
+     *  - 只决定跳不跳：切片本体、`srcKey`、`hash` 一概不动（冻结清单不碰）；
+     *  - 判定不落盘。
+     *
+     * ⚠️ 跳过按**位序**回填（不是按 key）：`screenChunks` 的结论与入参
+     *  **严格同序同长**，直接按下标取；块键在超长子块处可能重名，按 key
+     *  过滤会连带删掉同名的未跳块 = 静默少出题。 */
+    let chunks = run.chunks;
+    if (isJevEnabled(run.settingsOf?.())) {
+        // 兜底（`screenChunks` 内部已逐批接住）：预筛的任何意外都**不许**把
+        // 整条增量链带崩——判定层抛错时按「一个都不跳」收口（现状行为）
+        const outcome = await screenChunks(
+            run.chunks.map((c) => ({ key: "", text: c.text })),
+            { apiKey: run.settingsOf?.()?.jevKey }
+        ).catch((): undefined => undefined);
+        out.screened = outcome?.skipped ?? 0;
+        if (outcome && outcome.skipped > 0) chunks = run.chunks.filter((_, idx) => !outcome.verdicts[idx]?.skip);
+    }
 
     let knowIndex: KnowledgeIndex | undefined;
     if (run.knowRoots?.length) {
@@ -129,7 +159,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     }
     // 动作分组（AI 会话面板树归并）：一次增量执行的路由/生成挂同组；
     // 标题带题集名，标题缺失退化用块数
-    const label = run.title ?? `${run.chunks.length} 块`;
+    const label = run.title ?? `${chunks.length} 块`;
     const group: AiSessionGroup = { id: newAiGroupId(), title: aiTitle(tKey, "aiTitleIncrement", { name: label }) };
     // 生成 prompt 的题型先验：目标题集既有记录的题型并集（增量不跑
     // 前置检测，这比全量省规则；空集=全量兜底）
@@ -181,14 +211,14 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         out.qc.suspectChunks++;
         out.qc.reports.push({ index, report });
     };
-    for (let i = 0; i < run.chunks.length; i++) {
+    for (let i = 0; i < chunks.length; i++) {
         // 逐块与块间都认本流程的中止源（面板「停止」与页内停止走同一处）
         if (stopCtrl.signal.aborted) {
             out.aborted = true;
             break;
         }
-        const chunk = run.chunks[i];
-        run.onProgress?.({ done: i, total: run.chunks.length, count: out.added });
+        const chunk = chunks[i];
+        run.onProgress?.({ done: i, total: chunks.length, count: out.added });
         // 纯标题块零内容：不发 AI，无产物（断点自愈不受影响）
         if (isHeadingOnlyChunk(chunk.text)) {
             out.empty++;
@@ -222,7 +252,7 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         out.danglingGroups += res.danglingGroup; // 悬空 group=prev 降级计数（Issue #148）
         await run.bank.flush(); // 逐块落盘（中止自愈建立在已入库上）
     }
-    run.onProgress?.({ done: run.chunks.length, total: run.chunks.length, count: out.added });
+    run.onProgress?.({ done: chunks.length, total: chunks.length, count: out.added });
     // 判定块数补真值（`qc` 只在有存疑时才建，建时先按 0 占位）
     if (out.qc) out.qc.checkedChunks = qcCheckedChunks;
     await run.bank.flush();

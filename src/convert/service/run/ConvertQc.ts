@@ -17,7 +17,9 @@ import {
     type CheckDraft,
     type JevQcSuspect,
 } from "../../../ai/jev/convertChecks";
+import { screenChunks } from "../../../ai/jev/chunkScreen";
 import { isJevEnabled } from "../../../ai/jev/enabled";
+import { fmt } from "../../../ui/shared";
 import type { ConvertQc } from "./ConvertBatchModel";
 
 /** 质检设置的最小面（与 `ai/jev/enabled` 的 `JevSettingsLike` 同口径）。 */
@@ -26,12 +28,55 @@ export interface QcSettings {
     jevEnabled?: boolean;
 }
 
+/**
+ * 切片预筛的**编排侧累计器**（Issue #186 A2，整卷链）：整卷链的窗口是逐批
+ * 自推进的、事前不知道，做不到「生成之前批量问完」，故按**窗口**问
+ * （一次请求问一片，纪律 5 的「一片一问」），本类把「问过几片、跳过几片」
+ * 收在一处。
+ *
+ * 与增量链共用 `ai/jev/chunkScreen.ts` 的判定层（阈值与回落口径同源）；
+ * 本类只管**计数与回落**：
+ *  - 总闸关 → 一次请求都不发、恒回 false（零行为变化）；
+ *  - 判定失败/低置信 → 恒回 false（`screenChunks` 内部已按「一个都不跳」回落）。
+ */
+export class ScreenAcc {
+    /** 判定为「没料」而跳过的窗口数（0 = 零跳过 ⇒ 报告零追加）。 */
+    skipped = 0;
+
+    /** 本窗口该不该跳（供片执行器在生成之前调用）。 */
+    windowOf(text: string, settings: QcSettings | undefined): Promise<boolean> {
+        return this.judge(text, settings);
+    }
+
+    private async judge(text: string, settings: QcSettings | undefined): Promise<boolean> {
+        if (!isJevEnabled(settings)) return false;
+        try {
+            const out = await screenChunks([{ key: "", text }], { apiKey: settings?.jevKey });
+            this.skipped += out.skipped;
+            return out.verdicts[0]?.skip === true;
+        } catch (_) {
+            // 兜底（`screenChunks` 内部已逐批接住）：预筛的任何意外都**不许**
+            // 变成整卷转换的失败——不跳即现状行为
+            return false;
+        }
+    }
+
+    /** 完成消息尾巴（零跳过/未启用 → 空串，调用方据此零拼接）。 */
+    tail(t: (k: string) => string): string {
+        if (this.skipped === 0) return "";
+        return `${t("jevScreen")}${fmt(t("jevScreenSkipped"), { n: String(this.skipped) })}`;
+    }
+}
+
 /** 跨批的质检累计器（内存态，不落盘）。 */
 export class QcAcc {
     /** 已判定的题目数。 */
     checked = 0;
     /** 存疑项清单（顺序即出现顺序）。 */
     suspects: JevQcSuspect[] = [];
+    /** 切片预筛（Issue #186 A2）：与质检**同一次运行、同一份设置**，
+     *  故挂在这里（少一个跨层传参；两者都只累计内存态、都不落盘）。 */
+    screen = new ScreenAcc();
 
     /** 存疑项去重后的清单（同一毛病在多批出现 = 一个结论，别复读）。 */
     list(): JevQcSuspect[] {
@@ -45,10 +90,12 @@ export class QcAcc {
         return { qc: { checked: this.checked, suspects } };
     }
 
-    /** 完成消息尾巴（无存疑/未判定 → 空串，调用方据此零拼接）。 */
+    /** 完成消息尾巴（无存疑且零跳过 → 空串，调用方据此零拼接）。
+     *  两段各自独立：质检段管存疑项、预筛段管跳过计数（两者都不落盘）。 */
     tail(t: (k: string) => string): string {
-        if (this.list().length === 0) return "";
-        return qcSummary(t, { checked: this.checked, suspects: this.suspects });
+        const qc = this.list().length > 0 ? qcSummary(t, { checked: this.checked, suspects: this.suspects }) : "";
+        const screen = this.screen.tail(t);
+        return [qc, screen].filter(Boolean).join(" · ");
     }
 }
 
@@ -129,12 +176,21 @@ export function terminalOf(
         };
     }
     if (f.noProducts) {
-        // 续跑时题集保持原样按完成收口；全新转换按无题失败
+        // 续跑时题集保持原样按完成收口；全新转换按无题失败。
+        // ⚠️ 零产物**也要带上预筛尾巴**（Issue #186 A2）：全被预筛跳过时，
+        // 用户看到的不能只是「无有效题目块」——那会像「源文档没内容」；
+        // 必须说清「Jev 预筛跳过 N 块」。零跳过时尾巴为空串 ⇒ 逐字不变。
+        const screenTail = acc.tail(t);
+        const withTail = (m: string): string => m + (screenTail ? (m ? ` ｜ ${screenTail}` : screenTail) : "");
         return f.setId
-            ? { ...done(t("convertResumeSettled"), 0, f.srcLen), setId: f.setId, title: f.title }
+            ? {
+                  ...done(withTail(t("convertResumeSettled")), 0, f.srcLen),
+                  setId: f.setId,
+                  title: f.title,
+              }
             : {
                   status: "failed",
-                  message: f.refusedMessage,
+                  message: withTail(f.refusedMessage),
                   count: 0,
                   batches: 0,
                   total: 0,

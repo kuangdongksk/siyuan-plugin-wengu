@@ -48,7 +48,13 @@ export function openIncrementDialog(deps: {
     total: number;
     /** 省费模式：不出逐块清单，只出检测摘要，确认后按全保留口径执行。 */
     compact?: boolean;
-    onConfirm(choice: IncrementChoice): void;
+    /** 省费模式的**确认后精修**（Issue #186 A3）：把「实质变更」的块从
+     *  「保留旧题」改判成「重转」（判定层见 `ai/jev/changeJudge.ts`）。
+     *  只在 `compact` 时被调用；**非省费照旧逐块由用户点**（用户要全量就
+     *  全量，规划稿 §三 A3 明写）。缺省＝不精修（未接线调用方零变化）。
+     *  抛错由本模块兜底：回落到精修前的选择（保留旧题＝改造前行为）。 */
+    refine?(choice: IncrementChoice): Promise<{ choice: IncrementChoice; note?: string }>;
+    onConfirm(choice: IncrementChoice, note?: string): void;
 }): void {
     const { t, plan } = deps;
     const summary = `<div class="wengu-muted">${esc(
@@ -134,7 +140,14 @@ export function openIncrementDialog(deps: {
     root.querySelector("[data-act='incr-ok']")?.addEventListener("click", () => {
         if (deps.compact) {
             dialog.destroy();
-            deps.onConfirm(keepOldChoice(plan));
+            const base = keepOldChoice(plan);
+            const refine = deps.refine;
+            if (!refine) deps.onConfirm(base);
+            else
+                void refine(base)
+                    .then((r) => deps.onConfirm(r.choice, r.note))
+                    // 精修失败：原选择原样跑（保留旧题 = 改造前行为）
+                    .catch(() => deps.onConfirm(base));
             return;
         }
         const choice: IncrementChoice = { chunks: [], deleteQids: [], staleQids: [] };

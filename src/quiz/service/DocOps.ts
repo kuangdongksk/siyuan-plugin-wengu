@@ -5,6 +5,7 @@ import { extractBlockId, getDocInfo } from "../../convert/service/core/ConvertSe
 import { KernelBlock } from "../../siyuan/block";
 import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/source/SrcChunk";
 import { convertIncremental, sourceChunksOf } from "../../convert/service/run/ConvertIncrement";
+import { refineKeepOldChoice } from "../../convert/service/run/ConvertChangeScreen";
 import { chunkQcSummary } from "../../ai/jev/convertChecks";
 import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { readRecordSrcGroups, removeRecords } from "../../bank/data/BankSets";
@@ -262,7 +263,7 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
         showStatus(v.el, fmt(t("reimportUnchanged"), { n: String(plan.same) }), "ok");
         return;
     }
-    const start = (choice: IncrementChoice): void => {
+    const start = (choice: IncrementChoice, note = ""): void => {
         const cfg = reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf());
         const ev = convertRunEventsFor(v.convertAccess);
         const set = bank.peek()?.sets?.[setId];
@@ -310,7 +311,13 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
             // 「N 块存疑」等于没说是什么毛病。无 key / 无踩雷时终态文案与
             // 改造前逐字一致（增量链的零 Jev 痕迹是硬口径）。
             const qcDetail = res!.qc ? chunkQcSummary(t, res!.qc) : null;
+            // Jev 预筛跳过（Issue #186 A2）：与 `empty` 分账的一类（后者烧了
+            // 生成调用，前者一次都没烧），零跳过时不追加任何字符。
+            const screenDetail =
+                res!.screened > 0 ? ` ${esc(fmt(t("incrJevScreen"), { n: String(res!.screened) }))}` : "";
             const tail =
+                note +
+                screenDetail +
                 (res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "") +
                 (res!.danglingGroups > 0
                     ? ` ${esc(fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) }))}`
@@ -334,6 +341,7 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                         d: String(res!.deleted),
                         s: String(res!.staled),
                     }) +
+                        (res!.screened > 0 ? ` ${fmt(t("incrJevScreen"), { n: String(res!.screened) })}` : "") +
                         (res!.empty > 0 ? ` ${fmt(t("incrEmpty"), { n: String(res!.empty) })}` : "") +
                         (res!.danglingGroups > 0
                             ? ` ${fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) })}`
@@ -345,11 +353,30 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
         });
         if (!started) showStatus(v.el, t("convertBusy"), "err");
     };
+    // 省费模式 + 有变更块时挂精修（Issue #186 A3）：把实质变更的块从
+    // 「保留旧题」改判成「重转」。**非省费不挂**（用户要全量就全量）。
+    const compact = v.settingsOf()?.convertKeepOld === true;
+    const refine = async (base: IncrementChoice): Promise<{ choice: IncrementChoice; note?: string }> => {
+        const { choice, summary } = await refineKeepOldChoice(plan, base, {
+            readOldQuestions: async (blocks) => {
+                const data = await bank.all();
+                return blocks.map((qid) => data.records[qid]?.kramdown ?? "").join("\n\n");
+            },
+            apiKey: v.settingsOf()?.jevKey,
+        });
+        // 一句报告尾巴（零实质/未判定时为空串 ⇒ 不精修就是不追加）
+        const note =
+            summary.substantive > 0
+                ? ` ${esc(fmt(t("jevChangeSubstantive"), { n: String(summary.substantive) }))}`
+                : "";
+        return { choice, note };
+    };
     openIncrementDialog({
         t,
         plan,
         total: chunks.length,
-        compact: v.settingsOf()?.convertKeepOld === true,
+        compact,
+        ...(compact && plan.changed.length > 0 ? { refine } : {}),
         onConfirm: start,
     });
 }
