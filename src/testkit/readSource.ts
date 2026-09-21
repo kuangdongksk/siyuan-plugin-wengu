@@ -125,6 +125,8 @@ export function mustHave(path: string): void {
  * 且 Phase 2 收口时删掉这一条即是一次有意识的动作。
  *
  * ⚠️ 阶段一用；**阶段二实现落地后连同其调用点一起删**。
+ * 好消息是它**会自己催你收口**：实现落地后文件就在了，这里直接抛错
+ * （「文件已存在」），红得明明白白，不会留成一条永远绿的空断言。
  */
 export function expectRed(paths: string[]): void {
     for (const p of paths) {
