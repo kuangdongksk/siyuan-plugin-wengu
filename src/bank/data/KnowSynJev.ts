@@ -20,6 +20,12 @@
  * 为真时被 `SynFlow` 调起；没 key / 总开关关 → 走 `KnowSynJudge.judgeSynonyms`
  * 的现状通道，逐字节等同改造前。
  *
+ * **分批按标签成组（歧义口径的前提）**：一个标签的全部候选**必须落在同一
+ * 批**——否则「同一标签多个 same 候选」的歧义判定会被批界切开，两批各判中
+ * 一个候选、后批覆盖前批，落一个错词（正是本口径要防的）。故批界只落在
+ * 标签之间，且由 {@link SYN_JEV_MAX_CANDIDATES} ≤ {@link SYN_JEV_BATCH}
+ * 保证「单组不超批」——两个常量的相对大小是**不变量**，单测钉着。
+ *
  * **回落口径（纪律 2）**：判定失败（网络/协议/鉴权）、choice 低置信
  * （`choiceLowConfidence`，<0.5）、命中「同一标签 → 多个 same 候选」的歧义——
  * 一律**不落表**（下次重问），不做「本批整体回落生成式」的二次采购。
@@ -101,6 +107,34 @@ export function synItems(pairs: SynPair[], pool: LexSection[]): SynJevItem[] {
     return items;
 }
 
+/**
+ * 问题清单 → **按标签成组的批次**（纯函数）。
+ *
+ * 批界只落在标签之间：一个标签的候选永不被拆到两批（歧义口径的前提，见
+ * 文件头）。`SYN_JEV_MAX_CANDIDATES` ≤ `SYN_JEV_BATCH` 时单组必能整组装进
+ * 一批；万一将来常量被改成反的（单组 > 批上限），该组**独占一批**（宁可
+ * 单批超限，也不拆开歧义判据）。
+ */
+export function synBatches(pairs: SynPair[], pool: LexSection[], limit: number = SYN_JEV_BATCH): SynJevItem[][] {
+    const batches: SynJevItem[][] = [];
+    let cur: SynJevItem[] = [];
+    for (const p of pairs) {
+        const group = synItems([p], pool);
+        if (group.length === 0) continue;
+        if (cur.length > 0 && cur.length + group.length > limit) {
+            batches.push(cur);
+            cur = [];
+        }
+        cur.push(...group);
+        if (cur.length >= limit) {
+            batches.push(cur);
+            cur = [];
+        }
+    }
+    if (cur.length > 0) batches.push(cur);
+    return batches;
+}
+
 /** 一批答案 → 落表条目（纯函数）：答案与 `items` 按位序对应。
  *
  *  三条口径（与旧生成式通道对齐，见文件头）：
@@ -167,16 +201,15 @@ export async function judgeSynonymsJev(deps: KnowSynJevDeps): Promise<Map<string
     const hits = new Map<string, LexSection[]>();
     if (deps.pairs.length === 0 || deps.pool.length === 0) return hits;
     const judge = deps.judge ?? judgeJev;
-    const items = synItems(deps.pairs, deps.pool);
+    const batches = synBatches(deps.pairs, deps.pool);
     const byTitle = new Map<string, LexSection[]>();
     for (const s of deps.pool) {
         const arr = byTitle.get(s.title) ?? [];
         arr.push(s);
         byTitle.set(s.title, arr);
     }
-    for (let base = 0; base < items.length; base += SYN_JEV_BATCH) {
+    for (const batch of batches) {
         if (deps.signal.aborted) break;
-        const batch = items.slice(base, base + SYN_JEV_BATCH);
         let answers: JevAnswer[];
         try {
             answers = await judge({

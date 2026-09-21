@@ -9,6 +9,7 @@ import {
     synPairQuestion,
     synQuestions,
     synState,
+    synBatches,
     SYN_JEV_BATCH,
     SYN_JEV_MAX_CANDIDATES,
     type SynJevItem,
@@ -106,6 +107,43 @@ describe("synItems（候选裁剪：近邻优先 + 上限）", () => {
         const pool = Array.from({ length: 200 }, (_, i) => ({ id: `s${i}`, title: `小节${i}` }));
         const items = synItems([{ raw: "洛必达" } as SynPair], pool);
         expect(items).toHaveLength(SYN_JEV_MAX_CANDIDATES);
+    });
+});
+
+describe("synBatches（歧义口径的前提：一个标签的候选不跨批）", () => {
+    it("**常量不变量**：单组上限 ≤ 批上限（否则组必然被劈开）", () => {
+        expect(SYN_JEV_MAX_CANDIDATES).toBeLessThanOrEqual(SYN_JEV_BATCH);
+    });
+
+    it("一个标签的全部候选落在同一批（池子大到必须分多批时）", () => {
+        const pool: LexSection[] = Array.from({ length: 25 }, (_, i) => ({ id: `s${i}`, title: `节${i}` }));
+        const pairs: SynPair[] = [0, 1, 2].map((g) => ({ raw: `标签${g}` }));
+        const batches = synBatches(pairs, pool);
+        expect(batches.length).toBeGreaterThan(1); // 确实分了两批
+        for (const b of batches) {
+            const labels = new Set(b.map((it) => it.pair.raw));
+            // 批内每个标签的候选数 = 该标签的全部候选（没有半截组）
+            for (const l of labels) expect(b.filter((it) => it.pair.raw === l)).toHaveLength(25);
+        }
+        // 每个标签只出现在一个批里
+        const seen = new Set<string>();
+        for (const b of batches)
+            for (const it of new Set(b.map((x) => x.pair.raw))) {
+                expect(seen.has(it)).toBe(false);
+                seen.add(it);
+            }
+        expect(seen.size).toBe(pairs.length);
+    });
+
+    it("单组大于批上限时独占一批（宁可超限，不拆歧义判据）", () => {
+        const pool: LexSection[] = Array.from({ length: 25 }, (_, i) => ({ id: `s${i}`, title: `节${i}` }));
+        const batches = synBatches([{ raw: "标签A" } as SynPair], pool, 10);
+        expect(batches).toHaveLength(1);
+        expect(batches[0]).toHaveLength(25);
+    });
+
+    it("空组（池子空）不产生空批", () => {
+        expect(synBatches([{ raw: "标签A" } as SynPair], [])).toEqual([]);
     });
 });
 
@@ -332,6 +370,31 @@ describe("judgeSynonymsJev（批量 choice 解析 + 落表）", () => {
         });
         expect(st.peek().entries["洛必达"].canonical).toBe("洛必达法则");
         expect(st.peek().entries["导数"]).toBeUndefined(); // 缺答案不落表，也不整批作废
+    });
+
+    it("**跨批歧义不落表**：同一标签两个 same 候选分落两批时，批界不许切开歧义判据", async () => {
+        const st = store();
+        // 池子 25 条 → 每对 25 问；3 对 = 75 问 > 60，必然分两批
+        const pool: LexSection[] = Array.from({ length: 25 }, (_, i) => ({ id: `s${i}`, title: `节${i}` }));
+        const pairs: SynPair[] = [0, 1, 2].map((g) => ({ raw: `标签${g}` }));
+        // 只让「标签2」命中两个候选（节0 / 节10）——若被批界切开，会各落一个（错）
+        const judge = async (opts: JudgeJevOpts): Promise<JevAnswer[]> =>
+            opts.questions.map((q) => {
+                const label = /知识点标签：「([^」]+)」/.exec(q.question)?.[1];
+                const cand = /候选小节写法：「([^」]+)」/.exec(q.question)?.[1];
+                const hit = label === "标签2" && cand !== undefined && ["节0", "节10"].includes(cand);
+                return pick(hit ? SYN_VERDICTS.same : SYN_VERDICTS.different);
+            });
+        const hits = await judgeSynonymsJev({
+            pairs,
+            pool,
+            store: st,
+            apiKey: "sk",
+            signal: new AbortController().signal,
+            judge,
+        });
+        expect(st.peek().entries["标签2"]).toBeUndefined(); // 歧义 → 整对不落表
+        expect(hits.has("标签2")).toBe(false);
     });
 
     it('写回侧照旧 putMany(writes, "ai")：走 store 的批量入口', async () => {
