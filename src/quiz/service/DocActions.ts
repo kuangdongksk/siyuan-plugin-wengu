@@ -18,6 +18,8 @@ export interface DocActionCtx {
     bank(): QuestionBank | undefined;
     modelId(): string;
     colFlow(): CollectionFlow;
+    /** 只读设置面（Jev key / 总闸）：生成标签的同义判定按它分流（Issue #188）。 */
+    settings?(): { jevKey?: string; jevEnabled?: boolean } | undefined;
 }
 
 /** 右键「变式重练」（V2）：整卷/仅错题按题生成变式专题。 */
@@ -47,5 +49,12 @@ export function genTagsAction(ctx: DocActionCtx, docId: string, t: (k: string) =
     const doc = ctx.docs().find((d) => d.id === docId);
     const bank = ctx.bank();
     if (!doc || !bank) return;
-    void openTagDialog({ t, bank, modelId: ctx.modelId(), docId, docTitle: doc.title });
+    void openTagDialog({
+        t,
+        bank,
+        modelId: ctx.modelId(),
+        docId,
+        docTitle: doc.title,
+        settings: ctx.settings?.(),
+    });
 }

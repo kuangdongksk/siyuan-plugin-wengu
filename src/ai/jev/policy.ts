@@ -51,3 +51,26 @@ export function choiceLowConfidence(confidence: number | undefined): boolean {
 export function scoreLowConfidence(confidence: number | undefined): boolean {
     return !(typeof confidence === "number" && Number.isFinite(confidence) && confidence >= SCORE_LOW);
 }
+
+/* ── 落点专属口径（各落点常量集中在这里，见 Issue #188 / 规划稿 B2） ── */
+
+/** 同义判定（B2，Issue #188）的三档选项。**与旧生成式 prompt 的判定标准逐字
+ *  对齐**（规划稿 §三 B2：同义=同一概念，其余一律不落表），落点引用本表，
+ *  不许各自写字符串。 */
+export const SYN_VERDICTS = {
+    /** 同一概念（旧口径：同义/简称全称/跨语言换写法）→ 落表规范词。 */
+    same: "same",
+    /** 相关但不是同一概念（父概念/子概念/相邻章节）。旧 prompt 只让写「同义」
+     *  一项、其余写 `-`（不落表、下次重问）——**维持旧入表口径，不静默放宽**。 */
+    related: "related",
+    /** 无关（同样不落表）。 */
+    different: "different",
+} as const;
+
+/** 同义判定选项（转给 Jev 的 choice 清单，顺序即选项顺序）。 */
+export const SYN_OPTIONS: string[] = [SYN_VERDICTS.same, SYN_VERDICTS.related, SYN_VERDICTS.different];
+
+/** 只有 `same` 才落表；`related` 与旧生成式通道的「非等同」同口径——不落表。 */
+export function synVerdictEntersTable(verdict: string | undefined): boolean {
+    return verdict === SYN_VERDICTS.same;
+}

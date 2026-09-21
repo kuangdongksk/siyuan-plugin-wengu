@@ -38,13 +38,10 @@ import type { KnowPanelUi } from "./KnowPanelUi";
  * 知识文档面板控制器（四件套之一）：装载聚合（kp 引用 → 根文档映射 →
  * 递归展开手动导入，详见 ui/KnowledgePanel 的纯函数层）、折叠/两击退册
  * 状态机、行内五动作（匹配/转习题/关联/打开/移除）。
- * 移除 = 仅退册整个登记子树（仅登记根行可用，思源文档不动，可重新
- * 导入登记）。旧「删除」按钮（软隐藏 bank.knowHidden）20260902 移除——
- * 与移除语义撞车且隐藏后无反悔出口。
- * 旧 paintTree 整树 innerHTML 重绘换成 ui 字段写入；卸载后 load 作废
- * （alive 标志，对应旧 root.isConnected 竞态守卫——装载期间骨架可能被
- * refreshSide 重建）。
- */
+ * 移除 = 仅退册整个登记子树（仅登记根行可用，思源文档不动，可重新导入登记）。
+ * 旧「删除」按钮（软隐藏 bank.knowHidden）20260902 移除——与移除语义撞车且隐藏后无反悔出口。
+ * 旧 paintTree 整树 innerHTML 重绘换成 ui 字段写入；卸载后 load 作废（alive
+ * 标志，对应旧 root.isConnected 竞态守卫——装载期间骨架可能被 refreshSide 重建）。*/
 export class KnowPanelCtl {
     private alive = true;
     /** 「移除」两击确认（armed 与渲染同源，重拉后不漂移）。 */
@@ -145,6 +142,7 @@ export class KnowPanelCtl {
             modelId: this.v.aiModelId(),
             knowDocId: d.docId,
             knowTitle: d.title,
+            settings: this.v.settingsOf(), // Jev 分流（Issue #188）
             onDone: () => void this.load(),
         });
     }
@@ -280,7 +278,13 @@ export class KnowPanelCtl {
     batchLink(): void {
         const bank = this.bank();
         if (bank)
-            void openBatchLinkDialog({ t: this.v.t, bank, modelId: this.v.aiModelId(), onDone: () => this.load() });
+            void openBatchLinkDialog({
+                t: this.v.t,
+                bank,
+                modelId: this.v.aiModelId(),
+                settings: this.v.settingsOf(),
+                onDone: () => this.load(),
+            }); // settings=Jev 分流（Issue #188）
     }
 
     /* ── AI 索引（原「建知识树」，docs/knowledge-tree.md □1；20260903 起

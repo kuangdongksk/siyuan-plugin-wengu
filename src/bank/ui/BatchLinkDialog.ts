@@ -36,6 +36,9 @@ export interface BatchDeps {
     bank: QuestionBank;
     /** phase2 AI 路由用模型（跟随转换侧选择）。 */
     modelId: string;
+    /** 只读设置面（`jevKey` / `jevEnabled`）：配了 Jev key → 同义判定换
+     *  Jev（Issue #188）；未配 → 现状生成式通道零变化。 */
+    settings?: { jevKey?: string; jevEnabled?: boolean };
     onDone?(): void;
 }
 
@@ -108,6 +111,7 @@ async function runBatch(
                 stop,
                 group,
                 completeLibrary: true, // 词表=全部登记根，判否可全局沉淀
+                settings: deps.settings, // 配了 Jev key → 判定换 Jev（Issue #188）
                 onFail: (e) => fails.push({ stage: "chapter", error: e }),
             });
             hit += r.textHit + r.synHit;
