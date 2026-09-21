@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { read } from "../../../testkit/readSource";
 import type { IncrementChoice } from "../../ui/IncrementDialog";
 import type { IncrementPlan, StructChunk } from "../source/SrcChunk";
 
@@ -66,7 +67,10 @@ beforeEach(() => {
 });
 
 describe("变更实质判定精修（Issue #186 A3）", () => {
-    it("无 key：全部当实质（宁可多转不漏转）——块进生成、旧记录进删除", async () => {
+    it("无 key：判定层回「全部当实质」（逐块保守默认值）", async () => {
+        // ⚠️ 这是**判定层**的默认值，不是生产行为：生产路径上 `DocOps` 以
+        // `isJevEnabled` 为闸（无 key/关开关 ⇒ 根本不挂 `refine`），故无 key
+        // 时不会走到这里 —— 见本文件末组「调用侧能力闸」。
         const { choice, summary } = await refineKeepOldChoice(plan, base, { readOldQuestions: readOld });
         expect(summary.substantive).toBe(2);
         expect(choice.chunks.map((c) => c.key)).toEqual(["H:a", "H:b"]);
@@ -149,5 +153,23 @@ describe("变更实质判定精修（Issue #186 A3）", () => {
         expect(choice.chunks.map((c) => c.key)).toEqual(["H:b"]);
         expect(choice.deleteQids).toEqual(["gone"]);
         expect(choice.staleQids).toEqual(["q1"]);
+    });
+});
+
+/**
+ * **调用侧能力闸**（源码级回归，Issue #186 验收 1）：
+ * `judgeChanges` 无 key 时回「全部当实质」只是**逐块保守默认值**，而 A3 的
+ * 「实质」＝先删旧记录再重转 —— 若调用侧无条件采用，无 key 时就会**静默删
+ * 数据 + 烧生成调用**。故 `DocOps` 必须以 `isJevEnabled` 为闸、**不挂** `refine`。
+ *
+ * 纯逻辑测不到这里（`DocOps` 真机链走内核 IO），故按本仓既有口径用
+ * `testkit/readSource` 做源码级契约断言（先例：`JevQcReport.test.ts` 末组）。
+ */
+describe("调用侧能力闸（源码级）", () => {
+    it("DocOps 挂 refine 必须同时过 isJevEnabled 闸", async () => {
+        const src = await read("/src/quiz/service/DocOps.ts");
+        expect(src).toContain("import { isJevEnabled }");
+        expect(src).toContain("const refineOn = isJevEnabled(v.settingsOf())");
+        expect(src).toContain("compact && refineOn && plan.changed.length > 0");
     });
 });

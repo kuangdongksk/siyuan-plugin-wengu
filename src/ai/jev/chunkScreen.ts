@@ -169,19 +169,29 @@ export function planScreenBatches(items: ScreenItem[], budget = SCREEN_BATCH_CHA
  *    不必 try/catch；
  *  - 响应缺值：按位取值会读到 `NaN`，静默落进「不跳」还算是保守，但若
  *    误读成「跳」就是误杀——故整批弃掉（宁可漏筛不误杀）。
+ *
+ * ⚠️ **结论一律按入参位序落位**（`verdicts[i]` 就是 `items[i]` 的结论），
+ * **不许按 `key` 归并回填**：两个调用点都传**空 key**（增量链整批
+ * `key: ""`、`ScreenAcc` 单片也是 `""`），按 key 归并会把「空白片的未判定」
+ * 与「真判定的跳过」错配到**别的片**上——表现为「报告说跳了 1 片，实际跳
+ * 的是另一片（真没料的片照样烧生成调用）」，本落点的省钱目的静默失效。
+ * 片内「非空片 ↔ 答案位序」的映射同样按**片内下标**走，不靠重新排序还原。
  */
 export async function screenChunks(items: ScreenItem[], opts: ScreenOpts): Promise<ScreenOutcome> {
     const key = (opts.apiKey ?? "").trim();
     if (!key || items.length === 0) return noSkip(items);
-    const verdicts: ScreenVerdict[] = [];
+    // 逐片结论按位序预置（默认「未判定、不跳」），判成的片就地改写
+    const verdicts: ScreenVerdict[] = items.map((it) => ({ key: it.key, judged: false, skip: false }));
     let checked = 0;
     let skipped = 0;
+    /** 当前批在 `items` 里的起点：`planScreenBatches` 的批**连续覆盖**入参，
+     *  故按批长累加即得位序（不查 key，见上）。 */
+    let offset = 0;
     for (const batch of planScreenBatches(items)) {
+        const start = offset;
+        offset += batch.length;
         const usable = batch.filter((it) => it.text.trim().length > 0);
-        if (usable.length === 0) {
-            verdicts.push(...batch.map((it) => ({ key: it.key, judged: false, skip: false })));
-            continue;
-        }
+        if (usable.length === 0) continue; // 整批空白：全批维持「未判定、不跳」
         let answers: JevAnswer[];
         try {
             answers = await judgeJev({
@@ -192,41 +202,23 @@ export async function screenChunks(items: ScreenItem[], opts: ScreenOpts): Promi
                 ...(opts.sleep ? { sleep: opts.sleep } : {}),
             });
         } catch (_) {
-            verdicts.push(...batch.map((it) => ({ key: it.key, judged: false, skip: false })));
-            continue; // 判定失败 = 本批不跳（不阻塞转换主流程）
+            continue; // 判定失败 = 本批一个都不跳（不阻塞转换主流程）
         }
-        if (!answersUsable(answers, usable.length)) {
-            verdicts.push(...batch.map((it) => ({ key: it.key, judged: false, skip: false })));
-            continue;
-        }
-        // 空白片：不入 state、也就不在答案位序里——补一条「未判定」
-        const blanks = batch.filter((it) => it.text.trim().length === 0);
-        verdicts.push(...blanks.map((it) => ({ key: it.key, judged: false, skip: false })));
-        usable.forEach((it, i) => {
-            const noul = (answers[i * 2] as { noul?: number }).noul;
-            const sc = answers[i * 2 + 1] as { score?: number; confidence?: number };
+        if (!answersUsable(answers, usable.length)) continue; // 缺值 = 本批一律不跳
+        // 片内位序映射：批内第 j 个**非空**片对应答案第 j 组（空白片不入
+        // state、不占答案位序），落位到 items 的 `start + 批内下标`
+        let j = 0;
+        batch.forEach((it, bi) => {
+            if (it.text.trim().length === 0) return;
+            const a = answers[j * 2] as { noul?: number };
+            const sc = answers[j * 2 + 1] as { score?: number; confidence?: number };
+            j++;
             // 阈值口径只在 policy 的 screenShouldSkip 里（本模块不自造数字）
-            const skip = screenShouldSkip(noul, sc.score, sc.confidence);
+            const skip = screenShouldSkip(a.noul, sc.score, sc.confidence);
             checked++;
             if (skip) skipped++;
-            verdicts.push({ key: it.key, judged: true, skip });
+            verdicts[start + bi] = { key: it.key, judged: true, skip };
         });
     }
-    // 顺序还原（批按入参顺序切，故此处按 key 序对不上时用位置索引兜底）
-    return { verdicts: orderVerdicts(items, verdicts), checked, skipped };
-}
-
-/** 结论按入参顺序还原（同 key 重复出现时按出现次序配对）。 */
-function orderVerdicts(items: ScreenItem[], verdicts: ScreenVerdict[]): ScreenVerdict[] {
-    if (verdicts.length !== items.length) return verdicts;
-    const byKey = new Map<string, ScreenVerdict[]>();
-    for (const v of verdicts) {
-        const arr = byKey.get(v.key) ?? [];
-        arr.push(v);
-        byKey.set(v.key, arr);
-    }
-    return items.map((it) => {
-        const arr = byKey.get(it.key);
-        return arr && arr.length > 0 ? arr.shift()! : { key: it.key, judged: false, skip: false };
-    });
+    return { verdicts, checked, skipped };
 }
