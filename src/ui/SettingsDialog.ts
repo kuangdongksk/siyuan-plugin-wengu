@@ -39,7 +39,29 @@ export interface WenguSettingsShape {
     companionAi?: boolean;
     companionProfiles?: import("../companion/core/CompanionCtl").CompanionProfile[];
     companionActiveId?: string;
+    /** Jev（TypeSafe System One 判定模型）key；空=未启用（Issue #183）。 */
+    jevKey?: string;
+    /** Jev 判定总开关（缺省视为开；关掉即全插件 Jev 功能静默关闭）。 */
+    jevEnabled?: boolean;
     save?: () => void;
+}
+
+/** 密码输入行控件：`formInput` + 遮显钮拼成一体（图标走 FormHtml.svgIcon）。
+ *  遮显是纯展示态切换（type 在 password/text 之间），不落盘、无关业务。 */
+function formPasswordRow(field: string, value: string, t: (k: string) => string, act: string): string {
+    const reveal = `<button class="b3-button b3-button--outline fn__flex-center wengu-pw-reveal" data-act="${field}-reveal"
+  title="${esc(t("jevKeyReveal"))}" aria-label="${esc(t("jevKeyReveal"))}">${svgIcon("iconEye")}</button>`;
+    const attrs = `type="password" spellcheck="false" autocomplete="off" placeholder="${esc(t("jevKeyPlaceholder"))}"`;
+    return formInput(field, value, attrs, act) + reveal;
+}
+
+/** 绑定遮显切换：一次点击换一次 type，不落盘（纯展示态）。 */
+function bindJevReveal(root: HTMLElement): void {
+    const input = root.querySelector<HTMLInputElement>("[data-set='jevkey']");
+    root.querySelector<HTMLElement>("[data-act='jevkey-reveal']")?.addEventListener("click", () => {
+        if (!input) return;
+        input.type = input.type === "password" ? "text" : "password";
+    });
 }
 
 /**
@@ -176,6 +198,16 @@ export function openWenguSetting(opts: {
                   )
               )
           }
+          ${formRow(
+              t("jevKeyLabel"),
+              t("jevKeyDesc"),
+              formPasswordRow("jevkey", opts.settings.jevKey ?? "", t, "data-set")
+          )}
+          ${formRow(
+              t("jevEnableLabel"),
+              t("jevEnableDesc"),
+              formSwitch("jevenabled", opts.settings.jevEnabled !== false, "data-set")
+          )}
         </div>
       </div>
     </div>
@@ -219,6 +251,12 @@ export function openWenguSetting(opts: {
             });
         });
     }
+    root.querySelector<HTMLInputElement>("[data-set='jevkey']")?.addEventListener("change", (ev) => {
+        opts.settings.jevKey = (ev.target as HTMLInputElement).value.trim();
+        opts.settings.save?.();
+    });
+    bindJevReveal(root);
+
     const bindSwitch = (
         key:
             | "shownums"
@@ -228,7 +266,8 @@ export function openWenguSetting(opts: {
             | "bigsteps"
             | "keepold"
             | "companionenabled"
-            | "companionai",
+            | "companionai"
+            | "jevenabled",
         apply: (v: boolean) => void
     ) => {
         root.querySelector<HTMLInputElement>(`[data-set='${key}']`)?.addEventListener("change", (ev) => {
@@ -245,6 +284,7 @@ export function openWenguSetting(opts: {
     bindSwitch("bigsteps", (v) => (opts.settings.bigToSteps = v));
     bindSwitch("companionenabled", (v) => (opts.settings.companionEnabled = v));
     bindSwitch("companionai", (v) => (opts.settings.companionAi = v));
+    bindSwitch("jevenabled", (v) => (opts.settings.jevEnabled = v));
     root.querySelector<HTMLSelectElement>("[data-set='deftiming']")?.addEventListener("change", (ev) => {
         const v = (ev.target as HTMLSelectElement).value;
         opts.settings.defaultTiming = v === "countdown" || v === "perQuestion" || v === "none" ? v : "countUp";

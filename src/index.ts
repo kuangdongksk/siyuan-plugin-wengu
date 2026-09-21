@@ -57,6 +57,10 @@ interface WenguSettings {
     companionAi?: boolean;
     companionProfiles?: import("./companion/core/CompanionCtl").CompanionProfile[];
     companionActiveId?: string;
+    /** Jev（TypeSafe System One 判定模型）key；空=未启用（Issue #183）。 */
+    jevKey?: string;
+    /** Jev 判定总开关（缺省视为开）。 */
+    jevEnabled?: boolean;
     /** 由插件注入的落盘回调。 */
     save?: () => void;
 }
@@ -478,6 +482,8 @@ export default class WenguPlugin extends Plugin {
             settings: this.settings,
             onSettingsChange: () => {
                 this.applyAiSlots(); // 改转换并行度即改全局 AI 在途容量（Issue #76）
+                // Jev 总开关（#183）：总闸直接读 this.settings 的两个字段，
+                // 无运行期状态，故这里**无需重注入**——开关对后续调用即时生效
                 this.activeView?.applySettings();
                 companionCtl()?.syncEnabled(); // 学伴总开关对全局悬浮层即时生效（20260828 审查：原只写 settings 不刷 ui.enabled）
             },
