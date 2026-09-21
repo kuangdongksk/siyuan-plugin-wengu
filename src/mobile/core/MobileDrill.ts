@@ -31,6 +31,7 @@ import {
     type MobileResumeView,
 } from "./MobileRound";
 import type { MobileDeps, MobileScreen, MobileSetup } from "../types";
+import { QuestionTimer } from "../../quiz/service/QuizTimer";
 
 /**
  * 移动端刷题编排（Issue #59）：dock 面板内的「仅刷题」流——
@@ -157,6 +158,11 @@ export class MobileDrill {
 
     /** 会话计时起点（秒粒度由 startedAt 推）。 */
     private tickTimer?: number;
+
+    /** 单题计时（#182 R8：当前显示题即计时题；整轮墙钟 `elapsedSec` 照旧）。
+     *  `questionTimer` 是作答友元 `MobileAnswering` 读结算值的载体。 */
+    private readonly qTimer = new QuestionTimer();
+    questionTimer = (): QuestionTimer => this.qTimer;
 
     /** 走秒 interval 的宿主面（真机 = window；测试可注入替身以便
      *  断言 `clearInterval` 被调——node 环境下 `window` 不存在时
@@ -307,6 +313,7 @@ export class MobileDrill {
         this.ui.qIdx = idx;
         this.ui.matOpen = false;
         this.ui.drawer = false;
+        this.qTimer.focus(this.ui.list[idx]?.id ?? ""); // R8：切题即切焦点
     }
 
     prev(): void {
@@ -424,8 +431,10 @@ export class MobileDrill {
     /** 起走秒（`MobileRound` 开新轮也用，故 public——口径不变）。 */
     startTicker(): void {
         this.stopTicker();
-        // 无走秒宿主（单测/无 DOM 环境）不起走秒——秒数只在真机上有意义
-        if (!this.tickHost) return;
+        // R8：当前显示题即计时题（起点＝开轮/恢复落点/切题时刻）
+        this.qTimer.setRun(true);
+        this.qTimer.focus(this.ui.list[this.ui.qIdx]?.id ?? "");
+        if (!this.tickHost) return; // 无走秒宿主（单测/无 DOM）：秒数只在真机有意义
         const base = this.ui.session?.elapsedSec ?? 0;
         const t0 = Date.now();
         this.tickTimer = this.tickHost.setInterval(() => {
@@ -435,11 +444,12 @@ export class MobileDrill {
         }, 1000);
     }
 
-    /** 停走秒（关轮/回面板/销毁都走它，`MobileRound` 也用；**卸载结算
-     *  的第一步**——见 `core/MobileRound` 的 `settleOnUnmount`）。 */
+    /** 停走秒（关轮/回面板/销毁都走它，`MobileRound` 也用；卸载结算第一步，
+     *  见 `core/MobileRound` 的 `settleOnUnmount`）。 */
     stopTicker(): void {
         if (this.tickTimer !== undefined) this.tickHost?.clearInterval(this.tickTimer);
         this.tickTimer = undefined;
+        this.qTimer.setRun(false); // R5 同源：离开做题屏/卸载即停（恢复后重置锚点）
     }
 
     /** 答满去重标记（收卷模式的「可检查修改」提示只给一次）。 */

@@ -184,11 +184,20 @@ export function bindNumRail(
     // 顶部，「顶端最近」规则会把点击的题号翻回前面的题（真机踩坑）。
     let lockUntil = 0;
     let lastN = -1;
-    const setActive = (n: number) => {
+    /** 只刷高亮（组件响应态），**不上报视图**：整壳重建后 `nav` 才挂进
+     *  DOM ⇒ 每次重绘的差分都从 `lastN=-1` 复位，若它顺带上报会把
+     *  「恢复轮落点题」按首题覆写（#182 R6 的旧形态）。 */
+    const setActiveOnly = (n: number): void => {
+        if (n === lastN) return;
+        lastN = n;
+        numsApp?.app.setActive(n); // 高亮进组件响应态（旧 activeBtn 差分退役）
+    };
+    /** 点击/组导航切题：刷高亮 + 上报视图（视图侧再决定计时焦点）。 */
+    const setActive = (n: number): void => {
         if (n === lastN) return;
         lastN = n;
         opts.onActive(n - 1);
-        numsApp?.app.setActive(n); // 高亮进组件响应态（旧 activeBtn 差分退役）
+        numsApp?.app.setActive(n);
     };
     const scroller = root.querySelector<HTMLElement>(".wengu-main");
     // 材料组一次一题：组内非当前题卡是 hidden 的，点组内题号/组间横线
@@ -293,10 +302,11 @@ export function bindNumRail(
                     if (c.getBoundingClientRect().top <= top) best = Math.max(best, Number(c.dataset.idx ?? 0));
                 }
                 if (best < 0) best = Number(cards[0].dataset.idx ?? 0);
-                setActive(best + 1);
+                setActiveOnly(best + 1);
             });
         },
         { passive: true }
     );
-    setActive(1);
+    // 挂载首帧只刷高亮：不上报视图（R6——恢复轮的落点题由装载链显式切）
+    setActiveOnly(1);
 }

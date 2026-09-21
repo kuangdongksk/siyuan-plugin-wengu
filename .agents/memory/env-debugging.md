@@ -26,6 +26,92 @@
   一条都没有＝提及没匹配上（旧仓库路径提及即此形态，零流水线零报错，
   见 AGENTS.md「召唤青简必须写完整路径」条）。
 
+## 单测读源码：**统一走 `src/testkit/readSource.ts`**（20260921 #189 定稿）
+
+本仓**没有 `@types/node`**（`tsconfig.json` 无 `types` 字段、依赖里也没有），
+`src/**` 里 `import { readFileSync } from "node:fs"` 会让 `pnpm check:svelte`
+直接红（`Cannot find name 'fs'`）——**vitest 跑得过、CI 会红**，两把尺子不同步。
+故读源码只能用 vitest/vite 的 `?raw` 家族（最小声明见 `src/declarations.d.ts`）。
+
+### 唯一口径：路径读源码
+
+```ts
+import { expectRed, hasSource, mustHave, read } from "<相对 src/testkit 的路径>";
+const code = await read("/src/quiz/render/NumRail.ts"); // 路径相对**仓根**
+```
+
+- `read(path)` → 源码原文；**文件不在即抛错**（不静默回落空串）。
+- `mustHave(path)` / `hasSource(path)` → 在场闸，待产出文件先过它。
+- `expectRed([paths])` → 「先红后实现」的**红清单自检**（见下）。
+
+### 三条已实测的死路，别重复走
+
+1. **`node:fs` + ambient `declare module "fs"`**：能过 `svelte-check`，但要在
+   仓库里手写一份 Node 内置的简化类型，且这道声明会被生产代码顺手引走 ——
+   等于把「生产代码禁引 node:fs」的安全网拆了。**否决**。
+2. **`await import("vite")` 拿 `server.fs` / `createServer`**：`vite` 只是
+   vitest 的**传递依赖**，根 `node_modules` 下没有它的入口，`Cannot find
+package 'vite'`；要用就得把 vite 提成显式 devDependency。为一条测试口径
+   动依赖树，不值。**否决**（`import.meta.resolve` 同理：Node 专有 API、无类型）。
+3. **`import.meta.glob` + `eager: true` + basename 查表**（#189 前旧口径）：
+   两个坑 —— ① 键**相对本文件**，跨层同名（`src/quiz/index.ts` vs
+   `src/index.ts`）只能靠「取最后一段」查表，会**撞车取错文件**；② 缺失文件
+   的 `?raw` import 返回 `undefined`（**不是空串**），`.not.toContain(...)`
+   类**反向断言静默变绿**，红清单缺条目还看不出来。**已由 readSource 取代**。
+
+### `readSource` 内部口径（改它之前先读）
+
+- 用 `import.meta.glob` 的**懒加载**形态（不带 `eager`）：键是
+  **相对仓根的 `/src/...`**，于是路径即身份、跨层同名不再撞车，也不必为
+  每层目录各写一条 glob 再拼表。
+- ⚠️ **懒加载的 `?raw` 返回值是「原始字符串本身」，不是 `{ default }` 模块壳**
+  （`eager` 形态才是模块壳）——故 `read()` 两种都认。实测：#189 首轮只解
+  `.default` → 每个文件都拿到 `undefined`，全绿/全红的判定一起失真。
+- ⚠️ **`?raw` 的 glob 只认 `.ts` / `.svelte`**：`.scss` 一律 `sass.compile`
+  真编译（`?raw` 对它恒空串）。故 `readSource` 的 glob 模式里没有 scss。
+- 非 eager 的 glob 同样**不校验目标是否存在**，故 `mustHave` 是必需的闸。
+
+### 「先红后实现」的红测试怎么写
+
+文件级红测试是**合法的中间态**（本仓 #182/#189 即此形态）：`check:svelte`
+会带 1 条 `Cannot find module`、`test` 会红，这是**有意为之**；但
+**`pnpm format:check`（quality-gate 第一项）与 eslint 必须先过**。
+
+四条规矩：
+
+1. 红测试文件里**不许静态 `import` 待产出源码**（会让 `check:svelte` 红在
+   `Cannot find module`，看着像编译器故障而非「断言未过」）——一律 `read()`
+   取源码做**源级断言**，`check:svelte` 只剩 1 条「待产出文件缺席」的预期红。
+2. **待产出文件先 `mustHave`**：否则取不到源码时正向断言也红、反向断言却绿，
+   红清单「红得不够」而你看不出来。
+3. **反向断言必配正向锚点**（`expect(code).toContain(...)` 先钉住「确实读到了
+   那个文件/那段区间」），否则读错文件时反向断言假绿。参见
+   `QuizTimerFlow.test.ts` 的 `anchors()`。
+4. **红清单必须显式登记**：`expectRed([...])` 保证「待产出文件现在确实不在」。
+   少了它，阶段二实现落地后反向断言会**逐个自己变绿**，你无法区分「做完了」
+   与「断言被写松了」。**阶段二收口时把 `expectRed` 调用连同其 `describe`
+   一起删**——这是一次有意识的动作，脚本不会替你删；留着它会反过来抛错
+   （「文件已存在」），正好逼你收口（#189 阶段二即如此）。
+
+5. **实现落地后源级断言要「逐条对齐真源码」再断言**：阶段一写的断言是
+   对着**设计意图**写的，实现可能取了等价但不同的写法（#189 实测：计划里
+   的 `focusQuestion` 最终落成 `newQuestionFor`、`opts.onActive` 的点击路
+   拆成 `setActive`/`setActiveOnly` 两个出口）。落地后**逐条读真源码确认
+   语义等价**，别让断言为了迁就实现而放松（那就成了「倒着写测试」）。
+   ⚠️ 位置切片断言尤其脆：`indexOf`/`lastIndexOf` 要认准**唯一锚点**
+   （#189 实测：`scroller.addEventListener(` 在文件里有两处，取首个会滑到
+   完全无关的区间，反向断言于是「红得莫名其妙」）；子串匹配要防前缀吞并
+   （`setActiveOnly(` 里含 `setActive(`，得用 `[^y]setActive\(` 之类的边界）。
+
+### 既有口径（仍有效）
+
+- 读 TS/Svelte 源码：`readSource.read()`；模板可参考
+  `SubheadHtml.test.ts` / `RailMount.test.ts`。
+- 读 scss：`sass.compile("src/scss/x.scss")` 真编译（样板
+  `MaterialSplitterDesign.test.ts` / `ButtonVariants.test.ts` /
+  `AiPanelScrollChain.test.ts`）。
+- 读 i18n 字典：`?raw` 导入 JSON（`../../i18n/zh-CN.json`）后 `JSON.parse`。
+
 ## 机器 A（本机，Windows + Git Bash，2026-08-30 重验）
 
 - 思源 **3.8.1** 桌面版（已自 3.8.0 升级），日常两个工作区：

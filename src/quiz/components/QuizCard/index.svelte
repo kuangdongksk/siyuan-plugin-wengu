@@ -1,13 +1,15 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { svgIcon } from "../../../ui/FormHtml";
-    import { fmt } from "../../../ui/shared";
+    import { fmt, mmss } from "../../../ui/shared";
     import { typeKey } from "../../render/CardParts";
     import type { CardHtmlModel } from "../../render/CardParts";
     import { isChoice, isObjective } from "../../render/CardHtml";
     import { buildCardInit, chipMarkOf, resultRowHtml, type CardInitCtx } from "../../render/CardState";
     import { CardCtl } from "../../render/CardCtl";
     import { registerCard, unregisterCard } from "../../render/CardRegistry";
+    import { streamFor, type StreamHandle } from "../../render/FocusStream";
+    import { registerTimerSync, unregisterTimerSync } from "../../render/FocusSync";
     import { optionInline, optionsHtml, renderMathWhenVisible, solutionHtml } from "../../service/ProtyleHost";
     import { decorateMaterialEntry } from "../../service/MaterialDecorate";
     import Button from "../../../ui/Button.svelte";
@@ -81,6 +83,38 @@
     let rootEl = $state<HTMLElement | undefined>(undefined);
     let protoEl = $state<HTMLElement | undefined>(undefined);
 
+    /* ── 单题计时切换（Issue #182 / 设计稿 v6） ──
+       焦点态与两处读数都是响应态；流光由 FocusStream 岛驱动（逐帧改
+       `stroke-dasharray`，不进 Svelte 响应链——每帧改状态会拖垮长卷）。 */
+    const qTimer = host.questionTimer?.();
+    /** 本卡是当前计时题（视图侧 `newQuestionFor` 切焦点后回灌）。 */
+    let focused = $state(qTimer ? qTimer.active === q.id : false);
+    /** 已提交＝流光淡出、读数换成静态注记（R4 冻结）。 */
+    let submittedSec = $state(qTimer ? qTimer.secOf(q.id) : 0);
+    let lap = $state(1);
+    let stream: StreamHandle | undefined;
+
+    /** 同步焦点/冻结态（视图在切焦点与结算后调；挂载时先跑一次）。
+     *  登记进 `FocusTimerSync` 模块表——视图侧按 qid 触发，组件卸载即退表。 */
+    const syncTimer = (): void => {
+        if (!qTimer) return;
+        focused = qTimer.active === q.id;
+        submittedSec = qTimer.secOf(q.id);
+        if (submittedSec > 0) stream?.freeze(submittedSec);
+        else {
+            stream?.setOn(focused);
+            if (focused) {
+                stream?.play();
+                lap = Math.floor(qTimer.live() / 60000) + 1;
+            } else stream?.stop();
+        }
+    };
+    onMount((): (() => void) => {
+        if (!qTimer) return () => undefined;
+        registerTimerSync(q.id, syncTimer);
+        return () => unregisterTimerSync(q.id, syncTimer);
+    });
+
     /** 考点 chips（Issue #135 §7.a）：数据源 q.knowledge（卡头 label 同源）
      *  + chapter（章节名同档粒度，检索口两者都认）；多考点字段尚无=留位。
      *  **去重**（Set）：`{#each}` 带值 key，knowledge 与 chapter 同串时
@@ -125,7 +159,21 @@
         if (ui.graded && ui.resultStatus === "warn") markNumRailAnswered(idx + 1);
         // steps 模式分派：AI 实时引导开跑（离线初始态已含内容）
         if (on && hasSteps(q)) bindStepsMode(host, q, ctl);
-        return () => unregisterCard(ctl);
+        // 单题计时：流光层是卡的**兄弟节点**（卡内判分重绘不动它），
+        // 建立后先对齐几何再按当前焦点/冻结态同步一次。
+        if (qTimer && rootEl) {
+            stream = streamFor(q.id, rootEl);
+            stream.timer = qTimer;
+            stream.layout();
+            stream.observe();
+            syncTimer();
+        }
+        return () => {
+            stream?.unobserve();
+            stream?.dispose();
+            stream = undefined;
+            unregisterCard(ctl);
+        };
     });
 </script>
 
@@ -145,6 +193,13 @@
         {/if}
         {#if q.wrongCount > 0 && m.showWrongBadge}
             <span class="wengu-meta wengu-wrong-count">{fmt(t("wrongCount"), { n: String(q.wrongCount) })}</span>
+        {/if}
+        {#if qTimer}
+            {#if submittedSec > 0}
+                <span class="wengu-card-qtime" data-qtime>{fmt(t("perQTime"), { t: mmss(submittedSec) })}</span>
+            {:else}
+                <span class="wengu-card-lap" data-lap>{fmt(t("timerLap"), { n: String(lap) })}</span>
+            {/if}
         {/if}
         <Button class="wengu-side-iconbtn wengu-regen-btn" data-act="regen" title={t("regenTitle")}>
             {@html svgIcon("iconRefresh")}
@@ -238,7 +293,9 @@
 {/snippet}
 
 <div
-    class="wengu-card{ui.graded ? ' wengu-graded' : ''}{ui.revealed ? ' wengu-revealed' : ''}"
+    class="wengu-card{focused ? ' wengu-focus' : ''}{ui.graded ? ' wengu-graded' : ''}{ui.revealed
+        ? ' wengu-revealed'
+        : ''}"
     data-qid={q.id}
     data-idx={idx}
     data-graded={ui.graded ? "1" : undefined}

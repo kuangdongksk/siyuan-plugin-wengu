@@ -51,6 +51,12 @@
   `$state(initialMobileUi())` 创建后注入控制器（同 word 域 WordApp 先例）。
   **控制器若把状态摊成自己的普通字段，Svelte 5 不追踪、界面全程不刷新**
   ——这是本域最易踩的坑（word 域踩过同款）。
+- **单题计时（Issue #182，20260921）**：当前显示题即计时题——`MobileDrill.qTimer`
+  （`quiz/service/QuizTimer` 复用桌面同一份纯逻辑）+ `goto` 切焦点（切换时刻＝
+  该题起点），`startTicker/stopTicker` 配对开停（停＝离开做题屏/卸载，
+  恢复后锚点重置）；作答友元 `MobileAnswering.reRecord` 提交瞬间
+  `freeze(q.id)` 取结算值，**取代原先硬编码的 `sec=0`**。整轮墙钟
+  （`ui.elapsedSec`）口径一个字没动，两口径并存。
 - **纯逻辑在 `core/MobileModel.ts`（带单测）**：题头题型标签、题号抽屉
   格子、报告统计、错题清单、题数候选。两条关键口径：
     - **抽屉格子按材料组整组连成一格**（设计稿屏 ⑨「15–19 阅读 · 组题」），

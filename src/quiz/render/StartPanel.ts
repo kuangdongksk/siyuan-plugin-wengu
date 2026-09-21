@@ -2,6 +2,7 @@ import type { HistoryStore, WenguRoundScope, WenguSession } from "../service/His
 import { newSessionId } from "../service/HistoryStore";
 import { answeredQuestionCount, lastUnfinishedRound } from "../service/ResumePicker";
 import type { TimerController } from "../service/TimerController";
+import type { QuestionTimer } from "../service/QuizTimer";
 import type { WenguQuestion, WenguRevealMode, WenguStepsMode, WenguTimingMode } from "../../types";
 import { baseQid } from "../../types";
 import { clampMinutes } from "../../ui/shared";
@@ -106,6 +107,9 @@ export interface StartRoundCtx {
     fullList: WenguQuestion[];
     docId: string;
     timer: TimerController;
+    /** 单题计时（#182）：开轮清空、继续上次回填冻结秒数。可选——测试壳
+     *  不实现即跳过（`sec` 仍为可选字段，兼容红线）。 */
+    questionTimer?(): QuestionTimer;
     history?: { upsert(s: WenguSession): Promise<void> };
     /** 视图侧状态写入。 */
     setList(list: WenguQuestion[]): void;
@@ -157,9 +161,18 @@ export function startRound(ctx: StartRoundCtx, cfg: RoundConfig, override?: { sc
         for (const r of unfinished.results) {
             if (r.sec) ctx.timer.restoreQuestionSec(r.qid, r.sec);
         }
+        // 单题计时（#182 R6）：已结算题按 result.sec 回填为冻结值——恢复轮
+        // 的落点题（通常是最后一题）不该从零起算、更不该被首题覆写。
+        // 回填是「幂等重放」：整壳重建后同一份会话结果再走一次，值不变。
+        const qt = ctx.questionTimer?.();
+        if (qt) {
+            for (const r of unfinished.results) if (r.sec) qt.restore(r.qid, r.sec);
+        }
         session = unfinished;
     } else {
         ctx.timer.start(cfg.timing, cfg.countdownMin, 0);
+        ctx.questionTimer?.().reset(); // 新轮清空单题计时（含焦点）
+
         session = {
             id: newSessionId(),
             docId: ctx.docId,
@@ -212,6 +225,8 @@ export interface DrillViewAccess {
     container(): HTMLElement;
     currentRevealMode(): WenguRevealMode;
     timerController(): TimerController;
+    /** 单题计时（#182）。 */
+    questionTimer(): QuestionTimer;
     allRounds(): WenguSession[];
     questions(): WenguQuestion[];
     fullListOf(): WenguQuestion[];
@@ -264,6 +279,7 @@ export function beginDrillFor(v: DrillViewAccess, override?: { scope?: WenguRoun
             fullList: v.fullListOf(),
             docId: v.docIdOf(),
             timer: v.timerController(),
+            questionTimer: v.questionTimer,
             history: v.historyStore(),
             setList: (l) => v.setQuizList(l),
             setRevealMode: (m) => v.setQuizRevealMode(m),

@@ -344,7 +344,10 @@ function reRecord(
     const s = d.ui.session;
     if (!s) return;
     const former = s.results.some((r) => r.qid === q.id);
-    pushSessionAnswer(s, q.id, submitted, ok, 0, d.ui.elapsedSec, extra);
+    // R8：当前显示题即计时题——提交瞬间结算（R3），改答不动已结算值（R4）。
+    // 取代原先硬编码的 `0`（移动端此前只有整轮墙钟，逐题 sec 恒缺）。
+    const sec = d.questionTimer().freeze(q.id).sec;
+    pushSessionAnswer(s, q.id, submitted, ok, sec, d.ui.elapsedSec, extra);
     void d.deps.history?.upsert(s);
     // 题库镜像：首答 attempts+1，重复提交只覆写 lastAnswer/right（不动 attempts）；
     // 即时模式判分即纳入，收卷模式交卷时才补记（batched 记账在 endRound）

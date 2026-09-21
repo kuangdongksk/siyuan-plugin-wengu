@@ -258,3 +258,9 @@ undefined`；types 1.2.4 有该字段，`getFrontend` 反而没有类型）。
 两台机器的调试流程、Shell 坑与思源内核实测坑原在本文档，20260915 起
 拆至 `.agents/memory/env-debugging.md` 与 `.agents/memory/kernel-pitfalls.md`，
 内容未删只搬家；跨机器干活前先读这两份。
+
+**单测读源码统一走 `src/testkit/readSource.ts`**（20260921 #189 定稿）：
+`read(path)` 按**相对仓根**的路径取源码原文，文件不在**即抛错**（不静默回落
+空串），`mustHave` / `hasSource` 是在场闸，`expectRed` 是「先红后实现」的
+红清单自检。**别再用 `node:fs` 或自拼 `import.meta.glob` 表**——三条死路与
+红测试四条规矩见 `.agents/memory/env-debugging.md` 同名小节。

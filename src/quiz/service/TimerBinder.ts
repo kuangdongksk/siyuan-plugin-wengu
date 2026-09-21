@@ -2,6 +2,7 @@ import { addDocTime } from "../../bank/data/BankRecording";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import { showTimeUpChoice } from "../render/RoundReport";
 import { renderTimerLabel, TimerController } from "./TimerController";
+import type { QuestionTimer } from "./QuizTimer";
 
 /**
  * 计时编排（自 QuizView 外移，行数受限）：每秒 tick、累计用时落库、
@@ -27,6 +28,9 @@ export interface TimerHost {
     finishNow(): void;
     /** 累计用时持久层（自托管后进题库 docStats；无 bank 时只保内存）。 */
     bankStore?(): QuestionBank | undefined;
+    /** 单题计时（#182 R5：隐藏/离屏落闸、恢复后锚点重置）。可选——
+     *  测试壳不实现即跳过（整轮四道闸照旧）。 */
+    questionTimer?(): QuestionTimer;
 }
 
 export interface TimerHostAccess {
@@ -41,6 +45,7 @@ export interface TimerHostAccess {
     addDocTotal(add: number): void;
     finishNow(): void;
     bankStore?(): QuestionBank | undefined;
+    questionTimer?(): QuestionTimer;
 }
 
 /** 由视图能力组装 TimerHost（QuizView.timerHost 的拆出体）。 */
@@ -59,6 +64,7 @@ export function timerHostFor(v: TimerHostAccess): TimerHost {
         addDocTotal: (add) => v.addDocTotal(add),
         finishNow: () => v.finishNow(),
         ...(v.bankStore ? { bankStore: () => v.bankStore!() } : {}),
+        ...(v.questionTimer ? { questionTimer: () => v.questionTimer!() } : {}),
     };
 }
 
@@ -71,10 +77,15 @@ export class TimerBinder {
         if (this.int !== undefined) return;
         this.int = window.setInterval(() => {
             const s = this.host.tickState();
+            // 单题计时（#182 R5）：可见性/在屏与否**每 tick 前先落闸**，
+            // 隐藏时停表（挂后台的墙钟一秒都不进），恢复后锚点重置到此刻。
+            // 与下面整轮的四道闸同源，但单题计时按 ms 结算、不依赖 tick 次数。
+            const visible = !document.hidden && this.host.el.getClientRects().length > 0;
+            this.host.questionTimer?.().setRun(s.started && this.host.timer.mode !== "none" && visible);
             if (!s.started || this.host.timer.mode === "none") return;
             // 页签被切走（fn__none）或窗口最小化时不计时：「累计刷题
             // 用时」只反映真实面对题目的时间，挂后台的墙钟时间不计
-            if (document.hidden || this.host.el.getClientRects().length === 0) return;
+            if (!visible) return;
             const justTimeUp = this.host.timer.tick();
             this.host.syncSession(this.host.timer.elapsed());
             if (justTimeUp) this.showTimeUpBar();
