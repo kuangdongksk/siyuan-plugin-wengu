@@ -175,6 +175,7 @@
   "collectEmptyQuestions": "专题里还没有题",
   "timingPerQuestion": "逐题计时（每题单独计秒）",
   "perQTime": "本题用时 {t}",
+  "timerLap": "第 {n} 圈",
   "settingsTitle": "设置",
   "setTabDrill": "刷题",
   "setTabConvert": "AI 转换",

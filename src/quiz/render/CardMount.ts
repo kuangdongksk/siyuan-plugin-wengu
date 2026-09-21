@@ -65,6 +65,7 @@ export function mountDrillUnit(
                     material: u.material,
                     ctx,
                     host,
+                    // 组内导航是「点击切焦点」的一路（#182 R1）
                     onActive: (idx: number): void => host.onActiveQ?.(idx),
                     badMarks,
                 })

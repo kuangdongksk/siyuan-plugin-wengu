@@ -23,9 +23,10 @@ describe("QuestionTimer（Issue #182 R1/R3/R4/R5/R7）", () => {
         expect(q.live(T0 + 2500)).toBe(2500);
         // 切换：q1 停表在 2500ms，q2 从此刻起算
         q.focus("q2", T0 + 2500);
-        expect(q.secOf("q1")).toBe(3); // 向上取整
+        expect(q.livedMs("q1", T0 + 2500)).toBe(2500); // 旧题停在切换点
         expect(q.live(T0 + 4000)).toBe(1500);
         expect(q.live(T0 + 2500)).toBe(0); // 新题起点即切换时刻
+        expect(q.freeze("q1", T0 + 2500).sec).toBe(3); // 提交结算时向上取整
     });
 
     it("R1 重复 focus 同一题不重置起点（滚动/悬停不切焦点）", () => {
@@ -44,9 +45,9 @@ describe("QuestionTimer（Issue #182 R1/R3/R4/R5/R7）", () => {
         q.focus("q2", T0 + 1);
         expect(q.freeze("q2", T0 + 4000).sec).toBe(4);
         q.focus("q3", T0 + 4000);
-        expect(q.freeze("q3", T0 + 60_400).sec).toBe(60);
-        q.focus("q4", T0 + 60_400);
-        expect(q.freeze("q4", T0 + 60_401).sec).toBe(1);
+        expect(q.freeze("q3", T0 + 64_000).sec).toBe(60); // 整 60s
+        q.focus("q4", T0 + 64_000);
+        expect(q.freeze("q4", T0 + 64_001).sec).toBe(1); // 1ms 也记 1s
     });
 
     it("R3 结算后返回该题 sec，可读回（卡上静态注记渲染用）", () => {

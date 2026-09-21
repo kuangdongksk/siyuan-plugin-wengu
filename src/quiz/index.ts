@@ -2,7 +2,7 @@ import { errText } from "./../ui/shared";
 import type { App } from "siyuan";
 import type { AnswerHost } from "./flow/AnswerFlow";
 import { revealAll } from "./flow/AnswerFlow";
-import { notifyQuizAnswer, notifyRoundDone } from "../companion";
+import { notifyRoundDone } from "../companion";
 import { filterReviewDocFor } from "../review";
 import { collectThoughts, lockAllCards as lockAllCardsState } from "./render/CardRegistry";
 import { reimportDocFrom, unregisterSetAsQuiz } from "./service/DocOps";
@@ -15,7 +15,7 @@ import { openConvertForView } from "../convert";
 import { ConvertAccess, type ConvertAccessHost } from "../convert/service/run/ConvertAccess";
 import { reconcileKnowledgeRefs } from "../bank/data/BankReconcile";
 import { notifyError, notifyInfo } from "../ui/Notify";
-import { mirrorOverride, mirrorResult, recordAnswerFor } from "./service/AnswerMirror";
+import { mirrorOverride, mirrorResult } from "./service/AnswerMirror";
 import type { BankMirrorDetail } from "./service/AnswerMirror";
 import { genTagsAction, variantDrillAction, type DocActionCtx } from "./service/DocActions";
 import { teardownView } from "./flow/Teardown";
@@ -42,6 +42,8 @@ import { beginDrillFor, startPanelModelFor } from "./render/StartPanel";
 import { sealRound } from "./service/RoundSeal";
 import { openStatsPanelFor } from "../stats";
 import { TimerBinder, timerHostFor } from "./service/TimerBinder";
+import { QTimingOwner } from "./service/QTimingOwner";
+import { answerGateFor } from "./service/AnswerGate";
 import { bindViewFrameFor } from "./flow/ViewBindings";
 // prettier-ignore
 import { guardCtxFor, kcapSearchFor, roundIndexFor, sideActFor, switchGuardFor, switchTargetNameFor } from "./flow/SideMount";
@@ -65,6 +67,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly openSettings?: () => void;
     readonly colFlow: CollectionFlow;
     private readonly timer = new TimerController(() => this.timerBinder.updateLabel());
+    private readonly qTiming = new QTimingOwner(); // 单题计时（#182；见该类头注）
     readonly timerBinder: TimerBinder;
     /** 统计面板下钻意图：load 完成后重开面板并直落该 tab。 */
     private reopenStatsTab?: "overview" | "doc";
@@ -180,21 +183,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
 
     /** 组单元材料面板的一次施工要连线索一起铺（装饰出口入参）。 */
     readonly clueAnchorsOf = (q: WenguQuestion): ClueAnchor[] => clueAnchorsFor(this, q);
-    readonly persist = (): void => {
-        const s = this.session ?? this.finished;
-        if (s) void this.history?.upsert(s);
-    };
-    readonly recordAnswer = (
-        qid: string,
-        submitted: string,
-        ok: boolean,
-        extra?: { verdict?: "right" | "partial" | "wrong"; comment?: string; cause?: string }
-    ): void => recordAnswerFor(this, qid, submitted, ok, extra);
-    /** RecordAnswerHost 结构匹配（记账宿主三件 + 既有 historyStore，见 AnswerMirror）。 */
-    readonly takeSec = (qid: string): number => this.timer.takeQuestionSec(qid);
-    readonly elapsedSec = (): number => this.timer.elapsed();
-    readonly notifyAnswer = (qid: string, submitted: string, ok: boolean, sec: number): void =>
-        notifyQuizAnswer(this, qid, submitted, ok, sec);
+    /** 记账/单题计时摊牌（见 AnswerGate 头注）。 */
+    private readonly gate = answerGateFor(this, this.timer, this.qTiming);
+    readonly persist = this.gate.persist;
+    readonly recordAnswer = this.gate.recordAnswer;
+    readonly takeSec = this.gate.takeSec;
+    readonly elapsedSec = this.gate.elapsedSec;
+    readonly notifyAnswer = this.gate.notifyAnswer;
+    readonly refreshQTimer = this.gate.refreshQTimer;
+    readonly questionTimer = this.gate.questionTimer;
 
     /** after 模式答满（未收卷）：一次性提示「可检查修改，结束后统一判卷」
      *  （Issue #12 B3；去重标记由 renderList 复位）。详见 renderList 注。 */
@@ -247,13 +244,17 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         teardownView(); // 模块级挂载物统一反挂（清单在 flow/Teardown）
     }
 
-    /** 当前题切换（题号导航/组内导航共用）：同步下标、逐题计时、线索行。 */
+    // 只刷「当前题高亮」，不切计时焦点（#182 R1：滚动不切、点击才切）。
     onActiveQ(idx: number): void {
         this.activeQIdx = idx;
-        this.timer.setQuestion(this.list[idx]?.id ?? "");
         refreshClueRow(this);
     }
 
+    // 点击切焦点（#182 R1：切换时刻＝该题起点；细节见 QTimingOwner）
+    newQuestionFor(idx: number): void {
+        this.onActiveQ(idx);
+        this.qTiming.switchTo(idx, this.list[idx]?.id ?? "", this.timer);
+    }
     selectDoc(docId: string): void {
         if (!docId || docId === this.docId) return;
         // 复习模式点侧栏文档 = 筛选错题本到该文档（不切做题上下文）
@@ -433,16 +434,15 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly activeQidOf = (): string => this.list[this.activeQIdx]?.id ?? "";
     readonly docTotalSecOf = (): number => this.docTotalSec;
     readonly syncSession = (elapsed: number): void => void (this.session && (this.session.elapsedSec = elapsed));
-    readonly addDocTotal = (add: number) => (this.docTotalSec += add);
+    readonly addDocTotal = (add: number): void => void (this.docTotalSec += add);
     readonly finishNow = (): void => finishRoundGuarded(roundFinishCtx(this)); // 同收卷闸（#147）
     readonly allRounds = (): WenguSession[] => this.rounds;
     readonly roundIndex = (): number => roundIndexFor(this.rounds, this.session); // #135 §3.5 胶囊
     readonly finishedSession = (): WenguSession | undefined => this.finished;
     readonly discardSessionNow = (): void => void (this.session = undefined); // #155 空轮关轮
     readonly aiModelId = (): string => this.convertAccess.modelId || this.settings?.convertModelId || "";
-    /** 手动收卷统一揭示（after 模式）：等静态分片全部挂载后按表揭示——
-     *  在途分片未挂时直接揭示会漏卡，且卡片初始态按未收口渲染、恢复
-     *  口径各异（6-4b 与旧「分片插入后即绑」语义对齐）。 */
+    /** 手动收卷统一揭示（after 模式）：等在途静态分片挂完后按表揭示——
+     *  未挂就揭示会漏卡（6-4b 与旧「插入后即绑」语义对齐）。 */
     readonly revealAnsweredNow = (): void => void this.renderTask?.then((): void => void revealAll(this));
     readonly stopRoundNow = (): void => {
         this.started = false;
@@ -494,6 +494,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly afterStartHook = (): void => {
         this.renderList(); // 落幕统一恢复已答锁定（继续上轮路径）
         this.timerBinder.updateLabel();
+        this.qTiming.syncCards(); // #182 R6：开轮/恢复后按落点刷新卡面
     };
 
     private renderList(): void {

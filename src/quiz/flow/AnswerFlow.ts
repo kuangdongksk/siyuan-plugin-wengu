@@ -5,6 +5,7 @@ import { isObjective } from "../render/CardHtml";
 import { stepsSnapshotOf, settleSteps } from "../render/CardSteps";
 import type { WenguSession } from "../service/HistoryStore";
 import type { TimerController } from "../service/TimerController";
+import type { QuestionTimer } from "../service/QuizTimer";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { markNum, qIndexById } from "../render/FlowDom";
@@ -32,6 +33,13 @@ export interface AnswerHost {
     questions(): WenguQuestion[];
     currentRevealMode(): "instant" | "after";
     timerController(): TimerController;
+    /** 单题计时（#182）：提交瞬间结算（R3）、冻结后不再覆写（R4）、
+     *  提交前把它推进到「每题都结算」的语义。可选——测试壳不实现即
+     *  回落旧的秒表口径（`sec` 仍为可选字段，兼容红线）。 */
+    questionTimer?(): QuestionTimer;
+    /** 卡面计时态刷新（#182 R4）：结算后请卡把流光定格、读数换成静态注记。
+     *  可选——测试/预览壳不实现即跳过。 */
+    refreshQTimer?(qid: string): void;
     currentSession(): WenguSession | undefined;
     /** AI 判分/实时引导使用的模型 id（空=智能体默认）。 */
     aiModelId(): string;
@@ -62,8 +70,9 @@ export interface AnswerHost {
      *  不实现即不持久化（拖动仍生效，只是重开面板回默认）。 */
     setMatCapRatio?(ratio: number | undefined): void;
     flushTime(): void;
-    /** 当前题切换（题号导航/组内导航）：同步下标、逐题计时、线索行。
-     *  可选——QuizView 之外的宿主（测试/预览壳）不实现即跳过同步。 */
+    /** 点击切焦点（题号点击/组内导航/跳过/恢复落点）：同步下标并**切单题
+     *  计时焦点**（#182 R1：切换时刻＝计时起点）。滚动跟踪走视图内部
+     *  高亮通道，不走这里。可选——测试/预览壳不实现即跳过同步。 */
     onActiveQ?(idx: number): void;
     /** after 模式答满（全部 graded 但尚未收卷）：提示一次「可检查修改」
      *  （视图侧做一次性去重，见 QuizView 实现）。可选。 */
@@ -113,6 +122,11 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
     // instant 判分即锁；after 只置 graded（记账已入、收卷前可反悔）
     if (batch) ctl.setPending();
     else ctl.setGraded();
+    // R3 提交即结算：**提交时刻**就是结算时刻（计时起点＝本题切焦点时刻）。
+    // 必须在 flushTime/判分之前——flushTime 会 consume 整轮秒数，
+    // 判分（尤其 brief 的 await）之后结算会把等待时间也算进去。
+    host.questionTimer?.().freeze(q.id);
+    host.refreshQTimer?.(q.id); // R4：结算即定格流光
     host.flushTime();
     if (!objective) {
         // brief（含英语 essay/trans）：AI 判分并计入（AI 不可用回落自评）；
@@ -255,7 +269,9 @@ async function appealGrade(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, cor
 
 /** 判分后提示本题用时（秒数在所有模式都记录，统一展示）。 */
 function showQTime(host: AnswerHost, ctl: CardCtl, qid: string): void {
-    const sec = host.timerController().questionSec(qid);
+    // R4：优先读单题计时的**冻结值**（改答不动它）；无单题计时载体的
+    // 宿主（测试壳/预览）回落整轮秒表，与改造前逐字同行为。
+    const sec = host.questionTimer?.().secOf(qid) || host.timerController().questionSec(qid);
     if (sec > 0) ctl.setNote(fmt(host.t("perQTime"), { t: mmss(sec) }));
 }
 
@@ -346,6 +362,8 @@ function dunnoCard(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, reveal: (ba
     const batch = host.currentRevealMode() === "after";
     if (batch) ctl.setPending();
     else ctl.setGraded();
+    host.questionTimer?.().freeze(q.id); // R3：「不会」同样是一次结算提交
+    host.refreshQTimer?.(q.id);
     host.flushTime();
     host.recordAnswer(q.id, "", false);
     reveal(batch);

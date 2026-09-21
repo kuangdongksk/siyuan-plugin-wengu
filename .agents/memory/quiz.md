@@ -1,5 +1,38 @@
 # src/quiz/ —— 做题主流程
 
+- **单题计时切换（Issue #182，20260921；设计稿 `design/UI/单题计时/` v6 @ `14c6f55`）**：
+  与整轮墙钟（`TimerController`，管会话累计/倒计时/15s flush）**并存**，
+  单题侧是新增的 `service/QuizTimer.ts`。五条语义（R1/R3/R4/R5/R6/R8）：
+    - **点击即切**：`QTimingOwner.focus(qid)` 是唯一写口，由视图
+      `newQuestionFor(idx)` 调（题号点击 / 组内导航 / 跳过 / 恢复落点四路共用）。
+      ⚠️ **滚动不切**：`NumRail` 的滚动跟踪与挂载首帧只调 `setActiveOnly`
+      （刷高亮、**不上报视图**）——改造前 `setActive` 兼作计时焦点写入，且
+      增量重绘会重扫 `[data-num]` 重绑，整壳重建后差分复位 → 每次都把焦点
+      按首题覆写（R6 的根因，同一条旁路也是 R1 的根因）。
+    - **提交即结算**：`AnswerFlow` 在提交链的**第一步**（`flushTime` 之前）
+      调 `freeze(q.id)`；`takeSec` 走 `QTimingOwner.takeSec`（冻结值优先，
+      无则回落整轮秒表）。brief 因此在 `await judgeBriefAnswer` 之前结算，
+      AI 等待不计入。
+    - **结算后冻结**：`HistoryStore.pushSessionAnswer` 的 upsert 对已有 `sec`
+      **只补写不覆写**（#182 起；旧口径「以最后一次为准」被翻）——`HistoryStore.test.ts`
+      里两条断言已按新契约改写，别改回去。
+    - **后台/隐藏不计**：`TimerBinder` 每 tick 先落 `setRun(visible)`，
+      隐藏时段不进；恢复后锚点重置（`since` 重新起）。
+    - **移动端**：`MobileDrill.qTimer` + `goto` 切焦点（当前显示题即计时题），
+      `MobileAnswering.reRecord` 用 `freeze` 取代硬编码 `sec=0`。
+      视图侧只留一个 `qTiming` 字段 + 一行访问器：**本文件行长豁免＝上限**
+      （#182 实测 561 顶格，外加 `gate` 六件摊牌），新增计时相关字段一律
+      收进 `QTimingOwner` / `AnswerGate`，别再往视图上堆（#138 的教训）。
+- **视觉（同单）落点**：`scss/focus-timer.scss`（**共享片**，§13.3 / §9 E16
+  新令牌族）+ `render/FocusStream.ts`（流光岛：`ResizeObserver` 量卡、
+  rAF 驱动 `stroke-dasharray` 与珠子平移、`dispose` 随卡卸载；
+  **overlay 是卡的兄弟节点**，判分重绘不动它）+ `render/FocusSync.ts`
+  （卡面计时态同步表，切焦点/结算后按 qid 刷）+ `QuizCard` 的
+  `.wengu-focus` / 圈数 chip / 冻结用时注记。规格锁在
+  `quiz/render/FocusTimerDesign.test.ts`（**sass 真编译**，`?raw` 对 scss
+  恒空串——别再用它读 scss）。
+  ⚠️ `?raw` glob 的 key 由 Vite 归一成**相对测试文件**的路径，跨目录取文件
+  用 basename 索引（`QuizTimerFlow.test.ts` 先例）。
 - **对稿还原（Issue #135，20260915）**：侧栏/题号栏/头部统计条/题卡/chips/
   自评五星按 `design/UI/刷题/sidebar-gap-list.md` §0–§4 与 §7.a/b 逐值落地，规格锁在
   `quiz/render/WorkspaceDesign.test.ts`（scss 真编译 + 组件 `?raw` 断言

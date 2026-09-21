@@ -1,0 +1,147 @@
+/* 单题计时切换（Issue #182 / 设计稿 v6 `14c6f55`）。
+   ⚠️ 本片是**共享片**（§13.1①）：类名由 TS 渲染层与 `QuizCard` /
+   `GroupUnitApp` / `NumRailApp` 三个组件共用——`.wengu-gtx-*` 由
+   `render/FocusStream.ts` 拼串注入，`.wengu-card` 的焦点类由组件按
+   响应态写、TS 侧 `markFocus` 触达。故留片并登记（§13.3 / §9 E16）。
+   取值全部照稿：非焦点 0.22、过渡 150ms、停格 260ms、淡出 320ms、
+   主线 2px、外晕 5.5px、一圈 60s（JS 常量 `LAP` 在 FocusStream）。 */
+
+:root {
+  --wengu-focus-dim: 0.22;
+  --wengu-focus-ms: 150ms;
+  --wengu-done-delay: 260ms;
+  --wengu-done-ms: 320ms;
+  --wengu-stream-w: 2px;
+  --wengu-stream-halo: 5.5px;
+}
+
+/* ── R2 亮度分级：焦点 1.00 / 非焦点 0.22 ──
+   刻意**不写** :hover 任何声明——悬停零视觉变化是硬口径，写一条同值
+   规则也会让人以为有反馈（稿内注释同款口径）。 */
+.wengu-card {
+  transition: opacity var(--wengu-focus-ms) linear;
+}
+
+.wengu-card:not(.wengu-focus):not(:focus-within) {
+  opacity: var(--wengu-focus-dim);
+}
+
+.wengu-card.wengu-focus,
+.wengu-card:focus-within {
+  opacity: 1;
+}
+
+/* 非焦点卡里连部件级悬停反馈也一并取消（留着等于暗示「它在等你」）。 */
+.wengu-card:not(.wengu-focus):not(:focus-within) .wengu-opt:hover,
+.wengu-card:not(.wengu-focus):not(:focus-within) .wengu-opt:focus-visible {
+  background: transparent;
+  border-color: var(--b3-border-color);
+}
+
+/* ── R2 流光层（生长式引线，1 圈 = 60s） ──
+   每张卡一个覆盖层，绝对定位于卡框上；`.wengu-card` 已是定位上下文
+   的兄弟语义由 TS 侧保证（overlay 是卡的兄弟节点，判分重绘不动它）。 */
+.wengu-gtx {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--wengu-focus-ms) linear;
+}
+
+.wengu-gtx--on {
+  opacity: 1;
+}
+
+/* R4 停格与淡出：先定格 260ms，再 320ms linear 淡出（结束后不再回来）。 */
+.wengu-gtx--done {
+  opacity: 0;
+  transition: opacity var(--wengu-done-ms) linear var(--wengu-done-delay);
+}
+
+.wengu-gtx-svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wengu-gtx-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--b3-theme-primary) 16%, transparent);
+  stroke-width: 1;
+}
+
+.wengu-gtx-halo {
+  fill: none;
+  stroke: color-mix(in srgb, var(--b3-theme-primary) 24%, transparent);
+  stroke-width: var(--wengu-stream-halo);
+  stroke-linecap: round;
+}
+
+.wengu-gtx-head {
+  fill: none;
+  stroke: var(--b3-theme-primary);
+  stroke-width: var(--wengu-stream-w);
+  stroke-linecap: round;
+}
+
+/* 头部珠子 + 随行读数胶囊（36×18、r=9，圆心压在边框中心线上）。 */
+.wengu-gtx-pill {
+  fill: var(--b3-theme-background);
+  stroke: color-mix(in srgb, var(--b3-theme-primary) 46%, transparent);
+  stroke-width: 1;
+}
+
+.wengu-gtx-label {
+  font: 600 11px/1 var(--b3-font-family-code);
+  font-variant-numeric: tabular-nums;
+  fill: var(--b3-theme-on-surface);
+  letter-spacing: 0.04em;
+}
+
+.wengu-gtx--done .wengu-gtx-pill,
+.wengu-gtx--done .wengu-gtx-label {
+  transition: opacity var(--wengu-done-ms) linear;
+  opacity: 0;
+}
+
+/* ── R4 卡内两处读数：圈数 chip（作答中）+ 冻结用时注记（提交后） ──
+   同屏不同时：`{@if}` 二选一。 */
+.wengu-card-lap,
+.wengu-card-qtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wengu-card-lap {
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-surface);
+  border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 40%, transparent);
+}
+
+.wengu-card-qtime {
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-surface);
+  border: 1px solid var(--wengu-border-strong);
+}
+
+/* 系统级「减少动态效果」：过渡归零（流光仍按 60s 走圈，只去停格与淡入）。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --wengu-focus-ms: 0ms;
+    --wengu-done-delay: 0ms;
+    --wengu-done-ms: 0ms;
+  }
+}

@@ -351,8 +351,13 @@ function setHeadHtml(g: SetGroup, t: (key: string) => string): string {
 function bindQuizFor(v: QuizView): void {
     const setGroups = buildSetGroups(v.list, (id) => v.docs.find((d) => d.id === id)?.title || setFallbackTitle(id));
     bindNumRail(v.el, v.list, {
+        // 滚动跟踪只刷高亮（#182 R1：滚动不切计时焦点）
         onActive: (idx) => v.onActiveQ(idx),
-        onFocus: (idx) => focusQuestion(v.el, idx),
+        // 点击切焦点＝切换时刻即该题计时起点（#182 R1）
+        onFocus: (idx) => {
+            v.newQuestionFor(idx);
+            focusQuestion(v.el, idx);
+        },
         numsTitle: v.t("qnumsTitle"),
         showNums: v.settings?.showNums !== false,
         showPast: v.mode !== "preview" && v.settings?.showWrong !== false && v.revealMode === "instant",

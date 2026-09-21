@@ -175,6 +175,7 @@
   "collectEmptyQuestions": "No questions in this collection yet",
   "timingPerQuestion": "Per-question timing",
   "perQTime": "This question: {t}",
+  "timerLap": "Lap {n}",
   "settingsTitle": "Settings",
   "setTabDrill": "Drilling",
   "setTabConvert": "AI Conversion",

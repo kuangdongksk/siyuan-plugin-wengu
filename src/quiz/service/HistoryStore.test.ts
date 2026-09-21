@@ -43,7 +43,7 @@ describe("HistoryStore 版本闩（version>1 = 更新版插件写的历史，停
 });
 
 describe("pushSessionAnswer · upsert（Issue #12 B2 after 模式可改答案）", () => {
-    it("同题重复提交原地覆写：answered 不涨、correct 按差值修正", () => {
+    it("同题重复提交原地覆写：answered 不涨、correct 按差值修正、**sec 冻结**（#182 R4）", () => {
         const s = session("s1");
         pushSessionAnswer(s, "q1", "A", false, 5, 5);
         expect([s.answered, s.correct, s.results.length]).toEqual([1, 0, 1]);
@@ -51,17 +51,21 @@ describe("pushSessionAnswer · upsert（Issue #12 B2 after 模式可改答案）
         expect([s.answered, s.correct, s.results.length]).toEqual([1, 1, 1]);
         expect(s.results[0].submitted).toBe("B");
         expect(s.results[0].ok).toBe(true);
-        expect(s.results[0].sec).toBe(8);
+        // 用时冻结（#182 R4）：首答结算的 5s 就是该题的 sec，改答只改对错
+        // ——原口径「以最后一次为准」会把回来改答案时的表值写回（AI 等待/
+        // 翻看解析的时长计入），故 #182 起只补写、不覆写。
+        expect(s.results[0].sec).toBe(5);
         expect(s.elapsedSec).toBe(9);
         pushSessionAnswer(s, "q1", "C", false, 0, 9); // 再改回错
         expect([s.answered, s.correct, s.results.length]).toEqual([1, 0, 1]);
         expect(s.results[0].submitted).toBe("C");
     });
-    it("覆写是原地赋值：不重排 results、不动别的题", () => {
+    it("覆写是原地赋值：不重排 results、不动别的题（sec 亦冻结）", () => {
         const s = session("s1");
         pushSessionAnswer(s, "q1", "A", true, 1, 1);
         pushSessionAnswer(s, "q2", "B", false, 2, 2);
         pushSessionAnswer(s, "q1", "D", false, 3, 3);
+        expect(s.results[0].sec).toBe(1); // #182 R4：重复提交不覆写首次结算值
         expect(s.results.map((r) => r.qid)).toEqual(["q1", "q2"]);
         expect([s.answered, s.correct]).toEqual([2, 0]);
     });

@@ -225,7 +225,11 @@ export function pushSessionAnswer(
         if (hit.ok !== ok) s.correct += ok ? 1 : -1;
         hit.submitted = submitted;
         hit.ok = ok;
-        if (sec > 0) hit.sec = sec;
+        // R4 结算后冻结（#182）：首答记下的 sec 是「提交时刻 − 本题计时起点」的
+        // 结算值，改答只改对错、**不动 sec**——否则「回来改答案 + 再提交」会把
+        // 新表值写回（AI 等待/翻看解析的时长被计入）。只有原先没记上值的
+        // 条目才补写（存量无键 + 非提交路径的兜底）。
+        if (sec > 0 && !(hit.sec ?? 0)) hit.sec = sec;
         // 三态类字段可选：本次没带的（如客观题重复提交）清空旧值，
         // 防上一轮的 verdict/comment 残留到新结果上（口径「以最后一次为准」）
         setOrClear(hit, "verdict", extra?.verdict);

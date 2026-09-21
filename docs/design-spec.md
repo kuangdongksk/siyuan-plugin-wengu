@@ -640,23 +640,24 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 
 **未登记的按违规处理。** 每条写明：例外值 / 落点 / 理由 / 是否设计稿指定。
 
-| #   | 例外值                 | 落点                                                                     | 理由                               | 稿定   |
-| --- | ---------------------- | ------------------------------------------------------------------------ | ---------------------------------- | ------ |
-| E1  | 间距 **14px**          | `StartPanelApp.svelte` `<style>` 开刷面板操作行（`wengu-start-actions`） | 随卡片尺寸放宽                     | ✅ 屏① |
-| E2  | 间距 **14px**          | `aiflow.scss` 面板密集刻度                                               | AI 横幅内部节奏                    | ✅     |
-| E3  | 间距 **1/2/5/9px**     | AI 会话面板（`aiflow` / `aipanel*`）                                     | 面板密集区特例                     | ✅     |
-| E4  | 间距 **12px**          | `wengu-word-actions` 单词卡主操作区                                      | 大按钮触区、居中                   | ✅     |
-| E5  | 圆角 **4px**           | 题卡自绘按钮族（`.wengu-btn` / `.wengu-chip`）                           | 贴题卡视觉                         | ✅     |
-| E6  | 圆角 **20px 20px 0 0** | `mobile-drawer.scss` 抽屉顶角                                            | 移动端单列特例                     | ✅     |
-| E7  | 触控 **40px**          | `words-mobile.scss`(6) + `english.scss`(5) 的次要/密集控件               | 非误按代价高的动作                 | ⬜     |
-| E8  | 字号 **17~44px**       | 展示型字号（图标/数字大字/空态标题）                                     | 非正文档                           | ⬜     |
-| E9  | 定宽 **300px**         | `StartPanelApp.svelte` `<style>` 开刷面板控件                            | 内核 `fn__size200` 的放宽          | ✅     |
-| E10 | 字面色值               | 阴影兜底段 + 全屏遮罩（`rgba(0,0,0,.2/.35/.42)`）                        | 遮罩与主题无关                     | ⬜     |
-| E11 | 超长文件               | `src/word/data/phonetics-data.ts`(47148) / `words-p01..p16`              | **生成数据文件**，脚本产出、勿手改 | —      |
-| E12 | 超长文件               | `src/quiz/index.ts`(**576**，基线豁免)                                   | 编排内聚，**只许减不许增**         | —      |
-| E13 | 样式落点               | 组件 `<style>`（`css:"injected"` 运行时注入，非 `dist/index.css`）       | 组件独占样式随组件走（§13）        | —      |
-| E14 | 圆角 **10px**          | `base.scss` 的 `.wengu-dialog .wengu-dialog-ico`（弹窗图标位 38×38）     | §5 弹窗图标位（稿逐值）            | ✅ §5  |
-| E15 | 字号 **13.5px**        | `base.scss` 的 `.wengu-switch-confirm .wengu-switch-body`                | §5 弹窗正文（稿逐值）              | ✅ §5  |
+| #   | 例外值                                 | 落点                                                                     | 理由                                       | 稿定     |
+| --- | -------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ | -------- |
+| E1  | 间距 **14px**                          | `StartPanelApp.svelte` `<style>` 开刷面板操作行（`wengu-start-actions`） | 随卡片尺寸放宽                             | ✅ 屏①   |
+| E2  | 间距 **14px**                          | `aiflow.scss` 面板密集刻度                                               | AI 横幅内部节奏                            | ✅       |
+| E3  | 间距 **1/2/5/9px**                     | AI 会话面板（`aiflow` / `aipanel*`）                                     | 面板密集区特例                             | ✅       |
+| E4  | 间距 **12px**                          | `wengu-word-actions` 单词卡主操作区                                      | 大按钮触区、居中                           | ✅       |
+| E5  | 圆角 **4px**                           | 题卡自绘按钮族（`.wengu-btn` / `.wengu-chip`）                           | 贴题卡视觉                                 | ✅       |
+| E6  | 圆角 **20px 20px 0 0**                 | `mobile-drawer.scss` 抽屉顶角                                            | 移动端单列特例                             | ✅       |
+| E7  | 触控 **40px**                          | `words-mobile.scss`(6) + `english.scss`(5) 的次要/密集控件               | 非误按代价高的动作                         | ⬜       |
+| E8  | 字号 **17~44px**                       | 展示型字号（图标/数字大字/空态标题）                                     | 非正文档                                   | ⬜       |
+| E9  | 定宽 **300px**                         | `StartPanelApp.svelte` `<style>` 开刷面板控件                            | 内核 `fn__size200` 的放宽                  | ✅       |
+| E10 | 字面色值                               | 阴影兜底段 + 全屏遮罩（`rgba(0,0,0,.2/.35/.42)`）                        | 遮罩与主题无关                             | ⬜       |
+| E11 | 超长文件                               | `src/word/data/phonetics-data.ts`(47148) / `words-p01..p16`              | **生成数据文件**，脚本产出、勿手改         | —        |
+| E12 | 超长文件                               | `src/quiz/index.ts`(**576**，基线豁免)                                   | 编排内聚，**只许减不许增**                 | —        |
+| E13 | 样式落点                               | 组件 `<style>`（`css:"injected"` 运行时注入，非 `dist/index.css`）       | 组件独占样式随组件走（§13）                | —        |
+| E14 | 圆角 **10px**                          | `base.scss` 的 `.wengu-dialog .wengu-dialog-ico`（弹窗图标位 38×38）     | §5 弹窗图标位（稿逐值）                    | ✅ §5    |
+| E15 | 字号 **13.5px**                        | `base.scss` 的 `.wengu-switch-confirm .wengu-switch-body`                | §5 弹窗正文（稿逐值）                      | ✅ §5    |
+| E16 | 令牌族 `--wengu-focus-*` / `-stream-*` | `scss/focus-timer.scss` 的 `:root`（单题计时，§13.3）                    | 稿逐值；插件自有令牌（同 `--wengu-faint`） | ✅ 稿 v6 |
 
 > ⚠️ **E12 的口径**：豁免**不是免死金牌**——`quiz/index.ts` 的基线是 574，
 > 现已 576（净增 2）。规范口径＝**豁免额度即上限**，越线照样算违规。
@@ -797,23 +798,24 @@ timing / scope / clue / health / regen / batch / tag / match / drill …`（34 �
 **未登记的按违规处理**（同 §9 口径）。新迁出的每一片、以及任何留共享片的
 「专属类族」，都要在此登记**绑定到哪个渲染函数 / 哪组组件**。
 
-| 共享片                                               | 绑定到（渲染源）                                                        | 留片理由                                                          |
-| ---------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `base.scss`                                          | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                           | ① TS 渲染层 + 共享底座                                            |
-| `panels.scss`                                        | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS        | ①（47 类 TS 触达）                                                |
-| `cards.scss` / `card-render.scss`                    | `CardHtml` / `CardMount` / `QuizCard` 组件族                            | ①（各 21~25 类）                                                  |
-| `nums.scss`（#135 自 `cards.scss` 拆出）             | `NumRail.ts` 的 `[data-nums]` 契约 / `NumRailApp.svelte`                | ①（TS 侧 `data-nums` 触达）+ 红线拆片                             |
-| `card-extra.scss`（#135 自 `card-render.scss` 拆出） | `QuizCard` 组件族的揭示后新增行（考点 chips / 自评五星）                | ① 红线拆片                                                        |
-| `side.scss`（#135 自 `base.scss` 拆出）              | `SidePanelApp` / `TreeList`（侧栏树行覆写）                             | ①（`wengu-side-*` 由 TS/子组件渲染）+ 红线拆片                    |
-| `english.scss`                                       | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`          | ①（27 类 TS 触达）                                                |
-| `english-gloss.scss`                                 | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）               | ① + 跨组件复用                                                    |
-| `reading.scss`                                       | `GroupUnitApp` / `CardHtml`（原文高亮）                                 | ①（19 类）                                                        |
-| `preview.scss`                                       | `PreviewFlow.ts`（无 Svelte 渲染源）                                    | ①（19 类）                                                        |
-| `rail.scss`                                          | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                          | ② 跨面板共享                                                      |
-| `words.scss` / `words-mobile.scss`                   | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）         | ② + 对偶片须同批                                                  |
-| `mobile-*.scss` / `mobile-english.scss`              | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族              | ③ 基座 + 跨组件                                                   |
-| `aipanel*.scss` / `aiflow.scss`                      | `SessionPanelApp` / `SessionDetail` / `FlowBanner`                      | ② 跨组件 + TS 触达                                                |
-| `ai-md.scss`（#177 拆出）                            | `ai/agentPanel.ts` 的 `runAgentTextOrPanel` 输出区（MdRender 产物基线） | ② 跨组件（`RoundReportApp` / `StatsDoc` 共用 `.wengu-report-ai`） |
+| 共享片                                               | 绑定到（渲染源）                                                                    | 留片理由                                                          |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `base.scss`                                          | `FormHtml.ts` / `QuizShell.ts` / 各域 TS 拼串                                       | ① TS 渲染层 + 共享底座                                            |
+| `panels.scss`                                        | `FormHtml` / `KnowPicker` / `SettingsDialog` / `QuizShell` 等 TS                    | ①（47 类 TS 触达）                                                |
+| `cards.scss` / `card-render.scss`                    | `CardHtml` / `CardMount` / `QuizCard` 组件族                                        | ①（各 21~25 类）                                                  |
+| `nums.scss`（#135 自 `cards.scss` 拆出）             | `NumRail.ts` 的 `[data-nums]` 契约 / `NumRailApp.svelte`                            | ①（TS 侧 `data-nums` 触达）+ 红线拆片                             |
+| `card-extra.scss`（#135 自 `card-render.scss` 拆出） | `QuizCard` 组件族的揭示后新增行（考点 chips / 自评五星）                            | ① 红线拆片                                                        |
+| `side.scss`（#135 自 `base.scss` 拆出）              | `SidePanelApp` / `TreeList`（侧栏树行覆写）                                         | ①（`wengu-side-*` 由 TS/子组件渲染）+ 红线拆片                    |
+| `english.scss`                                       | `GroupUnitApp` / `CardSlotsArea` / `ClueFlow` / `MaterialFlow`                      | ①（27 类 TS 触达）                                                |
+| `english-gloss.scss`                                 | `AnnoFlow`（标注浮层）/ `ui/ColorMenu.svelte`（竖排色板）                           | ① + 跨组件复用                                                    |
+| `reading.scss`                                       | `GroupUnitApp` / `CardHtml`（原文高亮）                                             | ①（19 类）                                                        |
+| `preview.scss`                                       | `PreviewFlow.ts`（无 Svelte 渲染源）                                                | ①（19 类）                                                        |
+| `rail.scss`                                          | `RailApp` / 4 个面板骨架（纯样式，无 TS 触达）                                      | ② 跨面板共享                                                      |
+| `words.scss` / `words-mobile.scss`                   | `QuizCard` / `LookupScreen` / `WordHead` 等 6+ 组件（成对覆写）                     | ② + 对偶片须同批                                                  |
+| `mobile-*.scss` / `mobile-english.scss`              | `HomeScreen` / `DrillScreen` / `QuestionBody` 等移动组件族                          | ③ 基座 + 跨组件                                                   |
+| `aipanel*.scss` / `aiflow.scss`                      | `SessionPanelApp` / `SessionDetail` / `FlowBanner`                                  | ② 跨组件 + TS 触达                                                |
+| `focus-timer.scss`（#182 新增）                      | `render/FocusStream.ts`（拼 `.wengu-gtx-*`）+ `QuizCard` 族 + `QuizShell`/`NumRail` | ① TS 触达 + 跨组件                                                |
+| `ai-md.scss`（#177 拆出）                            | `ai/agentPanel.ts` 的 `runAgentTextOrPanel` 输出区（MdRender 产物基线）             | ② 跨组件（`RoundReportApp` / `StatsDoc` 共用 `.wengu-report-ai`） |
 
 > 另记（#153 修订）：`words-home.scss` 保留 `HomeScreen` 的**先复习修饰行**
 > （`.wengu-word .wengu-word-askreview .wengu-word-zh` / `-actions`）——它们作用在
