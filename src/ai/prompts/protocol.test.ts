@@ -35,7 +35,7 @@ describe("materialRulesFor：英语题型约定与词条保真段", () => {
     });
 });
 
-describe("protocolSpec · 选项顺序变体（Issue #123；Issue #131 加 bank 条件规则）", () => {
+describe("protocolSpec · 选项顺序变体（Issue #123；#131 加 bank；#206 收敛为单规则）", () => {
     it("默认：要求「正确项写最前」（新造题口径）", () => {
         expect(protocolSpec([QuestionType.Single])).toContain("正确项写在最前");
     });
@@ -46,28 +46,53 @@ describe("protocolSpec · 选项顺序变体（Issue #123；Issue #131 加 bank 
         expect(s).not.toContain("正确项写在最前");
     });
 
-    it("bank（Issue #131）：逐题条件规则——原文有现成选项走原序、新造题走重排", () => {
+    it("bank（Issue #206）：单规则照抄——不重排、按原文选项顺序、答案按原序数", () => {
         const s = protocolSpec([QuestionType.Single], { bank: true });
-        expect(s).toContain("原题顺序与字母");
-        expect(s).toContain("正确项写在最前");
-        expect(s).toContain("逐题判断");
+        // 新口径在场（转换链只做 transcription、不重排）
+        expect(s).toContain("不重排");
+        expect(s).toContain("按原文选项顺序");
+        expect(s).toContain("不写字母标签");
+        // 逐题分支的两个旧口径字面**必须消失**（重排类错误在结构上不可能再发生）
+        expect(s).not.toContain("逐题判断");
+        expect(s).not.toContain("正确项写在最前");
+        expect(s).not.toContain("原题顺序与字母");
     });
 
-    it("bank 优先于 order（两支语义已在条件规则里）", () => {
+    it("bank 任意题型组合都出单规则（题型只影响 ans 约定，不动 @@P opt 行）", () => {
+        for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps, QuestionType.Multiple]]) {
+            const s = protocolSpec(types, { bank: true });
+            expect(s).toContain("不重排");
+            expect(s).toContain("按原文选项顺序");
+            expect(s).not.toContain("逐题判断");
+            expect(s).not.toContain("正确项写在最前");
+            expect(s).not.toContain("原题顺序与字母");
+        }
+    });
+
+    it("bank 优先于 order（转换链口径优先于 regen 的 keep 序）", () => {
         const s = protocolSpec([QuestionType.Single], { order: "keep", bank: true });
-        expect(s).toContain("逐题判断");
+        expect(s).toBe(protocolSpec([QuestionType.Single], { bank: true }));
+        expect(s).not.toContain("原题顺序与字母");
     });
 
     it("变体只换「非变体差异」的行，其余段落逐字不变（含 undefined 全量兜底）", () => {
         // ⚠️ 标记约定（sol 规则行）自 P1（20260915 审查）起**缺省恒在**，
         // 不再是变体之间的差异——故剥除清单里只留「选项顺序」那几行的
         // 差异行；sol 规则行两侧都该在、原样参与比对（漏了它说明缺省被
-        // 摘掉，正是这次要修的回归）。
+        // 摘掉，正是那次要修的回归）。
+        // ⚠️ 过滤词表随 #206 新文案更新（词表是「差异行」的代理，漏一词
+        // 即断言失效）：bank 行现含「照原文抄 / 不重排 / 按原文选项顺序 /
+        // 不写字母标签」，keep 行含「原题顺序与字母」，默认行含「正确项写
+        // 在最前」——三者互不包含，故三行都被剥掉、其余段落逐字比对。
         const strip = (s: string): string =>
             s
                 .split("\n")
                 .filter(
-                    (l) => !l.includes("正确项写在最前") && !l.includes("原题顺序与字母") && !l.includes("逐题判断")
+                    (l) =>
+                        !l.includes("正确项写在最前") &&
+                        !l.includes("原题顺序与字母") &&
+                        !l.includes("照原文抄") &&
+                        !l.includes("按原文选项顺序")
                 )
                 .join("\n");
         for (const types of [undefined, [QuestionType.Single], [QuestionType.Steps, QuestionType.Multiple]]) {
