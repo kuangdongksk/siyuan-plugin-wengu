@@ -1,4 +1,6 @@
 import type { AnswerHost } from "../flow/AnswerFlow";
+import { gapReviewFor, type GapReviewBindings } from "../flow/GapReview";
+import type { JevSettingsLike } from "../../ai/jev/enabled";
 import { recordAnswerFor } from "./AnswerMirror";
 import { notifyQuizAnswer } from "../../companion";
 import type { QTimingOwner } from "./QTimingOwner";
@@ -14,11 +16,12 @@ import type { WenguQuestion } from "../../types";
 
 /** AnswerGate 需要的视图能力（全是既有访问器，零新增状态）。 */
 export interface AnswerGateView {
+    /** 设置面（Jev key + 总开关）：填空复核判定函数由它组装（Issue #187）。 */
+    settings?: JevSettingsLike;
     questions(): WenguQuestion[];
     currentSession(): import("./HistoryStore").WenguSession | undefined;
     historyStore(): import("./HistoryStore").HistoryStore | undefined;
     bankStore(): import("../../bank/data/QuestionBank").QuestionBank | undefined;
-    persist(): void;
 }
 
 /** 记账宿主四件（RecordAnswerHost 结构匹配；`AnswerHost` 侧只需其中
@@ -33,6 +36,9 @@ export interface AnswerGate {
     refreshQTimer(qid: string): void;
     /** #182：单题计时载体（AnswerHost/TimerHostAccess 两处结构匹配）。 */
     questionTimer(): import("./QuizTimer").QuestionTimer;
+    /** #187 填空语义判等复核三件（AnswerHost 结构匹配，组装见 flow/GapReview：
+     *  判定函数在构造期一次组装，未配 key ⇒ undefined ⇒ 复核链零调用）。 */
+    gapReview: GapReviewBindings;
 }
 
 /** 组装记账宿主（`QuizView` 只需把四件摊回即可）。 */
@@ -45,6 +51,18 @@ export interface TimerParts {
 }
 
 export function answerGateFor(v: AnswerGateView, timer: TimerController, qTiming: QTimingOwner): AnswerGate {
+    /** 会话落库（唯一实现）。
+     *
+     *  ⚠️ **不许写成 `() => v.persist()`**（20260921 修 #189 的转发环）：
+     *  视图侧的 `persist` 就是 gate 这个成员的别名（`= this.gate.persist`），
+     *  互相转发即无限自递归——自评星级/标线索/落判同标记都会
+     *  `RangeError: Maximum call stack size exceeded`。本视图形态下
+     *  `currentSession()` 即原实现的 `session ?? finished`。
+     */
+    const persist = (): void => {
+        const s = v.currentSession();
+        if (s) void v.historyStore()?.upsert(s);
+    };
     return {
         recordAnswer: (
             qid: string,
@@ -56,8 +74,14 @@ export function answerGateFor(v: AnswerGateView, timer: TimerController, qTiming
         takeSec: (qid: string): number => qTiming.takeSec(qid, () => timer.takeQuestionSec(qid)),
         elapsedSec: (): number => timer.elapsed(),
         notifyAnswer: (qid, submitted, ok, sec): void => notifyQuizAnswer(v as never, qid, submitted, ok, sec),
-        persist: (): void => v.persist(),
+        persist,
         refreshQTimer: (qid: string): void => qTiming.refresh(qid),
         questionTimer: (): import("./QuizTimer").QuestionTimer => qTiming.q,
+        gapReview: gapReviewFor({
+            // 惰性读：本函数在 QuizView 字段初始化期跑，那时 v.settings 还没赋值
+            settingsOf: () => v.settings,
+            session: () => v.currentSession(),
+            persist,
+        }),
     };
 }

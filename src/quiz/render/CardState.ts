@@ -202,9 +202,13 @@ function initRestoredNormal(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): voi
     }
     ui.revealed = true;
     if (isObjective(q)) {
+        // 「Jev 判同」标记随会话恢复（Issue #187）：重开页签/继续上次时，
+        // 判同那一题的标记必须还在（否则「复核过了」这件事只活在一个瞬间）。
         setResult(
             ui,
-            r.ok ? ctx.t("correct") : `${ctx.t("wrong")}${ctx.t("answerLabel")}${q.answer ?? ""}`,
+            r.ok
+                ? `${ctx.t("correct")}${r.jevSame ? ctx.t("jevSameMark") : ""}`
+                : `${ctx.t("wrong")}${ctx.t("answerLabel")}${q.answer ?? ""}`,
             r.ok ? "right" : "wrong"
         );
     } else {
@@ -248,6 +252,9 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
     ui.graded = true;
     ui.locked = true;
     ui.revealed = true; // 完整作答恢复同揭示（同上：解析区只认 .wengu-revealed）
+    // 逐空复核判同（Issue #187）落在该空的会话记录（qid#k）上——恢复时按
+    // `slotResultsOf` 取回的 ok 已包含翻案结果，故整题行按 marks 现算即可
+    // （与 `SlotFlow.settleSlotsResult` 同口径）。
     setResult(
         ui,
         allOk

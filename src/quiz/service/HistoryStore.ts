@@ -19,6 +19,19 @@ export interface WenguSessionResult {
     comment?: string;
     /** 错因规范键（weakness 画像用，AI 判分/批量归因写入）。 */
     cause?: string;
+    /**
+     * 该题被 Jev 语义复核**判同**（Issue #187 B1）。
+     *
+     * 口径：只在**本轮会话结果**里标（判分主通道永远是确定性代码，复核只是
+     * 「判错后的一次翻案」）——题库统计走 `recordAnswer` 的首次口径，题块属性
+     * 不写，故这不是新增的「持久化契约」，而是既有一轮会话数据里的一个可选
+     * 展示标记。数据演进守则：optional、不改名、装载不 bump（旧轮无键 ⇒ 无标记）。
+     *
+     * ⚠️ **改答必须清掉**（`pushSessionAnswer` 的覆写分支）：用户把答案改成
+     * 别的、判错之后，旧标记若留着就会出现「判错 + Jev 判同」这种自相矛盾的
+     * 结果行（同 verdict/comment/cause 的「以最后一次为准」口径）。
+     */
+    jevSame?: boolean;
 }
 
 /** 一轮刷题（N 刷里的一刷）：开刷时创建，逐题作答时更新，结束时封卷。 */
@@ -235,6 +248,9 @@ export function pushSessionAnswer(
         setOrClear(hit, "verdict", extra?.verdict);
         setOrClear(hit, "comment", extra?.comment);
         setOrClear(hit, "cause", extra?.cause);
+        // 判同标记随「最后一次作答」清零（Issue #187）：新提交一律不带标记，
+        // 真判同由复核链在记账**之后**重新挂上（见 GapReview.applyGapSame）
+        delete hit.jevSame;
     } else {
         s.results.push({
             qid,

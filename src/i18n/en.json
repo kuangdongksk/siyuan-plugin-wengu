@@ -982,5 +982,7 @@
   "reportBackToQuiz": "Back to questions",
   "reportShowSummary": "View summary",
   "collectionsBtnHint": "Manage collections: collect questions by knowledge point / delete",
-  "reportGroupTime": "Q{n}–{m} · {x}/{y} answered · {t} total"
+  "reportGroupTime": "Q{n}–{m} · {x}/{y} answered · {t} total",
+  "jevReviewing": "Checking meaning with Jev…",
+  "jevSameMark": " (Jev: same)"
 }

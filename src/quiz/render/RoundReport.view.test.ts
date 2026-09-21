@@ -243,16 +243,12 @@ describe("用时图分组聚合（Issue #155 块 B）· 源级", () => {
         expect(TIME_BARS).toMatch(/return Number\.isFinite\(x\.sec\) \? x\.sec : 0;/);
     });
 
-    it("组 title 是新 i18n 键 reportGroupTime，两个语言文件都有（尾键）", () => {
+    it("组 title 是新 i18n 键 reportGroupTime，两个语言文件都有", () => {
         expect(SVELTE_SRC).toMatch(/t\("reportGroupTime"\)/);
         for (const key of ["reportGroupTime"]) {
             expect(Object.keys(ZH as Record<string, string>)).toContain(key);
             expect(Object.keys(EN as Record<string, string>)).toContain(key);
         }
-        // 新键放文件尾（并行单 #154 撞尾时的 rebase 判据）
-        const tail = (o: Record<string, string>): string => Object.keys(o).slice(-1)[0];
-        expect(tail(ZH as Record<string, string>)).toBe("reportGroupTime");
-        expect(tail(EN as Record<string, string>)).toBe("reportGroupTime");
     });
 
     it("柱 title 的用时**三态**：未答不注时间 / 未记录出文案 / 有真用时才 mmss（Issue #177）", () => {

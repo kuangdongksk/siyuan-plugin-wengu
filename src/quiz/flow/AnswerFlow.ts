@@ -8,6 +8,9 @@ import type { TimerController } from "../service/TimerController";
 import type { QuestionTimer } from "../service/QuizTimer";
 import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
+import { jevSameOf } from "../service/GapJudge";
+import type { GapReviewBindings } from "./GapReview";
+import { applyGapSame, reviewGap } from "./GapReview";
 import { markNum, qIndexById } from "../render/FlowDom";
 import { markNumRailAnswered, markNumRailRevealed } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
@@ -43,6 +46,12 @@ export interface AnswerHost {
     currentSession(): WenguSession | undefined;
     /** AI 判分/实时引导使用的模型 id（空=智能体默认）。 */
     aiModelId(): string;
+    /** 记账/单题计时摊牌（`AnswerGate`，视图的公开成员）。#187 的复核三件
+     *  随它摊出（`gate.gapReview`）——视图侧零新增成员，链上取用见
+     *  `flow/GapReview.bindingsOf`。 */
+    gate?: { gapReview: GapReviewBindings };
+    /** 复核三件（#187）的**简化曝光**：测试/预览壳可直接给，视图走 `gate`。 */
+    gapReview?: GapReviewBindings;
     /** 记入会话（含逐题秒数）并落库；extra 携带 brief 的 AI 三态/评语/错因。 */
     recordAnswer(
         qid: string,
@@ -144,8 +153,18 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
         ctl.showSelf(); // 缺题型/答案属性的题：揭示后自评
         return;
     }
-    const ok = gradeQuestion(q, submitted);
-    host.recordAnswer(q.id, submitted, ok);
+    // 填空语义判等复核（Issue #187）：失配才问、只说同才翻对（在途件在
+    // flow/GapReview；本题已作答过则零调用）。after 模式在此不揭对错，
+    // 复核在途态也只报「已作答」，与收卷前的口径一致。
+    //
+    // ⚠️ **判定与落账必须夹住 recordAnswer**（20260921 复核修正）：判同标记
+    // 是按 qid 改**已存在**的会话记录，判定段里顺手落账时记录还没建出来
+    // （`applyJevSame` 找不到 ⇒ 静默丢标记）。故顺序钉死为
+    // 「判定 → recordAnswer → applyGapSame」。
+    const site = { host, q, ctl, submitted, ok: gradeQuestion(q, submitted), recordQid: q.id };
+    const outcome = await reviewGap(site);
+    host.recordAnswer(q.id, submitted, outcome.ok);
+    applyGapSame(site, outcome);
     if (batch) {
         // 统一展示：先只记「已作答」，不揭对错（避免剧透）
         ctl.setResult(esc(host.t("answeredPending")), "warn");
@@ -153,7 +172,7 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
         checkAllDone(host);
         return;
     }
-    revealCard(host, ctl, q, { submitted, ok });
+    revealCard(host, ctl, q, { submitted, ok: outcome.ok });
     showQTime(host, ctl, q.id);
     checkAllDone(host);
 }
@@ -281,7 +300,7 @@ export async function revealAll(host: AnswerHost): Promise<void> {
     const byQid = new Map((s?.results ?? []).map((r) => [r.qid, r] as const));
     for (const ctl of allCards()) {
         const r = byQid.get(ctl.q.id);
-        if (r) revealCard(host, ctl, ctl.q, r);
+        if (r) revealCard(host, ctl, ctl.q, { ...r, jevSame: jevSameOf(s?.results, ctl.q.id) });
         else if (!isObjective(ctl.q)) {
             // after 模式下已提交但未自评的简答题：揭示后补自评
             ctl.showSelf();
@@ -378,7 +397,7 @@ export function revealCard(
     host: AnswerHost,
     ctl: CardCtl,
     q: WenguQuestion,
-    r: { submitted: string; ok: boolean; verdict?: string; comment?: string }
+    r: { submitted: string; ok: boolean; verdict?: string; comment?: string; jevSame?: boolean }
 ): void {
     markNum(host, q, r.ok);
     // 揭示即升图例档（Issue #135 §2.9）：instant 判分与 after 收卷
@@ -398,9 +417,13 @@ export function revealCard(
     // 快照只被 choice 的 chipMarkOf 读，其余题型写入无害。
     ctl.reveal(r.submitted);
     if (isObjective(q)) {
+        // 「Jev 判同」标记（Issue #187）：复核翻对的题在结果行留痕，收卷
+        // 重画与恢复重渲染都按会话里的判同标记补回（否则标记只活在
+        // 提交那一瞬，收卷即丢）。标记来源：入参（收卷快照）或会话结果。
+        const same = !!(r.jevSame || jevSameOf(host.currentSession()?.results, q.id));
         ctl.setResult(
             r.ok
-                ? esc(host.t("correct"))
+                ? `${esc(host.t("correct"))}${same ? esc(host.t("jevSameMark")) : ""}`
                 : `${esc(host.t("wrong"))}${esc(host.t("answerLabel"))}${esc(q.answer ?? "")}`,
             r.ok ? "right" : "wrong"
         );

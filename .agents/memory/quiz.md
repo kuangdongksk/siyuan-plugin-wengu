@@ -1,5 +1,54 @@
 # src/quiz/ —— 做题主流程
 
+- **填空语义判等复核（Issue #187，20260921；规划稿 §三 B1）**：本地精确判分
+  **失配**时问 Jev 一次「语义等价吗」，**≥0.9 才翻对**并标「Jev 判同」——
+  ≤0.2 与中间档一律维持判错（不做模糊改判）；无 key/失败/超时全静默回落现状。
+  落点两片：`service/GapJudge.ts`（阈值 `GAP_SAME_MIN=0.9`、取材 `gapInputOf`、
+  判定函数 `makeGapVerdict`、判定链闸、判同入账、去重键）+ `flow/GapReview.ts`
+  （需要宿主与卡面的那层：在途结果行、判同后卡面/题号、视图三件组装）。
+    - **阈值刻意不复用 `ai/jev/policy` 的通用三档**（0.8/0.2）：那里是「拦截」
+      语义，这里是**改分**，误判同的代价高于漏判。
+    - **判同标记零新增持久化字段**：只写本轮会话结果（`WenguSessionResult.jevSame`
+        - 翻 `ok` + `correct+1`），题块属性与题库统计维持首次作答的 `recordAnswer`
+          口径（复核只补「对」的事实，不重记一次账）。
+    - **标记必须能活到收卷/恢复**：`revealCard` 与恢复路径
+      （`CardState.initRestoredNormal`）都按会话结果补画「（Jev 判同）」
+      ——只在提交那一瞬写结果行的话，收卷重画/重开页签即丢。
+    - **去重表只存「已判同」的键**（会话记录身份 + 归一化作答；`globalThis`
+      单例）：判错/不确定不入表；**命中即回放「对」**（缓存是「结论」不是
+      「免问一次」——after 改答再改回同一串若只免问不回放，就与前一秒界面
+      上的「判同」自相矛盾）。`gapKnownSame` 与 `shouldReviewGap` 都钉死
+      「无 key ⇒ 不参与」，连缓存回放也不行（否者用户清掉 key 后旧缓存仍改分）。
+    - **slots 逐空走外层异步**：`submitSlot`/`submitMatch` **保持同步**
+      （点一下立刻跳下一空的手感不许改成等待），复核回来了只翻 `marks[k].ok`
+        - 重画整题结果行，**不重记逐空账**（验收 1「现有测试不改一行仍绿」的要求）。
+    - ⚠️ **`quiz/index.ts` 行长额度＝上限（561）**：本单把复核三件挂进既有
+      `AnswerGate` 摊牌（`gate.gapReview`），视图侧净增 0 行——后续再接 Jev
+      落点照此走，别往视图上堆成员。
+    - ⚠️ **判定与落账必须两段**（20260921 复核修正，六处接线缺陷的总账）：
+      `reviewGap` 只问不改账，`applyGapSame` 才落账，调用方用
+      `recordAnswer` 夹在中间——标记是按 qid 改**已存在**的会话记录，
+      判定段顺手落账时记录还没建出来 ⇒ 标记静默丢（界面永无「判同」）。
+      另：`recordQid` 是**会话记录身份**（整题 `q.id`、逐空 `slotQid(q.id,k)`），
+      逐空拿整题 id 去查永远查不到。`jevSame` 随 `pushSessionAnswer` 覆写清零
+      （否则改答为错后出现「判错 + Jev 判同」）。
+    - 四个测试文件分工：`GapJudge.test.ts`（阈值/闸/失败回落/入账，mock 传输）、
+      `GapReview.test.ts`（接线：谁被调、卡面怎么写）、`GapNoKey.test.ts`
+      （无 key 零变化）、**`GapEndToEnd.test.ts`（真 `answerGateFor` + 真
+      `submitQuestion`/`submitSlot`，只 mock `judgeJev`）——本单的教训：
+      单元用例各自绿而链子整条不通（`judgeJev` 在真视图上被调 0 次），
+      接线类改动必须有一条端到端用例。**
+    - ⚠️ **`AnswerGate.persist` 不许写成 `() => v.persist()`**：视图侧
+      `persist = this.gate.persist`，两者互为别名 ⇒ 无限自递归
+      （`RangeError: Maximum call stack size exceeded`）。#189 引入此环、
+      20260921 于 #187 复核轮修掉：gate 内保留一份落库实现本体
+      （`currentSession()` → `historyStore().upsert`），视图只留一行别名
+      —— `index.ts` 的 561 行额度因此不破。**加 gate 成员时注意同类转发环。**
+    - ⚠️ **视图的设置面必须惰性读**：`answerGateFor` 跑在 `QuizView` 的
+      **字段初始化期**，而 `this.settings` 是构造体里才赋的 ⇒ 构造期读一次
+      永远 `undefined`（配了 key 也不触发、且零报错）。同一坑适用于任何
+      在字段初始化期组装、却要读构造体后赋值的成员的视图能力。
+
 - **单题计时切换（Issue #182，20260921；设计稿 `design/UI/单题计时/` v6 @ `14c6f55`）**：
   与整轮墙钟（`TimerController`，管会话累计/倒计时/15s flush）**并存**，
   单题侧是新增的 `service/QuizTimer.ts`。五条语义（R1/R3/R4/R5/R6/R8）：
