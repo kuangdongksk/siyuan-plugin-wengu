@@ -27,9 +27,9 @@ metadata:
   FocusStream 生长式流光 242 / focus-timer.scss 147，含移动端 MobileDrill/
   MobileAnswering 逐题计时），再 merge 远端红测试 glob 口径修正（`6150790`）。
   **六件套本地+CI 双绿（2212 用例，含 pnpm build）**；`docs/question-block-contract.md`
-  已同步。调度轮快审无红线：HistoryStore 仅加「结算后 sec 冻结」守卫
-  （`if (sec > 0 && !(hit.sec ?? 0))`，无存储格式变更）；`.cnb.yml` 仅 gate
-  策略注释（红测试阶段门禁口径成文）。#182 已关（收口评论带 sha）、分支已删。**#187（填空判分，同
+  已同步。调度轮快审无红线：HistoryStore 仅加「结算后 sec 冻结」守卫（`if (sec > 0
+&& !(hit.sec ?? 0))`，无存储格式变更）；`.cnb.yml` 仅 gate 策略注释（红测试阶段
+  门禁口径成文）。#182 已关（收口评论带 sha）、分支已删。**#187（填空判分，同
   quiz 域）就此解锁，但仍闸在 #183（Jev 基建）合并后**（同域防 quiz/index.ts 撞车）。
 - dev 上历次合并 CI 全绿；本地 dev 落后时用 `git merge --ff-only cnb/dev` 同步
   （工作区有未提交的设计稿改动时先问用户）。
