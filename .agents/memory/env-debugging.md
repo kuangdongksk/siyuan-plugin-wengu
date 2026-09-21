@@ -26,6 +26,39 @@
   一条都没有＝提及没匹配上（旧仓库路径提及即此形态，零流水线零报错，
   见 AGENTS.md「召唤青简必须写完整路径」条）。
 
+## 单测读源码的两条硬坑（20260821 #189 实测，写新测试前必读）
+
+本仓**没有 `@types/node`**（`tsconfig.json` 无 `types` 字段、依赖里也没有），
+故 `src/**/*.test.ts` 里 `import { readFileSync } from "node:fs"` 会让
+`pnpm check:svelte` 直接红（`Cannot find name 'node:fs'`）。**vitest 跑得过、
+CI 会红**——两把尺子不同步，最容易漏。仓库既有口径见
+`src/declarations.d.ts`（`*?raw` 与 `import.meta.glob` 的最小声明）。
+
+1. **读 TS/Svelte 源码 → `?raw`，别用 `node:fs`**
+   （样板：`SubheadHtml.test.ts` / `RailMount.test.ts` / `reportAiWiring.test.ts`）。
+   ⚠️ 用 `import.meta.glob` 当路径表时，**路径解析有两个独立陷阱**：
+    - glob 的 key **一律相对测试文件自身**，且这套 key 与 `import.meta.url`
+      拼出的路径都能直喂 `sass.compile`（`NodeFileSystem` 均能解析，
+      `../../` 跨两层也照常）；写 `new URL(p, import.meta.url)` 则要看
+      `p` 是「相对 `src/quiz/`」还是「相对本文件」——多降一层会静默
+      指向不存在的 `src/quiz/render/render/xxx.ts`（#189 首轮即此）。
+      **同名分片一定按文件名查表**（`k.endsWith("/" + name)`），与目录无关。
+    - glob **不存在的文件不会抛错、也不会报红**：`?raw` 对缺失文件的
+      import 返回 `undefined`（不是空串！）。**断言是 `.not.toContain(...)`
+      的条目会因此静默变绿**，红测试清单于是缺条目、看着「红得不够」。
+      写新文件级红测试时，取值处要显式判在场并从空串起步，例如
+      同目录脚本源码 `RAW["./X.ts"] ?? ""`（缺失 → 空串 → 正向断言照红）。
+
+2. **读 scss → `sass.compile(路径)` 真编译**（`?raw` 读 scss 在 node 侧恒
+   **空串**，只借 `import.meta.glob` 当路径表；样板
+   `MaterialSplitterDesign.test.ts` / `ButtonVariants.test.ts` /
+   `AiPanelScrollChain.test.ts`）。
+
+3. **文件级红测试是合法的中间态**：本仓「先红后实现」的 PR（如 #182/#189）
+   首个提交只有测试，`check:svelte`（模块缺失 TS2307）与 `test` 都会红，
+   这是**有意为之**——CI 上这类红不算失败，但**格式化门必须先过**
+   （`pnpm format:check` 是 quality-gate 第一项，红测试文件同样要过 Prettier）。
+
 ## 机器 A（本机，Windows + Git Bash，2026-08-30 重验）
 
 - 思源 **3.8.1** 桌面版（已自 3.8.0 升级），日常两个工作区：
