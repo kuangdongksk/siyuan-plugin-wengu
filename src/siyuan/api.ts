@@ -30,6 +30,9 @@ export enum EApi {
     AgentSaveSession = "/api/ai/agent/saveSession",
     AgentRemoveSession = "/api/ai/agent/removeSession",
 
+    // ── 网络（外部 API 一律经内核转发代理；渲染进程直连是跨域）──
+    ForwardProxy = "/api/network/forwardProxy",
+
     // ── 文件（工作区文件特殊通道：multipart/裸内容/信封混合，见 files.ts）──
     FileGet = "/api/file/getFile",
     FilePut = "/api/file/putFile",
