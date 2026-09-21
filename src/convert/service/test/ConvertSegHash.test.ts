@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BankData, QuestionBank } from "../../../bank/data/QuestionBank";
 import { QuestionBank as Bank } from "../../../bank/data/QuestionBank";
-import { advanceSegs, hashContent, planReimportBySegs } from "../source/SetSegments";
+import { advanceSegs, hashContent, planReimportBySegs, resumeCursorOf } from "../source/SetSegments";
 
 /**
  * 题集源级哈希 + 分段边界表**写入点**回归（Issue #74）：ConvertBatch 每批
@@ -207,5 +207,82 @@ describe("ConvertBatch · segs 追加", () => {
         const again = advanceSegs(first, 100, 200, DOC);
         expect(again.slice(0, 1)).toEqual(first);
         expect(again[1]).toEqual({ s: 100, e: 200, h: hashContent(DOC.slice(100, 200)) });
+    });
+});
+
+/**
+ * 续跑接管与段表对账（Issue #208 验收 2）：记录里的断点偏移可能**落后**
+ * 于段表末段 e（旧检查点/异常残留），起跑游标须取二者较大者，免得从旧游标
+ * 重转造成重复落库。判据纯函数 `resumeCursorOf`，真链路由下面的端到端用例兜。
+ */
+describe("ConvertBatch · 续跑游标对账（Issue #208）", () => {
+    const segTable = (ends: number[]): { srcContentHash?: string; segs?: { s: number; e: number; h: string }[] } => ({
+        srcContentHash: hashContent(DOC),
+        segs: ends.map((e, i) => ({
+            s: i === 0 ? 0 : ends[i - 1],
+            e,
+            h: hashContent(DOC.slice(i === 0 ? 0 : ends[i - 1], e)),
+        })),
+    });
+
+    it("源未变 + 段表非空：取段表末段 e（权威游标），不是记录偏移", () => {
+        const set = segTable([1000, 5000]);
+        expect(resumeCursorOf(set, DOC)).toBe(5000);
+        // 记录偏移落后（旧检查点）时以段表为准；调用方 Math.max 兜底取大
+        expect(Math.max(0, 1200, resumeCursorOf(set, DOC))).toBe(5000);
+        // 记录偏移超前（越界残值）时也不被段表拉回
+        expect(Math.max(0, 9000, resumeCursorOf(set, DOC))).toBe(9000);
+    });
+
+    it("源已变（哈希失配）→ 返回 0（不在此处猜，交给 refreshSetHash/段比对）", () => {
+        const set = segTable([1000, 5000]);
+        set.srcContentHash = hashContent(DOC + "改了");
+        expect(resumeCursorOf(set, DOC)).toBe(0);
+        expect(Math.max(0, 1200, resumeCursorOf(set, DOC))).toBe(1200); // 游标仍取记录值
+    });
+
+    it("无哈希字段 / 无段表 / 无题集：一律 0（零副作用，现状行为）", () => {
+        const set = segTable([1000]);
+        delete set.srcContentHash;
+        expect(resumeCursorOf(set, DOC)).toBe(0);
+        expect(resumeCursorOf({ srcContentHash: hashContent(DOC) }, DOC)).toBe(0);
+        expect(resumeCursorOf({ srcContentHash: hashContent(DOC), segs: [] }, DOC)).toBe(0);
+        expect(resumeCursorOf(undefined, DOC)).toBe(0);
+    });
+
+    it("真链路：续跑从段表末段接管（题集 seeded 段表 + 记录偏移落后）", async () => {
+        const { bank, data } = newBank();
+        // 先跑一遍拿到「真实段表 + 题集」（每批 flush 后追加，非收口才写）
+        const first = await convertDocBatched("20260914000000-abcdefg", {
+            t: (k) => k,
+            modelId: "m",
+            fillToChoice: false,
+            bigToSteps: false,
+            parallel: 2,
+            bank,
+            onProgress: () => undefined,
+        });
+        const setId = first.setId!;
+        const set = data().sets![setId];
+        const segs = set.segs ?? [];
+        expect(segs.length).toBeGreaterThan(1);
+        const tail = segs[segs.length - 1].e;
+        const before = Object.keys(data().records).length;
+        const r = await convertDocBatched("20260914000000-abcdefg", {
+            t: (k) => k,
+            modelId: "m",
+            fillToChoice: false,
+            bigToSteps: false,
+            parallel: 2,
+            resume: { offset: 0, setId }, // 落后偏移：旧检查点残留
+            bank,
+            onProgress: () => undefined,
+        });
+        // 已落库的时段不再重转：旧记录一条不增（重复落库的形态就是这里变多）
+        expect(r.setId).toBe(setId);
+        expect(Object.keys(data().records).length).toBe(before);
+        // 段表也没被回退（末段仍 ≥ 接管时看到的权威游标）
+        const after = data().sets![setId].segs ?? [];
+        expect(after[after.length - 1].e).toBeGreaterThanOrEqual(tail);
     });
 });

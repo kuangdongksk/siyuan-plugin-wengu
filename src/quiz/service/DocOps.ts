@@ -192,6 +192,11 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
 /**
  * 启动一次重新导入（转换参数组装 + 视图重载 + 起跑）。`resume` 为空时
  * 先清旧题集侧数据（记录/材料/影子专题 + 会话历史），再从头重转新题集。
+ *
+ * ⚠️ 进度记录的清理**仅非续跑**（Issue #208）：续跑路径在起跑前把记录
+ * 清掉＝先毁断点；一旦续跑第一批判定就挂（count=0），原先 `settleFailed`
+ * 的 `count > 0` 闸不放行 ⇒ 清了没写回，断点凭空蒸发。主修 2 已在
+ * ConvertBatch 侧对账落伍偏移（以段表末段为准），故留着记录无重复风险。
  */
 async function startReimport(
     v: QuizView,
@@ -205,8 +210,8 @@ async function startReimport(
         await bank.removeDocData(setId);
         await bank.flush();
         await v.historyStore()?.removeDocs([setId]);
+        v.convertAccess.saveConvertProgress(srcId, undefined);
     }
-    v.convertAccess.saveConvertProgress(srcId, undefined);
     await v.reloadView(); // 侧栏先摘掉旧题集，转换条/渐进呈现落在新 DOM 上
     const started = startConvertForView(
         v.convertAccess,

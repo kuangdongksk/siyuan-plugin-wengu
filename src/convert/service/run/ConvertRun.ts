@@ -375,7 +375,7 @@ function settleAborted(run: ActiveRun, r: BatchedResult, docId: string): void {
     notifyState();
 }
 
-/** failed：清槽；有部分产物则记**本篇**进度可「继续生成」。 */
+/** failed：清槽；有**断点或产物**（Issue #208：`setId && (count > 0 || doneOffset > 0)`）则记**本篇**进度；setId 空不写。 */
 function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
     const { cfg, ev } = run;
     const t = ev.t;
@@ -387,7 +387,7 @@ function settleFailed(run: ActiveRun, r: BatchedResult, docId: string): void {
     ev.onStatus(`${esc(r.message || t("convertNoQuestions"))}${partial}`, "err", true);
     notifyError({ key: "notifyConvertFail", vars: { msg: r.message || t("convertNoQuestions") } });
     const meta = batchMetaOf(cfg, docId);
-    if (r.count > 0 && r.setId) {
+    if (r.setId && (r.count > 0 || r.doneOffset > 0)) {
         ev.saveProgress(docId, {
             setId: r.setId,
             title: r.title ?? "",

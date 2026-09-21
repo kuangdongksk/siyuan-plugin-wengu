@@ -93,7 +93,7 @@ const aborted = (setId: string | undefined): BatchedResult => ({
     writtenQids: [`${setId}-q1`],
 });
 
-const failed = (): BatchedResult => ({
+const failed = (patch: Partial<BatchedResult> = {}): BatchedResult => ({
     status: "failed",
     message: "网络异常",
     setId: "set-1",
@@ -103,6 +103,7 @@ const failed = (): BatchedResult => ({
     total: 0,
     doneOffset: 30,
     writtenQids: ["set-1-q1"],
+    ...patch,
 });
 
 /** 事件替身：收集状态条/抉择/收尾/进度记录。 */
@@ -238,6 +239,30 @@ describe("收口 · done / failed", () => {
             rec: { setId: "set-1", offset: 30, batches: 1, count: 1 },
         });
         expect(e.done).toEqual([]); // 失败不收尾
+    });
+
+    it("failed 且 count=0 但 doneOffset>0：仍写记录（续跑第一批判定就挂，断点不许蒸发，Issue #208）", async () => {
+        plan.set("doc-1", async () => failed({ count: 0, doneOffset: 120, writtenQids: [] }));
+        const e = events();
+        startConvertRun(cfg, e.ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(e.saved).toEqual([{ id: "doc-1", rec: expect.objectContaining({ setId: "set-1", offset: 120 }) }]);
+    });
+
+    it("failed 且 setId 为空 + 零断点：仍不写记录（零产物失败现状不变）", async () => {
+        plan.set("doc-1", async () => failed({ setId: undefined, count: 0, doneOffset: 0 }));
+        const e = events();
+        startConvertRun(cfg, e.ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(e.saved).toEqual([]);
+    });
+
+    it("failed 且 setId 为空但 doneOffset>0（异常残留断点）：不写（无题集可续）", async () => {
+        plan.set("doc-1", async () => failed({ setId: undefined, count: 0, doneOffset: 30 }));
+        const e = events();
+        startConvertRun(cfg, e.ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(e.saved).toEqual([]);
     });
 
     it("意外异常：同样清槽（否则「开始转换」永久不可用）", async () => {

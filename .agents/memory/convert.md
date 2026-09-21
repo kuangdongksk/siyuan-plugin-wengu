@@ -236,17 +236,34 @@
           哈希——`e` 取**本批实际落库游标**（非片尾），偏移口径与 `A:` 键、
           断点游标同一字符串同一单位（剥块 id IAL 后 kramdown 的字符偏移）。
           纯逻辑在 `convert/service/source/SetSegments`（`advanceSegs` /
-          `hashContent` / `planReimportBySegs` / `qidsFromOffset`，带单测）。
+          `hashContent` / `planReimportBySegs` / `resumeCursorOf` /
+          `qidsFromOffset`，带单测）。
         - **判定顺序三条不许挪**：① **有续跑记录 → 照旧断点续跑**（记录在
           =上次没跑完，不做未变更短路、不做段比对；批量队列逐篇自查记录同
-          口径）→ ② 无记录 + 整篇哈希命中且等于当前源 → **零动作**
-          （notifyReimportUnchanged，不删不烧）→ ③ 无记录 + `segs` 在 →
+          口径）→ ② 无记录 + 整篇哈希命中且等于当前源 **且段表覆盖到源文
+          末尾** → **零动作**（notifyReimportUnchanged，不删不烧）→ ③ 无记
+          录 + `segs` 在 →
           逐段比对取**第一条失配段** k：删该题集内 `srcKey` 偏移
           `>= segs[k].s` 的记录（`removeRecords` 既有回收口径）后从该处
           续转；全段命中但整篇哈希不同（文末追加）=从末段 `e` 起续转、一段
           不删；④ 无 `segs`（存量/旧记录）→ 现状行为整卷重转。
           ⚠️ **无段表就不认整篇哈希**（凭据缺失宁多烧不漏转，且两者同点写入
-          不该分叉）。
+          不该分叉）。**「哈希命中」只是必要条件**（Issue #208）：`srcContentHash`
+          每批落库就写、**不是成功收口才写**，半成品题集因此带着「整篇已记」
+          的凭据——故 ② 还要求段表覆盖到源末（`segs[末].e >= src.length`），
+          只覆盖前缀时落回 ③ 的「全段命中 → 从末段 `e` 续转」，接住「半成品
+          源未变」（旧行会误判零动作、报「无需重转」卡死续转）。
+        - **续跑接管与段表对账**（`SetSegments.resumeCursorOf`，Issue #208）：
+          续跑起跑游标取 `max(0, 记录偏移, 段表末段 e)`——段表末段是**已落库
+          连续前缀的权威游标**，记录偏移落后于它（旧检查点/异常残留）时以段表
+          为准，免得重转重复落库；源已变（哈希失配）返回 0、游标按记录原值
+          （不在此处猜，交给 `refreshSetHash` / 重导段比对）。配套两条：
+          `settleFailed` 记记录的条件放宽为 `setId && (count > 0 || doneOffset > 0)`
+          （续跑首批就挂时 count=0 但断点在，原先「清了没写回」）；
+          `DocOps.startReimport` 的清记录只在 `!resume` 路（续跑不再先毁断点）。
+          ⚠️ 抉择态（`settleAborted`）**有意不写记录**——写了会与面板「丢弃
+          进度」抢跑道（丢记录 + 回收题集＝删掉用户正要续的题集）；重载丢抉择
+          态的口子由上面 ② 的收紧兜底（测试里有行为回归锁）。
         - **源文本必须两边同源**：`DocOps.srcTextOf` 读源时剥的 IAL 正则与
           `ConvertBatch` 入口**逐字一致**——两边取的不是同一条字符串，哈希
           永远命中不了「未变更」（`SetSegments` 侧另有单测锁同源）。

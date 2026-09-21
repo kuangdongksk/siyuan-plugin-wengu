@@ -104,8 +104,9 @@ export type ReimportDecision =
  * 题集，不做未变更短路，也不做段比对）。
  *
  * 无记录时的三段判定：
- * 1. `srcContentHash` 命中且等于当前源哈希 → `unchanged`（连长度都一致时
- *    的整篇短路也走这条：同一个哈希函数，长度不同必然不同哈希）；
+ * 1. `srcContentHash` 命中且等于当前源哈希 **且段表已覆盖到源文末尾** →
+ *    `unchanged`（连长度都一致时的整篇短路也走这条：同一个哈希函数，长度
+ *    不同必然不同哈希）；
  * 2. 哈希不同（或无哈希字段）+ `segs` 在 → 逐段比对取**第一条失配段**；
  *    - 有失配段 k：删 `srcKey` 偏移 `>= segs[k].s` 的记录，从该处续转；
  *    - 全段命中（变更在已转区外，如文末追加）：从末段 `e` 起续转，**一段
@@ -121,7 +122,14 @@ export function planReimportBySegs(src: string, set: SegSetView | undefined): Re
     // 宁多烧不漏转，且「有哈希无段表」的形态本身不该出现（两者同点写入）
     if (segs.length === 0) return { kind: "full" };
     const whole = hashContent(src);
-    if (set?.srcContentHash && set.srcContentHash === whole) return { kind: "unchanged" };
+    // 「整篇哈希命中」只是必要条件：`srcContentHash` 每批落库就写（见
+    // ConvertBatch.applySubmit），**不是成功收口才写**——半成品题集因此
+    // 带着「整篇已记」的凭据。故还要求段表覆盖到源文末尾（Issue #208）：
+    // 只覆盖前缀=转了一半，落回下面那条「全段命中 → 从末段 e 续转」的
+    // partial 分支，天然接住「半成品 + 源未变」（不再误判零动作卡死续转）
+    if (set?.srcContentHash && set.srcContentHash === whole && segs[segs.length - 1].e >= src.length) {
+        return { kind: "unchanged" };
+    }
     for (let k = 0; k < segs.length; k++) {
         const seg = segs[k];
         if (hashContent(src.slice(seg.s, seg.e)) !== seg.h) {
@@ -133,6 +141,21 @@ export function planReimportBySegs(src: string, set: SegSetView | undefined): Re
     }
     const tail = segs[segs.length - 1].e;
     return { kind: "partial", from: tail, deleteFrom: tail, keptSegs: segs.length };
+}
+
+/**
+ * 续跑接管的对账游标（Issue #208，纯函数、带单测）：题集记着的整篇哈希与
+ * 当前源一致（**源未变**）且段表非空时，取段表末段 `e`——它是**已落库连续
+ * 前缀的权威游标**（段表每批落库追加，见 `advanceSegs`）；否则返回 0（调用
+ * 方用 `Math.max` 与记录偏移取大，零副作用）。
+ *
+ * 为什么只认「源未变」：源已改时段表末段不再是当前源的落库游标（其后的
+ * 内容按新源重算），此时该由 `refreshSetHash`/重导段比对定夺，**不在这里猜**。
+ */
+export function resumeCursorOf(set: SegSetView | undefined, src: string): number {
+    if (!set?.srcContentHash || set.srcContentHash !== hashContent(src)) return 0;
+    const segs = set.segs ?? [];
+    return segs.length > 0 ? Math.max(0, segs[segs.length - 1].e) : 0;
 }
 
 /** 决策的删除集：题集内 `srcKey` 偏移 >= `from` 的 qid（组题/材料归属都
