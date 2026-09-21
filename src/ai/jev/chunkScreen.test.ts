@@ -44,6 +44,38 @@ const items: ScreenItem[] = [
     { key: "H:b", text: "定义与例题…" },
 ];
 
+describe("会话登记（Issue #201）：判定层把 track 原样递给 judgeJev", () => {
+    it("track 不进线上请求体（它只服务登记，判定请求逐字节不变）", async () => {
+        const { fn, payloads } = mockTransport([{ status: 200, body: body([[0.1, 1]]) }]);
+        await screenChunks([{ key: "k", text: "一小段内容" }], {
+            apiKey: "sk-test",
+            transport: fn,
+            track: { title: "Jev 预筛 · 高等数学" },
+        });
+        expect(JSON.parse(payloads[0])).not.toHaveProperty("track");
+    });
+
+    it("带 track：判定结果与不带时逐字相同（登记只是旁听面）", async () => {
+        const withTrack = await screenChunks([{ key: "k", text: "一小段内容" }], {
+            apiKey: "sk-test",
+            transport: mockTransport([{ status: 200, body: body([[0.1, 1]]) }]).fn,
+            track: { title: "Jev 预筛 · 高等数学" },
+        });
+        const without = await screenChunks([{ key: "k", text: "一小段内容" }], {
+            apiKey: "sk-test",
+            transport: mockTransport([{ status: 200, body: body([[0.1, 1]]) }]).fn,
+        });
+        expect(withTrack).toEqual(without);
+        expect(withTrack.skipped).toBe(1);
+    });
+
+    it("不带 track：判定照跑（登记是可选的旁听面）", async () => {
+        const { fn } = mockTransport([{ status: 200, body: body([[0.1, 1]]) }]);
+        const r = await screenChunks([{ key: "k", text: "一小段内容" }], { apiKey: "sk-test", transport: fn });
+        expect(r.skipped).toBe(1);
+    });
+});
+
 describe("预筛阈值（policy.screenShouldSkip）", () => {
     it("两个条件都明确成立才跳（noul ≤0.2 且 score ≤2 且置信足够）", () => {
         expect(screenShouldSkip(0.1, 1, 0.9)).toBe(true);

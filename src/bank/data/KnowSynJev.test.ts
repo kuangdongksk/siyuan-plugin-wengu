@@ -430,7 +430,12 @@ describe("源级闸（Issue #188：分流单一落点、冻结清单不碰）", 
         const src = await read("/src/bank/data/KnowSynJev.ts");
         expect(src).not.toContain("agentChatOnce");
         expect(src).not.toContain("prompts/");
-        expect(src).not.toContain("aiTitle");
+        // ⚠️ #201 起本模块确实多引了几样 ai 域的东西（会话登记的取词/组类型），
+        // 但**生成式通道一行都进不来**：仍是原断言的本意，故从「黑名单串」改成
+        // 「白名单面」——ai 域的引用只准落在 jev 基建与登记簿类型上。
+        const allowed = ["../../ai/jev/client", "../../ai/jev/policy", "../../ai/data/AiSessions"];
+        const aiHits = [...new Set(src.match(/from "[^"]*ai\/[^"]*"/g) ?? [])].map((h) => h.slice(6, -1));
+        expect(aiHits.filter((h) => !allowed.includes(h))).toEqual([]);
     });
 
     it('写回侧仍是 putMany(writes, "ai")，不新增存储键（缓存口径零变化）', async () => {

@@ -91,7 +91,9 @@ describe("记录详情的流归属说明（停止钮白名单）", () => {
     });
 
     it("单调用流 running：**不出任何停止 UI**（无说明行）", () => {
-        for (const k of ["judge", "word", "ask", "analyze", ""]) {
+        // jev（Issue #201 验收 2）：判定记录也不出停止钮——它不在任何
+        // 多调用流的白名单里（判定没有可停的整批流），故走 none 分支。
+        for (const k of ["judge", "word", "ask", "analyze", "jev", ""]) {
             expect(flowOwnershipOf(rec(k))).toEqual({ kind: "none" });
             expect(ownershipSegsOf(t, flowOwnershipOf(rec(k)))).toEqual([]);
         }

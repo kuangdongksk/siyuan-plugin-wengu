@@ -58,6 +58,31 @@ describe("树头组数=去重类别数（gap-list S9 的徽标语义）", () => 
     });
 });
 
+describe("Jev 判定类别（Issue #201：源级锁，组件不挂载进单测）", () => {
+    let app = "";
+    let zh: Record<string, string> = {};
+    let en: Record<string, string> = {};
+
+    beforeAll(async () => {
+        app = (await import("../components/SessionPanelApp.svelte?raw")).default;
+        zh = (await import("../../i18n/zh-CN.json")).default as unknown as Record<string, string>;
+        en = (await import("../../i18n/en.json")).default as unknown as Record<string, string>;
+    });
+
+    it("KIND_KEYS 含 jev → aiKindJev（类别过滤条与徽标走同一张表）", () => {
+        const i = app.indexOf("const KIND_KEYS");
+        expect(i, "找不到 KIND_KEYS").toBeGreaterThan(-1);
+        const table = app.slice(i, app.indexOf("};", i));
+        expect(table).toMatch(/jev:\s*"aiKindJev"/);
+    });
+
+    it("中英各有一键（缺一个就会把键名渲染给用户）", () => {
+        expect(zh.aiKindJev).toBeTruthy();
+        expect(en.aiKindJev).toBeTruthy();
+        expect(zh.aiKindJev).not.toBe(en.aiKindJev);
+    });
+});
+
 describe("详情头形态（源级锁：meta 常空 + 徽标自吃 auto）", () => {
     let detail = "";
     let css = "";

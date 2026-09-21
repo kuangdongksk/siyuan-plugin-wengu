@@ -351,11 +351,9 @@ export async function convertDocBatched(
     const submit = async (idx: number, batch: SegmentBatch): Promise<number> => {
         if (idx > 0) await gates[idx - 1].promise; // 片序闸门（连续前缀）
         if (internal.signal.aborted) return 0;
-        await judgeBatch(
-            qc,
-            { drafts: batch.drafts, materialText: kramdown.slice(batch.start, batch.end) },
-            opts.settingsOf?.()
-        ); // Issue #184：判定先于落库
+        // Issue #184：判定先于落库（#201：判定登记带文档名）
+        const qcBatch = { drafts: batch.drafts, materialText: kramdown.slice(batch.start, batch.end) };
+        await judgeBatch(qc, qcBatch, opts.settingsOf?.(), info.title);
         const linked = batch.byAlias ? applyKnowDrafts(batch.drafts, batch.byAlias) : 0;
         knowLinked += linked;
         // 纯计算先定下写库参数/题数/批号，执行层照做（见 planSubmit 注释）。
@@ -371,7 +369,7 @@ export async function convertDocBatched(
         signal: internal.signal,
         single: shards.length === 1,
         t,
-        screen: (text) => qc.screen.windowOf(text, opts.settingsOf?.()), // #186 A2 预筛
+        screen: (text) => qc.screen.windowOf(text, opts.settingsOf?.(), info.title), // #186 A2（#201：登记带文档名）
         reportTypes: (types) => {
             const merged = new Set<QuestionType>(genTypes ?? []);
             for (const x of types) merged.add(x);

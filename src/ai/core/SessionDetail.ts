@@ -39,6 +39,7 @@
 import type { AiSessionRecord, AiTurn } from "../data/AiSessions";
 import { AI_INTERRUPTED, AI_STOPPED } from "../data/AiSessions";
 import { leafViewOf, type SessionLeafView } from "./SessionTree";
+import { isJevRecord } from "../jev/track";
 
 /** 详情头：任务名 + kind 徽标 + 状态徽标。 */
 export interface SessionDetailHead {
@@ -386,7 +387,11 @@ export function detailViewOf(
         errorText: rec.status === "error" && !stopped && rec.error !== AI_INTERRUPTED ? rec.error : "",
         // 被停止的记录**不出重试钮**：它是整批流的一部分，单笔重跑会脱离
         // 那条流（设计稿停止屏也没有重试，只有指路抉择的归属备注）。
-        retryable: rec.status === "error" && !stopped,
+        // **Jev 判定记录也不出**（Issue #201，回归锁锁死）：重试走的是
+        // `agentChatContinued`（把历史轮次播种进新会话重放），那是**生成式
+        // 专属**通道——jev 没有续聊通道、没有可重放的会话，出了钮也跑不通；
+        // 判定的重来办法是原动作重跑（换一次判定），不是记录级重试。
+        retryable: rec.status === "error" && !stopped && !isJevRecord(rec),
         decidable: opts.decidable,
     };
 }

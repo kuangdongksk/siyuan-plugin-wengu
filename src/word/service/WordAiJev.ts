@@ -1,6 +1,9 @@
 import { judgeJev, type JevAnswer, type JevQuestion } from "../../ai/jev/client";
 import type { JevTransportFn } from "../../ai/jev/transport";
 import { choiceLowConfidence, noulVerdict } from "../../ai/jev/policy";
+import type { JevTrack } from "../../ai/jev/track";
+import { aiTitle } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import type { WordAiInput } from "./WordAi";
 
 /**
@@ -137,7 +140,15 @@ export type JudgeFn = (opts: {
     apiKey: string;
     transport?: JevTransportFn;
     sleep?: (ms: number) => Promise<void>;
+    /** 会话登记（Issue #201）：判定落「AI 会话」面板的标题/分组。 */
+    track?: JevTrack;
 }) => Promise<JevAnswer[]>;
+
+/** 判定登记的标题（Issue #201）：`Jev 判档 · N 词`（与生成式侧
+ *  `aiTitleWordReview` 同款的「动作名 · 规模」形态，便于两通道对照）。 */
+export function wordReviewTrack(n: number): JevTrack {
+    return { title: aiTitle(tKey, "aiTitleJevWord", { n: String(n) }) };
+}
 
 /**
  * Jev 判档主入口：一批词一次请求 → 判档条目。
@@ -153,6 +164,9 @@ export async function judgeWordReview(
         state: buildWordReviewState(inputs),
         questions: buildWordReviewQuestions(inputs),
         apiKey,
+        // 登记（Issue #201）：一批一次判定 → 一条记录（判定的重来办法是
+        // 攒够又一批再跑一次，没有记录级重试，见 core/SessionDetail）
+        track: wordReviewTrack(inputs.length),
     });
     return gradeFromAnswers(inputs, answers);
 }

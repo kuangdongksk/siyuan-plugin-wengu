@@ -16,11 +16,17 @@
  *  按名组装与取回在 `wireQuestions` / `parseAnswers` 内收口，调用方无感。
  *
  * 与 ai 域既有通道的关系（红线）：
- *  - **不登记 AI 会话面板**：判定不是对话，不产生可回看的产出，登记只会
- *    污染面板的类别树（见 AGENTS.md「AI 会话登记」节）；
- *  - **不走 agentChatOnce/agentChatContinued 与全局在途闸**：那是生成式
- *    通道的机制；判定请求短、廉价，且各落点自带「低置信回落现状」，
- *    并发交由各落点自行节流（一次请求问完，见规划稿 §二 纪律 5）。
+ *  - **登记 AI 会话面板**（**20260921 起，Issue #201 推翻 #183 的「不登记」
+ *    决策**）：六落点的每次判定都按既有登记簿生命周期落一条记录（kind
+ *    固定 `"jev"`，输入侧=state 摘要、输出侧=类型化答案摘要），用户在
+ *    「AI 会话」面板回看得到每次判定问了什么、判成什么、为什么失败。
+ *    ⚠️ jev 记录**没有重试钮**（重试通道 agentChatContinued 是生成式专属，
+ *    jev 没有续聊通道）——面板侧按 kind 排除，见 `core/SessionDetail`；
+ *    登记簿 schema 零新增（`begin/succeed/fail` 现有字段够用）；
+ *  - **不走 agentChatOnce/agentChatContinued 与全局在途闸**（本红线不变）：
+ *    那是生成式通道的机制；判定请求短、廉价，且各落点自带「低置信回落
+ *    现状」，并发交由各落点自行节流（一次请求问完，见规划稿 §二 纪律 5）。
+ *    登记**只挂登记簿、不进 slotGate**（不占生成式槽位、不排队）。
  *
  * 错误政策（Issue #183 需求 2）：
  *  - 401/403            → 抛 `JevAuthError`（key 无效，调用方提示换 key）；
@@ -31,6 +37,7 @@
  *  以上全部由**调用方降级**（本模块从不静默返回假答案）。
  */
 import { JEV_TIMEOUT_MS, kernelProxyTransport, type JevHttpResponse, type JevTransportFn } from "./transport";
+import { beginJevSession, failJevSession, succeedJevSession, type JevTrack } from "./track";
 
 export const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 
@@ -280,6 +287,10 @@ export interface JudgeJevOpts {
     sleep?: (ms: number) => Promise<void>;
     /** 请求超时（缺省 JEV_TIMEOUT_MS.judge，调用点禁自造）。 */
     timeout?: number;
+    /** 会话登记（Issue #201，可选）：带上即把这次判定登记进「AI 会话」面板
+     *  （kind 固定 `"jev"`，见 `track.ts`）；不带=不登记（纯逻辑单测与
+     *  未接线环境零感知）。⚠️ 登记不改变任何判定行为与失败路径。 */
+    track?: JevTrack;
 }
 
 const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -305,13 +316,25 @@ export async function judgeJev(opts: JudgeJevOpts): Promise<JevAnswer[]> {
         timeout,
     };
 
-    let res: JevHttpResponse = await transport(req);
-    if (RETRY_STATUS.has(res.status)) {
-        // 限流/过载：退避一次。第二次仍 429/529 由下面的统一分支上抛
-        await sleep(JEV_TIMEOUT_MS.backoff);
-        res = await transport(req);
+    // 会话登记（Issue #201）：起点在**发出请求之前**（面板要能看到「正在判定」），
+    // 收口统一在下面的 try/catch——成功落类型化答案摘要、失败原样落错误消息。
+    // 登记簿未接线时 `beginJevSession` 返回 undefined，后面两处收口全是空操作。
+    const sid = opts.track ? beginJevSession(opts.track, opts.state) : undefined;
+    try {
+        let res: JevHttpResponse = await transport(req);
+        if (RETRY_STATUS.has(res.status)) {
+            // 限流/过载：退避一次。第二次仍 429/529 由下面的统一分支上抛
+            await sleep(JEV_TIMEOUT_MS.backoff);
+            res = await transport(req);
+        }
+        const answers = handleResponse(opts.questions, res);
+        succeedJevSession(sid, answers);
+        return answers;
+    } catch (e) {
+        // 错误政策与回落口径**一字未动**（登记只旁听，不改判定行为）
+        failJevSession(sid, e);
+        throw e;
     }
-    return handleResponse(opts.questions, res);
 }
 
 /** 状态码政策（与重试解耦，便于单测直击各分支）。 */
