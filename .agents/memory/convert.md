@@ -281,13 +281,21 @@
   仍在跑「正确项写最前 ＋ AI 抄原题字母」的自杀组合**：真机重转 220 条
   draft 里 32 条答案字母已错（14.5%），落盘洗牌把错位忠实传播进库。定案
   「库是死的、洗牌是函数、解析无选项字母」，四块咬合：
-    - **keep 序逐题条件规则**（`ai/prompts/protocol.ts` 的 `OPT_LINE_BY_BANK`）：
-      `protocolSpec(types, { bank: true })` 要求 AI **逐题判断**——原文这道题
-      本来就有现成选项 → 按原题顺序与字母原样给出；原文没有（讲义/笔记新造
-      题）→ 正确项写最前。整卷转换（`ConvertBatch` 的 makeCall）与增量重
-      转换（`ConvertIncrement`）都传 `bank=true`；出题/加练/变式链不传
-      （默认变体逐字节不变，prompt 测试锁着）。`order:"keep"`（regen 专用）
-      与 `bank` 并存时 `bank` 优先。
+    - **转换链单规则照抄**（`ai/prompts/protocol.ts` 的 `OPT_LINE_BY_BANK`；
+      20260921 Issue #206 收敛，替代 #131 的「逐题条件规则」）：真机实测逐题
+      判断「有无现成选项」是概率性的——同一卷出两种样式（考点批带 `A.` 标签、
+      精讲批裸内容＋原序＋答案非恒 A 的杂交第三形态），且「正确项写最前」对
+      转换链不成立（选项顺序与答案位置是**源文档事实**，不是可选排列）。
+      现口径＝**纯 transcription，零判断零重排**：`@@P opt` 只写内容不写字母
+      标签、按**原文选项顺序**排列不重排不增删，`@@P ans` 按原文选项顺序数
+      写字母。重排类错误（#131 前 220 条 draft 32 条答案字母错那一类）在结构
+      上不可能再发生。整卷转换（`ConvertBatch` 的 makeCall）与增量重转换
+      （`ConvertIncrement`）仍传 `bank=true`；出题/加练/变式链不传（默认变体
+      「正确项写最前」只归造题链——新造题无原文顺序可保、答案恒 A 便于自检；
+      prompt 测试锁着）。`order:"keep"`（regen 专用，变式解析引用模板字母动
+      不得）与 `bank` 并存时 `bank` 优先。落库归一全链（`normalizeOptionLabels`/
+      `renderUnit`/标记替换/拆行）原样保留作兜底闸；存量不迁移（#176 口径），
+      重转即消化。
     - **写库洗牌全部撤除**：`ConvertSegment`/`ConvertIncrement`/`GenQuestion`/
       `RegenDialog` 四处 `shuffleDraftOptions` 调用点全删——bank 与题源文档
       统一为**死形态**（选项按原文顺序、答案字母指向原文位置）。附带收益：
