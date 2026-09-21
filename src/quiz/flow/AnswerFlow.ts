@@ -10,7 +10,7 @@ import { focusQuestion, syncGroupReveal } from "./MaterialFlow";
 import { gradeQuestion, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { jevSameOf } from "../service/GapJudge";
 import type { GapReviewBindings } from "./GapReview";
-import { reviewGap } from "./GapReview";
+import { applyGapSame, reviewGap } from "./GapReview";
 import { markNum, qIndexById } from "../render/FlowDom";
 import { markNumRailAnswered, markNumRailRevealed } from "../render/NumRail";
 import { allCards, allCardsGraded } from "../render/CardRegistry";
@@ -156,8 +156,15 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
     // 填空语义判等复核（Issue #187）：失配才问、只说同才翻对（在途件在
     // flow/GapReview；本题已作答过则零调用）。after 模式在此不揭对错，
     // 复核在途态也只报「已作答」，与收卷前的口径一致。
-    const ok = await reviewGap({ host, q, ctl, submitted, ok: gradeQuestion(q, submitted) });
-    host.recordAnswer(q.id, submitted, ok);
+    //
+    // ⚠️ **判定与落账必须夹住 recordAnswer**（20260921 复核修正）：判同标记
+    // 是按 qid 改**已存在**的会话记录，判定段里顺手落账时记录还没建出来
+    // （`applyJevSame` 找不到 ⇒ 静默丢标记）。故顺序钉死为
+    // 「判定 → recordAnswer → applyGapSame」。
+    const site = { host, q, ctl, submitted, ok: gradeQuestion(q, submitted), recordQid: q.id };
+    const outcome = await reviewGap(site);
+    host.recordAnswer(q.id, submitted, outcome.ok);
+    applyGapSame(site, outcome);
     if (batch) {
         // 统一展示：先只记「已作答」，不揭对错（避免剧透）
         ctl.setResult(esc(host.t("answeredPending")), "warn");
@@ -165,7 +172,7 @@ export async function submitQuestion(host: AnswerHost, q: WenguQuestion, ctl: Ca
         checkAllDone(host);
         return;
     }
-    revealCard(host, ctl, q, { submitted, ok });
+    revealCard(host, ctl, q, { submitted, ok: outcome.ok });
     showQTime(host, ctl, q.id);
     checkAllDone(host);
 }
@@ -413,7 +420,7 @@ export function revealCard(
         // 「Jev 判同」标记（Issue #187）：复核翻对的题在结果行留痕，收卷
         // 重画与恢复重渲染都按会话里的判同标记补回（否则标记只活在
         // 提交那一瞬，收卷即丢）。标记来源：入参（收卷快照）或会话结果。
-        const same = r.jevSame || jevSameOf(host.currentSession()?.results, q.id);
+        const same = !!(r.jevSame || jevSameOf(host.currentSession()?.results, q.id));
         ctl.setResult(
             r.ok
                 ? `${esc(host.t("correct"))}${same ? esc(host.t("jevSameMark")) : ""}`

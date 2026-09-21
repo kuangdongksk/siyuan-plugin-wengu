@@ -134,21 +134,27 @@ export interface GapJudgeCtx {
     verdict?: GapJudgeFn;
 }
 
-/** 该键是否值得问（判对 / 非填空 / 无 key / 已问过：一律不问）。 */
+/** 该键是否值得**发请求**（判对 / 非填空 / 无 key / 已问过：一律不问）。
+ *
+ *  ⚠️ `!c.verdict` 这一条是**验收 1 的守门人**：没配 key 时判定函数是
+ *  undefined，本层必须彻底不参与——连「缓存回放」都不做（否则用户哪天
+ *  清掉 key，旧判同缓存还能改分，「无 key 零行为变化」就破了）。 */
 export function shouldReviewGap(c: GapJudgeCtx): boolean {
     if (c.ok || c.type !== QuestionType.Fill || !c.verdict) return false;
     return !(c.asked?.(c.key) ?? false);
 }
 
-/** 判定链：失配时问 Jev，**只说同才翻对**；其余情况返回本地结论。
- *  `verdict` 自身已吞错，外层 catch 只是兜底（不许让复核拖垮作答链）。 */
-export async function resolveGapVerdict(c: GapJudgeCtx): Promise<boolean> {
-    if (!shouldReviewGap(c)) return c.ok;
-    try {
-        return (await c.verdict!(c.input)) || c.ok;
-    } catch (_) {
-        return c.ok;
-    }
+/** 该键是否**已判同**（缓存命中 ⇒ 零请求直接回放「对」）。
+ *
+ *  ⚠️ 与 `shouldReviewGap` 是**两个问题**：那个答「要不要花钱问」，
+ *  这个答「要不要照旧结论办」。混成一个谓词就是先前的缺陷形态——after
+ *  模式用户改答再改回同一串时，只「不问」而不回放，结果被翻成判错，
+ *  与前一秒界面上的「Jev 判同」自相矛盾。
+ *
+ *  同样钉死「无 key（`!c.verdict`）⇒ 不参与」，见上一条头注。 */
+export function gapKnownSame(c: GapJudgeCtx): boolean {
+    if (c.ok || c.type !== QuestionType.Fill || !c.verdict) return false;
+    return c.asked?.(c.key) ?? false;
 }
 
 /* ── 判同标记与记账（只动本轮会话结果） ── */
@@ -159,18 +165,25 @@ export interface JevSameSink {
     results: { qid: string; submitted: string; ok: boolean; jevSame?: boolean }[];
 }
 
-/** 判同后写会话：翻 `ok` + 挂 `jevSame` 标记，并微调本轮 `correct`。
+/** 判同后写会话：挂 `jevSame` 标记，并在「由错翻对」时微调本轮 `correct`。
  *  只在本轮结果里改（会话已换/该题不在本轮 ⇒ false，静默不改）。
+ *
+ *  ⚠️ **标记与翻对分开写**（20260921 复核修正）：调用方是「先 `recordAnswer`
+ *  再标记」（记录不存在时标记无处可挂），故 `r.ok` 很可能已是 true——此时
+ *  仍必须落 `jevSame`，否则界面的「Jev 判同」永远不出现；`correct` 只在
+ *  真由错翻对时 +1（已是对 = 记账早就入过，不许重复涨）。
+ *
  *  **不新增持久化字段之外的任何存储动作**：题块属性与题库统计维持首次
  *  作答的 `recordAnswer` 口径（复核只补「对」的事实，不重复记一次账）。 */
 export function applyJevSame(session: JevSameSink | undefined, qid: string, submitted: string): boolean {
     const r = session?.results.find((x) => x.qid === qid);
     if (!session || !r) return false;
-    if (r.ok) return true; // 已被别处改判为对：标记交给调用方按需补
-    r.ok = true;
-    r.submitted = submitted;
     r.jevSame = true;
-    session.correct = Math.max(0, session.correct + 1);
+    if (!r.ok) {
+        r.ok = true;
+        r.submitted = submitted;
+        session.correct = Math.max(0, session.correct + 1);
+    }
     return true;
 }
 

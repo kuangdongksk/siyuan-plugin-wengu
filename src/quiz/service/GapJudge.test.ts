@@ -5,6 +5,7 @@ import {
     gapAskedKey,
     gapInputOf,
     gapJudgeState,
+    gapKnownSame,
     gapVerdictOf,
     jevSameOf,
     makeGapVerdict,
@@ -92,6 +93,23 @@ describe("触发闸：判对 / 非填空 / 无 key / 已问过一律零调用", 
         expect(
             shouldReviewGap({ ok: false, type: QuestionType.Fill, key: "k", input, verdict, asked: () => false })
         ).toBe(true);
+    });
+
+    it("无 key 时**缓存也不参与**（gapKnownSame 为 false）—— 验收 1 的守门人", () => {
+        // 没配 key 时不该有任何改分机会，连「旧判同缓存回放」都不行：
+        // 用户清掉 key 后，历史缓存绝不能继续把字面失配翻成对。
+        expect(gapKnownSame({ ok: false, type: QuestionType.Fill, key: "k", input, asked: () => true })).toBe(false);
+        const verdict = async (): Promise<boolean> => true;
+        expect(gapKnownSame({ ok: false, type: QuestionType.Fill, key: "k", input, verdict, asked: () => true })).toBe(
+            true
+        );
+        // 判对 / 非填空：同样不算「已知判同」
+        expect(gapKnownSame({ ok: true, type: QuestionType.Fill, key: "k", input, verdict, asked: () => true })).toBe(
+            false
+        );
+        expect(
+            gapKnownSame({ ok: false, type: QuestionType.Single, key: "k", input, verdict, asked: () => true })
+        ).toBe(false);
     });
 });
 
@@ -225,11 +243,14 @@ describe("判同入账（只动本轮会话结果，不新增持久化字段）"
         expect(s.correct).toBe(2);
     });
 
-    it("已是对：不重复涨计数（复核不重复记账）", () => {
+    it("已是对：**仍要挂标记**（界面靠它出「Jev 判同」），但不重复涨计数", () => {
+        // 20260921 复核修正：调用方是「先 recordAnswer 再落标记」，走到这里
+        // 时 ok 多半已是 true——早先的实现在这个分支直接 return，标记永远
+        // 不落，界面上永无「Jev 判同」（真机静默失效）。
         const s = session();
-        applyJevSame(s, "q2", "对答");
-        expect(s.correct).toBe(1);
-        expect(s.results[1].jevSame).toBeUndefined();
+        expect(applyJevSame(s, "q2", "对答")).toBe(true);
+        expect(s.correct).toBe(1); // 记账早已 +1，不许重复涨
+        expect(s.results[1].jevSame).toBe(true);
     });
 
     it("题不在本轮（会话已换）⇒ false，静默不改", () => {

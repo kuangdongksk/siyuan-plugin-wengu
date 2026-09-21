@@ -4,7 +4,7 @@ import { markNum } from "../render/FlowDom";
 import { fillClozeCur, markClozeOpts } from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
 import { gradeSlot } from "../service/QuestionGrading";
-import { reviewGap } from "./GapReview";
+import { applyGapSame, reviewGap } from "./GapReview";
 import type { WenguQuestion } from "../../types";
 import { slotQid } from "../../types";
 import { esc } from "../../ui/shared";
@@ -59,9 +59,13 @@ export function submitSlot(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): vo
 }
 
 /** 逐空复核的**异步补账**（#187）：判定回来判同 ⇒ 翻该空的 ok。
+ *
+ *  ⚠️ **逐空的会话记录身份是 `slotQid(q.id, k)`**（提交那一刻 `settleSlot`
+ *  落的账），判同标记必须按它写（20260921 复核修正：原实现拿整题 id 去查，
+ *  逐空的会话结果永远是 `qid#k` ⇒ 标记 100% 丢失，只有卡面翻色）。
+ *
  *  **不重记逐空账**（那条已在提交那一刻写死；复核只补「对」的事实），
- *  也不重跑收口——整题收口由 `finishSlots` 在判分时按 marks 一次性算出，
- *  故复核回来时只更新 marks 与题号/结果行（若该题已收口）。
+ *  也不重跑收口——整题收口由 `finishSlots` 在判分时按 marks 一次性算出。
  *  未判同/失败/无 key ⇒ 什么都不做（逐空维持现状判错）。 */
 async function reviewSlotGap(
     host: AnswerHost,
@@ -72,7 +76,11 @@ async function reviewSlotGap(
     letter: string,
     ok: boolean
 ): Promise<void> {
-    if (!(await reviewGap({ host, q, slot, submitted: letter, ok }))) return;
+    const site = { host, q, ctl, slot, submitted: letter, ok, recordQid: slotQid(q.id, k) };
+    const outcome = await reviewGap(site);
+    if (!outcome.same) return;
+    // 先落账（会话记录已在同步链里建好），再补卡面/题库——顺序同桌面主链
+    applyGapSame(site, outcome);
     const s = ctl.ui.slots;
     const mark = s?.marks[k];
     if (!mark || mark.ok) return;
