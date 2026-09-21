@@ -702,6 +702,7 @@
   "aiTitleJevGap": "Jev gap judge · Q{n}",
   "aiTitleJevWord": "Jev grading · {n} words",
   "aiTitleJevSyn": "Jev synonyms · {n} pairs",
+  "aiTitleJevChange": "Jev change judge · {name}",
   "aiTitleSourceSet": "{name} · source set",
   "aiStatusRunning": "Running",
   "aiStatusDone": "Done",

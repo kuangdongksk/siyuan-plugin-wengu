@@ -702,6 +702,7 @@
   "aiTitleJevGap": "Jev 判同 · 第 {n} 题",
   "aiTitleJevWord": "Jev 判档 · {n} 词",
   "aiTitleJevSyn": "Jev 判同 · {n} 对",
+  "aiTitleJevChange": "Jev 变更判定 · {name}",
   "aiTitleSourceSet": "{name} · 源卷",
   "aiStatusRunning": "进行中",
   "aiStatusDone": "已完成",
