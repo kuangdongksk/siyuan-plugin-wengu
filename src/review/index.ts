@@ -17,8 +17,9 @@ export function reviewHeadSummary(t: (key: string) => string): string {
 /**
  * 错题本（复习模式，M6 mode="review"）编排：主区（工具行+清单+详情）
  * Svelte 化挂载（20260830，四件套见 core/components/）；rail/side/head
- * 壳 6-5 起与 quiz 主路径同款——本函数只落占位宿主（data-side-host/
- * data-head-host），组件由 QuizShell 的 SideMount 统一挂载。筛选/排序/
+ * 壳 6-5 起与 quiz 主路径同款——本函数只落占位（data-side-host 是 side 的
+ * **挂载锚**、data-head-host 是 head 的组件宿主，见 CardHtml.renderMainShell
+ * 注释与 Issue #202），组件由 QuizShell 的 SideMount 统一挂载。筛选/排序/
  * 选中/缓存持久在 ReviewCtl 单例——外部域（quiz 侧栏/统计面板）在
  * 视图外读写，视图重渲染不丢状态。
  */
@@ -48,7 +49,8 @@ let reviewApp: MountedSvelteApp | undefined;
 export function renderReviewFor(v: ReviewViewAccess): void {
     detachReviewApp();
     // 侧栏/头部落占位（组件由 QuizShell 的 SideMount 挂；次头部 summary
-    // 由 QuizShell 经 reviewHeadSummary() 直取喂 QuizHeadApp）
+    // 由 QuizShell 经 reviewHeadSummary() 直取喂 QuizHeadApp）。
+    // [data-side-host] 是 side 的挂载锚（锚法：挂后自删，见 SideMount）
     v.el.innerHTML =
         RAIL_ANCHOR_HTML +
         "<div data-side-host></div>" +

@@ -1,5 +1,16 @@
 # src/quiz/ —— 做题主流程
 
+- **侧栏挂载＝锚法（Issue #202，20260921）**：`flow/SideMount.mountSideFor`
+  以 `v.el`（`.wengu-panel`）为 **target**、壳内 `[data-side-host]` 占位只作
+  **anchor**、挂后 `host.remove()`（同 `RailMount.mountRailFor` 惯用法）。
+  坑：6-5 侧栏 Svelte 化时是「直挂进占位宿主」，`.wengu-side` 由 `.wengu-panel`
+  直接子元素沦为无样式 block 宿主的子元素 ⇒ 高度 `auto` 塌成内容高（底色/右边框
+  在内容结束处截断、`.wengu-side-body` 的 `flex:1 + overflow-y:auto` 内滚窗随父级
+  无确定高一起失效、长目录长出视口——#96/#146 高度链断点）。两处壳
+  （`render/CardHtml.renderMainShell` / `review/index.ts`）的 `data-side-host`
+  占位**保留作锚**，CSS 零改动、DOM 契约逐字不变；review 路径走同一 `mountSideFor`
+  自动修复。装配链由 `flow/SideMount.contract.test.ts` 源级断言锁死（#141/#142
+  教训：纯函数测试锁不住装配链）。
 - **填空语义判等复核（Issue #187，20260921；规划稿 §三 B1）**：本地精确判分
   **失配**时问 Jev 一次「语义等价吗」，**≥0.9 才翻对**并标「Jev 判同」——
   ≤0.2 与中间档一律维持判错（不做模糊改判）；无 key/失败/超时全静默回落现状。

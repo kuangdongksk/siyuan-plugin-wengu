@@ -115,9 +115,11 @@ export interface MainShellModel {
 }
 
 /** 面板整体 innerHTML（目录 + 主区，加载/错误/开刷/作答四态）。
- *  6-5 起侧栏与头部改 Svelte 组件挂载（SideMount），这里只放空
- *  占位宿主（data-side-host/data-head-host）；次头部/专题/搜索词等
- *  挂载入参由 SideMount 从视图取，不再经本壳透传。 */
+ *  6-5 起侧栏与头部改 Svelte 组件挂载（SideMount），这里只放两个占位
+ *  div——`[data-head-host]` 是组件宿主（`.wengu-head` 直挂）；侧栏那颗
+ *  `[data-side-host]` **只是挂载锚**（Issue #202 起，锚法：组件根插到锚位
+ *  后锚自删），`.wengu-side` 须直接子元素 `.wengu-panel` 才能 stretch 全高。
+ *  次头部/专题/搜索词等挂载入参由 SideMount 从视图取，不再经本壳透传。 */
 export function renderMainShell(m: MainShellModel): string {
     const main = (body: string) =>
         `<div data-side-host></div><div class="wengu-main">
