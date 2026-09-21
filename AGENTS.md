@@ -45,6 +45,14 @@
   **`pnpm exec eslint .`（不带 `--fix`）** 对齐 CI 口径。
   ⚠️ 本地 `pnpm lint` 是 `eslint . --fix`，**会就地改文件** —— 别在正在开发的
   工作区跑。CI 里刻意不用它：`--fix` 会把违规直接改掉再退出 0，门禁形同虚设。
+- **PR 评审先看 Jev 可信度预检**（20260921 接入 TypeSafe 的 Jev 判定模型，调度基础
+  设施）：CI 在 PR 流水线自动跑（`.cnb/scripts/jev-pr-review.mjs`），评论落 PR、
+  带 `jev-pr-review:v1` marker 覆写不刷屏；判定含总评/描述一致性/夹带/存量数据
+  红线/隐藏高危面/测试弱化/工程质量分。**预检仅供参考、不是合并门禁**——低置信
+  （choice<0.5）强制回落「需人工细看」，脚本失败也不红流水线。本地复跑：
+  `node .cnb/scripts/jev-pr-review.mjs <PR号> [--post]`（数据走 cnb CLI，零 token
+  处理）。key 走 `TYPESAFE_API_KEY` 环境变量（别名 `JEV_KEY`；CI 从私有仓库
+  imports 注入，启用步骤见 `.cnb.yml` 注释与脚本头注）；key 未配时 CI 自动跳过。
 - 只读操作（看代码、查内核 API、跑只读 SQL）不受此限，随时可做。
 
 ## 分支与协作（CNB + NPC）——动代码前先读

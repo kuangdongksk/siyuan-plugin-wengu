@@ -54,11 +54,19 @@ $:
     - name: quality-gate
       docker:
         image: node:24
+      # Jev 可信度预检的 key 注入（启用步骤，见 .cnb/scripts/jev-pr-review.mjs 头注）：
+      # 1) 建一个私有仓库，提交 envs.yml，内容一行：`TYPESAFE_API_KEY: <你的key>`
+      # 2) 打开下一行注释并改成实际路径（env 优先级高于 imports）：
+      # imports: https://cnb.cool/<组织>/<私有仓库>/-/blob/main/envs.yml
       stages:
         - name: install
           script: "corepack enable && pnpm install --frozen-lockfile"
         - name: check
           script: "pnpm format:check && pnpm exec eslint . && pnpm check:svelte && pnpm check:lines && pnpm test"
+        # Jev PR 可信度预检：只出判定落评论，不是门禁——低置信强制回落人工，
+        # 脚本自身失败/未配 key 都只打日志（exit 0），不挡质量门。
+        - name: jev-review
+          script: "node .cnb/scripts/jev-pr-review.mjs"
 
   issue.comment@npc:
     default:
