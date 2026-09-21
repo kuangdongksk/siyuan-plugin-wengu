@@ -1,4 +1,4 @@
-import type { ConvertProgressRecord } from "./service/run/ConvertBatch";
+import type { ConvertProgressRecord, ConvertQc } from "./service/run/ConvertBatch";
 import { openConvertDialog } from "./ui/ConvertDialog";
 import { openConvertPanel } from "./ui/ConvertPanel";
 import {
@@ -121,8 +121,9 @@ export interface ConvertViewAccess {
     switchPreviewDoc(id: string, title: string, count: number): void;
     applyQuizList(list: WenguQuestion[], materials?: WenguMaterial[]): void;
     reloadView(): void;
-    /** 转换完成收尾（pendingDoc/选中/刷新/状态条）。 */
-    onConvertDone(r: { setId: string; title: string; count: number; message?: string }): void;
+    /** 转换完成收尾（pendingDoc/选中/刷新/状态条）。
+     *  `qc` = Jev 转换质检结果（Issue #184；**只在判出存疑时有此键**）。 */
+    onConvertDone(r: { setId: string; title: string; count: number; message?: string; qc?: ConvertQc }): void;
     /** 把页内转换条滚进视野（面板横幅「前往页内转换条抉择」链；
      *  Issue #85——横幅与页内条是同一动作的两个位置）。 */
     revealConvertBar(): void;
@@ -165,6 +166,9 @@ export function convertRunEventsFor(v: ConvertViewAccess): ConvertRunEvents {
             v.onConvertDone(r);
         },
         saveProgress: (srcDocId, rec) => v.saveConvertProgress(srcDocId, rec),
+        // 转换质检（Issue #184）：总闸与 key 取自同一处设置（`isJevEnabled`
+        // 判总闸，这里是唯一透传点）；宿主未接设置 ⇒ 不判定（现状行为）
+        settingsOf: () => v.settingsOf?.(),
         // 批量队列（Issue #37）：逐篇查各篇自己的续跑记录（断点续跑语义
         // 与单篇一致），分篇终态仅用于运行器内部翻牌——页内转换条由
         // onStatus 的队列总行文案承担，这里无需额外渲染

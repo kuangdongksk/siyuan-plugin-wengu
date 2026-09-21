@@ -5,6 +5,7 @@ import { extractBlockId, getDocInfo } from "../../convert/service/core/ConvertSe
 import { KernelBlock } from "../../siyuan/block";
 import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/source/SrcChunk";
 import { convertIncremental, sourceChunksOf } from "../../convert/service/run/ConvertIncrement";
+import { chunkQcSummary } from "../../ai/jev/convertChecks";
 import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { readRecordSrcGroups, removeRecords } from "../../bank/data/BankSets";
 import { planReimportBySegs, qidsFromOffset, segViewOf } from "../../convert/service/source/SetSegments";
@@ -293,6 +294,8 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                             ),
                             "muted"
                         ),
+                    // 质检设置（Issue #184）：增量链的判定先于落库，失败静默跳过
+                    settingsOf: () => v.settingsOf(),
                 });
             } catch (e) {
                 failed = errText(e);
@@ -302,11 +305,17 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
             if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
             // 零产物 + 悬空 group=prev 两段收尾点名（Issue #148：后者静默
             // 降级会让「题目分开了」重现却无从察觉）
+            // Jev 存疑（Issue #184）：**有存疑才拼这段**，且拼的是「哪一项 +
+            // 一句原因」明细（与整卷报告同一套 `suspectLabel` 口径）——只说
+            // 「N 块存疑」等于没说是什么毛病。无 key / 无踩雷时终态文案与
+            // 改造前逐字一致（增量链的零 Jev 痕迹是硬口径）。
+            const qcDetail = res!.qc ? chunkQcSummary(t, res!.qc) : null;
             const tail =
                 (res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "") +
                 (res!.danglingGroups > 0
                     ? ` ${esc(fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) }))}`
-                    : "");
+                    : "") +
+                (qcDetail ? ` ${esc(qcDetail)}` : "");
             ev.onStatus(
                 esc(
                     fmt(res!.aborted ? t("incrAborted") : t("incrDone"), {
@@ -328,7 +337,9 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                         (res!.empty > 0 ? ` ${fmt(t("incrEmpty"), { n: String(res!.empty) })}` : "") +
                         (res!.danglingGroups > 0
                             ? ` ${fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) })}`
-                            : "")
+                            : "") +
+                        // Jev 存疑明细（Issue #184）：与状态条同源，用户切走了也看得见
+                        (qcDetail ? ` ${qcDetail}` : "")
                 );
             await v.reloadView();
         });

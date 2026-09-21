@@ -1,6 +1,6 @@
 import { errText } from "./../../../ui/shared";
 import { convertDocBatched } from "../run/ConvertBatch";
-import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "../run/ConvertBatch";
+import type { BatchedResult, ConvertProgress, ConvertProgressRecord, ConvertQc } from "../run/ConvertBatch";
 import { SetWriter } from "../output/SetWriter";
 import { esc, fmt } from "../../../ui/shared";
 import { notifyError, notifyInfo } from "../../../ui/Notify";
@@ -8,6 +8,7 @@ import type { QuestionBank } from "../../../bank/data/QuestionBank";
 import type { SubDocRef } from "../source/SubDocs";
 import { runBatchQueue } from "./ConvertBatchQueue";
 import { AI_STOPPED } from "../../../ai/data/AiSessions";
+import { qcOf, type QcSettings } from "./ConvertQc";
 import {
     batchMetaOf,
     getAborted,
@@ -72,12 +73,15 @@ export interface ConvertRunEvents {
     onStopChoice(info: { count: number; batches: number; total: number; message?: string }): void;
     /** 全部丢弃后的页面复位。 */
     onCancel?(): void;
-    onDone(r: { setId: string; title: string; count: number; message: string }): void;
+    /** 收尾（`qc` 只有判出存疑时才有键，Issue #184）。 */
+    onDone(r: { setId: string; title: string; count: number; message: string; qc?: ConvertQc }): void;
     saveProgress(srcDocId: string, rec: ConvertProgressRecord | undefined): void;
     /** 批量队列里一篇的终态（进度行翻牌用；单篇流程不调）。 */
     onBatchItem?(item: ConvertBatchItem): void;
     /** 某源文档的未完成续跑记录（批量队列逐篇查用；单篇走 cfg.resume）。 */
     getProgress?(srcDocId: string): ConvertProgressRecord | undefined;
+    /** 本跑设置（Issue #184）：质检总闸与 Jev key（缺省=不判定）。 */
+    settingsOf?(): QcSettings | undefined;
 }
 
 /** 批量队列里一篇的状态（面板分篇进度行）。 */
@@ -264,6 +268,7 @@ export async function runSingleDoc(
             resume,
             knowRoots: cfg.knowRoots,
             bank: ev.bank,
+            settingsOf: () => ev.settingsOf?.(), // 质检设置（Issue #184）
             // 逐批断点检查点（Issue #62）：**仅队列内**接（inQueue）——批量
             // 队列中途被关思源/崩溃时，正在跑的那篇也得有可续跑的进度记录
             // （原先只有 failed/「保留」抉择才落记录）。单篇流程不接，进度
@@ -490,5 +495,5 @@ async function finishRun(ev: ConvertRunEvents, r: BatchedResult): Promise<void> 
     if (!r.setId) return;
     await ev.bank?.flush().catch((): void => undefined);
     notifyInfo({ key: "notifyConvertDone", vars: { n: String(r.count) } }); // 长任务完成，用户可能已切走
-    ev.onDone({ setId: r.setId, title: r.title ?? "", count: r.count, message: r.message });
+    ev.onDone({ setId: r.setId, title: r.title ?? "", count: r.count, message: r.message, ...qcOf(r) });
 }

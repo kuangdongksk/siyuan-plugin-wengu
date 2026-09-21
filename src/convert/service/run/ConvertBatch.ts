@@ -23,6 +23,7 @@ import { KernelBlock } from "../../../siyuan/block";
 import { runSegment } from "./ConvertSegment";
 import type { SegmentBatch, SegmentDeps, SegmentResult } from "./ConvertSegment";
 import { gate, isBlankSource, MAX_CONCURRENCY, percentOf, SHARDS_PER_WORKER, doneMessageOf } from "./ConvertBatchTypes";
+import { judgeBatch, QcAcc, terminalOf, type QcSettings } from "./ConvertQc";
 
 import type {
     BatchedResult,
@@ -40,6 +41,7 @@ export type {
     BatchedResult,
     ConvertProgress,
     ConvertProgressRecord,
+    ConvertQc,
     ResumeInfo,
     SubmitPlan,
 } from "./ConvertBatchModel";
@@ -98,6 +100,8 @@ export async function convertDocBatched(
         /** 动作分组（AI 会话面板树归并）：生成/路由挂同组；缺省=本流程
          *  自生成一组。 */
         trackGroup?: AiSessionGroup;
+        /** 本跑设置（Issue #184）：质检总闸与 key（缺省=不判定）。 */
+        settingsOf?(): QcSettings | undefined;
         /** 每批落库后的断点检查点（Issue #62）：载荷即「此刻可续跑的进度
          *  记录」，由批量队列逐篇持久化（单篇流程不接）。⚠️ 中途值
          *  `batches` 只能是**已落库批数**（与收口记录的「AI 调用批数」
@@ -210,6 +214,7 @@ export async function convertDocBatched(
     let emptyBatches = 0;
     let anchorMiss = 0;
     let danglingGroups = 0;
+    const qc = new QcAcc(); // Jev 质检（Issue #184）：状态在 ConvertQc（不落盘）
     let refused = ""; // 首片首批判定「不能出题」的原因（零产物收口时用）
     let firstError = "";
     /** 学科是否已落库（Issue #83；首批报出后写一次，后续批次不再重复调） */
@@ -348,6 +353,11 @@ export async function convertDocBatched(
     const submit = async (idx: number, batch: SegmentBatch): Promise<number> => {
         if (idx > 0) await gates[idx - 1].promise; // 片序闸门（连续前缀）
         if (internal.signal.aborted) return 0;
+        await judgeBatch(
+            qc,
+            { drafts: batch.drafts, materialText: kramdown.slice(batch.start, batch.end) },
+            opts.settingsOf?.()
+        ); // Issue #184：判定先于落库
         const linked = batch.byAlias ? applyKnowDrafts(batch.drafts, batch.byAlias) : 0;
         knowLinked += linked;
         // 纯计算先定下写库参数/题数/批号，执行层照做（见 planSubmit 注释）。
@@ -438,55 +448,30 @@ export async function convertDocBatched(
         anchorMiss += r.anchorMiss;
     }
     if (userAborted || firstError) {
-        await opts.bank.flush().catch((): void => undefined); // 已落库部分先保住（保留抉择的标的）
-        return {
-            status: userAborted ? "aborted" : "failed",
-            message: userAborted ? "" : `${t("convertAiFailed")}${firstError}`,
+        // 已落库部分先保住（保留抉择的标的）
+        await opts.bank.flush().catch((): void => undefined);
+    }
+    return terminalOf(
+        t,
+        qc,
+        {
+            aborted: userAborted,
+            firstError,
+            noProducts: writtenQids.length === 0 && previewMats.length === 0,
             count,
-            batches: aiBatches,
-            total: aiBatches,
-            doneOffset: flushedCursor,
             setId,
             title: setId ? info.title : undefined,
-            writtenQids,
-        };
-    }
-
-    // 全程零产物（含续跑零新增）：续跑时题集保持原样按完成收口，全新
-    // 转换按无题失败（首片首批判定说不宜出题时用它给的原因）
-    if (writtenQids.length === 0 && previewMats.length === 0) {
-        if (setId) {
-            return {
-                status: "done",
-                message: t("convertResumeSettled"),
-                setId,
-                title: info.title,
-                count: 0,
-                batches: aiBatches,
-                total: aiBatches,
-                doneOffset: kramdown.length,
-                writtenQids,
-            };
-        }
-        return zero("failed", refused || t("convertNoQuestions"));
-    }
-    // 完成消息 =「题型 · 知识点数」+ 自检警告（插图/空批/定位/**悬空
-    // group=prev**，Issue #148）；拼接体是纯函数 doneMessageOf（单测直锁）。
-    const message = doneMessageOf(
-        t,
-        { types: genTypes, knowLinked },
-        { src: kramdown, out: generatedKds.join("\n\n") },
-        { emptyBatches, anchorMiss, danglingGroups }
+            cursor: flushedCursor,
+            srcLen: kramdown.length,
+            refusedMessage: refused || t("convertNoQuestions"),
+            message: doneMessageOf(
+                t,
+                { types: genTypes, knowLinked },
+                { src: kramdown, out: generatedKds.join("\n\n") },
+                { emptyBatches, anchorMiss, danglingGroups }
+            ),
+        },
+        aiBatches,
+        writtenQids
     );
-    return {
-        status: "done",
-        message,
-        setId: setId!,
-        title: info.title,
-        count,
-        batches: aiBatches,
-        total: aiBatches,
-        doneOffset: kramdown.length,
-        writtenQids,
-    };
 }
