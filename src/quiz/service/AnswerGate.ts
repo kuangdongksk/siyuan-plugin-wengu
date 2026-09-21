@@ -82,6 +82,9 @@ export function answerGateFor(v: AnswerGateView, timer: TimerController, qTiming
             settingsOf: () => v.settings,
             session: () => v.currentSession(),
             persist,
+            // 会话登记标题的题号（Issue #201）：惰性读当前题序（构造期
+            // questions 还没装载，与 settings 同理）
+            questionNo: (q) => v.questions().indexOf(q) + 1,
         }),
     };
 }

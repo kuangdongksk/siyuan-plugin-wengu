@@ -20,6 +20,7 @@
 import { judgeJev, type JevAnswer, type JevQuestion } from "./client";
 import { fmt } from "../../ui/shared";
 import type { JevTransportFn } from "./transport";
+import type { JevTrack } from "./track";
 import { noulVerdict, scoreLowConfidence } from "./policy";
 
 /* ── 输入形状（与 convert 域 DraftUnit 结构性兼容，故意不 import） ── */
@@ -176,6 +177,9 @@ export interface CheckBatchOpts {
     transport?: JevTransportFn;
     /** 退避等待注入（单测避免真睡）。 */
     sleep?: (ms: number) => Promise<void>;
+    /** 会话登记（Issue #201，可选）：本批的判定落一条记录（kind 固定
+     *  `"jev"`）；标题/组由调用方给（逐批质检挂同组，面板树归并）。 */
+    track?: JevTrack;
 }
 
 /** 单题在 `state` 里的紧凑形态：题干 + 选项 + 答案（解析不进质检文本，
@@ -270,6 +274,7 @@ export async function checkBatch(opts: CheckBatchOpts): Promise<JevQcReport> {
             apiKey: key,
             ...(opts.transport ? { transport: opts.transport } : {}),
             ...(opts.sleep ? { sleep: opts.sleep } : {}),
+            ...(opts.track ? { track: opts.track } : {}),
         });
     } catch (_) {
         return empty; // 判定失败 = 跳过（不阻塞转换主流程）

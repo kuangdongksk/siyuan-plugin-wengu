@@ -1,5 +1,8 @@
 import { isJevEnabled, type JevSettingsLike } from "../../ai/jev/enabled";
 import { judgeJev, type JudgeJevOpts } from "../../ai/jev/client";
+import type { JevTrack } from "../../ai/jev/track";
+import { tKey } from "../../ui/Notify";
+import { aiTitle } from "../../ui/shared";
 import { QuestionType } from "../../types";
 import type { WenguQuestion } from "../../types";
 
@@ -94,9 +97,22 @@ export interface GapJudgeOpts {
     timeout?: JudgeJevOpts["timeout"];
 }
 
+/** 判定登记的标题（Issue #201）：`Jev 判同 · 第 N 题`——判定的重来办法
+ *  是「原动作重跑」（同一题再答一次重新问），故题号就是最有用的定位信息。 */
+export function gapJudgeTrack(no: number): JevTrack {
+    return { title: aiTitle(tKey, "aiTitleJevGap", { n: String(no) }) };
+}
+
 /** 组装判定函数：总闸关/无 key ⇒ undefined（调用方零调用开销）；
  *  有 key ⇒ 真请求，失败与不确定落 false。 */
-export function makeGapVerdict(settings: JevSettingsLike | undefined, opts: GapJudgeOpts = {}): GapJudgeFn | undefined {
+export function makeGapVerdict(
+    settings: JevSettingsLike | undefined,
+    opts: GapJudgeOpts = {},
+    /** 题号（1 起；只用于会话登记的标题，缺省 0 = 取不到题号）。
+     *  ⚠️ 与本层其他注入面（transport/sleep/timeout）**分开传**：登记是
+     *  面板可读性问题，不该混进「测试注入接缝」那个口子。 */
+    no = 0
+): GapJudgeFn | undefined {
     if (!isJevEnabled(settings)) return undefined;
     const apiKey = (settings.jevKey ?? "").trim();
     return async (input: GapJudgeInput): Promise<boolean> => {
@@ -108,6 +124,9 @@ export function makeGapVerdict(settings: JevSettingsLike | undefined, opts: GapJ
                 questions: [{ kind: "noul", question: "用户作答与标准答案在该题语境下是否语义等价？" }],
                 apiKey,
                 ...opts,
+                // 登记（Issue #201）：逐题一次判定、各自一条记录（组机制不适合
+                // 本题：一次作答动作只问一次，两题之间没有「同一次动作」关系）
+                track: gapJudgeTrack(no),
             });
             const a = answers[0];
             return a?.kind === "noul" && gapVerdictOf(a.noul) === "same";

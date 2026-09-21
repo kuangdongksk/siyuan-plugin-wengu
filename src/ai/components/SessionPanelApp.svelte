@@ -94,6 +94,7 @@
         word: "aiKindWord",
         ask: "aiKindAsk",
         analyze: "aiKindAnalyze",
+        jev: "aiKindJev",
     };
     const kindLabel = (k: string): string => (KIND_KEYS[k] ? t(KIND_KEYS[k]) : k);
 

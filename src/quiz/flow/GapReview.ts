@@ -71,7 +71,8 @@ function bindingsOf(host: AnswerHost): GapReviewBindings | undefined {
 /** 把现场翻译成 `service/GapJudge` 的判据形状（两个谓词共用一份）。 */
 function ctxOf(host: AnswerHost, c: GapReviewSite): { ctx: GapJudgeCtx; verdict: GapJudgeFn | undefined } {
     const bindings = bindingsOf(host);
-    const verdict = bindings?.jevGapVerdict();
+    // 登记标题要题号（Issue #201）：按现场题目现查（0=拿不到，标题不带题号）
+    const verdict = bindings?.jevGapVerdict(bindings?.jevGapQuestionNo(c.q) ?? 0);
     const asked = bindings ? (key: string): boolean => bindings.jevGapAsked(key) : undefined;
     return { ctx: { ok: c.ok, type: typeOf(c), asked, key: keyOf(c), input: inputOf(c), verdict }, verdict };
 }
@@ -147,11 +148,16 @@ export interface GapReviewWiring {
     session: () => JevSameSink | undefined;
     /** 会话变更落库（`QuizView.persist`）。 */
     persist: () => void;
+    /** 题号查询（1 起；只用于会话登记标题，Issue #201）。可选——测试壳
+     *  不给即 0（标题不带题号，判定链不受影响）。 */
+    questionNo?: (q: WenguQuestion) => number;
 }
 
 /** AnswerHost 三件的形状（成员名与接口逐字一致，`AnswerGate` 侧按它取）。 */
 export interface GapReviewBindings {
-    jevGapVerdict: () => GapJudgeFn | undefined;
+    jevGapVerdict: (no?: number) => GapJudgeFn | undefined;
+    /** 题号查询（1 起；0=拿不到）——判定**当场**调用，故登记标题总是当前题。 */
+    jevGapQuestionNo: (q: WenguQuestion) => number;
     jevGapAsked: (key: string) => boolean;
     jevGapMark: (qid: string, submitted: string, askedKey: string) => boolean;
 }
@@ -165,7 +171,8 @@ export interface GapReviewBindings {
  *  就地改写的是同一个 settings 对象，惰性读取才能让开关立即生效。 */
 export function gapReviewFor(w: GapReviewWiring): GapReviewBindings {
     return {
-        jevGapVerdict: () => makeGapVerdict(w.settingsOf()),
+        jevGapVerdict: (no?: number) => makeGapVerdict(w.settingsOf(), {}, no ?? 0),
+        jevGapQuestionNo: (q) => w.questionNo?.(q) ?? 0,
         jevGapAsked: (key) => gapSameKeys().has(key),
         jevGapMark: (qid, submitted, askedKey) => {
             const wrote = applyJevSame(w.session(), qid, submitted);

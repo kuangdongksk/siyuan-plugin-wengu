@@ -19,6 +19,7 @@
  */
 import { judgeChanges, type ChangeItem, type ChangeOutcome } from "../../../ai/jev/changeJudge";
 import type { JevTransportFn } from "../../../ai/jev/transport";
+import type { JevTrack } from "../../../ai/jev/track";
 import type { IncrementPlan } from "../source/SrcChunk";
 import type { IncrementChoice } from "../../ui/IncrementDialog";
 
@@ -60,6 +61,9 @@ export interface RefineOpts {
     /** 判定传输注入（单测 mock）。 */
     transport?: JevTransportFn;
     sleep?: (ms: number) => Promise<void>;
+    /** 会话登记（Issue #201）：本批判定落一条记录；标题的题集名由调用方
+     *  经 `label` 给（本层不知道文档名，只知道块）。 */
+    track?: JevTrack;
 }
 
 /**
@@ -90,6 +94,7 @@ export async function refineKeepOldChoice(
             apiKey: opts.apiKey,
             ...(opts.transport ? { transport: opts.transport } : {}),
             ...(opts.sleep ? { sleep: opts.sleep } : {}),
+            ...(opts.track ? { track: opts.track } : {}),
         });
     } catch (_) {
         return { choice, summary: none }; // 判定层抛错（理论不可达）：保持原选择

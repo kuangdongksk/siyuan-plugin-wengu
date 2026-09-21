@@ -25,6 +25,7 @@
 import { judgeJev, type JevAnswer, type JevQuestion } from "./client";
 import { screenShouldSkip } from "./policy";
 import type { JevTransportFn } from "./transport";
+import type { JevTrack } from "./track";
 
 /* ── 输入形状 ── */
 
@@ -138,6 +139,10 @@ export interface ScreenOpts {
     transport?: JevTransportFn;
     /** 退避等待注入（单测避免真睡）。 */
     sleep?: (ms: number) => Promise<void>;
+    /** 会话登记（Issue #201，可选）：**每批**一条记录（一组问题=一次判定
+     *  =一条记录，与 requests 1:1）；标题/组由调用方给（它才知道这是哪个
+     *  文档的第几批）。 */
+    track?: JevTrack;
 }
 
 /** 按字符预算把切片切成批（顺序不变、连续覆盖）。 */
@@ -200,6 +205,7 @@ export async function screenChunks(items: ScreenItem[], opts: ScreenOpts): Promi
                 apiKey: key,
                 ...(opts.transport ? { transport: opts.transport } : {}),
                 ...(opts.sleep ? { sleep: opts.sleep } : {}),
+                ...(opts.track ? { track: opts.track } : {}),
             });
         } catch (_) {
             continue; // 判定失败 = 本批一个都不跳（不阻塞转换主流程）

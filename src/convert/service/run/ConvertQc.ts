@@ -20,7 +20,20 @@ import {
 import { screenChunks } from "../../../ai/jev/chunkScreen";
 import { isJevEnabled } from "../../../ai/jev/enabled";
 import { fmt } from "../../../ui/shared";
+import { tKey } from "../../../ui/Notify";
+import { aiTitle } from "../../../ui/shared";
+import type { JevTrack } from "../../../ai/jev/track";
 import type { ConvertQc } from "./ConvertBatchModel";
+
+/**
+ * 判定登记的标题（Issue #201）：`{kind} · {name}` 形态复用 aiTitle 模板，
+ * 面板按第一个「 · 」后的部分作主题（同文档的多次判定在树上合并）。
+ * **登记与身份无关**：只影响面板可读性；名字取不到时用兜底串（不留悬空的
+ * 「 · 」，也不另开一套无参模板键——字典门禁要求 aiTitle* 带参）。
+ */
+export function jevTrackOf(kindKey: string, name: string | undefined): JevTrack {
+    return { title: aiTitle(tKey, kindKey, { name: (name ?? "").trim() || "—" }) };
+}
 
 /** 质检设置的最小面（与 `ai/jev/enabled` 的 `JevSettingsLike` 同口径）。 */
 export interface QcSettings {
@@ -44,14 +57,20 @@ export class ScreenAcc {
     skipped = 0;
 
     /** 本窗口该不该跳（供片执行器在生成之前调用）。 */
-    windowOf(text: string, settings: QcSettings | undefined): Promise<boolean> {
-        return this.judge(text, settings);
+    windowOf(text: string, settings: QcSettings | undefined, docTitle?: string): Promise<boolean> {
+        return this.judge(text, settings, docTitle);
     }
 
-    private async judge(text: string, settings: QcSettings | undefined): Promise<boolean> {
+    private async judge(text: string, settings: QcSettings | undefined, docTitle?: string): Promise<boolean> {
         if (!isJevEnabled(settings)) return false;
         try {
-            const out = await screenChunks([{ key: "", text }], { apiKey: settings?.jevKey });
+            const out = await screenChunks([{ key: "", text }], {
+                apiKey: settings?.jevKey,
+                // 登记（Issue #201）：整卷链的窗口是逐批自推进的、事前不知数量，
+                // 故不带组（组 id 要动作入口一次生成）；标题带文档名，
+                // 同文档的多次窗口判定在树上按主题合并。
+                track: jevTrackOf("aiTitleJevScreen", docTitle),
+            });
             this.skipped += out.skipped;
             return out.verdicts[0]?.skip === true;
         } catch (_) {
@@ -106,10 +125,17 @@ export class QcAcc {
 export async function judgeBatch(
     acc: QcAcc,
     batch: { drafts: CheckDraft[]; materialText: string },
-    settings: QcSettings | undefined
+    settings: QcSettings | undefined,
+    docTitle?: string
 ): Promise<void> {
     if (!isJevEnabled(settings)) return;
-    const report = await checkBatch({ ...batch, apiKey: settings?.jevKey });
+    const report = await checkBatch({
+        ...batch,
+        apiKey: settings?.jevKey,
+        // 登记（Issue #201）：同一次转换的逐批质检挂同组（组 id 由 ConvertBatch
+        // 生成，面板左栏归并成一棵「转换 · 文档名」子树）。
+        track: jevTrackOf("aiTitleJevConvert", docTitle),
+    });
     if (report.checked === 0) return; // 未判定（失败/无题）＝本批无痕
     acc.checked += report.checked;
     acc.suspects.push(...report.suspects);

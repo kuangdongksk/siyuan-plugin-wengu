@@ -82,6 +82,9 @@ export async function runSynonymPhase(deps: SynPhaseDeps): Promise<SynPhaseResul
             apiKey: deps.settings!.jevKey!.trim(),
             signal: deps.stop.signal,
             onFail,
+            // 会话登记（Issue #201）：本相各批判定挂调用方给的组（与生成式
+            // 通道同一组 id：面板树上「一次匹配/批量关联」的记录同树归并）
+            ...(deps.group ? { group: deps.group } : {}),
         });
     } else {
         // 现状生成式通道（无 key / 总闸关）：逐字节等同改造前行为

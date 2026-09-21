@@ -31,6 +31,7 @@
 import { judgeJev, type JevAnswer, type JevQuestion } from "./client";
 import { changeIsWordingLevel } from "./policy";
 import type { JevTransportFn } from "./transport";
+import type { JevTrack } from "./track";
 
 /* ── 输入形状 ── */
 
@@ -92,6 +93,8 @@ export interface ChangeOpts {
     apiKey?: string;
     transport?: JevTransportFn;
     sleep?: (ms: number) => Promise<void>;
+    /** 会话登记（Issue #201，可选）：本批判定落一条记录。 */
+    track?: JevTrack;
 }
 
 /** 「全部当实质」的结果（未判定/失败时的统一形态）。 */
@@ -124,6 +127,7 @@ export async function judgeChanges(items: ChangeItem[], opts: ChangeOpts): Promi
             apiKey: key,
             ...(opts.transport ? { transport: opts.transport } : {}),
             ...(opts.sleep ? { sleep: opts.sleep } : {}),
+            ...(opts.track ? { track: opts.track } : {}),
         });
     } catch (_) {
         return allSubstantive(items);

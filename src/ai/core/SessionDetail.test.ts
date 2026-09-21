@@ -409,14 +409,16 @@ describe("树叶子行与详情头同源", () => {
 describe("三段收口（归属备注 / 进行态 / 重试）", () => {
     it("空脚判据（Issue #98）：done 且非重试态下 ownNote 空 + retryable 假 ⇒ 组件不出 dfoot", () => {
         // 组件按 `ownNote.length > 0 || retryable` 决定 dfoot 是否渲染（空容器
-        // 的 padding/border-top/底色在已完成态就是「下方空一块」），故这里锁
-        // 「已完成态这两个字段都是空的」——组件侧判据直接吃它俩。
+        // 在已完成态就是「下方空一块」），故这里锁这两个字段。
         const done = detailViewOf(rec({ status: "done", turns: [{ role: "user", text: "q" }] }), base)!;
         expect(done.ownNote).toEqual([]);
         expect(done.retryable).toBe(false);
         // 反面：在途态有归属备注（出头栏）、真失败有重试钮（出头栏）
         expect(detailViewOf(rec(), { ...base, ownNote: [{ text: "n", em: false }] })!.ownNote).toHaveLength(1);
         expect(detailViewOf(rec({ status: "error", error: "超时" }), base)!.retryable).toBe(true);
+        // #201：jev 记录不出重试钮（重试通道是生成式专属），错误正文照旧可读
+        const jev = detailViewOf(rec({ kind: "jev", status: "error", error: "auth (401)" }), base)!;
+        expect(jev).toMatchObject({ retryable: false, decidable: false, errorText: "auth (401)" });
     });
 
     it("running：等槽态出「等待空闲通道」，否则出「思考中」", () => {
@@ -594,14 +596,11 @@ describe("取词键真在字典里（幽灵键锁）", () => {
 });
 
 describe("纯函数：时间与题数", () => {
-    it("clockOf 补零到 HH:MM:SS", () => {
+    it("clockOf 补零到 HH:MM:SS；questionCountOf 只认行首标记（数不出返 0）", () => {
         expect(clockOf(new Date(2026, 0, 2, 3, 4, 5).getTime())).toBe("03:04:05");
-    });
-
-    it("questionCountOf 只认行首标记（@@Q 与 N./N、编号）；数不出返回 0", () => {
         expect(questionCountOf("@@Q 题干\n@@Q 题干2\n")).toBe(2);
         expect(questionCountOf("1. 甲\n2. 乙\n3、丙\n")).toBe(3);
-        expect(questionCountOf("这句话里出现 1. 但不是行首编号")).toBe(0);
+        expect(questionCountOf("不是行首编号的 1.")).toBe(0);
         expect(questionCountOf("")).toBe(0);
     });
 });

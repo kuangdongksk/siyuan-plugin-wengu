@@ -10,6 +10,7 @@ import { isHeadingOnlyChunk, structuralChunks, type StructChunk } from "../sourc
 import { checkBatch, type JevQcChunkSummary } from "../../../ai/jev/convertChecks";
 import { screenChunks } from "../../../ai/jev/chunkScreen";
 import { isJevEnabled } from "../../../ai/jev/enabled";
+import { jevTrackOf } from "./ConvertQc";
 import { SetWriter } from "../output/SetWriter";
 import { removeRecords, setTypeUnion, staleRecords } from "../../../bank/data/BankSets";
 import { knowTreesOf } from "../../../bank/data/KnowTrees";
@@ -145,7 +146,13 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         // 整条增量链带崩——判定层抛错时按「一个都不跳」收口（现状行为）
         const outcome = await screenChunks(
             run.chunks.map((c) => ({ key: "", text: c.text })),
-            { apiKey: run.settingsOf?.()?.jevKey }
+            {
+                apiKey: run.settingsOf?.()?.jevKey,
+                // 登记（Issue #201）：组 id 要动作入口一次生成（`group` 在
+                // 本段之后才定义），故预筛只带标题——同题集的多次预筛在树上
+                // 按主题合并，质检与生成侧仍挂组
+                track: jevTrackOf("aiTitleJevScreen", run.title),
+            }
         ).catch((): undefined => undefined);
         out.screened = outcome?.skipped ?? 0;
         if (outcome && outcome.skipped > 0) chunks = run.chunks.filter((_, idx) => !outcome.verdicts[idx]?.skip);
@@ -201,7 +208,13 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     let qcCheckedChunks = 0;
     const runQc = async (index: number, drafts: DraftUnit[]): Promise<void> => {
         if (!qcEnabled || drafts.length === 0) return;
-        const report = await checkBatch({ drafts, materialText: "", apiKey: run.settingsOf?.()?.jevKey });
+        const report = await checkBatch({
+            drafts,
+            materialText: "",
+            apiKey: run.settingsOf?.()?.jevKey,
+            // 登记（Issue #201）：逐块质检挂同组（标题带题集名，与生成侧同款）
+            track: { title: aiTitle(tKey, "aiTitleJevConvert", { name: label }), group },
+        });
         if (report.checked === 0) return; // 未判定（失败/无题）＝本块无痕
         qcCheckedChunks++;
         // ⚠️ 只在**判出存疑**时才建 `qc` 键：全过/失败/未启用时该键不存在，

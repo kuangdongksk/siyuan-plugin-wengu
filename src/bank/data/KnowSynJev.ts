@@ -33,11 +33,16 @@
  * 「非等同」一律写 `-`（不落表、下次重问）——维持旧入表口径，不静默放宽
  * （Issue 需求 3）。
  *
- * 判定结果不登记 AI 会话面板（同 `ai/jev/client.ts` 红线：判定不是对话），
- * 也不走全局在途闸——各落点自带回落。
+ * **会话登记**（Issue #201，推翻 #183 的「不登记」决策）：逐批判定落「AI 会话」
+ * 面板（kind 固定 `"jev"`，标题带对数），由调用方经 `deps.track` 给动作组
+ * ——同一轮同义判定的一批记录在树上归并成一棵子树。**不走全局在途闸**这条
+ * 红线不变（判定请求短、各落点自带回落）。
  */
 
 import { judgeJev, type JevAnswer, type JevChoiceAnswer, type JevQuestion } from "../../ai/jev/client";
+import type { AiSessionGroup } from "../../ai/data/AiSessions";
+import { aiTitle } from "../../ui/shared";
+import { tKey } from "../../ui/Notify";
 import type { JudgeJevOpts } from "../../ai/jev/client";
 import { SYN_OPTIONS, SYN_VERDICTS, synVerdictEntersTable, choiceLowConfidence } from "../../ai/jev/policy";
 import { candidateList, type SynPair } from "./KnowSynJudge";
@@ -188,6 +193,9 @@ export interface KnowSynJevDeps {
     onFail?: (e: Error) => void;
     /** 判定调用（单测注入 mock）；缺省 `judgeJev`。 */
     judge?: (opts: JudgeJevOpts) => Promise<JevAnswer[]>;
+    /** 会话登记上下文（Issue #201）：标题由本模块按批大小生成，调用方只给
+     *  动作组（一次判定的各批挂同组）；缺省=不分组（仍逐批登记）。 */
+    group?: AiSessionGroup;
 }
 
 /**
@@ -216,6 +224,12 @@ export async function judgeSynonymsJev(deps: KnowSynJevDeps): Promise<Map<string
                 state: synState(batch.map((it) => it.pair.raw)),
                 questions: synQuestions(batch),
                 apiKey: deps.apiKey,
+                // 登记（Issue #201）：一批一次判定 → 一条记录；调用方给的组
+                // 把一次动作的各批归并成一棵子树
+                track: {
+                    title: aiTitle(tKey, "aiTitleJevSyn", { n: String(batch.length) }),
+                    ...(deps.group ? { group: deps.group } : {}),
+                },
             });
         } catch (e) {
             deps.onFail?.(e as Error);

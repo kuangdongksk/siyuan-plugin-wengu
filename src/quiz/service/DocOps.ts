@@ -11,7 +11,7 @@ import { isJevEnabled } from "../../ai/jev/enabled";
 import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
 import { readRecordSrcGroups, removeRecords } from "../../bank/data/BankSets";
 import { planReimportBySegs, qidsFromOffset, segViewOf } from "../../convert/service/source/SetSegments";
-import { esc, fmt } from "../../ui/shared";
+import { aiTitle, esc, fmt } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
 import type { QuizView } from "../index";
 
@@ -363,6 +363,8 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
     // 判定层口径（拿不准＝当实质＝重出，用户 20260921 已确认，勿再翻案）。
     const compact = v.settingsOf()?.convertKeepOld === true;
     const refineOn = isJevEnabled(v.settingsOf());
+    /** 题集名（判定登记的标题用；懒读——详情盘可能还没装载）。 */
+    const setTitle = (): string => bank.peek()?.sets?.[setId]?.title ?? "—";
     const refine = async (base: IncrementChoice): Promise<{ choice: IncrementChoice; note?: string }> => {
         const { choice, summary } = await refineKeepOldChoice(plan, base, {
             readOldQuestions: async (blocks) => {
@@ -370,6 +372,9 @@ async function runIncrementalReimport(v: QuizView, setId: string, srcId: string,
                 return blocks.map((qid) => data.records[qid]?.kramdown ?? "").join("\n\n");
             },
             apiKey: v.settingsOf()?.jevKey,
+            // 会话登记（Issue #201）：变更判定落面板（标题带题集名，
+            // 与增量链的质检/预筛同族）
+            track: { title: aiTitle(t, "aiTitleJevChange", { name: setTitle() }) },
         });
         // 一句报告尾巴（零实质/未判定时为空串 ⇒ 不精修就是不追加）
         const note =

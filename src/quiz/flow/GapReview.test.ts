@@ -70,6 +70,8 @@ class FakeHost implements AnswerHost {
      *  是桩而不是产品代码）。`session` 为 undefined 时模拟「未开轮」。 */
     gapReview = {
         jevGapVerdict: (): GapJudgeFn | undefined => this.verdict,
+        // 题号查询（Issue #201）：测试壳给固定题号（真实宿主按现场题目现查）
+        jevGapQuestionNo: (): number => 1,
         jevGapAsked: (key: string): boolean => this.asked.has(key),
         jevGapMark: (qid: string, submitted: string, askedKey: string): boolean => {
             if (!this.hasSession) return false;
