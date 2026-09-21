@@ -4,6 +4,17 @@
  * 通道一律经 `transport.ts` 的内核 forwardProxy（渲染进程不直连外部域）；
  * 本模块只负责「请求组装 → 状态码政策 → 响应解析 → 类型化答案」。
  *
+ * 线格式（**权威实证** = `.cnb/scripts/jev-pr-review.mjs`，同一端点
+ * `https://api.typesafe.ai/v1/systemone` + `jev-latest` 在 CI 真跑通过，
+ * 标定 7/7）：
+ *  - 请求 `questions` 是**按名对象**（`{ <问题名>: {...} }`），不是数组；
+ *    单题字段 `{type, instructions, criteria}`——
+ *    choice→`criteria` 为「选项→描述」对象、noul→`{true, false}`、
+ *    score→档位描述**字符串数组**；
+ *  - 响应 `answers` 同样按名索引（`answers.<问题名>.choice/.noul/.score/.confidence`）。
+ *  插件内部 API 仍收 `JevQuestion[]` / 返回 `JevAnswer[]`（保持位序），
+ *  按名组装与取回在 `wireQuestions` / `parseAnswers` 内收口，调用方无感。
+ *
  * 与 ai 域既有通道的关系（红线）：
  *  - **不登记 AI 会话面板**：判定不是对话，不产生可回看的产出，登记只会
  *    污染面板的类别树（见 AGENTS.md「AI 会话登记」节）；
@@ -34,7 +45,7 @@ const RETRY_STATUS = new Set([429, 529]);
 /** 是/否问题：答案是 0~1 的概率。 */
 export interface JevNoulQuestion {
     kind: "noul";
-    /** 问题正文。 */
+    /** 问题正文（线上字段名 `instructions`）。 */
     question: string;
 }
 
@@ -42,6 +53,7 @@ export interface JevNoulQuestion {
 export interface JevChoiceQuestion {
     kind: "choice";
     question: string;
+    /** 选项清单（线上组装成 `criteria` 的「选项→描述」对象，描述取选项原文）。 */
     options: string[];
 }
 
@@ -49,6 +61,7 @@ export interface JevChoiceQuestion {
 export interface JevScoreQuestion {
     kind: "score";
     question: string;
+    /** 档位描述表（档位键 → 情形描述）；线上取**描述值**组装成字符串数组 `criteria`。 */
     legend: Record<string, string>;
 }
 
@@ -122,13 +135,37 @@ export class JevProtocolError extends Error {
     }
 }
 
-/* ── 请求体组装 ── */
+/* ── 请求体组装（线上：按名对象 + instructions/criteria） ── */
 
-/** 上游问题形态：`{type, question, options?/legend?}`。 */
+/** 线上问题名：按输入位序生成（`q0..qN`），仅用于请求/响应配对，不外泄给调用方。 */
+export function wireQuestionName(index: number): string {
+    return `q${index}`;
+}
+
+/** 单题线上形态：`{type, instructions, criteria}`（三型 cri 形态各异，见头注）。 */
 function wireQuestion(q: JevQuestion): Record<string, unknown> {
-    if (q.kind === "choice") return { type: "choice", question: q.question, options: q.options };
-    if (q.kind === "score") return { type: "score", question: q.question, legend: q.legend };
-    return { type: "noul", question: q.question };
+    if (q.kind === "choice") {
+        const criteria: Record<string, string> = {};
+        for (const opt of q.options) criteria[opt] = opt;
+        return { type: "choice", instructions: q.question, criteria };
+    }
+    if (q.kind === "score") {
+        return { type: "score", instructions: q.question, criteria: Object.values(q.legend) };
+    }
+    return {
+        type: "noul",
+        instructions: q.question,
+        criteria: { true: "是", false: "否" },
+    };
+}
+
+/** 问题清单 → 线上**按名对象**（位序即 `q0..qN`，与 `parseAnswers` 对称）。 */
+export function wireQuestions(qs: JevQuestion[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    qs.forEach((q, i) => {
+        out[wireQuestionName(i)] = wireQuestion(q);
+    });
+    return out;
 }
 
 /** 单次判定请求体：一次请求问完（纪律 5），state 由调用方给。 */
@@ -136,7 +173,7 @@ export function buildJudgeBody(opts: { state: string; questions: JevQuestion[] }
     return {
         model: JEV_MODEL,
         state: opts.state,
-        questions: opts.questions.map(wireQuestion),
+        questions: wireQuestions(opts.questions),
     };
 }
 
@@ -198,7 +235,10 @@ function probMapText(v: unknown): Record<string, string> {
     return out;
 }
 
-/** 上游 body 取 `answers` 数组；形状不对抛协议错。 */
+/**
+ * 上游 body 取 `answers` **按名对象**，按输入位序取回（缺名即协议错，
+ * 维持「不静默补齐」口径——补齐会把模型漏答伪装成有效答案）。
+ */
 function parseAnswers(qs: JevQuestion[], body: string): JevAnswer[] {
     let json: unknown;
     try {
@@ -207,11 +247,17 @@ function parseAnswers(qs: JevQuestion[], body: string): JevAnswer[] {
         throw new JevProtocolError(`响应非 JSON：${body.slice(0, 120)}`);
     }
     const answers = (json as { answers?: unknown } | null)?.answers;
-    if (!Array.isArray(answers)) throw new JevProtocolError("响应缺 answers 数组");
-    if (answers.length !== qs.length) {
-        throw new JevProtocolError(`答案条数不匹配：问 ${qs.length} 条、回 ${answers.length} 条`);
+    if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+        throw new JevProtocolError("响应缺 answers 按名对象");
     }
-    return qs.map((q, i) => parseAnswer(q, answers[i]));
+    const table = answers as Record<string, unknown>;
+    return qs.map((q, i) => {
+        const name = wireQuestionName(i);
+        if (!Object.prototype.hasOwnProperty.call(table, name)) {
+            throw new JevProtocolError(`答案缺 ${name}（回 ${Object.keys(table).length} 条、问 ${qs.length} 条）`);
+        }
+        return parseAnswer(q, table[name]);
+    });
 }
 
 /* ── 主入口 ── */
@@ -234,7 +280,7 @@ const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTim
 
 /**
  * 一次判定请求：`state` + 一组独立问题 → 与问题一一对应的类型化答案。
- * 顺序与 `questions` 严格对应（上游保证同序，解析时也按位取）。
+ * 顺序与 `questions` 严格对应（线上按名问答，`q0..qN` 由本模块生成，调用方无感）。
  */
 export async function judgeJev(opts: JudgeJevOpts): Promise<JevAnswer[]> {
     const key = opts.apiKey.trim();

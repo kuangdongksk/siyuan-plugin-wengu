@@ -29,8 +29,8 @@ function mockTransport(script: JevHttpResponse[]) {
     return { fn, calls };
 }
 
-/** 正常响应体（与问题同序、条数一致）。 */
-const noulBody = (p: number): string => JSON.stringify({ answers: [{ noul: p }] });
+/** 正常响应体：`answers` 是**按名对象**（`q0..`，与请求的按名 questions 对称）。 */
+const noulBody = (p: number): string => JSON.stringify({ answers: { q0: { noul: p } } });
 
 describe("Jev 客户端（judgeJev）", () => {
     it("正常解析：走注入 transport、URL/模型/鉴权头/payload 契约齐备", async () => {
@@ -46,7 +46,11 @@ describe("Jev 客户端（judgeJev）", () => {
         const sent = JSON.parse(calls[0].payload) as Record<string, unknown>;
         expect(sent.model).toBe(JEV_MODEL);
         expect(sent.state).toBe("材料原文");
-        expect(sent.questions).toEqual([{ type: "noul", question: "答案唯一吗？" }]);
+        // 线格式（生产实证，见 .cnb/scripts/jev-pr-review.mjs）：questions 是按名对象
+        expect(Array.isArray(sent.questions)).toBe(false);
+        expect(sent.questions).toEqual({
+            q0: { type: "noul", instructions: "答案唯一吗？", criteria: { true: "是", false: "否" } },
+        });
 
         expect(answers).toEqual([{ kind: "noul", noul: 0.93 }]);
     });
@@ -134,16 +138,20 @@ describe("Jev 客户端（judgeJev）", () => {
         );
     });
 
-    it("200 但 JSON 坏 / 条数不符 → JevProtocolError", async () => {
-        const bad = mockTransport([{ status: 200, body: "not json" }]);
-        await expect(judgeJev({ state: "s", questions: QS, apiKey: "sk", transport: bad.fn })).rejects.toBeInstanceOf(
-            JevProtocolError
-        );
-
-        const short = mockTransport([{ status: 200, body: JSON.stringify({ answers: [] }) }]);
-        await expect(judgeJev({ state: "s", questions: QS, apiKey: "sk", transport: short.fn })).rejects.toBeInstanceOf(
-            JevProtocolError
-        );
+    it("200 但 JSON 坏 / answers 非按名对象 / 缺名 → JevProtocolError", async () => {
+        const cases = [
+            "not json",
+            JSON.stringify({ answers: [] }), // 匿名数组：旧口径，已不合法
+            JSON.stringify({ answers: {} }), // 空对象：q0 缺失
+            JSON.stringify({ answers: { q1: { noul: 0.5 } } }), // 名不匹配：回了 q1、缺 q0
+            JSON.stringify({}), // 无 answers 键
+        ];
+        for (const body of cases) {
+            const { fn } = mockTransport([{ status: 200, body }]);
+            await expect(judgeJev({ state: "s", questions: QS, apiKey: "sk", transport: fn })).rejects.toBeInstanceOf(
+                JevProtocolError
+            );
+        }
     });
 
     it("空 key 直接 JevAuthError（不发请求）", async () => {
@@ -161,14 +169,33 @@ describe("Jev 客户端（judgeJev）", () => {
             { kind: "score", question: "出题价值？", legend: { "1": "目录", "5": "定义密集" } },
         ];
         const body = JSON.stringify({
-            answers: [
-                { noul: 0.85 },
-                { choice: "甲", probabilities: { 甲: 0.9, 乙: 0.05, 不同: 0.05 }, confidence: 0.9 },
-                { score: 4, legend: { "1": "目录", "5": "定义密集" }, probabilities: { "4": 0.8 }, confidence: 0.75 },
-            ],
+            answers: {
+                q0: { noul: 0.85 },
+                q1: { choice: "甲", probabilities: { 甲: 0.9, 乙: 0.05, 不同: 0.05 }, confidence: 0.9 },
+                q2: {
+                    score: 4,
+                    legend: { "1": "目录", "5": "定义密集" },
+                    probabilities: { "4": 0.8 },
+                    confidence: 0.75,
+                },
+            },
         });
-        const { fn } = mockTransport([{ status: 200, body }]);
+        const { fn, calls } = mockTransport([{ status: 200, body }]);
         const answers = (await judgeJev({ state: "s", questions: qs, apiKey: "sk", transport: fn })) as JevAnswer[];
+        // 三型单题线格式：choice→criteria 选项对象、score→档位描述字符串数组
+        expect((JSON.parse(calls[0].payload) as { questions: Record<string, unknown> }).questions).toEqual({
+            q0: { type: "noul", instructions: "可推出？", criteria: { true: "是", false: "否" } },
+            q1: {
+                type: "choice",
+                instructions: "哪个是同一概念？",
+                criteria: { 甲: "甲", 乙: "乙", 不同: "不同" },
+            },
+            q2: {
+                type: "score",
+                instructions: "出题价值？",
+                criteria: ["目录", "定义密集"],
+            },
+        });
         expect(answers.map((a) => a.kind)).toEqual(["noul", "choice", "score"]);
         const choice = answers[1] as { choice: string; confidence: number };
         expect(choice.choice).toBe("甲");
@@ -180,11 +207,11 @@ describe("Jev 客户端（judgeJev）", () => {
 
     it("置信度/概率缺失按「低置信」处置（不静默当明确）", async () => {
         const body = JSON.stringify({
-            answers: [
-                { choice: "甲", probabilities: { 甲: "高" }, confidence: undefined },
-                { score: 3, legend: {}, probabilities: {}, confidence: null },
-                { noul: null },
-            ],
+            answers: {
+                q0: { choice: "甲", probabilities: { 甲: "高" }, confidence: undefined },
+                q1: { score: 3, legend: {}, probabilities: {}, confidence: null },
+                q2: { noul: null },
+            },
         });
         const qs: JevQuestion[] = [
             { kind: "choice", question: "?", options: ["甲"] },
