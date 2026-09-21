@@ -1,3 +1,4 @@
+import type { JevSettingsLike } from "../../ai/jev/enabled";
 import { WordAiRunner, type WordAiInput } from "../service/WordAi";
 import { wordLib } from "../service/WordLib";
 import { confOthers } from "../service/WordConfusables";
@@ -90,11 +91,19 @@ export class WordView {
     readonly confCtl: LookupConfCtl;
     private startCtlCache?: WordStartCtl;
 
-    constructor(ui: WordUi, i18n: Record<string, string>, store: WordStore) {
+    constructor(
+        ui: WordUi,
+        i18n: Record<string, string>,
+        store: WordStore,
+        settings?: () => JevSettingsLike | undefined
+    ) {
         this.ui = ui;
         this.t = (k) => i18n[k] ?? k;
         this.store = store;
         this.ai = new WordAiRunner(this.t);
+        // 判档供给方注入（Issue #185）：settings 取用时读活引用，缺省即
+        // 「永远走生成式通道」——与接线前逐字同行为
+        this.ai.setJevDeps({ settings });
         this.confCtl = new LookupConfCtl(
             () => this.ui.progress!,
             (p) => this.store.save(p),

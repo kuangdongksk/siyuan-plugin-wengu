@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount, setContext } from "svelte";
+    import type { JevSettingsLike } from "../../ai/jev/enabled";
     import { wordKeydown } from "../core/WordBind";
     import type { WordStore } from "../core/WordStore";
     import { WordView } from "../core/WordView";
@@ -11,12 +12,20 @@
     import StartScreen from "./StartScreen.svelte";
     import StatsScreen from "./StatsScreen.svelte";
 
-    let { i18n, store }: { i18n: Record<string, string>; store: WordStore } = $props();
+    let {
+        i18n,
+        store,
+        settings,
+    }: {
+        i18n: Record<string, string>;
+        store: WordStore;
+        settings?: () => JevSettingsLike | undefined;
+    } = $props();
 
     // 深代理响应态：$state 只能在 Svelte 编译单元里创建，控制器与组件同持引用
     const ui: WordUi = $state(initialWordUi());
     // svelte-ignore state_referenced_locally
-    export const view = new WordView(ui, i18n, store);
+    export const view = new WordView(ui, i18n, store, settings);
     setContext(WORD_VIEW_CTX, view);
 
     let rootEl: HTMLElement;

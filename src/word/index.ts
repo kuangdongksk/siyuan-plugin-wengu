@@ -1,4 +1,5 @@
 import WordApp from "./components/WordApp.svelte";
+import type { JevSettingsLike } from "../ai/jev/enabled";
 import { initialWordUi } from "./core/WordUi";
 import type { WordStore } from "./core/WordStore";
 import { WordView } from "./core/WordView";
@@ -16,6 +17,9 @@ import { markMobileUi } from "../ui/shared";
 export interface WordAppProps {
     i18n: Record<string, string>;
     store: WordStore;
+    /** 设置读取器（**取用时读**活引用）：判档供给方据此选 Jev / 生成式。
+     *  缺省即「永远走生成式通道」，与接线前行为逐字一致（Issue #185）。 */
+    settings?: () => JevSettingsLike | undefined;
 }
 
 /** Svelte 挂载结果：控制器 + 卸载函数（Dock destroy 时调用）。 */
@@ -27,13 +31,18 @@ export interface MountedWordView {
 /** 挂载背单词面板（Dock 面板与兜底页签共用；WordStore 单例共享进度缓存）。
  *  控制器清理由 WordApp onMount 的 cleanup（view.destroy）承担，unmount
  *  只卸组件——与 mountApp.ts 的约定一致。 */
-export function mountWordView(el: HTMLElement, i18n: Record<string, string>, store: WordStore): MountedWordView {
+export function mountWordView(
+    el: HTMLElement,
+    i18n: Record<string, string>,
+    store: WordStore,
+    settings?: () => JevSettingsLike | undefined
+): MountedWordView {
     // 移动端触屏样式分流（Issue #10）：在**挂载层**打环境标记类，样式一律
     // 写成它的后代选择器（桌面不带标记 → 样式逐字节不变）；Dock 面板与
     // 页签兜底共用本入口，标记只需这一处
     markMobileUi(el);
     // *.svelte 的环境声明不带实例导出类型，view 这里收口一次（KnowPicker 同款）
-    const mounted = mountSvelteApp<WordAppProps>(WordApp, el, { i18n, store });
+    const mounted = mountSvelteApp<WordAppProps>(WordApp, el, { i18n, store, settings });
     const view = (mounted.app as { view: WordView }).view;
     return { view, unmount: mounted.unmount };
 }

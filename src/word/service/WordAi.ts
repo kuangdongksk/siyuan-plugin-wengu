@@ -1,5 +1,6 @@
 import { errText } from "./../../ui/shared";
 import { agentChatOnce } from "../../ai/client";
+import { isJevEnabled, type JevSettingsLike } from "../../ai/jev/enabled";
 import { defaultAgentModelId } from "../../ai/models";
 import { wordReviewPrompt } from "../../ai/prompts/misc";
 import { AI_TIMEOUT } from "../../ai/timeouts";
@@ -7,6 +8,7 @@ import { aiTitle, fmt } from "../../ui/shared";
 import { tKey } from "../../ui/Notify";
 import { wordLib } from "./WordLib";
 import { addPair } from "./WordConfusables";
+import { judgeWordReview, type JudgeFn } from "./WordAiJev";
 import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProgress } from "../core/WordStore";
 
 /**
@@ -18,6 +20,13 @@ import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProg
  * 回复协议（锚定规则，不凭空给天数）：
  *   W: 单词 / L: up|keep|down（Leitner 档位动作）/ C: 混淆对象
  *   （可选，拼错成真词或自述推断）/ T: 辨析提示（仅误认词，≤60 字）。
+ *
+ * **判档供给方可插拔**（Issue #185，规划稿 §三 B3）：配置了 Jev key
+ * （`isJevEnabled`）时「选哪一档」改由 `WordAiJev` 的 Jev 判定供给，
+ * 生成式通道只在没 key 时接手——`applyAiReview` 的 FSRS 公式与落盘动作
+ * 一行不动。Jev 路**不产 `C:` 易混推断/`T:` 辨析**（那是可试档 C1 的事），
+ * 判定抛错时**整批回落生成式通道**（与「无 key」同一条路径，口径钉死在
+ * 此，别改成静默跳过）。判定结果不落盘，现算现用（纪律 3）。
  */
 
 /** 单批词数上限（提示词长度与返回稳定性折中）。 */
@@ -83,8 +92,16 @@ export function wordAiInput(
     };
 }
 
-/** 分析一批词并落盘（档位动作 + 配对 + 辨析），返回生效条数。 */
-async function analyzeBatch(
+/** Jev 判档的注入面（单测 mock；生产走默认 transport）。 */
+export interface WordAiJevDeps {
+    /** 设置读取器（**取用时读**活引用：设置装载会整对象替换）。 */
+    settings?: () => JevSettingsLike | undefined;
+    /** judgeJev 注入（单测用 mock，缺省走内核 forwardProxy）。 */
+    judge?: JudgeFn;
+}
+
+/** 一批词走生成式通道（现状路径）：W/L/C/T 行协议 → 解析 → 落盘。 */
+async function analyzeBatchChat(
     inputs: WordAiInput[],
     p: WenguWordProgress,
     save: () => Promise<unknown>
@@ -108,11 +125,49 @@ async function analyzeBatch(
     return items.length;
 }
 
+/** 一批词走 Jev 判档：判定即用，不产 C/T 行、不落判定（Issue #185 需求 4/5）。 */
+async function analyzeBatchJev(
+    inputs: WordAiInput[],
+    p: WenguWordProgress,
+    save: () => Promise<unknown>,
+    apiKey: string,
+    judge?: JudgeFn
+): Promise<number> {
+    const items = await judgeWordReview(inputs, apiKey, judge);
+    applyAiReview(p, items);
+    await save();
+    return items.length;
+}
+
+/** 一批词的判档供给方选择（纯函数，单测锁定）：有 key 走 Jev、否则生成式。 */
+function batchAnalyzer(
+    deps: WordAiJevDeps
+): (inputs: WordAiInput[], p: WenguWordProgress, save: () => Promise<unknown>) => Promise<number> {
+    return async (inputs, p, save) => {
+        const settings = deps.settings?.();
+        if (isJevEnabled(settings)) {
+            try {
+                // 抛错（auth/网络/协议）→ 整批回落生成式通道（口径钉死在此）
+                return await analyzeBatchJev(inputs, p, save, settings!.jevKey!.trim(), deps.judge);
+            } catch (_) {
+                // 回落：现状路径原样接手；两条路都失败则异常上抛给 runner
+            }
+        }
+        return analyzeBatchChat(inputs, p, save);
+    };
+}
+
 /** 多批串行分析（手动/组触发共用）。 */
-async function analyzeAll(inputs: WordAiInput[], p: WenguWordProgress, save: () => Promise<unknown>): Promise<number> {
+async function analyzeAll(
+    inputs: WordAiInput[],
+    p: WenguWordProgress,
+    save: () => Promise<unknown>,
+    deps: WordAiJevDeps
+): Promise<number> {
+    const runBatch = batchAnalyzer(deps);
     let done = 0;
     for (let i = 0; i < inputs.length; i += BATCH_SIZE) {
-        done += await analyzeBatch(inputs.slice(i, i + BATCH_SIZE), p, save);
+        done += await runBatch(inputs.slice(i, i + BATCH_SIZE), p, save);
     }
     return done;
 }
@@ -142,7 +197,15 @@ export class WordAiRunner {
     /** 结果文案（"!" 前缀 = 失败，渲染层剥掉前缀标红）。 */
     msg = "";
 
+    /** Jev 判档注入面（缺省全空 = 永远走生成式通道，单测/旧调用零感知）。 */
+    private deps: WordAiJevDeps = {};
+
     constructor(private readonly t: (k: string) => string) {}
+
+    /** 注入判档供给方依赖（WordView 装配时调用一次；settings 取用时读活引用）。 */
+    setJevDeps(deps: WordAiJevDeps): void {
+        this.deps = deps;
+    }
 
     /** 手动分析的待办（误认本中无 note 的词，限当前书）。 */
     pending(p: WenguWordProgress): WordAiInput[] {
@@ -177,7 +240,7 @@ export class WordAiRunner {
         this.msg = "";
         syncHook();
         try {
-            const n = await analyzeAll(pending, p, save);
+            const n = await analyzeAll(pending, p, save, this.deps);
             this.msg =
                 n > 0 ? fmt(this.t("wordAiDone"), { n: String(n) }) : this.t("wordAiFailed") + this.t("wordAiBadReply");
             onApplied();
@@ -198,7 +261,7 @@ export class WordAiRunner {
     ): Promise<void> {
         if (inputs.length === 0) return;
         try {
-            await analyzeAll(inputs, p, save);
+            await analyzeAll(inputs, p, save, this.deps);
             onDirty();
         } catch (e) {
             this.msg = "!" + this.t("wordAiFailed") + errText(e).slice(0, 120);
