@@ -141,7 +141,8 @@ function mountWordView(host: DockHost, custom: { element?: Element }): void {
     const el = custom.element as HTMLElement | undefined;
     if (!el || !host.alive()) return;
     wordUnmount?.(); // dock init 重入（布局恢复竞态）先卸旧实例——否则旧 WordTimer 间隔器泄漏
-    const m = mountWordViewImpl(el, host.i18n ?? {}, host.wordStore());
+    // settings 取用时读活引用（判档供给方据此选 Jev / 生成式，Issue #185）
+    const m = mountWordViewImpl(el, host.i18n ?? {}, host.wordStore(), host.settings);
     (custom as unknown as { wenguWordView?: WordView }).wenguWordView = m.view;
     wordUnmount = m.unmount;
 }
