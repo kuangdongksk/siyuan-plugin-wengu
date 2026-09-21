@@ -1,4 +1,5 @@
 # 2026-09-21: 新建——自「轮询调度 pr 和 issue」两轮会话沉淀（调度轮标准打法）
+# 2026-09-21: 改进——snapshot 补「全量查询禁截断/禁猜编号」（--page-size 1 漏掉已挂的 PR #200 事故）；poll 补「前台 sleep 后亲自查，不起后台任务」（来源：会话沉淀）
 name: npc-dispatch-round
 description: NPC 派单调度轮——盘点在飞 PR/Issue、核 CI、审 diff、合并闭环（收口评论关 Issue + 删分支）、按依赖召唤下一波、sleep 600 轮询至交付
 triggers:
@@ -25,6 +26,8 @@ nodes:
     promote: |
       列出全部 open PR 与 Issue；对每个 PR 再查 cnb pulls list-pull-commit-statuses（CI）
       与 cnb pulls list-pull-comments（NPC 交付自述/拍板请求）。
+      ⚠️ 列表查询一律给足 page-size（≥20）、-v 取结构化字段——禁止 --page-size 1 截断、
+      禁止猜单据编号（#200 已挂而漏报就是这么来的）；查完和已知在飞单对账，缺了要追。
       注意：仓库路径 20260916 起是 bianchao777/sasa/siyuan-plugin-wengu；动远端前先
       git remote -v 核实（两台机器 cnb/origin 命名相反）。快捷子命令不带 --repo/--number。
     verify: never
@@ -84,7 +87,9 @@ nodes:
     promote: |
       对在跑 NPC 流水线（cnb build get-build-logs --event issue.comment@npc）按
       sleep 600 节拍轮询到终态（success/error）或 PR 出现，最多 12 拍（2 小时）；
-      禁止 45 秒级高频（用户明确嫌吵），禁止 cancel NPC 在跑任务。可 run_in_background。
+      禁止 45 秒级高频（用户明确嫌吵），禁止 cancel NPC 在跑任务。
+      轮询用前台「sleep 600 → 亲自查」的节奏（用户不要后台任务/守护循环）；
+      每拍醒来后全量复查（见 snapshot 节的查询纪律）。
     verify: never
     goto_if:
       - if: ${{ result.terminal == true }}
