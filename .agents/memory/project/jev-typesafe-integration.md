@@ -28,17 +28,18 @@ OpenAPI（CNB_TOKEN/CNB_PULL_REQUEST_IID 内置环境），本地走 cnb CLI（`
 **待办**：① 用户配 key（本地 export TYPESAFE_KEY；CI 私有仓库 envs.yml + 开
 imports 注释行）→ 实跑校准——并行会话已做声明级标定
 （[[typesafe-ai-pr-claim-triage]]：叙事声明 7/7，技术声明仍以机械复跑为锚）。
-② **推荐档派单进度（20260921 调度轮终态）**：#183 基建已交 PR #190 并**合并
-`4c1bd25`**（评审揪出线格式与生产实证不符：questions/answers 应为按名对象、单题
-`{type, instructions, criteria}`、score 的 criteria 是字符串数组——实证源
-jev-pr-review.mjs；NPC 已修 `1103cef`+`85c3903` 后 CI 绿）。线 C PR #189 亦已合并
-`c81e211`（#182 关、分支删）。**下游四单已同批召唤在跑（11:46 流水线齐发）**：
-#184 convert 质检（feat/jev-convert-qc）、#185 word 复盘（feat/jev-word-review）、
-#187 quiz 填空判分（feat/jev-gap-grade）、#188 bank 同义词（feat/jev-know-synonym）；
-**#186 仍串行等 #184 合并后召唤**。每单验收硬口径：无 key 零行为变化 + mock 六路
-单测 + 冻结清单测试原样通过；召唤词里已写明「别动 client.ts 线格式」。CI 预检 key
-仍未启用（.cnb.yml 注释行未开、本地 shell 无 TYPESAFE_API_KEY），PR 预检评论缺失
-不影响合并（预检仅供参考）。
+② **推荐档派单进度（20260921 两轮调度终态）**：基建 #183/PR #190 合并 `4c1bd25`；
+传输契约修正 PR #197 合并 `040c2ea`（真机 403 揪出 **forwardProxy headers 只认数组**，
+四条契约已沉淀 [[kernel-pitfalls]]「外部 API」节与 transport.ts 头注）。**六单全部
+交付并合并**：#184 转换质检 `bb459c3`（PR #196）、#185 word 复盘 `5a79b6d`（PR #192）、
+#187 填空判分 `6a4537f`（PR #193）、#188 同义词 `1980c74`（PR #191）——四单 NPC 都跑
+了自查复核轮并自纠真缺陷（#187 揪出「单测全绿但真链路不通」6 处接线缺陷，端到端
+回归锁收口）。**#186 切片预筛已召唤在跑**（feat/jev-chunk-screen，11:47 进队），它是
+推荐档最后一单。验收硬口径全程守住：无 key 零行为变化 + mock 单测 + 冻结清单原样。
+**调度教训**：直推 .md/任何入仓内容先过 `pnpm exec prettier --write`（09dfe20 迁记忆
+4 文件未过 → dev 门禁红 #194）；NPC 会自己协调同批分支的格式折行防冲突。CI 预检 key
+仍未启用（预检仅供参考不挡合并）；**真机冒烟**：装 key 后转换质检/复盘判档/填空判同/
+同义词四落点逐一过一遍（传输契约修后才真正可用）。
 ③ **跨域口径（用户问过，已核实）**：渲染进程直连外部域不可靠，插件内一律走
 内核 `/api/network/forwardProxy`（payload 只收 string、响应在 data.body，
 3.8.2 修过 responseEncoding #18978；kernel-pitfalls.md「外部 API」节）。
