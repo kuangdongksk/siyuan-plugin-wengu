@@ -183,8 +183,8 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
 
     /** 组单元材料面板的一次施工要连线索一起铺（装饰出口入参）。 */
     readonly clueAnchorsOf = (q: WenguQuestion): ClueAnchor[] => clueAnchorsFor(this, q);
-    /** 记账/单题计时摊牌（见 AnswerGate 头注）。 */
-    private readonly gate = answerGateFor(this, this.timer, this.qTiming);
+    /** 记账/单题计时/填空复核摊牌（见 AnswerGate 头注）；public 供 #187 取。 */
+    readonly gate = answerGateFor(this, this.timer, this.qTiming);
     readonly persist = this.gate.persist;
     readonly recordAnswer = this.gate.recordAnswer;
     readonly takeSec = this.gate.takeSec;

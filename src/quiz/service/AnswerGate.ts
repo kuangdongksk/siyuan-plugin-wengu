@@ -1,4 +1,6 @@
 import type { AnswerHost } from "../flow/AnswerFlow";
+import { gapReviewFor, type GapReviewBindings } from "../flow/GapReview";
+import type { JevSettingsLike } from "../../ai/jev/enabled";
 import { recordAnswerFor } from "./AnswerMirror";
 import { notifyQuizAnswer } from "../../companion";
 import type { QTimingOwner } from "./QTimingOwner";
@@ -14,6 +16,8 @@ import type { WenguQuestion } from "../../types";
 
 /** AnswerGate 需要的视图能力（全是既有访问器，零新增状态）。 */
 export interface AnswerGateView {
+    /** 设置面（Jev key + 总开关）：填空复核判定函数由它组装（Issue #187）。 */
+    settings?: JevSettingsLike;
     questions(): WenguQuestion[];
     currentSession(): import("./HistoryStore").WenguSession | undefined;
     historyStore(): import("./HistoryStore").HistoryStore | undefined;
@@ -33,6 +37,9 @@ export interface AnswerGate {
     refreshQTimer(qid: string): void;
     /** #182：单题计时载体（AnswerHost/TimerHostAccess 两处结构匹配）。 */
     questionTimer(): import("./QuizTimer").QuestionTimer;
+    /** #187 填空语义判等复核三件（AnswerHost 结构匹配，组装见 flow/GapReview：
+     *  判定函数在构造期一次组装，未配 key ⇒ undefined ⇒ 复核链零调用）。 */
+    gapReview: GapReviewBindings;
 }
 
 /** 组装记账宿主（`QuizView` 只需把四件摊回即可）。 */
@@ -59,5 +66,10 @@ export function answerGateFor(v: AnswerGateView, timer: TimerController, qTiming
         persist: (): void => v.persist(),
         refreshQTimer: (qid: string): void => qTiming.refresh(qid),
         questionTimer: (): import("./QuizTimer").QuestionTimer => qTiming.q,
+        gapReview: gapReviewFor({
+            settings: v.settings,
+            session: () => v.currentSession(),
+            persist: () => v.persist(),
+        }),
     };
 }

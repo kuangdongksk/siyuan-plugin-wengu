@@ -4,6 +4,7 @@ import { markNum } from "../render/FlowDom";
 import { fillClozeCur, markClozeOpts } from "../render/CardState";
 import type { CardCtl } from "../render/CardCtl";
 import { gradeSlot } from "../service/QuestionGrading";
+import { reviewGap } from "./GapReview";
 import type { WenguQuestion } from "../../types";
 import { slotQid } from "../../types";
 import { esc } from "../../ui/shared";
@@ -34,7 +35,9 @@ export function pickSlotOpt(ctl: CardCtl, letter: string): void {
     s.curSelected = letter;
 }
 
-/** cloze 提交本空：判分描色 → 记账 → 跳下一空（全部作答完收口）。 */
+/** cloze 提交本空：判分描色 → 记账 → 跳下一空（全部作答完收口）。
+ *  Jev 复核（#187）在逐空侧是**外层异步**：不进这条同步链，避免把
+ *  「点一下、立刻跳下一空」的既有手感改成等待（判定回来再按结果补账）。 */
 export function submitSlot(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): void {
     const ui = ctl.ui;
     const s = ui.slots;
@@ -48,10 +51,33 @@ export function submitSlot(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): vo
     const slot = (q.slots ?? [])[k];
     if (!slot) return;
     const ok = gradeSlot(slot, letter);
+    void reviewSlotGap(host, q, ctl, k, slot, letter, ok);
     markClozeOpts(q, ui, letter);
     s.marks[k] = { answered: true, letter, ok };
     settleSlot(host, q, ctl, k, letter, ok);
     fillClozeCur(q, ui, host.t); // 自愈推进：跳过已答空到下一空
+}
+
+/** 逐空复核的**异步补账**（#187）：判定回来判同 ⇒ 翻该空的 ok。
+ *  **不重记逐空账**（那条已在提交那一刻写死；复核只补「对」的事实），
+ *  也不重跑收口——整题收口由 `finishSlots` 在判分时按 marks 一次性算出，
+ *  故复核回来时只更新 marks 与题号/结果行（若该题已收口）。
+ *  未判同/失败/无 key ⇒ 什么都不做（逐空维持现状判错）。 */
+async function reviewSlotGap(
+    host: AnswerHost,
+    q: WenguQuestion,
+    ctl: CardCtl,
+    k: number,
+    slot: { optionMd: string[]; answer: string },
+    letter: string,
+    ok: boolean
+): Promise<void> {
+    if (!(await reviewGap({ host, q, slot, submitted: letter, ok }))) return;
+    const s = ctl.ui.slots;
+    const mark = s?.marks[k];
+    if (!mark || mark.ok) return;
+    mark.ok = true; // 逐空账翻对（会话侧整题账由 finishSlots 重取 marks 时带上）
+    if (s!.marks.every((m) => m.answered)) settleSlotsResult(host, q, ctl);
 }
 
 /* ── 新题型：候选池只读 + 每槽一行（下拉选字母提交） ── */
@@ -75,6 +101,7 @@ export function submitMatch(host: AnswerHost, q: WenguQuestion, ctl: CardCtl, k:
     const slot = (q.slots ?? [])[k];
     if (!slot) return;
     const ok = gradeSlot(slot, letter);
+    void reviewSlotGap(host, q, ctl, k, slot, letter, ok);
     s.marks[k] = { answered: true, letter, ok };
     settleSlot(host, q, ctl, k, letter, ok);
 }
@@ -98,14 +125,22 @@ async function finishSlots(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): Pr
     // 揭示闸（Issue #12）：逐空题整卡做完即揭示（自判分）——setGraded 一把
     // 置 graded+locked+revealed，解析区（只认 .wengu-revealed）随之显现。
     ctl.setGraded();
-    const right = oks.filter(Boolean).length;
+    settleSlotsResult(host, q, ctl);
+    checkAllDone(host);
+}
+
+/** 整题结果行（按 marks 现算；复核补账后重跑它把「有错」改写成全对）。 */
+function settleSlotsResult(host: AnswerHost, q: WenguQuestion, ctl: CardCtl): void {
+    const marks = ctl.ui.slots?.marks ?? [];
+    const right = marks.filter((m) => m.ok).length;
+    const allOk = marks.length > 0 && marks.every((m) => m.ok);
     ctl.setResult(
         esc(
             allOk
                 ? host.t("correct")
-                : host.t("slotsSummary").replace("{r}", String(right)).replace("{n}", String(oks.length))
+                : host.t("slotsSummary").replace("{r}", String(right)).replace("{n}", String(marks.length))
         ),
         allOk ? "right" : "wrong"
     );
-    checkAllDone(host);
+    if (allOk) markNum(host, q, true);
 }
