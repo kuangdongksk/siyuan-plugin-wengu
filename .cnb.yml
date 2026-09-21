@@ -46,6 +46,12 @@ $:
         # `pnpm check:lines` = 单文件 ≤500 行红线（规范 §11.1，Issue #135
         # 顺带把它从「文档里写着」变成「CI 会红」——`quiz/index.ts` 静默从
         # 基线 574 长到 576 就是「口径有、闸门无」的实证）。
+        # ⚠️ `pnpm test`（第五项）**必须**保留 —— 阶段一「红测试 PR」的口径就是
+        # 「只有目标红文件红、其余全绿」，把测试踢出门禁＝红灯白挂（#189 教训：
+        # 首轮有人想用「测试反正是红的」为由摘掉它）。
+        # 阶段一红测试在 `check:svelte` 上必然带 1 条 `Cannot find module`，
+        # 这是**有意为之的中间态**：PR 必须写清「本 PR 为红测试、期望 check:svelte
+        # 红在何处」，由人审查时核对清单；不用改门禁。
         - name: check
           script: "pnpm format:check && pnpm exec eslint . && pnpm check:svelte && pnpm check:lines && pnpm test"
 
