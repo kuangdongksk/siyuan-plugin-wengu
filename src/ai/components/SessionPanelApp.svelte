@@ -19,7 +19,7 @@
      * 改版）：左栏=会话清单（类别过滤 + 两击删除，固定宽自滚），右栏=
      * 选中会话的明细，点左侧行即切右栏内容。
      *
-     * **按设计稿还原（Issue #88，`design/convert-stop-redesign.html` 的
+     * **按设计稿还原（Issue #88，`design/UI/转换/convert-stop-redesign.html` 的
      * `ai-panel-batch-running` / `ai-panel-single-running` /
      * `ai-panel-stopped` 三屏）**：
      *  - 左栏树：头部「AI 会话」+ 组数徽标；二级组行=「类别 · 文档名」
@@ -37,7 +37,7 @@
      * 带 track 的调用自动登记），本组件只吃快照；挂载编排见
      * ai/SessionPanel.ts。零 <style>，类名走全局 scss（scss/aipanel.scss）。
      *
-     * **照施工规格精修（Issue #92，`design/aipanel-gap-list.md` 权威修法）**：
+     * **照施工规格精修（Issue #92，`design/UI/AI面板/aipanel-gap-list.md` 权威修法）**：
      *  - **一体卡（S1/S2）**：`.wengu-aipanel` 用稿的 grid（292px + 1fr、卡面 +
      *    1px 边线 + 12px 圆角 + overflow:hidden），横幅 FlowBanner 移入卡内作
      *    跨栏首行（组件根 `.wengu-aiflow` 自身已无圆角/外围边框）；

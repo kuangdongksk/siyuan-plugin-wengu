@@ -5,7 +5,7 @@
  * 计数怎么分色与压暗、分篇清单展示哪一段、停止钮几时出」这些口径可被
  * 单测锁死（组件零 `<style>`、只做渲染）。
  *
- * 设计稿 `design/convert-stop-redesign.html` 的三屏对应：
+ * 设计稿 `design/UI/转换/convert-stop-redesign.html` 的三屏对应：
  *  - `flow-banner--run`  批量队列跑动中 → seg + counts + 分篇清单
  *  - `flow-banner--stop` 停止后抉择态   → 左线 + badge + 「前往页内转换条抉择」
  *  - `redesign-single-running` 单流态   → bar + stats，无 seg/counts/清单

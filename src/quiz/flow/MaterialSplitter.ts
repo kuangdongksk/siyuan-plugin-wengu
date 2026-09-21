@@ -1,6 +1,6 @@
 /**
  * 阅读组材料/题目可拖分隔条的**纯逻辑层**（Issue #138，交互语义按
- * antd Splitter；设计依据 `design/sidebar-gap-list.md` §6.1 + §7.c）。
+ * antd Splitter；设计依据 `design/UI/刷题/sidebar-gap-list.md` §6.1 + §7.c）。
  *
  * 背景：材料区限高原是固定 `--wengu-mat-cap:52vh`（Issue #87 落地）。
  * 一篇长材料的阅读量与题量并无固定比例——用户要求**可上下拖动调比例**，

@@ -43,7 +43,7 @@ formOption`。设置页、开刷面板、转换弹窗都走这一套，不再自
       开始转换/AI 分析报告）
     - **唯一主操作：`primary`（主色实底）**——一个面板/弹窗里**至多一个**
       钮用它，其余同级动作一律 outline。**当前唯一落点＝开刷面板「开始刷题」**
-      （Issue #100 照设计稿 `design/wengu-desktop-drill.html` 屏①：
+      （Issue #100 照设计稿 `design/UI/刷题/wengu-desktop-drill.html` 屏①：
       「开始刷题」为唯一主操作，预览/错题回顾为描边钮）
     - 取消：`b3-button--cancel`
     - 次级轻操作（弹窗内文字链类，如「继续生成」）：`b3-button--text`

@@ -3,7 +3,7 @@ import * as sass from "sass";
 import { compile } from "svelte/compiler";
 
 /**
- * 刷题工作区对稿规格（Issue #135，`design/sidebar-gap-list.md` §0–§4/§7）
+ * 刷题工作区对稿规格（Issue #135，`design/UI/刷题/sidebar-gap-list.md` §0–§4/§7）
  * 的**编译产物断言**：与 `StartPanelStyle.test.ts` 同口径——样式取自
  * **源码文本**（scss 走 `sass.compile` 真编译、组件走 `?raw` + Svelte
  * 真编译），断言尺寸/令牌而不是通读源码。

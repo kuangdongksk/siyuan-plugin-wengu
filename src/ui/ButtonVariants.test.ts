@@ -3,7 +3,7 @@ import * as sass from "sass";
 
 /**
  * 错题本单列可展开行的视觉规格断言（Issue #136 §5，设计稿
- * `design/wengu-sidebar-redesign.html` ⑦ 区块 / 差距清单 §5 + §7.e）。
+ * `design/UI/刷题/wengu-sidebar-redesign.html` ⑦ 区块 / 差距清单 §5 + §7.e）。
  *
  * 为什么落成断言：§5 的价值全在**逐值**（44px 日期列 / 190px 题集名 /
  * 13.5px 单行题干 / 11px 胶囊 / 展开区微沉底），改样式时不看设计稿就会

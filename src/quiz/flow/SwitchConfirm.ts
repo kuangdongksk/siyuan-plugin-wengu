@@ -4,7 +4,7 @@ import type { WenguSession } from "../service/HistoryStore";
 
 /**
  * 切换题集二次确认弹窗（Issue #137 / 差距清单 §7.d + 设计稿
- * `design/wengu-sidebar-redesign.html` §5）。
+ * `design/UI/刷题/wengu-sidebar-redesign.html` §5）。
  *
  * **触发判据**（三条同时成立，判定收口在 {@link needsSwitchConfirm}）：
  *   ① 刷题模式（review 点文档只是筛选错题本、preview 只读，都不该拦）；

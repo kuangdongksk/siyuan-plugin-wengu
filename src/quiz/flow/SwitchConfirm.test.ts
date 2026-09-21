@@ -8,7 +8,7 @@ import type { WenguDialogAction } from "../../ui/Dialog";
 
 /**
  * 切换题集二次确认弹窗（Issue #137 / 差距清单 §7.d，设计稿
- * `design/wengu-sidebar-redesign.html` §5）的**判定与规格**断言。
+ * `design/UI/刷题/wengu-sidebar-redesign.html` §5）的**判定与规格**断言。
  *
  * 判据只有一条（`mode === "quiz"` 且点的是**另一**上下文 且当前有进行中
  * 轮次），但四条反证路径（review / preview / 同 id / 空轮 / 已收卷）与
