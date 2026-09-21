@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "sass";
+import { mustHave, read } from "../../testkit/readSource";
 
 /**
  * 单题计时视觉规格红测试（Issue #182 R2/R4，设计稿 v6 `14c6f55`）。
  *
  * 口径同 `MaterialSplitterDesign.test.ts` / `StartPanelStyle.test.ts`：
  * scss 走 **sass 真编译**（`?raw` 读 scss 在 node 侧恒空串），断言
- * **规则在场与取值**，不钉分片内部排版；组件侧读 `?raw` 源级断言接线。
+ * **规则在场与取值**，不钉分片内部排版；组件侧读源码原文做源级断言。
+ *
+ * ⚠️ 读源码走 `src/testkit/readSource.ts`（**相对仓根**的路径口径）。
+ * 别再用 `import.meta.glob` 自行拼表（#189 实测）：`eager` 形态的键相对本文件、
+ * 跨层同名会撞车，按 basename 查表还会**静默取错文件**；懒加载形态的键虽
+ * 相对仓根，但取值有「裸字符串 / 模块壳」两形。详见该文件头注。
  *
  * 设计稿取值（`design/UI/单题计时/wengu-focus-timer-redesign.html`）：
  *   `--focus-dim: 0.22` / `--focus-ms: 150ms` / `--done-delay: 260ms` /
@@ -14,31 +20,17 @@ import { compile } from "sass";
  *   一圈 `LAP = 60000`；流光几何 inset 0.5px + r 11.5px（卡圆角 12px 中心线）。
  */
 
-/** ⚠️ scss 走 `sass.compile(路径)` 真编译（`?raw` 对 scss 恒空串，只借
- * glob 当路径表）；组件走 `?raw` 导入。两条都不引 `node:fs` —— 本仓无
- * `@types/node`（口径同 `MaterialSplitterDesign.test.ts` / `ButtonVariants.test.ts`）。
- * 测试若因文件缺失而整片红，读 `tests/siyuan-stub.ts` 头部「测试读源码」一节。 */
-const SCSS = import.meta.glob("../../scss/*.scss", { query: "?raw", import: "default", eager: true });
-const RAW = import.meta.glob("./**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
-const SVELTE = import.meta.glob("../components/QuizCard/index.svelte", {
-    query: "?raw",
-    import: "default",
-    eager: true,
-}) as Record<string, string>;
+/** scss 分片的真编译产物。
+ *  ⚠️ **`.scss` 不进 `readSource` 的 glob**（`?raw` 对 scss 恒空串，声明只收
+ *  `.ts` / `.svelte`）；分片在不在**由 `sass.compile` 自己说了算**——缺文件即
+ *  抛错，不会静默变绿，故这里不需要（也不该）调 `mustHave`。 */
+const scss = (): string => compile("src/scss/focus-timer.scss", { style: "expanded" }).css;
 
-/** 分片路径（`src/scss/x.scss`）——真编译用；glob key 只当路径表。 */
-const pathOf = (name: string): string => `src/scss/${name}`;
-
-const scss = (): string => {
-    expect(Object.keys(SCSS), "src/scss/focus-timer.scss 不存在").toContain("../../scss/focus-timer.scss");
-    return compile(pathOf("focus-timer.scss"), { style: "expanded" }).css;
+/** 组件/脚本源码（`src/` 下的路径口径）。 */
+const src = (path: string): Promise<string> => {
+    mustHave(path);
+    return read(path);
 };
-
-/** 组件源码（`?raw`；文件缺失时对象为空）。 */
-const cardSrc = (): string => SVELTE["../components/QuizCard/index.svelte"] ?? "";
-
-/** 同目录脚本源码（`?raw`；文件缺失时返回空串，断言自然红）。 */
-const srcOf = (name: string): string => RAW[`./${name}`] ?? "";
 
 describe("R2 亮度分级（scss 真编译）", () => {
     it("非焦点卡 opacity 0.22、过渡 150ms linear（只有 opacity 一条）", () => {
@@ -99,18 +91,19 @@ describe("R2/R4 流光与停格淡出（scss 真编译）", () => {
 });
 
 describe("R4 卡内接线（组件源级）", () => {
-    it("QuizCard 标焦点态、接流光层与圈数/用时两处读数", () => {
-        const src = cardSrc();
-        expect(src).toContain("wengu-focus");
-        expect(src).toContain("streamFor("); // 流光层由岛建立（DOM 归 FocusStream）
-        expect(src).toContain("wengu-card-lap");
-        expect(src).toContain("wengu-card-qtime");
+    it("QuizCard 标焦点态、接流光层与圈数/用时两处读数", async () => {
+        const code = await src("/src/quiz/components/QuizCard/index.svelte");
+        expect(code, "QuizCard 应仍是卡渲染组件").toContain("wengu-card");
+        expect(code).toContain("wengu-focus");
+        expect(code).toContain("streamFor("); // 流光层由岛建立（DOM 归 FocusStream）
+        expect(code).toContain("wengu-card-lap");
+        expect(code).toContain("wengu-card-qtime");
     });
 
-    it("流光驱动岛文件在场（FocusStream，含 dispose）", () => {
-        const src = srcOf("FocusStream.ts");
-        expect(src).toContain("dispose");
-        expect(src).toContain("ResizeObserver");
-        expect(src).toContain("60000");
+    it("流光驱动岛文件在场（FocusStream，含 dispose）", async () => {
+        const code = await src("/src/quiz/render/FocusStream.ts");
+        expect(code).toContain("dispose");
+        expect(code).toContain("ResizeObserver");
+        expect(code).toContain("60000");
     });
 });

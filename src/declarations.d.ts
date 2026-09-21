@@ -16,8 +16,18 @@ declare module "*?raw" {
 
 // `import.meta.glob` 的类型（vitest/vite 提供运行时，本仓不引 vite/client
 // 全量类型，故在此单独补最小声明）：源级断言要**扫全仓**（死键盘点 /
-// 「title 不许硬编码中文」这类跨文件口径），逐个 `?raw` 导入不现实，
-// glob + `{ query: "?raw", eager: true }` 是唯一可行形态。
+// 「title 不许硬编码中文」这类跨文件口径），逐个 `?raw` 导入不现实。
+// 两种形态都声明（口径见 `src/testkit/readSource.ts`，读源码统一走它）：
+//   - `eager: true` —— 键相对**本文件**、值即源码（跨层同名会撞车）；
+//   - 省略 `eager` —— 键相对**仓根**（`/src/...`）、值是取值函数
+//     （适合按路径取单个文件；本仓 `readSource` 走这条）。
+//   ⚠️ 懒加载的 `?raw` 取值返回的是**原始字符串**（不是 `{ default }` 模块壳），
+//   故值类型取 `unknown`，由取值处判形。
 interface ImportMeta {
     glob(pattern: string, options: { query: string; import: string; eager: true }): Record<string, string>;
+    // 懒加载形态（不带 `eager`）：值是「取值函数」而非源码本身。
+    // 与 `eager` 形态的差别是实测口径（#189）：懒加载的 `?raw` 返回值是
+    // **原始字符串**，`eager` 形态才是 `{ default: string }` 模块壳——
+    // 故返回类型取 `unknown`，由取值处（`src/testkit/readSource.ts`）判形。
+    glob(pattern: string, options: { query: string; import: string }): Record<string, () => Promise<unknown>>;
 }

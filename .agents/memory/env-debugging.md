@@ -26,38 +26,80 @@
   一条都没有＝提及没匹配上（旧仓库路径提及即此形态，零流水线零报错，
   见 AGENTS.md「召唤青简必须写完整路径」条）。
 
-## 单测读源码的两条硬坑（20260821 #189 实测，写新测试前必读）
+## 单测读源码：**统一走 `src/testkit/readSource.ts`**（20260921 #189 定稿）
 
 本仓**没有 `@types/node`**（`tsconfig.json` 无 `types` 字段、依赖里也没有），
-故 `src/**/*.test.ts` 里 `import { readFileSync } from "node:fs"` 会让
-`pnpm check:svelte` 直接红（`Cannot find name 'node:fs'`）。**vitest 跑得过、
-CI 会红**——两把尺子不同步，最容易漏。仓库既有口径见
-`src/declarations.d.ts`（`*?raw` 与 `import.meta.glob` 的最小声明）。
+`src/**` 里 `import { readFileSync } from "node:fs"` 会让 `pnpm check:svelte`
+直接红（`Cannot find name 'fs'`）——**vitest 跑得过、CI 会红**，两把尺子不同步。
+故读源码只能用 vitest/vite 的 `?raw` 家族（最小声明见 `src/declarations.d.ts`）。
 
-1. **读 TS/Svelte 源码 → `?raw`，别用 `node:fs`**
-   （样板：`SubheadHtml.test.ts` / `RailMount.test.ts` / `reportAiWiring.test.ts`）。
-   ⚠️ 用 `import.meta.glob` 当路径表时，**路径解析有两个独立陷阱**：
-    - glob 的 key **一律相对测试文件自身**，且这套 key 与 `import.meta.url`
-      拼出的路径都能直喂 `sass.compile`（`NodeFileSystem` 均能解析，
-      `../../` 跨两层也照常）；写 `new URL(p, import.meta.url)` 则要看
-      `p` 是「相对 `src/quiz/`」还是「相对本文件」——多降一层会静默
-      指向不存在的 `src/quiz/render/render/xxx.ts`（#189 首轮即此）。
-      **同名分片一定按文件名查表**（`k.endsWith("/" + name)`），与目录无关。
-    - glob **不存在的文件不会抛错、也不会报红**：`?raw` 对缺失文件的
-      import 返回 `undefined`（不是空串！）。**断言是 `.not.toContain(...)`
-      的条目会因此静默变绿**，红测试清单于是缺条目、看着「红得不够」。
-      写新文件级红测试时，取值处要显式判在场并从空串起步，例如
-      同目录脚本源码 `RAW["./X.ts"] ?? ""`（缺失 → 空串 → 正向断言照红）。
+### 唯一口径：路径读源码
 
-2. **读 scss → `sass.compile(路径)` 真编译**（`?raw` 读 scss 在 node 侧恒
-   **空串**，只借 `import.meta.glob` 当路径表；样板
-   `MaterialSplitterDesign.test.ts` / `ButtonVariants.test.ts` /
-   `AiPanelScrollChain.test.ts`）。
+```ts
+import { expectRed, hasSource, mustHave, read } from "<相对 src/testkit 的路径>";
+const code = await read("/src/quiz/render/NumRail.ts"); // 路径相对**仓根**
+```
 
-3. **文件级红测试是合法的中间态**：本仓「先红后实现」的 PR（如 #182/#189）
-   首个提交只有测试，`check:svelte`（模块缺失 TS2307）与 `test` 都会红，
-   这是**有意为之**——CI 上这类红不算失败，但**格式化门必须先过**
-   （`pnpm format:check` 是 quality-gate 第一项，红测试文件同样要过 Prettier）。
+- `read(path)` → 源码原文；**文件不在即抛错**（不静默回落空串）。
+- `mustHave(path)` / `hasSource(path)` → 在场闸，待产出文件先过它。
+- `expectRed([paths])` → 「先红后实现」的**红清单自检**（见下）。
+
+### 三条已实测的死路，别重复走
+
+1. **`node:fs` + ambient `declare module "fs"`**：能过 `svelte-check`，但要在
+   仓库里手写一份 Node 内置的简化类型，且这道声明会被生产代码顺手引走 ——
+   等于把「生产代码禁引 node:fs」的安全网拆了。**否决**。
+2. **`await import("vite")` 拿 `server.fs` / `createServer`**：`vite` 只是
+   vitest 的**传递依赖**，根 `node_modules` 下没有它的入口，`Cannot find
+package 'vite'`；要用就得把 vite 提成显式 devDependency。为一条测试口径
+   动依赖树，不值。**否决**（`import.meta.resolve` 同理：Node 专有 API、无类型）。
+3. **`import.meta.glob` + `eager: true` + basename 查表**（#189 前旧口径）：
+   两个坑 —— ① 键**相对本文件**，跨层同名（`src/quiz/index.ts` vs
+   `src/index.ts`）只能靠「取最后一段」查表，会**撞车取错文件**；② 缺失文件
+   的 `?raw` import 返回 `undefined`（**不是空串**），`.not.toContain(...)`
+   类**反向断言静默变绿**，红清单缺条目还看不出来。**已由 readSource 取代**。
+
+### `readSource` 内部口径（改它之前先读）
+
+- 用 `import.meta.glob` 的**懒加载**形态（不带 `eager`）：键是
+  **相对仓根的 `/src/...`**，于是路径即身份、跨层同名不再撞车，也不必为
+  每层目录各写一条 glob 再拼表。
+- ⚠️ **懒加载的 `?raw` 返回值是「原始字符串本身」，不是 `{ default }` 模块壳**
+  （`eager` 形态才是模块壳）——故 `read()` 两种都认。实测：#189 首轮只解
+  `.default` → 每个文件都拿到 `undefined`，全绿/全红的判定一起失真。
+- ⚠️ **`?raw` 的 glob 只认 `.ts` / `.svelte`**：`.scss` 一律 `sass.compile`
+  真编译（`?raw` 对它恒空串）。故 `readSource` 的 glob 模式里没有 scss。
+- 非 eager 的 glob 同样**不校验目标是否存在**，故 `mustHave` 是必需的闸。
+
+### 「先红后实现」的红测试怎么写
+
+文件级红测试是**合法的中间态**（本仓 #182/#189 即此形态）：`check:svelte`
+会带 1 条 `Cannot find module`、`test` 会红，这是**有意为之**；但
+**`pnpm format:check`（quality-gate 第一项）与 eslint 必须先过**。
+
+四条规矩：
+
+1. 红测试文件里**不许静态 `import` 待产出源码**（会让 `check:svelte` 红在
+   `Cannot find module`，看着像编译器故障而非「断言未过」）——一律 `read()`
+   取源码做**源级断言**，`check:svelte` 只剩 1 条「待产出文件缺席」的预期红。
+2. **待产出文件先 `mustHave`**：否则取不到源码时正向断言也红、反向断言却绿，
+   红清单「红得不够」而你看不出来。
+3. **反向断言必配正向锚点**（`expect(code).toContain(...)` 先钉住「确实读到了
+   那个文件/那段区间」），否则读错文件时反向断言假绿。参见
+   `QuizTimerFlow.test.ts` 的 `anchors()`。
+4. **红清单必须显式登记**：`expectRed([...])` 保证「待产出文件现在确实不在」。
+   少了它，阶段二实现落地后反向断言会**逐个自己变绿**，你无法区分「做完了」
+   与「断言被写松了」。**阶段二收口时把 `expectRed` 调用连同其 `describe`
+   一起删**（这是一次有意识的动作，脚本不会替你删）。
+
+### 既有口径（仍有效）
+
+- 读 TS/Svelte 源码：`readSource.read()`；模板可参考
+  `SubheadHtml.test.ts` / `RailMount.test.ts`。
+- 读 scss：`sass.compile("src/scss/x.scss")` 真编译（样板
+  `MaterialSplitterDesign.test.ts` / `ButtonVariants.test.ts` /
+  `AiPanelScrollChain.test.ts`）。
+- 读 i18n 字典：`?raw` 导入 JSON（`../../i18n/zh-CN.json`）后 `JSON.parse`。
 
 ## 机器 A（本机，Windows + Git Bash，2026-08-30 重验）
 
