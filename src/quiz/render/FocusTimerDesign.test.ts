@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { compile } from "sass";
 
@@ -15,10 +14,31 @@ import { compile } from "sass";
  *   一圈 `LAP = 60000`；流光几何 inset 0.5px + r 11.5px（卡圆角 12px 中心线）。
  */
 
+/** ⚠️ scss 走 `sass.compile(路径)` 真编译（`?raw` 对 scss 恒空串，只借
+ * glob 当路径表）；组件走 `?raw` 导入。两条都不引 `node:fs` —— 本仓无
+ * `@types/node`（口径同 `MaterialSplitterDesign.test.ts` / `ButtonVariants.test.ts`）。
+ * 测试若因文件缺失而整片红，读 `tests/siyuan-stub.ts` 头部「测试读源码」一节。 */
+const SCSS = import.meta.glob("../../scss/*.scss", { query: "?raw", import: "default", eager: true });
+const RAW = import.meta.glob("./**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const SVELTE = import.meta.glob("../components/QuizCard/index.svelte", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+
+/** 分片路径（`src/scss/x.scss`）——真编译用；glob key 只当路径表。 */
+const pathOf = (name: string): string => `src/scss/${name}`;
+
 const scss = (): string => {
-    const raw = readFileSync(new URL("../../scss/focus-timer.scss", import.meta.url), "utf8");
-    return compile(raw.replace(/@use\s+"[^"]+"[^;]*;/g, ""), { style: "expanded" }).css;
+    expect(Object.keys(SCSS), "src/scss/focus-timer.scss 不存在").toContain("../../scss/focus-timer.scss");
+    return compile(pathOf("focus-timer.scss"), { style: "expanded" }).css;
 };
+
+/** 组件源码（`?raw`；文件缺失时对象为空）。 */
+const cardSrc = (): string => SVELTE["../components/QuizCard/index.svelte"] ?? "";
+
+/** 同目录脚本源码（`?raw`；文件缺失时返回空串，断言自然红）。 */
+const srcOf = (name: string): string => RAW[`./${name}`] ?? "";
 
 describe("R2 亮度分级（scss 真编译）", () => {
     it("非焦点卡 opacity 0.22、过渡 150ms linear（只有 opacity 一条）", () => {
@@ -72,7 +92,7 @@ describe("R2/R4 流光与停格淡出（scss 真编译）", () => {
 
 describe("R4 卡内接线（组件源级）", () => {
     it("QuizCard 标焦点态、出流光层与圈数/用时两处读数", () => {
-        const src = readFileSync(new URL("../components/QuizCard/index.svelte", import.meta.url), "utf8");
+        const src = cardSrc();
         expect(src).toContain("wengu-focus");
         expect(src).toContain("wengu-gtx");
         expect(src).toContain("wengu-card-lap");
@@ -80,7 +100,7 @@ describe("R4 卡内接线（组件源级）", () => {
     });
 
     it("流光驱动岛文件在场（FocusStream，含 dispose）", () => {
-        const src = readFileSync(new URL("./FocusStream.ts", import.meta.url), "utf8");
+        const src = srcOf("FocusStream.ts");
         expect(src).toContain("dispose");
         expect(src).toContain("ResizeObserver");
         expect(src).toContain("60000");

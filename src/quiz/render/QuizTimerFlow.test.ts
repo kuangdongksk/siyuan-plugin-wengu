@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -9,7 +8,28 @@ import { describe, expect, it } from "vitest";
  * 与既有 `SubheadHtml.test.ts`（primary 唯一）/ `RailMount.test.ts` 同款口径。
  */
 
-const read = (p: string): string => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+/** 源码原文经 vitest 的 `?raw` 导入（本仓无 `@types/node`，不用 `node:fs`；
+ * 口径同 `SubheadHtml.test.ts` / `RailMount.test.ts`）。
+ *
+ * 路径表用 glob **相对本文件的 key**（如 `../render/NumRail.ts`）：测试里传的
+ * `render/NumRail.ts` 已是「相对 `src/quiz/`」，而 `import.meta.url` 在
+ * `src/quiz/render/` 下 —— 直接用 `new URL(p, import.meta.url)` 会多降一级、
+ * 指到不存在的 `src/quiz/render/render/NumRail.ts`（#189 首轮即踩此坑）。
+ * 故以**文件名**为键查表，与文件所在目录无关。 */
+const RAW = import.meta.glob("../**/*.{ts,svelte}", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+}) as Record<string, string>;
+
+/** 按文件名取源码原文（同名分片不存在时抛错，防「整文件丢了还整片红/绿」）。 */
+const read = (p: string): string => {
+    const name = p.slice(p.lastIndexOf("/") + 1);
+    const hit = Object.entries(RAW).find(([k]) => k.endsWith(`/${name}`));
+    if (!hit) throw new Error(`source not found: ${p}（glob 未命中 ${name}）`);
+    return hit[1];
+};
+
 /** 去注释后再断言（注释里复述写法不算「在用」，同 SpecListings 口径）。 */
 const strip = (s: string): string =>
     s
@@ -22,7 +42,10 @@ describe("R1 点击即切：滚动不切焦点、切题只有点击路（源级�
         const src = read("render/NumRail.ts");
         // 滚动帧里只刷高亮（setActiveOnly），不动 opts.onActive
         expect(src).toContain("setActiveOnly");
-        const scrollBlock = src.slice(src.indexOf('addEventListener(\n        "scroll"'), src.indexOf("{ passive: true }"));
+        const scrollBlock = src.slice(
+            src.indexOf('addEventListener(\n        "scroll"'),
+            src.indexOf("{ passive: true }")
+        );
         expect(scrollBlock).not.toContain("opts.onActive");
     });
 
