@@ -71,7 +71,10 @@ function bindingsOf(host: AnswerHost): GapReviewBindings | undefined {
 /** 把现场翻译成 `service/GapJudge` 的判据形状（两个谓词共用一份）。 */
 function ctxOf(host: AnswerHost, c: GapReviewSite): { ctx: GapJudgeCtx; verdict: GapJudgeFn | undefined } {
     const bindings = bindingsOf(host);
-    // 登记标题要题号（Issue #201）：按现场题目现查（0=拿不到，标题不带题号）
+    // 登记标题要题号（Issue #201）：按现场题目现查。0=查不到，是**兜底**
+    // 而非正常态——`AnswerGate` 恒接线 `questionNo`，且填空类题不参与
+    // 选项洗牌（`shuffleForDisplay` 只换 single/multiple/steps），故
+    // `c.q` 就是 `v.questions()` 里的同一个对象，`indexOf` 必命中。
     const verdict = bindings?.jevGapVerdict(bindings?.jevGapQuestionNo(c.q) ?? 0);
     const asked = bindings ? (key: string): boolean => bindings.jevGapAsked(key) : undefined;
     return { ctx: { ok: c.ok, type: typeOf(c), asked, key: keyOf(c), input: inputOf(c), verdict }, verdict };
@@ -148,8 +151,8 @@ export interface GapReviewWiring {
     session: () => JevSameSink | undefined;
     /** 会话变更落库（`QuizView.persist`）。 */
     persist: () => void;
-    /** 题号查询（1 起；只用于会话登记标题，Issue #201）。可选——测试壳
-     *  不给即 0（标题不带题号，判定链不受影响）。 */
+    /** 题号查询（1 起；只用于会话登记的标题，Issue #201）。可选——测试壳
+     *  不给即 0（兜底；判定链不受影响，登记标题退化成「第 0 题」）。 */
     questionNo?: (q: WenguQuestion) => number;
 }
 

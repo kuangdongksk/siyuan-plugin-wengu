@@ -108,7 +108,7 @@ export function gapJudgeTrack(no: number): JevTrack {
 export function makeGapVerdict(
     settings: JevSettingsLike | undefined,
     opts: GapJudgeOpts = {},
-    /** 题号（1 起；只用于会话登记的标题，缺省 0 = 取不到题号）。
+    /** 题号（1 起；只用于会话登记的标题，缺省 0 = 兜底「第 0 题」）。
      *  ⚠️ 与本层其他注入面（transport/sleep/timeout）**分开传**：登记是
      *  面板可读性问题，不该混进「测试注入接缝」那个口子。 */
     no = 0
