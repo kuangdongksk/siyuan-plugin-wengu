@@ -1,8 +1,8 @@
 ---
 name: jev-typesafe-integration
 description:
-    Jev 接入——推荐档六单全合并；20260921 用户推翻「不登记 AI 会话」决策，
-    #201 会话可见性在飞；下一步真机冒烟
+    Jev 接入——推荐档六单全合并；AI 会话可见性 #205 已合并（含 i18n 反向
+    门禁）；下一步真机冒烟
 metadata:
     node_type: memory
     type: project
@@ -56,12 +56,21 @@ imports 注释行）→ 实跑校准——并行会话已做声明级标定
 4 文件未过 → dev 门禁红 #194）；NPC 会自己协调同批分支的格式折行防冲突。CI 预检 key
 仍未启用（预检仅供参考不挡合并）；**真机冒烟**：装 key 后转换质检/复盘判档/填空判同/
 同义词四落点逐一过一遍（传输契约修后才真正可用）。
-③ **AI 会话可见性（20260921 用户点名，推翻 #183「不登记 AI 会话面板」决策）**：
-Issue #201 已开单召唤（feat/jev-session-track）——六落点 `judgeJev` 按登记簿
-begin/succeed/fail 落 `jev` 类别记录（KIND_KEYS 加 `aiKindJev`；
-`SessionDetail.retryable` 必须排除 jev——重试走 agentChatContinued 是生成式
-专属；**在途闸红线不动**；登记簿 schema 零新增）；`client.ts` 头注红线第一条
-随 PR 改写。冒烟时面板可见性一并验收。
+③ **AI 会话可见性（20260921 用户点名，推翻 #183「不登记 AI 会话面板」决策）
+——已合并 PR #205 `5683a7e`（Issue #201 已关、分支已删）**：`ai/jev/track.ts`
+收口登记（`judgeJev` opts 加 optional `track{title,group?}`，kind 固定 `"jev"`，
+id 自造非内核 sessionID；无 track 零感知、**在途闸红线不动**、登记簿 schema
+零新增）。六落点接线（质检/预筛带文档名、增量变更带题集名、填空判同带题号、
+单词判档带词数、同义判定带对数；`sites.test.ts` 源级锁每处接线）；
+`SessionDetail.retryable` 排除 jev（重试是生成式专属）；`KIND_KEYS` 加
+`aiKindJev`。审查揪出**幽灵键 P1**：DocOps 用了 `aiTitleJevChange` 而两字典
+都没有（`t()` 缺键回落键名，面板渲染字面量；dict.test 只锁中英对称拦不住
+「两边都缺」）——已补键，NPC 顺势加 **i18n 反向门禁**（dict.test：src 里
+t()/tKey()/translate() 首参与 aiTitle*/aiKind*/aiFlow* 族字面量必须在两字典，
+状态机剥注释）。同 PR 教训：与 #203 同文件并发，后合并者 rebase（chunkScreen
+只重放三处 track 接线到位序版上）；rebase 后审 diff 必须**从 merge-base 三点
+diff**，两点 diff 会把 dev 侧新合并（#204）算进改动面。**冒烟时面板可见性
+一并验收**（配 key 触发判定 → 面板「Jev 判定」树出记录）。
 ④ **跨域口径（用户问过，已核实）**：渲染进程直连外部域不可靠，插件内一律走
 内核 `/api/network/forwardProxy`（payload 只收 string、响应在 data.body，
 3.8.2 修过 responseEncoding #18978；kernel-pitfalls.md「外部 API」节）。
