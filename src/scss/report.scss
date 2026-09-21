@@ -207,11 +207,15 @@
 
 .wengu-report-ai {
   padding: 8px 12px;
-  white-space: pre-wrap;
   border-left: 3px solid var(--b3-theme-primary-light);
   border-radius: var(--b3-border-radius);
   background: var(--b3-theme-background-light);
 }
+
+/* ⚠️ 本块**不再有 `white-space: pre-wrap`**（Issue #177）：AI 输出自本单起
+   经 ui/MdRender 渲染成块级 HTML，pre-wrap 会把渲染产物里的换行再当硬换行
+   （段距双倍撑开）；markdown 基线随容器类留在共享片 scss/ai-md.scss
+   （两个消费方共用同一类名，design-spec §13.3 已登记）。 */
 
 /* 已出报告态点「结束本次」的可见反馈之一（Issue #147 追加 2）：报告已
    滚离顶部时滚回顶部并叠一次高亮脉冲——「跳回顶部 + 闪一下」，与禁用

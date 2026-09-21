@@ -150,6 +150,42 @@ describe("buildTimeBars 聚合档（>60）", () => {
         expect(buildTimeBars(mk(["partial", "wrong"]), fmt)[0].cls).toBe("wengu-bar-wrong");
     });
 
+    it("脏用时（NaN/Infinity）按 0 收拾，柱高不出 NaN%（Issue #177 出口归一）", () => {
+        // 源头已在 byBaseQid 修掉，此处锁「出口也防」：任何调用方传进脏值，
+        // 都不许让柱高算出 height:NaN%（非法值被浏览器丢弃 ⇒ 全图高度失真）
+        const cols = buildTimeBars(
+            [q(1, Number.NaN, "right"), q(2, 20, "right"), q(3, Number.POSITIVE_INFINITY, "right")],
+            fmt
+        );
+        for (const c of cols) {
+            expect(Number.isFinite(c.h)).toBe(true);
+            expect(c.h).toBeGreaterThanOrEqual(4);
+        }
+        // NaN 与 Infinity 都按 0：最短那根仍是下限高，20s 那根为 100%
+        expect(cols[0].h).toBe(4);
+        expect(cols[1].h).toBe(100);
+        expect(cols[2].h).toBe(4);
+    });
+
+    it("归一后的 sec 让调用方的 mmss 出不了 NaN:NaN（Issue #177 出口口径）", () => {
+        // ⚠️ 本模块**不产出** title（tx 由调用方给）——但它交出去的 sec 必须已
+        //    是有限数，否则任何朴素 `mmss(x.sec)` 直接印出「NaN:NaN」。
+        //    生产侧的三态文案见 RoundReportApp 的 timeText；此处锁**数据口**。
+        const seen: number[] = [];
+        const spy = {
+            fmtTitle: (x: TimeBarInput): string => {
+                seen.push(x.sec);
+                return "t";
+            },
+            fmtGroup: (g: { sec: number }): string => {
+                seen.push(g.sec);
+                return "t";
+            },
+        };
+        buildTimeBars([q(1, Number.NaN, "right"), q(2, Number.POSITIVE_INFINITY, "right")], spy);
+        for (const s of seen) expect(Number.isFinite(s), `交给格式化器的 sec 必须有限，实际 ${s}`).toBe(true);
+    });
+
     it("组 title 文案与组内明细的逐题 title 都拿到", () => {
         const cols = buildTimeBars(
             [q(1, 5, "right"), q(2, 0, "none"), ...right(60).map((x) => ({ ...x, label: x.label + 2 }))],
@@ -159,6 +195,15 @@ describe("buildTimeBars 聚合档（>60）", () => {
         expect(cols.length).toBe(31);
         expect(cols[0].title).toBe("G1-2:1/2:5");
         expect(cols[0].items.map((x) => x.title)).toEqual(["T1", "T2"]);
+    });
+
+    it("聚合档脏用时同样按 0 算，组总用时不出 NaN", () => {
+        const head = [q(1, Number.NaN, "right"), q(2, 10, "right")];
+        const tail = right(60).map((x) => ({ ...x, label: x.label + 2 }));
+        const cols = buildTimeBars([...head, ...tail], fmt);
+        for (const c of cols) expect(Number.isFinite(c.h)).toBe(true);
+        // 62 题 → 2 题一组，首组 = 第 1–2 题（NaN 按 0 ⇒ 合计 10）
+        expect(cols[0].title).toBe("G1-2:2/2:10");
     });
 
     it("组内明细保留逐题语义（title/cls/高度各自独立）", () => {

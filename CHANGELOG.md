@@ -2,6 +2,43 @@
 
 ## v0.1.1 unreleased
 
+- **修复：AI 分析报告三件——输出 markdown 化、逐题用时三态、知识点归组节，
+  并修掉报告里真存在 NaN 的根因**（20260919，ai / quiz / scss 域，Issue #177）：
+  真机报告里 AI 输出 `**总评**:` 字面星号裸奔，且点名「Q15-21 计时为 NaN」。
+
+    - **根因不是 AI 幻觉，是它照抄**：`byBaseQid` 的 `sec` 合并写成
+      `(cur?.sec ?? 0) + r.sec` —— 单步题在 `sec` 缺失时即
+      `0 + undefined = NaN`，而 **`??` 只吃 null/undefined、不吃 NaN**
+      （`NaN ?? 0` 仍是 `NaN`）。于是 NaN 漏到两处：报告图表
+      `mmss(NaN)` → tooltip「用时 NaN:NaN」、柱高算出 `height:NaN%`（非法值
+      被浏览器丢弃 ⇒ 整张图相对高度集体失真）；旧 prompt 逐题行
+      `${r.sec ?? 0}s` → **字面印出「NaNs」**。修法：`sec` 三态显式化
+      （`>0`＝各步都有用时之和 / `0`＝未记录 / **绝不出 NaN**），任一步缺
+      用时整题归 0；图表侧再加一道出口归一（`secOf`，非有限值按 0）。
+      **教训：渲染前先保证数据里没有 NaN，指令再严也拦不住照抄。**
+    - **markdown 渲染**：`runAgentTextOrPanel` 由 `out.textContent` 改
+      `out.innerHTML = renderAiTextHtml(...)`——AI 正文走 `ui/MdRender` 的
+      `renderMdHtml`，**加载/空回复/失败文案仍纯文本**（`esc` + 换行转 `<br>`）；
+      形态判定抽成纯函数（node 环境可断言）。两个调用方
+      （`RoundReportApp` 报告分析 / `StatsCtl` 统计建议）零改动受益。
+      容器 `white-space: pre-wrap` 随之退役（否则渲染产物的换行被双倍撑开）。
+    - **用时三态 + 反编造指令**：每题行「`N s`」/「用时未记录（快速作答 <1s）」/
+      「未答不注时间」（文案常量 `TIME_UNKNOWN_TEXT` 收口），并加硬指令
+      「不要推测、编造任何数值，不要输出 NaN/undefined」。
+    - **知识点归组节**：prompt 由四段扩为五段，末段用 markdown 列表给出
+      归组清单（按 `q.knowledge` 缺省 `q.chapter`，每点几对几错 + 合计用时）；
+      同组用时**全缺时不出「合计用时」**——否则又把「没有数据」摆成 `0s`。
+    - **数据侧零改动**：`HistoryStore` 的 `sec > 0` 闸、落盘格式、存量兼容一律未动。
+    - **样式**：markdown 基线落共享片 `src/scss/ai-md.scss`（两个消费方共用
+      `.wengu-report-ai` ⇒ `design-spec` §13.1②），已登记进 §13.3 登记表；
+      公式 `$…$` 已有思源同款占位，KaTeX 补渲需内核 `ProtyleMethod`，
+      页内降级通道不接（注释登记说明）。
+    - **测试**：`ai/prompts/judge.test.ts`（三态 / 不出 NaN / 五段 / 归组 /
+      chapter 回落 / 同组无用时不出合计）、`ai/agentPanel.test.ts`（`**b**` →
+      `<strong>b</strong>`、列表 ul/li、裸 HTML 转义、加载失败仍纯文本 +
+      源级接线闸）、`ai/aiMdStyle.test.ts`（sass 真编译）、
+      `quiz/render/TimeBars.test.ts` 与 `RoundReport.view.test.ts` 补脏用时出口归一。
+
 - **修复：移动端刷题卸载链接线——退出面板不再泄漏走秒 interval、不再留 0 作答孤儿**
   （20260919，mobile / bootstrap 域，Issue #173）：#169 已把执行体
   （`MobileRound.settleOnUnmount`：停走秒 + 结算用时 + 擦不可恢复的空轮）修好，

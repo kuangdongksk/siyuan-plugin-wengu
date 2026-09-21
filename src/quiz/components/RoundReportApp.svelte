@@ -3,7 +3,7 @@
     import Button from "../../ui/Button.svelte";
     import { fmt, mmss, ratePct } from "../../ui/shared";
     import { runAgentTextOrPanel } from "../../ai/agentPanel";
-    import { byBaseQid, buildAnalysisPrompt } from "../../ai/prompts/judge";
+    import { byBaseQid, buildAnalysisPrompt, TIME_UNKNOWN_TEXT } from "../../ai/prompts/judge";
     import { weakCauseLabelKey } from "../../bank/data/WeaknessStore";
     import type { WeakTopRow } from "../../bank/data/WeaknessStore";
     import { buildTimeBars, type TimeBarInput } from "../render/TimeBars";
@@ -61,15 +61,36 @@
     });
     const stateText = (x: TimeBarInput): string =>
         x.unanswered ? t("reportUnanswered") : x.partial ? t("verdictPartial") : x.wrong ? t("wrong") : t("correct");
+    /** 逐题/组柱的**用时三态**（Issue #177 追加）：未答不注时间、未记录
+     *  写「用时未记录」（同判卷 prompt 的 {@link TIME_UNKNOWN_TEXT} 口径，
+     *  同一常量，别各写一套）、有真用时才落 `mmss`。
+     *
+     *  ⚠️ 为什么不能直接 `mmss(x.sec)`：`mmss` 只夹 `Math.max(0, …)`，
+     *  **脏输入会算出「NaN:NaN」/「Infinity:NaN:NaN」印进 tooltip**——数据
+     *  侧已在 `byBaseQid` 出口归一（非有限值 → 0），这里是出口那道，两处
+     *  同口径；也顺带对齐「0 与缺失同路」：不说「0:00」，说「未记录」。 */
+    const timeText = (sec: number, unanswered: boolean): string =>
+        unanswered ? t("reportUnanswered") : sec > 0 ? mmss(sec) : TIME_UNKNOWN_TEXT;
+    /** **汇总行**的出口归一（Issue #177 收口）：`mmss` 只夹 `Math.max(0, …)`，
+     *  非有限入参直接印「Infinity:NaN:NaN」。`model.totalSec` 那条**可达**：
+     *  ← `TimerController.elapsed()` ← `baseSec` ←「继续上次」传的
+     *  `unfinished.elapsedSec`，即 history.json 里可手改 / 可跨版本同步的字段
+     *  （`JSON.parse('{"elapsedSec":1e999}')` → `Infinity`，落盘层无闸）。
+     *  `model.overtimeSec` 同形收口只作**一致性锁**（`tick()` 整数计数器、
+     *  不落盘，当前不可达）——别虚报成可复现缺口。判卷 prompt 的「本轮」行
+     *  在 `buildAnalysisPrompt` 内同口径收，两处同一判据：非有限值按 0 收拾。 */
+    const totalSec = Number.isFinite(model.totalSec) ? model.totalSec : 0;
+    const overtimeSec = Number.isFinite(model.overtimeSec) ? model.overtimeSec : 0;
     const timeBars = buildTimeBars(barInputs, {
-        fmtTitle: (x) => fmt(t("reportQTime"), { n: String(x.label), t: mmss(x.sec) }) + ` · ${stateText(x)}`,
+        fmtTitle: (x) =>
+            fmt(t("reportQTime"), { n: String(x.label), t: timeText(x.sec, x.unanswered) }) + ` · ${stateText(x)}`,
         fmtGroup: (g) =>
             fmt(t("reportGroupTime"), {
                 n: String(g.from),
                 m: String(g.to),
                 x: String(g.answered),
                 y: String(g.total),
-                t: mmss(g.sec),
+                t: timeText(g.sec, g.answered === 0),
             }),
     });
     // 历史轮次得分条形图：高度 ∝ 正确率
@@ -112,9 +133,9 @@
         <div class="wengu-start-title">{t("reportTitle")}</div>
         <div class="wengu-report-summary">
             <span class="wengu-meta">{fmt(t("reportScore"), { c: String(s.correct), a: String(s.answered) })}</span>
-            <span class="wengu-meta">{@html svgIcon("iconClock")} {mmss(model.totalSec)}</span>
-            {#if model.overtimeSec > 0}
-                <span class="wengu-meta">+{mmss(model.overtimeSec)} {t("reportOvertime")}</span>
+            <span class="wengu-meta">{@html svgIcon("iconClock")} {mmss(totalSec)}</span>
+            {#if overtimeSec > 0}
+                <span class="wengu-meta">+{mmss(overtimeSec)} {t("reportOvertime")}</span>
             {/if}
         </div>
         <div class="wengu-report-chart">

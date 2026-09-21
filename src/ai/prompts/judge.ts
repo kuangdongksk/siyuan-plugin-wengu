@@ -172,24 +172,88 @@ ${done}`;
 }
 
 /** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
- *  ok=全步对、sec=各步求和；verdict 保留 brief 的 partial 标记）。
- *  分析 prompt 的每题行与轮报图表共用（RoundReportApp 经此导入）。 */
+ *  ok=全步对、sec=各步用时求和；verdict 保留 brief 的 partial 标记）。
+ *  分析 prompt 的每题行与轮报图表共用（RoundReportApp 经此导入）。
+ *
+ *  ⚠️ **`sec` 的三态口径（Issue #177，本函数的唯一易错点）**：
+ *  ① `> 0`＝该题**每一步**都记到了用时，值为各步之和；
+ *  ② `0`＝**未记录**（任一步缺 `sec`，或整卷计时模式下根本没有逐题用时）；
+ *  ③ **绝不允许出现非有限值**（`NaN` 与 `±Infinity` 同罪）。
+ *
+ *  旧实现是 `(cur?.sec ?? 0) + r.sec`——单步（绝大多数题）在 `r.sec` 缺失
+ *  时即 `0 + undefined = NaN`，而**`NaN ?? 0` 仍是 `NaN`**（`??` 只吃
+ *  null/undefined，不吃 NaN），于是 NaN 一路漏到两个消费方：
+ *  - 报告图表：`mmss(NaN)` → tooltip 显示「用时 NaN:NaN」、柱高算出
+ *    `height:NaN%`（非法值被浏览器丢弃，整张图的相对高度失效）；
+ *  - 旧 prompt 的逐题行 `${r.sec ?? 0}s` → **字面印出「NaNs」**。
+ *    #177 那份报告里「Q15-21 计时为 NaN」**不是 AI 幻觉，是它照抄了我们
+ *    喂进去的字符串**——这条教训比「补三态文案」更重要：**渲染前先保证
+ *    数据里没有 NaN**，否则再好的指令也拦不住照抄。
+ *  故现口径把「是否每步都记到」单独累计，任缺一步整题按 `0`（未记录）；
+ *  消费方一律用 `> 0` 判「有真用时」，`0` 与缺失同路（见 timeStateOf /
+ *  报告图表的 `?? 0`）。
+ *
+ *  ⚠️ **③ 的兜底落在出口，不落在「有没有垃圾进得来」**：`history.json` 是
+ *  可手改 / 可跨版本同步的存储，`sec: Infinity` 这种脏值**在落盘层没有闸**
+ *  （`HistoryStore` 只挡 `sec > 0` 以下的），故 `allTimed` 那轮的 `r.sec > 0`
+ *  判据吃不掉它：`Infinity > 0` 成立 ⇒ 原样留下，再穿到 `mmss(Infinity)`
+ *  ＝「Infinity:NaN:NaN」与逐题行的「Infinitys」。故**返回前对终值再过一次
+ *  `Number.isFinite`**——判据修的是常见形态，出口修的是「任何入参」（同
+ *  `TimeBars.secOf` 那道，两处同口径）。 */
+function secFinite(sec: number): number {
+    return Number.isFinite(sec) ? sec : 0;
+}
+
+/** 把一轮的会话结果按题目块 id 聚合（多步题的 qid#k 条目合并：
+ *  ok=全步对、sec=各步用时求和；verdict 保留 brief 的 partial 标记）。 */
 export function byBaseQid(s: WenguSession): Map<string, { ok: boolean; sec: number; verdict?: string }> {
     const out = new Map<string, { ok: boolean; sec: number; verdict?: string }>();
+    /** 该题每一步都记到了用时（见上文三态②：任缺一步整题归 0）。 */
+    const allTimed = new Map<string, boolean>();
     for (const r of s.results) {
         const b = baseQid(r.qid);
         const cur = out.get(b);
         out.set(b, {
             ok: cur ? cur.ok && r.ok : r.ok,
-            sec: (cur?.sec ?? 0) + r.sec,
+            sec: secFinite((cur?.sec ?? 0) + (r.sec ?? 0)),
             verdict: cur?.verdict ?? r.verdict,
         });
+        allTimed.set(b, (allTimed.get(b) ?? true) && r.sec > 0);
+    }
+    for (const [b, timed] of allTimed) {
+        const hit = out.get(b);
+        // 出口再归一一道：`allTimed` 的 `r.sec > 0` 拦不住 Infinity（见上文）
+        if (hit) hit.sec = timed ? secFinite(hit.sec) : 0;
     }
     return out;
 }
 
-/** 一轮判卷分析 prompt（总体/薄弱点/思路点评/建议；带各题思路时重点点评思路）。
- *  入参收结构子集，RoundReport 的完整模型天然可赋值。 */
+/** 报告里「用时未记录」的**唯一文案**（Issue #177）。
+ *
+ *  为什么要有这一态：`HistoryStore.recordResult` 有 `sec > 0` 闸（0 秒不该
+ *  记，数据层是对的），故**快速作答（<1s）与未记录的用时在数据上是同一形态**
+ *  （`sec` 缺失）。旧 prompt 把 `r.sec ?? 0` 落成字面 `0s`，AI 拿到一排 0s
+ *  后自己写成「Q15-21 计时为 NaN」（20260918 真机幻觉，原始报告在 #177）。
+ *  现三态显式表述：有秒数 `N s` / 未记录 → 本常量 / 未答不注时间。
+ *  ⚠️ 单测与真机验收都按本常量对文案，改文案就改这一处。 */
+export const TIME_UNKNOWN_TEXT = "用时未记录（快速作答 <1s）";
+
+/** 逐题行的用时三态（见 {@link TIME_UNKNOWN_TEXT}）；未答恒为 `""`。 */
+function timeStateOf(r: { ok: boolean; sec: number } | undefined): string {
+    if (!r) return "";
+    // sec 缺失与非正数同路（0 = 该题没记上用时，不是「0 秒完成」）
+    return r.sec > 0 ? `${r.sec}s` : TIME_UNKNOWN_TEXT;
+}
+
+/** 一轮判卷分析 prompt（总体/薄弱点/思路点评/建议 + 知识点归组；带各题
+ *  思路时重点点评思路）。入参收结构子集，RoundReport 的完整模型天然可赋值。
+ *
+ *  Issue #177 两处指令层改动（**数据侧零改动**）：
+ *  1. 每题行用时三态 + 「不要编造数值、不要输出 NaN」硬指令；
+ *  2. 新增「知识点」一节：按 `q.knowledge`（缺省 `q.chapter`）归组，每组
+ *     几对几错 + 合计用时，markdown 列表 —— 数据本就全在 prompt 里，
+ *     此前只给逐题流水，知识点散在叙述里不便对照复习。
+ */
 export function buildAnalysisPrompt(m: {
     session: WenguSession;
     list: WenguQuestion[];
@@ -201,24 +265,62 @@ export function buildAnalysisPrompt(m: {
     const byQid = byBaseQid(s);
     const thoughts = s.thoughts ?? {};
     const hasThoughts = Object.keys(thoughts).length > 0;
+    const labelOf = (q: WenguQuestion, i: number): string => q.knowledge || q.chapter || String(i + 1);
+    const stateOf = (r: { ok: boolean; verdict?: string } | undefined): string =>
+        // partial=方向对但有缺口（统计记错），AI 分析要单独点名
+        !r ? "未答" : r.verdict === "partial" ? "部分正确" : r.ok ? "对" : "错";
     const perQ = list
         .map((q, i) => {
             const r = byQid.get(q.id);
-            const label = q.knowledge || q.chapter || String(i + 1);
-            // partial=方向对但有缺口（统计记错），AI 分析要单独点名
-            const state = !r ? "未答" : r.verdict === "partial" ? "部分正确" : r.ok ? "对" : "错";
-            const base = r ? `${i + 1}. ${label} ${state} ${r.sec ?? 0}s` : `${i + 1}. ${label} 未答`;
+            const base = `${i + 1}. ${labelOf(q, i)} ${stateOf(r)}${r ? ` ${timeStateOf(r)}` : ""}`;
             return thoughts[q.id] ? `${base}｜思路：${thoughts[q.id]}` : base;
         })
         .join("；\n");
+    // 知识点归组（Issue #177）：同一归组键的题聚成一段，给出几对几错 + 合计
+    // 用时（**逐题 sec 全缺时不出用时**，免得又出现一排 0/NaN 的诱导）
+    const groups = new Map<string, { total: number; correct: number; sec: number; timed: boolean }>();
+    list.forEach((q, i) => {
+        const key = labelOf(q, i);
+        const r = byQid.get(q.id);
+        const g = groups.get(key) ?? { total: 0, correct: 0, sec: 0, timed: false };
+        g.total++;
+        if (r?.ok) g.correct++;
+        if (r && r.sec > 0) {
+            g.sec += r.sec;
+            g.timed = true;
+        }
+        groups.set(key, g);
+    });
+    const knowGroups = [...groups]
+        .map(([key, g]) => {
+            const time = g.timed ? `，合计用时 ${g.sec}s` : "";
+            return `- ${key}：${g.correct} 对 / ${g.total - g.correct} 错${time}`;
+        })
+        .join("\n");
     const history = rounds.map((r, i) => `第${i + 1}轮 ${r.correct}/${r.answered}`).join("；");
-    const overtime = m.overtimeSec > 0 ? `；超时 ${mmss(m.overtimeSec)}` : "";
+    // 汇总行的**出口归一**（Issue #177）：`totalSec`/`overtimeSec` 与逐题
+    // `sec` 同罪不同路——逐题那条走了 byBaseQid（`allTimed` 的 `r.sec > 0`
+    // 判据拦不住 Infinity，靠出口 `secFinite` 收），**汇总这条两个闸都没有**：
+    // `RoundReport` 的 `totalSec` ← `TimerController.elapsed()` ← `baseSec`
+    // ←「继续上次」传的 `unfinished.elapsedSec`，正是 history.json 里可手改 /
+    // 可跨版本同步的那个字段（`JSON.parse('{"elapsedSec":1e999}')` →
+    // `Infinity`，落盘层无闸）⇒ `totalSec = baseSec + sec` 直接出非有限值，
+    // 而 `mmss` 只夹 `Math.max(0, …)`，印成「总用时 Infinity:NaN:NaN」。
+    // 故与 byBaseQid 同口径：**出口再过一道 secFinite**，任何入参都不印脏值。
+    // ⚠️ `overtimeSec` 同形收口只是**一致性锁**（`tick()` 整数计数器、不落盘，
+    // 当前拿不到 ±Infinity），别当成可复现缺口。
+    const totalSec = secFinite(m.totalSec);
+    const overtimeSec = secFinite(m.overtimeSec);
+    const overtime = overtimeSec > 0 ? `；超时 ${mmss(overtimeSec)}` : "";
     const thoughtRule = hasThoughts
         ? "【思路判卷】逐条点评带「思路」的题（按题号）：思路方向是否正确、卡在哪一步、下次该怎么想；思路与答案对错不一致的要点出来。"
         : "";
-    return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分四段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议。${thoughtRule}
-本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(m.totalSec)}${overtime}
+    return `你是刷题判卷助手。根据下面的一轮刷题数据给出分析报告，不超过 300 字，分五段：总体评价；薄弱知识点与明显偏慢的题（指出题号）；思路点评；下一轮建议；知识点归组。${thoughtRule}
+末段「知识点」用 markdown 列表逐点给出**归组清单**（下表已按知识点归好组，直接照抄与合并，不要编造新的知识点名）：每点几对几错、合计用时。
+⚠️ 用时数据以「每题」行给出的为准，标记为「${TIME_UNKNOWN_TEXT}」的题是**没有记录到用时**（快速作答未满 1 秒），不是 0 秒也不是缺失错误：不要推测、编造任何数值，不要输出 NaN、undefined 或类似字样的占位。
+本轮：作答 ${s.answered}/${list.length}，答对 ${s.correct}；计时方式 ${s.mode}；总用时 ${mmss(totalSec)}${overtime}
 每题：${perQ}
+知识点归组：\n${knowGroups}
 历史轮次：${history}
 只输出报告正文，不要客套。`;
 }

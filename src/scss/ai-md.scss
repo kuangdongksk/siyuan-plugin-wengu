@@ -1,0 +1,75 @@
+/* ── AI 散文输出区的 markdown 基线（Issue #177）──────────────
+   `runAgentTextOrPanel` 的页内降级输出自本单起经 ui/MdRender 的
+   renderMdHtml 渲染（此前 textContent 纯文本，`**总评**:` 字面星号裸奔）。
+   MdRender 的静态产物只有 `div.p` 与标准标签，无内联样式 ⇒ 段距/列表缩进
+   必须由容器侧补基线，否则列表挤成一坨、段落贴死。
+
+   两个消费方（轮次报告 .wengu-report-ai / 统计面板同款类的 data-ai 区）
+   共用同一类名 ⇒ 按 design-spec §13.1② 留共享片并登记（§13.3 表内
+   `ai-md.scss` 行）。绑定到 `ai/agentPanel.ts` 的 runAgentTextOrPanel
+   输出区，类名不出现在 TS 拼串里。
+
+   ⚠️ `.p` 用 `:where()` 降权：与 card-render.scss 的 `.wengu-{gmat,
+   static-sol,qprotyle} :where(.p)` 三段式同款——这几条只是「标签基线」，
+   不该靠特异性去压别的域（本容器不在题卡内，理论上不相遇，但口径统一）。
+   `white-space: pre-wrap` 已随 markdown 渲染去掉（见 report.scss 注释）：
+   渲染产物自身带块级结构，再保留 pre-wrap 会把 HTML 里的换行当硬换行双倍
+   撑开。加载/失败文案是纯文本写入（innerHTML 前先 esc），自带 `<br>`。 */
+.wengu-report-ai :where(.p) {
+  margin: 4px 0;
+}
+
+.wengu-report-ai :where(.p):first-child {
+  margin-top: 0;
+}
+
+.wengu-report-ai :where(.p):last-child {
+  margin-bottom: 0;
+}
+
+.wengu-report-ai :where(ul, ol) {
+  margin: 4px 0;
+  padding-left: 1.6em;
+}
+
+.wengu-report-ai :where(li) {
+  margin: 2px 0;
+}
+
+.wengu-report-ai :where(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 4px;
+  font-weight: 600;
+}
+
+.wengu-report-ai :where(strong) {
+  font-weight: 600;
+  color: var(--b3-theme-on-background);
+}
+
+.wengu-report-ai :where(blockquote) {
+  margin: 6px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--b3-border-color);
+}
+
+.wengu-report-ai :where(table) {
+  margin: 6px 0;
+  border-collapse: collapse;
+}
+
+.wengu-report-ai :where(th, td) {
+  padding: 2px 8px;
+  border: 1px solid var(--b3-border-color);
+}
+
+.wengu-report-ai :where(pre) {
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: var(--b3-border-radius);
+  background: var(--b3-theme-surface);
+  overflow-x: auto;
+}
+
+.wengu-report-ai :where(code) {
+  font-family: var(--b3-font-family-code);
+}
