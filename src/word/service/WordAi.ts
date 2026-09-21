@@ -8,7 +8,7 @@ import { aiTitle, fmt } from "../../ui/shared";
 import { tKey } from "../../ui/Notify";
 import { wordLib } from "./WordLib";
 import { addPair } from "./WordConfusables";
-import { judgeWordReview, type JudgeFn } from "./WordAiJev";
+import { judgeWordReview, type JudgeFn, type WordAiJevItem } from "./WordAiJev";
 import { applyAiReview, keyIndex, keyOf, type WenguTimingRec, type WenguWordProgress } from "../core/WordStore";
 
 /**
@@ -125,15 +125,27 @@ async function analyzeBatchChat(
     return items.length;
 }
 
-/** 一批词走 Jev 判档：判定即用，不产 C/T 行、不落判定（Issue #185 需求 4/5）。 */
+/** 一批词走 Jev 判档：判定即用，不产 C/T 行、不落判定（Issue #185 需求 4/5）。
+ *
+ * ⚠️ **回落只包「判定」这一步**（#185 审查）：`null` = 判定失败（auth/网络/
+ * 协议），此时进度**尚未被本批改动**，调用方回落生成式是干净的。判定成功
+ * 后的 `applyAiReview` / `save` 一律照现状口径上抛，**不吞也不重放**——
+ * 若把它们也包进 try，则「判定成功、落盘抛错」会被误判成判定失败再走一遍
+ * 生成式通道，同一批词**二次挪档**（up 连乘 1.4²）且用户无感。
+ */
 async function analyzeBatchJev(
     inputs: WordAiInput[],
     p: WenguWordProgress,
     save: () => Promise<unknown>,
     apiKey: string,
     judge?: JudgeFn
-): Promise<number> {
-    const items = await judgeWordReview(inputs, apiKey, judge);
+): Promise<number | null> {
+    let items: WordAiJevItem[];
+    try {
+        items = await judgeWordReview(inputs, apiKey, judge);
+    } catch (_) {
+        return null; // 判定失败：进度零改动，回落生成式通道（口径钉死在此）
+    }
     applyAiReview(p, items);
     await save();
     return items.length;
@@ -146,12 +158,9 @@ function batchAnalyzer(
     return async (inputs, p, save) => {
         const settings = deps.settings?.();
         if (isJevEnabled(settings)) {
-            try {
-                // 抛错（auth/网络/协议）→ 整批回落生成式通道（口径钉死在此）
-                return await analyzeBatchJev(inputs, p, save, settings!.jevKey!.trim(), deps.judge);
-            } catch (_) {
-                // 回落：现状路径原样接手；两条路都失败则异常上抛给 runner
-            }
+            const n = await analyzeBatchJev(inputs, p, save, settings!.jevKey!.trim(), deps.judge);
+            if (n !== null) return n;
+            // 判定失败 → 现状路径原样接手；两条路都失败则异常上抛给 runner
         }
         return analyzeBatchChat(inputs, p, save);
     };

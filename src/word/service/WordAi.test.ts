@@ -249,3 +249,47 @@ describe("applyAiReview 的 FSRS 动作未被本单改动（验收标准 3）", 
         expect(p.words.b.s).toBeCloseTo(0.3);
     });
 });
+
+describe("回落只包判定、不包落盘（#185 审查回归：防二次挪档）", () => {
+    it("判定成功但 save 抛错 → 不上生成式、不二次挪档，异常按现状口径上抛", async () => {
+        chat.reply = "W: alpha\nL: up"; // 若被误回落，生成式会把 alpha 再乘一次 1.4
+        const p = progress();
+        const runner = runnerWith(async () => answers(["up", "up"]));
+        await runner.runGroup(
+            INPUTS,
+            p,
+            async () => {
+                throw new Error("disk full");
+            },
+            noopHook
+        );
+        expect(chat.calls.length).toBe(0); // 没回落
+        expect(p.words.alpha.s).toBeCloseTo(14); // 只挪一次（14，不是 19.6）
+        expect(runner.msg.startsWith("!")).toBe(true); // 异常上抛给 runner
+    });
+
+    it("判定抛错（进度零改动）→ 照常整批回落生成式", async () => {
+        chat.reply = "W: alpha\nL: up";
+        const p = progress();
+        const runner = runnerWith(async () => {
+            throw new Error("403");
+        });
+        await runner.runGroup(INPUTS, p, noopSave, noopHook);
+        expect(chat.calls.length).toBe(1);
+        expect(p.words.alpha.s).toBeCloseTo(14);
+    });
+
+    it("判定全低置信（0 条生效）≠ 判定失败：不回落、稳定度原样", async () => {
+        chat.reply = "W: alpha\nL: up";
+        const p = progress();
+        const runner = runnerWith(async () => [
+            { kind: "choice", choice: JEV_ACT_CRITERIA.up, probabilities: {}, confidence: 0.1 },
+            { kind: "noul", noul: 0.9 },
+            { kind: "choice", choice: JEV_ACT_CRITERIA.up, probabilities: {}, confidence: 0.1 },
+            { kind: "noul", noul: 0.9 },
+        ]);
+        await runner.runGroup(INPUTS, p, noopSave, noopHook);
+        expect(chat.calls.length).toBe(0); // 判定成功了，只是没一条可信
+        expect(p.words.alpha.s).toBeCloseTo(10);
+    });
+});

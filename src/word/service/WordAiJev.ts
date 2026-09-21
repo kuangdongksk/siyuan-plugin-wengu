@@ -80,20 +80,26 @@ export function buildWordReviewState(inputs: WordAiInput[]): string {
     ].join("\n");
 }
 
-/** 判定问题清单：逐词 choice（选档）+ noul（没记住 vs 手滑），位序 2i / 2i+1。 */
+/** 判定问题清单：逐词 choice（选档）+ noul（没记住 vs 手滑），位序 2i / 2i+1。
+ *
+ * ⚠️ 词号取**输入下标**（`i + 1`），别用 `qs.length / 2 + 1` 现算——后者在
+ * noul 那一问里 `qs.length` 已是奇数，问出来是「第 1.5 个词」（#185 审查）。
+ * 词号须与 `state` 材料行号（`1. alpha`）逐一对齐，否则模型对不上词。
+ */
 export function buildWordReviewQuestions(inputs: WordAiInput[]): JevQuestion[] {
     const qs: JevQuestion[] = [];
-    for (const e of inputs) {
+    inputs.forEach((e, i) => {
+        const label = `第 ${i + 1} 个词「${e.w}」`;
         qs.push({
             kind: "choice",
-            question: `第 ${qs.length / 2 + 1} 个词「${e.w}」该走哪个复习档位？（${e.m.split("\n")[0]}）`,
+            question: `${label}该走哪个复习档位？（${e.m.split("\n")[0]}）`,
             options: actOptions(),
         });
         qs.push({
             kind: "noul",
-            question: `第 ${qs.length / 2 + 1} 个词「${e.w}」这次答错是「没记住」而不是「手滑/手误」吗？`,
+            question: `${label}这次答错是「没记住」而不是「手滑/手误」吗？`,
         });
-    }
+    });
     return qs;
 }
 

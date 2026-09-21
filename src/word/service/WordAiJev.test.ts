@@ -188,3 +188,30 @@ describe("低置信与坏答案：跳过该词（需求 2：稳定度不动）",
         expect(gradeFromAnswers([input("a")], [noul(0.9), choice("up")])).toEqual([]);
     });
 });
+
+describe("问题词号与 state 材料行号逐一对齐（#185 审查回归）", () => {
+    it("choice/noul 同一词问同号，且逐词递增（不是 1.5 / 2.5）", () => {
+        const qs = buildWordReviewQuestions([input("a"), input("b"), input("c")]);
+        const nums = qs.map((q) => q.question.match(/第 ([\d.]+) 个词/)?.[1]);
+        expect(nums).toEqual(["1", "1", "2", "2", "3", "3"]);
+    });
+
+    it("每个词的 noul 问号与它自己的 choice 问号一致（不许出现非整数号）", () => {
+        const qs = buildWordReviewQuestions([input("alpha"), input("beta")]);
+        for (const q of qs) expect(q.question).not.toMatch(/第 \d+\.\d+ 个词/);
+        expect(qs[0].question).toContain("「alpha」");
+        expect(qs[1].question).toContain("「alpha」"); // 同词的两问都指 alpha
+        expect(qs[2].question).toContain("「beta」");
+        expect(qs[3].question).toContain("「beta」");
+    });
+
+    it("词号与 state 行号一致：第 N 问 ↔ 材料第 N 行（同一词头）", () => {
+        const inputs = [input("alpha"), input("beta"), input("gamma")];
+        const lines = buildWordReviewState(inputs).split("\n").slice(1); // 去掉表头
+        const qs = buildWordReviewQuestions(inputs);
+        inputs.forEach((e, i) => {
+            expect(lines[i]).toContain(`${i + 1}. ${e.w}`);
+            expect(qs[i * 2].question).toContain(`第 ${i + 1} 个词`);
+        });
+    });
+});
