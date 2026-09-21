@@ -1,11 +1,11 @@
 ---
 name: typesafe-ai-pr-claim-triage
 description: typesafe-ai skill（~/.agents/skills/）+ Jev API 标定结果——叙事类声明初筛可用
-  （7/7，假归因 0.03），技术声明仍以机械复跑为锚；脚本 /tmp/ts_calib.py
+    （7/7，假归因 0.03），技术声明仍以机械复跑为锚；脚本 /tmp/ts_calib.py
 metadata:
-  node_type: memory
-  type: reference
-  originSessionId: sess_df482117-562e-4736-8c73-01b8034d294c
+    node_type: memory
+    type: reference
+    originSessionId: sess_df482117-562e-4736-8c73-01b8034d294c
 ---
 
 TypeSafe「System One」小判断模型服务（skill 在 `~/.agents/skills/typesafe-ai/`，

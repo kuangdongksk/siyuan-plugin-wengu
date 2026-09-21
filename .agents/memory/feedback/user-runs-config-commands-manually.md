@@ -2,9 +2,9 @@
 name: user-runs-config-commands-manually
 description: 本机配置变更先给可粘贴的命令/提示词让他能自己跑；他说「你直接改」后再动手——别闷头执行也别干等
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_55be0b89-af87-4c1a-bf4d-5a7d1c13e35a
+    node_type: memory
+    type: feedback
+    originSessionId: sess_55be0b89-af87-4c1a-bf4d-5a7d1c13e35a
 ---
 
 20260920 修 open-design MCP 一事的完整弧线：我直接执行 `claude mcp add-json` 被
