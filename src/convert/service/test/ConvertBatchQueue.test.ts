@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BatchedResult, ConvertProgress, ConvertProgressRecord } from "../run/ConvertBatch";
+import type { BatchedResult, ConvertProgress, ConvertProgressRecord, ConvertQc } from "../run/ConvertBatch";
 
 /**
  * 批量转换串行队列（Issue #37）：跑通 ConvertBatchQueue 的编排层——
@@ -86,7 +86,7 @@ import {
     stopConvertRun,
 } from "../run/ConvertRun";
 import { batchMetaOf } from "../run/ConvertRunState";
-import { classifyQueueItem } from "../run/ConvertBatchQueue";
+import { classifyQueueItem, mergeQc } from "../run/ConvertBatchQueue";
 import type { ConvertRunCfg, ConvertRunEvents } from "../run/ConvertRun";
 
 /** onBatchItem 会推「running→终态」多次，测试只关心每篇的**最终**状态：
@@ -99,12 +99,14 @@ function events(): {
     progressSaved: string[];
     convFlags: boolean[];
     checkpoints: { id: string; rec: unknown }[];
+    dones: { setId: string; message: string; qc?: unknown }[];
 } {
     const statuses: string[] = [];
     const latest = new Map<string, string>();
     const progressSaved: string[] = [];
     const convFlags: boolean[] = [];
     const checkpoints: { id: string; rec: unknown }[] = [];
+    const dones: { setId: string; message: string; qc?: unknown }[] = [];
     const ev: ConvertRunEvents = {
         t: (k) => k,
         bank: {
@@ -116,7 +118,7 @@ function events(): {
         onStatus: (html) => statuses.push(html),
         onBatch: () => undefined,
         onStopChoice: () => undefined,
-        onDone: () => undefined,
+        onDone: (r) => dones.push(r),
         saveProgress: (id, rec) => {
             // progressSaved 只记**清记录**（settleDone 的 undefined）——
             // 中断路写记录走 checkpoints / 各自的 saved 收集器
@@ -133,6 +135,7 @@ function events(): {
         progressSaved,
         convFlags,
         checkpoints,
+        dones,
     };
 }
 
@@ -430,5 +433,48 @@ describe("ConvertBatchQueue", () => {
         expect(snap?.batch?.items[1].status).toBe("queued");
         release();
         await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+    });
+});
+
+describe("队列质检合并（Issue #184）", () => {
+    it("mergeQc：逐篇并起来——**别只转发最后一篇**（前面的存疑会蒸发）", () => {
+        const one: ConvertQc = {
+            checked: 4,
+            suspects: [{ reason: "derive", clear: true, items: [] }],
+        };
+        const two: ConvertQc = {
+            checked: 3,
+            suspects: [{ reason: "unique", clear: false, items: [] }],
+        };
+        const r = mergeQc([
+            { ...done(REFS[0].id), qc: one },
+            { ...done(REFS[1].id), qc: two },
+        ] as never);
+        expect(r?.checked).toBe(7); // 判定题数累加
+        expect(r?.suspects.map((s) => s.reason)).toEqual(["derive", "unique"]);
+    });
+
+    it("mergeQc：无一篇有存疑 → undefined（`qc` 键不出现，零 Jev 痕迹）", () => {
+        expect(mergeQc([done(REFS[0].id), done(REFS[1].id)])).toBeUndefined();
+        expect(mergeQc([])).toBeUndefined();
+    });
+
+    it("队列收口把合并后的 qc 交给 onDone（多篇存疑都看得见）", async () => {
+        plan.set(REFS[0].id, async (id) => ({
+            ...done(id),
+            qc: { checked: 2, suspects: [{ reason: "derive", clear: true, items: [] }] },
+        }));
+        plan.set(REFS[1].id, async (id) => ({
+            ...done(id),
+            qc: { checked: 5, suspects: [{ reason: "derive", clear: true, items: [] }] },
+        }));
+        plan.set(REFS[2].id, async (id) => done(id));
+        const { ev, dones } = events();
+        startConvertRun({ ...cfg, subDocs: REFS, batchTitle: "队列" }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(dones).toHaveLength(1);
+        const qc = dones[0].qc as { checked: number; suspects: unknown[] } | undefined;
+        expect(qc?.checked).toBe(7);
+        expect(qc?.suspects).toHaveLength(1); // 同一毛病去重
     });
 });

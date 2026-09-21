@@ -13,15 +13,15 @@ import type { StructChunk } from "../source/SrcChunk";
 
 (globalThis as { window?: unknown }).window ??= globalThis;
 
-const jev = { calls: 0, body: "" };
+const jev = { calls: 0, body: "", /** 按调用序给的响应体队列（空=一律用 `body`）。 */ bodies: [] as string[] };
 
 vi.mock("../../../ai/jev/transport", async (importOriginal) => {
     const mod = (await importOriginal()) as Record<string, unknown>;
     return {
         ...mod,
         kernelProxyTransport: async () => {
-            jev.calls++;
-            return { status: 200, body: jev.body };
+            const i = jev.calls++;
+            return { status: 200, body: jev.bodies[i] ?? jev.body };
         },
     };
 });
@@ -119,6 +119,7 @@ async function runIncr(settings?: { jevKey?: string; jevEnabled?: boolean }) {
 describe("增量链质检（Issue #184）", () => {
     it("无 key：结果无 `qc` 键、零判定请求", async () => {
         jev.calls = 0;
+        jev.bodies = [];
         const { res } = await runIncr();
         expect(res.added).toBeGreaterThan(0);
         expect("qc" in res).toBe(false);
@@ -127,6 +128,7 @@ describe("增量链质检（Issue #184）", () => {
 
     it("全过：无 `qc` 键（不往终态文案里加噪）", async () => {
         jev.calls = 0;
+        jev.bodies = [];
         jev.body = okBody;
         const { res } = await runIncr({ jevKey: "sk-test" });
         expect(jev.calls).toBe(2); // 逐块判定（两块）
@@ -135,6 +137,7 @@ describe("增量链质检（Issue #184）", () => {
 
     it("踩雷：`qc` 只收有存疑的块，且题照常入库（只标不删）", async () => {
         jev.calls = 0;
+        jev.bodies = [];
         jev.body = badBody;
         const { res, bank } = await runIncr({ jevKey: "sk-test" });
         expect(res.qc?.suspectChunks).toBe(2);
@@ -143,8 +146,32 @@ describe("增量链质检（Issue #184）", () => {
         expect(Object.keys(data.records).length).toBe(res.added);
     });
 
+    it("块计数分账：`checkedChunks` 含**全过**的块，`suspectChunks` 只数踩雷块", async () => {
+        // 回归：曾把两者写成同一个累加（`checkedChunks++` 只在存疑分支里），
+        // 于是「已判定 N 块」恒等于「存疑 N 块」——报告头自相矛盾。
+        // 两块：第一块全过、第二块踩雷（mock 按调用序给响应体）。
+        jev.calls = 0;
+        jev.bodies = [okBody, badBody];
+        const { res } = await runIncr({ jevKey: "sk-test" });
+        expect(jev.calls).toBe(2);
+        expect(res.qc?.checkedChunks).toBe(2); // 两块都判定成功（含全过的那块）
+        expect(res.qc?.suspectChunks).toBe(1); // 只有一块踩雷
+    });
+
+    it("单块失败不影响其余块（逐块独立回落，不是整批放弃）", async () => {
+        // 回归：原 `checkChunks` 逐块独立回落（已被逐块接线取代，口径不能丢）
+        // ——第一块判定失败（协议错），第二块照常判出存疑。
+        jev.calls = 0;
+        jev.bodies = [JSON.stringify({ answers: {} }), badBody];
+        const { res } = await runIncr({ jevKey: "sk-test" });
+        expect(jev.calls).toBe(2); // 两块都发了请求
+        expect(res.qc?.suspectChunks).toBe(1); // 失败那块无痕、成功那块照标
+        expect(res.qc?.checkedChunks).toBe(1); // 只数真正判定成功的块
+    });
+
     it("判定失败：静默跳过（`qc` 无键），增量产物照旧", async () => {
         jev.calls = 0;
+        jev.bodies = [];
         jev.body = JSON.stringify({ answers: {} }); // 协议错 ⇒ 本模块接住
         const { res } = await runIncr({ jevKey: "sk-test" });
         expect("qc" in res).toBe(false);
@@ -153,6 +180,7 @@ describe("增量链质检（Issue #184）", () => {
 
     it("总开关关：零请求", async () => {
         jev.calls = 0;
+        jev.bodies = [];
         jev.body = badBody;
         const { res } = await runIncr({ jevKey: "sk-test", jevEnabled: false });
         expect(jev.calls).toBe(0);

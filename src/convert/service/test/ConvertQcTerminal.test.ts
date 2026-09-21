@@ -77,7 +77,7 @@ describe("收尾载荷条件展开（qcOf）", () => {
     });
 
     it("有存疑 → 原样带出", () => {
-        const qc: ConvertQc = { checked: 1, suspectBatches: 1, suspects: [] };
+        const qc: ConvertQc = { checked: 1, suspects: [] };
         expect(qcOf({ qc })).toEqual({ qc });
     });
 });

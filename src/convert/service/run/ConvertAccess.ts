@@ -163,7 +163,7 @@ export class ConvertAccess implements ConvertViewAccess {
             showStatus(this.host.el, convertDoneText(this.host.t, r.title, r.count), "ok");
             // Jev 质检报告（Issue #184）：判定结果不落盘，只在这里展示一次
             //（条上换行 = 转换报告里专属的一行；无存疑/未启用时零追加）
-            showJevQc(this.host.t, r.qc);
+            showJevQc(this.host.el, this.host.t, r.qc);
         });
     }
 

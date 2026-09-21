@@ -83,9 +83,7 @@ export interface ConvertProgressRecord {
 export interface ConvertQc {
     /** 已判定的题目数（0=未判定）。 */
     checked: number;
-    /** 有存疑项的批数（报告头展示用）。 */
-    suspectBatches: number;
-    /** 存疑项清单（哪一项存疑 + 是否明确踩雷）。 */
+    /** 存疑项清单（哪一项存疑 + 是否明确踩雷；**已按原因去重**）。 */
     suspects: JevQcSuspect[];
 }
 

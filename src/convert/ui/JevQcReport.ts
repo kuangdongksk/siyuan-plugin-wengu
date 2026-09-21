@@ -11,16 +11,22 @@
  * 展示位置就是页内那个 `[data-status]` 槽：`showStatus` 已把「已入库《…》
  * 共 N 题」写进去，本行**追加在后面**（追加而非另起的理由：状态槽会随
  * 页签重渲染被重放/清掉，另起一个浮层反而会与它在生命周期上打架）。
+ * ⚠️ 槽一律从**宿主元素**取（`el.querySelector`），不用全局 `document`：
+ * 页签可开多份、插件面板与工作区各有自己的槽，全局取第一个会写错地方。
  */
 import { esc } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
-import { suspectLabel } from "../../ai/jev/convertChecks";
+import { dedupeSuspects, qcSummary, suspectLabel } from "../../ai/jev/convertChecks";
 import type { ConvertQc } from "../service/run/ConvertBatch";
 
-/** 存疑项的可见标注（哪一项存疑 + 一句原因）——逐项一行。 */
-function linesOf(t: (k: string) => string, qc: ConvertQc): string[] {
-    const head = `${t("jevQcSuspect")}${t("jevQcCheckedOf")}${String(qc.checked)}${t("jevQcCountOf")}`;
-    return [head, ...qc.suspects.map((s) => `· ${suspectLabel(t, s)}`)];
+/**
+ * 存疑项的可见标注行：**首行是汇总头（复用 `qcSummary`，唯一组装点）**，
+ * 其后每项一行「· 哪一项存疑（一句原因）」——逐项展开是为了让用户不用
+ * 猜「存疑」指什么；汇总头里的题数由在这里填，**不留字面 `{n}`**。
+ */
+export function linesOf(t: (k: string) => string, qc: ConvertQc): string[] {
+    const head = qcSummary(t, { checked: qc.checked, suspects: qc.suspects });
+    return [head, ...dedupeSuspects(qc.suspects).map((s) => `· ${suspectLabel(t, s)}`)];
 }
 
 /** 报告行文本（无存疑 → 空串；调用方据此零追加）。 */
@@ -30,13 +36,13 @@ export function jevQcLines(t: (k: string) => string, qc: ConvertQc | undefined):
 }
 
 /**
- * 展示一次质检结果：给页内状态槽追加专属行 + 一条站内通知（用户可能已
- * 切走，报告行看不见）。`qc` 无键/无存疑时**零动作**。
+ * 展示一次质检结果：给**宿主元素**的状态槽追加专属行 + 一条站内通知
+ * （用户可能已切走，报告行看不见）。`qc` 无键/无存疑时**零动作**。
  */
-export function showJevQc(t: (k: string) => string, qc: ConvertQc | undefined): void {
+export function showJevQc(el: HTMLElement | undefined, t: (k: string) => string, qc: ConvertQc | undefined): void {
     const text = jevQcLines(t, qc);
     if (!text) return;
-    const slot = document.querySelector<HTMLElement>("[data-status]");
+    const slot = el?.querySelector<HTMLElement>("[data-status]");
     if (slot) {
         // 追加而非替换：详情展开在既有状态文案之后（报告专属行）
         const detail = `<span class="wengu-jev-qc">${text

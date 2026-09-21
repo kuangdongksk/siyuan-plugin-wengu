@@ -4,8 +4,8 @@ import { read } from "../../testkit/readSource";
 import {
     buildCheckState,
     checkBatch,
-    checkChunks,
-    qcChunkTail,
+    chunkQcSummary,
+    dedupeSuspects,
     qcSummary,
     suspectLabel,
     type CheckDraft,
@@ -255,36 +255,59 @@ describe("转换质检报告标注", () => {
         expect(qcSummary(t, { checked: 1, suspects: [s] })).toContain("jevQcSuspect");
     });
 
-    it("增量链：无存疑 → 尾巴为 null（零 Jev 痕迹）", async () => {
-        const t = (k: string): string => k;
-        expect(qcChunkTail(t, { reports: [], suspectChunks: 0, checkedChunks: 2 })).toBeNull();
-        const sum = await checkChunks([{ index: 2, drafts: [Q] }], {
-            apiKey: "sk",
-            transport: transportOf(noOf("q1", 0.5)),
-        });
-        expect(sum.suspectChunks).toBe(1);
-        expect(sum.checkedChunks).toBe(1);
-        expect(qcChunkTail(t, sum)).toContain("第 3 块");
+    it("汇总头把「已判定 N 题」填成真数（**不留字面 {n}**）", () => {
+        // 回归：曾把 `jevQcCheckedOf`「（已判定 {n} 题）」直接拼进模板串，
+        // 生成的报告行里留着字面 `{n}`（未过 fmt），用户看到的是占位符。
+        const dict: Record<string, string> = {
+            jevQcSuspect: "存疑",
+            jevQcHeadCount: "（已判定 {n} 题）：",
+            jevQcClear: "明确有问题",
+        };
+        const t = (k: string): string => dict[k] ?? k;
+        const line = qcSummary(t, { checked: 7, suspects: [{ reason: "derive", clear: true, items: [] }] });
+        expect(line).toBe("存疑（已判定 7 题）：明确有问题（jevQcDerive）");
+        expect(line).not.toContain("  "); // 不叠空格（en 模板自带尾空格、此处不再加）
+        expect(line).not.toContain("{n}");
     });
 
-    it("增量链：单块失败不影响其余块（逐块独立回落）", async () => {
-        let n = 0;
-        const sum = await checkChunks(
-            [
-                { index: 0, drafts: [Q] },
-                { index: 1, drafts: [Q] },
-            ],
-            {
-                apiKey: "sk",
-                transport: async () => {
-                    n++;
-                    return n === 1
-                        ? { status: 500, body: "boom" }
-                        : { status: 200, body: JSON.stringify({ answers: OK }) };
-                },
-            }
-        );
-        expect(sum.checkedChunks).toBe(1);
-        expect(sum.suspectChunks).toBe(0);
+    it("同一毛病在多批重复 → 汇总只报一次（去重复读机）", () => {
+        const dict: Record<string, string> = {
+            jevQcSuspect: "存疑",
+            jevQcHeadCount: "（已判定 {n} 题）：",
+            jevQcClear: "明确有问题",
+            jevQcUnsure: "拿不准",
+            jevQcDerive: "推不出",
+        };
+        const t = (k: string): string => dict[k] ?? k;
+        const dup: JevQcSuspect[] = [
+            { reason: "derive", clear: true, items: [] },
+            { reason: "derive", clear: true, items: [] }, // 同一毛病重复两批
+            { reason: "derive", clear: false, items: [] }, // 「拿不准」与「明确」是两回事，各留一条
+        ];
+        expect(dedupeSuspects(dup)).toHaveLength(2);
+        const line = qcSummary(t, { checked: 9, suspects: dup });
+        expect(line).toBe("存疑（已判定 9 题）：明确有问题（推不出）；拿不准（推不出）");
+    });
+
+    it("增量链：无存疑 → 尾巴为 null（零 Jev 痕迹）", () => {
+        const t = (k: string): string => k;
+        expect(chunkQcSummary(t, { reports: [], suspectChunks: 0, checkedChunks: 2 })).toBeNull();
+    });
+
+    it("增量链：有存疑 → 与整卷报告同一套文案（哪一项 + 一句原因）", () => {
+        const dict: Record<string, string> = {
+            jevQcSuspect: "存疑",
+            jevQcHeadCount: "（已判定 {n} 块）：",
+            jevQcClear: "明确有问题",
+            jevQcDerive: "推不出",
+        };
+        const t = (k: string): string => dict[k] ?? k;
+        const sum = chunkQcSummary(t, {
+            reports: [{ index: 2, report: { checked: 3, suspects: [{ reason: "derive", clear: true, items: [] }] } }],
+            suspectChunks: 1,
+            checkedChunks: 5,
+        });
+        expect(sum).toBe("存疑（已判定 5 块）：明确有问题（推不出）"); // 与整卷同一套文案
+        expect(sum).not.toContain("{n}");
     });
 });

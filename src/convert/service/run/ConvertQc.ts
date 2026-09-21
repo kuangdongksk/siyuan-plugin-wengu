@@ -10,7 +10,13 @@
  * **零行为变化**是硬口径：没配 key / 总开关关 / 判定失败时，`judgeBatch`
  * 不累计任何东西 ⇒ 载荷不给 `qc` 键、尾巴是空串，转换结果与文案逐字节不变。
  */
-import { checkBatch, qcSummary, type CheckDraft, type JevQcSuspect } from "../../../ai/jev/convertChecks";
+import {
+    checkBatch,
+    dedupeSuspects,
+    qcSummary,
+    type CheckDraft,
+    type JevQcSuspect,
+} from "../../../ai/jev/convertChecks";
 import { isJevEnabled } from "../../../ai/jev/enabled";
 import type { ConvertQc } from "./ConvertBatchModel";
 
@@ -24,20 +30,24 @@ export interface QcSettings {
 export class QcAcc {
     /** 已判定的题目数。 */
     checked = 0;
-    /** 有存疑项的批数。 */
-    suspectBatches = 0;
     /** 存疑项清单（顺序即出现顺序）。 */
     suspects: JevQcSuspect[] = [];
 
+    /** 存疑项去重后的清单（同一毛病在多批出现 = 一个结论，别复读）。 */
+    list(): JevQcSuspect[] {
+        return dedupeSuspects(this.suspects);
+    }
+
     /** 收口载荷：**无存疑时不给 `qc` 键**（既有结果形状逐字节不变）。 */
     payload(): { qc?: ConvertQc } {
-        if (this.suspects.length === 0) return {};
-        return { qc: { checked: this.checked, suspectBatches: this.suspectBatches, suspects: this.suspects } };
+        const suspects = this.list();
+        if (suspects.length === 0) return {};
+        return { qc: { checked: this.checked, suspects } };
     }
 
     /** 完成消息尾巴（无存疑/未判定 → 空串，调用方据此零拼接）。 */
     tail(t: (k: string) => string): string {
-        if (this.suspects.length === 0) return "";
+        if (this.list().length === 0) return "";
         return qcSummary(t, { checked: this.checked, suspects: this.suspects });
     }
 }
@@ -56,7 +66,6 @@ export async function judgeBatch(
     if (report.checked === 0) return; // 未判定（失败/无题）＝本批无痕
     acc.checked += report.checked;
     acc.suspects.push(...report.suspects);
-    if (report.suspects.length > 0) acc.suspectBatches++;
 }
 
 /** {@link terminalOf} 的事实快照（收口那一刻的既有局部变量）。 */

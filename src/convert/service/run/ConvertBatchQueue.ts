@@ -1,6 +1,7 @@
 import { esc, fmt } from "../../../ui/shared";
 import { notifyError, notifyInfo } from "../../../ui/Notify";
-import type { BatchedResult } from "../run/ConvertBatch";
+import type { BatchedResult, ConvertQc } from "../run/ConvertBatch";
+import { dedupeSuspects } from "../../../ai/jev/convertChecks";
 import { runSingleDoc, type ConvertBatchItem, type ConvertRunEvents } from "./ConvertRun";
 import { hashContent } from "../source/SetSegments";
 import { KernelBlock } from "../../../siyuan/block";
@@ -139,6 +140,8 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
     const hashBySrc = await srcHashesBySrc(run);
     /** 最后一篇成功产物（队列收口时切到它——与单篇 onDone 同口径）。 */
     let last: BatchedResult | undefined;
+    /** 各篇结果（质检合并用，Issue #184；只收跑过的篇）。 */
+    const ran: BatchedResult[] = [];
 
     /** 从 from 起把仍未跑的篇标取消（停止时：剩余篇一篇都别跑）。
      *  返回本次翻掉的篇数——**必须真翻**：只算总数不改状态的话，面板
@@ -191,6 +194,7 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             failed.push(docs[i].title);
             continue;
         }
+        ran.push(r);
         if (r.status === "done") {
             done++;
             if (r.setId) last = r;
@@ -204,9 +208,16 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
             cancelled += cancelRest(i + 1);
             if (!r.setId) {
                 // 首批前终止（该篇零产物）：无保留/丢弃可言 → 队列直接收口
-                await finishQueue(ev, t, { done, skipped, stopped: 1, failed, cancelled }, last);
+                await finishQueue(ev, t, { done, skipped, stopped: 1, failed, cancelled }, last, ran);
                 return;
             }
+            // 终止篇的质检载荷换上**全队列合并结果**（Issue #184）：抉择
+            // 落定后 keepConvertRun 走 finishRun，那里只拿得到这一篇的
+            // `r.qc`——不并的话前面几篇判出的存疑项全丢。`a.r` 与本处 `r`
+            // 是同一个对象（setAborted 已存了引用），故此处赋值即生效。
+            const merged = mergeQc(ran);
+            if (merged) r.qc = merged;
+            else delete r.qc;
             // 有产物：该篇转抉择态（runSingleDoc 已置 aborted，items 随之
             // 落进抉择记录——面板在抉择态仍显示各篇终态），剩余篇已取消。
             // **释放 active 槽**：队列无剩余可跑，槽交给抉择态持有
@@ -221,7 +232,24 @@ export async function runBatchQueue(run: ActiveRun, signal: AbortSignal): Promis
         failed.push(docs[i].title);
         flip(run, i, { status: "failed", message: r.message || t("convertNoQuestions"), count: r.count });
     }
-    await finishQueue(ev, t, { done, skipped, stopped: 0, failed, cancelled }, last);
+    await finishQueue(ev, t, { done, skipped, stopped: 0, failed, cancelled }, last, ran);
+}
+
+/** 队列逐篇质检结果的**合并**（Issue #184）。
+ *
+ * 队列是逐篇跑的（每篇一次 `runSingleDoc`），而报告只出一份（收口时那篇
+ * 的产物）。**别只转发最后一篇的 `qc`**——那会让前面几篇的存疑项静默消失
+ * （用户以为整队列干净）。故按「判定题数累加 + 存疑项去重」并起来。
+ *
+ * 没有任何一篇判出存疑 → 返回 `undefined`（`qc` 键不出现，零 Jev 痕迹）。
+ */
+export function mergeQc(results: BatchedResult[]): ConvertQc | undefined {
+    const hits = results.filter((r) => r.qc && r.qc.suspects.length > 0);
+    if (hits.length === 0) return undefined;
+    return {
+        checked: hits.reduce((n, r) => n + (r.qc?.checked ?? 0), 0),
+        suspects: dedupeSuspects(hits.flatMap((r) => r.qc?.suspects ?? [])),
+    };
 }
 
 /** 队列收口：释放槽 + 切到最后一篇产物（onDone）+ 汇总状态条/通知。
@@ -230,7 +258,9 @@ async function finishQueue(
     ev: ConvertRunEvents,
     t: (k: string) => string,
     tail: QueueTail,
-    last?: BatchedResult
+    last?: BatchedResult,
+    /** 本次队列全部篇的结果（质检合并用；缺省=不合并）。 */
+    results: BatchedResult[] = []
 ): Promise<void> {
     setActive(undefined);
     ev.setConverting(false);
@@ -238,7 +268,14 @@ async function finishQueue(
     notifyQueueTail(ev, t, tail);
     if (last?.setId) {
         await ev.bank?.flush().catch((): void => undefined);
-        ev.onDone({ setId: last.setId, title: last.title ?? "", count: last.count, message: last.message });
+        const qc = mergeQc(results);
+        ev.onDone({
+            setId: last.setId,
+            title: last.title ?? "",
+            count: last.count,
+            message: last.message,
+            ...(qc ? { qc } : {}),
+        });
     }
 }
 

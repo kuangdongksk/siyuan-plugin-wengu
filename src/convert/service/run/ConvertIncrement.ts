@@ -162,17 +162,22 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
     });
     const writer = new SetWriter(run.bank);
     /** 落库前的质检（Issue #184）：逐块收集产物，**本块 append 之前**判定
-     *  （判定先于落库；`checkChunks` 内部对每块独立回落现状）。 */
+     *  （判定先于落库；单块失败/未配 key 都只是「这块没判定」，其余块不受影响）。
+     *
+     * ⚠️ 两个计数**分账**（别合成一个）：`checkedChunks` = 判定成功的块数
+     * （含**全过**的块），`suspectChunks` = 其中判出存疑的块数。合成一个的话
+     * 「已判定 N 块」会恒等于「存疑 N 块」，报告头就成了自相矛盾的假计数。*/
     const qcEnabled = isJevEnabled(run.settingsOf?.());
+    let qcCheckedChunks = 0;
     const runQc = async (index: number, drafts: DraftUnit[]): Promise<void> => {
         if (!qcEnabled || drafts.length === 0) return;
         const report = await checkBatch({ drafts, materialText: "", apiKey: run.settingsOf?.()?.jevKey });
         if (report.checked === 0) return; // 未判定（失败/无题）＝本块无痕
+        qcCheckedChunks++;
         // ⚠️ 只在**判出存疑**时才建 `qc` 键：全过/失败/未启用时该键不存在，
         // 调用方的终态文案与分支形状逐字节不变（零 Jev 痕迹是硬口径）
         if (report.suspects.length === 0) return;
         out.qc ??= { suspectChunks: 0, checkedChunks: 0, reports: [] };
-        out.qc.checkedChunks++;
         out.qc.suspectChunks++;
         out.qc.reports.push({ index, report });
     };
@@ -218,6 +223,8 @@ export async function convertIncremental(run: IncrementRun): Promise<IncrementOu
         await run.bank.flush(); // 逐块落盘（中止自愈建立在已入库上）
     }
     run.onProgress?.({ done: run.chunks.length, total: run.chunks.length, count: out.added });
+    // 判定块数补真值（`qc` 只在有存疑时才建，建时先按 0 占位）
+    if (out.qc) out.qc.checkedChunks = qcCheckedChunks;
     await run.bank.flush();
     return out;
 }
