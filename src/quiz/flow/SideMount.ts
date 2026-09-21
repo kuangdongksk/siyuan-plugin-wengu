@@ -128,38 +128,49 @@ export function refreshSideCols(next: { id: string; title: string; count: number
 export function mountSideFor(v: SideViewAccess, workspace: WenguWorkspace): void {
     unmountSide();
     if (workspace !== "drill") return;
+    // 壳内的 [data-side-host] 只是**挂载锚**（同 RAIL_ANCHOR_HTML 模式），
+    // 不是组件宿主：`.wengu-side` 的 `flex:none` 与全高依赖它是 `.wengu-panel`
+    // 的直接子元素（stretch）——锚法把组件根插到锚位后即删锚，位置与形态
+    // 回到「占位 div 原所在处」，CSS 零改动。⚠️ 别退回「以 [data-side-host]
+    // 为 target 直挂」（#202：组件被裹进无样式 block 宿主 ⇒ 高度塌成内容高、
+    // `.wengu-side-body` 内滚窗失效）。
     const host = v.el.querySelector<HTMLElement>("[data-side-host]");
     if (!host) return;
-    // 宿主为壳内空占位（data-side-host），组件根即 .wengu-side 直接子元素。
     // *.svelte 的环境声明不带实例导出类型，这里收口一次（KnowPicker 同款）
-    const mounted = mountSvelteApp(SidePanelApp, host, {
-        t: v.t,
-        docs: v.docsOf(),
-        docId: v.docIdOf(),
-        sideCollapsed: v.sideCollapsedOf(),
-        filter: v.sideFilterOf(),
-        collections: v.colFlowOf().rowsView(),
-        activeCollection: v.colFlowOf().id(),
-        sideTreeOpen: v.sideTreeOpenOf(),
-        onAct: (act: string) => v.sideAct(act),
-        onSearch: (text: string) => v.setSideFilter(text),
-        // 切换入口两路（树内文档行 / 专题与聚合行）各自外包二次确认闸
-        // （Issue #137 §7.d）：组件层没有会话知识，闸只在**执行体外**加
-        // 一层判定——⚠️ 执行体必须留在原位（上一版把两个回调换成空函数、
-        // 只留新 prop，壳未实现新能力时 `guardOrRun` 走直切兜底 ⇒ 点行
-        // 无反应，静默断链）。
-        onOpenDoc: (id: string) =>
-            guardOrRun(
-                v,
-                switchEntryOf("doc", id, () => v.selectDoc(id))
-            ),
-        onOpenCollection: (id: string) =>
-            guardOrRun(
-                v,
-                switchEntryOf("col", id, () => v.colFlowOf().switchTo(id))
-            ),
-        onPersistOpen: (open: string[]) => v.setSideTreeOpen(open),
-    });
+    const mounted = mountSvelteApp(
+        SidePanelApp,
+        v.el,
+        {
+            t: v.t,
+            docs: v.docsOf(),
+            docId: v.docIdOf(),
+            sideCollapsed: v.sideCollapsedOf(),
+            filter: v.sideFilterOf(),
+            collections: v.colFlowOf().rowsView(),
+            activeCollection: v.colFlowOf().id(),
+            sideTreeOpen: v.sideTreeOpenOf(),
+            onAct: (act: string) => v.sideAct(act),
+            onSearch: (text: string) => v.setSideFilter(text),
+            // 切换入口两路（树内文档行 / 专题与聚合行）各自外包二次确认闸
+            // （Issue #137 §7.d）：组件层没有会话知识，闸只在**执行体外**加
+            // 一层判定——⚠️ 执行体必须留在原位（上一版把两个回调换成空函数、
+            // 只留新 prop，壳未实现新能力时 `guardOrRun` 走直切兜底 ⇒ 点行
+            // 无反应，静默断链）。
+            onOpenDoc: (id: string) =>
+                guardOrRun(
+                    v,
+                    switchEntryOf("doc", id, () => v.selectDoc(id))
+                ),
+            onOpenCollection: (id: string) =>
+                guardOrRun(
+                    v,
+                    switchEntryOf("col", id, () => v.colFlowOf().switchTo(id))
+                ),
+            onPersistOpen: (open: string[]) => v.setSideTreeOpen(open),
+        },
+        { anchor: host }
+    );
+    host.remove();
     sideApp = { app: mounted.app as unknown as SidePanelExports, unmount: mounted.unmount };
     // 挂载后同步一次转换按钮的转换中态（命令式钩子，跨重建）
     updateConvertBtn(v.el, v.convertingOf(), v.t);
