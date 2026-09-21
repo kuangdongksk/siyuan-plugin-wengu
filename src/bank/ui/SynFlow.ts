@@ -1,6 +1,8 @@
 import { candidatePool, judgeSynonyms, pendingPairs } from "../data/KnowSynJudge";
+import { judgeSynonymsJev } from "../data/KnowSynJev";
 import { applyRefsToRecord, textRefsFor, type LexSectionMap } from "../data/KnowLinkText";
 import { knowSynonyms } from "../data/KnowSynonyms";
+import { isJevEnabled } from "../../ai/jev/enabled";
 import type { BankRecord, QuestionBank } from "../data/QuestionBank";
 
 /**
@@ -15,6 +17,11 @@ import type { BankRecord, QuestionBank } from "../data/QuestionBank";
  * 已跑过文本层的，传进来的都是 missed，这一遍自然空转）。
  *
  * 幂等：判定写回表后，第二轮同词对 `pendingPairs` 直接过滤掉，零 AI。
+ *
+ * **判定供给可插拔**（Issue #188，规划稿 §三 B2）：配了 Jev key 且总闸未关
+ * → 逐对走 `judgeSynonymsJev`（choice 三档、一批一请求）；否则照旧走
+ * `judgeSynonyms`（生成式 + 编号行协议）。分流只此一处，两个通道**共用同一
+ * 个 `pendingPairs` 队列与写回侧 `putMany`**，存储结构与缓存口径零变化。
  */
 
 /** 同义相的执行输入。 */
@@ -29,6 +36,10 @@ export interface SynPhaseDeps {
     /** 词表是否全库口径（lexiconOfRoots）：只有它才允许把「不同义」落表
      *  ——匹配入口的词表只含选中文档，那里的否换个文档就会翻案。 */
     completeLibrary?: boolean;
+    /** 设置面（只读 `jevKey` / `jevEnabled`）：有 key 且未关总闸 → 判定供给
+     *  换 Jev（Issue #188）；未配 → 现状生成式通道，行为零变化。
+     *  缺省 = 未配置 = 走现状（线上不会缺省，测试与存量调用点友好）。 */
+    settings?: { jevKey?: string; jevEnabled?: boolean };
 }
 
 /** 执行结果：文本层挂上数 + 同义层挂上数 + 仍未命中的记录（交给下一相）。 */
@@ -60,17 +71,32 @@ export async function runSynonymPhase(deps: SynPhaseDeps): Promise<SynPhaseResul
     if (pairs.length === 0) return { textHit, synHit: 0, rest };
     const pool = candidatePool(deps.lex);
     if (pool.length === 0) return { textHit, synHit: 0, rest };
-    await judgeSynonyms({
-        pairs,
-        pool,
-        modelId: deps.modelId,
-        signal: deps.stop.signal,
-        store,
-        group: deps.group,
-        onSid: deps.stop.onSid,
-        onFail: deps.onFail,
-        persistDeny: deps.completeLibrary ?? false,
-    });
+    const onFail = deps.onFail;
+    if (isJevEnabled(deps.settings)) {
+        // Jev 通道（Issue #188）：逐对 choice 三档、一批一请求；失败/低置信
+        // 一律不落表（下次重问），不做二次采购、不新增弹窗（需求 4）
+        await judgeSynonymsJev({
+            pairs,
+            pool,
+            store,
+            apiKey: deps.settings!.jevKey!.trim(),
+            signal: deps.stop.signal,
+            onFail,
+        });
+    } else {
+        // 现状生成式通道（无 key / 总闸关）：逐字节等同改造前行为
+        await judgeSynonyms({
+            pairs,
+            pool,
+            modelId: deps.modelId,
+            signal: deps.stop.signal,
+            store,
+            group: deps.group,
+            onSid: deps.stop.onSid,
+            onFail,
+            persistDeny: deps.completeLibrary ?? false,
+        });
+    }
     // 挂引用：判定的规范词已写回表，重跑文本层口径即得命中小节
     const judged = await store.snapshot();
     let synHit = 0;

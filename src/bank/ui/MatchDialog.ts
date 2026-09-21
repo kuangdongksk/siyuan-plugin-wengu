@@ -43,6 +43,9 @@ export interface MatchDeps {
     /** 知识文档行（匹配目标）。 */
     knowDocId: string;
     knowTitle: string;
+    /** 只读设置面（`jevKey` / `jevEnabled`）：配了 Jev key → 同义判定换
+     *  Jev（Issue #188）；未配 → 现状生成式通道零变化。 */
+    settings?: { jevKey?: string; jevEnabled?: boolean };
     /** 收尾刷新（面板重渲染）。 */
     onDone?(): void;
 }
@@ -162,6 +165,7 @@ async function runMatch(deps: MatchDeps, srcDocId: string, skipLinked: boolean, 
                 modelId,
                 stop,
                 group,
+                settings: deps.settings, // 配了 Jev key → 判定换 Jev（Issue #188）
                 onFail: (e) => fails.push({ stage: "chapter", error: e }),
             });
             hit += r.textHit + r.synHit;

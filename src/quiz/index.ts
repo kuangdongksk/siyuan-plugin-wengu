@@ -332,6 +332,7 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
         bank: () => this.bank,
         modelId: () => this.aiModelId(),
         colFlow: () => this.colFlow,
+        settings: () => this.settings, // Jev 分流（Issue #188）
     };
     readonly variantDrillOf = (docId: string): void => variantDrillAction(this.docActionCtx, docId, this.t);
     readonly genTagsOf = (docId: string): void => genTagsAction(this.docActionCtx, docId, this.t);
@@ -547,10 +548,9 @@ export class QuizView implements AnswerHost, ConvertAccessHost {
     readonly openConvertPrefilled = (docId: string, know: string): void =>
         openConvertForView(this.convertAccess, docId, know);
 
-    /** 「标记为错题」/批量重转访问器（Issue #46；实现体 service/BadMarkRegen
-     *  ——预览闸 / 徽标数 / 顶栏批量重转三合一，保 index.ts 不再净增）。 */
+    /** 「标记为错题」/批量重转访问器（Issue #46；实现体 service/BadMarkRegen——
+     *  预览闸 / 徽标数 / 顶栏批量重转三合一，保 index.ts 不再净增）。 */
     readonly badMark = badMarkAccess(this);
-
     /** 侧栏/头部按钮与题卡考点 chip 检索出口（#135 §7.a）；实现体 SideMount。 */
     readonly sideAct = sideActFor(this);
     readonly kcapSearchOf = kcapSearchFor(this);

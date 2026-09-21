@@ -40,6 +40,9 @@ export interface TagDeps {
     /** 习题文档 id（题单范围）。 */
     docId: string;
     docTitle: string;
+    /** 只读设置面（`jevKey` / `jevEnabled`）：配了 Jev key → 同义判定换
+     *  Jev（Issue #188）；未配 → 现状生成式通道零变化。 */
+    settings?: { jevKey?: string; jevEnabled?: boolean };
     onDone?(): void;
 }
 
@@ -100,6 +103,7 @@ async function runTag(deps: TagDeps, doGen: boolean, stop: AiAbort): Promise<voi
                 stop,
                 group,
                 completeLibrary: true, // 词表=全部登记根，判否可全局沉淀
+                settings: deps.settings, // 配了 Jev key → 判定换 Jev（Issue #188）
             });
             synLinked = syn.synHit;
             linked += syn.textHit + syn.synHit;
