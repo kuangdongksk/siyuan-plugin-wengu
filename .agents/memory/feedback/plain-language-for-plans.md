@@ -2,9 +2,9 @@
 name: plain-language-for-plans
 description: 用户两次打回术语密集的计划（「看不懂」）——方案要用大白话+具体例子讲清机制，先答疑再求批准
 metadata:
-  node_type: memory
-  type: feedback
-  originSessionId: sess_f004f2ab-7497-44df-9f19-ac310348994e
+    node_type: memory
+    type: feedback
+    originSessionId: sess_f004f2ab-7497-44df-9f19-ac310348994e
 ---
 
 20260920 会话中用户先后打回三版计划：清单式审查（「这样肯定不行的」）、
