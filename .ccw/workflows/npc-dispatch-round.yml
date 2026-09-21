@@ -1,0 +1,100 @@
+# 2026-09-21: 新建——自「轮询调度 pr 和 issue」两轮会话沉淀（调度轮标准打法）
+name: npc-dispatch-round
+description: NPC 派单调度轮——盘点在飞 PR/Issue、核 CI、审 diff、合并闭环（收口评论关 Issue + 删分支）、按依赖召唤下一波、sleep 600 轮询至交付
+triggers:
+  - 调度
+  - 调度轮
+  - 轮询调度
+  - 收割 PR
+  - 派单进度
+  - dispatch
+
+parameters:
+  - name: scope
+    description: 处理范围：all=审+合+派全流程（默认）/ report=只盘点汇报不动手 / poll=只轮询已有召唤
+    required: false
+    default: all
+
+nodes:
+  - id: snapshot
+    name: 盘点在飞单据
+    type: command
+    command: |
+      cnb pulls list-pulls --repo bianchao777/sasa/siyuan-plugin-wengu --state open --page 1 --page-size 20
+      cnb issues list-issues --repo bianchao777/sasa/siyuan-plugin-wengu --state open --page 1 --page-size 30 --order-by "-updated_at"
+    promote: |
+      列出全部 open PR 与 Issue；对每个 PR 再查 cnb pulls list-pull-commit-statuses（CI）
+      与 cnb pulls list-pull-comments（NPC 交付自述/拍板请求）。
+      注意：仓库路径 20260916 起是 bianchao777/sasa/siyuan-plugin-wengu；动远端前先
+      git remote -v 核实（两台机器 cnb/origin 命名相反）。快捷子命令不带 --repo/--number。
+    verify: never
+
+  - id: triage
+    name: 逐单分诊（先看 CI，不信自述）
+    promote: |
+      按 CI 结论分诊（独立目录重跑五件套仅用于复现失败或怀疑盲区；动了入口/依赖要补
+      pnpm build）：
+      ① CI 红 → 读日志分辨「真缺陷」vs「阶段性故意红」（先红后实现节奏）；
+      真缺陷落评论召 NPC 修：@bianchao777/sasa/siyuan-plugin-wengu(青简) 必须顶格 +
+      post-pull-comment --work-mode，证据写具体（拿得出源码/脚本行号）。
+      ② NPC 等用户拍板（「进阶段二」「未合并等您拍板」类）→ 汇报用户，不代答。
+      ③ CI 绿 → 审 diff 对照 Issue 验收标准：重点抽查冻结清单、版本闩存储
+      （HistoryStore 等：字段只加不改名不 bump）、跨域触点、quiz/index.ts 行数红线、
+      i18n 中英成对、src/ai/jev/client.ts 线格式（按名对象+instructions/criteria，别动）。
+      NPC 的自查复核轮结论 + CI 绿是当前标定的合并锚；汇报一律带链接：
+      https://cnb.cool/bianchao777/sasa/siyuan-plugin-wengu/-/pulls/{n} 与 /-/issues/{n}
+      （20260916 新路径，旧 sasa1107/open-source 路径链接已死）。
+    verify: auto
+
+  - id: user_gate
+    name: 带链接汇报并取合并许可
+    promote: |
+      分诊结果带链接汇报：哪些可直接并（既有派单计划内的绿灯单）、哪些等拍板、
+      哪些要召修。用户放行（或本轮本就是既定计划延续）才进合并。
+    verify: always
+
+  - id: merge_one
+    name: 逐单合并闭环
+    promote: |
+      对获准的每个 PR 依次执行（一单闭环完再下一单）：
+      cnb pulls merge-pull --merge-style merge（标题「合并 PR #n：标题 (Ref #issue)」）
+      → 关联 Issue 落收口评论（带 merge sha）→ cnb issues update-issue --state closed
+      --state-reason completed → cnb git delete-branch 删远端分支。
+      收尾核 dev 头 push 构建 quality-gate 绿。
+    verify: auto
+
+  - id: dispatch_next
+    name: 召唤下一波
+    promote: |
+      依赖解除的单按「同域串行、异域并行」召唤——判据是改动面文件交集，不是 NPC 数量；
+      已知闸：#186 串行于 #184（同 convert 域）。
+      召唤姿势：Issue 评论顶格 @bianchao777/sasa/siyuan-plugin-wengu(青简) +
+      post-issue-comment --work-mode；召唤词写死硬口径：基于最新 dev 拉分支、PR base=dev
+      带 Ref、开工前读 AGENTS.md+对应域笔记、无 key 零行为变化、单测全 mock、冻结清单
+      不碰、别动 src/ai/jev/client.ts 线格式、交前自查复核一轮。发后核实流水线真触发
+      （build --event issue.comment@npc），防引用块/裸提及零流水线。
+    verify: auto
+    goto_if:
+      - if: ${{ result.summoned == true }}
+        target: poll_npc
+      - else: report_done
+
+  - id: poll_npc
+    name: sleep 600 轮询交付（用户定档：10 分钟一拍）
+    promote: |
+      对在跑 NPC 流水线（cnb build get-build-logs --event issue.comment@npc）按
+      sleep 600 节拍轮询到终态（success/error）或 PR 出现，最多 12 拍（2 小时）；
+      禁止 45 秒级高频（用户明确嫌吵），禁止 cancel NPC 在跑任务。可 run_in_background。
+    verify: never
+    goto_if:
+      - if: ${{ result.terminal == true }}
+        target: snapshot
+      - else: report_done
+
+  - id: report_done
+    name: 收尾汇报
+    promote: |
+      本轮结果带链接汇报（每条 PR/Issue 都是 markdown 链接）；在飞单注明下一步谁等谁。
+      调度类直推内容（记忆 md/工作流）先过 pnpm exec prettier --write 再推
+      （注意临时 worktree 里 pnpm 可能起不来，主工作区跑），推完核 dev 门禁构建。
+    verify: never
