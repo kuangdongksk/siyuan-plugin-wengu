@@ -161,6 +161,8 @@
     - 挤行修复 = BankRepair.planOptionRepair 单题修复计划（确定性拆行+按「首行=正确项」
       重写答案+洗牌，经 replaceRecordKramdown 原题位回写，预览即所得；多选挤行正确集合
       不可推导只报告走单题重生成）；生成侧同类预防在 OptionShuffle.unpackPackedSingle
+      ；解析里裸字母/「字母+全文」引用的落库规范化见 convert 域
+      「解析里的选项字母引用」（Issue #176）
       （draft 层拆行，四生成入口共用）。
 - **题集实体 BankSets**（20260903 存储 pivot）：题目内容唯一真相=题库
   （BankRecord.kramdown 契约格式）。题集 `{id,title,hPath,srcId,subject,qids[]}` 存 bank.sets

@@ -5,7 +5,7 @@ import { parseQuestionKramdown, questionHash } from "../../../bank/data/BankPars
 import { aiTitle } from "../../../ui/shared";
 import { tKey } from "../../../ui/Notify";
 import { renderUnit } from "../draft/QuestionDraft";
-import { replaceDraftOptionRefs } from "../draft/OptionRefReplace";
+import { normalizeDraftOptionRefs, replaceDraftOptionRefs } from "../draft/OptionRefReplace";
 import { unpackPackedOptions } from "../draft/OptionUnpack";
 import type { DraftUnit } from "../draft/QuestionDraft";
 import type { WenguMaterial, WenguQuestion } from "../../../types";
@@ -124,9 +124,10 @@ export class SetWriter {
             ...u,
             // ① 挤行选项拆行（纯格式规范，不动答案字母——死形态下字母指向
             //    原文位置，见 OptionUnpack）→ ② 解析选项引用标记替换
-            //    （`〔opt:X〕` → 选项文本）。两步都是纯函数、都不改调用方
-            //    手里的 draft。
-            draft: replaceDraftOptionRefs(unpackPackedOptions(u.draft)),
+            //    （`〔opt:X〕` → 选项文本）→ ③ 裸字母/「字母+全文」引用规范化
+            //    （Issue #176：「库内解析不含选项字母」的冻结口径此前实际
+            //    没守住）。三步都是纯函数、返回新对象，不改调用方手里的 draft。
+            draft: normalizeDraftOptionRefs(replaceDraftOptionRefs(unpackPackedOptions(u.draft))),
         }));
         for (const { draft, srcKey, srcHash } of list) {
             if (draft.material) {

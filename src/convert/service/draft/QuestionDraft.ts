@@ -1,4 +1,4 @@
-import { LETTERS, normalizeAnswerMd } from "../../../types";
+import { LETTERS, normalizeAnswerMd, normalizeOptionLabels } from "../../../types";
 import { restoreAiImages } from "../../../ai/PromptHygiene";
 import { knowledgeRefLine } from "../knowledge/KnowRef";
 import type { KnowSection } from "../knowledge/KnowledgeLink";
@@ -209,7 +209,8 @@ function isQuotePart(name: string): boolean {
     return name === "answer" || name === "solution" || /^(?:step|slot)-\d+-answer$/.test(name);
 }
 
-/** 文本部件 → 块序列：空行分段，每段一个子块（IAL 尾随行）。 */
+/** 文本部件 → 块序列：空行分段，每段一个子块（IAL 尾随行）。
+ *  ⚠️ 选项部件的剥层发生在 `flushOpts` 的拼接处（见那里的 #176 说明）。 */
 function renderTextPart(p: DraftPart): string[] {
     const quote = isQuotePart(p.name);
     return p.text
@@ -237,7 +238,14 @@ export function renderUnit(d: DraftUnit, extra: RenderExtra = {}): string {
     const flushOpts = (): void => {
         if (!pend) return;
         const items = pend.texts.map((t, j) => {
-            const ls = t.split("\n");
+            // Issue #176（双字母剥净，**实查定落点＝这里**）：AI 常在选项
+            // 正文里自带一层字母标签（「A. 时空…」），本行协议拼接时又叠
+            // 一层 ⇒ 库内成为 `- A. A. 时空…`（真机 99.3% 的解析题里可见）；
+            // 落库只该是「标签 + 正文」，故**拼接前剥净**。
+            // ⚠️ 展示侧的 `optionDisplayMd`（封顶 3 层，#163）是幂等兜底，
+            // 管的是「怎么显示」；这里管的是「库里存什么」——两侧都要有。
+            const body = normalizeOptionLabels(t);
+            const ls = body.split("\n");
             return `- ${LETTERS[j]}. ${ls[0]}${ls.length > 1 ? `\n${ls.slice(1).join("\n")}` : ""}`;
         });
         body.push(`${items.join("\n")}\n{: custom-plugin-wengu-part="${pend.name}"}`);

@@ -4,7 +4,7 @@ import { tKey } from "../../ui/Notify";
 import { AI_TIMEOUT } from "../../ai/timeouts";
 import { conceptPrompt, variantPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
-import { replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
+import { normalizeDraftOptionRefs, replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
 import { unpackPackedOptions } from "../../convert/service/draft/OptionUnpack";
 import { sectionKramdown } from "../../convert/service/knowledge/KnowRef";
 import type { QuestionBank } from "../data/QuestionBank";
@@ -117,7 +117,8 @@ async function genWithVerify(
     // 一个 `@@P opt` 时渲染只给首行编字母，不拆行就落库「只剩一个选项」。
     // 故按 SetWriter 同款两步接线（纯函数、返回新对象，不改调用方手里
     // 的 draft）：① 挤行拆行（不碰答案字母）→ ② 标记替换。
-    const fixed = replaceDraftOptionRefs(unpackPackedOptions(drafts[0]));
+    // ③ 裸字母引用规范化（Issue #176）：同 SetWriter 三步链
+    const fixed = normalizeDraftOptionRefs(replaceDraftOptionRefs(unpackPackedOptions(drafts[0])));
     const kd = renderUnit(fixed);
     const check = await agentChatOnce(verifyPrompt(kd), modelId, AI_TIMEOUT.mid, abort?.signal, {
         kind: track.kind,

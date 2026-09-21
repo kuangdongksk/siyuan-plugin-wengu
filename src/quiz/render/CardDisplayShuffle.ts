@@ -3,10 +3,19 @@ import { POSITION_SENSITIVE } from "../../convert/service/draft/OptionShuffle";
 
 /**
  * **展示层**选项洗牌（Issue #131，20260915）：题库与题源文档统一为
- * 「死形态」——选项按原文顺序、答案字母指向原文位置、解析不含任何
- * 选项字母（协议强制 `〔opt:X〕` 标记、落库前已换成选项文本）。消剧透
- * 因此从「生成期洗牌」搬到「展示期现洗」：进卡 mount 前按题现洗一次，
- * 同一道题跨轮进卡顺序不同，而库里/预览里都还是原文原序（预览显示原序）。
+ * 「死形态」——选项按原文顺序、答案字母指向原文位置。消剧透因此从
+ * 「生成期洗牌」搬到「展示期现洗」：进卡 mount 前按题现洗一次，同一道
+ * 题跨轮进卡顺序不同，而库里/预览里都还是原文原序（预览显示原序）。
+ *
+ * ⚠️ **本模块只重映射 `answer` 字母，绝不碰解析/题干文本**（Issue #176
+ * 收窄，20260919）：`9d998f1` 曾试过「洗选项时同步改写解析里的字母引用」，
+ * 但那是**在渲染路径上对用户文本现猜字母**——落库判据（convert 层那套
+ * 「哪个字母算选项引用」）对 `维生素A`/`A4纸`/引文体字母的误伤面不可接受，
+ * 而且每洗一次牌就要在用户眼前静默跑一遍。
+ * 用户拍板：存量带裸字母的旧记录由**重新转换**消化（落库链
+ * `normalizeDraftOptionRefs` 产出无字母引文），插件不再在展示层猜。
+ * 锁见 `ShuffleRemapInvariants.test.ts`：任意种子 N 组洗牌下解析/题干
+ * **逐字节不动**。
  *
  * 洗牌对象：
  *   - 顶层选项组（single/multiple）——答案 `q.answer` 字母随同一映射重写；
@@ -138,11 +147,43 @@ function applyOrder(
     return { opts: nextOpts, answer: nextAnswer, changed };
 }
 
-/** 单步：洗选项 + 重写步答案（零改动 ⇒ 原引用）。 */
+/** 声明式卡内容洗牌（`""`=顶层，`step-k`=第 k 步）：选项重排 + 答案重写。
+ *
+ *  ⚠️ **解析（`solutionMd`）与题干（`stemMd`）一律不改写**（Issue #176
+ *  收窄，20260919）：`9d998f1` 曾按同一份 order 映射改写解析里的字母引用，
+ *  那是「展示层猜字母」——误伤面不可接受（见文件头）。存量由重新转换消化，
+ *  解析文本进卡后**逐字与库内一致**。 */
+interface CardShuffle {
+    opts: string[];
+    answer: string;
+    patch: (next: { opts: string[]; answer: string }) => void;
+}
+
+/** 洗一组并回填（不可洗/零改动 ⇒ 不回填，调用方据此判断是否换新对象）。 */
+function shuffleCardGroup(c: CardShuffle, rand: Rand): boolean {
+    const order = drawOrder(c.opts, rand);
+    const r = applyOrder(c.opts, c.answer, order);
+    if (!r.changed) return false;
+    c.patch({ opts: r.opts, answer: r.answer });
+    return true;
+}
+
+/** 单步：洗选项 + 重写步答案（`WenguStep` 无解析部件——逐步解析**当前
+ *  不入协议**，见 `OptionRefReplace` 模块头）。 */
 function shuffleStep(s: WenguStep, rand: Rand): WenguStep {
     const opts = s.optionMd ?? [];
-    const r = applyOrder(opts, s.answer ?? "", drawOrder(opts, rand));
-    return r.changed ? { ...s, optionMd: r.opts, answer: r.answer } : s;
+    let out = s;
+    shuffleCardGroup(
+        {
+            opts,
+            answer: s.answer ?? "",
+            patch: (n) => {
+                out = { ...s, optionMd: n.opts, answer: n.answer };
+            },
+        },
+        rand
+    );
+    return out;
 }
 
 /**
@@ -154,15 +195,33 @@ function shuffleStep(s: WenguStep, rand: Rand): WenguStep {
  * 是「单题 + 显式随机源」形态，供单测与需要一次性洗牌的调用方使用。
  */
 export function shuffleForDisplay(q: WenguQuestion, rand: Rand = Math.random): WenguQuestion {
-    if (q.type === "steps") {
-        const steps = (q.steps ?? []).map((s) => shuffleStep(s, rand));
-        if (steps.every((s, i) => s === q.steps![i])) return q;
-        return { ...q, steps };
-    }
+    if (q.type === "steps") return shuffleStepsForDisplay(q, rand);
     if (q.type !== "single" && q.type !== "multiple") return q;
     const opts = q.optionMd ?? [];
-    const r = applyOrder(opts, q.answer ?? "", drawOrder(opts, rand));
-    return r.changed ? { ...q, optionMd: r.opts, answer: r.answer } : q;
+    let out = q;
+    shuffleCardGroup(
+        {
+            opts,
+            answer: q.answer ?? "",
+            patch: (n) => {
+                out = { ...q, optionMd: n.opts, answer: n.answer };
+            },
+        },
+        rand
+    );
+    return out;
+}
+
+/** steps：各步独立洗（各步答案各自重写）。
+ *
+ *  ⚠️ 题级与逐步解析都**不改写**（Issue #176 收窄，20260919）：逐步题各步
+ *  选项组各有自己的字母映射，题级解析里的「B」指哪一步无从判定——猜错就是
+ *  把指代搬错位；逐步解析当前也不入协议（见 `OptionRefReplace` 模块头）。 */
+function shuffleStepsForDisplay(q: WenguQuestion, rand: Rand): WenguQuestion {
+    const src = q.steps ?? [];
+    const steps = src.map((s) => shuffleStep(s, rand));
+    if (steps.every((s, i) => s === src[i])) return q;
+    return { ...q, steps };
 }
 
 /**

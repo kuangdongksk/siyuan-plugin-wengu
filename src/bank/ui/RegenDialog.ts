@@ -6,7 +6,7 @@ import { buildRegenPrompt, verifyPrompt } from "../../ai/prompts/gen";
 import { reseatAnswer } from "../gen/RegenVerify";
 import { extractBlockId } from "../../convert/service/core/ConvertService";
 import { hasStemPart, parseDrafts, renderUnit } from "../../convert/service/draft/QuestionDraft";
-import { replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
+import { normalizeDraftOptionRefs, replaceDraftOptionRefs } from "../../convert/service/draft/OptionRefReplace";
 import { unpackPackedOptions } from "../../convert/service/draft/OptionUnpack";
 import { formGroup, formInput, formRow } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
@@ -214,7 +214,8 @@ async function runRegen(
         // 链必须自己接线。
         // 落点：reseatAnswer **之后**（它只动 ans 部件，与标记无关）、
         // verifyPrompt/renderUnit **之前** —— AI 自检看到的与落盘形态一致。
-        const fixed = replaceDraftOptionRefs(draft);
+        // ③ 裸字母引用规范化（Issue #176）：同 SetWriter 三步链
+        const fixed = normalizeDraftOptionRefs(replaceDraftOptionRefs(draft));
         if (verdict.kind === "mismatch") {
             // 文本定位不到（选项被改写）：独立会话 AI 自检，no 则整题放弃
             const check = await agentChatOnce(verifyPrompt(renderUnit(fixed)), modelId, AI_TIMEOUT.mid, stop.signal, {

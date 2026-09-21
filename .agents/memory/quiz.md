@@ -670,6 +670,22 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
     - 判分口径零改动：`gradeQuestion` 按字母比、`optionIsRight` 按 idx 找答案
       ——展示序变了、字母与选项的对应关系随之变，两者仍自洽（单测锁
       「洗后答案字母指向同一选项文本」，另锁「同轮两次洗逐字相同」）。
+    - ⚠️ **展示层不改写解析**（Issue #176 收窄，20260919 用户拍板）：#131
+      的冻结口径「库内解析不含任何选项字母」真机没守住（工作区 bank 实查
+      841 道 single/multiple 里 835 道带字母引用）——`88bcb99` 曾让洗牌按
+      同一份 order 映射改写解析里的引用字母（治存量），**已整体撤除**：
+      那是在渲染路径上对用户文本现猜字母，`维生素A`/`A4纸`/引文体字母的
+      误伤面不可接受，且每洗一次牌就在用户眼前静默跑一遍。
+        - **现状**：`CardDisplayShuffle` 只做「重映射 `answer` 字母」，
+          解析（`solutionMd`）/题干（`stemMd`）逐字不动（`applyOrder` 连
+          `toIdx` 也不外传了）。存量带裸字母的旧记录**由用户重新转换消化**
+          （重转产物过落库规范化即成无字母引文，见 convert 域），
+          换序后解析字母指库内原序位属**已知接受态**。
+        - 口径：展示层**不得**再引 `convert/.../draft/LetterRefs` 或
+          `OptGroups`（源级锁在 `ShuffleRemapInvariants.test.ts`），
+          也不许自持 `[A-H]` 正则——「洗牌猜字母」这条路整体封掉。
+        - 撤除时一并删净：`OptGroups.remapQuotedHead`、
+          `LetterRefs.rewriteLetters`/`letterMapper`（落库链不消费）。
 
 - **切换题集二次确认弹窗**（Issue #137，20260915；差距清单 §7.d / 设计稿 §5）：
   用户在长卷中途点侧栏换卷时先弹确认，**主钮＝「留在本卷」**（安全默认，

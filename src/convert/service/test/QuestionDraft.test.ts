@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyKnowDrafts, parseDrafts, renderUnit } from "../draft/QuestionDraft";
 import { shuffleDraftOptions } from "../draft/OptionShuffle";
+import { parseQuestionKramdown } from "../../../bank/data/BankParse";
 import type { KnowSection } from "../knowledge/KnowledgeLink";
 
 /**
@@ -174,11 +175,39 @@ describe("renderUnit 落盘形态", () => {
             "@@END",
         ].join("\n");
         const kd = renderUnit(parseDrafts(reply)[0]);
-        expect(kd).toContain('- A. A. 走\n- B. 跑\n{: custom-plugin-wengu-part="slot-1-option-0"}');
+        // ⚠️ Issue #176 改口：AI 自带的一层字母标签在**落库拼接处剥净**
+        // （此前原样抄进 kramdown ⇒ 库里 `- A. A. 走`，卡面多一个字母）。
+        expect(kd).toContain('- A. 走\n- B. 跑\n{: custom-plugin-wengu-part="slot-1-option-0"}');
         expect(kd).toContain('> B\n{: custom-plugin-wengu-part="slot-1-answer"}');
         expect(kd).toContain('- A. 大\n- B. 小\n{: custom-plugin-wengu-part="slot-2-option-0"}');
         expect(kd).toContain('> A\n{: custom-plugin-wengu-part="slot-2-answer"}');
     });
+    it("Issue #176 双字母剥净（**落点＝行协议渲染层**，实查定）", () => {
+        // 真机机制：AI 在选项正文里自带一层字母标签，行协议拼接 `- X. ` 时
+        // 又叠一层 ⇒ 库内 `- A. A. 时空…`（工作区 bank 实查形态）。
+        // ⚠️ **展示侧剥不干净不是主因**（`optionDisplayMd` 自 #163 起已封顶
+        // 3 层）——根因在**落库时就没剥**，故修在这里。
+        const reply = [
+            "@@Q type=single",
+            "@@P stem",
+            "时空与物质运动的关系是（ ）",
+            "@@P opt",
+            "A. 时空是一切运动的观念载体",
+            "@@P opt",
+            "B. 时空与物质运动不可分割",
+            "@@P ans",
+            "B",
+            "@@END",
+        ].join("\n");
+        const kd = renderUnit(parseDrafts(reply)[0]);
+        expect(kd).toContain("- A. 时空是一切运动的观念载体"); // 一层，不再 `- A. A. …`
+        expect(kd).not.toContain("A. A.");
+        expect(kd).toContain("- B. 时空与物质运动不可分割");
+        // 解析回路（落库→读回）卡面文本逐字干净
+        const q = parseQuestionKramdown(kd, "x");
+        expect(q?.optionMd?.[0]).toBe("- A. 时空是一切运动的观念载体");
+    });
+
     it("src-key/src-hash 随容器 IAL 落盘（增量哈希基线）；difficulty 仅合法数字", () => {
         const d = parseDrafts("@@Q type=single difficulty=3\n@@P stem\n题\n@@P ans\nA\n@@END")[0];
         const kd = renderUnit(d, { srcKey: 'H:第一章/习题"1', srcHash: "abc-123" });
