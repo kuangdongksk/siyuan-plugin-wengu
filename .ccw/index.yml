@@ -5,13 +5,6 @@ workflows:
   - name: npc-dispatch-round
     description: NPC 派单调度轮——盘点在飞 PR/Issue、核 CI、审 diff、合并闭环（收口评论关 Issue + 删分支）、按依赖召唤下一波、sleep 600 轮询至交付
     path: workflows/npc-dispatch-round.yml
-    triggers:
-      - 调度
-      - 调度轮
-      - 轮询调度
-      - 收割 PR
-      - 派单进度
-      - dispatch
   - name: od-ui-draft
     description: OpenDesign 出 UI 高保真稿全流程——目录校验、任务书、REST 派 run、轮询、取产物、prettier、Chrome 无头截图自查，最后交用户拍板
     path: workflows/od-ui-draft.yml
@@ -19,6 +12,6 @@ workflows:
 nodes: []
 
 schema:
-  version: 1.2
+  version: 1.3
   status: valid
   violations: []
