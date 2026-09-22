@@ -328,7 +328,8 @@ export async function judgeJev(opts: JudgeJevOpts): Promise<JevAnswer[]> {
             res = await transport(req);
         }
         const answers = handleResponse(opts.questions, res);
-        succeedJevSession(sid, answers);
+        // 问题清单一并折算进回答块（Issue #210）——判定结果本身不改
+        succeedJevSession(sid, answers, opts.questions);
         return answers;
     } catch (e) {
         // 错误政策与回落口径**一字未动**（登记只旁听，不改判定行为）
