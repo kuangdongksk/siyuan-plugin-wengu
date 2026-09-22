@@ -310,22 +310,6 @@ export async function removeRecords(bank: QuestionBank, qids: string[]): Promise
     bank.markDirty();
 }
 
-/** 给一批记录打 src-stale（值是 `"1"`，字段说明见 `BankRecord.srcStale`）。
- *  ⚠️ 旧代增量重转换的调用方已退役（Issue #212），本函数保留：`srcStale`
- *  是落盘字段（存量数据仍在），清点/维护侧仍可用；新代码别把它接回重导链。 */
-export async function staleRecords(bank: QuestionBank, qids: string[]): Promise<void> {
-    const data = await bank.all();
-    let n = 0;
-    for (const qid of qids) {
-        const r = data.records[qid];
-        if (r) {
-            r.srcStale = "1";
-            n++;
-        }
-    }
-    if (n > 0) bank.markDirty();
-}
-
 /** 记录归属的题集 id（无记录返回空；DocOps/跳转降级用）。 */
 export async function setOfRecord(bank: QuestionBank, qid: string): Promise<string> {
     const data = await bank.all();

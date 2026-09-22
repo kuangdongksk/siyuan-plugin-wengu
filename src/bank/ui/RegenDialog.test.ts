@@ -215,8 +215,8 @@ describe("runRegen · 答案核查兜底（Issue #123 验收 ②）", () => {
     });
 
     it("挤行回复：拆行落库（不拆则渲染只给首行编字母 ⇒ 只剩一个选项）", async () => {
-        // 与上条同源：`shuffleDraftOptions` 撤除时带走了它的**两道**格式
-        // 处理，本链直写 replaceRecordKramdown，两步都得自己接。
+        // 与上条同源：旧洗牌入口撤除时带走了它的**两道**格式处理，
+        // 本链直写 replaceRecordKramdown，两步都得自己接。
         const { bank, read } = newBank();
         replies.push(PACKED_REPLY);
         const ok = await regenRecords(deps(bank), ["q1"], noStop());

@@ -13,7 +13,6 @@ import {
     removeRecords,
     setDocsView,
     setQuestions,
-    staleRecords,
 } from "./BankSets";
 import { renderUnit } from "../../convert/service/draft/QuestionDraft";
 
@@ -145,8 +144,6 @@ describe("setQuestions / 删标", () => {
         expect(list[0]).toMatchObject({ type: "single", stemMd: "题干", rootId: "s1", knowledge: "极限" });
         expect(list[0].optionMd).toEqual(["- A. 甲", "- B. 乙"]); // 字母由渲染层自动编（optionDisplayMd 再剥）
 
-        await staleRecords(bank, ["q1"]);
-        expect(read().records.q1.srcStale).toBe("1");
         await removeRecords(bank, ["q1"]);
         expect(read().records.q1).toBeUndefined();
         expect(read().sets?.s1.qids).toEqual(["q2"]);

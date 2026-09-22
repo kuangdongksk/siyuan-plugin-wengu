@@ -5,9 +5,9 @@ import type { BankData, BankRecord, QuestionBank } from "./QuestionBank";
  * 记下来、之后一键批量重转。**语义是「这道题本身出错了」，不是错题本
  * 那个「作答错误」**（文案/title 必须区分）。
  *
- * 存储口径照抄 `srcStale?: "1"`：字段只加不改名、不 bump version、不写
- * kramdown、**不动 questionHash**（数据演进守则冻结清单零触碰）；装载
- * backfill = undefined 即未标记，对无新字段的存量记录零影响。
+ * 存储口径照搬题库 optional 字段既有同款：字段只加不改名、不 bump
+ * version、不写 kramdown、**不动 questionHash**（数据演进守则冻结清单零
+ * 触碰）；装载 backfill = undefined 即未标记，对无新字段的存量记录零影响。
  * `replaceRecordKramdown`（重转原题位回写）不动此字段——qid 不变，
  * 标记天然跟随。
  *

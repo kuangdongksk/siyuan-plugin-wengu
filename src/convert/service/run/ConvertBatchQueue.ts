@@ -11,8 +11,7 @@ import { notifyState, setActive, type ActiveRun } from "./ConvertRunState";
  * 批量转换串行队列（Issue #37）：转换弹窗选中的「文件夹式文档」展开成
  * 一棵子文档清单后，本模块按序**逐篇串行**跑 ConvertRun 的单篇执行体
  * （runSingleDoc）——一篇完整跑完（或终止）再起下一篇，与
- * ConvertIncrement 的串行补生成循环、BankHealth.regenRecords 的后台批量
- * 同款。
+ * BankHealth.regenRecords 的后台批量同款。
  *
  * 四条硬口径：
  *  1. **串行**：内层 await 逐篇 resolve，绝不并发起第二篇；
