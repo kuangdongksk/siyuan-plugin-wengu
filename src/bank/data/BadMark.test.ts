@@ -45,7 +45,6 @@ function newBank(records: BankRecord[], seed?: Partial<BankData>): { bank: Quest
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         ...seed,
     };

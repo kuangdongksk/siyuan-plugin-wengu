@@ -2,7 +2,7 @@ import { typeKey } from "../render/CardParts";
 import { mdFragmentHtml, renderMathWhenVisible } from "../service/ProtyleHost";
 import { optionIsRight } from "../service/QuestionGrading";
 import { svgIcon } from "../../ui/FormHtml";
-import { originDocIdOf, qidHasBlock } from "../../bank/data/BankSets";
+import { originDocIdOf } from "../../bank/data/BankSets";
 import type { QuestionBank } from "../../bank/data/QuestionBank";
 import type { WenguQuestion, WenguStep } from "../../types";
 import { LETTERS, optionDisplayMd } from "../../types";
@@ -78,9 +78,8 @@ function previewToolbarHtml(t: (k: string) => string, count: number): string {
 }
 
 /** 单卡装饰：卡头加复制钮与「查看原文」钮 → 摘作答件 → 揭示多步/
- *  正确项 → 答案区。「查看原文」按两级降级渲染（Issue #13）：
- *  ①有源讲义（set.srcId）→ 跳源讲义；②存量块题（qid=内核块 id）→
- *  维持跳原块；③都无 → 不渲染该钮（不出死钮）。
+ *  正确项 → 答案区。「查看原文」渲染（Issue #13；Issue #214 收窄）：
+ *  有源讲义（set.srcId）→ 跳源讲义；无 → 不渲染该钮（不出死钮）。
  *  渲染门控与点击跳转同走 originTargetOf（唯一判据，不复制第二份），
  *  点击时异步查库、渲染期按判据决定出不出钮。
  *
@@ -267,16 +266,12 @@ function bindPreviewEvents(
     });
 }
 
-/** 「查看原文」的跳转目标（Issue #13）：有源讲义跳源讲义，否则退回
- *  原块（存量块题）。都无返回空——调用方据此不渲染/不动作。 */
+/** 「查看原文」的跳转目标（Issue #13；Issue #214 收窄）：有源讲义
+ *  （set.srcId）跳源讲义，无则返回空——调用方据此不渲染/不动作。
+ *  ⚠️ 原先的第二级「存量块题跳原块」与查库失败的 fail-open（宁可露钮）
+ *  随存量兼容口径一并删除：判据只有「有无 set.srcId」，查库失败即无目标。 */
 export async function originTargetOf(bank: QuestionBank | undefined, qid: string): Promise<string> {
-    try {
-        const src = bank ? await originDocIdOf(bank, qid) : "";
-        if (src) return src;
-    } catch (e) {
-        console.warn("[wengu] 源讲义解析失败，降级跳原块", qid, e); // 查库失败不该吞掉跳转
-    }
-    return qidHasBlock(qid) ? qid : "";
+    return bank ? await originDocIdOf(bank, qid) : "";
 }
 
 /** 打开「查看原文」（无目标零动作；解析失败已在上游降级）。 */

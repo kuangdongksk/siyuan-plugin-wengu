@@ -164,7 +164,8 @@ step-right / step-last / slot-right / slot-last / 文档级 total-time）
 pivot 整体退役）**：历史上题库 hash 是「入库时文档题块的内容指纹
 基线」，ws-main update 广播触发三态比对（changed/fresh/gone）登记
 `BankData.driftDocs`。题目内容唯一真相收进题库后无镜像可漂移，检测
-与其提示行/采纳弹窗一并移除；`hash` 与 `RUNTIME_ATTR_HASH_RE` 剥除
+与其提示行/采纳弹窗一并移除，**残留字段与类型 20260922 随存量兼容
+口径一并删除**（Issue #214）；`hash` 与 `RUNTIME_ATTR_HASH_RE` 剥除
 名单保留（跨卷去重与增量重转换仍依赖指纹稳定）。
 
 > **指纹剥除名单条款（20260901 数据演进守则）**：questionHash 归一化
@@ -997,6 +998,14 @@ comment`）落库，恢复继续与统一揭示时仍按三态展示；战报每
     - **存量材料（无词表区）渲染零变化、零迁移**：`splitGlossBlock` 无 `@@G`
       行时正文逐字节原样，装饰出口走 `root.innerHTML = renderMdHtml(md)`
       同一条老路（词表区 HTML 为空串时与改造前逐字节一致）。
+
+- **存量材料·退役注记（Issue #214，20260922）**：20260903 存储 pivot
+  之前，材料是**习题文档里的超级块**（容器 `custom-plugin-wengu-material="1"`
+    - body/trans part 子块）、小题的组链写在容器 IAL（`group=`）。那套形态
+      的读侧兜底（`migrateLegacyMaterials` 存量迁移链、`parseMaterialKramdown`、
+      容器 IAL 的 `material=` / `group=` 形态）已随存量兼容口径**整体退役**：
+      现役材料唯一载体是 `bank.materials`、组链唯一真相是 `BankRecord.group`。
+      下文渲染口径不变（描述的已是 bank 内实体形态）。
 
 - **材料组渲染（E1 分栏壳）**：DrillUnits 把列表组装成「独立题 /
   材料组」单元——组单元=上栏材料（独立滚动、可折叠、滚动位置按组

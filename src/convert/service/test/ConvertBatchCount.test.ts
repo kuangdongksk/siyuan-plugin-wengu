@@ -92,7 +92,6 @@ function newBank(): QuestionBank {
                 hashed: {},
                 knowRoots: [],
                 folders: [],
-                knowHidden: [],
                 docStats: {},
                 sets: {},
                 materials: {},

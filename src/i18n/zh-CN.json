@@ -279,7 +279,6 @@
   "weakStats": "错 {w}/{n}",
   "weakCauseConcept": "概念不清",
   "weakCauseCalc": "计算失误",
-  "weakCauseMethod": "方法选择错",
   "weakCauseFormula": "公式记错",
   "weakCauseMisread": "审题失误",
   "weakCauseOther": "其他",

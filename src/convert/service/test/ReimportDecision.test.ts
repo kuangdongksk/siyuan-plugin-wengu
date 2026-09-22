@@ -135,7 +135,6 @@ function newBank(): { bank: QuestionBank; data: () => BankData } {
                 hashed: {},
                 knowRoots: [],
                 folders: [],
-                knowHidden: [],
                 docStats: {},
                 sets: {},
                 materials: {},

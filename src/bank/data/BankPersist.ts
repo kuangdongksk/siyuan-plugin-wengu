@@ -31,7 +31,6 @@ export function emptyBankData(): BankData {
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         sets: {},
         materials: {},
@@ -73,8 +72,7 @@ export class BankPersist {
             return this.cache;
         }
         this.cache = data && typeof data === "object" && data.records ? data : emptyBankData();
-        for (const k of ["knowRoots", "folders", "knowHidden"] as const)
-            if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
+        for (const k of ["knowRoots", "folders"] as const) if (!Array.isArray(this.cache[k])) this.cache[k] = []; // 旧数据补字段
         if (!this.cache.docStats) this.cache.docStats = {};
         if (!this.cache.sets) this.cache.sets = {};
         if (!this.cache.materials) this.cache.materials = {};

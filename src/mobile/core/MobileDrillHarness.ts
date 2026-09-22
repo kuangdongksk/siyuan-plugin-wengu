@@ -115,7 +115,6 @@ export function fakeBank(): FakeBank {
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
     };
     const bank = {

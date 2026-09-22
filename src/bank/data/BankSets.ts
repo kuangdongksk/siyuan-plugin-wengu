@@ -1,9 +1,7 @@
 import { mintPrefixedId, normalizeType } from "../../types";
 import type { QuestionType } from "../../types";
 import { KernelQuery } from "../../siyuan/query";
-import { KernelBlock } from "../../siyuan/block";
-import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
-import { parseQuestionKramdown, parseMaterialKramdown } from "./BankParse";
+import { parseQuestionKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import type { BankData, QuestionBank, BankSet } from "./QuestionBank";
 import type { WenguDoc, WenguMaterial } from "../../types";
@@ -190,87 +188,6 @@ export async function ensureSets(bank: QuestionBank): Promise<number> {
     return changed;
 }
 
-/* ── 存量材料迁移（20260903 审查 P1③）──
- * 旧世界的材料是习题文档里的超级块、小题 group 挂容器 IAL；题库化后
- * 材料进 bank.materials、group 走记录字段。ensureSets 只补题集条目不收
- * 材料——存量含材料题集永久丢材料、组链断裂（DrillUnits 全降级独立题）。
- * 迁移按文档序扫旧文档：材料块解析入库（id=材料块 id，与小题 group 引用
- * 同键天然对齐），小题 group IAL（真实 id 或 "prev" 占位按文档序解析）
- * 回填 record.group。只补缺（幂等）：记录已有 group 不动、材料已入库
- * 不重读；文档已删/属性行为空=零动作静默过。 */
-
-/** 本会话已扫的存量文档（重扫零动作，每会话每文档至多一次 SQL）。 */
-const legacyScanned = new Set<string>();
-
-export async function migrateLegacyMaterials(bank: QuestionBank): Promise<void> {
-    const data = await bank.all();
-    const need = new Set<string>();
-    for (const r of Object.values(data.records)) {
-        const doc = r.sourceDocId;
-        if (!doc || r.group || legacyScanned.has(doc)) continue;
-        need.add(doc);
-    }
-    for (const doc of need) {
-        legacyScanned.add(doc);
-        try {
-            await migrateOneDoc(bank, data, doc);
-        } catch (e) {
-            console.warn("[wengu] 存量材料迁移失败（下次装载重试）", doc, e);
-            legacyScanned.delete(doc); // 失败不占坑：索引未就绪等瞬态可重试
-        }
-    }
-}
-
-/** 单个旧文档的迁移体（rowsAll 全量分页：行数=材料+组链，长阅读卷过 64）。 */
-async function migrateOneDoc(
-    bank: QuestionBank,
-    data: Awaited<ReturnType<QuestionBank["all"]>>,
-    docId: string
-): Promise<void> {
-    const rows = await KernelQuery.rowsAll<{ id: string; name: string; value: string }>(`
-            SELECT a.block_id AS id, a.name AS name, a.value AS value
-            FROM attributes AS a JOIN blocks AS b ON b.id = a.block_id
-            WHERE b.root_id = '${docId}'
-              AND (a.name = '${Attr.material}' OR a.name = '${Attr.group}')
-            ORDER BY b.sort, b.created, a.block_id`);
-    const matIds: string[] = [];
-    const patch = new Map<string, string>(); // qid → 材料块 id
-    let lastMat = "";
-    for (const row of rows) {
-        if (row.name === Attr.material && row.value === MATERIAL_FLAG) {
-            lastMat = row.id;
-            matIds.push(row.id);
-        } else if (row.name === Attr.group) {
-            const target = row.value === GROUP_PREV ? lastMat : row.value;
-            if (target && data.records[row.id]) patch.set(row.id, target);
-        }
-    }
-    let changed = false;
-    data.materials ??= {};
-    for (const mid of matIds) {
-        if (data.materials[mid]) continue;
-        const kd = String(((await KernelBlock.kramdown(mid)).data as { kramdown?: string } | null)?.kramdown ?? "");
-        const mat = parseMaterialKramdown(kd, mid, docId);
-        if (mat) {
-            data.materials[mid] = {
-                id: mid,
-                setId: docId,
-                ...(mat.bodyMd ? { bodyMd: mat.bodyMd } : {}),
-                ...(mat.transMd ? { transMd: mat.transMd } : {}),
-            };
-            changed = true;
-        }
-    }
-    for (const [qid, mid] of patch) {
-        const r = data.records[qid];
-        if (r && !r.group && data.materials[mid]) {
-            r.group = mid;
-            changed = true;
-        }
-    }
-    if (changed) bank.markDirty();
-}
-
 /** 题集的题目（set.qids 序；解析走缓存、统计镜像覆盖、rootId=setId）。 */
 export async function setQuestions(bank: QuestionBank, setId: string): Promise<ParsedQuestion[]> {
     const data = await bank.all();
@@ -417,22 +334,18 @@ export async function setOfRecord(bank: QuestionBank, qid: string): Promise<stri
 
 /** 「查看原文」的跳转目标（20260910 Issue #13）：qid → records.sourceDocId
  *  （题集 id）→ sets.srcId（源讲义文档 id）。20260903 存储收口后题目
- *  bank-only（gen- 前缀无内核块），旧「跳题块」逻辑失效，跳转目标改为
- *  源讲义文档——与知识面板「查看原文」同口径（KnowPanelCtl.open）。
+ *  bank-only，跳转目标恒为源讲义文档——与知识面板「查看原文」同口径
+ *  （KnowPanelCtl.open）。
  *
- *  **只到文档级**：srcKey 是结构键/偏移、无块锚点，不定位卷内题目位置。
- *  调用方按以下降级链处理（本帮手只解源讲义，第二级自判）：
- *  ① 有 srcId → 跳它；② 无 srcId 且 `qidHasBlock(qid)` → 跳原块；
- *  ③ 都无 → 不渲染该钮。 */
+ *  **唯一判据 = 有无 `set.srcId`**：返回空串即「不渲染该钮」（不出死钮）。
+ *  ⚠️ 原先第二级「qid 形态像内核块 id 就跳原块」是给存量块题准备的兜底，
+ *  随存量兼容口径一并删除（Issue #214）；「查库失败宁可露钮」的 fail-open
+ *  防御语义同源同去。
+ *
+ *  **只到文档级**：srcKey 是结构键/偏移、无块锚点，不定位卷内题目位置。 */
 export async function originDocIdOf(bank: QuestionBank, qid: string): Promise<string> {
     const data = await bank.all();
     const setId = data.records[qid]?.sourceDocId ?? "";
     if (!setId) return "";
     return data.sets?.[setId]?.srcId ?? "";
-}
-
-/** 题集某题是否 bank-only（无对应源块可跳——siyuan://blocks 跳转降级）。
- *  gen-/mat- 前缀 id 与新 mint 的题天然无源块。 */
-export function qidHasBlock(qid: string): boolean {
-    return /^\d{14}-[a-z0-9]+$/.test(qid);
 }

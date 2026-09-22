@@ -160,10 +160,10 @@
       AI**；同指纹多条只报告不自动删（删谁涉及题集归属与作答统计保留）。
     - 挤行修复 = BankRepair.planOptionRepair 单题修复计划（确定性拆行+按「首行=正确项」
       重写答案+洗牌，经 replaceRecordKramdown 原题位回写，预览即所得；多选挤行正确集合
-      不可推导只报告走单题重生成）；生成侧同类预防在 OptionShuffle.unpackPackedSingle
-      ；解析里裸字母/「字母+全文」引用的落库规范化见 convert 域
-      「解析里的选项字母引用」（Issue #176）
-      （draft 层拆行，四生成入口共用）。
+      不可推导只报告走单题重生成）；生成侧同类预防在
+      `OptionUnpack.unpackPackedOptions`（draft 层拆行，写库链共用）；解析里
+      裸字母/「字母+全文」引用的落库规范化见 convert 域「解析里的选项字母引用」
+      （Issue #176）。
 - **题集实体 BankSets**（20260903 存储 pivot）：题目内容唯一真相=题库
   （BankRecord.kramdown 契约格式）。题集 `{id,title,hPath,srcId,subject,qids[]}` 存 bank.sets
   （data/BankSets 函数式友元：ensureSets 按 records.sourceDocId 分组推导存量题集——
@@ -204,6 +204,9 @@
   首位、ans 仍是 B）；② `OptionShuffle.shuffleGroup` 信任 ans 字母定位正确项
   并随洗牌重写 → 把原干扰项洗成「正确项」落盘；③ 解析里的「B 正确」同样是
   旧字母引用，三处互相矛盾。
+    - ⚠️ **Issue #214（20260922）**：下条②提到的 `OptionShuffle.shuffleGroup`
+      已随存量兼容口径删除（模块只剩内部实现、无导出），故「洗牌层忠实传播
+      错位」这一类只存在于当年历史链；现役防线＝① keep 序 prompt + ③ 核查。
     - **prompt 侧**：`buildRegenPrompt` 传 `protocolSpec(type, { order:"keep" })`
       ——选项按**原题顺序与字母**输出、`@@P ans` 写修正后的正确字母。`protocolSpec`
       的 keep 变体**只换 `@@P opt` 那一行**，其余段落逐字不变；默认（不传

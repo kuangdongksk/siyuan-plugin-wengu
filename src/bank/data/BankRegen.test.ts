@@ -73,7 +73,6 @@ function newBank(records: BankRecord[], seed: Partial<BankData> = {}): { bank: Q
         hashed: Object.fromEntries(records.map((r) => [r.hash, r.qid])),
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         sets: {},
         materials: {},

@@ -203,8 +203,8 @@
   题集=BankSet 库内实体见 bank 域。
 - **生成输出行协议**（20260902）：AI 不手写 kramdown，改输出 `@@Q/@@P/@@END`
   标记行定界文本。`service/draft/QuestionDraft.ts` 解析成 DraftUnit、`renderUnit`
-  **确定性渲染**成契约 kramdown 入库——选项字母按序自动编、正确项写最前由
-  `draft/OptionShuffle.ts` 洗牌消剧透。选行协议非 JSON/YAML 因数学 LaTeX
+  **确定性渲染**成契约 kramdown 入库——选项字母按序自动编（正确项写最前
+  早年的洗牌消剧透已退役，见下条）。选行协议非 JSON/YAML 因数学 LaTeX
   零转义 + 无缩进 + 坏一题不坏一批。四生成入口共用：转换/增量/题库出题
   （GenQuestion）/单题重生成（RegenDialog）。`extractQuestions` 修补层已退役。
 - **纯标题块跳过**：`isHeadingOnlyChunk`（章标题直挂子标题的零内容段不发 AI；
@@ -323,7 +323,12 @@
       `shuffleDraftOptions` 调用点全删——bank 与题源文档
       统一为**死形态**（选项按原文顺序、答案字母指向原文位置）。附带收益：
       落库 kramdown 确定性（重转换 hash 稳定，不再每次随机洗一遍）。
-      ⚠️ `draft/OptionShuffle.ts` **实现与单测保留**（存量数据仍在用），
+      ⚠️ **`OptionShuffle` 导出面已收窄**（Issue #214，20260922）：入口
+      `shuffleDraftOptions`、挤行拆行 `unpackPackedSingle` 与整份专用单测
+      删除（原「实现与单测保留给存量数据」的口径随存量兼容退役而作废）。
+      `POSITION_SENSITIVE` 的活消费方（`BankRepair` / `CardDisplayShuffle`）
+      改从 `draft/PosSensitive.ts` 取——单一口径、改判据只改那里。
+      `OptionShuffle.ts` 现已无导出、只剩内部实现，待另单整文件删除；
       死形态下若在生成链上恢复调用 = 把死形态又洗乱，别再接线。
       ⚠️ **判据落点已接出**（#176）到 `draft/LetterRefs.ts`（词符/保护区/
       所有格/英文正文词/引用前缀）与 `draft/OptGroups.ts`（选项组分组/

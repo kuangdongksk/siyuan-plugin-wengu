@@ -78,7 +78,6 @@ function newBank(records: BankRecord[]): {
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         sets: {},
         materials: {},

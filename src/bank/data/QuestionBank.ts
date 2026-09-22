@@ -133,28 +133,14 @@ export interface BankData {
     knowRoots: string[];
     /** 手动建的目录文件夹路径（空文件夹落盘；旧数据缺省为 []）。 */
     folders: string[];
-    /** 已停用（20260902「删除」按钮移除，字段按数据演进守则保留兼容
-     *  存量数据；不再读写，存量隐藏行重新出现在面板）。 */
-    knowHidden: string[];
     /** 文档级累计刷题用时（秒，原 total-time 块属性自托管）。 */
     docStats: Record<string, number>;
-    /** 镜像漂移登记（20260903 起停写——题库即唯一内容真相，无镜像
-     *  可漂移；字段按守则保留兼容存量）。 */
-    driftDocs?: Record<string, DriftEntry>;
     /** 题集（20260903 起）：id → 集元数据；存量由 ensureSets 推导补齐。 */
     sets?: Record<string, BankSet>;
     /** 材料块正文（20260903 起）：id → 材料内容；缺省为空对象。 */
     materials?: Record<string, BankMaterial>;
     /** AI 知识树（20260903 起不落文档）：源章节文档 id → 归纳大纲。 */
     knowTrees?: Record<string, BankKnowTree>;
-}
-
-/** 一个习题文档的镜像漂移摘要（历史结构，20260903 起停写，存量兼容）。 */
-export interface DriftEntry {
-    changed: string[];
-    fresh: string[];
-    gone: string[];
-    updatedAt: number;
 }
 
 /** 侧栏专题行。 */

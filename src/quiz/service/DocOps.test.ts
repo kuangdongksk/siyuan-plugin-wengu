@@ -96,7 +96,6 @@ describe("重导段级删除集（Issue #74）", () => {
             hashed: {},
             knowRoots: [],
             folders: [],
-            knowHidden: [],
             docStats: {},
             sets: {
                 "set-1": { id: "set-1", title: "卷", qids: ["gen-1", "gen-2", "gen-3"], createdAt: 0 },

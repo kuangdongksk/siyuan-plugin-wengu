@@ -5,7 +5,7 @@ import { extractBlockId, isMaterialKramdown } from "../core/ConvertService";
 
 /**
  * 转换侧纯函数：块 id 提取、prompt 开关（AI 回复解析与
- * kramdown 渲染在 QuestionDraft.test / OptionShuffle.test 覆盖——
+ * kramdown 渲染在 QuestionDraft.test 覆盖——
  * 20260902 行协议重构后 extractBatchQuestions 整体退役；20260903 起
  * 落文档通道（resolveTarget/createExerciseDoc 等）随「不落文档」退役）。
  */

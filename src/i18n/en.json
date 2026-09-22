@@ -279,7 +279,6 @@
   "weakStats": "{w}/{n} wrong",
   "weakCauseConcept": "Concept gaps",
   "weakCauseCalc": "Calculation slips",
-  "weakCauseMethod": "Wrong method",
   "weakCauseFormula": "Formula forgotten",
   "weakCauseMisread": "Misread problem",
   "weakCauseOther": "Other",

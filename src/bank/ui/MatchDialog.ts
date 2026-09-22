@@ -7,7 +7,6 @@ import { buildKnowledgeIndex } from "../../convert/service/knowledge/KnowledgeLi
 import { classifyMatchFail, type KnowRouteFail, type MatchFailKind } from "../../convert/service/knowledge/KnowRoute";
 import { knowTreesOf } from "../data/KnowTrees";
 import { setFallbackTitle } from "../data/BankSets";
-import { KernelDoc } from "../../siyuan/doc";
 import { convertRunActive } from "../../convert/service/run/ConvertRun";
 import { formGroup, formOption, formRow, formSelect, formSwitch } from "../../ui/FormHtml";
 import { openWenguDialog } from "../../ui/Dialog";
@@ -71,12 +70,13 @@ export async function openMatchDialog(deps: MatchDeps): Promise<void> {
     const { t, bank } = deps;
     const data = await bank.all();
     const options = sourceDocOptions(Object.values(data.records));
-    const info = await KernelDoc.infoOf(options.map((o) => o.docId));
-    // 题集标题三级解析：存量卷（sourceDocId=旧习题文档 id）走内核文档活
-    // 标题；20260903 pivot 起转换题集是库内实体（set-* 源 id，无内核文档）
-    // 读 bank.sets；两头皆无兜底短 id——裸 id 直出即本弹窗踩坑形态
+    // 题集标题两级解析（Issue #214 收窄）：题集是库内实体（20260903 pivot
+    // 起，源 id 自带 set- 前缀，无对应内核文档），标题读 `bank.sets`；无
+    // 标题兜底短 id——裸 id 直出即本弹窗踩坑形态。
+    // ⚠️ 原先的第一级「内核文档活标题」（`KernelDoc.infoOf`）是为存量卷
+    // （sourceDocId=旧习题文档 id）准备的，随存量兼容口径一并删除。
     const sets = data.sets ?? {};
-    const titleOf = (id: string): string => info.get(id)?.title ?? sets[id]?.title ?? setFallbackTitle(id);
+    const titleOf = (id: string): string => sets[id]?.title || setFallbackTitle(id);
     const { dialog, root } = openWenguDialog({
         title: fmt(t("matchTitle"), { doc: deps.knowTitle }),
         body: `

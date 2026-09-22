@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseKpRefs, parseMaterialKramdown, parseQuestionKramdown, questionHash } from "./BankParse";
+import { parseKpRefs, parseQuestionKramdown, questionHash } from "./BankParse";
 import { QuestionType } from "../../types";
 
 /**
@@ -215,29 +215,14 @@ describe("parseQuestionKramdown · slots 聚合（cloze 逐空）", () => {
         expect(q?.slots?.map((s) => s.answer)).toEqual(["D", "A"]);
         expect(q?.slots?.[0]?.optionMd).toEqual([]);
     });
-    it("存量容器 group IAL 解析进 q.group（记录字段缺省时的组链兜底）", () => {
+});
+
+describe("存量兼容已退役（Issue #214）", () => {
+    it("容器 IAL 里的 group 不再解析（记录字段才是唯一真相）", () => {
         const kd = singleKd.replace(
             'custom-plugin-wengu-knowledge="极限"',
             'custom-plugin-wengu-knowledge="极限" custom-plugin-wengu-group="20260811172855-ta6w8oh"'
         );
-        expect(parseQuestionKramdown(kd, "q3")?.group).toBe("20260811172855-ta6w8oh");
-    });
-});
-
-describe("parseMaterialKramdown · 存量材料超级块", () => {
-    it("material=1 容器解析 body/trans；非材料容器/空材料返回 undefined", () => {
-        const matKd = [
-            "{{{row",
-            "阅读原文第一段",
-            '{: custom-plugin-wengu-part="body"}',
-            "",
-            "参考译文",
-            '{: custom-plugin-wengu-part="trans"}',
-            "}}}",
-            '{: custom-plugin-wengu-material="1"}',
-        ].join("\n");
-        const mat = parseMaterialKramdown(matKd, "mat1", "set1");
-        expect(mat).toMatchObject({ id: "mat1", rootId: "set1", bodyMd: "阅读原文第一段", transMd: "参考译文" });
-        expect(parseMaterialKramdown(singleKd, "mat2", "set1")).toBeUndefined();
+        expect(parseQuestionKramdown(kd, "q3")?.group).toBeUndefined();
     });
 });

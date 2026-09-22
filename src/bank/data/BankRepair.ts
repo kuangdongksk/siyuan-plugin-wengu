@@ -1,5 +1,5 @@
 import { LETTERS, normalizeType } from "../../types";
-import { POSITION_SENSITIVE } from "../../convert/service/draft/OptionShuffle";
+import { POSITION_SENSITIVE } from "../../convert/service/draft/PosSensitive";
 import { stripIal } from "../../siyuan/kramdown";
 
 /**
@@ -13,8 +13,8 @@ import { stripIal } from "../../siyuan/kramdown";
  * 作答统计随记录保留，容器 IAL 原样 → src-key/src-hash 不动，增量
  * 重转换口径不受影响）。
  *
- * 生成侧的同类预防在 OptionShuffle.unpackPackedSingle（拆行发生在
- * draft 层，四个生成入口共用）；本模块只清偿存量。steps/cloze 的步/
+ * 生成侧的同类预防在 OptionUnpack.unpackPackedOptions（拆行发生在
+ * draft 层，写库链共用）；本模块只清偿存量。steps/cloze 的步/
  * 空选项组不在本口径（顶层损坏形态走单题重生成）。全库体检的扫描与
  * 应用编排在 BankHealth（20260909 起）。
  */

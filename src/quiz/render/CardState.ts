@@ -3,7 +3,7 @@ import { esc, fmt } from "../../ui/shared";
 import type { WenguSession, WenguSessionResult } from "../service/HistoryStore";
 import { optionIsRight, slotOptionIsRight, verdictLabelKey, verdictStatus } from "../service/QuestionGrading";
 import { optionInline } from "../service/ProtyleHost";
-import { hasSlots, hasSteps, LETTERS, normalizeOptionLabels, optionDisplayMd, QuestionType } from "../../types";
+import { hasSlots, hasSteps, LETTERS, optionDisplayMd, QuestionType } from "../../types";
 import type { WenguQuestion, WenguRevealMode } from "../../types";
 import { isChoice, isObjective } from "./CardHtml";
 import { initSteps } from "./CardSteps";
@@ -268,10 +268,10 @@ function initSlots(q: WenguQuestion, ui: CardUi, ctx: CardInitCtx): void {
  *  steps 步选项（CardSteps）与 cloze 当前空选项（本文件）共用。 */
 export function optSnaps(optionMd: string[]): OptSnap[] {
     return optionMd.map((md, i) => {
-        // Issue #176：与 `ProtyleHost.optionRowHtml` 同款兜底（口径与
-        // 实查结论见那里的注释——真机双字母在 #163 起已剥净，这层对它是
-        // 空操作，只有 ≥4 层畸形存量才用到；主修在落库 `renderUnit`）。
-        const { body, tier } = optionInline(optionDisplayMd(normalizeOptionLabels(md)));
+        // Issue #214：原先叠的 `normalizeOptionLabels` 兜底已删（与
+        // `ProtyleHost.optionRowHtml` 同口径——对真机 ≤3 层标签是空操作，
+        // 存量畸形不再兼容；主修在落库 `renderUnit`）。
+        const { body, tier } = optionInline(optionDisplayMd(md));
         return { letter: LETTERS[i] ?? "", html: body, tier, mark: 0 as const };
     });
 }

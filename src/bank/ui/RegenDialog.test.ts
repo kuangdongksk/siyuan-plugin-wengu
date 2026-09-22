@@ -139,7 +139,6 @@ function newBank(kd = ORIG_KD): { bank: QuestionBank; read: () => BankData } {
         hashed: { h1: "q1" },
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
     };
     return {
