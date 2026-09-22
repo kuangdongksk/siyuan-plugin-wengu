@@ -205,8 +205,9 @@
   字母定位正确项并随洗牌重写 → 把原干扰项洗成「正确项」落盘；③ 解析里的
   「B 正确」同样是旧字母引用，三处互相矛盾。
     - ⚠️ **Issue #214（20260922）**：上条②提到的 `OptionShuffle.shuffleGroup`
-      随存量兼容口径**整文件删除**，故「洗牌层忠实传播错位」这一类只存在于
-      当年历史链；现役防线＝① keep 序 prompt + ③ 核查。
+      随存量兼容口径删除（该模块现只剩 `POSITION_SENSITIVE` 一个导出），故
+      「洗牌层忠实传播错位」这一类只存在于当年历史链；现役防线＝① keep 序
+      prompt + ③ 核查。
     - **prompt 侧**：`buildRegenPrompt` 传 `protocolSpec(type, { order:"keep" })`
       ——选项按**原题顺序与字母**输出、`@@P ans` 写修正后的正确字母。`protocolSpec`
       的 keep 变体**只换 `@@P opt` 那一行**，其余段落逐字不变；默认（不传

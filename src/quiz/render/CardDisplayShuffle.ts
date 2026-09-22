@@ -1,5 +1,5 @@
 import { LETTERS, type WenguQuestion, type WenguStep } from "../../types";
-import { POSITION_SENSITIVE } from "../../convert/service/draft/PosSensitive";
+import { POSITION_SENSITIVE } from "../../convert/service/draft/OptionShuffle";
 
 /**
  * **展示层**选项洗牌（Issue #131，20260915）：题库与题源文档统一为

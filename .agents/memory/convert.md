@@ -323,14 +323,13 @@
       `shuffleDraftOptions` 调用点全删——bank 与题源文档
       统一为**死形态**（选项按原文顺序、答案字母指向原文位置）。附带收益：
       落库 kramdown 确定性（重转换 hash 稳定，不再每次随机洗一遍）。
-      ⚠️ **`OptionShuffle` 已整文件删除**（Issue #214，20260922）：洗牌实现
+      ⚠️ **`OptionShuffle` 收窄到只剩判据**（Issue #214，20260922）：洗牌实现
       `shuffleGroup`/`collectGroups`、入口 `shuffleDraftOptions`、挤行拆行
       `unpackPackedSingle` 与整份专用单测随存量兼容口径一起删除（原「实现
-      与单测保留给存量数据」的口径作废）。**两个活后代各就各位**：
-      `POSITION_SENSITIVE` 判据在 `draft/PosSensitive.ts`（`BankRepair` /
-      `CardDisplayShuffle` 两处消费）、挤行拆行在
-      `draft/OptionUnpack.unpackPackedOptions`（三条落库链消费）。
-      死形态下若在生成链上恢复洗牌 = 把死形态又洗乱，别再接线。
+      与单测保留给存量数据」的口径作废）。保留下来的 `POSITION_SENSITIVE`
+      **原地不动**（`BankRepair` / `CardDisplayShuffle` 两处 import 零改动）；
+      挤行拆行早已另家 `draft/OptionUnpack.unpackPackedOptions`（三条落库链
+      消费）。死形态下若在生成链上恢复洗牌 = 把死形态又洗乱，别再接线。
       ⚠️ **判据落点已接出**（#176）到 `draft/LetterRefs.ts`（词符/保护区/
       所有格/英文正文词/引用前缀）与 `draft/OptGroups.ts`（选项组分组/
       字母表/长文本截断）——**落库规范化专用**，改口径只改这两个文件，
