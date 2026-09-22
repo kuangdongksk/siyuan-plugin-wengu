@@ -50,3 +50,12 @@ metadata:
 5 个号），其余整批**标题比正文错一位**；批量建单后必须抽查「标题 ↔ 正文首行」
 对齐（get-issue 两个 grep）。NPC 以**正文**为准开工，错位时改标题对齐正文即可，
 不必重派；补缺维度用 update-issue 换 body 再 --work-mode 重召。
+
+**20260922 两口径（#210→PR #211 实测）**：① **PR 先行 ≠ 流水线收口**——召唤后
+3 分钟 PR 就开了，但实现段其实还在跑（本次 6.7 分钟）、复核段更在其后（本次约
+25 分钟，比历史 ~10.5 分钟慢不少，npc-observability 只列派单不列段内动作，段内
+慢属正常别当卡死）；**合并前必须 `get-build-status` 等全段 success**，且合并时
+核对 get-pull 的 head sha 与自己审过的 sha 一致（复核段可能静默补提交）。
+② `list-pull-commit-statuses` 顶层的 `sha` 可能是 **CNB 合并测试 sha**（dev+PR
+的 merge result），不等于 PR head sha——核对提交以 get-pull 输出为准；`merge-pull`
+的 body 参数名是 `--commit-message`（没有 --commit-body）。
