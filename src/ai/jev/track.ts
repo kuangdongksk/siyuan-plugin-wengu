@@ -15,9 +15,14 @@
  *     `AiSessionRecord`、不 bump version、不涉数据演进守则新闸；
  *  3. **kind 固定 `"jev"`、id 由本模块生成**：判定不是对话，没有内核
  *     sessionID——记录 id 只是登记簿内的唯一键（与 `mintTsId` 同形）。
+ *
+ * 回答块 = **答案行在前 + 「问题：」节在后**（Issue #210）：只落判定值时，
+ * 面板上只有 `q1：是/否 0.89` 这样的行，回看不出「每一问到底在问什么」。
+ * 问题正文本来就与答案按位序一一对应（`opts.questions`），成功收口时一并
+ * 折算进去即可；**编号口径与答案行同一套**（位序 +1），两节按位对照着读。
  */
 import { aiSessions, type AiSessionRecord, type AiSessionGroup } from "../data/AiSessions";
-import { JEV_MODEL, type JevAnswer } from "./client";
+import { JEV_MODEL, type JevAnswer, type JevQuestion } from "./client";
 import { mintTsId } from "../../types";
 
 /** 判定的登记上下文（`judgeJev` opts.track）：kind 由本模块写死，调用方
@@ -58,6 +63,32 @@ export function jevAnswersSummary(answers: JevAnswer[]): string {
     return answers.map((a, i) => jevAnswerLine(i, a)).join("\n");
 }
 
+/** 单问正文的摘要上限：判定问句动辄上百字（见 `convertChecks` 五问），
+ *  面板要的是「这一问在问什么」，全长铺开会把回答块淹掉。 */
+export const JEV_QUESTION_SUMMARY_CAP = 80;
+
+/** 单问正文的显示形式：单行化 + 截断。 */
+export function jevQuestionLine(q: string): string {
+    const flat = q.replace(/\s*\n+\s*/g, " ").trim();
+    return flat.length > JEV_QUESTION_SUMMARY_CAP ? `${flat.slice(0, JEV_QUESTION_SUMMARY_CAP)}…` : flat;
+}
+
+/** 问题清单摘要（一行一条，编号与 {@link jevAnswerLine} 同口径：位序 +1）。 */
+export function jevQuestionsSummary(questions: JevQuestion[]): string {
+    return questions.map((q, i) => `q${i + 1} ${jevQuestionLine(q.question)}`).join("\n");
+}
+
+/** 「问题：」节分隔（答案在前、问题在后，两节之间空一行）。 */
+const QUESTIONS_HEADING = "问题：";
+
+/** 成功登记的 ai 侧文本：答案行 + 空行 + 「问题：」节。
+ *  **空清单不出问题节**（调用方理论上不会这么传，但登记不该凭空多一段空标题）。 */
+export function jevAnswerBlock(answers: JevAnswer[], questions: JevQuestion[]): string {
+    const head = jevAnswersSummary(answers);
+    if (questions.length === 0) return head;
+    return `${head}\n\n${QUESTIONS_HEADING}\n${jevQuestionsSummary(questions)}`;
+}
+
 /** 登记一笔判定的**起点**（返回记录 id；登记簿未接线返回 undefined=不登记）。 */
 export function beginJevSession(track: JevTrack, state: string): string | undefined {
     const store = aiSessions();
@@ -67,9 +98,9 @@ export function beginJevSession(track: JevTrack, state: string): string | undefi
     return id;
 }
 
-/** 登记**成功**（ai 轮 = 类型化答案摘要）。 */
-export function succeedJevSession(id: string | undefined, answers: JevAnswer[]): void {
-    if (id) aiSessions()?.succeed(id, jevAnswersSummary(answers));
+/** 登记**成功**（ai 轮 = 类型化答案摘要 + 按序问题清单，见头注 #210）。 */
+export function succeedJevSession(id: string | undefined, answers: JevAnswer[], questions: JevQuestion[]): void {
+    if (id) aiSessions()?.succeed(id, jevAnswerBlock(answers, questions));
 }
 
 /** 登记**失败**（原样记错误消息——面板要能读到 401/403 的「检查 key」提示）。 */
