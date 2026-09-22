@@ -10,8 +10,9 @@ import type { DraftUnit } from "../../convert/service/draft/QuestionDraft";
  *      同时又要求 `@@P ans` 写字母；修复重生成时 AI 会按协议重排选项、
  *      却把**原题的旧答案字母照抄**进 ans（实录：原题 ans=B，输出顺序
  *      已把正确项挪到首位，ans 仍是 B）；
- *   2. OptionShuffle 信任 ans 字母定位正确项并随洗牌重写字母——于是把
- *      原干扰项当成正确项洗进落盘；
+ *   2. 当年的落盘洗牌（`OptionShuffle`，已随 Issue #214 整文件删除）信任
+ *      ans 字母定位正确项并随洗牌重写字母——于是把原干扰项当成正确项洗
+ *      进落盘；
  *   3. runRegen 链（parseDrafts → shuffle → renderUnit → 落盘）**全程
  *      无核查**（薄弱加练链 GenQuestion 有 verifyPrompt 自检，这条链没有）。
  * 解析文本里的「B 正确」同样是旧字母引用，三处互相矛盾。

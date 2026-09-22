@@ -777,7 +777,8 @@ sup`）。样式在 `scss/english.scss` / `scss/english-gloss.scss`（整改 F1 
     - 洗的对象：顶层选项组（single/multiple，`q.answer` 字母随同一映射重写）、
       steps **每步**选项组（各步独立洗，`step.answer` 同步重写）；位置敏感
       措辞组跳过（`POSITION_SENSITIVE` 从 `convert/service/draft/PosSensitive`
-      取，单一口径——Issue #214 起自 `OptionShuffle` 接出）。**cloze/match 不洗**：逐空答案在 `slot-k-answer`，match 的
+      取，单一口径——Issue #214 自旧 `OptionShuffle` 接出、该模块已整
+      文件删除）。**cloze/match 不洗**：逐空答案在 `slot-k-answer`，match 的
       候选池与槽位顺序共用同一条 `q.answer` 字母串，洗池子=洗答案、跨空一致
       性无从保证。
     - 洗的是**副本**（`{...q, optionMd}`）：`v.list` / `ui.fullList` 原件不动，

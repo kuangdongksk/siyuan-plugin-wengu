@@ -182,7 +182,7 @@ export async function runSegment(seg: Shard, deps: SegmentDeps): Promise<Segment
         // 落库前、下标无关）。
         // ⚠️ **选项洗牌已撤**（Issue #131）：库与题源文档同为「死形态」
         // （选项按原文顺序、答案字母指向原文位置）——原先这里让 AI 按
-        // 「正确项写最前」重排、再由 OptionShuffle 洗牌消剧透，AI 却照抄
+        // 「正确项写最前」重排、再由当年的落盘洗牌消剧透，AI 却照抄
         // 原题字母，字母映射把坏答案忠实传播进库（#123 事实 1 的转换链
         // 复发）。洗牌改为**展示层纯函数**（CardDisplayShuffle，进卡
         // mount 前现洗），预览模式照旧看死形态。
