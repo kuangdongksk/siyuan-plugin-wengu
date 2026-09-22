@@ -268,7 +268,6 @@ describe("qidsFromOffset（删除集）", () => {
             hashed: {},
             knowRoots: [],
             folders: [],
-            knowHidden: [],
             docStats: {},
             materials: {},
             sets: {

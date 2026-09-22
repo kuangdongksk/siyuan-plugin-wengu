@@ -77,8 +77,8 @@ export { isBlankSource } from "./ConvertBatchTypes";
  * `applySubmit` 照做（写库 + 落盘 + 改名 + 报进度），拆出时逐句搬运、
  * 编排次序未动。
  *
- * 并发度 = 1 时目标片数也是 1，逐字回到改造前的行为。增量重转换仍走确定性
- * 结构切块 + 指纹三态分类（SrcChunk/ConvertIncrement），不受本模块影响。
+ * 并发度 = 1 时目标片数也是 1，逐字回到改造前的行为。重导路由在 DocOps
+ * （断点续写 / planReimportBySegs 段表对账），不经过本模块。
  */
 
 /** 分片并行转换主流程。终止时返回 aborted + 已写入 qid（待抉择）。 */

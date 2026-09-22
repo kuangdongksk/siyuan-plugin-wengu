@@ -76,7 +76,6 @@ function makeBank(): QuestionBank {
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         knowTrees: {
             [OLD]: { srcId: OLD, outlineMd: "# 旧", nodes: [], srcHash: "h", createdAt: 1 },

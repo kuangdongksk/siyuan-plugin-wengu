@@ -331,7 +331,6 @@ describe("after 模式 brief 终局判分晚于交卷（复审必修）", () => 
             hashed: {},
             knowRoots: [],
             folders: [],
-            knowHidden: [],
             docStats: {},
         };
         return {

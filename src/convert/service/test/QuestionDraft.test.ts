@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { applyKnowDrafts, parseDrafts, renderUnit } from "../draft/QuestionDraft";
-import { shuffleDraftOptions } from "../draft/OptionShuffle";
 import { parseQuestionKramdown } from "../../../bank/data/BankParse";
 import type { KnowSection } from "../knowledge/KnowledgeLink";
 
@@ -255,20 +254,5 @@ describe("applyKnowDrafts / kpRefs 渲染", () => {
         const kd2 = renderUnit(noSol[0]);
         expect(kd2).toContain('> 相关知识点：((20260101000000-aaaaaaa "极限"))');
         expect(kd2).toContain('{: custom-plugin-wengu-part="solution"}');
-    });
-});
-
-describe("renderUnit · 答案字母与选项内容一致性（洗牌后渲染）", () => {
-    it("洗牌后答案字母指向的渲染位置正是原正确项", () => {
-        const d = parseDrafts(
-            "@@Q type=single\n@@P stem\n题\n@@P opt\n正确项\n@@P opt\n干扰一\n@@P opt\n干扰二\n@@P opt\n干扰三\n@@P ans\nA\n@@END"
-        )[0];
-        shuffleDraftOptions(d);
-        const kd = renderUnit(d);
-        const ans = /^> ([A-D])$/m.exec(kd.split("{{{row")[1].split("}}}")[0])?.[1] ?? "";
-        expect(ans).toMatch(/^[A-D]$/);
-        const items = kd.match(/^- ([A-D])\. (.+)$/gm) ?? [];
-        const pos = items.findIndex((l) => l.endsWith("正确项"));
-        expect("ABCD".indexOf(ans)).toBe(pos);
     });
 });

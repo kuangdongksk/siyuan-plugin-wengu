@@ -5,7 +5,10 @@
 > `SrcChunk.structuralChunks`/`classifyChunks`、`ConvertIncrement`、
 > `ui/IncrementDialog`、`run/ConvertChangeScreen`（A3 变更实质判定）、
 > `BankSets.readRecordSrcGroups` 与 `convertKeepOld` 设置全部退役，旧代存量
-> 题集经仓库主人确认已不存在。**现役重导路径只有一条**：`BankSet.segs` +
+> 题集经仓库主人确认已不存在；文中 §一 提到的分块原语
+> `ConvertService.chunkKramdown`/`CHUNK_CHARS`/`SourceChunk` 亦于同日
+> （Issue #214）随存量兼容口径删除（现役分批是 `ConvertBatch` +
+> `CursorWindow` 的逐段自推进）。**现役重导路径只有一条**：`BankSet.segs` +
 > `srcContentHash` 段表凭据 → `SetSegments.planReimportBySegs`（续跑接管 /
 > 未变更零动作 / 逐段比对截断续转 / 无凭据整卷重转）；残余的 `H:` 题集（理论
 > 上无）退化为整卷重转，无数据风险、无需迁移。文中「二期已落地」等描述均已

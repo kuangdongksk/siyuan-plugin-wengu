@@ -6,8 +6,8 @@ import { generateVariantOf } from "./GenQuestion";
  * `genWithVerify` 的产物经 `addGenerated` **直写题库**（不经 SetWriter），
  * 而 P1-2 把 `〔opt:X〕` 标记约定改成**缺省恒在** ⇒ 本链同样必须自己接线
  * 替换，否则裸标记原样落库并显示在题卡上（与 regen 链同一个坑）。
- * 挤行选项的拆行同理：`shuffleDraftOptions` 撤除时 `unpackPackedSingle`
- * 一并带走，本链若只删不接，AI 挤行时「只剩首选项」原样落库。
+ * 挤行选项的拆行同理：旧洗牌入口与其挤行拆行设施一并撤除时
+ * 把拆行带走了，本链若只删不接，AI 挤行时「只剩首选项」原样落库。
  */
 
 const replies: string[] = [];

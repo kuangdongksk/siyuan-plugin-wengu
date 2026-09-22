@@ -45,7 +45,6 @@ function newBank(records: BankRecord[], seed?: Partial<BankData>): { bank: Quest
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         ...seed,
     };
@@ -67,7 +66,7 @@ beforeEach(() => {
     replies.length = 0;
 });
 
-describe("标记 / 取消（badMark 字段口径同 srcStale）", () => {
+describe("标记 / 取消（badMark 字段口径同题库存量 optional 字段）", () => {
     it("标记写 badMark=1 并落脏；再标幂等不重复落盘", async () => {
         const { bank, read } = newBank([rec("q1")]);
         const markSpy = vi.spyOn(bank, "markDirty");

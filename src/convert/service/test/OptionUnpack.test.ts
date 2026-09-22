@@ -3,7 +3,8 @@ import { unpackPackedOptions } from "../draft/OptionUnpack";
 import { parseDrafts, renderUnit } from "../draft/QuestionDraft";
 
 /**
- * 挤行选项拆行（Issue #131 从 OptionShuffle.unpackPackedSingle 接出）：
+ * 挤行选项拆行（Issue #131 从旧 `OptionShuffle` 拆行实现接出；旧模块已随
+ *  Issue #214 整文件删除）：
  * 拆行是**格式规范**（AI 把多选项塞进一个 @@P opt 时渲染只给首行编字母、
  * 其余成续行 ⇒ 落库即「只剩正确选项」），与选项顺序无关。死形态协议下
  * **不碰答案字母**（字母指向原文位置，改答案就是凭空判错）。

@@ -15,7 +15,6 @@ function bankWith(records: BankRecord[]): QuestionBank {
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
     };
     return new QuestionBank(
@@ -80,7 +79,6 @@ describe("ensureLiveCollection 活视图专题（□3）", () => {
             hashed: {},
             knowRoots: [],
             folders: [],
-            knowHidden: [],
             docStats: {},
         };
         const bank = new QuestionBank(
@@ -105,7 +103,6 @@ describe("ensureLiveCollection 活视图专题（□3）", () => {
             hashed: {},
             knowRoots: [],
             folders: [],
-            knowHidden: [],
             docStats: {},
         };
         const bank = new QuestionBank(

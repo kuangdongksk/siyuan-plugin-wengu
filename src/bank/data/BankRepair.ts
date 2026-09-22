@@ -13,8 +13,8 @@ import { stripIal } from "../../siyuan/kramdown";
  * 作答统计随记录保留，容器 IAL 原样 → src-key/src-hash 不动，增量
  * 重转换口径不受影响）。
  *
- * 生成侧的同类预防在 OptionShuffle.unpackPackedSingle（拆行发生在
- * draft 层，四个生成入口共用）；本模块只清偿存量。steps/cloze 的步/
+ * 生成侧的同类预防在 OptionUnpack.unpackPackedOptions（拆行发生在
+ * draft 层，写库链共用）；本模块只清偿存量。steps/cloze 的步/
  * 空选项组不在本口径（顶层损坏形态走单题重生成）。全库体检的扫描与
  * 应用编排在 BankHealth（20260909 起）。
  */
@@ -100,7 +100,7 @@ export function planOptionRepair(kd: string, rng: () => number = Math.random): O
         return { kind: "none" };
     if (optCount >= 2) return { kind: "none" }; // 健康
     if (!optBlock) return { kind: "regen", reason: optCount === 0 ? "noopts" : "one" };
-    // 丢块间空行（与 unpackPackedSingle 同口径：空行不承载选项）
+    // 丢块间空行（与 OptionUnpack.unpackPackedOptions 同口径：空行不承载选项）
     const raw = lines.slice(optBlock.from, optBlock.ial).filter((l) => l.trim());
     const label = ITEM_LABEL.exec(raw[0] ?? "");
     if (!label) return { kind: "regen", reason: optCount === 0 ? "noopts" : "one" };

@@ -94,16 +94,19 @@ export function roundAggByQid(s: WenguSession): Map<string, boolean> {
 }
 
 /** 水位标记：`${会话id}#${已计结果条数}`——「结束本次做题」后同会话
- *  续刷再收卷，只把新增结果计入画像/错因；旧版纯 id 条目视为全量已计。 */
-function watermarkOf(ids: string[], id: string, total: number): number {
-    const hit = ids.find((x) => x === id || x.startsWith(`${id}#`));
-    if (!hit) return 0;
-    return hit === id ? total : Number(hit.slice(id.length + 1)) || 0;
+ *  续刷再收卷，只把新增结果计入画像/错因。
+ *
+ *  ⚠️ Issue #214 收窄：原先还认「旧版纯 id 条目（视为全量已计）」，
+ *  存量兼容口径已退役——**唯一写入方**只写带 `#count` 的形态，故读侧
+ *  一律按 `${id}#` 前缀匹配、按 `#` 后数字取水位。 */
+function watermarkOf(ids: string[], id: string): number {
+    const hit = ids.find((x) => x.startsWith(`${id}#`));
+    return hit ? Number(hit.slice(id.length + 1)) || 0 : 0;
 }
 
 function markApplied(ids: string[], id: string, count: number): void {
     const mark = `${id}#${count}`;
-    const i = ids.findIndex((x) => x === id || x.startsWith(`${id}#`));
+    const i = ids.findIndex((x) => x.startsWith(`${id}#`));
     if (i >= 0) ids[i] = mark;
     else ids.push(mark);
     if (ids.length > 300) ids.splice(0, ids.length - 300);
@@ -176,7 +179,7 @@ export class WeaknessStore {
     /** 收卷即计数（本地聚合，零 AI；同会话按结果水位增量幂等）。 */
     async applyRound(s: WenguSession, list: WenguQuestion[]): Promise<void> {
         const data = await this.all();
-        const from = watermarkOf(data.applied, s.id, s.results.length);
+        const from = watermarkOf(data.applied, s.id);
         if (from >= s.results.length) return;
         const agg = roundAggByQid({ ...s, results: s.results.slice(from) });
         const qById = new Map(list.map((q) => [q.id, q]));
@@ -213,7 +216,7 @@ export class WeaknessStore {
         noteByQid?: Map<string, string>
     ): Promise<void> {
         const data = await this.all();
-        const from = watermarkOf(data.causeApplied, s.id, s.results.length);
+        const from = watermarkOf(data.causeApplied, s.id);
         if (from >= s.results.length || causeByQid.size === 0) return;
         const inDelta = new Set(s.results.slice(from).map((r) => baseQid(r.qid)));
         const qById = new Map(list.map((q) => [q.id, q]));

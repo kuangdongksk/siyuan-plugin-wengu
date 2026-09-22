@@ -48,12 +48,10 @@ export interface BankRecord {
     srcKey?: string;
     /** 源块内容指纹（同 questionHash 归一口径）。 */
     srcHash?: string;
-    /** 源已更新但用户保留旧题的标记（增量重转换「保留」动作）。 */
-    srcStale?: "1";
     /** 预览模式「标记为错题」（Issue #46）：语义=题目本身出错/生成质量差，
-     *  待批量重转——**不是**错题本的「作答错误」。字段口径照抄 srcStale
-     *  （只加不改名、不 bump version、不写 kramdown、不动 questionHash）；
-     *  缺省 undefined=未标记，存量记录装载零影响。 */
+     *  待批量重转——**不是**错题本的「作答错误」。字段口径照搬题库存量可
+     *  optional 字段的同款（只加不改名、不 bump version、不写 kramdown、不动
+     *  questionHash）；缺省 undefined=未标记，存量记录装载零影响。 */
     badMark?: "1";
 }
 
@@ -133,28 +131,14 @@ export interface BankData {
     knowRoots: string[];
     /** 手动建的目录文件夹路径（空文件夹落盘；旧数据缺省为 []）。 */
     folders: string[];
-    /** 已停用（20260902「删除」按钮移除，字段按数据演进守则保留兼容
-     *  存量数据；不再读写，存量隐藏行重新出现在面板）。 */
-    knowHidden: string[];
     /** 文档级累计刷题用时（秒，原 total-time 块属性自托管）。 */
     docStats: Record<string, number>;
-    /** 镜像漂移登记（20260903 起停写——题库即唯一内容真相，无镜像
-     *  可漂移；字段按守则保留兼容存量）。 */
-    driftDocs?: Record<string, DriftEntry>;
     /** 题集（20260903 起）：id → 集元数据；存量由 ensureSets 推导补齐。 */
     sets?: Record<string, BankSet>;
     /** 材料块正文（20260903 起）：id → 材料内容；缺省为空对象。 */
     materials?: Record<string, BankMaterial>;
     /** AI 知识树（20260903 起不落文档）：源章节文档 id → 归纳大纲。 */
     knowTrees?: Record<string, BankKnowTree>;
-}
-
-/** 一个习题文档的镜像漂移摘要（历史结构，20260903 起停写，存量兼容）。 */
-export interface DriftEntry {
-    changed: string[];
-    fresh: string[];
-    gone: string[];
-    updatedAt: number;
 }
 
 /** 侧栏专题行。 */

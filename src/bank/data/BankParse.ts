@@ -1,4 +1,4 @@
-import type { WenguMaterial, WenguQuestion, WenguSlot } from "../../types";
+import type { WenguQuestion, WenguSlot } from "../../types";
 import type { WenguStep } from "../../types";
 import { QuestionType } from "../../types";
 import {
@@ -23,8 +23,8 @@ import { stripIal } from "../../siyuan/kramdown";
  * part IAL 行。解析器按行扫描 part IAL 分段，不做 Lute/内核调用。
  */
 
-/** 容器属性行（题目 q=… / 存量材料 material=… 两种容器）。 */
-const CONTAINER_IAL = /^\{:[^\n]*custom-plugin-wengu-(?:q|material)=/;
+/** 容器属性行（只认题目容器 q=…；材料容器由 record 字段/materials 店承载）。 */
+const CONTAINER_IAL = /^\{:[^\n]*custom-plugin-wengu-q=/;
 /** 子块属性行，捕获 part 名。 */
 const PART_IAL = /^\{:[^\n]*custom-plugin-wengu-part="([a-z0-9-]+)"/;
 
@@ -95,11 +95,9 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
     if (chapter) q.chapter = chapter;
     const kinds = parseStepKinds(containerAttr(containerIal, "steps") ?? "");
     if (kinds) q.steps = kinds.map((kind): WenguStep => ({ kind, stemMd: "", optionMd: [], answer: "" }));
-    // 存量组链（20260903 前文档落盘格式）：group 在容器 IAL 里（真实
-    // 材料块 id 或 "prev" 占位由读侧回写）；新记录 group 走 BankRecord
-    // 字段（SetWriter 写时直配），读侧以记录字段覆盖此处兜底
-    const groupIal = containerAttr(containerIal, "group");
-    if (groupIal) q.group = groupIal;
+    // ⚠️ Issue #214：原先这里还有一级「容器 IAL 里的 group」（20260903 前
+    // 文档落盘格式的存量兜底）——记录字段才是唯一真相（SetWriter 写时直配），
+    // 存量兜底随兼容口径删除后行为不变（读侧恒以记录字段为准）。
 
     const options: { index: number; md: string }[] = [];
     const stepAcc = new Map<number, { stems: string[]; options: { index: number; md: string }[]; answers: string[] }>();
@@ -190,19 +188,6 @@ export function parseQuestionKramdown(kd: string, qid: string, rootId?: string):
 
     q.kpRefs.push(...parseKpRefs(solution));
     return q;
-}
-
-/** 存量材料超级块 → WenguMaterial（20260903 审查 P1③ 存量迁移用）：
- *  旧世界的材料是习题文档里的超级块（custom-plugin-wengu-material="1"
- *  容器 + body/trans part 子块），题库化后材料进 bank.materials——
- *  存量文档里的材料块经此解析搬入库。非材料容器返回 undefined。 */
-export function parseMaterialKramdown(kd: string, id: string, setId: string): WenguMaterial | undefined {
-    const { containerIal, parts } = splitParts(kd);
-    if (!containerIal || containerAttr(containerIal, "material") !== "1") return undefined;
-    const body = (parts.get("body") ?? []).join("\n\n");
-    const trans = (parts.get("trans") ?? []).join("\n\n");
-    if (!body && !trans) return undefined;
-    return { id, rootId: setId, ...(body ? { bodyMd: body } : {}), ...(trans ? { transMd: trans } : {}) };
 }
 
 /** 从解析文本里抽知识点块引用 ((id "标题"))（按 id 去重；题库解析与薄弱画像共用）。 */

@@ -135,54 +135,36 @@ describe("reseatAnswer · 客观题正确项文本比对", () => {
     });
 });
 
-describe("reseatAnswer · 与洗牌串起来（先校正再洗牌 → 判分一致）", () => {
-    it("校正后的字母经洗牌仍指向原题正确项文本", async () => {
-        const { shuffleDraftOptions } = await import("../../convert/service/draft/OptionShuffle");
+describe("reseatAnswer · keep 序下字母与选项内容自洽（Issue #214 随洗牌删除改锁）", () => {
+    it("原序回复不改字母，答案仍指向原题正确项文本", () => {
         const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (let i = 0; i < 100; i++) {
-            const d = parseDrafts(USER_REPLY)[0];
-            reseatAnswer(d, USER_Q);
-            shuffleDraftOptions(d);
-            const ans = d.parts.find((p) => p.name === "answer")?.text ?? "";
-            const opts = d.parts.filter((p) => p.name === "option-0").map((p) => p.text);
-            expect(opts[LETTERS.indexOf(ans)]).toBe("运动是物质的根本属性");
-        }
-    });
-
-    it("regen 的 keep 序与洗牌字母映射自洽：解析文本原样、答案字母仍指正确项", async () => {
-        const { shuffleDraftOptions } = await import("../../convert/service/draft/OptionShuffle");
-        const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (let i = 0; i < 100; i++) {
-            // keep 序回复：选项顺序与字母同原题（ans=B 指向第 2 项=正确项）
-            const reply = [
-                "@@Q type=single",
-                "@@P stem",
-                "下列关于运动的说法正确的是（）",
-                "@@P opt",
-                "运动是物质的唯一特性",
-                "@@P opt",
-                "运动是物质的根本属性",
-                "@@P opt",
-                "运动是物质的一维性",
-                "@@P opt",
-                "运动是物质的衡量尺度",
-                "@@P ans",
-                "B",
-                "@@P sol",
-                "B 正确，A、C、D 都是混淆说法。",
-                "@@END",
-            ].join("\n");
-            const d = parseDrafts(reply)[0];
-            expect(reseatAnswer(d, USER_Q)).toEqual({ kind: "ok", answer: "B" }); // 原序 → 字母不动
-            shuffleDraftOptions(d);
-            const ans = d.parts.find((p) => p.name === "answer")?.text ?? "";
-            expect(d.parts.filter((p) => p.name === "option-0").map((p) => p.text)[LETTERS.indexOf(ans)]).toBe(
-                "运动是物质的根本属性"
-            );
-            // ⚠️ 解析文本**原样**（Issue #176 收窄）：洗牌不再改写解析里的
-            //    字母（拒绝对用户文本猜字母；存量由重新转换消化）。
-            expect(d.parts.find((p) => p.name === "solution")?.text).toBe("B 正确，A、C、D 都是混淆说法。");
-        }
+        // keep 序回复：选项顺序与字母同原题（ans=B 指向第 2 项=正确项）
+        const reply = [
+            "@@Q type=single",
+            "@@P stem",
+            "下列关于运动的说法正确的是（）",
+            "@@P opt",
+            "运动是物质的唯一特性",
+            "@@P opt",
+            "运动是物质的根本属性",
+            "@@P opt",
+            "运动是物质的一维性",
+            "@@P opt",
+            "运动是物质的衡量尺度",
+            "@@P ans",
+            "B",
+            "@@P sol",
+            "B 正确，A、C、D 都是混淆说法。",
+            "@@END",
+        ].join("\n");
+        const d = parseDrafts(reply)[0];
+        expect(reseatAnswer(d, USER_Q)).toEqual({ kind: "ok", answer: "B" }); // 原序 → 字母不动
+        const ans = d.parts.find((p) => p.name === "answer")?.text ?? "";
+        expect(d.parts.filter((p) => p.name === "option-0").map((p) => p.text)[LETTERS.indexOf(ans)]).toBe(
+            "运动是物质的根本属性"
+        );
+        // 解析文本**原样**（Issue #176 收窄）：插件不再对用户文本猜字母。
+        expect(d.parts.find((p) => p.name === "solution")?.text).toBe("B 正确，A、C、D 都是混淆说法。");
     });
 });
 

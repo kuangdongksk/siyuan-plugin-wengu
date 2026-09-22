@@ -44,7 +44,6 @@ function deferredBank(seed: Partial<BankData>): { bank: QuestionBank; load: () =
         hashed: {},
         knowRoots: [],
         folders: [],
-        knowHidden: [],
         docStats: {},
         sets: {},
         materials: {},

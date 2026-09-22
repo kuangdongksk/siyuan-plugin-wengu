@@ -12,7 +12,8 @@ import type { DraftUnit, DraftPart } from "./QuestionDraft";
  *     列表标记与字母标签后的空串不算位次，见 `slotsOf`）。
  *
  * 本模块只做「读」：不洗牌、不改文本、不落库（洗牌在
- * `OptionShuffle`/`CardDisplayShuffle`，写作由调用方定）。
+ * `OptionShuffle` 的 `POSITION_SENSITIVE` 判据/`CardDisplayShuffle`，
+ * 写作由调用方定）。
  *
  * ⚠️ 展示层**不再**消费本模块（Issue #176 收窄，20260919）：`9d998f1`
  * 曾让 `CardDisplayShuffle` 洗牌时按 `collectOptionGroups` 的字母表改写

@@ -39,7 +39,6 @@ import type { KnowPanelUi } from "./KnowPanelUi";
  * 递归展开手动导入，详见 ui/KnowledgePanel 的纯函数层）、折叠/两击退册
  * 状态机、行内五动作（匹配/转习题/关联/打开/移除）。
  * 移除 = 仅退册整个登记子树（仅登记根行可用，思源文档不动，可重新导入登记）。
- * 旧「删除」按钮（软隐藏 bank.knowHidden）20260902 移除——与移除语义撞车且隐藏后无反悔出口。
  * 旧 paintTree 整树 innerHTML 重绘换成 ui 字段写入；卸载后 load 作废（alive
  * 标志，对应旧 root.isConnected 竞态守卫——装载期间骨架可能被 refreshSide 重建）。*/
 export class KnowPanelCtl {

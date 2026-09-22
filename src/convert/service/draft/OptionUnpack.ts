@@ -1,7 +1,8 @@
 import type { DraftPart, DraftUnit } from "./QuestionDraft";
 
 /**
- * 挤行选项拆行（Issue #131 自 OptionShuffle.unpackPackedSingle 接出）：
+ * 挤行选项拆行（Issue #131 自旧 `OptionShuffle` 的拆行实现接出；旧模块
+ *  20260922 随 Issue #214 整文件删除，本处是它唯一的活后代）：
  * AI 无视「每个选项一个 @@P opt」把全部选项塞进同一部件时，渲染只给
  * 首行编字母、其余行成续行——落库即「只剩正确选项」。
  *

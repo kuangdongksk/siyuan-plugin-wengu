@@ -277,7 +277,6 @@ function newBank(): { bank: Bank; data: () => BankData } {
                 hashed: {},
                 knowRoots: [],
                 folders: [],
-                knowHidden: [],
                 docStats: {},
                 sets: {},
                 materials: {},

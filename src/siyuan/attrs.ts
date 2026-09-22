@@ -53,10 +53,6 @@ export const Attr = {
     /** 增量哈希：源区间键（逐段链形如 `A:<区间起点偏移>`，偏移口径见
      *  `SetSegments`）。 */
     srcKey: `${PREFIX}src-key`,
-    /** 增量哈希（运行时）：源已更新但用户选择保留旧题的标记（值恒 "1"）。
-     *  ⚠️ 写方随旧代增量链退役（Issue #212），字段保留：存量记录仍可能带它，
-     *  读侧照旧识别。 */
-    srcStale: `${PREFIX}src-stale`,
     /** 子块定位：值为 "answer" 表示该子块是解析侧（闪卡卡背）。 */
     part: `${PREFIX}part`,
 } as const;

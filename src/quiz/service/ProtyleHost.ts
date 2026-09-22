@@ -1,6 +1,6 @@
 import { ProtyleMethod } from "siyuan";
 import type { WenguMaterial, WenguQuestion } from "../../types";
-import { optionDisplayMd, normalizeOptionLabels, estimateOptWidth, LETTERS } from "../../types";
+import { optionDisplayMd, estimateOptWidth, LETTERS } from "../../types";
 import { renderMdHtml } from "../../ui/MdRender";
 import { decorateMaterialEntry } from "./MaterialDecorate";
 import { yieldToBrowser } from "../../ui/shared";
@@ -94,18 +94,11 @@ export class ProtyleHost {
  *  正文经 optionInline 剥壳成内联 HTML 并按估宽加紧凑档类
  *  （wengu-opt-s/m，多列排布见 card-render.scss）。 */
 export function optionRowHtml(i: number, md: string, rowClass = "wengu-option-fallback"): string {
-    // Issue #176 双字母剥净（渲染侧**兜底**）。实查口径（20260918 复核，
-    // 记准免得后人误判主因）：
-    //   - **真机样本 `- A. A. 时空…` 早在 #163（20260916）就剥干净了**
-    //     ——`optionDisplayMd` 内部已连续剥层、封顶 3，故这一层对它是**空
-    //     操作**（复核实测：≤3 层标签下与不叠完全等价）。
-    //   - 叠它的唯一实际作用面是 **≥4 层标签的畸形存量**（真机天花板形态），
-    //     那里 plain 会剩一层标签。
-    //   - **主修在落库**：`QuestionDraft.renderUnit` 的选项拼接处
-    //     （库里本就不该存双字母——实查确有，故那里才是根因落点）。
-    //   与 #163 的「`A. B. 两本书名` 别过度剥」边界**不冲突**：该形态在两
-    //   种写法下都收成「两本书名」，剥层数差异只出现在 4 层以上的畸形。
-    const { body, tier } = optionInline(optionDisplayMd(normalizeOptionLabels(md)));
+    // Issue #214 收窄：原先在本行叠的一层 `normalizeOptionLabels`（#176 的
+    // 「渲染侧兜底」）已删——它对真机 ≤3 层标签本就是空操作（`optionDisplayMd`
+    // 自 #163 起内部连续剥层、封顶 3），唯一作用面是 ≥4 层畸形存量，而存量
+    // 兼容口径已整体退役。**主修仍在落库**（`QuestionDraft.renderUnit`）。
+    const { body, tier } = optionInline(optionDisplayMd(md));
     const cls = tier ? `${rowClass} ${tier}` : rowClass;
     return `<div class="${cls}"><span class="wengu-opt-letter">${LETTERS[i] ?? ""}</span><div class="wengu-opt-body">${body}</div></div>`;
 }
