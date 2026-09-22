@@ -7,6 +7,11 @@
    120 列/4 空格——2026-08-24 起从 dprint 切换，dprint 已移除；
    `pnpm test`=vitest 纯逻辑单测，内核 IO 不进单测——真机行为坑见
    下文「内核坑」，测试配置见 `vitest.config.ts` 与 `tests/siyuan-stub.ts`）
+   ⚠️ **20260922 起链首的裸 `tsc --noEmit` 已永久红、别再当闸**：
+   #189 把 `import.meta.glob` 引进 `src/testkit/readSource.ts` 与各
+   `.test.ts`，而 `tsconfig.json` 是 `module: commonjs`——TS1343 打满
+   测试文件属预期；类型闸＝`check:svelte`（自带 tsconfig.svelte.json）
+   ＋ CI 五件套（本就不含 tsc）。装机/验收的本地绿闸＝`pnpm test` 全绿。
 2. 安装：把 `dist/index.js`、`dist/index.css`、`src/i18n/{zh-CN,en}.json`
    复制到**本机工作区的插件目录**（见下）——i18n 忘拷会显示原始键名
    （看起来像「英文」）。
@@ -15,6 +20,10 @@
    → sleep 1s → 同体 `enabled:true`。之后让用户**重开温故页签**验证。
 4. 验证安装：在装好的 `index.js` 里 grep 特征串；注意 minify 会把中文
    转成 `\uXXXX`，grep 原文中文可能查不到（用英文标识符/属性名查）。
+   ⚠️ **转义形态＝`\u` 小写前缀＋大写十六进制**（20260922 实测，
+   `\u4E2A` 这种；搜中文特征串用
+   `s.split('').map(c=>c.charCodeAt(0)>127?'\\u'+c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0'):c).join('')`
+   ——小写 hex 或 `\U` 前缀都会假阴性）。
 
 ## CNB 流水线观测（20260916 用户定：sleep 前台轮询即可）
 
