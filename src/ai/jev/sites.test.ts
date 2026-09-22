@@ -4,22 +4,22 @@ import zh from "../../i18n/zh-CN.json";
 import en from "../../i18n/en.json";
 
 /**
- * 六落点接线锁（Issue #201）：判定层都支持 `track` 了，但**没人传**的话
+ * 落点接线锁（Issue #201）：判定层都支持 `track` 了，但**没人传**的话
  * 面板里一条记录也不会出现——本文件把「每个落点确实把 track 传下去了」
- * 钉成机械断言（源级读源码：真跑六条业务链要拖进题库/文档/内核一大串）。
+ * 钉成机械断言（源级读源码：真跑这些业务链要拖进题库/文档/内核一大串）。
  *
  * 断言只认事实：该文件里存在 `track:`（或落点自己的组装函数调用）。
+ *
+ * 落点随 Issue #212（20260922）六处减到五处：A3「增量变更实质判定」连同
+ * 旧代增量重转换整体退役（编排侧与判定层文件都已删除），只剩 A1/A2
+ * （转换质检与切片预筛）、A4/A5/A6 五条断言。
  */
 
 const SITES: { path: string; needle: string }[] = [
     // A1 转换质检（重建链路）
     { path: "/src/convert/service/run/ConvertQc.ts", needle: 'track: jevTrackOf("aiTitleJevConvert", docTitle)' },
-    // A2 切片预筛（重建链路窗口 + 增量链）
+    // A2 切片预筛（重建链路窗口；增量链已随 Issue #212 退役）
     { path: "/src/convert/service/run/ConvertQc.ts", needle: 'track: jevTrackOf("aiTitleJevScreen", docTitle)' },
-    { path: "/src/convert/service/run/ConvertIncrement.ts", needle: 'jevTrackOf("aiTitleJevScreen", run.title)' },
-    // A3 增量变更实质判定（编排层把标集名递下去）
-    { path: "/src/convert/service/run/ConvertChangeScreen.ts", needle: "...(opts.track ? { track: opts.track } : {})" },
-    { path: "/src/quiz/service/DocOps.ts", needle: 'aiTitle(t, "aiTitleJevChange"' },
     // A4 填空判同
     { path: "/src/quiz/service/GapJudge.ts", needle: "track: gapJudgeTrack(no)" },
     // A5 单词判档
@@ -46,7 +46,7 @@ const SOURCE_FILES = Object.entries(SRC)
     .map(([k, v]) => [relOf(k), v] as const)
     .filter(([k]) => !/^i18n(\/|$)/.test(k) && !/^\.\//.test(k));
 
-describe("六落点接线（Issue #201）", () => {
+describe("落点接线（Issue #201）", () => {
     it("每个落点都把 track 传给判定层（缺一处 = 面板里永远看不到该类判定）", async () => {
         const cache = new Map<string, string>();
         for (const site of SITES) {
@@ -56,13 +56,8 @@ describe("六落点接线（Issue #201）", () => {
         }
     });
 
-    it("判定层四入口都留了 track 口子（可选，缺省=不登记）", async () => {
-        for (const p of [
-            "/src/ai/jev/client.ts",
-            "/src/ai/jev/convertChecks.ts",
-            "/src/ai/jev/chunkScreen.ts",
-            "/src/ai/jev/changeJudge.ts",
-        ]) {
+    it("判定层三入口都留了 track 口子（可选，缺省=不登记）", async () => {
+        for (const p of ["/src/ai/jev/client.ts", "/src/ai/jev/convertChecks.ts", "/src/ai/jev/chunkScreen.ts"]) {
             mustHave(p);
             expect(await read(p), p).toMatch(/track\?: JevTrack|track\?: \{ title: string/);
         }
@@ -86,7 +81,7 @@ describe("六落点接线（Issue #201）", () => {
                 seen.set(k, [...(seen.get(k) ?? []), rel]);
             }
         }
-        expect(seen.size).toBeGreaterThanOrEqual(5); // 扫描面哨兵：族里至少五键
+        expect(seen.size).toBeGreaterThanOrEqual(4); // 扫描面哨兵：族里至少四键（#212 减一）
         const missing: string[] = [];
         for (const [k, files] of seen) {
             if (!DICT.has(k)) missing.push(`${k}（引用于 ${[...new Set(files)].join(", ")}）`);

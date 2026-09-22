@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reimportCfg, reimportResume } from "./DocOps";
-import { qidsFromOffset } from "../../convert/service/source/SetSegments";
+import { hashContent, planReimportBySegs, qidsFromOffset } from "../../convert/service/source/SetSegments";
 import { removeRecords } from "../../bank/data/BankSets";
 import { QuestionBank as Bank } from "../../bank/data/QuestionBank";
 import type { BankData } from "../../bank/data/QuestionBank";
@@ -136,5 +136,44 @@ describe("重导段级删除集（Issue #74）", () => {
         const after = await bank.all();
         expect(Object.keys(after.records).filter((q) => q.startsWith("gen-"))).toEqual(["gen-1", "gen-x"]);
         expect(after.sets!["set-1"].qids).toEqual(["gen-1"]);
+    });
+});
+
+/**
+ * 重导路由收敛（Issue #212，20260922）：旧代 `H:` 结构切块增量链（三态分类 +
+ * 逐块选弹窗 + 省费模式）整体退役后，无续跑记录时的决策面**只剩
+ * `planReimportBySegs` 一支**——本组用纯函数锁住 DocOps 依赖的四条路由：
+ * 未变更零动作 / 部分失配截断续转 / 无凭据整卷重转（含残余 `H:` 题集与
+ * 存量题集，二者此刻在存储上无从区分、处置同为整卷重转）。
+ *
+ * DocOps 真机链要走内核读取与转换起跑（不进单测），故这里锁**它唯一的
+ * 判据来源**：`reimportCfg`/`reimportResume` 之上再无别的分支条件。
+ */
+describe("重导路由（Issue #212 后只剩段表一支）", () => {
+    /** 源：三段，段表首尾相接且覆盖到源末。 */
+    const SRC = ["一、选择题", "第1题 求 $\\lim$", "A. 选项", "第2题 求导", "A. 选项二", "第3题 积分", ""].join("\n");
+    const segOf = (s: number, e: number) => ({ s, e, h: hashContent(SRC.slice(s, e)) });
+    const covered = { segs: [segOf(0, 12), segOf(12, 24), segOf(24, SRC.length)], srcContentHash: hashContent(SRC) };
+
+    it("未变更（整篇哈希命中 + 段表覆盖到源末）→ 零动作，不删不烧", () => {
+        expect(planReimportBySegs(SRC, covered)).toEqual({ kind: "unchanged" });
+    });
+
+    it("部分失配 → 从第一条失配段截断续转（其前记录保留）", () => {
+        const edited = SRC.replace("第3题 积分", "第3题 求积分");
+        const d = planReimportBySegs(edited, { ...covered, srcContentHash: hashContent(edited) });
+        expect(d).toEqual({ kind: "partial", from: 24, deleteFrom: 24, keptSegs: 2 });
+    });
+
+    it("无凭据（残余 `H:` 题集 / 存量题集）→ 整卷重转，且不认整篇哈希", () => {
+        // 非逐段链的题集没有任何段表；即便它带着某个哈希也不短路
+        expect(planReimportBySegs(SRC, undefined)).toEqual({ kind: "full" });
+        expect(planReimportBySegs(SRC, {})).toEqual({ kind: "full" });
+        expect(planReimportBySegs(SRC, { segs: [], srcContentHash: hashContent(SRC) })).toEqual({ kind: "full" });
+    });
+
+    it("有续跑记录时优先续跑（决策不进 planReimportBySegs，由 reimportResume 门控）", () => {
+        expect(reimportResume({ offset: 24, setId: "set-1" })).toBeDefined();
+        expect(reimportResume({ offset: 24 })).toBeUndefined();
     });
 });

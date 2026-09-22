@@ -241,8 +241,6 @@ undefined`；types 1.2.4 有该字段，`getFrontend` 反而没有类型）。
       结构（容器超级块 + part 子块）——kramdown 是题库记录的内部
       契约格式（20260903 起不再落用户文档，但全部存量记录与解析器
       都长这样，改名=重写全库）；
-    - `SrcChunk.structuralChunks` 的 srcKey 键格式（`H:链/P0/#k/~n`）
-      与切块确定性；
     - `KnowledgeNorm.knKey`（聚合键裂开=薄弱画像/知识点索引分裂，
       有 remapKey 对账兜底但别依赖它）。
 - **往记录 kramdown 写任何新的非内容属性，必须同步加进 BankParse 的

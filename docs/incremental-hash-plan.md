@@ -1,5 +1,18 @@
 # 增量哈希方案（内容寻址转换/关联）
 
+> ⚠️ **退役注记（20260922，Issue #212）**：本文档是**历史方案原文，保留备查**。
+> 二期「结构切块 + 块级 src-hash + 增量重转换」那一整套已于本日整体删除——
+> `SrcChunk.structuralChunks`/`classifyChunks`、`ConvertIncrement`、
+> `ui/IncrementDialog`、`run/ConvertChangeScreen`（A3 变更实质判定）、
+> `BankSets.readRecordSrcGroups` 与 `convertKeepOld` 设置全部退役，旧代存量
+> 题集经仓库主人确认已不存在。**现役重导路径只有一条**：`BankSet.segs` +
+> `srcContentHash` 段表凭据 → `SetSegments.planReimportBySegs`（续跑接管 /
+> 未变更零动作 / 逐段比对截断续转 / 无凭据整卷重转）；残余的 `H:` 题集（理论
+> 上无）退化为整卷重转，无数据风险、无需迁移。文中「二期已落地」等描述均已
+> 过时，读时请以此注记与 `.agents/memory/convert.md` 为准。
+> （本文 §一 的题级哈希、§二 第一期的路由缓存、`questionHash` 冻结口径与
+> 数据演进守则**不受影响**，仍在用。）
+
 2026-08-31 定稿方向。目标：文档只改一部分时 AI 只处理变更部分，题只改
 一道时只重生成了这道——按内容哈希跳过未变输入，省 AI 调用成本。
 

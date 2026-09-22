@@ -11,7 +11,7 @@ import type { KnowSection } from "../knowledge/KnowledgeLink";
 import { advanceCursor, parseToDirective, stepWindow, stripToDirective } from "../source/CursorWindow";
 import type { NormIndex } from "../source/CursorWindow";
 import type { Shard } from "../source/ShardPlan";
-import { isHeadingOnlyChunk } from "../source/SrcChunk";
+import { isHeadingOnlyChunk } from "../source/HeadingChunk";
 
 /**
  * 片执行器（20260910 起转换并行化的第二层，与 ShardPlan 配套）：在**一个

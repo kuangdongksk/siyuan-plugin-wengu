@@ -25,9 +25,6 @@ export interface WenguSettingsShape {
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（转换时把可分解的工科大题改写为多步引导题）。 */
     bigToSteps?: boolean;
-    /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块，
-     *  跳过逐块选弹窗（docs/incremental-hash-plan.md §二）。 */
-    convertKeepOld?: boolean;
     /** 转换并发片流水线数（1=串行）：**转换弹窗并发度的默认值**——
      *  设置面板照旧渲染该选择行（见本文件「AI 转换」分组），值经
      *  quiz/index.ts convertParallelOf → convert/index.ts initialParallel
@@ -181,11 +178,6 @@ export function openWenguSetting(opts: {
                   formSwitch("bigsteps", opts.settings.bigToSteps === true, "data-set")
               ) +
               formRow(
-                  t("convertKeepOld"),
-                  t("convertKeepOldDesc"),
-                  formSwitch("keepold", opts.settings.convertKeepOld === true, "data-set")
-              ) +
-              formRow(
                   t("setConvertParallel"),
                   t("setConvertParallelDesc"),
                   formSelect(
@@ -264,7 +256,6 @@ export function openWenguSetting(opts: {
             | "showwrong"
             | "fillchoice"
             | "bigsteps"
-            | "keepold"
             | "companionenabled"
             | "companionai"
             | "jevenabled",
@@ -280,7 +271,6 @@ export function openWenguSetting(opts: {
     bindSwitch("showattempts", (v) => (opts.settings.showAttempts = v));
     bindSwitch("showwrong", (v) => (opts.settings.showWrong = v));
     bindSwitch("fillchoice", (v) => (opts.settings.fillToChoice = v));
-    bindSwitch("keepold", (v) => (opts.settings.convertKeepOld = v));
     bindSwitch("bigsteps", (v) => (opts.settings.bigToSteps = v));
     bindSwitch("companionenabled", (v) => (opts.settings.companionEnabled = v));
     bindSwitch("companionai", (v) => (opts.settings.companionAi = v));

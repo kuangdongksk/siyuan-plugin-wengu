@@ -196,9 +196,9 @@
 - ⚠️ **转换族原先每笔都不带 `onSid`**（`makeKnowAwareAi` 只传
   `{kind,title,group}`）——面板对转换 running 记录点「停止」查无此 id、
   **静默无效**（六个既有批流好使、唯独转换不行）。现已接线：整卷
-  （`ConvertBatch`）、增量（`ConvertIncrement`）、AI 索引
-  （`generateKnowledgeOutline` → `KnowPanelCtl`）。新增任何转换族
-  `agentChatOnce` 调用点都**必须**带 onSid，漏一处就有一笔是死的。
+  （`ConvertBatch`）、AI 索引（`generateKnowledgeOutline` → `KnowPanelCtl`）。
+  新增任何转换族 `agentChatOnce` 调用点都**必须**带 onSid，漏一处就有一笔
+  是死的。
 - ⚠️ **面板点停 = 等价于页内停止**，不是只断当前这笔 fetch：
   `ConvertBatch` 的 `abortFlow()` 是**唯一**总闸——置「用户终止」标记 +
   `internal.abort()`；页内停止（relayAbort）与面板停止（aiStopHandle 的
@@ -207,9 +207,6 @@
   `convert/service/test/ConvertPanelStop.test.ts`）。句柄的 signal 传
   `internal.signal` 而非 `opts.signal`（后者是 TYPES 检测等链路的中止源，
   接成 stop 会把批次收口误判成用户终止）。
-- `ConvertIncrement` 自建 `stopCtrl`（它不由 ConvertRun 起、拿不到
-  `startExclusiveConvertRun` 的 controller），`run.signal` 转接进来；
-  逐块与块间都认 `stopCtrl.signal.aborted`。
 - `runSegment` 窗口循环**必须每批收尾再查一次 `signal.aborted`**：此前只在
   下一笔 AI 前查，最后一批之后落下的停止会白烧一个窗口的 AI（真机「点了
   停止还继续出题」）。

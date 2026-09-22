@@ -46,13 +46,16 @@ export const Attr = {
     stepLast: `${PREFIX}step-last`,
     /** 运行时（文档级）：累计刷题用时（秒），打在习题文档块上。 */
     totalTime: `${PREFIX}total-time`,
-    /** 增量哈希（二期）：题目/材料容器记生成它的源块指纹（questionHash 同款），
-     *  重新导入时三态分类的比对依据（docs/incremental-hash-plan.md §二）。 */
+    /** 增量哈希：题目/材料容器记生成它的源区间指纹（逐段链为 `A:<偏移>`
+     *  那一段的原文哈希，questionHash 同款）——重导逐段比对的依据
+     *  （`SetSegments.planReimportBySegs`）。 */
     srcHash: `${PREFIX}src-hash`,
-    /** 增量哈希（二期）：源块的稳定边界键（标题链 H:a/b 或无标题段 P0，
-     *  超长子块 H:a/b#k）——指纹变了但键还在=「变更」而非「新增」。 */
+    /** 增量哈希：源区间键（逐段链形如 `A:<区间起点偏移>`，偏移口径见
+     *  `SetSegments`）。 */
     srcKey: `${PREFIX}src-key`,
-    /** 增量哈希（二期，运行时）：源已更新但用户选择保留旧题的块标记（值恒 "1"）。 */
+    /** 增量哈希（运行时）：源已更新但用户选择保留旧题的标记（值恒 "1"）。
+     *  ⚠️ 写方随旧代增量链退役（Issue #212），字段保留：存量记录仍可能带它，
+     *  读侧照旧识别。 */
     srcStale: `${PREFIX}src-stale`,
     /** 子块定位：值为 "answer" 表示该子块是解析侧（闪卡卡背）。 */
     part: `${PREFIX}part`,

@@ -48,7 +48,7 @@
       紧，防把正文句子当词条）；`GlossFold.foldGlossIntoDrafts` 是本批
       **消费源区间**里的兜底采集（AI 给了以它为准、AI 没给才补）、
       `^{...}` 残渣落库前一律剥净。接线在 `ConvertSegment`（区间定下后、
-      洗牌前）与 `ConvertIncrement`（同口径）。
+      洗牌前）。
     - prompt 约定在 `ai/prompts/protocol.materialRulesFor` 的英语题型段——
       **四类英语题型不在场则整段省略**（非英语卷 prompt 产物零词条段）；
       词表区的落库标记 `@@G` **不进 `questionHash`**（材料正文不是题目记录
@@ -95,8 +95,8 @@
 - **批量转换 = 串行队列**（Issue #37，20260912）：弹窗选中的「文件夹式
   文档」（自身空、子文档有货）或勾了「连同子文档」的源 → 展开成子文档
   清单，**同一 ConvertRun 单例**逐篇串行跑（`ConvertBatchQueue.runBatchQueue`
-  → `runSingleDoc`），一篇跑完/终止再起下一篇（与 ConvertIncrement 串行
-  补生成、BankHealth.regenRecords 同款）。四条硬口径：
+  → `runSingleDoc`），一篇跑完/终止再起下一篇（与 BankHealth.regenRecords
+  的后台批量同款）。四条硬口径：
     - **队列全程占住 active 槽**：内层单篇 done/failed 收口会清槽，队列
       每起下一篇前 `setActive(run)` 占回；只有整队列收口或转抉择态才真
       释放——否则用户能在换篇间隙点别的转换插队；
@@ -211,66 +211,73 @@
   逐段模式下按**窗口**判定——纯标题窗口直接推游标、不占批号）。
 - **例题筛选带例外**（20260903 真机踩坑）：题解书「答案」节独立成块被整批误跳
   ——prompt 加例外：习题册答案/解答区是练习内容照转，题干由解答还原。
-- **增量重转换**（20260831 增量哈希二期）：
-    - `source/SrcChunk.ts` 结构切块：标题链键 `H:章/节` + questionHash 指纹，替代空行
-      偏移切块；20260903 起答案类子节「习题N/答案」并入父题块——一题一答硬口径：
-      题干与解答同块进 AI 只出一题，真实机 369 块并成 189 块，存量指纹经三态弹窗
-      走变更/消失非静默漂移。
-    - **两阶段三态分类**（全局指纹匹配→键配对：相同/新增/变更/消失）。生成时
-      src-key/src-hash 随 BankRecord 字段落库（20260903 起从容器 IAL 迁入记录，
-      键格式/算法冻结不变）。重新导入入口 DocOps.runIncrementalReimport 按
-      `set.srcId` 门控、对带指纹题集走增量（20260903 起优先于续跑记录，陈旧 rec
-      清掉）。
-    - **检测必过目**：IncrementDialog 先出摘要（源共/已入库/待处理块数；纯标题块
-      入口前置滤除）再逐块选。ConvertIncrement 纯题库执行（删旧/标 stale/串行补生成
-      追加到既有题集，中止自愈无需续跑记录；零产物块无指纹每次重导重算新增，终态报
-      empty 计数）。设置 convertKeepOld=省费模式（20260903 起=只出摘要不出逐块
-      清单，不再静默直跑）。方案与分期见 docs/incremental-hash-plan.md。
-    - **逐段题集的重导**（20260910；Issue #74 加源级哈希与段表）：逐段自推进
-      写入的记录 src-key 形如 `A:<区间起点偏移>`（批区间口径），批边界由 AI
-      决定、不可复现——DocOps 见该前缀即**跳过增量三态分类**；确定性结构
-      切块的存量题集（`H:` 键）增量能力不变。
-        - **源级凭据两个 optional 字段**（`BankSet.srcContentHash`/`segs`，
-          只加不改名、无 backfill、不 bump version）：转换每批 flush 后追加
-          一段 `{s, e, h}`（段首尾相接、连续覆盖 `[0, 已落库游标]`）并写整篇
-          哈希——`e` 取**本批实际落库游标**（非片尾），偏移口径与 `A:` 键、
-          断点游标同一字符串同一单位（剥块 id IAL 后 kramdown 的字符偏移）。
-          纯逻辑在 `convert/service/source/SetSegments`（`advanceSegs` /
-          `hashContent` / `planReimportBySegs` / `resumeCursorOf` /
-          `qidsFromOffset`，带单测）。
-        - **判定顺序三条不许挪**：① **有续跑记录 → 照旧断点续跑**（记录在
-          =上次没跑完，不做未变更短路、不做段比对；批量队列逐篇自查记录同
-          口径）→ ② 无记录 + 整篇哈希命中且等于当前源 **且段表覆盖到源文
-          末尾** → **零动作**（notifyReimportUnchanged，不删不烧）→ ③ 无记
-          录 + `segs` 在 →
-          逐段比对取**第一条失配段** k：删该题集内 `srcKey` 偏移
-          `>= segs[k].s` 的记录（`removeRecords` 既有回收口径）后从该处
-          续转；全段命中但整篇哈希不同（文末追加）=从末段 `e` 起续转、一段
-          不删；④ 无 `segs`（存量/旧记录）→ 现状行为整卷重转。
-          ⚠️ **无段表就不认整篇哈希**（凭据缺失宁多烧不漏转，且两者同点写入
-          不该分叉）。**「哈希命中」只是必要条件**（Issue #208）：`srcContentHash`
-          每批落库就写、**不是成功收口才写**，半成品题集因此带着「整篇已记」
-          的凭据——故 ② 还要求段表覆盖到源末（`segs[末].e >= src.length`），
-          只覆盖前缀时落回 ③ 的「全段命中 → 从末段 `e` 续转」，接住「半成品
-          源未变」（旧行会误判零动作、报「无需重转」卡死续转）。
-        - **续跑接管与段表对账**（`SetSegments.resumeCursorOf`，Issue #208）：
-          续跑起跑游标取 `max(0, 记录偏移, 段表末段 e)`——段表末段是**已落库
-          连续前缀的权威游标**，记录偏移落后于它（旧检查点/异常残留）时以段表
-          为准，免得重转重复落库；源已变（哈希失配）返回 0、游标按记录原值
-          （不在此处猜，交给 `refreshSetHash` / 重导段比对）。配套两条：
-          `settleFailed` 记记录的条件放宽为 `setId && (count > 0 || doneOffset > 0)`
-          （续跑首批就挂时 count=0 但断点在，原先「清了没写回」）；
-          `DocOps.startReimport` 的清记录只在 `!resume` 路（续跑不再先毁断点）。
-          ⚠️ 抉择态（`settleAborted`）**有意不写记录**——写了会与面板「丢弃
-          进度」抢跑道（丢记录 + 回收题集＝删掉用户正要续的题集）；重载丢抉择
-          态的口子由上面 ② 的收紧兜底（测试里有行为回归锁）。
-        - **源文本必须两边同源**：`DocOps.srcTextOf` 读源时剥的 IAL 正则与
-          `ConvertBatch` 入口**逐字一致**——两边取的不是同一条字符串，哈希
-          永远命中不了「未变更」（`SetSegments` 侧另有单测锁同源）。
-        - **续跑篇起跑前校正凭据**（`ConvertBatchQueue.refreshSetHash`）：
-          队列逐篇自查记录续跑，路上用户可能已改过源——当前源哈希与题集记的
-          不同就清掉 `srcContentHash`（段表保留，逐段比对仍能定位失配段），
-          否则下一次重导会误判「未变更」而漏掉已改内容。
+- **旧代增量重转换（H: 结构切块三态分类）已退役**（20260922，Issue #212）：
+  20260831 增量哈希二期那一套（`source/SrcChunk.ts` 结构切块 + 两阶段三态分类 +
+  `ConvertIncrement` 落盘 + `IncrementDialog` 逐块选 + `convertKeepOld` 省费模式 +
+  A3 变更实质判定 `ai/jev/changeJudge`/`run/ConvertChangeScreen` +
+  `BankSets.readRecordSrcGroups`）**整体删除**：经仓库主人确认旧代存量题集已不存在，
+  兼容层失去保护对象。`docs/incremental-hash-plan.md` 顶部已加退役注记（历史方案
+  原文保留备查）。**留存项**：`isHeadingOnlyChunk` 是主转换链在用的活代码，随删随
+  搬迁到 `convert/service/source/HeadingChunk.ts`（`run/ConvertSegment` 的窗口跳过
+  在用；单测 `HeadingChunk.test.ts`，行为与删除前逐字一致）。
+- **现役重导路由只有一条**（`quiz/service/DocOps`：`reimportDocFromInner`）：
+    1. **有续跑记录**（prefs convertProgress 带 setId）→ 接着断点续写**同一题集**，
+       不做「源未变更」短路、不做段比对（浮层 notifyReimportCursor）；
+    2. 无记录 + `planReimportBySegs` 判 **unchanged** → 零动作（不删不烧）；
+    3. 无记录 + **partial** → 删失配段起的记录后从该段续转；
+    4. 无凭据（`segs`/`srcContentHash` 皆无的存量题集，含理论上残余的 `H:` 题集）
+       → 提示 + 整卷重转。
+       源文读取失败或判空（`isBlankSource`，与转换链同一判空口径）一律归「整卷重转」，
+       但**空源在清旧题集之前就报 `convertEmptyDoc` 收口**——别让它跑到 ConvertBatch
+       才失败（那一步已经把旧题集清掉了）。
+       ⚠️ 判定顺序别挪（详见下条）；`SetSegments.ts` 属冻结面，本次零改动。
+- **逐段题集的重导**（20260910；Issue #74 加源级哈希与段表）：逐段自推进
+  写入的记录 src-key 形如 `A:<区间起点偏移>`（批区间口径），批边界由 AI
+  决定、不可复现——故重导不做任何块级三态分类，只看源级凭据（见上条）。
+
+- **源级凭据两个 optional 字段**（`BankSet.srcContentHash`/`segs`，
+  只加不改名、无 backfill、不 bump version）：转换每批 flush 后追加
+  一段 `{s, e, h}`（段首尾相接、连续覆盖 `[0, 已落库游标]`）并写整篇
+  哈希——`e` 取**本批实际落库游标**（非片尾），偏移口径与 `A:` 键、
+  断点游标同一字符串同一单位（剥块 id IAL 后 kramdown 的字符偏移）。
+  纯逻辑在 `convert/service/source/SetSegments`（`advanceSegs` /
+  `hashContent` / `planReimportBySegs` / `resumeCursorOf` /
+  `qidsFromOffset`，带单测）。
+
+- **判定顺序三条不许挪**：① **有续跑记录 → 照旧断点续跑**（记录在
+  =上次没跑完，不做未变更短路、不做段比对；批量队列逐篇自查记录同
+  口径）→ ② 无记录 + 整篇哈希命中且等于当前源 **且段表覆盖到源文
+  末尾** → **零动作**（notifyReimportUnchanged，不删不烧）→ ③ 无记
+  录 + `segs` 在 →
+  逐段比对取**第一条失配段** k：删该题集内 `srcKey` 偏移
+  `>= segs[k].s` 的记录（`removeRecords` 既有回收口径）后从该处
+  续转；全段命中但整篇哈希不同（文末追加）=从末段 `e` 起续转、一段
+  不删；④ 无 `segs`（存量/旧记录）→ 现状行为整卷重转。
+  ⚠️ **无段表就不认整篇哈希**（凭据缺失宁多烧不漏转，且两者同点写入
+  不该分叉）。**「哈希命中」只是必要条件**（Issue #208）：`srcContentHash`
+  每批落库就写、**不是成功收口才写**，半成品题集因此带着「整篇已记」
+  的凭据——故 ② 还要求段表覆盖到源末（`segs[末].e >= src.length`），
+  只覆盖前缀时落回 ③ 的「全段命中 → 从末段 `e` 续转」，接住「半成品
+  源未变」（旧行会误判零动作、报「无需重转」卡死续转）。
+
+- **续跑接管与段表对账**（`SetSegments.resumeCursorOf`，Issue #208）：
+  续跑起跑游标取 `max(0, 记录偏移, 段表末段 e)`——段表末段是**已落库
+  连续前缀的权威游标**，记录偏移落后于它（旧检查点/异常残留）时以段表
+  为准，免得重转重复落库；源已变（哈希失配）返回 0、游标按记录原值
+  （不在此处猜，交给 `refreshSetHash` / 重导段比对）。配套两条：
+  `settleFailed` 记记录的条件放宽为 `setId && (count > 0 || doneOffset > 0)`
+  （续跑首批就挂时 count=0 但断点在，原先「清了没写回」）；
+  `DocOps.startReimport` 的清记录只在 `!resume` 路（续跑不再先毁断点）。
+  ⚠️ 抉择态（`settleAborted`）**有意不写记录**——写了会与面板「丢弃
+  进度」抢跑道（丢记录 + 回收题集＝删掉用户正要续的题集）；重载丢抉择
+  态的口子由上面 ② 的收紧兜底（测试里有行为回归锁）。
+
+- **源文本必须两边同源**：`DocOps.srcTextOf` 读源时剥的 IAL 正则与
+  `ConvertBatch` 入口**逐字一致**——两边取的不是同一条字符串，哈希
+  永远命中不了「未变更」（`SetSegments` 侧另有单测锁同源）。- **续跑篇起跑前校正凭据**（`ConvertBatchQueue.refreshSetHash`）：
+  队列逐篇自查记录续跑，路上用户可能已改过源——当前源哈希与题集记的
+  不同就清掉 `srcContentHash`（段表保留，逐段比对仍能定位失配段），
+  否则下一次重导会误判「未变更」而漏掉已改内容。
 
 - **洗牌同步改写解析字母**（Issue #123，20260915；⚠️ **已于 #176 收窄时
   撤除**，20260919）：协议让 AI 按「正确项写最前」写**解析**（「A 正确，
@@ -306,15 +313,14 @@
       现口径＝**纯 transcription，零判断零重排**：`@@P opt` 只写内容不写字母
       标签、按**原文选项顺序**排列不重排不增删，`@@P ans` 按原文选项顺序数
       写字母。重排类错误（#131 前 220 条 draft 32 条答案字母错那一类）在结构
-      上不可能再发生。整卷转换（`ConvertBatch` 的 makeCall）与增量重转换
-      （`ConvertIncrement`）仍传 `bank=true`；出题/加练/变式链不传（默认变体
-      「正确项写最前」只归造题链——新造题无原文顺序可保、答案恒 A 便于自检；
+      上不可能再发生。整卷转换（`ConvertBatch` 的 makeCall）仍传 `bank=true`；出题/加练/变式链
+      不传（默认变体「正确项写最前」只归造题链——新造题无原文顺序可保、答案恒 A 便于自检；
       prompt 测试锁着）。`order:"keep"`（regen 专用，变式解析引用模板字母动
       不得）与 `bank` 并存时 `bank` 优先。落库归一全链（`normalizeOptionLabels`/
       `renderUnit`/标记替换/拆行）原样保留作兜底闸；存量不迁移（#176 口径），
       重转即消化。
-    - **写库洗牌全部撤除**：`ConvertSegment`/`ConvertIncrement`/`GenQuestion`/
-      `RegenDialog` 四处 `shuffleDraftOptions` 调用点全删——bank 与题源文档
+    - **写库洗牌全部撤除**：`ConvertSegment`/`GenQuestion`/`RegenDialog` 三处
+      `shuffleDraftOptions` 调用点全删——bank 与题源文档
       统一为**死形态**（选项按原文顺序、答案字母指向原文位置）。附带收益：
       落库 kramdown 确定性（重转换 hash 稳定，不再每次随机洗一遍）。
       ⚠️ `draft/OptionShuffle.ts` **实现与单测保留**（存量数据仍在用），
@@ -474,23 +480,24 @@ unpackPackedOptions(d)))`）：`SetWriter.append` / `GenQuestion.genWithVerify`
           ——回归锁在 `OptionRefReplace.test.ts` 末组：用**真实** `shuffleListForDisplay`
           断言「换会话洗牌后解析逐字不变 + 答案字母仍指向同一选项文本」。加任何
           「往解析里写字母」的改动前先跑它。
-- **Jev 判定落点：切片预筛 A2 + 增量变更实质判定 A3**（Issue #186，规划稿
-  §三 A2/A3；`355ac3b` 首版合并，复核补修见下）：两处都在**花钱的生成调用
-  之前**加一道便宜的类型化判定，只回布尔决策，切片/`srcKey`/`hash` 一概不碰。
+- **Jev 判定落点：切片预筛 A2（A3 已退役）**（Issue #186，规划稿
+  §三 A2；`355ac3b` 首版合并，复核补修见下）：在**花钱的生成调用之前**加一道
+  便宜的类型化判定，只回布尔决策，切片/`srcKey`/`hash` 一概不碰。
     - 判定层 `ai/jev/chunkScreen.ts`（A2：`screenChunks` 按 `SCREEN_BATCH_CHARS`
-      攒批，一片两问 noul+score）、`ai/jev/changeJudge.ts`（A3：一批一次问完）；
-      阈值唯一落点 `ai/jev/policy.ts` 的 `screenShouldSkip` / `changeIsWordingLevel`。
-      接线：`ConvertIncrement`（生成循环**之前**批量预筛，`screened` 与 `empty`
-      **分账**）、`ConvertSegment`（可选 `deps.screen`，缺省恒不跳）、
-      `ConvertQc` 的 `ScreenAcc`（整卷链逐窗口问）、`ConvertChangeScreen`
-      （A3 编排侧收口）+ `IncrementDialog.refine` + `DocOps`。
+      攒批，一片两问 noul+score）；阈值唯一落点 `ai/jev/policy.ts` 的
+      `screenShouldSkip`。接线：`ConvertSegment`（可选 `deps.screen`，缺省恒不跳）、
+      `ConvertQc` 的 `ScreenAcc`（整卷链逐窗口问）。
+    - ⚠️ **A3「增量变更实质判定」随旧代增量链整体退役**（20260922，Issue #212）：
+      `ai/jev/changeJudge.ts`、`policy.changeIsWordingLevel`、
+      `run/ConvertChangeScreen.ts` 全删。下面两条坑的历史口径保留（当年的 A2
+      侧接线仍在，第 1 条对 A2 依旧成立；第 2 条只作考古）。
     - ⚠️ **两个已踩的坑（改这两处前先看，都是复核轮抓到的真缺陷）**：
         1. **预筛结论必须按入参位序落位，不许按 `key` 归并**。两个调用点都传
            **空 key**（增量链整批 `key: ""`、`ScreenAcc` 单片也是 `""`）——按 key
            归并会把「空白片的未判定」与「真判定的跳过」错配到别的片：报告说
            「跳过 1 片」，实际跳的是另一片，**真没料的片照样烧生成调用**（省钱
            落点静默失效）；`verdicts[i]` 与 `items[i]` 必须严格同长同序。
-        2. **A3 的「无 key」闸要挂在调用侧、按能力判，不能按判定结果判**。
+        2. _（历史·A3 已删，仅作考古）_ **A3 的「无 key」闸要挂在调用侧、按能力判，不能按判定结果判**。
            `judgeChanges` 无 key 时返回「全部当实质」只是**逐块保守默认值**，
            而 A3 的「实质」＝**先删旧记录再重转** ⇒ 调用侧无条件采用就成了
            「无 key 时静默删旧题 + 重转全部变更块」，违反验收 1（无 key 行为与

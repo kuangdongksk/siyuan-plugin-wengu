@@ -66,14 +66,15 @@ Lute 源码调研证实 Vditor 三模式全由 Lute 驱动、公式渲染完整�
 - **kpRefs 全家**：`bank/data/{BankParse,BankRegen,BankReconcile,
 KnowRoots,KnowTrees,BankSets,LiveCols}.ts`——题→知识节点引用、
   对账、活专题 `col-kp-{块id}` 键。
-- **纯函数切块**：`convert/service/source/SrcChunk.ts structuralChunks`（标题
-  链边界+questionHash 同款指纹），输入是纯 markdown 文本，直吃 .md 成立。
+- **纯函数切块**：`convert/service/source/SetSegments.ts`（逐段段表 +
+  `hashContent` 内容哈希，输入是纯 markdown 文本，直吃 .md 成立）。
+  ⚠️ 旧代 `SrcChunk.structuralChunks` 标题链结构切块已随增量链退役（Issue #212）。
 - **自包含渲染**：`ui/MdRender.ts`（markdown-it，思源同款占位形态：
   `div.p` 段落 / inline-math span / NodeMathBlock div）。
 
 纯逻辑直搬清单（只换介质不动算法）：BankParse/BankRecording/BankRegen/
 KnowLinkText/KnowTrees/KnowledgeNorm/KnowRoots、OptionShuffle/
-QuestionDraft/SetWriter/SrcChunk、quiz/flow 与 render/（CardState 借
+QuestionDraft/SetWriter/SetSegments、quiz/flow 与 render/（CardState 借
 ProtyleHost 处改 host/KaTeX）、companion/rules/、ui/MdRender.ts、
 ts-fsrs/echarts、全部 Svelte 组件。
 
@@ -93,7 +94,7 @@ Tauri 窗口（单窗口多页签 + 左侧树；不复刻思源 dock 布局系�
 │  ├ src/store/     invoke → Rust；SQLite 装载层（替 saveData 十二店与 src/siyuan/）
 │  │                + resolveAsset 资产单出口
 │  ├ src/ai/        client.ts 内部换直连供应商（agentChatOnce 签名不变）
-│  ├ src/ingest/    md 文件夹 / PDF / Word → SrcChunk
+│  ├ src/ingest/    md 文件夹 / PDF / Word → 段表凭据（SetSegments）
 │  └ src/{quiz,convert,bank,word,review,stats,companion}/   纯逻辑直搬
 └ 后端 Rust
    ├ SQLite（sqlx + migrations + PRAGMA user_version 版本闩）
@@ -233,15 +234,15 @@ IR/WYSIWYG/SV 三模式全由 Lute 驱动（lute 仓库根目录 `vditor_ir.go`
   建标题链，算新标题锚 id，写 `legacy_id_map`（旧块 id → 新锚 id），
   kpRefs/活专题键经映射换算。
 - **指纹断层**：srcHash 按思源 kramdown 文本算，md 形态不同（IAL 消失）
-  → 首次重新导入全量标「变更」，经 IncrementDialog 摘要过目后归位——
-  一次性接受，不建 hash 映射。
+  → 首次重新导入段表逐段哈希全部失配，从 0 整卷重转——一次性接受，
+  不建 hash 映射。
 - 版本闩、数据演进守则整体随迁。
 
 ## 七、冻结不变量（原样带走，一字不改）
 
 questionHash 及归一化；WordBook.wordKey 归一化；题块 kramdown 契约
-（容器超级块+part 子块）；SrcChunk.srcKey 键格式与切块确定性；
-KnowledgeNorm.knKey；**BLOCK_REF 正则与 `{14位时间戳}-{7位字母数字}`
+（容器超级块+part 子块）；记录 `srcKey` 的 `A:<偏移>` 键形态与
+`SetSegments` 段表口径；KnowledgeNorm.knKey；**BLOCK_REF 正则与 `{14位时间戳}-{7位字母数字}`
 id 形态**；agentChatOnce/agentChatContinued 对外签名。SQLite 迁移时
 这些算法所在模块纯逻辑直搬只换介质。
 
@@ -270,8 +271,8 @@ id 形态**；agentChatOnce/agentChatContinued 对外签名。SQLite 迁移时
   聚合/存量材料迁移，都在将改造的 bank 读侧）。
 - **M2 转换+AI 通道（1–2 周）**：直连供应商（Rust 转发藏 key、SSE
   透传、**超时按 SSE 空闲计的口径复刻**）；模型配置 UI（供应商+key+
-  模型清单，含失效回落默认）；摄取 md 文件夹/PDF/Word→SrcChunk；
-  行协议 @@Q/@@P/@@END 不变，SetWriter 直写 SQLite；增量指纹比对走
+  模型清单，含失效回落默认）；摄取 md 文件夹/PDF/Word→段表凭据；
+  行协议 @@Q/@@P/@@END 不变，SetWriter 直写 SQLite；重导的段表指纹比对走
   SQLite。PromptHygiene 图片占位保留（直连下仍控成本+供应商 image
   参数差异同款坑）。
 - **M3 单词域（1 周）**：words/wordbooks 表；四步梯；听音选义=

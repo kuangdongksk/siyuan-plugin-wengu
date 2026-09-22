@@ -443,7 +443,8 @@ describe("源级闸（Issue #188：分流单一落点、冻结清单不碰）", 
         const src = await read("/src/bank/data/KnowSynJev.ts");
         expect(src).not.toContain("saveData");
         // 冻结清单不碰：不出现哈希/键格式相关的符号
-        for (const frozen of ["questionHash", "srcKey", "structuralChunks", "knKey", "wordKey"]) {
+        //（#212 起旧代结构切块符号已不存在，改用仍在冻结面的 `srcHash` 顶位）
+        for (const frozen of ["questionHash", "srcKey", "srcHash", "knKey", "wordKey"]) {
             expect(src).not.toContain(frozen);
         }
     });

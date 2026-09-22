@@ -46,8 +46,6 @@ interface WenguSettings {
     fillToChoice?: boolean;
     /** 默认「大题拆多步」（可分解的工科大题 → 多步引导题）。 */
     bigToSteps?: boolean;
-    /** 省费模式（增量重转换）：变更/消失块全保留旧题、只补新增块。 */
-    convertKeepOld?: boolean;
     /** 转换并行度（1~4，1=串行）：转换分片流水线数，同时是**全局 AI
      *  在途并发闸**的容量（Issue #76，index.ts applyAiSlots 注入）。 */
     convertParallel?: number;

@@ -4,7 +4,6 @@ import { read } from "../../testkit/readSource";
 import {
     buildCheckState,
     checkBatch,
-    chunkQcSummary,
     dedupeSuspects,
     qcSummary,
     suspectLabel,
@@ -287,27 +286,5 @@ describe("转换质检报告标注", () => {
         expect(dedupeSuspects(dup)).toHaveLength(2);
         const line = qcSummary(t, { checked: 9, suspects: dup });
         expect(line).toBe("存疑（已判定 9 题）：明确有问题（推不出）；拿不准（推不出）");
-    });
-
-    it("增量链：无存疑 → 尾巴为 null（零 Jev 痕迹）", () => {
-        const t = (k: string): string => k;
-        expect(chunkQcSummary(t, { reports: [], suspectChunks: 0, checkedChunks: 2 })).toBeNull();
-    });
-
-    it("增量链：有存疑 → 与整卷报告同一套文案（哪一项 + 一句原因）", () => {
-        const dict: Record<string, string> = {
-            jevQcSuspect: "存疑",
-            jevQcHeadCount: "（已判定 {n} 块）：",
-            jevQcClear: "明确有问题",
-            jevQcDerive: "推不出",
-        };
-        const t = (k: string): string => dict[k] ?? k;
-        const sum = chunkQcSummary(t, {
-            reports: [{ index: 2, report: { checked: 3, suspects: [{ reason: "derive", clear: true, items: [] }] } }],
-            suspectChunks: 1,
-            checkedChunks: 5,
-        });
-        expect(sum).toBe("存疑（已判定 5 块）：明确有问题（推不出）"); // 与整卷同一套文案
-        expect(sum).not.toContain("{n}");
     });
 });
