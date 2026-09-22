@@ -152,18 +152,6 @@ export function qcSummary(t: (k: string) => string, report: JevQcReport): string
     return `${head}${list.map((s) => suspectLabel(t, s)).join("；")}`;
 }
 
-/* ── 增量（逐块）质检 ── */
-
-/** 增量链的判定合计（逐块判、逐块回落）。 */
-export interface JevQcChunkSummary {
-    /** 逐块报告（只收**判出存疑**的块，顺序即块序）。 */
-    reports: { index: number; report: JevQcReport }[];
-    /** 有存疑的块数。 */
-    suspectChunks: number;
-    /** 已判定成功的块数（失败/未启用不计）。 */
-    checkedChunks: number;
-}
-
 /* ── 判定（主入口） ── */
 
 /** 单批判定的入参（纯数据，调用方把整批题目 + 材料原文交进来）。 */
@@ -303,17 +291,4 @@ export async function checkBatch(opts: CheckBatchOpts): Promise<JevQcReport> {
         suspects.push({ reason: K_QUALITY, clear: true, items: [] });
     }
     return body();
-}
-
-/**
- * 增量链的存疑汇总（**与整卷报告同一套文案**：`qcSummary` 是唯一组装点）。
- *
- * 把逐块报告并成一份：判定题数累加、存疑项去重（同一毛病在多块出现，
- * 只说一次）。无存疑时给 `null`（**增量链零 Jev 痕迹**是硬口径：没 key /
- * 没踩雷的两条路径，用户看到的文案必须与改造前逐字一致）。
- */
-export function chunkQcSummary(t: (k: string) => string, sum: JevQcChunkSummary): string | null {
-    const suspects = sum.reports.flatMap((c) => c.report.suspects);
-    if (dedupeSuspects(suspects).length === 0) return null;
-    return qcSummary(t, { checked: sum.checkedChunks, suspects });
 }

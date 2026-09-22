@@ -178,7 +178,7 @@ describe("预筛判定（screenChunks）", () => {
     });
 
     it("⚠️ 空 key 且**空白片夹在中间**：结论仍按位序落位（不许按 key 归并）", async () => {
-        // 真机口径：`ConvertIncrement` 与 `ScreenAcc` 都传空 key（`key: ""`）——
+        // 真机口径：整卷链的 `ScreenAcc` 传空 key（`key: ""`）——
         // 按 key 归并会把「空白片的未判定」与「真判定的跳过」错配到别的片，
         // 表现为「报告说跳了 1 片，实际跳的是另一片（真没料的片照样烧生成调用）」。
         const withBlank: ScreenItem[] = [

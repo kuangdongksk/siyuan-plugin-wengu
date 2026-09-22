@@ -101,8 +101,6 @@ vi.mock("../../../ai/client", () => ({
 }));
 
 import { convertDocBatched } from "../run/ConvertBatch";
-import { convertIncremental } from "../run/ConvertIncrement";
-import { SetWriter } from "../output/SetWriter";
 
 function newBank(): QuestionBank {
     let cache: BankData | undefined;
@@ -213,117 +211,5 @@ describe("转换族面板「停止」接线（Issue #72）", () => {
             onProgress: () => ctl.abort(),
         });
         expect(r.status).toBe("aborted");
-    });
-});
-
-/**
- * 增量重转换的同一根线（Issue #72 验收 3）：增量不由 ConvertRun 起
- *（DocOps 的「重新导入」直接调它），拿不到 startExclusiveConvertRun 的
- * controller 内部句柄——故它自建中止源，面板「停止」经 aiStopHandle
- * 接上后逐块与块间都退出、已入库部分保留（重跑分类自愈）。
- */
-describe("增量重转换面板「停止」接线", () => {
-    it("逐块检查 onSid 接线：点停即停整条补生成（不是只断当前这块 AI）", async () => {
-        const bank = newBank();
-        const writer = new SetWriter(bank);
-        const setId = await writer.openSet({ title: "测试集", srcId: "src-1", hPath: "/测试集" });
-        await bank.flush();
-        const chunks = [
-            { key: "H:第1章/#0", hash: "h1", offset: 0, text: "块内容一".repeat(40) },
-            { key: "H:第1章/#1", hash: "h2", offset: 100, text: "块内容二".repeat(40) },
-            { key: "H:第1章/#2", hash: "h3", offset: 200, text: "块内容三".repeat(40) },
-        ];
-        const stops: Array<() => void> = [];
-        // AI 替身：第一笔落库后回调里点停（模拟用户在看面板时点「停止」）
-        const onProgress = (): void => {
-            const last = [...ai.registry.values()].pop();
-            if (last && stops.length === 0) {
-                stops.push(last);
-                last();
-            }
-        };
-        const res = await convertIncremental({
-            deleteQids: [],
-            staleQids: [],
-            chunks,
-            setId,
-            bank,
-            title: "测试集",
-            modelId: "m",
-            fillToChoice: false,
-            bigToSteps: false,
-            onProgress,
-        });
-        expect(ai.calls).toBeGreaterThan(0);
-        expect(ai.noSid).toBe(0); // 每笔都进了登记簿
-        expect(stops.length).toBe(1);
-        expect(res.aborted).toBe(true); // 走既有中止自愈收口
-        expect(res.added).toBeLessThan(chunks.length); // 未跑完剩余块
-    });
-});
-
-/**
- * 增量链的 `group=prev` 悬空计数（Issue #148 同款兜底）：增量逐块生成，
- * 块间可能因源结构（块级切分把「文章」与「题目」切成两块）出现「小题块
- * 先到、材料块后到」——SetWriter 不写坏 group、读侧不悬空，但共享原文
- * 缺失要能**被点到名**，否则用户只看到「题目分开了」。
- *
- * 本用例把 AI 替身换成「整卷只回 group=prev 的小题、从不回材料块」，
- * 走真 `convertIncremental` 链，断言 `danglingGroups` 如实计数。
- */
-describe("增量链 · 悬空 group=prev 计数（Issue #148）", () => {
-    it("AI 只回 group=prev 小题、从不回材料块：计数逐块累加", async () => {
-        const bank = newBank();
-        const setId = await new SetWriter(bank).openSet({ title: "真题卷" });
-        // 仅本用例临时换替身：材料块缺席 ⇒ 每道 prev 小题都该计入悬空
-        const { agentChatOnce } = await import("../../../ai/client");
-        const prevReply = [
-            "CAN_CONVERT: yes",
-            "REASON: 真题",
-            "@@Q type=cloze group=prev",
-            "@@P stem",
-            "According to the passage, the author suggests that（ ）",
-            "@@P slot-opt",
-            "选项甲",
-            "@@P slot-opt",
-            "选项乙",
-            "@@P slot-ans",
-            "A",
-            "@@END",
-        ].join("\n");
-        // 全部调用都回同一份「无材料块的 prev 小题」回复（两块的替换一致）
-        // agentChatOnce 回**回复字符串本体**（reply 包装在 makeKnowAwareAi 里）
-        vi.mocked(agentChatOnce).mockImplementation(
-            async (
-                _m: string,
-                _id: string,
-                _to: number,
-                _sig?: AbortSignal,
-                track?: { onSid?: (s: string) => void }
-            ) => {
-                ai.calls++;
-                track?.onSid?.("sid-" + ai.calls);
-                return prevReply as never;
-            }
-        );
-        const chunks = [
-            { key: "H:Text1/#0", hash: "h1", offset: 0, text: "文章正文段落。".repeat(40) },
-            { key: "H:Text1/#1", hash: "h2", offset: 100, text: "真题题干段落。".repeat(40) },
-        ];
-        const res = await convertIncremental({
-            deleteQids: [],
-            staleQids: [],
-            chunks,
-            setId,
-            bank,
-            title: "真题卷",
-            modelId: "m",
-            fillToChoice: false,
-            bigToSteps: false,
-        });
-        expect(res.added).toBeGreaterThan(0);
-        expect(res.danglingGroups).toBe(res.added); // 无一挂上材料：全部降级
-        // 落库侧不悬空：记录不带 group（读侧按独立题渲染，不是坏指针）
-        for (const r of Object.values((await bank.all()).records)) expect(r.group).toBeUndefined();
     });
 });

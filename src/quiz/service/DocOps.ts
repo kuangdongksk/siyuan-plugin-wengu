@@ -1,17 +1,12 @@
 import { errText } from "./../../ui/shared";
-import { showStatus, startConvertForView, convertRunEventsFor } from "../../convert";
-import { convertRunActive, startExclusiveConvertRun, type ConvertRunCfg } from "../../convert/service/run/ConvertRun";
+import { showStatus, startConvertForView } from "../../convert";
+import { convertRunActive, type ConvertRunCfg } from "../../convert/service/run/ConvertRun";
 import { extractBlockId, getDocInfo } from "../../convert/service/core/ConvertService";
+import { isBlankSource } from "../../convert/service/run/ConvertBatch";
 import { KernelBlock } from "../../siyuan/block";
-import { classifyChunks, isHeadingOnlyChunk, type SrcGroup } from "../../convert/service/source/SrcChunk";
-import { convertIncremental, sourceChunksOf } from "../../convert/service/run/ConvertIncrement";
-import { refineKeepOldChoice } from "../../convert/service/run/ConvertChangeScreen";
-import { chunkQcSummary } from "../../ai/jev/convertChecks";
-import { isJevEnabled } from "../../ai/jev/enabled";
-import { openIncrementDialog, type IncrementChoice } from "../../convert/ui/IncrementDialog";
-import { readRecordSrcGroups, removeRecords } from "../../bank/data/BankSets";
+import { removeRecords } from "../../bank/data/BankSets";
 import { planReimportBySegs, qidsFromOffset, segViewOf } from "../../convert/service/source/SetSegments";
-import { aiTitle, esc, fmt } from "../../ui/shared";
+import { fmt } from "../../ui/shared";
 import { notifyInfo } from "../../ui/Notify";
 import type { QuizView } from "../index";
 
@@ -106,24 +101,25 @@ export function reimportCfg(
 
 /**
  * 「重新导入」＝哈希检测优先，而非无条件全量重转：
- * 0. **增量重转换**（增量哈希二期）：题集记录带 src-hash 指纹即走——
- *    重新结构切块比对三态分类，**先弹检测摘要/逐块清单让用户过目**
- *    （哪些要补、哪些保留；省费模式 convertKeepOld 只出摘要），相同块
- *    跳过（保原题与刷题统计）、新增补生成、变更/消失逐块选。中止后
- *    已入库记录自带指纹，重跑分类即跳过（自愈，无续跑记录负担）。
- *    该分支优先于续跑记录——指纹自愈已取代偏移断点，陈旧进度记录
- *    留着会让「继续生成」重复生成已补块（清掉）。
- * 1. 指纹缺失（存量旧题集）且配对源讲义查得到续跑记录（prefs
- *    convertProgress）→ 接着断点续写同一题集（已生成部分是题库真实
- *    记录，随取随用，无读回步骤）。
- * 2. 完全没有续跑记录 → 清旧题集数据后从头重转（新题集）。
+ * 1. 有续跑记录（prefs convertProgress）→ 接着断点续写**同一题集**
+ *    （已生成部分是题库里的真实记录，不重复生成、不重复花费）。
+ * 2. 无记录 → 走源级凭据判定 `planReimportBySegs`（Issue #74、段表口径）：
+ *    整篇哈希命中 = **零动作**（不删不烧）；段表在且比对出失配 = 删失配段
+ *    起的记录后从该段续转；两者皆无（存量/无凭据）= 现状行为整卷重转。
+ *
+ * ⚠️ 判定顺序三条不许挪（见 `.agents/memory/convert.md`）：有记录优先于
+ * 「源未变更」短路，且「无段表不认整篇哈希」（凭据缺失宁多烧不漏转）。
+ *
+ * 旧代 `H:` 结构切块增量链（三态分类 + 逐块选弹窗 + 省费模式设置项）已于
+ * 20260922（Issue #212）整体删除——旧代存量题集已不存在，残余若真存在也
+ * 只是「无 `segs`」这一支，退化为整卷重转，无数据风险。
  */
 export function reimportDocFrom(v: QuizView, setId: string): void {
     void (async () => {
         try {
             await reimportDocFromInner(v, setId);
         } catch (e) {
-            // 增量执行/清旧数据中途抛错：原裸 IIFE 吞成 unhandled rejection
+            // 清旧数据/起跑中途抛错：原裸 IIFE 吞成 unhandled rejection
             showStatus(v.el, errText(e), "err");
         }
     })();
@@ -142,50 +138,41 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
         return;
     }
     const rec = v.convertAccess.convertProgressOf(srcId);
-    const groups = await readRecordSrcGroups(bank, setId).catch((): SrcGroup[] => []);
-    // 逐段自推进生成的题集（20260910 起，批键前缀 A:）：批边界由 AI 决定、
-    // 不可复现，增量三态分类失去确定性依据 → 不走增量，整卷重转
-    // （有续跑记录仍接着断点续写同一题集，无记录则清旧题集重转）
-    const byCursor = groups.some((g) => g.key.startsWith("A:"));
-    // 增量分支（二期）：带确定性结构块指纹的题集按哈希检测续做（优先于断点）
-    if (groups.length > 0 && !byCursor) {
-        if (rec?.setId === setId) v.convertAccess.saveConvertProgress(srcId, undefined);
-        await runIncrementalReimport(v, setId, srcId, groups);
-        return;
-    }
-    // 续跑：保留同一题集接着写（优先级 1，Issue #74——有记录=上次没跑完，
-    // 不做「源未变更」短路、不做段比对）；全量重转：先清旧题集侧数据
+    // 续跑：保留同一题集接着写（优先级 1——有记录=上次没跑完，不做「源未
+    // 变更」短路、不做段比对）
     const resume = reimportResume(rec);
-    if (byCursor && resume) {
+    if (resume) {
         notifyInfo({ key: "notifyReimportCursor" });
         await startReimport(v, srcId, setId, resume);
         return;
     }
     // 逐段题集的源级判定（Issue #74）：整篇哈希命中=零动作；段表在=逐段
     // 比对从第一条失配段起重转；两者皆无（存量）=现状行为（整卷重转）
-    if (byCursor) {
-        const set = (await bank.all()).sets?.[setId];
-        const src = await srcTextOf(srcId);
-        const plan = planReimportBySegs(src, segViewOf(set));
-        if (plan.kind === "unchanged") {
-            // 优先级 2：源没改过 → 零动作（不删、不烧 AI），题集/统计/专题原样
-            showStatus(v.el, v.t("notifyReimportUnchanged"), "ok");
-            return;
-        }
-        if (plan.kind === "partial") {
-            // 优先级 3：删失配段起的记录（含 hashed/专题引用），从该段续转
-            const qids = qidsFromOffset(await bank.all(), setId, plan.deleteFrom);
-            if (qids.length > 0) {
-                await removeRecords(bank, qids);
-                await bank.flush();
-            }
-            showStatus(v.el, fmt(v.t("notifyReimportPartial"), { n: String(plan.keptSegs) }), "muted");
-            await startReimport(v, srcId, setId, { offset: plan.from, setId });
-            return;
-        }
-        // 存量题集：无凭据 → 现状行为（提示 + 整卷重转）
-        notifyInfo({ key: "notifyReimportCursor" });
+    const set = (await bank.all()).sets?.[setId];
+    const src = await srcTextOf(srcId);
+    if (!src) {
+        showStatus(v.el, v.t("convertEmptyDoc"), "err");
+        return;
     }
+    const plan = planReimportBySegs(src, segViewOf(set));
+    if (plan.kind === "unchanged") {
+        // 优先级 2：源没改过 → 零动作（不删、不烧 AI），题集/统计/专题原样
+        showStatus(v.el, v.t("notifyReimportUnchanged"), "ok");
+        return;
+    }
+    if (plan.kind === "partial") {
+        // 优先级 3：删失配段起的记录（含 hashed/专题引用），从该段续转
+        const qids = qidsFromOffset(await bank.all(), setId, plan.deleteFrom);
+        if (qids.length > 0) {
+            await removeRecords(bank, qids);
+            await bank.flush();
+        }
+        showStatus(v.el, fmt(v.t("notifyReimportPartial"), { n: String(plan.keptSegs) }), "muted");
+        await startReimport(v, srcId, setId, { offset: plan.from, setId });
+        return;
+    }
+    // 存量题集：无凭据 → 现状行为（提示 + 整卷重转）
+    notifyInfo({ key: "notifyReimportCursor" });
     await startReimport(v, srcId, setId, undefined);
 }
 
@@ -230,170 +217,16 @@ async function startReimport(
 async function srcTextOf(srcId: string): Promise<string> {
     try {
         const kd = await KernelBlock.kramdown(extractBlockId(srcId));
-        return String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
+        const text = String((kd.data as { kramdown?: string } | null)?.kramdown ?? "").replace(
             /^\s*(?:>\s*)?\{:([^}\n]*)\bid="[^"]*"[^\n]*$/gm,
             ""
         );
+        // 源文档被清空/只剩属性行与空围栏：走转换链的同一判空口径直接报
+        // 「文档内容为空」（否则整卷重转跑到 ConvertBatch 才失败——那一步
+        // 已经把旧题集清掉了，用户看到的是「题没了 + 一句空文档」）。
+        // 纯读侧判空，不改转换链本体。
+        return !text.trim() || isBlankSource(text) ? "" : text;
     } catch (_) {
         return "";
     }
-}
-
-/**
- * 增量重转换分支（二期）：源文档重新结构切块 → 与题集旧分组三态分类。
- * 全部相同=零成本收口；有变更时弹**检测弹窗**（省费模式 convertKeepOld
- * 只出摘要不出逐块清单，选择口径同全保留），检测结果必须先过目再执行。
- * 执行占独占运行槽（页内转换条呈现进度、可停止），产物直写题库
- * （SetWriter）+ 视图重载；终态点明零产物块数（无可转内容的块无指纹，
- * 每次重导都会重算为新增，须让用户看到这笔账）。
- */
-async function runIncrementalReimport(v: QuizView, setId: string, srcId: string, groups: SrcGroup[]): Promise<void> {
-    const t = v.t;
-    const bank = v.bankStore();
-    if (!bank) return;
-    let chunks;
-    try {
-        // 纯标题块零内容零产物：前置滤掉，不进分类与弹窗（无指纹会永远
-        // 重算为「新增」，摘要数字失真）
-        chunks = (await sourceChunksOf(srcId)).filter((c) => !isHeadingOnlyChunk(c.text));
-    } catch (e) {
-        showStatus(v.el, errText(e), "err");
-        return;
-    }
-    if (chunks.length === 0) {
-        showStatus(v.el, t("convertEmptyDoc"), "err");
-        return;
-    }
-    const plan = classifyChunks(groups, chunks);
-    if (plan.fresh.length === 0 && plan.changed.length === 0 && plan.removed.length === 0) {
-        showStatus(v.el, fmt(t("reimportUnchanged"), { n: String(plan.same) }), "ok");
-        return;
-    }
-    const start = (choice: IncrementChoice, note = ""): void => {
-        const cfg = reimportCfg(srcId, v.convertAccess.lastConvert(), v.settingsOf());
-        const ev = convertRunEventsFor(v.convertAccess);
-        const set = bank.peek()?.sets?.[setId];
-        const started = startExclusiveConvertRun(ev, srcId, async (signal) => {
-            ev.onStatus(esc(t("incrPreparing")), "muted");
-            let res;
-            let failed = "";
-            try {
-                res = await convertIncremental({
-                    deleteQids: choice.deleteQids,
-                    staleQids: choice.staleQids,
-                    chunks: choice.chunks,
-                    setId,
-                    bank,
-                    title: set?.title,
-                    modelId: cfg.modelId,
-                    fillToChoice: cfg.fillToChoice,
-                    bigToSteps: cfg.bigToSteps,
-                    knowRoots: cfg.knowRoots,
-                    signal,
-                    onProgress: (p) =>
-                        ev.onStatus(
-                            esc(
-                                fmt(t("incrRunning"), {
-                                    i: String(Math.min(p.done + 1, p.total)),
-                                    n: String(p.total),
-                                    c: String(p.count),
-                                })
-                            ),
-                            "muted"
-                        ),
-                    // 质检设置（Issue #184）：增量链的判定先于落库，失败静默跳过
-                    settingsOf: () => v.settingsOf(),
-                });
-            } catch (e) {
-                failed = errText(e);
-            }
-            // 题库写入由 convertIncremental 逐块 flush；中止/失败已入库
-            // 部分自带指纹，重跑分类即跳过（自愈）
-            if (failed) throw new Error(failed); // 交给运行槽收口为 err 终态
-            // 零产物 + 悬空 group=prev 两段收尾点名（Issue #148：后者静默
-            // 降级会让「题目分开了」重现却无从察觉）
-            // Jev 存疑（Issue #184）：**有存疑才拼这段**，且拼的是「哪一项 +
-            // 一句原因」明细（与整卷报告同一套 `suspectLabel` 口径）——只说
-            // 「N 块存疑」等于没说是什么毛病。无 key / 无踩雷时终态文案与
-            // 改造前逐字一致（增量链的零 Jev 痕迹是硬口径）。
-            const qcDetail = res!.qc ? chunkQcSummary(t, res!.qc) : null;
-            // Jev 预筛跳过（Issue #186 A2）：与 `empty` 分账的一类（后者烧了
-            // 生成调用，前者一次都没烧），零跳过时不追加任何字符。
-            const screenDetail =
-                res!.screened > 0 ? ` ${esc(fmt(t("incrJevScreen"), { n: String(res!.screened) }))}` : "";
-            const tail =
-                note +
-                screenDetail +
-                (res!.empty > 0 ? ` ${esc(fmt(t("incrEmpty"), { n: String(res!.empty) }))}` : "") +
-                (res!.danglingGroups > 0
-                    ? ` ${esc(fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) }))}`
-                    : "") +
-                (qcDetail ? ` ${esc(qcDetail)}` : "");
-            ev.onStatus(
-                esc(
-                    fmt(res!.aborted ? t("incrAborted") : t("incrDone"), {
-                        a: String(res!.added),
-                        d: String(res!.deleted),
-                        s: String(res!.staled),
-                    })
-                ) + tail,
-                res!.aborted ? "muted" : "ok",
-                true
-            );
-            if (!res!.aborted)
-                notifyInfo(
-                    fmt(t("incrDone"), {
-                        a: String(res!.added),
-                        d: String(res!.deleted),
-                        s: String(res!.staled),
-                    }) +
-                        (res!.screened > 0 ? ` ${fmt(t("incrJevScreen"), { n: String(res!.screened) })}` : "") +
-                        (res!.empty > 0 ? ` ${fmt(t("incrEmpty"), { n: String(res!.empty) })}` : "") +
-                        (res!.danglingGroups > 0
-                            ? ` ${fmt(t("incrGroupDangling"), { n: String(res!.danglingGroups) })}`
-                            : "") +
-                        // Jev 存疑明细（Issue #184）：与状态条同源，用户切走了也看得见
-                        (qcDetail ? ` ${qcDetail}` : "")
-                );
-            await v.reloadView();
-        });
-        if (!started) showStatus(v.el, t("convertBusy"), "err");
-    };
-    // 省费模式 + 有变更块时挂精修（Issue #186 A3）：把实质变更的块从
-    // 「保留旧题」改判成「重转」。**非省费不挂**（用户要全量就全量）。
-    // ⚠️ **未启用 Jev（无 key / 总开关关）也不挂**：`judgeChanges` 无 key 时
-    // 一律回「全部当实质」，挂上去就是「删旧记录 + 重转全部变更块」——无 key
-    // 必须零行为变化（Issue #186 验收 1），且删记录不可逆。故闸按**能力**
-    // 判（`isJevEnabled`），**不按判定结果**判：key 已配但调用失败/缺值仍走
-    // 判定层口径（拿不准＝当实质＝重出，用户 20260921 已确认，勿再翻案）。
-    const compact = v.settingsOf()?.convertKeepOld === true;
-    const refineOn = isJevEnabled(v.settingsOf());
-    /** 题集名（判定登记的标题用；懒读——详情盘可能还没装载）。 */
-    const setTitle = (): string => bank.peek()?.sets?.[setId]?.title ?? "—";
-    const refine = async (base: IncrementChoice): Promise<{ choice: IncrementChoice; note?: string }> => {
-        const { choice, summary } = await refineKeepOldChoice(plan, base, {
-            readOldQuestions: async (blocks) => {
-                const data = await bank.all();
-                return blocks.map((qid) => data.records[qid]?.kramdown ?? "").join("\n\n");
-            },
-            apiKey: v.settingsOf()?.jevKey,
-            // 会话登记（Issue #201）：变更判定落面板（标题带题集名，
-            // 与增量链的质检/预筛同族）
-            track: { title: aiTitle(t, "aiTitleJevChange", { name: setTitle() }) },
-        });
-        // 一句报告尾巴（零实质/未判定时为空串 ⇒ 不精修就是不追加）
-        const note =
-            summary.substantive > 0
-                ? ` ${esc(fmt(t("jevChangeSubstantive"), { n: String(summary.substantive) }))}`
-                : "";
-        return { choice, note };
-    };
-    openIncrementDialog({
-        t,
-        plan,
-        total: chunks.length,
-        compact,
-        ...(compact && refineOn && plan.changed.length > 0 ? { refine } : {}),
-        onConfirm: start,
-    });
 }

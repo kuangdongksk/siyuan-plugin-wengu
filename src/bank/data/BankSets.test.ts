@@ -11,7 +11,6 @@ import {
     originDocIdOf,
     peekSetSubject,
     qidHasBlock,
-    readRecordSrcGroups,
     removeRecords,
     setDocsView,
     setQuestions,
@@ -125,8 +124,8 @@ describe("setDocsView", () => {
     });
 });
 
-describe("setQuestions / readRecordSrcGroups / 删标", () => {
-    it("按 set.qids 序解析并覆盖统计；指纹分组按 srcHash 归组；删/标同步清题单", async () => {
+describe("setQuestions / 删标", () => {
+    it("按 set.qids 序解析并覆盖统计；删/标同步清题单", async () => {
         const kd = renderUnit({
             material: false,
             attrs: { type: "single", knowledge: "极限" },
@@ -147,9 +146,6 @@ describe("setQuestions / readRecordSrcGroups / 删标", () => {
         expect(list.map((q) => q.id)).toEqual(["q2", "q1"]);
         expect(list[0]).toMatchObject({ type: "single", stemMd: "题干", rootId: "s1", knowledge: "极限" });
         expect(list[0].optionMd).toEqual(["- A. 甲", "- B. 乙"]); // 字母由渲染层自动编（optionDisplayMd 再剥）
-
-        const groups = await readRecordSrcGroups(bank, "s1");
-        expect(groups).toEqual([{ key: "H:a/b", hash: "hh-1", blocks: expect.arrayContaining(["q2", "q1"]) }]);
 
         await staleRecords(bank, ["q1"]);
         expect(read().records.q1.srcStale).toBe("1");

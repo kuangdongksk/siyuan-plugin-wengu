@@ -6,7 +6,6 @@ import { Attr, GROUP_PREV, MATERIAL_FLAG } from "../../siyuan/attrs";
 import { parseQuestionKramdown, parseMaterialKramdown } from "./BankParse";
 import type { ParsedQuestion } from "./BankParse";
 import type { BankData, QuestionBank, BankSet } from "./QuestionBank";
-import type { SrcGroup } from "../../convert/service/source/SrcChunk";
 import type { WenguDoc, WenguMaterial } from "../../types";
 
 /**
@@ -370,23 +369,6 @@ export async function setDocsView(bank: QuestionBank): Promise<WenguDoc[]> {
         .sort((x, y) => y.total - x.total);
 }
 
-/** 读题集记录里的源块分组（增量重转换的旧方，替代 attributes 表查询；
- *  同 src-hash 的题归一组，键取组内任一）。 */
-export async function readRecordSrcGroups(bank: QuestionBank, setId: string): Promise<SrcGroup[]> {
-    const data = await bank.all();
-    const byHash = new Map<string, SrcGroup>();
-    for (const r of Object.values(data.records)) {
-        if (r.sourceDocId !== setId || !r.srcHash) continue;
-        let g = byHash.get(r.srcHash);
-        if (!g) {
-            g = { key: r.srcKey ?? "", hash: r.srcHash, blocks: [] };
-            byHash.set(r.srcHash, g);
-        }
-        if (!g.blocks.includes(r.qid)) g.blocks.push(r.qid);
-    }
-    return [...byHash.values()];
-}
-
 /** 删除一批记录（增量重转换「消失/重生成」的删旧；set.qids/影子专题/
  *  专题引用/哈希索引同步清，材料正文不动——孤儿材料无消费面，无害）。 */
 export async function removeRecords(bank: QuestionBank, qids: string[]): Promise<void> {
@@ -411,7 +393,9 @@ export async function removeRecords(bank: QuestionBank, qids: string[]): Promise
     bank.markDirty();
 }
 
-/** 给一批记录打 src-stale（增量重转换「保留旧题」动作）。 */
+/** 给一批记录打 src-stale（值是 `"1"`，字段说明见 `BankRecord.srcStale`）。
+ *  ⚠️ 旧代增量重转换的调用方已退役（Issue #212），本函数保留：`srcStale`
+ *  是落盘字段（存量数据仍在），清点/维护侧仍可用；新代码别把它接回重导链。 */
 export async function staleRecords(bank: QuestionBank, qids: string[]): Promise<void> {
     const data = await bank.all();
     let n = 0;
