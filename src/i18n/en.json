@@ -635,7 +635,7 @@
   "notifyOutlineAutoNone": "Auto-indexing after import: nothing to outline ({k} empty docs skipped)",
   "notifyConvertDone": "Conversion finished: {n} questions",
   "notifyConvertFail": "Conversion failed: {msg}",
-  "notifyReimportCursor": "This set was generated segment-by-segment (batch boundaries are AI-decided and not reproducible) — re-import runs a full re-conversion",
+  "notifyReimportResume": "Previous conversion didn't finish — resuming from the breakpoint into the same set",
   "notifyReimportUnchanged": "Source unchanged — this set is already up to date",
   "notifyReimportPartial": "Source changed — kept the first {n} segments, continuing from the changed part",
   "notifyModelFallback": "The selected model is no longer valid — fell back to \"{name}\" for this call",
