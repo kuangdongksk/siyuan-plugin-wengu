@@ -100,7 +100,7 @@ export function planOptionRepair(kd: string, rng: () => number = Math.random): O
         return { kind: "none" };
     if (optCount >= 2) return { kind: "none" }; // 健康
     if (!optBlock) return { kind: "regen", reason: optCount === 0 ? "noopts" : "one" };
-    // 丢块间空行（与 unpackPackedSingle 同口径：空行不承载选项）
+    // 丢块间空行（与 OptionUnpack.unpackPackedOptions 同口径：空行不承载选项）
     const raw = lines.slice(optBlock.from, optBlock.ial).filter((l) => l.trim());
     const label = ITEM_LABEL.exec(raw[0] ?? "");
     if (!label) return { kind: "regen", reason: optCount === 0 ? "noopts" : "one" };
