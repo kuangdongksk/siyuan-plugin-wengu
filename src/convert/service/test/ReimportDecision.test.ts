@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { BankData, QuestionBank } from "../../../bank/data/QuestionBank";
 import { QuestionBank as Bank } from "../../../bank/data/QuestionBank";
 import { hashContent, planReimportBySegs, type SetSeg } from "../source/SetSegments";
+import { read } from "../../../testkit/readSource";
 
 /** 真 queue 链（runBatchQueue → refreshSetHash）需要的内核/AI 替身：源文档
  *  读回 DOC（与题集记着的哈希同源），AI 出口给合法的空结果（本用例只锁
@@ -34,9 +35,10 @@ const DOC_ID = "20260914000000-abcdefg";
 const DOC = ["# 第一章", "内容甲内容甲内容甲", "内容乙内容乙内容乙", "内容丙内容丙内容丙"].join("\n");
 src.text = DOC;
 
-function segTable(): SetSeg[] {
-    // 模拟每批 flush：段首尾相接覆盖已落库游标
-    const ends = [8, 17, 26];
+function segTable(ends: number[] = [8, 17, DOC.length]): SetSeg[] {
+    // 模拟每批 flush：段首尾相接覆盖已落库游标。
+    // ⚠️ 末段须贴到源末才构成「整篇已转完」（Issue #208 起 unchanged 的
+    // 必要条件）——本用例的「未变更零动作」场景都建在覆盖全文的段表上
     const out: SetSeg[] = [];
     let s = 0;
     for (const e of ends) {
@@ -46,10 +48,13 @@ function segTable(): SetSeg[] {
     return out;
 }
 
+/** 「转了一半」的段表（只覆盖前缀）：Issue #208 的病灶形态。 */
+const halfTable = (): SetSeg[] => segTable([8, 17]);
+
 /* ── 真 queue 链替身（runBatchQueue 逐篇自查续跑；runSingleDoc 整体 mock
  * 掉 convertDocBatched，本用例只锁「起跑前的凭据校正」） ── */
 const plan = new Map<string, (docId: string) => Promise<unknown>>();
-vi.mock("../../run/ConvertBatch", async (importOriginal) => {
+vi.mock("../run/ConvertBatch", async (importOriginal) => {
     const orig = await importOriginal<typeof import("../run/ConvertBatch")>();
     return {
         ...orig,
@@ -72,7 +77,7 @@ vi.mock("../../run/ConvertBatch", async (importOriginal) => {
 });
 
 import { convertRunActive, startConvertRun, type ConvertRunCfg, type ConvertRunEvents } from "../run/ConvertRun";
-import type { ConvertProgressRecord } from "../run/ConvertBatch";
+import { convertDocBatched, type ConvertProgressRecord } from "../run/ConvertBatch";
 
 const done = (docId: string): unknown => ({
     status: "done",
@@ -182,9 +187,96 @@ describe("重导判定次序（续跑记录优先于未变更短路）", () => {
         expect(decide(undefined, changed, set)).toBe("partial");
     });
 
+    it("②' 无记录 + 整篇哈希命中但段表只覆盖前缀（半成品）→ partial 续转，不短路（Issue #208）", () => {
+        // 真机病灶：长文档转 6 批后失败，重导报「源未变更，题集已是最新」
+        const half = { srcContentHash: hashContent(DOC), segs: halfTable() };
+        expect(decide(undefined, DOC, half)).toBe("partial");
+        expect(planReimportBySegs(DOC, half)).toEqual({
+            kind: "partial",
+            from: 17,
+            deleteFrom: 17,
+            keptSegs: 2,
+        });
+    });
+
     it("④ 无记录 + 无 segs（存量）→ 现状整卷重转", () => {
         expect(decide(undefined, DOC, { srcContentHash: set.srcContentHash })).toBe("full");
         expect(decide(undefined, DOC, {})).toBe("full");
+    });
+});
+
+describe("重导续跑不清断点（Issue #208 验收 4：startReimport 的清理只在非续跑路）", () => {
+    it("可选项口径（未做）：aborted 抉择态**不写记录**——记录会与「丢弃」抢跑道", async () => {
+        const src = await read("/src/convert/service/run/ConvertRun.ts");
+        const fn = src.slice(src.indexOf("function settleAborted("));
+        const body = fn.slice(0, fn.indexOf("\n}"));
+        // 抉择态只置 setAborted + 弹二选一，进度记录留到 keep/discard 落定才写
+        expect(body).toContain("setAborted(");
+        expect(body).not.toContain("saveProgress");
+    });
+
+    /** DocOps 的 startReimport 走内核 IO（bank/历史/视图重载）无法直测，故此处
+     *  以**源级形态**锁它的清理分支：进度记录的删除必须在 `!resume` 块**内**。
+     *  改 DocOps 时这里同步改，是刻意的口径锁（同本文件上方 decide 的做法）。 */
+    it("saveConvertProgress(…, undefined) 落在 !resume 块内：续跑起跑不先毁断点", async () => {
+        const src = await read("/src/quiz/service/DocOps.ts");
+        const fn = src.slice(src.indexOf("async function startReimport("));
+        const block = fn.slice(0, fn.indexOf("await v.reloadView()"));
+        const clear = block.indexOf("saveConvertProgress(srcId, undefined)");
+        const guard = block.indexOf("if (!resume) {");
+        expect(clear).toBeGreaterThan(-1);
+        // 清理必须被 !resume 块**包住**：清点位于 guard 之后、且两行间距仍在块内
+        expect(guard).toBeGreaterThan(-1);
+        expect(clear).toBeGreaterThan(guard);
+        const between = block.slice(guard, clear);
+        expect(between).toContain("removeDocData(setId)"); // 同块内的清旧题集侧数据
+        expect(between.split("}").length - 1).toBe(0); // 清点之前块还没闭合
+    });
+});
+
+describe("队列续跑篇的段表对账（Issue #208 验收 2 · 防丢数据面）", () => {
+    it("记录偏移落后于段表末段：续跑篇起跑不重转已落库时段，旧题一条不丢", async () => {
+        const { bank } = newBank();
+        const data = await bank.all();
+        data.sets = {
+            "set-1": {
+                id: "set-1",
+                title: "卷",
+                srcId: DOC_ID,
+                qids: [],
+                createdAt: 0,
+                srcContentHash: hashContent(DOC),
+                segs: segTable([8, DOC.length]),
+            },
+        };
+        // 记录偏移落后（旧检查点残留）：段表说已到源末，记录说才到 8
+        records.set(DOC_ID, { setId: "set-1", title: "卷", offset: 8, batches: 1, total: 1, count: 2 });
+        const got: { offset?: number }[] = [];
+        plan.set(DOC_ID, async (id) => done(id));
+        const { ev } = events();
+        // 真 runBatchQueue → 真 runSingleDoc → mock 的 convertDocBatched：
+        // 从它的实参侧观测「队列透传的游标」（对账发生在批次层 resumeCursorOf）
+        const batched = vi.mocked(convertDocBatched);
+        startConvertRun({ ...cfg, subDocs: [{ id: DOC_ID, title: "卷" }] }, ev);
+        await vi.waitFor(() => expect(convertRunActive()).toBe(false));
+        expect(batched.mock.calls.length).toBe(1);
+        for (const [, opts] of batched.mock.calls) if (opts.resume) got.push({ offset: opts.resume.offset });
+        // 队列把记录原值原样透传（对账发生在批次层 `resumeCursorOf`）——
+        // 上游这一段的契约在此锁死：**落后偏移必须落到 convertDocBatched 手里**
+        expect(got).toEqual([{ offset: 8 }]);
+        // 源未改 ⇒ 凭据（哈希 + 段表）原样保留（对账可用），旧题记录不受影响
+        expect(data.sets["set-1"].srcContentHash).toBe(hashContent(DOC));
+        expect(data.sets["set-1"].segs?.length).toBe(2);
+    });
+});
+
+describe("防丢数据行为锁（Issue #208 病灶链的代码形状）", () => {
+    it("applySubmit 每批落库就写整篇哈希 —— 正是「半成品带全篇凭据」的来源", async () => {
+        const src = await read("/src/convert/service/run/ConvertBatch.ts");
+        expect(src).toContain("segSet.srcContentHash = hashContent(kramdown)");
+        // 断了这条链的下游：unchanged 短路必须再要一个「段表覆盖全文」
+        const seg = await read("/src/convert/service/source/SetSegments.ts");
+        expect(seg).toContain("segs[segs.length - 1].e >= src.length");
     });
 });
 

@@ -112,8 +112,12 @@ describe("planReimportBySegs（重导判定决策矩阵）", () => {
         segs: segsOf(SRC, ends),
     });
 
-    it("① 全部命中（整篇哈希相同）→ 零动作", () => {
-        expect(planReimportBySegs(SRC, set())).toEqual({ kind: "unchanged" });
+    it("① 全部命中（整篇哈希相同 + 段表覆盖全文）→ 零动作", () => {
+        // 段表须覆盖到源末（Issue #208 起的必要条件）：末尾补一段贴到 SRC.length
+        const s = set();
+        s.segs = segsOf(SRC, [...ends, SRC.length]);
+        expect(s.segs[s.segs.length - 1].e).toBe(SRC.length);
+        expect(planReimportBySegs(SRC, s)).toEqual({ kind: "unchanged" });
     });
 
     it("② 第 k 段失配 → 从该段起点起重转（k=1）", () => {
@@ -132,6 +136,47 @@ describe("planReimportBySegs（重导判定决策矩阵）", () => {
             deleteFrom: 0,
             keptSegs: 0,
         });
+    });
+
+    it("①' 段表只覆盖前缀（半成品题集）+ 整篇哈希命中 → partial 续转，**不得** unchanged（Issue #208）", () => {
+        const s = set();
+        // 模拟「转到第 k 批就失败」：分段边界表只覆盖 [0, 36)，
+        // 但整篇哈希已按**整篇源文**写进题集（每批落库就写，非成功收口才写）
+        const cut = s.segs![1].e; // 36/2 = 18 一带
+        s.segs = segsOf(SRC, [cut]);
+        const tail = s.segs[s.segs.length - 1].e;
+        expect(s.srcContentHash).toBe(hashContent(SRC)); // 凭据确实命中（病灶前提）
+        expect(tail).toBeLessThan(SRC.length); // 段表确实没覆盖到源末
+        // 源一字未动 ⇒ 原先会命中断路报「无需重转」，题集永远补不齐
+        expect(planReimportBySegs(SRC, s)).toEqual({
+            kind: "partial",
+            from: tail,
+            deleteFrom: tail,
+            keptSegs: 1,
+        });
+        expect(planReimportBySegs(SRC, s)).not.toEqual({ kind: "unchanged" });
+    });
+
+    it("①'' 段表末段 e 恰等于源长（整篇转完）→ 仍走 unchanged 零动作", () => {
+        // 边界：覆盖判据是 `>= src.length`，末段刚好贴到源末即算覆盖全文
+        const s = set();
+        s.segs = segsOf(SRC, [12, SRC.length]);
+        expect(s.segs[s.segs.length - 1].e).toBe(SRC.length);
+        expect(planReimportBySegs(SRC, s)).toEqual({ kind: "unchanged" });
+    });
+
+    it("①''' 段表覆盖越出源末（源被删短但哈希仍命中，理论态）→ 也认覆盖", () => {
+        const s = set();
+        s.segs = segsOf(SRC, [12, SRC.length + 8]);
+        expect(planReimportBySegs(SRC, s)).toEqual({ kind: "unchanged" });
+    });
+
+    it("①'''' 段表只覆盖前缀 + 源已改 → 仍按逐段比对定位失配段（覆盖条件不改段比对）", () => {
+        const s = set();
+        s.segs = segsOf(SRC, [24]); // 未覆盖全文
+        // 第 2 段 [24,46) 里改字（长度不变）⇒ 它就是第一条失配段，起点即重转起点
+        const changed = SRC.replace("第2题 求导", "第2题 求极限");
+        expect(planReimportBySegs(changed, s)).toEqual({ kind: "partial", from: 24, deleteFrom: 24, keptSegs: 1 });
     });
 
     it("③ 文末追加（全段命中但整篇哈希不同）→ 从末段 e 续转，一段不删", () => {
@@ -195,10 +240,14 @@ describe("planReimportBySegs（重导判定决策矩阵）", () => {
         expect(planReimportBySegs(changed, s)).toEqual({ kind: "partial", from: 0, deleteFrom: 0, keptSegs: 0 });
     });
 
-    it("空白扰动不算变更（同一段原文的边界空白不误报失配）", () => {
+    it("空白扰动不算变更（段内空白折叠：段哈希命中 → 从段表末段续转，不误报失配）", () => {
+        // 段内多出的空格变长了源（段表覆盖不到源末）⇒ 覆盖条件不成立，落回
+        // 段比对；逐段哈希**空白折叠后**一致 ⇒ 一条不失配，从末段 e 续转
         const s = set();
-        const padded = SRC.replace("第2题 求导", "第2题   求导");
-        expect(planReimportBySegs(padded, s)).toEqual({ kind: "unchanged" });
+        const padded = SRC.replace("第1题 求 \\lim$", "第1题  求 $\\lim$");
+        const plan = planReimportBySegs(padded, s);
+        expect(plan.kind).toBe("partial");
+        expect(plan).toEqual({ kind: "partial", from: 36, deleteFrom: 36, keptSegs: 3 });
     });
 });
 

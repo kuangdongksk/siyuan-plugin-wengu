@@ -6,7 +6,7 @@ import type { QuestionPreview } from "../draft/ConvertDetect";
 import { extractBlockId, getDocInfo } from "../core/ConvertService";
 import { buildNormIndex } from "../source/CursorWindow";
 import { planShards } from "../source/ShardPlan";
-import { advanceSegs, hashContent } from "../source/SetSegments";
+import { advanceSegs, hashContent, resumeCursorOf } from "../source/SetSegments";
 import { applyKnowDrafts } from "../draft/QuestionDraft";
 import { buildKnowledgeIndex } from "../knowledge/KnowledgeLink";
 import type { KnowledgeIndex } from "../knowledge/KnowledgeLink";
@@ -147,15 +147,18 @@ export async function convertDocBatched(
     let setId: string | undefined;
     let cursor = 0;
     if (opts.resume?.setId) {
-        const data = await opts.bank.all();
-        if (data.sets?.[opts.resume.setId]) {
+        const set = (await opts.bank.all()).sets?.[opts.resume.setId];
+        if (set) {
             setId = await writer.openSet({
                 setId: opts.resume.setId,
                 title: info.title,
                 srcId: docId,
                 hPath: info.hPath,
             }); // 学科在 openSet 后补（首批报出时题集已在）
-            cursor = Math.max(0, opts.resume.offset);
+            // 与段表对账（Issue #208）：源未变且段表非空时，段表末段 e（已落库
+            // 连续前缀的权威游标）与记录偏移取大——免受旧检查点/异常残留的落伍
+            // 游标拖累重转；源已变（哈希失配）不在此处猜，交给 refreshSetHash。
+            cursor = Math.max(0, opts.resume.offset, resumeCursorOf(set, kramdown));
         }
     }
     // 断点已越过文档末尾（记录残留的完成态/源文档被改短）：按已完成收口
