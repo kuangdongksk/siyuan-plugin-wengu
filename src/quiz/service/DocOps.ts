@@ -142,12 +142,13 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
     // 变更」短路、不做段比对）
     const resume = reimportResume(rec);
     if (resume) {
-        notifyInfo({ key: "notifyReimportCursor" });
+        notifyInfo({ key: "notifyReimportResume" });
         await startReimport(v, srcId, setId, resume);
         return;
     }
     // 逐段题集的源级判定（Issue #74）：整篇哈希命中=零动作；段表在=逐段
-    // 比对从第一条失配段起重转；两者皆无（存量）=现状行为（整卷重转）
+    // 比对从第一条失配段起重转；两者皆无（存量）=现状行为（整卷重转，
+    // 不提示）
     const set = (await bank.all()).sets?.[setId];
     const src = await srcTextOf(srcId);
     if (!src) {
@@ -171,8 +172,7 @@ async function reimportDocFromInner(v: QuizView, setId: string): Promise<void> {
         await startReimport(v, srcId, setId, { offset: plan.from, setId });
         return;
     }
-    // 存量题集：无凭据 → 现状行为（提示 + 整卷重转）
-    notifyInfo({ key: "notifyReimportCursor" });
+    // 存量题集：无凭据 → 现状行为（整卷重转，不提示）
     await startReimport(v, srcId, setId, undefined);
 }
 
